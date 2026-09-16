@@ -114,7 +114,7 @@ mod legacy_fixtures {
     // credentials fail closed.
 
     use async_trait::async_trait;
-    use kiana_domain::RoleSpec;
+    use kiana_domain::{ModelContent, RoleSpec};
     use kiana_runner::{
         ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRequestContext,
         ModelRole, ModelToolCall, ModelUsage, ScriptedModel, UnavailableModel,
@@ -444,7 +444,9 @@ mod legacy_fixtures {
                 .and_then(|m| serde_json::to_vec(&m).ok())
                 .map(|b| b.len())
                 .unwrap_or(usize::MAX);
-            context.tool_schema_bytes = serde_json::to_vec(&map_tools(&request.tools))
+            context.tool_schema_bytes = map_tools(&request.tools)
+                .ok()
+                .and_then(|tools| serde_json::to_vec(&tools).ok())
                 .map(|b| b.len())
                 .unwrap_or(usize::MAX);
             context
@@ -452,7 +454,7 @@ mod legacy_fixtures {
 
         async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
             let messages = map_messages(&request.messages)?;
-            let tools = map_tools(&request.tools);
+            let tools = map_tools(&request.tools)?;
             let context = self.request_context(&request);
             context.budget().validate().map_err(str::to_owned)?;
             let system = Some(json!(context.system_prompt));
@@ -481,7 +483,7 @@ mod legacy_fixtures {
             )
             .await
             .map_err(model_error_from_service_error)?;
-            Ok(output_from_response(&response))
+            output_from_response(&response)
         }
 
         async fn complete_streaming(
@@ -507,7 +509,7 @@ mod legacy_fixtures {
             }
 
             let messages = map_messages(&request.messages)?;
-            let tools = map_tools(&request.tools);
+            let tools = map_tools(&request.tools)?;
             let context = self.request_context(&request);
             context.budget().validate().map_err(str::to_owned)?;
             let system = Some(json!(context.system_prompt));
@@ -843,11 +845,15 @@ mod legacy_fixtures {
             .unwrap_or_else(|| name.to_owned())
     }
 
-    fn map_tools(tools: &[Value]) -> Vec<Value> {
+    fn map_tools(tools: &[Value]) -> Result<Vec<Value>, String> {
         tools
             .iter()
-            .filter_map(|tool| {
-                let name = tool.get("name")?.as_str()?;
+            .map(|tool| {
+                let name = tool
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .filter(|name| !name.trim().is_empty())
+                    .ok_or_else(|| "model_tool_schema_name_missing".to_owned())?;
                 let description = tool
                     .get("description")
                     .and_then(Value::as_str)
@@ -857,7 +863,7 @@ mod legacy_fixtures {
                     .or_else(|| tool.get("parameters"))
                     .cloned()
                     .unwrap_or_else(|| json!({ "type": "object", "properties": {} }));
-                Some(json!({
+                Ok(json!({
                     "name": tool_name_to_wire(name),
                     "description": description,
                     "input_schema": parameters,
@@ -869,24 +875,59 @@ mod legacy_fixtures {
     fn map_messages(messages: &[ModelMessage]) -> Result<Vec<Message>, String> {
         let mut mapped = Vec::new();
         for message in messages {
+            let blocks = message
+                .content_blocks()
+                .map_err(|error| error.to_string())?;
             match message.role {
                 ModelRole::System => {}
-                ModelRole::User => mapped.push(Message {
-                    role: "user".to_owned(),
-                    content: json!(message.text),
-                }),
+                ModelRole::User => {
+                    let mut text = String::new();
+                    for block in blocks {
+                        match block {
+                            ModelContent::Text { text: value } => text.push_str(&value),
+                            ModelContent::AttachmentRef { .. } => {
+                                return Err(
+                                    "unsupported_content_block_fails_before_request".to_owned()
+                                )
+                            }
+                            ModelContent::ProviderOpaque { .. } => {
+                                return Err("opaque_item_cannot_cross_provider".to_owned())
+                            }
+                            _ => return Err("model_content_role_invalid".to_owned()),
+                        }
+                    }
+                    mapped.push(Message {
+                        role: "user".to_owned(),
+                        content: json!(text),
+                    });
+                }
                 ModelRole::Assistant => {
                     let mut content = Vec::new();
-                    if !message.text.is_empty() {
-                        content.push(json!({ "type": "text", "text": message.text }));
-                    }
-                    for call in &message.tool_calls {
-                        content.push(json!({
-                            "type": "tool_use",
-                            "id": call.id,
-                            "name": tool_name_to_wire(&call.name),
-                            "input": call.arguments,
-                        }));
+                    for block in blocks {
+                        match block {
+                            ModelContent::Text { text } => {
+                                content.push(json!({ "type": "text", "text": text }));
+                            }
+                            ModelContent::ToolCall { call } => {
+                                content.push(json!({
+                                    "type": "tool_use",
+                                    "id": call.id,
+                                    "name": tool_name_to_wire(&call.name),
+                                    "input": call.arguments,
+                                }));
+                            }
+                            ModelContent::AttachmentRef { .. } => {
+                                return Err(
+                                    "unsupported_content_block_fails_before_request".to_owned()
+                                )
+                            }
+                            ModelContent::ProviderOpaque { .. } => {
+                                return Err("opaque_item_cannot_cross_provider".to_owned())
+                            }
+                            ModelContent::ToolResult { .. } => {
+                                return Err("model_content_role_invalid".to_owned())
+                            }
+                        }
                     }
                     if content.is_empty() {
                         content.push(json!({ "type": "text", "text": "" }));
@@ -897,16 +938,24 @@ mod legacy_fixtures {
                     });
                 }
                 ModelRole::Tool => {
-                    let tool_use_id = message
-                        .tool_call_id
-                        .clone()
-                        .ok_or_else(|| "tool_result_missing_call_id".to_owned())?;
+                    let ModelContent::ToolResult {
+                        call_id,
+                        content,
+                        is_error,
+                    } = blocks
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| "tool_result_missing_call_id".to_owned())?
+                    else {
+                        return Err("tool_result_missing_call_id".to_owned());
+                    };
                     mapped.push(Message {
                         role: "user".to_owned(),
                         content: json!([{
                             "type": "tool_result",
-                            "tool_use_id": tool_use_id,
-                            "content": message.text,
+                            "tool_use_id": call_id,
+                            "content": content,
+                            "is_error": is_error,
                         }]),
                     });
                 }
@@ -915,9 +964,10 @@ mod legacy_fixtures {
         Ok(mapped)
     }
 
-    fn output_from_response(response: &MessagesResponse) -> ModelOutput {
+    fn output_from_response(response: &MessagesResponse) -> Result<ModelOutput, String> {
         let mut text = String::new();
         let mut tool_calls = Vec::new();
+        let mut seen_tool_ids = std::collections::HashSet::new();
         for block in &response.content {
             match block.get("type").and_then(Value::as_str) {
                 Some("text") => {
@@ -929,24 +979,33 @@ mod legacy_fixtures {
                     let id = block
                         .get("id")
                         .and_then(Value::as_str)
-                        .unwrap_or("tool")
+                        .filter(|id| !id.trim().is_empty())
+                        .ok_or_else(|| "missing_native_tool_identity".to_owned())?
                         .to_owned();
                     let name = block
                         .get("name")
                         .and_then(Value::as_str)
-                        .unwrap_or("shell")
+                        .filter(|name| !name.trim().is_empty())
+                        .ok_or_else(|| "provider_tool_name_missing".to_owned())?
                         .to_owned();
-                    let arguments = block.get("input").cloned().unwrap_or(Value::Null);
+                    let arguments = block
+                        .get("input")
+                        .filter(|input| input.is_object())
+                        .cloned()
+                        .ok_or_else(|| "provider_tool_arguments_invalid".to_owned())?;
+                    if !seen_tool_ids.insert(id.clone()) {
+                        return Err("duplicate_tool_id_with_different_payload".to_owned());
+                    }
                     tool_calls.push(ModelToolCall {
                         id,
                         name: tool_name_from_wire(&name),
                         arguments,
                     });
                 }
-                _ => {}
+                _ => return Err("provider_content_block_unsupported".to_owned()),
             }
         }
-        ModelOutput {
+        Ok(ModelOutput {
             text,
             tool_calls,
             usage: Some(ModelUsage {
@@ -957,7 +1016,7 @@ mod legacy_fixtures {
             model_id: Some(response.model.clone()),
             content: Vec::new(),
             continuation: None,
-        }
+        })
     }
 
     #[cfg(test)]

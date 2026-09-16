@@ -527,7 +527,7 @@ impl Provider for OpenAiCompatibleProvider {
 
     async fn create_message(&self, request: MessagesRequest) -> ProviderResult<MessagesResponse> {
         self.ensure_request_supported(&request)?;
-        let body = openai_chat_request_body(&request, false);
+        let body = openai_chat_request_body(&request, false)?;
         let response = self
             .client
             .post(self.completions_url())
@@ -563,7 +563,7 @@ impl Provider for OpenAiCompatibleProvider {
     }
 }
 
-fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
+fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> ProviderResult<Value> {
     let mut messages = Vec::new();
     if let Some(system) = request.system.as_ref() {
         messages.push(json!({
@@ -572,7 +572,7 @@ fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
         }));
     }
     for message in &request.messages {
-        messages.extend(openai_messages_from_message(message));
+        messages.extend(openai_messages_from_message(message)?);
     }
 
     let mut body = json!({
@@ -585,32 +585,43 @@ fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
         body["temperature"] = json!(temperature);
     }
     if let Some(tools) = request.tools.as_ref().filter(|tools| !tools.is_empty()) {
-        body["tools"] = Value::Array(tools.iter().map(openai_tool_definition).collect());
+        body["tools"] = Value::Array(
+            tools
+                .iter()
+                .map(openai_tool_definition)
+                .collect::<ProviderResult<Vec<_>>>()?,
+        );
         body["tool_choice"] = json!("auto");
     }
-    body
+    Ok(body)
 }
 
-fn openai_messages_from_message(message: &Message) -> Vec<Value> {
+fn openai_messages_from_message(message: &Message) -> ProviderResult<Vec<Value>> {
     if let Some(array) = message.content.as_array() {
         if array
             .iter()
             .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
         {
-            return array
+            return Ok(array
                 .iter()
                 .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
                 .map(|block| {
-                    json!({
+                    let tool_call_id = block
+                        .get("tool_use_id")
+                        .and_then(Value::as_str)
+                        .filter(|id| !id.trim().is_empty())
+                        .ok_or_else(|| ProviderError::Provider {
+                            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                            code: "invalid_tool_result".to_string(),
+                            message: "tool result missing tool_use_id".to_string(),
+                        })?;
+                    Ok(json!({
                         "role": "tool",
-                        "tool_call_id": block
-                            .get("tool_use_id")
-                            .and_then(Value::as_str)
-                            .unwrap_or("toolu_unknown"),
+                        "tool_call_id": tool_call_id,
                         "content": openai_tool_result_content(block.get("content").unwrap_or(&Value::Null)),
-                    })
+                    }))
                 })
-                .collect();
+                .collect::<ProviderResult<Vec<_>>>()?);
         }
 
         let tool_use_blocks = array
@@ -619,21 +630,21 @@ fn openai_messages_from_message(message: &Message) -> Vec<Value> {
             .collect::<Vec<_>>();
         if !tool_use_blocks.is_empty() {
             let text = openai_message_text_content(&message.content);
-            return vec![json!({
+            return Ok(vec![json!({
                 "role": message.role.clone(),
                 "content": if text.is_empty() { Value::Null } else { Value::String(text) },
                 "tool_calls": tool_use_blocks
                     .into_iter()
                     .map(openai_tool_call_from_tool_use)
-                    .collect::<Vec<_>>(),
-            })];
+                    .collect::<ProviderResult<Vec<_>>>()?,
+            })]);
         }
     }
 
-    vec![json!({
+    Ok(vec![json!({
         "role": message.role.clone(),
         "content": openai_message_content(&message.content),
-    })]
+    })])
 }
 
 fn openai_message_content(content: &Value) -> Value {
@@ -667,14 +678,35 @@ fn openai_message_text_content(content: &Value) -> String {
     String::new()
 }
 
-fn openai_tool_definition(tool: &Value) -> Value {
+fn openai_tool_definition(tool: &Value) -> ProviderResult<Value> {
     if tool.get("type").and_then(Value::as_str) == Some("function") {
-        return tool.clone();
+        let name = tool
+            .pointer("/function/name")
+            .and_then(Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "invalid_tool_definition".to_string(),
+                message: "function tool missing name".to_string(),
+            })?;
+        if tool.pointer("/function/parameters").is_none() {
+            return Err(ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "invalid_tool_definition".to_string(),
+                message: format!("tool {name} missing parameters"),
+            });
+        }
+        return Ok(tool.clone());
     }
     let name = tool
         .get("name")
         .and_then(Value::as_str)
-        .unwrap_or("tool")
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_tool_definition".to_string(),
+            message: "tool missing name".to_string(),
+        })?
         .to_string();
     let description = tool
         .get("description")
@@ -687,32 +719,52 @@ fn openai_tool_definition(tool: &Value) -> Value {
         .or_else(|| tool.get("parameters"))
         .cloned()
         .unwrap_or_else(|| json!({"type": "object", "properties": {}}));
-    json!({
+    Ok(json!({
         "type": "function",
         "function": {
             "name": name,
             "description": description,
             "parameters": parameters,
         }
-    })
+    }))
 }
 
-fn openai_tool_call_from_tool_use(block: &Value) -> Value {
-    let input = block.get("input").cloned().unwrap_or_else(|| json!({}));
-    json!({
-        "id": block
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or("toolu_unknown"),
+fn openai_tool_call_from_tool_use(block: &Value) -> ProviderResult<Value> {
+    let id = block
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_tool_call".to_string(),
+            message: "tool call missing id".to_string(),
+        })?;
+    let name = block
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_tool_call".to_string(),
+            message: "tool call missing name".to_string(),
+        })?;
+    let input = block
+        .get("input")
+        .filter(|input| input.is_object())
+        .cloned()
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_tool_call".to_string(),
+            message: "tool call arguments must be an object".to_string(),
+        })?;
+    Ok(json!({
+        "id": id,
         "type": "function",
         "function": {
-            "name": block
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("Unknown"),
+            "name": name,
             "arguments": serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_string()),
         }
-    })
+    }))
 }
 
 fn openai_tool_result_content(content: &Value) -> String {
@@ -772,13 +824,21 @@ fn openai_chat_response_to_messages_response(
     let choice = value
         .get("choices")
         .and_then(Value::as_array)
+        .filter(|choices| choices.len() == 1)
         .and_then(|choices| choices.first())
         .ok_or_else(|| ProviderError::Provider {
             provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
             code: "invalid_response".to_string(),
             message: "OpenAI-compatible response missing choices[0]".to_string(),
         })?;
-    let message = choice.get("message").unwrap_or(&Value::Null);
+    let message = choice
+        .get("message")
+        .filter(|message| message.is_object())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "OpenAI-compatible response missing message".to_string(),
+        })?;
     let text = message
         .get("content")
         .and_then(Value::as_str)
@@ -792,7 +852,7 @@ fn openai_chat_response_to_messages_response(
             "text": text,
         }));
     }
-    content.extend(openai_tool_use_blocks_from_message(message));
+    content.extend(openai_tool_use_blocks_from_message(message)?);
     if content.is_empty() {
         content.push(json!({
             "type": "text",
@@ -802,16 +862,28 @@ fn openai_chat_response_to_messages_response(
     let finish_reason = choice
         .get("finish_reason")
         .and_then(Value::as_str)
-        .map(str::to_string);
+        .filter(|reason| !reason.trim().is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "OpenAI-compatible response missing finish_reason".to_string(),
+        })?;
     Ok(MessagesResponse {
         id: value
             .get("id")
             .and_then(Value::as_str)
-            .unwrap_or("openai-compatible-message")
+            .filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: "OpenAI-compatible response missing id".to_string(),
+            })?
             .to_string(),
         model: value
             .get("model")
             .and_then(Value::as_str)
+            .filter(|model| !model.trim().is_empty())
             .unwrap_or(fallback_model)
             .to_string(),
         role: message
@@ -820,7 +892,7 @@ fn openai_chat_response_to_messages_response(
             .unwrap_or("assistant")
             .to_string(),
         content,
-        stop_reason: finish_reason.map(|reason| {
+        stop_reason: Some(finish_reason).map(|reason| {
             if reason == "tool_calls" {
                 "tool_use".to_string()
             } else {
@@ -840,35 +912,82 @@ fn openai_chat_response_to_messages_response(
     })
 }
 
-fn openai_tool_use_blocks_from_message(message: &Value) -> Vec<Value> {
-    message
-        .get("tool_calls")
-        .and_then(Value::as_array)
-        .map(|tool_calls| {
-            tool_calls
-                .iter()
-                .filter_map(|tool_call| {
-                    let function = tool_call.get("function").unwrap_or(&Value::Null);
-                    let name = function.get("name").and_then(Value::as_str)?;
-                    let arguments = function
-                        .get("arguments")
-                        .and_then(Value::as_str)
-                        .unwrap_or("{}");
-                    let input =
-                        serde_json::from_str::<Value>(arguments).unwrap_or_else(|_| json!({}));
-                    Some(json!({
-                        "type": "tool_use",
-                        "id": tool_call
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or("toolu_openai"),
-                        "name": name,
-                        "input": input,
-                    }))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+fn openai_tool_use_blocks_from_message(message: &Value) -> ProviderResult<Vec<Value>> {
+    let Some(tool_calls) = message.get("tool_calls") else {
+        return Ok(Vec::new());
+    };
+    let tool_calls = tool_calls
+        .as_array()
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "tool_calls must be an array".to_string(),
+        })?;
+    let mut ids = std::collections::HashSet::new();
+    let mut result = Vec::with_capacity(tool_calls.len());
+    for tool_call in tool_calls {
+        let function = tool_call
+            .get("function")
+            .filter(|function| function.is_object())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: "tool call function missing".to_string(),
+            })?;
+        let id = tool_call
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "missing_native_tool_identity".to_string(),
+                message: "tool call id missing".to_string(),
+            })?;
+        if !ids.insert(id) {
+            return Err(ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "duplicate_tool_id".to_string(),
+                message: "tool call id repeated".to_string(),
+            });
+        }
+        let name = function
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "provider_tool_name_missing".to_string(),
+                message: "tool call name missing".to_string(),
+            })?;
+        let arguments = function
+            .get("arguments")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "provider_tool_arguments_invalid".to_string(),
+                message: "tool call arguments missing".to_string(),
+            })?;
+        let input =
+            serde_json::from_str::<Value>(arguments).map_err(|_| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "provider_tool_arguments_invalid".to_string(),
+                message: "tool call arguments are not JSON".to_string(),
+            })?;
+        if !input.is_object() {
+            return Err(ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "provider_tool_arguments_invalid".to_string(),
+                message: "tool call arguments must be an object".to_string(),
+            });
+        }
+        result.push(json!({
+            "type": "tool_use",
+            "id": id,
+            "name": name,
+            "input": input,
+        }));
+    }
+    Ok(result)
 }
 
 pub struct OllamaProvider {
@@ -909,7 +1028,7 @@ impl Provider for OllamaProvider {
 
     async fn create_message(&self, request: MessagesRequest) -> ProviderResult<MessagesResponse> {
         self.ensure_request_supported(&request)?;
-        let body = ollama_chat_request_body(&request, false);
+        let body = ollama_chat_request_body(&request, false)?;
         let response = self
             .client
             .post(self.chat_url())
@@ -944,7 +1063,7 @@ impl Provider for OllamaProvider {
     }
 }
 
-fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
+fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> ProviderResult<Value> {
     let mut messages = Vec::new();
     let mut tool_names_by_id = HashMap::new();
     if let Some(system) = request.system.as_ref() {
@@ -954,7 +1073,10 @@ fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
         }));
     }
     for message in &request.messages {
-        messages.extend(ollama_messages_from_message(message, &mut tool_names_by_id));
+        messages.extend(ollama_messages_from_message(
+            message,
+            &mut tool_names_by_id,
+        )?);
     }
 
     let mut body = json!({
@@ -969,31 +1091,37 @@ fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
         body["options"]["temperature"] = json!(temperature);
     }
     if let Some(tools) = request.tools.as_ref().filter(|tools| !tools.is_empty()) {
-        body["tools"] = Value::Array(tools.iter().map(openai_tool_definition).collect());
+        body["tools"] = Value::Array(
+            tools
+                .iter()
+                .map(openai_tool_definition)
+                .collect::<ProviderResult<Vec<_>>>()?,
+        );
     }
-    body
+    Ok(body)
 }
 
 fn ollama_messages_from_message(
     message: &Message,
     tool_names_by_id: &mut HashMap<String, String>,
-) -> Vec<Value> {
+) -> ProviderResult<Vec<Value>> {
     if let Some(array) = message.content.as_array() {
         if array
             .iter()
             .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
         {
-            return array
+            return Ok(array
                 .iter()
                 .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
                 .map(|block| {
-                    json!({
+                    let tool_name = ollama_tool_name_for_result(block, tool_names_by_id)?;
+                    Ok(json!({
                         "role": "tool",
-                        "tool_name": ollama_tool_name_for_result(block, tool_names_by_id),
+                        "tool_name": tool_name,
                         "content": openai_tool_result_content(block.get("content").unwrap_or(&Value::Null)),
-                    })
+                    }))
                 })
-                .collect();
+                .collect::<ProviderResult<Vec<_>>>()?);
         }
 
         let tool_use_blocks = array
@@ -1009,31 +1137,32 @@ fn ollama_messages_from_message(
                     tool_names_by_id.insert(id.to_string(), name.to_string());
                 }
             }
-            return vec![json!({
+            return Ok(vec![json!({
                 "role": message.role.clone(),
                 "content": ollama_message_content(&message.content),
                 "tool_calls": tool_use_blocks
                     .into_iter()
                     .map(ollama_tool_call_from_tool_use)
-                    .collect::<Vec<_>>(),
-            })];
+                    .collect::<ProviderResult<Vec<_>>>()?,
+            })]);
         }
     }
 
-    vec![json!({
+    Ok(vec![json!({
         "role": message.role.clone(),
         "content": ollama_message_content(&message.content),
-    })]
+    })])
 }
 
 fn ollama_tool_name_for_result(
     block: &Value,
     tool_names_by_id: &HashMap<String, String>,
-) -> String {
+) -> ProviderResult<String> {
     block
         .get("tool_name")
         .or_else(|| block.get("name"))
         .and_then(Value::as_str)
+        .filter(|name| !name.trim().is_empty())
         .map(str::to_string)
         .or_else(|| {
             block
@@ -1041,19 +1170,38 @@ fn ollama_tool_name_for_result(
                 .and_then(Value::as_str)
                 .and_then(|id| tool_names_by_id.get(id).cloned())
         })
-        .unwrap_or_else(|| "tool".to_string())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "tool_result_identity_missing".to_string(),
+            message: "tool result has no tool name or known call id".to_string(),
+        })
 }
 
-fn ollama_tool_call_from_tool_use(block: &Value) -> Value {
-    json!({
+fn ollama_tool_call_from_tool_use(block: &Value) -> ProviderResult<Value> {
+    let name = block
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "provider_tool_name_missing".to_string(),
+            message: "ollama tool call name missing".to_string(),
+        })?;
+    let input = block
+        .get("input")
+        .filter(|input| input.is_object())
+        .cloned()
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "provider_tool_arguments_invalid".to_string(),
+            message: "ollama tool call arguments must be an object".to_string(),
+        })?;
+    Ok(json!({
         "function": {
-            "name": block
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("Unknown"),
-            "arguments": block.get("input").cloned().unwrap_or_else(|| json!({})),
+            "name": name,
+            "arguments": input,
         }
-    })
+    }))
 }
 
 fn ollama_message_content(content: &Value) -> String {
@@ -1088,11 +1236,23 @@ fn ollama_chat_response_to_messages_response(
     value: Value,
     fallback_model: &str,
 ) -> ProviderResult<MessagesResponse> {
-    let message = value.get("message").unwrap_or(&Value::Null);
-    let has_tool_calls = message
-        .get("tool_calls")
-        .and_then(Value::as_array)
-        .is_some_and(|tool_calls| !tool_calls.is_empty());
+    if value.get("done") != Some(&Value::Bool(true)) {
+        return Err(ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "Ollama response is not terminal".to_string(),
+        });
+    }
+    let message = value
+        .get("message")
+        .filter(|message| message.is_object())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "Ollama response missing message".to_string(),
+        })?;
+    let tool_blocks = ollama_tool_use_blocks_from_message(message)?;
+    let has_tool_calls = !tool_blocks.is_empty();
     let text = message
         .get("content")
         .and_then(Value::as_str)
@@ -1105,18 +1265,37 @@ fn ollama_chat_response_to_messages_response(
             "text": text,
         }));
     }
-    content.extend(ollama_tool_use_blocks_from_message(message));
+    content.extend(tool_blocks);
     if content.is_empty() {
         content.push(json!({
             "type": "text",
             "text": "",
         }));
     }
+    let stop_reason = if has_tool_calls {
+        "tool_use".to_owned()
+    } else {
+        value
+            .get("done_reason")
+            .and_then(Value::as_str)
+            .filter(|reason| !reason.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: "Ollama response missing done_reason".to_string(),
+            })?
+            .to_owned()
+    };
     Ok(MessagesResponse {
         id: value
             .get("created_at")
             .and_then(Value::as_str)
-            .unwrap_or("ollama-message")
+            .filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: "Ollama response missing created_at".to_string(),
+            })?
             .to_string(),
         model: value
             .get("model")
@@ -1129,21 +1308,7 @@ fn ollama_chat_response_to_messages_response(
             .unwrap_or("assistant")
             .to_string(),
         content,
-        stop_reason: if has_tool_calls {
-            Some("tool_use".to_string())
-        } else {
-            value
-                .get("done_reason")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .or_else(|| {
-                    value
-                        .get("done")
-                        .and_then(Value::as_bool)
-                        .filter(|done| *done)
-                        .map(|_| "stop".to_string())
-                })
-        },
+        stop_reason: Some(stop_reason),
         usage: Usage {
             input_tokens: value
                 .get("prompt_eval_count")
@@ -1157,35 +1322,69 @@ fn ollama_chat_response_to_messages_response(
     })
 }
 
-fn ollama_tool_use_blocks_from_message(message: &Value) -> Vec<Value> {
-    message
-        .get("tool_calls")
-        .and_then(Value::as_array)
-        .map(|tool_calls| {
-            tool_calls
-                .iter()
-                .enumerate()
-                .filter_map(|(index, tool_call)| {
-                    let function = tool_call.get("function").unwrap_or(&Value::Null);
-                    let name = function.get("name").and_then(Value::as_str)?;
-                    let input = function
-                        .get("arguments")
-                        .cloned()
-                        .unwrap_or_else(|| json!({}));
-                    Some(json!({
-                        "type": "tool_use",
-                        "id": tool_call
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                            .unwrap_or_else(|| format!("toolu_ollama_{index}")),
-                        "name": name,
-                        "input": input,
-                    }))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+fn ollama_tool_use_blocks_from_message(message: &Value) -> ProviderResult<Vec<Value>> {
+    let Some(tool_calls) = message.get("tool_calls") else {
+        return Ok(Vec::new());
+    };
+    let tool_calls = tool_calls
+        .as_array()
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "Ollama tool_calls must be an array".to_string(),
+        })?;
+    let mut ids = std::collections::HashSet::new();
+    let mut result = Vec::with_capacity(tool_calls.len());
+    for (index, tool_call) in tool_calls.iter().enumerate() {
+        let function = tool_call
+            .get("function")
+            .filter(|function| function.is_object())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: "Ollama tool call function missing".to_string(),
+            })?;
+        let name = function
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "provider_tool_name_missing".to_string(),
+                message: "Ollama tool call name missing".to_string(),
+            })?;
+        let input = function
+            .get("arguments")
+            .filter(|input| input.is_object())
+            .cloned()
+            .ok_or_else(|| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "provider_tool_arguments_invalid".to_string(),
+                message: "Ollama tool call arguments must be an object".to_string(),
+            })?;
+        // Ollama's native response has no call id. Generate a unique local correlation id only
+        // for that protocol; a supplied duplicate id is still rejected.
+        let id = tool_call
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("toolu_ollama_{index}"));
+        if !ids.insert(id.clone()) {
+            return Err(ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "duplicate_tool_id".to_string(),
+                message: "Ollama tool call id repeated".to_string(),
+            });
+        }
+        result.push(json!({
+            "type": "tool_use",
+            "id": id,
+            "name": name,
+            "input": input,
+        }));
+    }
+    Ok(result)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -2052,5 +2251,73 @@ mod tests {
             .split_once("\r\n\r\n")
             .map(|(_, body)| body)
             .unwrap()
+    }
+
+    fn openai_response(tool_calls: Value) -> Value {
+        json!({
+            "id": "strict-chat",
+            "model": "strict-model",
+            "choices": [{
+                "message": {"role": "assistant", "content": null, "tool_calls": tool_calls},
+                "finish_reason": "tool_calls"
+            }],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1}
+        })
+    }
+
+    #[test]
+    fn malformed_provider_tool_arguments_never_dispatch() {
+        let response = openai_response(json!([{
+            "id": "call-bad",
+            "type": "function",
+            "function": {"name": "shell", "arguments": "{bad"}
+        }]));
+        assert!(openai_chat_response_to_messages_response(response, "fallback").is_err());
+    }
+
+    #[test]
+    fn missing_native_tool_identity_is_rejected() {
+        let response = openai_response(json!([{
+            "type": "function",
+            "function": {"name": "shell", "arguments": "{}"}
+        }]));
+        let error = openai_chat_response_to_messages_response(response, "fallback").unwrap_err();
+        assert!(error.to_string().contains("missing_native_tool_identity"));
+    }
+
+    #[test]
+    fn duplicate_tool_id_with_different_payload_is_rejected() {
+        let response = openai_response(json!([
+            {"id": "call-dup", "type": "function", "function": {"name": "shell", "arguments": "{}"}},
+            {"id": "call-dup", "type": "function", "function": {"name": "shell", "arguments": "{\"x\":1}"}}
+        ]));
+        let error = openai_chat_response_to_messages_response(response, "fallback").unwrap_err();
+        assert!(error.to_string().contains("duplicate_tool_id"));
+    }
+
+    #[test]
+    fn valid_empty_object_arguments_are_preserved() {
+        let response = openai_response(json!([{
+            "id": "call-empty",
+            "type": "function",
+            "function": {"name": "shell", "arguments": "{}"}
+        }]));
+        let response = openai_chat_response_to_messages_response(response, "fallback").unwrap();
+        assert_eq!(response.content[0]["input"], json!({}));
+    }
+
+    #[test]
+    fn provider_tool_result_round_trip_keeps_identity() {
+        let message = Message {
+            role: "user".to_owned(),
+            content: json!([{
+                "type": "tool_result",
+                "tool_use_id": "call-round-trip",
+                "content": "result"
+            }]),
+        };
+        let mapped = openai_messages_from_message(&message).unwrap();
+        assert_eq!(mapped[0]["role"], "tool");
+        assert_eq!(mapped[0]["tool_call_id"], "call-round-trip");
     }
 }

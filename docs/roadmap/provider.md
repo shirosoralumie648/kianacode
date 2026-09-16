@@ -54,7 +54,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | 编号 | 交付 | 依赖 | 退出条件 | 状态 |
 |---|---|---|---|---|
 | `P4-J7-04` | Provider 基线与兼容性清单 | `P0-J7-01` | 调用链、已有测试、WIP 归属、负向缺口逐项绑定快照 | ⏳ |
-| `P4-J7-05` | 非流式工具解析拒绝路径 | `P4-J7-04` | malformed/缺身份/重复 ID 不被默认值修成合法调用；零 dispatch | ⏳ |
+| `P4-J7-05` | 非流式工具解析拒绝路径 | `P4-J7-04` | malformed/缺身份/重复 ID 不被默认值修成合法调用；零 dispatch | ✅ |
 | `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ⏳ |
 | `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ⏳ |
 | `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ⏳ |
@@ -101,7 +101,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-05 非流式工具响应必须严格解析　⏳
+#### P4-J7-05 非流式工具响应必须严格解析　✅
+
+当前 source slice 与 CI-only 证据见 [`provider-strict-response-baseline.md`](provider-strict-response-baseline.md)。
 
 - **依赖**：`P4-J7-04`。
 - **改动位置**：`kiana-services/src/api/provider.rs` 的 OpenAI/Ollama 响应转换；`kiana-daemon/src/model_client.rs` 的 `output_from_response/map_tools`；相应 tests。

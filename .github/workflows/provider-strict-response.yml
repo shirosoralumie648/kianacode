@@ -1,0 +1,36 @@
+name: P4-J7-05 strict provider responses
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-services/src/api/provider.rs"
+      - "kiana-services/tests/provider_standard.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-daemon/src/model_client.rs"
+      - "docs/roadmap/provider-strict-response-baseline.md"
+      - ".github/workflows/provider-strict-response.yml"
+  pull_request:
+    paths:
+      - "kiana-services/src/api/provider.rs"
+      - "kiana-services/tests/provider_standard.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-daemon/src/model_client.rs"
+      - "docs/roadmap/provider-strict-response-baseline.md"
+      - ".github/workflows/provider-strict-response.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  strict-response:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run strict non-stream fixtures
+        run: cargo test -p kiana-services --lib --locked -- --test-threads=1

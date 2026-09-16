@@ -1356,6 +1356,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus H05 stop/error/retry/complete-gate source-boundary review; no runtime test reviewer
 ```
 
+### P4-J7-05 strict non-streaming provider response evidence (2026-09-16)
+
+```text
+source_snapshot: 6287b00; kiana-services/src/api/provider.rs; kiana-provider/src/response.rs; kiana-daemon/src/model_client.rs; kiana-services/src/api/provider.rs tests; .github/workflows/provider-strict-response.yml; docs/roadmap/provider-strict-response-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: P4-J7-05 kiana-services OpenAI-compatible/Ollama strict non-stream response/request parsing, daemon legacy adapter identity/argument guards, malformed/missing/duplicate/empty-object/tool-result fixtures and roadmap/status overlays are scoped to this step; no new provider, transport, SDK tool loop or authorization path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-services/src/api/provider.rs kiana-provider/src/response.rs kiana-daemon/src/model_client.rs .github/workflows/provider-strict-response.yml docs/roadmap/provider-strict-response-baseline.md
+  rg -n 'malformed_provider_tool_arguments_never_dispatch|missing_native_tool_identity_is_rejected|duplicate_tool_id_with_different_payload_is_rejected|valid_empty_object_arguments_are_preserved|provider_tool_result_round_trip_keeps_identity|provider_tool_arguments_invalid|missing_native_tool_identity|duplicate_tool_id' kiana-services/src/api/provider.rs kiana-provider/src/response.rs kiana-daemon/src/model_client.rs docs/roadmap/provider-strict-response-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; provider test targets compiled only; no test, network, provider, MCP or external-account command executed locally
+fixture or cassette: kiana-services/src/api/provider.rs strict non-stream tests for malformed arguments, missing/duplicate IDs, valid empty object and tool-result identity; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-05 job is queued by the push and is not awaited
+status_change: P4-J7-05 source slice is implemented. OpenAI-compatible non-stream responses now require exactly one choice, object message, response ID, finish reason, native tool ID/name and JSON-object arguments; duplicate IDs and malformed responses fail before ModelToolCall creation. Ollama requires a terminal `done=true` response and object arguments, while preserving its explicit no-native-ID ordinal correlation rule. kiana-services request mappers and daemon legacy adapter no longer synthesize shell/tool/{} identities; tool results retain call IDs or fail closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kiana-services remains compatibility-only, ProviderGateway streaming/HTTP/auth/usage/receipt and cross-provider/live/physical effects are not proven, Ollama ordinal IDs are not stable Invocation identity, and strict parsing does not establish external side-effect correctness
+reviewer: Codex root implementation review plus P4-J7-05 response identity/argument/duplicate/legacy adapter source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
