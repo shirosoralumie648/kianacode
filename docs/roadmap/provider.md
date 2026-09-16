@@ -58,7 +58,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ✅ |
 | `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ✅ |
 | `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ✅ |
-| `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ⏳ |
+| `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ✅ |
 | `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ⏳ |
 | `P4-J7-11` | 角色路由与调用准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | 服务端角色决定 route；每真实 attempt 有许可、预算与审计 | ⏳ |
 | `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ⏳ |
@@ -155,11 +155,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-09 凭据管理与 HTTP 目标校验　⏳
+#### P4-J7-09 凭据管理与 HTTP 目标校验　✅
 
 - **依赖**：`P4-J7-08`。
 - **改动位置**：provider/credentials、config、transport/http；daemon 操作者级凭据适配和诊断投影。
-- **步骤**：① 使用 SecretRef/env reference 和受保护存储，不把 key 放入可序列化配置；② 认证字段构造全部返回结构化错误，移除相关 unwrap/expect；③ 校验 URL scheme、origin、路径/query、代理/TLS 配置，拒绝 URL userinfo 和跨 origin 认证转发；④ 本地 HTTP 连接显式登记 loopback/允许目标并校验实际连接与 redirect，覆盖 DNS 地址变化；⑤ 连接/credential revision 更新后失效旧池或缓存；需要 OAuth 的后续连接使用单次刷新和并发刷新合并。
+- **步骤**：① 使用 SecretRef/env reference 和受保护存储，不把 key 放入可序列化配置；② 认证字段构造全部返回结构化错误，移除相关 unwrap/expect；③ 校验 URL scheme、origin、路径/query、代理/TLS 配置，拒绝 URL userinfo 和跨 origin 认证转发；④ 本地 HTTP 连接显式登记 loopback/允许目标并校验实际连接与 redirect，覆盖 DNS 地址变化；⑤ 连接/credential revision 更新后失效旧池或缓存；需要 OAuth 的后续连接使用单次刷新和并发刷新合并。当前 source slice 与 CI-only 证据见 [`provider-credentials-baseline.md`](provider-credentials-baseline.md)。
 - **先拒绝**：`invalid_auth_header_never_panics`、`authenticated_redirect_cannot_change_origin`、`untrusted_project_cannot_override_provider_endpoint`、`provider_secret_never_appears_in_diagnostics`。
 - **再成功**：`configured_loopback_provider_works_without_api_key`、`credential_revision_isolated_between_connections`。
 - **退出 / 证据**：TLS 证书错误不重试、不关闭证书校验；重定向/代理/IPv4/IPv6/域名解析用本地 fixture 验证，不读取用户真实 key。

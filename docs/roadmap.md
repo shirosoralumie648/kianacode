@@ -238,7 +238,7 @@
 | 070 | W1 | 专项 | [`P4-J7-06`](roadmap/provider.md#step-p4-j7-06) | Provider · 中立内容、调用身份、错误与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-06) |
 | 071 | W1 | 专项 | [`P4-J7-07`](roadmap/provider.md#step-p4-j7-07) | Provider · 提取 kiana-provider 并迁移装配 | `P4-J7-06` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-07) |
 | 072 | W1 | 专项 | [`P4-J7-08`](roadmap/provider.md#step-p4-j7-08) | Provider · 连接、profile 和配置快照 | `P4-J7-07` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-08) |
-| 073 | W1 | 专项 | [`P4-J7-09`](roadmap/provider.md#step-p4-j7-09) | Provider · 凭据管理与 HTTP 目标校验 | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-09) |
+| 073 | W1 | 专项 | [`P4-J7-09`](roadmap/provider.md#step-p4-j7-09) | Provider · 凭据管理与 HTTP 目标校验 | `P4-J7-08` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-09) |
 | 074 | W1 | 专项 | [`P4-J7-10`](roadmap/provider.md#step-p4-j7-10) | Provider · 能力目录、未知能力和显式 discovery | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-10) |
 | 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-b-01) |
 | 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ⏳ | [基础卡](#step-p0-k1-01) |
@@ -1025,6 +1025,8 @@
 
 | 当前 88 | `P4-J7-08` 连接、profile 和配置快照 | 新增 ProviderProfileSnapshot/ProviderConfigSnapshot，分离 provider/protocol/connection/model/profile/profile_version/credential_ref/source；ProviderGateway catalog 暴露 secret-free configuration digest，route configuration_revision 对配置变化敏感；daemon `KIANA_MODEL_MODE` 明确 live/cassette 冲突与缺 cassette，invalid streaming 先拒绝，provider unknown profile/inherit/key/capability/concurrency 校验保持 fail-closed；新增 provider/core fixtures、CI workflow 与 config baseline；不运行本地测试 | `feature_status=implemented`（domain/provider/daemon/core/protocol source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；ConfigSnapshot 尚无 durable store/hot-update CAS/跨进程 epoch，活动 Run route/freshness、SecretStore/rotation/live proof 留待 P4-J7-09+；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 89 | `P4-J7-09` 凭据管理与 HTTP 目标校验 | provider credential 只经 explicit/env reference，snapshot/catalog/Debug 仅保存 digest；坏 header、缺 key、userinfo/query/fragment、非 TLS/非 loopback、invalid concurrency/streaming fail-closed，reqwest redirect/proxy disabled，credential revision 纳入 route revision，项目/role text 不能改 endpoint；新增 provider/core fixtures、CI workflow 与 credentials baseline；不运行本地测试 | `feature_status=implemented`（provider/daemon/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；SecretStore/OAuth rotation/revocation/DNS rebinding/真实 TLS/live 仍未证明，capability/role permit 由后续 P4-J7-10/11 收口；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1161,6 +1163,7 @@
 | 2026-09-16 | `P4-J7-06` Provider-neutral model contract：复核并 CI-wiring typed ModelContent/ProviderContinuation、PreparedModelCall/ModelFinish/Outcome/Error/Usage 与唯一 ports ModelClient；legacy 与 typed content 冲突、unknown major/cross-provider unsupported fail-closed，Runner 仅 re-export；新增 domain/core fixtures 与 provider-model baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P4-J7-07` Provider extraction：确认独立 kiana-provider crate 的 Gateway/codec/transport 不依赖 services/core/entrypoints/runner，daemon 生产路径唯一注入 Gateway，legacy kiana-services provider 仅 cfg(test)；新增 extraction source guard、CI workflow 与 provider-extraction baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P4-J7-08` Provider config snapshot：新增 ProviderProfileSnapshot/ProviderConfigSnapshot 和 Gateway secret-free configuration digest；profile/source/route revision 固定，unknown profile/inherit/key/capability/concurrency/streaming 拒绝，daemon explicit live/cassette mode conflict/missing cassette fail-closed；新增 provider/core fixtures、CI workflow 与 config baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P4-J7-09` Provider credentials/endpoints：复核并 CI-wiring credential reference/digest、HeaderValue/TLS/loopback/userinfo/query/fragment/redirect/proxy/concurrency/streaming guards；missing/invalid secret 和未授权公网 HTTP fail-closed，项目文本不能覆盖 endpoint；新增 provider/core fixtures 与 credentials baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

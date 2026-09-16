@@ -1881,6 +1881,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-08 config/profile/source/mode boundary review; no runtime test reviewer
 ```
 
+### P4-J7-09 provider credentials and endpoint evidence (2026-09-16)
+
+```text
+source_snapshot: 6fb453e (P4-J7-08 parent; P4-J7-09 source files listed below); kiana-provider/src/{config,transport,lib}.rs; kiana-provider/tests/p4_j7_09_credentials.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/p4_j7_09_credentials_guard.rs; .github/workflows/p4-j7-09-credentials.yml; docs/roadmap/provider-credentials-baseline.md; docs/roadmap/provider.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P4-J7-09 credential/header/endpoint/TLS/loopback/redirect/proxy/concurrency/streaming guards and source fixtures are scoped to this step; raw secrets remain out of snapshots/diagnostics, project text cannot override provider endpoint, and no network/effect path was duplicated; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-provider/src/config.rs kiana-provider/src/transport.rs kiana-provider/src/lib.rs kiana-provider/tests/p4_j7_09_credentials.rs kiana-daemon/src/model_client.rs kiana-core/tests/p4_j7_09_credentials_guard.rs .github/workflows/p4-j7-09-credentials.yml docs/roadmap/provider-credentials-baseline.md
+  rg -n 'model_credential_header_invalid|model_credential_unavailable|model_endpoint_credentials_or_query_denied|model_endpoint_requires_tls_or_loopback|HeaderValue::from_str|credential_revision|Policy::none|project_authority' kiana-provider/src kiana-daemon/src kiana-provider/tests kiana-core/tests docs/roadmap/provider-credentials-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; provider/daemon/core credential fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-provider/tests/p4_j7_09_credentials.rs invalid header/missing secret/endpoint and loopback fixtures; kiana-core/tests/p4_j7_09_credentials_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-09 job is queued by the next push and is not awaited
+status_change: P4-J7-09 source slice is implemented. Provider config rejects malformed/missing credentials, URL userinfo/query/fragment, non-TLS/non-loopback endpoints, invalid streaming/concurrency and cross-origin hazards; client redirects and ambient proxies are disabled, credential revisions are digest-only, and daemon/server authority remains the sole endpoint selection path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; SecretStore/OAuth rotation/revocation/DNS rebinding and real TLS/live provider behavior remain later work, and endpoint validity does not grant model capability or role authority
+reviewer: Codex root implementation review plus P4-J7-09 credential/endpoint/redirect source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
