@@ -1482,6 +1482,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EXT-01 identity/schema/snapshot/error source-boundary review; no runtime test reviewer
 ```
 
+### EXT-02 SourceResolver, ProjectTrust and path-root evidence (2026-09-16)
+
+```text
+source_snapshot: c1d59b7 (EXT-01 stable extension contracts); Cargo.lock; kiana-skills/Cargo.toml; kiana-skills/src/{source_resolver,loader,lib}.rs; kiana-domain/src/{extension_contracts,contracts}.rs; kiana-protocol/src/lib.rs; kiana-skills/tests/ext02_source_resolver.rs; .github/workflows/ext02-source-resolver.yml; docs/roadmap/source-resolver-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/skills-plugins-hooks.md; docs/roadmap.md
+worktree_status: EXT-02 SourceResolver unifies standard and explicit extension source roots with fixed precedence, digest-derived summaries and ProjectTrust decisions; loader reuses root/resource containment and rejects symlink resources; remote fixtures and roadmap/status overlays are included; no parser, package signature, hook process, capability grant or second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-skills/src/source_resolver.rs kiana-skills/src/loader.rs kiana-skills/src/lib.rs kiana-skills/Cargo.toml Cargo.lock kiana-domain/src/extension_contracts.rs kiana-domain/src/contracts.rs kiana-protocol/src/lib.rs kiana-skills/tests/ext02_source_resolver.rs .github/workflows/ext02-source-resolver.yml docs/roadmap/source-resolver-baseline.md
+  rg -n 'SourceResolver|SourceRootKind|SourceTrust|resolve_resource|source_root_symlink|source_resource_symlink|DuplicateRoot|untrusted_project_source_is_reported_and_not_usable|duplicate_roots_are_rejected_instead_of_silently_deduped|resource_resolution_rejects_escape_and_symlink' kiana-skills/src kiana-skills/tests docs/roadmap/source-resolver-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-skills/tests/ext02_source_resolver.rs trust filtering, summary path redaction, duplicate root, traversal/absolute/symlink resource fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EXT-02 job is queued by the next push and is not awaited
+status_change: EXT-02 source slice is implemented. `SourceResolver` canonicalizes actual project roots before applying ProjectTrust, assigns deterministic source kind/precedence, rejects canonical duplicate roots and creates digest-derived summaries without absolute paths. Untrusted project sources remain visible only as denied decisions; trusted paths exclude them. `resolve_resource` rejects absolute/parent/control/backslash paths, symlink components and root escapes; skill loader now uses the same guard and does not follow symlinks.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; SourceResolver does not verify stored ProjectTrust integrity, package signatures/content, SKILL/manifest syntax, catalog generation/invalidation, Hook effects or cross-process snapshot recovery; loader still returns legacy Command and plugin discovery needs the same resolver-backed snapshot in EXT-03+; no business/external outcome is claimed
+reviewer: Codex root implementation review plus EXT-02 trust/root/containment source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -2728,6 +2728,7 @@ dependencies = [
  "futures",
  "gray_matter",
  "ignore",
+ "kiana-domain",
  "kiana-services",
  "kiana-types",
  "once_cell",

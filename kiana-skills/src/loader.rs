@@ -1,7 +1,7 @@
+use crate::source_resolver::{validate_root, SourceResolveError, SourceResolver};
 use crate::types::{Command, Frontmatter, LoadedFrom, SettingSource};
 use gray_matter::{engine::YAML, Matter};
-use kiana_types::{project_trust_root, ProjectTrust};
-use std::collections::HashSet;
+use kiana_types::ProjectTrust;
 use std::env;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -16,6 +16,8 @@ pub enum SkillLoadError {
     Frontmatter(String),
     #[error("Invalid skill format")]
     InvalidFormat,
+    #[error("Source resolution error: {0}")]
+    Source(String),
 }
 
 pub async fn load_skills_from_dir(
@@ -25,6 +27,17 @@ pub async fn load_skills_from_dir(
     let base_path = base_path.as_ref();
     let mut skills = Vec::new();
 
+    match fs::symlink_metadata(base_path).await {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(SkillLoadError::Source("source_root_symlink".to_owned()));
+        }
+        Ok(_) => {
+            validate_root(base_path).map_err(|error| SkillLoadError::Source(error.to_string()))?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(skills),
+        Err(error) => return Err(error.into()),
+    }
+
     let mut entries = match fs::read_dir(base_path).await {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(skills),
@@ -32,13 +45,21 @@ pub async fn load_skills_from_dir(
     };
 
     while let Some(entry) = entries.next_entry().await? {
-        let metadata = entry.metadata().await?;
-        if !metadata.is_dir() {
+        let file_type = entry.file_type().await?;
+        if file_type.is_symlink() {
+            return Err(SkillLoadError::Source("source_resource_symlink".to_owned()));
+        }
+        if !file_type.is_dir() {
             continue;
         }
 
-        let skill_dir = entry.path();
-        let skill_file = skill_dir.join("SKILL.md");
+        let skill_dir = validate_root(&entry.path())
+            .map_err(|error| SkillLoadError::Source(error.to_string()))?;
+        let skill_file = match SourceResolver::resolve_resource(&skill_dir, "SKILL.md") {
+            Ok(path) => path,
+            Err(SourceResolveError::ResourceInvalid(_)) => continue,
+            Err(error) => return Err(SkillLoadError::Source(error.to_string())),
+        };
 
         let content = match fs::read_to_string(&skill_file).await {
             Ok(c) => c,
@@ -63,14 +84,19 @@ pub(crate) async fn load_skill_from_root(
     skill_dir: impl AsRef<Path>,
     source: SettingSource,
 ) -> Result<Option<Command>, SkillLoadError> {
-    let skill_dir = skill_dir.as_ref();
-    let skill_file = skill_dir.join("SKILL.md");
+    let skill_dir = validate_root(skill_dir.as_ref())
+        .map_err(|error| SkillLoadError::Source(error.to_string()))?;
+    let skill_file = match SourceResolver::resolve_resource(&skill_dir, "SKILL.md") {
+        Ok(path) => path,
+        Err(SourceResolveError::ResourceInvalid(_)) => return Ok(None),
+        Err(error) => return Err(SkillLoadError::Source(error.to_string())),
+    };
     let content = match fs::read_to_string(&skill_file).await {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
-    parse_skill(&content, skill_dir, source).map(Some)
+    parse_skill(&content, &skill_dir, source).map(Some)
 }
 
 pub(crate) fn parse_skill(
@@ -150,46 +176,10 @@ pub async fn get_skill_dirs_with_trust(
     cwd: impl AsRef<Path>,
     project_trust: ProjectTrust,
 ) -> Vec<PathBuf> {
-    let cwd = cwd.as_ref();
-    let mut dirs = Vec::new();
-    push_existing_dir(
-        &mut dirs,
-        home_dir().map(|home| home.join(".claude").join("skills")),
-    );
-    push_existing_dir(
-        &mut dirs,
-        env::var_os("KIANA_HOME").map(|home| PathBuf::from(home).join("skills")),
-    );
-
-    let mut project_dirs = Vec::new();
-    if project_trust.allows_project_resources() {
-        if let Ok(canonical_cwd) = cwd.canonicalize() {
-            let project_root = project_trust_root(&canonical_cwd);
-            let mut current = canonical_cwd.as_path();
-
-            loop {
-                for skills_dir in [
-                    current.join(".claude").join("skills"),
-                    current.join(".kiana").join("skills"),
-                ] {
-                    if skills_dir.exists() {
-                        project_dirs.push(skills_dir);
-                    }
-                }
-                if current == project_root {
-                    break;
-                }
-                let Some(parent) = current.parent() else {
-                    break;
-                };
-                current = parent;
-            }
-        }
-    }
-
-    project_dirs.reverse();
-    dirs.extend(project_dirs);
-    dedupe_dirs(dirs)
+    SourceResolver::new(cwd, project_trust)
+        .resolve()
+        .map(|resolution| resolution.trusted_paths())
+        .unwrap_or_default()
 }
 
 pub(crate) fn setting_source_for_skill_dir(dir: &Path) -> SettingSource {
@@ -224,21 +214,6 @@ fn home_dir() -> Option<PathBuf> {
     {
         env::var_os("HOME").map(PathBuf::from)
     }
-}
-
-fn push_existing_dir(dirs: &mut Vec<PathBuf>, dir: Option<PathBuf>) {
-    if let Some(dir) = dir {
-        if dir.is_dir() {
-            dirs.push(dir);
-        }
-    }
-}
-
-fn dedupe_dirs(dirs: Vec<PathBuf>) -> Vec<PathBuf> {
-    let mut seen = HashSet::new();
-    dirs.into_iter()
-        .filter(|dir| seen.insert(canonical_key(dir)))
-        .collect()
 }
 
 fn canonical_key(path: &Path) -> String {

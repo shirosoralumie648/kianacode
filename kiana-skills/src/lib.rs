@@ -3,6 +3,7 @@ pub mod dynamic;
 pub mod loader;
 pub mod mcp;
 pub mod plugins;
+pub mod source_resolver;
 pub mod types;
 
 pub use bundled::{get_bundled_skills, register_bundled_skill, BundledSkill};
@@ -15,6 +16,11 @@ pub use mcp::fetch_mcp_skills_for_client;
 pub use plugins::{
     get_plugin_skill_dirs, get_plugin_skill_dirs_for_cwd, load_plugin_skills,
     load_plugin_skills_for_cwd, plugin_skill_load_audit, plugin_skill_load_audit_for_cwd,
+};
+pub use source_resolver::{
+    validate_root, ResolvedSourceRoot, SourceResolution, SourceResolutionSummary,
+    SourceResolveError, SourceResolver, SourceRootKind, SourceRootSummary, SourceTrust,
+    SOURCE_RESOLUTION_SCHEMA,
 };
 pub use types::{Command, ExecutionContext, Frontmatter, LoadedFrom, SettingSource};
 

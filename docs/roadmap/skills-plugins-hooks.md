@@ -108,7 +108,9 @@ flowchart TD
 
 
 
-#### EXT-01 · 稳定扩展领域合同　⏳
+#### EXT-01 · 稳定扩展领域合同　✅
+
+当前 source slice 与 CI-only 证据见 [`extension-contracts-baseline.md`](extension-contracts-baseline.md)。
 
 在 `kiana-domain` 定义 `ExtensionId`、`ComponentId`、`SourceRef`、`SnapshotId`、`HookRunId`、`ExtensionError` 和版本化状态；协议层只暴露可序列化 DTO，不泄出文件路径、secret 原值或内部锁。为 `SkillDescriptor`、`HookDecision`、`PluginLifecycle`、`ExtensionSnapshot` 建立 round-trip、未知字段和稳定错误码测试。所有 scope 使用交集计算。
 
@@ -116,7 +118,9 @@ flowchart TD
 
 
 
-#### EXT-02 · SourceResolver、ProjectTrust 与路径根　⏳
+#### EXT-02 · SourceResolver、ProjectTrust 与路径根　✅
+
+当前 source slice 与 CI-only 证据见 [`source-resolver-baseline.md`](source-resolver-baseline.md)。
 
 把用户级、`KIANA_HOME`、项目级、bundled、签名 package、插件 component 和显式外部 source 统一成 `SourceRef`；先解析实际 root，再做 `ProjectTrust`，最后 canonicalize 路径。拒绝 symlink 逃逸、`..`、绝对路径、重复 root、未信任 `.claude/.kiana/.agents` 资源和超出 package root 的 resource。输出 trust decision、source precedence 和 root digest。
 

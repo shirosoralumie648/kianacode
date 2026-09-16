@@ -11,7 +11,7 @@
 | Capability | CAP-00–CAP-34（35） | [CAP-01 authority 基线](capability-authority-baseline.md) · [CAP-02 input/digest 基线](capability-input-baseline.md) · [CAP-03 ExecutionScope](capability-execution-scope-baseline.md) · [CAP-04 状态/outcome 基线](capability-state-baseline.md) · [能力目录、Broker 与执行边界](capability.md) |
 | Event / Receipt / Recovery | ER-00–ER-36（37） | [ER-01 schema/kind 基线](event-receipt-schema-baseline.md) · [ER-02 关联/顺序基线](event-receipt-identity-baseline.md) · [ER-03 脱敏/Artifact 基线](event-receipt-redaction-baseline.md) · [ER-04 CommandReceipt 基线](event-receipt-command-receipt-baseline.md) · [事实账本、收据与恢复](event-receipt-recovery.md) |
 | Context / Memory | CM-00–CM-39（40） | [CM-01 来源/scope 基线](context-scope-baseline.md) · [CM-02 Memory 生命周期](memory-lifecycle-baseline.md) · [CM-03 Memory scope](memory-scope-baseline.md) · [CM-04 Memory mutation](memory-mutation-baseline.md) · [上下文、检索、记忆与治理](context-memory.md) |
-| Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [EXT-01 扩展合同](extension-contracts-baseline.md) · [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
+| Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [EXT-01 扩展合同](extension-contracts-baseline.md) · [EXT-02 SourceResolver](source-resolver-baseline.md) · [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
 | UI / Entrypoints | UI-00–UI-41（42） | [CLI、Workbench、Web、Desktop 与入口一致性](ui-entrypoints.md) |
 | 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [roadmap §29](../roadmap.md#config-credentials-identity-plan) |
 | Swarm | SW-00–SW-18（19） | [roadmap §30](../roadmap.md#swarm-coordination-design) |

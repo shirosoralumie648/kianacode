@@ -1,0 +1,48 @@
+name: EXT-02 source resolver
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.lock"
+      - "kiana-skills/Cargo.toml"
+      - "kiana-skills/src/source_resolver.rs"
+      - "kiana-skills/src/loader.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext02_source_resolver.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/source-resolver-baseline.md"
+      - ".github/workflows/ext02-source-resolver.yml"
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "kiana-skills/Cargo.toml"
+      - "kiana-skills/src/source_resolver.rs"
+      - "kiana-skills/src/loader.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext02_source_resolver.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/source-resolver-baseline.md"
+      - ".github/workflows/ext02-source-resolver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-resolver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-02 resolver fixtures
+        run: cargo test -p kiana-skills --test ext02_source_resolver --locked -- --test-threads=1
+      - name: Compile EXT-02 loader boundary
+        run: cargo check -p kiana-skills --tests --locked
