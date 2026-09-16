@@ -1,4 +1,5 @@
 pub mod bundled;
+pub mod catalog;
 pub mod dynamic;
 pub mod loader;
 pub mod manifest;
@@ -8,6 +9,7 @@ pub mod source_resolver;
 pub mod types;
 
 pub use bundled::{get_bundled_skills, register_bundled_skill, BundledSkill};
+pub use catalog::{build_skill_catalog, SkillCatalog};
 pub use dynamic::{
     activate_conditional_skills_for_paths, add_dynamic_skill, get_dynamic_skills,
     store_conditional_skill,
@@ -93,10 +95,26 @@ pub async fn load_all_skills_with_trust(
         }
     }
     all.extend(load_plugin_skills_for_cwd(cwd, project_trust).await);
+    all.extend(get_bundled_skills());
+    all.extend(get_dynamic_skills());
 
-    // Deduplicate by name (first wins, which is shallowest dir / highest priority)
-    let mut seen = std::collections::HashSet::new();
-    all.retain(|s| seen.insert(s.name.clone()));
+    // Selection and duplicate diagnostics are owned by the deterministic domain catalog rather
+    // than filesystem/HashMap iteration order. A parser failure is fail-closed for the catalog;
+    // the caller receives no ambiguous skill set.
+    let catalog = match build_skill_catalog(&all, 1) {
+        Ok(catalog) => catalog,
+        Err(error) => {
+            warn!("Failed to build extension catalog: {error}");
+            all.clear();
+            SkillCatalog {
+                catalog: kiana_domain::ExtensionCatalog::new(1, Vec::new())
+                    .expect("empty catalog is valid"),
+                selected: Vec::new(),
+                shadowed: Vec::new(),
+            }
+        }
+    };
+    let all = catalog.selected;
 
     // Separate conditional skills from unconditional ones
     let (unconditional, conditional): (Vec<_>, Vec<_>) = all
@@ -107,12 +125,7 @@ pub async fn load_all_skills_with_trust(
         store_conditional_skill(skill);
     }
 
-    let bundled = get_bundled_skills();
-    let dynamic = get_dynamic_skills();
-
-    let mut combined = unconditional;
-    combined.extend(bundled);
-    combined.extend(dynamic);
+    let combined = unconditional;
 
     debug!("Loaded {} skills total", combined.len());
 

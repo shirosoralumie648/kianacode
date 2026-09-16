@@ -1524,6 +1524,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EXT-03 parser/compatibility/unknown-field source-boundary review; no runtime test reviewer
 ```
 
+### EXT-04 deterministic extension catalog evidence (2026-09-16)
+
+```text
+source_snapshot: 86e93ef (EXT-03 strict parser); kiana-domain/src/{extension_catalog,contracts,lib}.rs; kiana-skills/src/{catalog,lib}.rs; kiana-domain/tests/ext04_catalog.rs; kiana-skills/tests/ext04_catalog.rs; .github/workflows/ext04-catalog.yml; docs/roadmap/catalog-baseline.md; docs/roadmap/skills-plugins-hooks.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: EXT-04 deterministic ExtensionCatalog winner/shadowed projection, Hook matcher ordering, legacy Command adapter, remote fixtures and roadmap/status overlays are scoped to this step; catalog remains inert metadata and does not grant activation/capability or execute hooks; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/extension_catalog.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-skills/src/catalog.rs kiana-skills/src/lib.rs kiana-domain/tests/ext04_catalog.rs kiana-skills/tests/ext04_catalog.rs .github/workflows/ext04-catalog.yml docs/roadmap/catalog-baseline.md
+  rg -n 'ExtensionCatalog|CatalogCandidate|duplicate_identity_shadowed|HookOrderCandidate|order_hooks|build_skill_catalog|skill_name_collision_is_deterministic_and_audited|hook_matcher_order_is_replayable|command_catalog_selection_is_stable_and_reports_shadowed_candidates' kiana-domain/src kiana-skills/src kiana-domain/tests kiana-skills/tests docs/roadmap/catalog-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/ext04_catalog.rs deterministic winner/shadowed and Hook specificity/replay fixtures; kiana-skills/tests/ext04_catalog.rs Command adapter collision fixture; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EXT-04 job is queued by the next push and is not awaited
+status_change: EXT-04 source slice is implemented. Domain catalog selection now sorts by kind/namespace/name/version/precedence/source/hash, selects one winner per identity, and preserves shadowed candidates with reason and digest. Hook candidates use a fixed precedence/specificity/event/matcher/id/source order and reject duplicate IDs. `kiana-skills` maps legacy Commands into this catalog before model-visible skill assembly, so input order and HashMap/filesystem iteration cannot silently choose a different skill.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; catalog generation is currently in-process and not persisted/CAS-invalidated, SourceResolver/ProjectTrust/signature and entry validity remain separate, Hook matcher execution/timeout/cancellation/recursion and final ControlPlane/Broker re-authorization remain EXT-05+; catalog/allowed-tools do not prove capability or business outcome
+reviewer: Codex root implementation review plus EXT-04 ordering/duplicate/shadow diagnostics source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

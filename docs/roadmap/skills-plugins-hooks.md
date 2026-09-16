@@ -138,7 +138,9 @@ flowchart TD
 
 
 
-#### EXT-04 · Catalog、优先级、重复和可解释性　⏳
+#### EXT-04 · Catalog、优先级、重复和可解释性　✅
+
+当前 source slice 与 CI-only 证据见 [`catalog-baseline.md`](catalog-baseline.md)。
 
 对 source scope、namespace、name、version、hash 排序，禁止依赖 filesystem iteration 顺序。重复 Skill/Hook/Plugin 不静默覆盖：按规则选中一个，并在诊断和 receipt 中列出 shadowed candidates、选择原因和 hash。目标验收：`skill_name_collision_is_deterministic_and_audited`、`hook_matcher_order_is_replayable`。
 
