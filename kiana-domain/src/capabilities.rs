@@ -75,6 +75,7 @@ impl CapabilityResultDimensions {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityGrant {
     pub schema: String,
     pub grant_id: CapabilityGrantId,
@@ -145,6 +146,7 @@ impl CapabilityGrant {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SupervisionLease {
     pub schema: String,
     pub lease_id: SupervisionLeaseId,

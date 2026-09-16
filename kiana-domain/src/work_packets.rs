@@ -199,6 +199,7 @@ impl WorkPacket {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentTemplate {
     pub schema: String,
     pub template_id: TemplateId,
@@ -270,6 +271,7 @@ impl AgentTemplate {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BudgetLease {
     pub schema: String,
     pub lease_id: BudgetLeaseId,
@@ -402,6 +404,7 @@ impl BudgetLease {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CellSpec {
     pub schema: String,
     pub cell_id: CellId,
@@ -461,6 +464,7 @@ impl CellSpec {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpawnPlan {
     pub schema: String,
     pub plan_id: SpawnPlanId,

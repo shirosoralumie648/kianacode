@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-C-01 organization and Cell contract evidence (2026-09-16)
+
+```text
+source_snapshot: 7169492 + P1-C-01 working-tree slice; kiana-domain/src/{work_packets,capabilities}.rs; kiana-core/src/cell_registry.rs; kiana-domain/tests/p1_c01_contract.rs; kiana-core/tests/p1_c01_contract_guard.rs; .github/workflows/p1-c01-contract.yml; docs/roadmap/cell-contract-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P1-C-01 six versioned AgentTemplate/CellSpec/SpawnPlan/BudgetLease/CapabilityGrant/SupervisionLease contracts, unknown-field fences, template/parent scope checks and CI-only fixtures are scoped to this step; no durable scheduler or second execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/work_packets.rs kiana-domain/src/capabilities.rs kiana-core/src/cell_registry.rs kiana-domain/tests/p1_c01_contract.rs kiana-core/tests/p1_c01_contract_guard.rs .github/workflows/p1-c01-contract.yml docs/roadmap/cell-contract-baseline.md
+  rg -n 'AgentTemplate|CellSpec|SpawnPlan|BudgetLease|CapabilityGrant|SupervisionLease|deny_unknown_fields|template_version|contains\(&self, child|spawn_grant_not_contained|spawn_delegation_denied' kiana-domain/src kiana-core/src kiana-domain/tests/p1_c01_contract.rs kiana-core/tests/p1_c01_contract_guard.rs docs/roadmap/cell-contract-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain fixture/source guard compiled only; no test or smoke binary executed locally
+fixture or cassette: p1_c01_contract::child_grant_cannot_exceed_parent_grant and templates_pin_version_and_default_to_non_delegable; core CellRegistry source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-C-01 job is queued by the push and is not awaited
+status_change: P1-C-01 source slice is implemented. Domain now marks all six Cell contracts as deny-unknown-field DTOs; template IDs/versions are checked against Cell specs, RoleSpec templates default to non-delegable, and CapabilityGrant containment enforces capability/operation/resource/path/expiry/delegation subset. MemoryCellRegistry repeats template, grant, budget and supervision checks for reserve and snapshot admission.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; MemoryCellRegistry remains process-local, durable Cell/Grant/Budget/Lease projection and cross-process lease fencing are absent, and full scheduler/Swarm lifecycle and all alternate entrypoint coverage remain P1-C-02/SW/AUT/ER/PD work
+reviewer: Codex root implementation review plus P1-C-01 contract/subset source-boundary review; no runtime test reviewer
+```
+
 ### P0-K1-01 server identity and authority epoch evidence (2026-09-16)
 
 ```text

@@ -77,7 +77,7 @@
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ✅ |
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
-| `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ⏳ |
+| `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ✅ |
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ⏳ |
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ⏳ |
@@ -242,7 +242,7 @@
 | 074 | W1 | 专项 | [`P4-J7-10`](roadmap/provider.md#step-p4-j7-10) | Provider · 能力目录、未知能力和显式 discovery | `P4-J7-08` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-10) |
 | 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ✅ | [基础卡](#step-p0-b-01) |
 | 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ✅ | [基础卡](#step-p0-k1-01) |
-| 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-c-01) |
+| 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ✅ | [基础卡](#step-p1-c-01) |
 | 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-03) |
 | 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-d-01) |
 | 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
@@ -1033,6 +1033,8 @@
 
 | 当前 92 | `P0-K1-01` 服务端身份与 authority epoch | DaemonHost 以 authenticated principal 覆盖 wire actor，ProjectTrustAuthority/canonical root/device/inode 派生 ProjectIdentity；首次 effectful session 以 CAS 固化 typed SessionAssignment，后续 role/department 变更 fail-closed；authority stream 的单调版本写入 assignment 与 `run.authorized.authority_epoch`，继续复用 ControlPlane owner/approval/Broker 主路径；新增 ingress fixture、core source guard、CI workflow 与 identity-authority baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；principal 仍为固定 local-user 兼容身份，OS/OAuth/tenant provider、durable assignment/Membership/Grant ledger、跨进程 epoch recovery 和完整 effect-time revalidation 仍由 CI/CP/SC/PD 后续步骤负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 93 | `P1-C-01` 组织与 Cell 契约 | `AgentTemplate`、`CellSpec`、`SpawnPlan`、`BudgetLease`、`CapabilityGrant`、`SupervisionLease` 六类合同统一由 domain 暴露，DTO 拒绝 unknown fields；模板 version/id 与 Cell 绑定，默认不委派，child grant 的 capability/operation/resource/path/expiry/delegation 只能是 parent 子集；CellRegistry 在 reserve 与 snapshot 恢复重复检查并 fail-closed；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；MemoryCellRegistry 仍是进程内 adapter，durable Cell/Grant/Budget/Lease projector、跨进程恢复和完整 scheduler/Swarm 生命周期留待 P1-C-02/SW/AUT/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1173,6 +1175,7 @@
 | 2026-09-16 | `P4-J7-10` Model catalog：新增 typed ModelCatalog/Entry，绑定 source/expiry/revision、Supported/Unsupported/Unknown capability 与 deterministic digest；Gateway 投影 configured entries，same-name model 要求 connection、slash ID 保持，discovery/list 不授予 tools 或改变 active route；新增 provider/core fixtures 与 catalog baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P0-B-01` State transition matrix：复核 domain Approval/Capability/RunCancellation/WorkPacket/Execution/Company 状态图与 terminal predicates，新增 illegal/terminal/result_unknown fixtures 和 core/runner source guard；不改变既有状态语义，CI-only 验证，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P0-K1-01` Server identity/authority epoch：DaemonHost 覆盖 wire actor，按 ProjectTrust 与 canonical root/device/inode 派生 ProjectIdentity；SessionAssignment 经 CAS 固化角色/部门，authority stream 单调版本写入 assignment 与 `run.authorized` epoch；新增 ingress fixture、core source guard、CI workflow 与 identity-authority baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-C-01` Organization/Cell contracts：统一 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 的 domain 合同，补 unknown-field fence、模板版本绑定、默认不可委派和 parent grant 子集校验；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1562,14 +1565,14 @@
 
 <a id="step-p1-c-01"></a>
 
-### P1-C-01 组织与 Cell 契约　⏳
+### P1-C-01 组织与 Cell 契约　✅
 
-- **现状**：Cell 相关类型零散，`kiana-domain` 没有 `AgentTemplate`/`CellSpec`/`SpawnPlan` 的统一契约。
-- **做什么**：定义 `AgentTemplate`、`CellSpec`、`SpawnPlan`、`BudgetLease`、`CapabilityGrant`、`SupervisionLease`；模板版本固定，子权限只减不增，默认不可再委派。
+- **现状**：`kiana-domain` 已提供六类 versioned Cell/组织合同，`MemoryCellRegistry` 在 reserve/snapshot 阶段重复校验模板、grant、budget、supervision 与 parent scope。
+- **做什么**：补齐六类 DTO 的 unknown-field fence，固定模板版本绑定、子 grant 只能收窄、默认不可再委派，并接入专用 CI 验收。
 - **风险**：模板版本若不固定，历史 Cell 无法复现。
 - **验收**：`child_grant_cannot_exceed_parent_grant`
-- **依赖 / 边界**：依赖 `P0-A-01a`；优先在 `kiana-domain` 定义契约。
-- **依据**：`company-os-implementation-outline.md` §Slice C
+- **依赖 / 边界**：依赖 `P0-A-01a`；优先在 `kiana-domain` 定义契约。Cell 状态持久化、调度和跨进程恢复留在 P1-C-02/SW/AUT/ER/PD。
+- **依据**：`company-os-implementation-outline.md` §Slice C；证据见 [`cell-contract-baseline.md`](roadmap/cell-contract-baseline.md)
 
 
 
