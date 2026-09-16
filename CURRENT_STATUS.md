@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-D-02 dependency graph validation evidence (2026-09-16)
+
+```text
+source_snapshot: f60df32 + P1-D-02 working-tree slice; kiana-domain/src/{packet_graph,company}.rs; kiana-core/src/company.rs; kiana-domain/tests/p1_d02_dependency_graph.rs; kiana-core/tests/p1_d02_dependency_guard.rs; .github/workflows/p1-d02-dependency-graph.yml; docs/roadmap/dependency-graph-baseline.md; docs/roadmap.md
+worktree_status: P1-D-02 explicit dependency/DAG validation and candidate-packet approval fence are scoped to this step; graph errors fail before Company fact append and no scheduler/second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/packet_graph.rs kiana-domain/src/company.rs kiana-core/src/company.rs kiana-domain/tests/p1_d02_dependency_graph.rs kiana-core/tests/p1_d02_dependency_guard.rs .github/workflows/p1-d02-dependency-graph.yml docs/roadmap/dependency-graph-baseline.md
+  rg -n 'validate_dependency_dag|packet_dependency_cycle|packet_dependency_missing|packet_dependency_duplicate|cycle.rotate_left|company_packet_dependency_graph_invalid|dependency_cycle_is_rejected_deterministically' kiana-domain/src kiana-core/src kiana-domain/tests/p1_d02_dependency_graph.rs kiana-core/tests/p1_d02_dependency_guard.rs docs/roadmap/dependency-graph-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain graph fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: p1_d02_dependency_graph::dependency_cycle_is_rejected_deterministically and dependency_missing_and_duplicate_edges_fail_closed; CompanyState candidate approval source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-D-02 job is queued by the push and is not awaited
+status_change: P1-D-02 source slice is implemented. `validate_dependency_dag` now remains the single deterministic graph authority and CompanyState validates the full project graph, including a candidate packet, before persisting approval; missing, duplicate and cyclic dependencies fail closed with stable diagnostics.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; graph validation does not itself reclaim leases or change blocked status, EventLog durable migration/replay and scheduler/queue recovery remain P1-D-03/AUT/ER/PD work
+reviewer: Codex root implementation review plus P1-D-02 dependency/DAG source-boundary review; no runtime test reviewer
+```
+
 ### P1-D-01 single WorkPacket ready predicate evidence (2026-09-16)
 
 ```text

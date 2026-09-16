@@ -1340,6 +1340,13 @@ impl CompanyState {
                     }),
                     "company_packet_dependency_missing",
                 )?;
+                // Validate the graph including the candidate before appending it.  Existence
+                // checks alone would allow a new edge to close a cycle after the packet was
+                // persisted; the domain graph helper is deterministic and fail-closed.
+                let mut graph = self.project_packets(project_id);
+                graph.insert(packet.id.clone(), packet.clone());
+                crate::validate_dependency_dag(&graph)
+                    .map_err(|_| "company_packet_dependency_graph_invalid")?;
                 if a.execution_cell_id.is_some() {
                     let handoff_id = format!("packet:{}", packet.id);
                     self.handoffs.insert(

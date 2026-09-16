@@ -81,7 +81,7 @@
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ✅ |
-| `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ⏳ |
+| `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ✅ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
 | `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
@@ -245,7 +245,7 @@
 | 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ✅ | [基础卡](#step-p1-c-01) |
 | 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ✅ | [基础卡](#step-p1-c-03) |
 | 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ✅ | [基础卡](#step-p1-d-01) |
-| 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
+| 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ✅ | [基础卡](#step-p1-d-02) |
 | 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
 | 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ⏳ | [基础卡](#step-p1-h-01) |
 | 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ⏳ | [基础卡](#step-p1-h-03) |
@@ -1039,6 +1039,8 @@
 
 | 当前 95 | `P1-D-01` WorkPacket 单一 ready 谓词 | `kiana_domain::ready_packets(graph, now)` 统一执行 identity/DAG、依赖状态、deadline 和 claim lease 判断；CompanyState/ControlPlane 直接消费，legacy `kiana-tasks` 仅委托 wrapper，不复制算法；新增跨 crate readiness fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试 | `feature_status=implemented`（domain/core/tasks source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；readiness 仍为只读投影，依赖成环 admission、claim reclaim、durable queue/scheduler 和旧 board completion gate 仍由 P1-D-02/03、AUT/PD 后续步骤负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 96 | `P1-D-02` 依赖缺失 / 成环 fail-closed | `validate_dependency_dag` 拒绝 identity 错误、重复/缺失依赖和超大图，并将环规范化为稳定 cycle；CompanyState `ApprovePacket` 在追加候选前把完整项目图过 DAG 校验，PlanProject/Claim/dispatch 继续复用同一 helper；新增 domain deterministic graph fixtures、core source guard、CI workflow 与 dependency-graph baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；依赖图仍是结构校验，自动状态派生、claim reclaim、durable queue/scheduler 和完整跨入口行为留待 P1-D-03/AUT/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1182,6 +1184,7 @@
 | 2026-09-16 | `P1-C-01` Organization/Cell contracts：统一 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 的 domain 合同，补 unknown-field fence、模板版本绑定、默认不可委派和 parent grant 子集校验；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-C-03` Role model routing：固定五部门九岗位 `RoleSpec.model_profile`，ControlPlane 将 server-owned profile 写入 `ModelAssignment`，ProviderGateway 只按 assignment 路由 planning/executing/quality 到不同 configured models；新增独立 provider fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-D-01` Single WorkPacket readiness：确认 domain `ready_packets(graph, now)` 是唯一状态/依赖/deadline/claim 谓词，Company core/state 直接消费，legacy `kiana-tasks` 只委托该实现；新增跨 crate fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-D-02` Dependency graph：`validate_dependency_dag` 拒绝缺失/重复边并输出确定性规范化 cycle；CompanyState `ApprovePacket` 追加前验证候选项目图；新增 domain/core fixtures、CI workflow 与 dependency-graph baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1639,14 +1642,14 @@
 
 <a id="step-p1-d-02"></a>
 
-### P1-D-02 依赖缺失 / 成环 fail-closed　⏳
+### P1-D-02 依赖缺失 / 成环 fail-closed　✅
 
-- **现状**：依赖边未强制为显式字段，成环检测未在 approve 与模板注册时调用。
-- **做什么**：`WorkPacket.dependencies` 显式字段 + `validate_dependency_dag`，输出确定性规范化环（两次运行字节一致），失败拒绝落盘。
+- **现状**：`WorkPacket.dependencies` 是显式字段，domain DAG helper 已拒绝缺失/重复边并规范化环；CompanyState 的 ApprovePacket 现在在追加候选前验证完整项目图。
+- **做什么**：补批准前候选图校验与确定性缺失/成环 CI 夹具，确保结构错误不会写入事实账本。
 - **风险**：从 packet 文本解析依赖会引入不确定性和注入面。
 - **验收**：`dependency_cycle_is_rejected_deterministically`
-- **依赖 / 边界**：依赖 `P1-D-01`；父 packet blocked 时子 packet 派生 blocked。
-- **依据**：`company-os-implementation-outline.md` §Slice D
+- **依赖 / 边界**：依赖 `P1-D-01`；父 packet blocked 时子 packet 派生 blocked，自动 reclaim 留在 P1-D-03。
+- **依据**：`company-os-implementation-outline.md` §Slice D；证据见 [`dependency-graph-baseline.md`](roadmap/dependency-graph-baseline.md)
 
 
 
