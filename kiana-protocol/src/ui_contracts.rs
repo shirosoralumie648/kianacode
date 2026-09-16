@@ -20,6 +20,7 @@ pub const UI_ERROR_SCHEMA: &str = "kiana.ui-error.v1";
 pub const UI_HANDSHAKE_REQUEST_SCHEMA: &str = "kiana.ui-handshake-request.v1";
 pub const UI_HANDSHAKE_RESPONSE_SCHEMA: &str = "kiana.ui-handshake-response.v1";
 pub const UI_HEALTH_SCHEMA: &str = "kiana.ui-health.v1";
+pub const UI_INSTANCE_RECORD_SCHEMA: &str = "kiana.ui-instance-record.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -569,6 +570,107 @@ impl UiActionResult {
 // Names used by surface adapters while the legacy UiSnapshot/UiAction remain available.
 pub type VersionedUiSnapshot = UiSnapshotV1;
 pub type VersionedUiAction = UiActionV1;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiTransportKind {
+    InProcess,
+    UnixSocket,
+    NamedPipe,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiInstanceRecord {
+    pub schema: String,
+    pub instance_id: String,
+    pub authority_epoch: u64,
+    pub protocol_schema: String,
+    pub workspace_digest: String,
+    pub transport: UiTransportKind,
+    pub endpoint_digest: String,
+    pub pid: u32,
+    pub ready: bool,
+    pub record_digest: String,
+}
+
+impl UiInstanceRecord {
+    pub fn new(
+        instance_id: impl Into<String>,
+        authority_epoch: u64,
+        workspace: &str,
+        transport: UiTransportKind,
+        endpoint: &str,
+        pid: u32,
+        ready: bool,
+    ) -> Result<Self, String> {
+        if workspace.trim().is_empty() || endpoint.trim().is_empty() {
+            return Err("ui_instance_endpoint_required".to_owned());
+        }
+        let mut record = Self {
+            schema: UI_INSTANCE_RECORD_SCHEMA.to_owned(),
+            instance_id: instance_id.into(),
+            authority_epoch,
+            protocol_schema: super::PROTOCOL_SCHEMA.to_owned(),
+            workspace_digest: json_digest(&json!({"workspace": workspace})),
+            transport,
+            endpoint_digest: json_digest(&json!({"endpoint": endpoint})),
+            pid,
+            ready,
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_INSTANCE_RECORD_SCHEMA
+            || self.protocol_schema != super::PROTOCOL_SCHEMA
+            || self.authority_epoch == 0
+            || self.pid == 0
+            || !self.ready
+            || self.instance_id.trim().is_empty()
+            || self.instance_id.len() > 256
+            || self.instance_id.contains('/')
+            || self.instance_id.contains('\\')
+            || self.instance_id.contains('\0')
+        {
+            return Err("ui_instance_record_header_invalid".to_owned());
+        }
+        digest(&self.workspace_digest, "ui_instance_workspace_digest")?;
+        digest(&self.endpoint_digest, "ui_instance_endpoint_digest")?;
+        digest(&self.record_digest, "ui_instance_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("ui_instance_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn validate_peer(
+        &self,
+        workspace: &str,
+        protocol_schema: &str,
+        expected_epoch: Option<u64>,
+    ) -> Result<(), String> {
+        self.validate()?;
+        if self.protocol_schema != protocol_schema
+            || self.workspace_digest != json_digest(&json!({"workspace": workspace}))
+            || expected_epoch.is_some_and(|epoch| epoch != self.authority_epoch)
+        {
+            return Err("ui_instance_peer_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        let mut value = serde_json::to_value(self).unwrap_or_default();
+        if let Some(object) = value.as_object_mut() {
+            object.insert("record_digest".to_owned(), Value::String(String::new()));
+        }
+        json_digest(&value)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

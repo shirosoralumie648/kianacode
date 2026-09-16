@@ -1608,6 +1608,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus UI-02 handshake/capability/error source-boundary review; no runtime test reviewer
 ```
 
+### UI-03 local instance identity/discovery/transport evidence (2026-09-16)
+
+```text
+source_snapshot: 8fe8338 (UI-02 handshake); kiana-protocol/src/ui_contracts.rs; kiana-daemon/src/{instance,lib}.rs; kiana-daemon/tests/ui03_instance.rs; .github/workflows/ui03-instance.yml; docs/roadmap/ui-instance-baseline.md; docs/roadmap/ui-entrypoints.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: UI-03 UiTransportKind/UiInstanceRecord, create-new single-instance lease, 0600 ready record/lock, bounded discovery and workspace/protocol/epoch peer checks are scoped to this step; record/lock are discovery metadata only and no socket listener/second runner/authorization path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-protocol/src/ui_contracts.rs kiana-daemon/src/instance.rs kiana-daemon/src/lib.rs kiana-daemon/tests/ui03_instance.rs .github/workflows/ui03-instance.yml docs/roadmap/ui-instance-baseline.md
+  rg -n 'UiTransportKind|UiInstanceRecord|InstanceLease|acquire_instance|discover|validate_peer|ui_instance_already_running|ui_instance_lock_permissions_invalid|instance_lock_record_discovery_and_peer_checks_are_fail_closed|symlink_workspace_and_record_paths_are_rejected' kiana-protocol/src kiana-daemon/src kiana-daemon/tests docs/roadmap/ui-instance-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; daemon/protocol instance fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/tests/ui03_instance.rs single lease/discovery, duplicate acquire, peer mismatch, endpoint redaction and symlink workspace fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-03 job is queued by the next push and is not awaited
+status_change: UI-03 source slice is implemented. Protocol now carries a bounded UiInstanceRecord with instance ID, authority epoch, protocol/workspace/endpoint digests, PID, ready flag and integrity digest. Daemon InstanceLease creates a workspace-local `.kiana/instances/instance.lock` with create-new/0600 semantics and a single ready record; discover rejects missing/invalid lock, duplicate records, foreign workspace, protocol/epoch drift and symlink aliases. DaemonHost exposes an explicit acquire_instance API while commands remain on the existing ControlPlane spine.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no real Unix socket/named pipe listener, OS peer credential/token authentication, PID start-time/restart epoch durable counter, crash recovery or readiness atomicity is proven; stale locks are not auto-taken over, and record/health does not imply EventStore/Runner/Provider availability or business outcome
+reviewer: Codex root implementation review plus UI-03 instance/lock/discovery/peer source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

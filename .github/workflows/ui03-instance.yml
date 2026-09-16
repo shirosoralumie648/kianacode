@@ -1,0 +1,42 @@
+name: UI-03 local instance discovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/instance.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/ui03_instance.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-instance-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui03-instance.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/instance.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/ui03_instance.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-instance-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui03-instance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-03 instance fixtures
+        run: cargo test -p kiana-daemon --test ui03_instance --locked -- --test-threads=1
+      - name: Compile UI-03 instance target
+        run: cargo check -p kiana-daemon --tests --locked

@@ -195,9 +195,9 @@ UiActionResult {
 
 
 
-#### UI-03 · 本地实例身份、发现和 transport　⏳
+#### UI-03 · 本地实例身份、发现和 transport　✅
 
-- 依赖：UI-01/02。代码：`kiana-daemon`、`kiana-client` 的 in-process/Unix socket/named pipe adapter 与 instance lock。
+- 依赖：UI-01/02。当前 source slice 与 CI-only 证据见 [`ui-instance-baseline.md`](ui-instance-baseline.md)。代码：`kiana-daemon`、`kiana-client` 的 in-process/Unix socket/named pipe adapter 与 instance lock。
 - 步骤：为 daemon 生成 instance ID、authority epoch、socket/pipe 权限和 ready record；CLI/Workbench 优先复用已有实例，安全地启动/连接并探测协议版本。
 - 先拒绝：旧 socket、PID 重用、不同 workspace、未知 peer、权限过宽的 socket、重复实例和 epoch 不一致必须失败关闭。
 - 成功/回归：启动、attach、daemon 重启、并发客户端、半开连接、协议降级和清理锁文件测试；transport 只传请求，不执行副作用。

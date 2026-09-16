@@ -14,6 +14,7 @@ mod harness_mcp;
 mod harness_memory;
 mod harness_sandbox;
 mod harness_skills;
+mod instance;
 mod journal_approvals;
 mod local_packages;
 mod mcp_stdio;
@@ -23,6 +24,9 @@ mod pre_tool_hooks;
 mod run_stream;
 mod workspace_checkpoints;
 
+pub use instance::{
+    discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
+};
 use journal_approvals::JournalApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
@@ -187,6 +191,17 @@ impl DaemonHost {
             trust_revision,
         )
         .map_err(PortError::Failed)
+    }
+
+    /// Acquire the one local instance lease for a workspace and write a ready record. The lease
+    /// is discovery metadata only; every command still returns through ControlPlane.
+    pub fn acquire_instance(
+        &self,
+        workspace: impl AsRef<Path>,
+        transport: kiana_protocol::UiTransportKind,
+        endpoint: &str,
+    ) -> Result<InstanceLease, PortError> {
+        instance::InstanceLease::acquire(workspace, transport, endpoint)
     }
 
     /// Subscribe to additive run-stream events for one run.
