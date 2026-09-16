@@ -234,7 +234,7 @@
 | 066 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ✅ | [专项卡](roadmap/companyos.md#step-co-07) |
 | 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | ✅ | [专项卡](roadmap/companyos.md#step-co-08) |
 | 068 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-01b) |
-| 069 | W1 | 基础 | [`P0-A-02`](#step-p0-a-02) | P0 基础 · 稳定错误码枚举 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-a-02) |
+| 069 | W1 | 基础 | [`P0-A-02`](#step-p0-a-02) | P0 基础 · 稳定错误码枚举 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-02) |
 | 070 | W1 | 专项 | [`P4-J7-06`](roadmap/provider.md#step-p4-j7-06) | Provider · 中立内容、调用身份、错误与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-06) |
 | 071 | W1 | 专项 | [`P4-J7-07`](roadmap/provider.md#step-p4-j7-07) | Provider · 提取 kiana-provider 并迁移装配 | `P4-J7-06` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-07) |
 | 072 | W1 | 专项 | [`P4-J7-08`](roadmap/provider.md#step-p4-j7-08) | Provider · 连接、profile 和配置快照 | `P4-J7-07` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-08) |
@@ -1018,6 +1018,8 @@
 | 当前 83 | `CO-08` 业务状态机、历史重放与兼容迁移 | 新增 CompanyReplayReducer，检查 company aggregate/root/owner、stream_version 连续性、event kind/idempotency、expected revision、重复/回退/gap/unknown schema 和 pure CompanyState transition；显式支持 `kiana.company-event.v0`→v1 标签迁移，core load_company 统一复用 reducer；新增 domain/core replay fixtures、CI workflow 与 replay baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；尚无独立 durable snapshot/projector/cursor migration journal，v0 仅支持当前字段 shape，typed refs/多 aggregate/business state upcast 和后续 object-level acceptance 留待 CO-09+；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 84 | `P0-A-01b` schema 注册表与 unknown field/migration 规则 | 复核并 CI-wiring 现有 `SCHEMA_CONTRACTS`/`SchemaLayer`/`SchemaVersion` 与 `EVENT_KIND_SPECS`/`event_migration`；wire additive minor、domain/runtime unknown field、unknown schema/major/required event 和未登记 migration fail-closed；新增 domain/core fixtures、CI workflow 与 schema baseline；不运行本地测试 | `feature_status=implemented`（domain/protocol/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；registry 不等于所有 legacy payload upcaster 或 durable migration runner，未知原始事实保留/隔离、全量 event/projector coverage 留待 ER/PD/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 85 | `P0-A-02` 稳定错误码枚举 | 复核并 CI-wiring 现有 CapabilityErrorCode/CapabilityErrorPolicy、CapabilityResult::failure_code 与 protocol ResponseEnvelope::failure_policy；固定 CLI exit、HTTP status、retry/new authorization/compensation/reconciliation，path_escape 与 result_unknown 负向路径和 unknown reason 保守归类；新增 domain/core fixtures、CI workflow 与 error-codes baseline；不运行本地测试 | `feature_status=implemented`（domain/protocol/core/entrypoints source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；错误 policy 不授权重试或证明真实 effect/reconciliation，新增错误码和所有入口映射仍需后续维护；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1150,6 +1152,7 @@
 | 2026-09-16 | `CO-07` Company receipts：新增 CompanyCommandReceipt/DispatchIntent，稳定 logical command ID、payload/authority digest、revision/event/replay/unknown 状态；Company core 在同一 EventStore CAS 事实前后返回 typed receipt，StartRun/受限 effect 写入 prepared intent，重复 key 原 receipt、不重复 dispatch；新增 domain/core fixtures、CI workflow 与 receipts baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `CO-08` Company replay：新增 CompanyReplayReducer 与唯一 v0→v1 schema adapter；core load_company 校验 aggregate/root/owner/kind/idempotency、stream_version gap/regression、expected revision、重复命令、unknown major 和纯 CompanyState transition，历史重放结果稳定且不执行副作用；新增 domain/core fixtures、CI workflow 与 replay baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P0-A-01b` Schema registry gate：复核并专用 CI-wiring 现有 SCHEMA_CONTRACTS/SchemaLayer/SchemaVersion 与 EVENT_KIND_SPECS/event_migration；wire additive minor、domain/runtime unknown field、unknown schema/major/required event 和未登记 migration 均 fail-closed；新增 domain/core fixtures 与 schema baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P0-A-02` Stable errors：复核并专用 CI-wiring 现有 CapabilityErrorCode/CapabilityErrorPolicy、CapabilityResult::failure_code 与 protocol/CLI/HTTP mapping；path_escape 固定 403/exit3，新授权，ResultUnknown 固定 reconciliation/不可 retry，unknown reason 保守归类；新增 domain/core fixtures 与 error-codes baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1212,10 +1215,10 @@
 
 <a id="step-p0-a-02"></a>
 
-### P0-A-02 稳定错误码枚举　⏳
+### P0-A-02 稳定错误码枚举　✅
 
-- **现状**：错误以字符串理由跨层传递，没有 enum 与统一映射（`company-os-implementation-outline.md` §Slice B）。
-- **做什么**：`CapabilityErrorCode` enum + `CapabilityResult::failure_code()`；每个码定义 CLI exit、HTTP status、是否可重试、是否需新授权或补偿。
+- **现状**：`CapabilityErrorCode`/`CapabilityErrorPolicy` 与 `CapabilityResult::failure_code()` 已在现有 domain/protocol 路径实现，本步补专用 CI-only acceptance/source guard。
+- **做什么**：维护 append-only `CapabilityErrorCode` enum + `CapabilityResult::failure_code()`；每个码固定 CLI exit、HTTP status、是否可重试、是否需新授权或补偿；当前 evidence 见 [`error-codes-baseline.md`](roadmap/error-codes-baseline.md)。
 - **风险**：错误码一旦进入 wire 就只能加新码，不能改语义。
 - **验收**：`path_escape_uses_stable_error_code`
 - **依赖 / 边界**：依赖 `P0-A-01a`；`result_unknown` 必须进对账队列，不能自动 retry。

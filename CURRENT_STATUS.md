@@ -1797,6 +1797,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P0-A-01b schema/event registry source-boundary review; no runtime test reviewer
 ```
 
+### P0-A-02 stable error code evidence (2026-09-16)
+
+```text
+source_snapshot: 2e61ded (P0-A-01b parent; P0-A-02 source files listed below); kiana-domain/src/{errors,capabilities}.rs; kiana-protocol/src/lib.rs; kiana-entrypoints/src/{command_dispatch,web}.rs; kiana-domain/tests/p0_a02_error_codes.rs; kiana-core/tests/p0_a02_error_codes_guard.rs; .github/workflows/p0-a02-error-codes.yml; docs/roadmap/error-codes-baseline.md; docs/roadmap.md
+worktree_status: P0-A-02 verifies the single append-only CapabilityErrorCode/CapabilityErrorPolicy and failure_code/failure_policy mapping used by domain, protocol, CLI and HTTP; no error classification or retry bypass was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/errors.rs kiana-domain/src/capabilities.rs kiana-protocol/src/lib.rs kiana-entrypoints/src/command_dispatch.rs kiana-entrypoints/src/web.rs kiana-domain/tests/p0_a02_error_codes.rs kiana-core/tests/p0_a02_error_codes_guard.rs .github/workflows/p0-a02-error-codes.yml docs/roadmap/error-codes-baseline.md
+  rg -n 'CapabilityErrorCode|CapabilityErrorPolicy|failure_code|failure_policy|PathEscape|ResultUnknown|requires_reconciliation|from_reason|status_name' kiana-domain/src kiana-protocol/src kiana-entrypoints/src kiana-domain/tests kiana-core/tests docs/roadmap/error-codes-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/protocol/core/entrypoint fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p0_a02_error_codes.rs path_escape/result_unknown/unknown reason fixtures and kiana-core/tests/p0_a02_error_codes_guard.rs cross-surface source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-A-02 job is queued by the next push and is not awaited
+status_change: P0-A-02 source slice is implemented. The existing append-only CapabilityErrorCode enum provides fixed CLI/HTTP/retry/new-authorization/compensation/reconciliation policy; CapabilityResult and ResponseEnvelope expose the same classification, path_escape maps to a stable deny code, ResultUnknown cannot auto-retry, and unknown diagnostics remain conservative. Dedicated CI evidence now covers the shared mapping.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; error classification does not prove real effect/reconciliation, and future code must append (not mutate) enum semantics and keep all entrypoint mappings synchronized
+reviewer: Codex root implementation review plus P0-A-02 error-code/policy cross-surface source review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

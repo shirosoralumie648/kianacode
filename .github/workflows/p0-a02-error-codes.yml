@@ -1,0 +1,50 @@
+name: P0-A-02 stable error codes
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/tests/p0_a02_error_codes.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/p0_a02_error_codes_guard.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/error-codes-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-a02-error-codes.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/tests/p0_a02_error_codes.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/p0_a02_error_codes_guard.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/error-codes-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-a02-error-codes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  error-codes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-A-02 error fixtures
+        run: cargo test -p kiana-domain --test p0_a02_error_codes --locked -- --test-threads=1
+      - name: Run P0-A-02 source guard
+        run: cargo test -p kiana-core --test p0_a02_error_codes_guard --locked -- --test-threads=1
+      - name: Compile stable error mapping path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core -p kiana-entrypoints --tests --locked
