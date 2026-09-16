@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P0-B-01 state transition matrix evidence (2026-09-16)
+
+```text
+source_snapshot: ff7076b (P4-J7-10 parent; P0-B-01 source files listed below); kiana-domain/src/{states,company}.rs; kiana-core/src/{lifecycle,dispatch}.rs; kiana-runner/src/state_driver.rs; kiana-domain/tests/p0_b01_state_machine.rs; kiana-core/tests/p0_b01_state_machine_guard.rs; .github/workflows/p0-b01-state-machine.yml; docs/roadmap/state-machine-baseline.md; docs/roadmap.md
+worktree_status: P0-B-01 verifies the single domain state transition/terminal contract consumed by core lifecycle/dispatch and Runner driver; terminal/result_unknown cannot reopen or become success, and no second state machine was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/states.rs kiana-domain/src/company.rs kiana-core/src/lifecycle.rs kiana-core/src/dispatch.rs kiana-runner/src/state_driver.rs kiana-domain/tests/p0_b01_state_machine.rs kiana-core/tests/p0_b01_state_machine_guard.rs .github/workflows/p0-b01-state-machine.yml docs/roadmap/state-machine-baseline.md
+  rg -n 'can_transition_to|transition_via|is_terminal|ResultUnknown|InvalidStateTransition|company_illegal_state_transition|DriverTransition' kiana-domain/src kiana-core/src kiana-runner/src kiana-domain/tests kiana-core/tests docs/roadmap/state-machine-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/core/runner state fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p0_b01_state_machine.rs illegal/terminal/result_unknown fixtures and kiana-core/tests/p0_b01_state_machine_guard.rs consumer source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-B-01 job is queued by the next push and is not awaited
+status_change: P0-B-01 source slice is implemented. Approval, capability, cancellation, packet, execution and Company state graphs expose explicit transition edges and terminal predicates; core/dispatch and Runner consume these contracts, and result_unknown remains terminal/uncertain with explicit reconciliation rather than automatic success/retry.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; formal matrix does not prove every later Company object/legacy projector caller lacks ad-hoc inference, and durable cross-process transition/recovery remains ER/PD/CO scope
+reviewer: Codex root implementation review plus P0-B-01 transition/terminal source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

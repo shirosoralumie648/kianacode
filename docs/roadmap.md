@@ -240,7 +240,7 @@
 | 072 | W1 | 专项 | [`P4-J7-08`](roadmap/provider.md#step-p4-j7-08) | Provider · 连接、profile 和配置快照 | `P4-J7-07` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-08) |
 | 073 | W1 | 专项 | [`P4-J7-09`](roadmap/provider.md#step-p4-j7-09) | Provider · 凭据管理与 HTTP 目标校验 | `P4-J7-08` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-09) |
 | 074 | W1 | 专项 | [`P4-J7-10`](roadmap/provider.md#step-p4-j7-10) | Provider · 能力目录、未知能力和显式 discovery | `P4-J7-08` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-10) |
-| 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-b-01) |
+| 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ✅ | [基础卡](#step-p0-b-01) |
 | 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ⏳ | [基础卡](#step-p0-k1-01) |
 | 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-c-01) |
 | 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-03) |
@@ -1029,6 +1029,8 @@
 
 | 当前 90 | `P4-J7-10` 模型能力目录、unknown capability 与显式 discovery | 新增 typed ModelCatalog/ModelCatalogEntry，绑定 provider/connection/model 原样 ID、Supported/Unsupported/Unknown capability、source/expiry/catalog revision/digest；Gateway 投影 configured catalog，same-name 模型无 connection_id 时 ambiguous，slash model ID 保留，catalog 不能授权 tools/route；新增 provider/core fixtures、CI workflow 与 model catalog baseline；不运行本地测试 | `feature_status=implemented`（domain/provider/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；Cache/LiveDiscovery 尚无 durable refresh/signature/expiry store，活动 PreparedModelCall route、role/permit/capability enforcement 与真实 transport 仍待 P4-J7-11+；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 91 | `P0-B-01` 正式状态机转移表 | 复核并 CI-wiring domain Approval/CapabilityExecution/RunCancellation/WorkPacket/Execution/Company transition matrices 与 terminal predicates；illegal transition、terminal reopen、result_unknown→success/auto-retry fail-closed，compressed event 只走 transition_via；core lifecycle/dispatch 与 Runner state driver 消费同一契约；新增 domain/core fixtures、CI workflow 与 state baseline；不运行本地测试 | `feature_status=implemented`（domain/core/runner source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；逐个 Company object edge/legacy projector、跨入口 UAT 和 durable transition proof 仍需 CO/ER/PD 后续步骤；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1167,6 +1169,7 @@
 | 2026-09-16 | `P4-J7-08` Provider config snapshot：新增 ProviderProfileSnapshot/ProviderConfigSnapshot 和 Gateway secret-free configuration digest；profile/source/route revision 固定，unknown profile/inherit/key/capability/concurrency/streaming 拒绝，daemon explicit live/cassette mode conflict/missing cassette fail-closed；新增 provider/core fixtures、CI workflow 与 config baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P4-J7-09` Provider credentials/endpoints：复核并 CI-wiring credential reference/digest、HeaderValue/TLS/loopback/userinfo/query/fragment/redirect/proxy/concurrency/streaming guards；missing/invalid secret 和未授权公网 HTTP fail-closed，项目文本不能覆盖 endpoint；新增 provider/core fixtures 与 credentials baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P4-J7-10` Model catalog：新增 typed ModelCatalog/Entry，绑定 source/expiry/revision、Supported/Unsupported/Unknown capability 与 deterministic digest；Gateway 投影 configured entries，same-name model 要求 connection、slash ID 保持，discovery/list 不授予 tools 或改变 active route；新增 provider/core fixtures 与 catalog baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P0-B-01` State transition matrix：复核 domain Approval/Capability/RunCancellation/WorkPacket/Execution/Company 状态图与 terminal predicates，新增 illegal/terminal/result_unknown fixtures 和 core/runner source guard；不改变既有状态语义，CI-only 验证，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1246,10 +1249,10 @@
 
 <a id="step-p0-b-01"></a>
 
-### P0-B-01 正式状态机转移表　⏳
+### P0-B-01 正式状态机转移表　✅
 
-- **现状**：状态散落在 core/runner/daemon，取消与 dispatch 的线性化点没有冻结。
-- **做什么**：为 Cell、WorkPacket、CapabilityExecution、Approval 各出一张状态转移表，冻结终态不可回、expired approval 不得执行、`result_unknown` 不得自动变成功。
+- **现状**：domain 已有 Approval/Capability/RunCancellation/WorkPacket/Execution/Company transition matrices，本步补专用 CI fixture/source guard 冻结消费边界。
+- **做什么**：维护 domain 状态转移表，冻结终态不可回、expired approval 不得执行、`result_unknown` 不得自动变成功；当前 evidence 见 [`state-machine-baseline.md`](roadmap/state-machine-baseline.md)。
 - **风险**：新增中间态会改变 `run.cancelled` 时序，必须保住「每 run 恰好一条终态」。
 - **验收**：`illegal_state_transition_is_rejected`
 - **依赖 / 边界**：依赖 `P0-A-01a`；Review 不得覆盖 Builder 原始事实。
