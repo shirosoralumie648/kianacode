@@ -1755,6 +1755,48 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-07 receipt/idempotency/dispatch-intent source-boundary review; no runtime test reviewer
 ```
 
+### CO-08 Company replay and migration evidence (2026-09-16)
+
+```text
+source_snapshot: bfd7084 (CO-07 parent; CO-08 source files listed below); kiana-domain/src/{company_replay,company,lib,contracts}.rs; kiana-core/src/company.rs; kiana-domain/tests/co08_replay.rs; kiana-core/tests/co08_replay_guard.rs; .github/workflows/co08-company-replay.yml; docs/roadmap/company-replay-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-08 CompanyReplayReducer, explicit legacy v0→v1 schema adapter, stream/version/idempotency/root/owner/kind checks and core load_company wiring are scoped to this step; reducer only applies pure CompanyState transitions and never executes effects; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/company_replay.rs kiana-domain/src/company.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-core/src/company.rs kiana-domain/tests/co08_replay.rs kiana-core/tests/co08_replay_guard.rs .github/workflows/co08-company-replay.yml docs/roadmap/company-replay-baseline.md
+  rg -n 'CompanyReplayReducer|company_replay_gap|company_replay_duplicate_command|company_event_schema_unsupported|LEGACY_COMPANY_EVENT_SCHEMA|migrate_company_event|CompanyState::transition' kiana-domain/src kiana-core/src kiana-domain/tests kiana-core/tests docs/roadmap/company-replay-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/core/daemon fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co08_replay.rs identical v1 rebuild, gap/duplicate/unknown major and v0 migration fixtures; kiana-core/tests/co08_replay_guard.rs reducer wiring source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-08 job is queued by the next push and is not awaited
+status_change: CO-08 source slice is implemented. Core Company loading now delegates to a deterministic reducer that rejects aggregate/root/owner/kind/idempotency mismatch, stream gaps/regression, duplicate logical commands and unknown schema major before state changes. A single explicit v0→v1 adapter preserves parseable legacy facts; replay applies pure CompanyState transitions and does not invoke Runner, Provider or capability effects.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; reducer has no independent durable snapshot/cursor migration journal, v0 adapter only changes the known schema label, and full business/typed-ref upcast remains later CO/PD/ER work
+reviewer: Codex root implementation review plus CO-08 replay/gap/migration source-boundary review; no runtime test reviewer
+```
+
+### P0-A-01b schema registry evidence (2026-09-16)
+
+```text
+source_snapshot: 4d48220 (CO-08 parent; P0-A-01b registry files listed below); kiana-domain/src/{contracts,event_contracts}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/p0_a01b_schema.rs; kiana-core/tests/p0_a01b_schema_guard.rs; .github/workflows/p0-a01b-schema.yml; docs/roadmap/schema-registry-baseline.md; docs/roadmap.md
+worktree_status: P0-A-01b verifies the existing single SCHEMA_CONTRACTS/SchemaLayer/SchemaVersion and EVENT_KIND_SPECS/event_migration boundary; no second registry or execution path was introduced; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/event_contracts.rs kiana-protocol/src/lib.rs kiana-domain/tests/p0_a01b_schema.rs kiana-core/tests/p0_a01b_schema_guard.rs .github/workflows/p0-a01b-schema.yml docs/roadmap/schema-registry-baseline.md
+  rg -n 'SCHEMA_CONTRACTS|SchemaLayer|check_schema_compatibility|EVENT_KIND_SPECS|event_kind_is_required|event_migration|unknown_required_event_kind' kiana-domain/src kiana-protocol/src kiana-domain/tests kiana-core/tests docs/roadmap/schema-registry-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/protocol/core fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p0_a01b_schema.rs layer/unknown-major/minor/event migration fixtures and kiana-core/tests/p0_a01b_schema_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-A-01b job is queued by the next push and is not awaited
+status_change: P0-A-01b source slice is implemented. The existing registry differentiates wire/domain/runtime layers and owner/compatibility/unknown-field policy; unknown schema/major and required unknown event kinds fail closed, while only same-major compatibility and registered migrations are accepted. Dedicated CI evidence now covers the existing implementation.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; registry coverage does not prove every legacy payload has an upcaster or that durable migration/projector retention is complete; those remain ER/PD/DEP scope
+reviewer: Codex root implementation review plus P0-A-01b schema/event registry source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
