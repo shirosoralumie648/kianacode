@@ -1713,6 +1713,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-05 command-policy/human-decision source-boundary review; no runtime test reviewer
 ```
 
+### CO-06 immutable artifact/evidence evidence (2026-09-16)
+
+```text
+source_snapshot: 9946296 (CO-05 parent; CO-06 source files listed below); kiana-domain/src/{artifact_contracts,company,ids,contracts,lib}.rs; kiana-core/src/{artifacts,company}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_artifact_guard.rs; kiana-core/tests/oa27_company_governance.rs; .github/workflows/co06-artifact-evidence.yml; docs/roadmap/artifact-evidence-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-06 typed ArtifactVersion/ArtifactRef/EvidenceRef/Criterion contracts, hash/scope/provenance validation, read-only versioned blob port, core confined artifact metadata path, and optional CompanyProof/CriteriaSnapshot typed references are scoped to this step; legacy text/event fields remain replay-compatible and no second EventStore/blob execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/artifact_contracts.rs kiana-domain/src/company.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/artifacts.rs kiana-core/src/company.rs kiana-ports/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/co06_artifact.rs kiana-ports/tests/co06_artifact_port.rs kiana-core/tests/co06_artifact_guard.rs .github/workflows/co06-artifact-evidence.yml docs/roadmap/artifact-evidence-baseline.md
+  rg -n 'ArtifactVersion|ArtifactRef|EvidenceRef|Criterion|ArtifactContentPort|artifact_version_from_content|validate_artifact_reference_content|typed_version|typed_evidence_refs|criterion_refs|artifact_blob_missing|artifact_content_hash_mismatch' kiana-domain/src kiana-core/src kiana-ports/src kiana-protocol/src kiana-domain/tests kiana-ports/tests kiana-core/tests docs/roadmap/artifact-evidence-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/ports/core/daemon/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co06_artifact.rs immutable hash/provenance/criterion identity fixtures, kiana-ports/tests/co06_artifact_port.rs missing/blob/hash-drift fixtures, kiana-core/tests/co06_artifact_guard.rs source boundary checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-06 job is queued by the next push and is not awaited
+status_change: CO-06 source slice is implemented. Typed ArtifactVersion/ArtifactRef/EvidenceRef/Criterion contracts bind stable IDs, versions, content hash, scope and producer provenance. ArtifactContentPort reads only persisted versioned blobs and rejects missing/hash drift; core keeps confined/O_NOFOLLOW/atomic workspace reads and emits typed metadata into CompanyProof when a legacy artifact ID is UUID-shaped. Optional typed fields let CriteriaSnapshot preserve distinct Criterion IDs without breaking historical text snapshots.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; in-memory blob storage is not durable and typed refs are not yet fully wired into Review/Acceptance/Delivery projectors, EventLog upcast, retention/deletion, CAS or cross-process recovery; current-workspace freshness versus historical blob needs CO-07+
+reviewer: Codex root implementation review plus CO-06 artifact/hash/scope/provenance/path-boundary source review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

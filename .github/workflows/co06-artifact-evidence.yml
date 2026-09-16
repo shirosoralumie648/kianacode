@@ -1,0 +1,68 @@
+name: CO-06 immutable artifacts and evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/artifact_contracts.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co06_artifact.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/co06_artifact_port.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co06_artifact_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/artifact-evidence-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co06-artifact-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/artifact_contracts.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co06_artifact.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/co06_artifact_port.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co06_artifact_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/artifact-evidence-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co06-artifact-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-06 domain artifact fixtures
+        run: cargo test -p kiana-domain --test co06_artifact --locked -- --test-threads=1
+      - name: Run CO-06 artifact read-port fixtures
+        run: cargo test -p kiana-ports --test co06_artifact_port --locked -- --test-threads=1
+      - name: Run CO-06 core source guard
+        run: cargo test -p kiana-core --test co06_artifact_guard --locked -- --test-threads=1
+      - name: Compile Company evidence path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-core -p kiana-daemon --tests --locked

@@ -10,6 +10,7 @@
 //! transcript、UI 投影或模型自述当作状态权威。
 
 mod approval_journal;
+mod artifact_contracts;
 mod assignment;
 mod audit;
 mod capabilities;
@@ -52,6 +53,7 @@ mod usage;
 mod work_packets;
 
 pub use approval_journal::*;
+pub use artifact_contracts::*;
 pub use assignment::*;
 pub use audit::*;
 pub use capabilities::*;

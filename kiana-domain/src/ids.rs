@@ -68,6 +68,8 @@ uuid_id!(WorkspaceId);
 uuid_id!(MembershipId);
 uuid_id!(AssignmentId);
 uuid_id!(ProjectAssignmentId);
+uuid_id!(EvidenceId);
+uuid_id!(CriterionId);
 
 impl RunId {
     /// 从字符串解析 run UUID；首尾空白会被忽略，格式错误返回 `None`。

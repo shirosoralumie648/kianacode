@@ -199,6 +199,18 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "EvidenceId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "evidence_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "CriterionId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "criterion_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "SessionId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "session_id",
@@ -638,6 +650,38 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
     },
     SchemaContract {
         name: "kiana.company-project-binding.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.artifact-ref.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.artifact-version.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.evidence-ref.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.criterion.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
         owner_crate: "kiana-domain",
@@ -1422,6 +1466,8 @@ mod tests {
         MembershipId,
         AssignmentId,
         ProjectAssignmentId,
+        EvidenceId,
+        CriterionId,
     );
 
     impl IdRoundTripSample for crate::SessionId {
@@ -1533,6 +1579,8 @@ mod tests {
         MembershipId,
         AssignmentId,
         ProjectAssignmentId,
+        EvidenceId,
+        CriterionId,
         SessionId,
         WorkFingerprint,
     );

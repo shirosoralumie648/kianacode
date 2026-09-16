@@ -885,7 +885,44 @@ impl ControlPlane {
                 relative_path: relative_path.clone(),
                 text,
                 registered_at: company_now(),
+                typed_version: None,
             });
+            if let Ok(typed_id) =
+                serde_json::from_value::<kiana_domain::ArtifactId>(json!(artifact_id))
+            {
+                let scope_digest = kiana_domain::json_digest(&json!({
+                    "actor_id": context.actor_id,
+                    "project_root": company_root(context),
+                }));
+                let artifact_text = proof
+                    .artifact
+                    .as_ref()
+                    .map(|artifact| artifact.text.as_bytes())
+                    .unwrap_or_default();
+                let version = crate::artifacts::artifact_version_from_content(
+                    typed_id,
+                    1,
+                    "kiana.company-artifact.v1",
+                    artifact_text,
+                    &scope_digest,
+                    "company_command",
+                    command.event_name(),
+                    context.actor_id.as_deref().unwrap_or_default(),
+                    company_now(),
+                )
+                .map_err(company_conflict)?;
+                crate::artifacts::validate_artifact_reference_content(
+                    &version.as_ref(),
+                    artifact_text,
+                )
+                .map_err(company_conflict)?;
+                proof.artifact_version = Some(version);
+                if let Some(version) = proof.artifact_version.clone() {
+                    if let Some(artifact) = proof.artifact.as_mut() {
+                        artifact.typed_version = Some(version);
+                    }
+                }
+            }
         }
         for reference in references {
             if let Some(id) = reference.strip_prefix("artifact:") {

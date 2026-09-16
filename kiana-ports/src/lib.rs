@@ -19,17 +19,17 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AgentTemplate, ApprovalChallenge, ApprovalId, AssignmentDirectory, AssignmentId,
-    AuditActionKind, AuditDecision, AuditRecord, AuthenticatedPrincipalRef,
-    AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant, CapabilityGrantId,
-    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, CorrelationContext,
-    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
-    PendingApproval, ProjectId, RequestContext, RequestId, ResolvedAssignment, RetirementRecord,
-    RoleAssignment, RunId, RuntimeEvent, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId,
-    SupervisionLease, TraceSummary, WorkFingerprint,
+    AgentTemplate, ApprovalChallenge, ApprovalId, ArtifactRef, ArtifactVersion,
+    AssignmentDirectory, AssignmentId, AuditActionKind, AuditDecision, AuditRecord,
+    AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId,
+    CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId, CellLifecycle,
+    CellSpec, CorrelationContext, CorrelationScope, HealthSnapshot, MetricPoint,
+    ObservabilityRecord, OrganizationId, PendingApproval, ProjectId, RequestContext, RequestId,
+    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SignalKind,
+    SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 mod observability_queue;
@@ -64,6 +64,78 @@ pub trait AssignmentDirectoryPort: Send + Sync {
 
 /// Alias used by adapters that expose the same port as an authenticated identity provider.
 pub use AssignmentDirectoryPort as IdentityAssignmentPort;
+
+/// Read-only artifact blob boundary used when an immutable EvidenceRef is rechecked.
+///
+/// Implementations must return the exact bytes for the requested `(artifact_id, version)` and
+/// reject missing blobs, scope mismatches and content-hash drift. The port never follows a current
+/// workspace path, so a later file edit cannot rewrite historical evidence.
+#[async_trait]
+pub trait ArtifactContentPort: Send + Sync {
+    async fn read_artifact(&self, reference: &ArtifactRef) -> Result<Vec<u8>, PortError>;
+}
+
+pub use ArtifactContentPort as ArtifactReadPort;
+
+/// Non-durable fixture blob store implementing the artifact read boundary.
+#[derive(Clone, Debug, Default)]
+pub struct InMemoryArtifactContentStore {
+    entries: Arc<tokio::sync::RwLock<BTreeMap<(String, u64), (Vec<u8>, String)>>>,
+}
+
+impl InMemoryArtifactContentStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn put(&self, version: &ArtifactVersion, content: Vec<u8>) -> Result<(), PortError> {
+        version
+            .validate()
+            .map_err(|error| PortError::Failed(format!("artifact_version_invalid:{error}")))?;
+        if content.len() as u64 != version.size_bytes
+            || kiana_domain::journal_sha256(&content) != version.content_hash
+        {
+            return Err(PortError::Failed(
+                "artifact_content_hash_mismatch".to_owned(),
+            ));
+        }
+        let key = (version.artifact_id.to_string(), version.version);
+        let mut entries = self.entries.write().await;
+        if entries.contains_key(&key) {
+            return Err(PortError::Conflict(
+                "artifact_version_already_stored".to_owned(),
+            ));
+        }
+        entries.insert(key, (content, version.scope_digest.clone()));
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ArtifactContentPort for InMemoryArtifactContentStore {
+    async fn read_artifact(&self, reference: &ArtifactRef) -> Result<Vec<u8>, PortError> {
+        reference
+            .validate()
+            .map_err(|error| PortError::Failed(format!("artifact_reference_invalid:{error}")))?;
+        let key = (reference.artifact_id.to_string(), reference.version);
+        let (content, stored_scope) = self
+            .entries
+            .read()
+            .await
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| PortError::Unavailable("artifact_blob_missing".to_owned()))?;
+        if stored_scope != reference.scope_digest {
+            return Err(PortError::Conflict("artifact_scope_mismatch".to_owned()));
+        }
+        if kiana_domain::journal_sha256(&content) != reference.content_hash {
+            return Err(PortError::Conflict(
+                "artifact_content_hash_mismatch".to_owned(),
+            ));
+        }
+        Ok(content)
+    }
+}
 
 /// Explicitly non-durable in-process assignment adapter for fixtures and the local daemon.
 ///

@@ -1,5 +1,53 @@
 use super::*;
 
+/// Build the immutable metadata record for bytes that have already been read from a confined
+/// project artifact. The blob itself stays outside the event payload; only its hash and provenance
+/// cross into CompanyProof.
+pub(crate) fn artifact_version_from_content(
+    artifact_id: kiana_domain::ArtifactId,
+    version: u64,
+    artifact_schema: &str,
+    content: &[u8],
+    scope_digest: &str,
+    producer_kind: &str,
+    producer_id: &str,
+    recorded_by: &str,
+    created_at_unix_ms: u64,
+) -> Result<kiana_domain::ArtifactVersion, &'static str> {
+    kiana_domain::ArtifactVersion::new(
+        artifact_id,
+        version,
+        artifact_schema,
+        content,
+        scope_digest,
+        kiana_domain::ArtifactProvenance {
+            producer_kind: producer_kind.to_owned(),
+            producer_id: producer_id.to_owned(),
+            source_event_id: None,
+            source_run_id: None,
+            recorded_by: recorded_by.to_owned(),
+        },
+        created_at_unix_ms,
+    )
+    .map_err(|_| "artifact_version_invalid")
+}
+
+/// Compare a persisted/read blob with its immutable reference before accepting evidence.
+pub(crate) fn validate_artifact_reference_content(
+    reference: &kiana_domain::ArtifactRef,
+    content: &[u8],
+) -> Result<(), &'static str> {
+    reference
+        .validate()
+        .map_err(|_| "company_artifact_reference_invalid")?;
+    if content.len() > kiana_domain::MAX_ARTIFACT_BYTES
+        || kiana_domain::journal_sha256(content) != reference.content_hash
+    {
+        return Err("company_artifact_content_hash_mismatch");
+    }
+    Ok(())
+}
+
 pub(crate) fn write_symposium_artifacts(
     project_root: &str,
     meeting: &Symposium,

@@ -277,6 +277,9 @@ pub struct CriteriaSnapshot {
     pub project_criteria: Vec<String>,
     pub milestone_criteria: Vec<String>,
     pub packet_criteria: Vec<String>,
+    /// Versioned criterion objects; legacy text lists remain for replay compatibility.
+    #[serde(default)]
+    pub criterion_refs: Vec<crate::Criterion>,
 }
 impl CriteriaSnapshot {
     pub fn criteria(&self) -> Vec<String> {
@@ -290,6 +293,10 @@ impl CriteriaSnapshot {
         all.sort();
         all.dedup();
         all
+    }
+
+    pub fn typed_criteria(&self) -> &[crate::Criterion] {
+        &self.criterion_refs
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -494,6 +501,9 @@ pub struct CompanyArtifact {
     /// follow the mutable workspace file to a later revision.
     pub text: String,
     pub registered_at: u64,
+    /// Optional typed immutable version; legacy text snapshots remain readable during migration.
+    #[serde(default)]
+    pub typed_version: Option<crate::ArtifactVersion>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CompanyPacket {
@@ -857,6 +867,15 @@ pub struct CompanyProof {
     #[serde(default)]
     pub business: crate::BusinessProof,
     pub artifact: Option<CompanyArtifact>,
+    /// Typed immutable artifact metadata; legacy `artifact` remains for compatibility.
+    #[serde(default)]
+    pub artifact_version: Option<crate::ArtifactVersion>,
+    /// Typed immutable evidence links; legacy `events` strings remain replay-compatible.
+    #[serde(default)]
+    pub typed_evidence_refs: Vec<crate::EvidenceRef>,
+    /// Typed evidence references derived by ControlPlane, never trusted from command JSON.
+    #[serde(default)]
+    pub evidence_refs: Vec<crate::EvidenceRef>,
     /// Always derived by ControlPlane from persisted events; never accepted from a command.
     pub run: Option<CompanyRun>,
     pub events: Vec<String>,
@@ -1902,6 +1921,7 @@ impl CompanyState {
                             }
                         })
                         .collect(),
+                    criterion_refs: Vec::new(),
                 };
                 let mut refs = evidence_refs.clone();
                 refs.extend(observed.evidence_refs.clone());

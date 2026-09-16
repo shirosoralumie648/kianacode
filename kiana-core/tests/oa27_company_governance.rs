@@ -56,6 +56,7 @@ fn criteria() -> CriteriaSnapshot {
         project_criteria: vec!["criterion".to_owned()],
         milestone_criteria: Vec::new(),
         packet_criteria: Vec::new(),
+        criterion_refs: Vec::new(),
     }
 }
 
