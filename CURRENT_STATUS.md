@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-D-01 single WorkPacket ready predicate evidence (2026-09-16)
+
+```text
+source_snapshot: 260fd34 + P1-D-01 working-tree slice; kiana-domain/src/{packet_graph,company}.rs; kiana-core/src/company.rs; kiana-tasks/{Cargo.toml,src/project_board.rs,src/lib.rs}; kiana-tasks/tests/p1_d01_ready_predicate.rs; kiana-core/tests/p1_d01_ready_predicate_guard.rs; .github/workflows/p1-d01-ready-predicate.yml; docs/roadmap/ready-predicate-baseline.md; docs/roadmap.md
+worktree_status: P1-D-01 canonical domain readiness predicate, core/Company consumers and legacy task wrapper are scoped to this step; no second WorkPacket readiness algorithm or scheduler execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/packet_graph.rs kiana-domain/src/company.rs kiana-core/src/company.rs kiana-tasks/Cargo.toml kiana-tasks/src/project_board.rs kiana-tasks/src/lib.rs kiana-tasks/tests/p1_d01_ready_predicate.rs kiana-core/tests/p1_d01_ready_predicate_guard.rs .github/workflows/p1-d01-ready-predicate.yml docs/roadmap/ready-predicate-baseline.md
+  rg -n 'pub fn ready_packets|kiana_domain::ready_packets|crate::ready_packets|packet_claimed|dependency_incomplete|packet_deadline_expired|single_ready_predicate_agrees_across_three_callers' kiana-domain/src kiana-core/src kiana-tasks/src kiana-tasks/tests/p1_d01_ready_predicate.rs kiana-core/tests/p1_d01_ready_predicate_guard.rs docs/roadmap/ready-predicate-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/tasks/core readiness fixture/source guard compiled only; no test or smoke binary executed locally
+fixture or cassette: p1_d01_ready_predicate::single_ready_predicate_agrees_across_three_callers compares domain canonical output with kiana-tasks wrapper across dependency, active/expired claim and status cases; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-D-01 job is queued by the push and is not awaited
+status_change: P1-D-01 source slice is implemented. Domain `ready_packets` validates identity/DAG and deterministically returns ready, blocked and expired-claim sets; CompanyState/ControlPlane consume it directly, while kiana-tasks exposes only a delegating compatibility adapter so its legacy ProjectBoard cannot become a second WorkPacket authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; readiness remains a read-only calculation, dependency-cycle admission/lease reclaim/durable queue/scheduler dispatch and legacy board completion semantics remain P1-D-02/03 and AUT/PD work
+reviewer: Codex root implementation review plus P1-D-01 readiness/source-boundary review; no runtime test reviewer
+```
+
 ### P1-C-03 role model routing evidence (2026-09-16)
 
 ```text

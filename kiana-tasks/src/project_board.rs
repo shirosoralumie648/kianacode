@@ -13,6 +13,17 @@ const TASK_CARD_SCHEMA: &str = "kiana.project-task-card.v1";
 const BOARD_SCHEMA: &str = "kiana.project-board.v1";
 const NEXT_SCHEMA: &str = "kiana.project-next.v1";
 
+/// Compatibility adapter for legacy project-board callers.
+///
+/// WorkPacket readiness has one implementation in `kiana-domain`; this function deliberately
+/// performs no board-specific inference so the old task crate cannot become a second authority.
+pub fn ready_packets(
+    packets: &BTreeMap<String, kiana_domain::WorkPacket>,
+    now_ms: u64,
+) -> Result<kiana_domain::PacketReadiness, String> {
+    kiana_domain::ready_packets(packets, now_ms).map_err(|error| error.to_string())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectBoardStatus {

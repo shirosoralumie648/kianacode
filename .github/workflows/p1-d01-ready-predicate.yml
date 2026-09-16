@@ -1,0 +1,52 @@
+name: P1-D-01 single WorkPacket ready predicate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-tasks/Cargo.toml"
+      - "kiana-tasks/src/project_board.rs"
+      - "kiana-tasks/src/lib.rs"
+      - "kiana-tasks/tests/p1_d01_ready_predicate.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/p1_d01_ready_predicate_guard.rs"
+      - "docs/roadmap/ready-predicate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-d01-ready-predicate.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-tasks/Cargo.toml"
+      - "kiana-tasks/src/project_board.rs"
+      - "kiana-tasks/src/lib.rs"
+      - "kiana-tasks/tests/p1_d01_ready_predicate.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/p1_d01_ready_predicate_guard.rs"
+      - "docs/roadmap/ready-predicate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-d01-ready-predicate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ready-predicate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P1-D-01 readiness fixture
+        run: cargo test -p kiana-tasks --test p1_d01_ready_predicate --locked -- --test-threads=1
+      - name: Run P1-D-01 source guard
+        run: cargo test -p kiana-core --test p1_d01_ready_predicate_guard --locked -- --test-threads=1
+      - name: Compile ready predicate path
+        run: cargo check -p kiana-domain -p kiana-tasks -p kiana-core --tests --locked

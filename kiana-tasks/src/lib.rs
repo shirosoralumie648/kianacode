@@ -31,7 +31,7 @@ pub use integrity::{
 };
 pub use pill_label::{get_pill_label, pill_needs_cta};
 pub use project_board::{
-    build_project_board, build_project_board_at_root, select_next_project_task,
+    build_project_board, build_project_board_at_root, ready_packets, select_next_project_task,
     ProjectBlockingReasonSummary, ProjectBoardColumn, ProjectBoardError, ProjectBoardProjection,
     ProjectBoardResult, ProjectBoardStatus, ProjectNextAlternative, ProjectNextTaskReport,
     ProjectPolicyFinding, ProjectTaskCard,

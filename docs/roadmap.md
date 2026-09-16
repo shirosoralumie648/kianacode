@@ -80,7 +80,7 @@
 | `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ✅ |
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
-| `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ⏳ |
+| `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ✅ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ⏳ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
@@ -244,7 +244,7 @@
 | 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ✅ | [基础卡](#step-p0-k1-01) |
 | 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ✅ | [基础卡](#step-p1-c-01) |
 | 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ✅ | [基础卡](#step-p1-c-03) |
-| 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-d-01) |
+| 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ✅ | [基础卡](#step-p1-d-01) |
 | 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
 | 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
 | 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ⏳ | [基础卡](#step-p1-h-01) |
@@ -1037,6 +1037,8 @@
 
 | 当前 94 | `P1-C-03` 五部门角色目录与 model_profile 接线 | RoleCatalog/DepartmentCatalog 固定五部门九岗位，RoleSpec 校验 department/profile/prompt/I/O/tool metadata；ControlPlane 将 server-owned ModelAssignment.profile 写入每次 run，ProviderGateway 只按该 assignment 选择 configured connection，planning/executing/quality 可落到不同模型；新增独立 provider route fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试 | `feature_status=implemented`（domain/core/provider source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；catalog 仍是 built-in snapshot，assignment/durable catalog/permit/真实 provider transport 与 live 多模型证据留待 CO/CI/P4-J7-11+；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 95 | `P1-D-01` WorkPacket 单一 ready 谓词 | `kiana_domain::ready_packets(graph, now)` 统一执行 identity/DAG、依赖状态、deadline 和 claim lease 判断；CompanyState/ControlPlane 直接消费，legacy `kiana-tasks` 仅委托 wrapper，不复制算法；新增跨 crate readiness fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试 | `feature_status=implemented`（domain/core/tasks source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；readiness 仍为只读投影，依赖成环 admission、claim reclaim、durable queue/scheduler 和旧 board completion gate 仍由 P1-D-02/03、AUT/PD 后续步骤负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1179,6 +1181,7 @@
 | 2026-09-16 | `P0-K1-01` Server identity/authority epoch：DaemonHost 覆盖 wire actor，按 ProjectTrust 与 canonical root/device/inode 派生 ProjectIdentity；SessionAssignment 经 CAS 固化角色/部门，authority stream 单调版本写入 assignment 与 `run.authorized` epoch；新增 ingress fixture、core source guard、CI workflow 与 identity-authority baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-C-01` Organization/Cell contracts：统一 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 的 domain 合同，补 unknown-field fence、模板版本绑定、默认不可委派和 parent grant 子集校验；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-C-03` Role model routing：固定五部门九岗位 `RoleSpec.model_profile`，ControlPlane 将 server-owned profile 写入 `ModelAssignment`，ProviderGateway 只按 assignment 路由 planning/executing/quality 到不同 configured models；新增独立 provider fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-D-01` Single WorkPacket readiness：确认 domain `ready_packets(graph, now)` 是唯一状态/依赖/deadline/claim 谓词，Company core/state 直接消费，legacy `kiana-tasks` 只委托该实现；新增跨 crate fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1619,14 +1622,14 @@
 
 <a id="step-p1-d-01"></a>
 
-### P1-D-01 WorkPacket 单一 ready 谓词　⏳
+### P1-D-01 WorkPacket 单一 ready 谓词　✅
 
-- **现状**：spawn 校验、`kiana project next`、Web/Desktop 看板各自判断就绪。
-- **做什么**：`kiana-domain`/`kiana-tasks` 只暴露一个 `ready_packets(graph, now)`，三处必须调用同一实现。
+- **现状**：`kiana-domain::ready_packets` 已统一校验 packet identity、DAG、依赖状态、deadline 和 claim lease；Company core/state 直接调用，legacy `kiana-tasks` 仅提供委托 wrapper。
+- **做什么**：补齐跨 crate 的单一 ready predicate 验收，禁止 legacy board 复制 WorkPacket readiness 逻辑。
 - **风险**：三处各写一份会让「可派发」的定义漂移。
 - **验收**：`single_ready_predicate_agrees_across_three_callers`
-- **依赖 / 边界**：依赖 `P0-A-01a`；就绪 = 状态可派发 + 依赖全成功 + 无未过期 lease 冲突。
-- **依据**：`company-os-implementation-outline.md` §Slice D
+- **依赖 / 边界**：依赖 `P0-A-01a`；就绪 = 状态可派发 + 依赖全成功 + 无未过期 lease 冲突。DAG admission 与 lease reclaim 仍由 P1-D-02/03 负责。
+- **依据**：`company-os-implementation-outline.md` §Slice D；证据见 [`ready-predicate-baseline.md`](roadmap/ready-predicate-baseline.md)
 
 
 
