@@ -106,6 +106,7 @@ impl ControlPlane {
             request: request.clone(),
             authority: a.clone(),
             proof,
+            transitions: Vec::new(),
         };
         let committed = self.commit_swarm(&context, event).await?;
         if let SwarmCommand::Create { plan } = &request.command {
@@ -237,6 +238,8 @@ impl ControlPlane {
         for event in events {
             let e: SwarmEvent =
                 serde_json::from_value(event.data).map_err(|_| error("swarm_event_invalid"))?;
+            e.validate_transitions()
+                .map_err(|_| error("swarm_transition_replay_invalid"))?;
             if e.schema != "kiana.swarm-event.v1"
                 || e.request.schema != SWARM_SCHEMA
                 || e.request.expected_revision != state.revision
@@ -309,6 +312,7 @@ impl ControlPlane {
                 },
                 authority: a,
                 proof,
+                transitions: Vec::new(),
             };
             let mut observation = c.clone();
             observation.request_id = RequestId::new();

@@ -17,6 +17,7 @@ const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const APPROVAL_IDS: &[&str] = &["approval_id"];
 const ACTION_IDS: &[&str] = &["request_id", "action_digest"];
 const COMMUNICATION_IDS: &[&str] = &["message"];
+const SWARM_TRANSITION_IDS: &[&str] = &["swarm_plan_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -91,6 +92,20 @@ const COMMUNICATION_FIELDS: &[&str] = &[
     "actor_id",
     "session_id",
     "request_id",
+];
+const SWARM_TRANSITION_FIELDS: &[&str] = &[
+    "swarm_plan_id",
+    "partition_id",
+    "attempt_id",
+    "child_cell_id",
+    "from",
+    "to",
+    "revision",
+    "authority_epoch",
+    "correlation_id",
+    "causation_event_id",
+    "review_complete",
+    "event_digest",
 ];
 const INVOCATION_FIELDS: &[&str] = &[
     "run_id",
@@ -280,6 +295,30 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication",
         COMMUNICATION_IDS,
         COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "delegation.swarm_state",
+        "swarm",
+        SWARM_TRANSITION_IDS,
+        SWARM_TRANSITION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "delegation.partition_state",
+        "swarm",
+        SWARM_TRANSITION_IDS,
+        SWARM_TRANSITION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "delegation.attempt_state",
+        "swarm",
+        SWARM_TRANSITION_IDS,
+        SWARM_TRANSITION_FIELDS,
         false,
         None
     ),

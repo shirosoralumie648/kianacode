@@ -29,6 +29,7 @@ pub enum PartitionStatus {
     Succeeded,
     Failed,
     Cancelled,
+    ResultUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -496,7 +497,9 @@ impl SwarmWorkGraph {
             if expired
                 || matches!(
                     partition.status,
-                    PartitionStatus::Failed | PartitionStatus::Cancelled
+                    PartitionStatus::Failed
+                        | PartitionStatus::Cancelled
+                        | PartitionStatus::ResultUnknown
                 )
             {
                 failed.insert(id.clone());

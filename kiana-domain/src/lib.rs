@@ -54,6 +54,7 @@ mod scope;
 mod states;
 mod swarm_graph;
 mod swarm_identity;
+mod swarm_reducer;
 mod symposiums;
 #[cfg(test)]
 mod tests;
@@ -105,6 +106,7 @@ pub use scope::*;
 pub use states::*;
 pub use swarm_graph::*;
 pub use swarm_identity::*;
+pub use swarm_reducer::*;
 pub use symposiums::*;
 pub use usage::*;
 pub use work_packets::*;

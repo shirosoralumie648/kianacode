@@ -14,7 +14,7 @@
 | Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [EXT-01 扩展合同](extension-contracts-baseline.md) · [EXT-02 SourceResolver](source-resolver-baseline.md) · [EXT-03 严格解析器](strict-extension-parsers-baseline.md) · [EXT-04 Catalog](catalog-baseline.md) · [EXT-05 Snapshot](snapshot-invalidation-baseline.md) · [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
 | UI / Entrypoints | UI-00–UI-41（42） | [UI-01 protocol DTO](ui-protocol-baseline.md) · [UI-02 handshake](ui-handshake-baseline.md) · [UI-03 instance](ui-instance-baseline.md) · [CLI、Workbench、Web、Desktop 与入口一致性](ui-entrypoints.md) |
 | 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [CI-02 identity contracts](identity-contracts-baseline.md) · [CI-03 ports](ports-identity-baseline.md) · [CI-04 daemon ingress](daemon-ingress-baseline.md) · [CI-05 authority ledger](authority-ledger-baseline.md) · [roadmap §29](../roadmap.md#config-credentials-identity-plan) |
-| Swarm | SW-00–SW-18（19） | [SW-01 lineage](swarm-lineage-baseline.md) · [SW-02 WorkGraph](swarm-work-graph-baseline.md) · [roadmap §30](../roadmap.md#swarm-coordination-design) |
+| Swarm | SW-00–SW-18（19） | [SW-01 lineage](swarm-lineage-baseline.md) · [SW-02 WorkGraph](swarm-work-graph-baseline.md) · [SW-03 reducer](swarm-reducer-baseline.md) · [roadmap §30](../roadmap.md#swarm-coordination-design) |
 | 可观测性 / 审计 | OA-00–OA-28（29） | [roadmap §31](../roadmap.md#observability-audit-plan) |
 | 调度 / Workflow / Trigger | AUT-01–AUT-24（24） | [roadmap §32](../roadmap.md#scheduling-workflow-trigger-plan) |
 | 持久化 / 数据层 | PD-00–PD-35（36） | [PD-00 基线](persistence-data-layer-baseline.md) · [独立设计](persistence-data-layer.md) · [roadmap §33](../roadmap.md#persistence-data-layer-plan) |

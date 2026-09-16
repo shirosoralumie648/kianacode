@@ -559,6 +559,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.swarm-transition-event.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.tool-authority.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

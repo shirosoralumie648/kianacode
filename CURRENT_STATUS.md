@@ -1986,6 +1986,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-02 WorkGraph/packet-graph reuse and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+### SW-03 typed Swarm status reducer evidence (2026-09-16)
+
+```text
+source_snapshot: d999a5e + SW-03 working-tree slice; kiana-domain/src/{swarm,swarm_graph,swarm_reducer,lib,contracts}.rs; kiana-protocol/src/lib.rs; kiana-core/src/swarm.rs; kiana-domain/tests/sw03_reducer.rs; kiana-core/tests/sw03_reducer_guard.rs; .github/workflows/sw03-reducer.yml; docs/roadmap/swarm-reducer-baseline.md; docs/roadmap.md
+worktree_status: SW-03 strict SwarmTransitionEvent/entity and pure SwarmTransitionReducer live/replay contract are scoped to this step; legacy SwarmEvent accepts an optional typed transition batch and core load validates it, while existing commit_swarm/EventLog remains the only effect path; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/swarm.rs kiana-domain/src/swarm_graph.rs kiana-domain/src/swarm_reducer.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-protocol/src/lib.rs kiana-core/src/swarm.rs kiana-domain/tests/sw03_reducer.rs kiana-core/tests/sw03_reducer_guard.rs .github/workflows/sw03-reducer.yml docs/roadmap/swarm-reducer-baseline.md docs/roadmap.md
+  rg -n 'SwarmTransition(Entity|Event|Reducer)|AttemptStatus|SWARM_TRANSITION_EVENT_SCHEMA|delegation\.(swarm|partition|attempt)_state|swarm_transition_(illegal|epoch_regression|revision_gap_or_regression)|review_complete|validate_transitions' kiana-domain/src kiana-protocol/src kiana-core/src kiana-domain/tests/sw03_reducer.rs kiana-core/tests/sw03_reducer_guard.rs docs/roadmap/swarm-reducer-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; SW-03 reducer fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/sw03_reducer.rs illegal/terminal/Unknown/merge-review, replay/live equivalence, revision gap, epoch regression and unknown-field fixtures; kiana-core/tests/sw03_reducer_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SW-03 job is queued by the next push and is not awaited
+status_change: SW-03 source slice is implemented. Typed Swarm/Partition/Attempt transition facts now share one reducer for live/replay, enforce legal edges, single terminal state, Unknown quarantine, review-gated merge and monotonic revision/authority epoch; core validates optional batches on replay without adding execution authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy SwarmState commands still emit empty typed batches, so full Partition/Attempt fact generation and durable transition projection remain SW-04+/ER/PD; reducer does not reserve resources or execute effects.
+reviewer: Codex root implementation review plus SW-03 typed state/replay and single-execution-spine source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

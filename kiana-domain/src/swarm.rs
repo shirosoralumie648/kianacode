@@ -139,6 +139,25 @@ pub struct SwarmEvent {
     pub request: SwarmCommandRequest,
     pub authority: AutomationAuthority,
     pub proof: SwarmProof,
+    /// Typed status facts are additive during migration; legacy command events remain readable.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transitions: Vec<SwarmTransitionEvent>,
+}
+
+impl SwarmEvent {
+    /// Validate an optional typed transition batch with the same reducer used by live callers.
+    /// Empty batches are the legacy compatibility shape and remain readable during migration.
+    pub fn validate_transitions(&self) -> Result<(), String> {
+        let Some(first) = self.transitions.first() else {
+            return Ok(());
+        };
+        SwarmTransitionReducer::replay(
+            first.swarm_plan_id,
+            first.authority_epoch,
+            &self.transitions,
+        )
+        .map(|_| ())
+    }
 }
 impl SwarmState {
     pub fn transition(
