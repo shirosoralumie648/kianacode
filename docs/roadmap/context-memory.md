@@ -274,7 +274,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-01 · 建立共享来源与 scope 值对象　⏳
+##### CM-01 · 建立共享来源与 scope 值对象　✅
+
+当前 source slice 与 CI-only 证据见 [`context-scope-baseline.md`](context-scope-baseline.md)。
 
 在 domain 定义 `SourceRef/SourceSnapshot/MemoryScope/Purpose/Freshness/EvidenceStatus`，明确序列化版本、未知字段、digest、cursor 和 locator；为现有 MemoryRecord/ContextArtifact/PromptSection 提供转换。拒绝从字符串路径、模型 arguments 或 collection 名推导 principal。验收：`source_refs_roundtrip_and_reject_missing_identity`、`scope_resolution_never_uses_model_principal`。
 

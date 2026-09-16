@@ -1377,6 +1377,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-05 response identity/argument/duplicate/legacy adapter source-boundary review; no runtime test reviewer
 ```
 
+### CM-01 shared source and scope evidence (2026-09-16)
+
+```text
+source_snapshot: d4df97d; kiana-domain/src/{context_scope,lib,contracts,memory,governance,prompts,identity,roles}.rs; kiana-domain/tests/cm01_sources.rs; .github/workflows/cm01-sources.yml; docs/roadmap/context-scope-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CM-01 SourceRef/SourceSnapshot/SourceKind/Freshness/EvidenceStatus and server-owned MemoryScope typed contracts, principal/project/session/collection/purpose binding, digest/cursor/unknown-field validation, remote fixtures and roadmap/status overlays are scoped to this step; no index/memory store/second scope authority or file I/O was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/context_scope.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-domain/src/memory.rs kiana-domain/src/governance.rs kiana-domain/src/prompts.rs kiana-domain/src/identity.rs kiana-domain/src/roles.rs kiana-domain/tests/cm01_sources.rs .github/workflows/cm01-sources.yml docs/roadmap/context-scope-baseline.md
+  rg -n 'SourceRef|SourceSnapshot|SourceKind|Freshness|EvidenceStatus|MemoryScope|source_refs_roundtrip_and_reject_missing_identity|scope_resolution_never_uses_model_principal|principal|project|session_id|scope_digest' kiana-domain/src kiana-domain/tests/cm01_sources.rs docs/roadmap/context-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source fixture/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cm01_sources.rs SourceRef/Snapshot round-trip, missing identity/digest/cursor/unknown-field, server principal/project MemoryScope and forged model principal fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-01 job is queued by the push and is not awaited
+status_change: CM-01 source slice is implemented. Domain now owns versioned SourceRef/SourceSnapshot values with source kind, locator, revision, content digest, cursor, freshness and evidence status, plus a MemoryScope bound to authenticated principal, project identity, session, normalized collections and Purpose. Scope and source validation is fail-closed for missing identity, digest/cursor/unknown-field tampering and Verified-without-source evidence; existing Memory/Prompt/query layers remain consumers and do not derive authority from model arguments or path strings.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; SourceRef does not open/verify file handles or inode freshness, MemoryScope is not yet derived from processing grants/retention/revocation or persisted across processes, ContextPlan/index generation/semantic recall and MemoryRecord lifecycle remain CM-02+ and CAP/PD/SC work, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus CM-01 source provenance/scope/principal-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
