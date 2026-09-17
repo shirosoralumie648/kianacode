@@ -3602,6 +3602,25 @@ limitations: ONNX/ort inference and production model registry/download remain de
 reviewer: Codex root implementation review plus BM25/CJK, pinned hash, RRF/MMR determinism, degradation and receipt provenance invariants; no runtime test reviewer
 ```
 
+### P1-J4-01 MCP lifecycle evidence (2026-09-18)
+
+```text
+source_snapshot: bdca70a + P1-J4-01 evidence slice; kiana-domain/src/actions.rs; kiana-capability-broker/src/lib.rs; kiana-daemon/src/{harness_mcp,mcp_stdio}.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; .github/workflows/p1-j4-01-mcp.yml; docs/roadmap/p1-j4-01-mcp-baseline.md; docs/roadmap.md
+worktree_status: server-owned descriptors bind mcp.discover/mcp.call to Network risk/resource/schema/binding/reconciliation/idempotency metadata; stdio-only registry pins config/executable/argument files and environment, operator-only discovery commits protocol/tool catalog/version/health facts, prepared calls recheck trust/scope/pins/schema/drift, and per-invocation process groups report cancellation/stop/Unknown without false success; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: existing kiana-daemon/src/harness_mcp.rs schema/result/size/unknown fixtures; kiana-daemon/tests/p1_j4_01_mcp.rs descriptor/trust/stdio/health/process source guard; GitHub Actions P1-J4-01 workflow runs MCP boundary fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J4-01 is triggered by the eventual push and is not awaited
+status_change: P1-J4-01 source slice is implemented/reconciled. MCP discovery and call now expose traceable protocol/tool catalog/version/health facts while preserving the single ControlPlane→Broker→stdio adapter path and fail-closed Unknown/cancellation semantics.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: HTTP/SSE/WS and legacy service client remain outside the product path; health is a successful local initialize/tools-list snapshot, not a remote business-health or external-effect receipt; durable health heartbeat/pool, cross-process discovery recovery, external authorization and live/physical outcome proof remain CAP/PD/ER/SC/INT work
+reviewer: Codex root implementation review plus descriptor binding, trust/scope pin, schema/result, health/version, process-group stop and Unknown boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

@@ -136,6 +136,11 @@ impl McpRegistry {
             if tools["config_pin"] != executable {
                 return Err(mcp_failed("mcp_config_drift_requires_discovery"));
             }
+            let health = tools
+                .get("health")
+                .filter(|value| value.is_object())
+                .cloned()
+                .ok_or_else(|| mcp_failed("mcp_health_unavailable"))?;
             let tool = required_tool(&request.arguments)?;
             let advertised = tools["tools"]
                 .as_array()
@@ -160,6 +165,7 @@ impl McpRegistry {
             snapshot["catalog_digest"] = tools["catalog_digest"].clone();
             snapshot["protocol"] = tools["protocol"].clone();
             snapshot["discovery_version"] = tools["version"].clone();
+            snapshot["health"] = health;
         }
         let mut prepared = request.clone();
         prepared.arguments["server"] = json!(config.name);
@@ -198,9 +204,10 @@ impl McpRegistry {
             .max()
             .unwrap_or(0);
         let digest = catalog_digest(&tools, &protocol);
+        let health = health_snapshot(&protocol, &tools);
         let data = json!({"schema":"kiana.mcp-discovery.v1","parent_request_id":request.request_id,
             "scope":request.arguments["mcp_snapshot"]["scope"],"server":request.arguments["server"],
-            "config_pin":config_pin,"catalog_digest":digest,"protocol":protocol,"tools":tools});
+            "config_pin":config_pin,"catalog_digest":digest,"protocol":protocol,"tools":tools,"health":health.clone()});
         let command_id = RequestId::new();
         let event = RuntimeEvent::new(command_id, 1, "mcp.discovery_committed", data.clone())
             .map_err(|_| mcp_failed("mcp_discovery_event_invalid"))?
@@ -228,7 +235,7 @@ impl McpRegistry {
         }
         Ok(
             json!({"schema":"kiana.mcp-discovery.v1","server":request.arguments["server"],"catalog_digest":digest,
-            "version":version+1,"tool_count":tools.len(),"tools":tools,"evidence_ref":event_id.to_string(),"untrusted_data":true}),
+            "version":version+1,"tool_count":tools.len(),"tools":tools,"health":health,"evidence_ref":event_id.to_string(),"untrusted_data":true}),
         )
     }
 }
@@ -327,6 +334,7 @@ impl McpHandler {
             if current["catalog_digest"] != snapshot["catalog_digest"]
                 || current["version"] != snapshot["discovery_version"]
                 || current["config_pin"] != pin
+                || current["health"] != snapshot["health"]
             {
                 return Err(mcp_failed("mcp_catalog_changed"));
             }
@@ -481,6 +489,7 @@ impl McpHandler {
         let failed = result["isError"] == true;
         let mut output = json!({"schema":MCP_RESULT_SCHEMA,"server":config.name,"tool":arguments["tool"],"transport":"stdio",
             "server_info":protocol,"server_config_hash":snapshot["config_hash"],"catalog_digest":snapshot["catalog_digest"],
+            "health":health_snapshot(&protocol, &tools),
             "input_schema_hash":kiana_domain::json_digest(&snapshot["tool"]["inputSchema"]),
             "output_schema_hash":snapshot["tool"].get("outputSchema").map(kiana_domain::json_digest),
             "containment":"bwrap","process_scope":"per_invocation","untrusted_data":true,"resource_links_fetched":false,
@@ -620,6 +629,17 @@ fn catalog_digest(tools: &[Value], protocol: &Value) -> String {
         &json!({"schema_dialect":kiana_domain::TOOL_SCHEMA_DIALECT,"tools":tools,"protocol":protocol}),
     )
 }
+
+fn health_snapshot(protocol: &Value, tools: &[Value]) -> Value {
+    json!({
+        "status": "ready",
+        "initialize": protocol.is_object(),
+        "tools_list": true,
+        "protocol_version": protocol["protocol_version"],
+        "tool_count": tools.len()
+    })
+}
+
 fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError> {
     let executable = file_pin(Path::new(
         config
