@@ -1,0 +1,54 @@
+name: SC-10 approval binding and human inbox
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sc10_approval_binding.rs"
+      - "kiana-core/tests/sc10_approval_guard.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-policy/src/grant_scope.rs"
+      - "docs/roadmap/security-approval-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc10-approval.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sc10_approval_binding.rs"
+      - "kiana-core/tests/sc10_approval_guard.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-policy/src/grant_scope.rs"
+      - "docs/roadmap/security-approval-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc10-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-10 approval fixture
+        run: cargo test -p kiana-core --test sc10_approval_binding --locked -- --test-threads=1
+      - name: Run SC-10 source guard
+        run: cargo test -p kiana-core --test sc10_approval_guard --locked -- --test-threads=1
+      - name: Compile SC-10 targets
+        run: cargo check --workspace --tests --locked

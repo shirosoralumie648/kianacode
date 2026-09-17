@@ -2511,6 +2511,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-09 intersection/no-union/capability-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-10 approval binding and Human Inbox evidence (2026-09-17)
+
+```text
+source_snapshot: 141652c + SC-10 working-tree slice; kiana-core/src/{approval_binding,approvals,lib}.rs; kiana-core/tests/sc10_approval_binding.rs; kiana-core/tests/sc10_approval_guard.rs; kiana-domain/src/{contracts,security_reasons}.rs; kiana-policy/src/grant_scope.rs; .github/workflows/sc10-approval.yml; docs/roadmap/security-approval-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-10 strict ApprovalBinding exact subject/digest/scope/epoch/policy/expiry contract, HumanInboxItem status and one-shot consume/self-approval guard, existing ApprovalStore source anchors, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no Broker/handler/automatic retry, second approval loop or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/approval_binding.rs kiana-core/src/approvals.rs kiana-core/src/lib.rs kiana-core/tests/sc10_approval_binding.rs kiana-core/tests/sc10_approval_guard.rs kiana-domain/src/contracts.rs kiana-domain/src/security_reasons.rs kiana-policy/src/grant_scope.rs .github/workflows/sc10-approval.yml docs/roadmap/security-approval-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'ApprovalBinding|HumanInboxItem|target_digest|payload_digest|scope_digest|PolicySelfApprovalForbidden|PolicyApprovalBindingMismatch|PolicyApprovalExpired|decide_approval_with_proof|validate_with_proof|prepare_capability_action|consume' kiana-core/src kiana-core/tests kiana-domain/src kiana-policy/src docs/roadmap/security-approval-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/sc10_approval_binding.rs exact digest/subject drift, strict serde, self-approval, one-shot consume, denial/expiry fixtures; kiana-core/tests/sc10_approval_guard.rs source guard for existing ApprovalStore/ControlPlane path; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-10 job is queued by the push and is not awaited
+status_change: SC-10 source slice is implemented. ApprovalBinding now carries only typed principal/session/project/Grant references and exact command/target/payload/scope/policy/authority/expiry digests; request drift, cross-context mismatch and expiry cannot reuse an approval. HumanInboxItem enforces independent approver, explicit Pending→Approved/Denied→Consumed status and one-shot terminal semantics; malformed/raw fields fail closed. Existing ApprovalStore prepare/validate/decide CAS remains the execution authority, and no new dispatch path was added.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ApprovalBinding/HumanInboxItem are not yet wired as the durable cross-entrypoint inbox projector or atomically persisted with every legacy approval record, external human identity and GrantScope/authority/permit CAS remain partial, reason fields remain compatibility diagnostics, and Secret/redaction/TOCTOU/recovery/external/live/physical proof remains SC-11+
+reviewer: Codex root implementation review plus SC-10 exact approval subject/self-approval/one-shot/replay boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

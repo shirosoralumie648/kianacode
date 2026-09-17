@@ -1,5 +1,6 @@
 //! The single command and capability control plane for Kiana.
 
+mod approval_binding;
 mod approvals;
 mod artifacts;
 mod audit;
@@ -50,6 +51,10 @@ mod trace_export;
 mod versioning;
 mod workspace_checkpoints;
 
+pub use approval_binding::{
+    ApprovalBinding, HumanInboxItem, HumanInboxStatus, APPROVAL_BINDING_SCHEMA,
+    APPROVAL_BINDING_VERSION, HUMAN_INBOX_ITEM_SCHEMA,
+};
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use audit_export::{AuditExportError, AuditExportInput};
 pub use audit_projection::{
