@@ -2280,6 +2280,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-02 schema uniqueness/canonical/upcast and fail-closed migration source-boundary review; no runtime test reviewer
 ```
 
+### PD-03 storage health/errors evidence (2026-09-17)
+
+```text
+source_snapshot: f7c353e + PD-03 working-tree slice; kiana-domain/src/{storage_health,ids,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/pd03_health.rs; kiana-ports/tests/pd03_error_mapping.rs; kiana-core/tests/pd03_health_guard.rs; .github/workflows/pd03-storage-health.yml; docs/roadmap/persistence-health-baseline.md; docs/roadmap.md
+worktree_status: typed StorageError class/retry taxonomy, StorageCapabilities/Health/IntegrityIncident and PortError mapping are scoped to this step; Unknown/Corrupt/ResultUnknown require reconciliation and no adapter/projector/execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/storage_health.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-ports/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/pd03_health.rs kiana-ports/tests/pd03_error_mapping.rs kiana-core/tests/pd03_health_guard.rs .github/workflows/pd03-storage-health.yml docs/roadmap/persistence-health-baseline.md docs/roadmap.md
+  rg -n 'StorageError(Class|Id)?|StorageRetryDisposition|StorageCapabilities|StorageHealth(Status|Id)?|StorageIntegrityIncident(Class|Id)?|storage_class|into_storage_error|storage_error_retry_mismatch|quarantine_required|ResultUnknown|Corrupt' kiana-domain/src kiana-ports/src kiana-protocol/src kiana-domain/tests/pd03_health.rs kiana-ports/tests/pd03_error_mapping.rs kiana-core/tests/pd03_health_guard.rs docs/roadmap/persistence-health-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; PD-03 domain/ports/protocol/core health targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/pd03_health.rs error/health/capability/incident strict fixtures; kiana-ports/tests/pd03_error_mapping.rs PortError taxonomy; kiana-core/tests/pd03_health_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-03 job is queued by the next push and is not awaited
+status_change: PD-03 source slice is implemented. Storage errors retain six distinct classes with derived retry/reconcile disposition; capability durability conflicts, strict health snapshots and quarantine-required integrity incidents are typed/digest-bound, with conservative PortError mapping.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; mapping is not yet applied at every adapter/CLI/HTTP/Receipt call, health remains projection, capabilities are declarations, and EventLog quarantine/projector/backup/recovery/ports conformance remain PD-04+ / ER / DEP / SC.
+reviewer: Codex root implementation review plus PD-03 storage error/health/reconcile taxonomy and no-success-fallback source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

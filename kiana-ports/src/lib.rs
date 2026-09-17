@@ -29,8 +29,8 @@ use kiana_domain::{
     ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity,
     QualityArtifact, QualityArtifactId, RequestContext, RequestId, ResolvedAssignment,
     RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
-    SpawnPlan, SpawnPlanId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary,
-    WorkFingerprint,
+    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, SupervisionLease, SwarmLineage,
+    SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -1411,6 +1411,42 @@ pub enum PortError {
     /// 端口执行失败或输入不满足契约，且不属于可明确识别的状态冲突。
     #[error("port_failed:{0}")]
     Failed(String),
+}
+
+impl PortError {
+    /// Map adapter errors to the storage taxonomy without collapsing Unknown or corruption into
+    /// success. The mapping is deliberately conservative for unrecognized failure text.
+    pub fn storage_class(&self) -> StorageErrorClass {
+        match self {
+            Self::Unavailable(_) => StorageErrorClass::Unavailable,
+            Self::Conflict(_) => StorageErrorClass::Conflict,
+            Self::Failed(reason) => {
+                let lower = reason.to_ascii_lowercase();
+                if lower.contains("result_unknown") || lower.contains("unknown") {
+                    StorageErrorClass::ResultUnknown
+                } else if lower.contains("corrupt")
+                    || lower.contains("checksum")
+                    || lower.contains("integrity")
+                    || lower.contains("tamper")
+                {
+                    StorageErrorClass::Corrupt
+                } else if lower.contains("empty") {
+                    StorageErrorClass::Empty
+                } else {
+                    StorageErrorClass::Unknown
+                }
+            }
+        }
+    }
+
+    pub fn into_storage_error(
+        &self,
+        code: impl Into<String>,
+        source_cursor: Option<u64>,
+    ) -> Result<StorageError, PortError> {
+        StorageError::new(self.storage_class(), code, self.to_string(), source_cursor)
+            .map_err(PortError::Failed)
+    }
 }
 
 /// The product Broker consumes a committed, single-use permit before entering a handler.

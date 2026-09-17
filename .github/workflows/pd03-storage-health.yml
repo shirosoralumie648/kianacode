@@ -1,0 +1,56 @@
+name: PD-03 storage health and errors
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/storage_health.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/pd03_health.rs"
+      - "kiana-ports/tests/pd03_error_mapping.rs"
+      - "kiana-core/tests/pd03_health_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/persistence-health-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd03-storage-health.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/storage_health.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/pd03_health.rs"
+      - "kiana-ports/tests/pd03_error_mapping.rs"
+      - "kiana-core/tests/pd03_health_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/persistence-health-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd03-storage-health.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-03 domain fixtures
+        run: cargo test -p kiana-domain --test pd03_health --locked -- --test-threads=1
+      - name: Run PD-03 ports fixtures
+        run: cargo test -p kiana-ports --test pd03_error_mapping --locked -- --test-threads=1
+      - name: Run PD-03 source guard
+        run: cargo test -p kiana-core --test pd03_health_guard --locked -- --test-threads=1
+      - name: Compile storage health path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-protocol -p kiana-core --tests --locked
