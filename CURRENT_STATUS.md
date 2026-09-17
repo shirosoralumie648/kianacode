@@ -2899,6 +2899,25 @@ limitations: CI-only source guard has not been executed locally; runner callback
 reviewer: Codex root implementation review plus ER-13 shared finalizer, commit-before-delivery, CAS/replay, terminal fence and callback-unknown boundary; no runtime test reviewer
 ```
 
+### ER-14 effect observation and provider receipt evidence (2026-09-17)
+
+```text
+source_snapshot: 4849f5b + ER-14 working-tree slice; kiana-domain/src/{effect_observation,contracts,lib}.rs; kiana-daemon/src/connectors.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er14_effect_observation.rs; kiana-core/tests/er14_effect_observation_guard.rs; .github/workflows/er14-effect-observation.yml; docs/roadmap/event-receipt-effect-observation-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict EffectObservation binds execution/invocation/attempt, owner/audience/idempotency digests, optional provider receipt/query/evidence refs, observed time and ConfirmedSuccess/Failure/NoEffect/Unknown state; local connector invoke/reconcile emits the observation, exact prior receipt/binding/idempotency/payload checks remain required, and Unknown cannot be upgraded by the DTO; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er14_effect_observation.rs provider success/unknown/no-effect/scope/strict-field fixtures; kiana-core/tests/er14_effect_observation_guard.rs connector observation/exact-reconcile/no-retry source guard; GitHub Actions ER-14 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-14 is triggered by the eventual push and is not awaited
+status_change: ER-14 source slice is implemented. Provider receipts now have a typed, owner/audience-bound observation envelope; timeout/unknown remains unresolved, no-effect needs query evidence, and non-idempotent or mismatched reconcile cannot become success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: repository connectors remain local_fixture-only; no external transport/provider query, credential/account lease, real timeout/retry/reconcile, handler stop, durable observation store or external/live/physical proof exists; those remain ER-15+ / INT/BQ/CP work
+reviewer: Codex root implementation review plus ER-14 observation state, owner/audience/idempotency binding, connector integration and Unknown/no-effect boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

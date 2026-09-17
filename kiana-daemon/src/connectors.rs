@@ -5,8 +5,9 @@ use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     connector_bindings, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    ConnectorBindingSnapshot, ProviderOutcome, ProviderReceipt, RuntimeEvent,
-    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_STREAM,
+    ConnectorBindingSnapshot, EffectObservation, ExecutionId, InvocationId, ProviderOutcome,
+    ProviderReceipt, RuntimeEvent, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
+    CONNECTOR_STREAM,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde::Deserialize;
@@ -255,10 +256,13 @@ impl ConnectorRegistry {
                     source: "local_fixture".to_owned(),
                     result: kiana_domain::redact_value(&case.result),
                 };
-                let output = receipt_output(&receipt, next_version);
+                let observation = effect_observation_for(&receipt, request, project, actor, now)?;
+                let mut output = receipt_output(&receipt, next_version);
+                output["effect_observation"] = serde_json::to_value(&observation)
+                    .map_err(|_| failed("effect_observation_encode_failed"))?;
                 (
                     "connector.invoked",
-                    json!({"receipt":receipt,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
+                    json!({"receipt":receipt,"effect_observation":observation,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
                     output,
                 )
             }
@@ -307,12 +311,16 @@ impl ConnectorRegistry {
                     result: kiana_domain::redact_value(&receipt.result),
                     ..receipt
                 };
+                let now = now_ms()?;
+                let observation = effect_observation_for(&receipt, request, project, actor, now)?;
                 let mut output = receipt_output(&receipt, next_version);
+                output["effect_observation"] = serde_json::to_value(&observation)
+                    .map_err(|_| failed("effect_observation_encode_failed"))?;
                 output["reconciled"] = json!(true);
                 output["invocation_event_id"] = json!(invocation);
                 (
                     "connector.reconciled",
-                    json!({"receipt":receipt,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
+                    json!({"receipt":receipt,"effect_observation":observation,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
                     output,
                 )
             }
@@ -385,6 +393,34 @@ fn receipt_output(receipt: &ProviderReceipt, version: u64) -> Value {
         }
     }
     output
+}
+
+fn effect_observation_for(
+    receipt: &ProviderReceipt,
+    request: &AuthorizedCapabilityRequest,
+    project: &str,
+    actor: &str,
+    observed_at_unix_ms: u64,
+) -> Result<EffectObservation, PortError> {
+    let owner_digest = kiana_domain::json_digest(&json!({
+        "project_root": project,
+        "actor_id": actor,
+    }));
+    let audience_digest = kiana_domain::json_digest(&json!({
+        "connector_id": receipt.connector_id,
+        "binding_id": receipt.binding_id,
+        "account_id": receipt.account_id,
+    }));
+    EffectObservation::from_provider_receipt(
+        receipt,
+        ExecutionId::from_uuid(request.request.request_id.as_uuid()),
+        InvocationId::from_uuid(request.request.request_id.as_uuid()),
+        1,
+        owner_digest,
+        audience_digest,
+        observed_at_unix_ms,
+    )
+    .map_err(failed)
 }
 
 async fn load_fixture(binding: &ConnectorBindingSnapshot) -> Result<ConnectorFixture, PortError> {

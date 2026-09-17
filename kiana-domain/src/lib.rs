@@ -247,7 +247,9 @@ mod handoff;
 pub use handoff::*;
 
 mod dispatch;
+mod effect_observation;
 pub use dispatch::*;
+pub use effect_observation::*;
 
 mod journal;
 pub use journal::*;

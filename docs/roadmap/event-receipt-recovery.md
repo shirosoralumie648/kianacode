@@ -374,7 +374,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-14 — Effect Receipt 与外部 provider receipt　⏳
+##### ER-14 — Effect Receipt 与外部 provider receipt　✅
 
 - **落点：** `kiana-capability-broker`、connector/provider ports、`kiana-domain`；关联 `CAP-22/28/29`、`P4-K8-01`。
 - **动作：** 定义 `EffectObservation`（provider receipt id、remote status、observed_at、query digest、evidence refs）；没有 provider query/idempotency 的 connector 默认只能返回 Unknown。
