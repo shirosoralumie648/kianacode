@@ -6899,3 +6899,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: Scripted/fixture validation does not establish LLM semantic quality or production throughput; candidate queue and memory JSONL remain local adapters, cross-process worker/power-loss recovery, durable index/vector recall, retention/revocation and real business impact remain CM/PD/ER/PD/SC/EQ work
 reviewer: Codex root implementation review plus terminal trigger, at-most-once source key, deny-tools internal run, strict output/quote/evidence, Candidate-only admission, memory.review ACL and Unknown/no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-J6-01 bounded Swarm evidence (2026-09-18)
+
+```text
+source_snapshot: b905935e + P4-J6-01 working-tree slice; kiana-domain/src/{swarm.rs,swarm_graph.rs,swarm_reducer.rs}; kiana-core/src/{swarm.rs,collaboration.rs,company.rs}; kiana-domain/tests/p4_j6_01_bounded_swarm.rs; kiana-core/tests/p4_j6_01_bounded_swarm.rs; .github/workflows/p4-j6-01-bounded-swarm.yml; docs/roadmap/p4-j6-01-bounded-swarm-baseline.md; docs/roadmap.md
+worktree_status: bounded Swarm now has explicit fan-out/fan-in fixture and source guard: graph projection is deterministic; WorkFingerprint/path/limit checks reject duplicate or overlapping work; Controller Cell/Grant/Supervision/budget and child lifecycle reuse ControlPlane Company StartRun; commit-before-dispatch, Reconcile/Unknown/cancel, independent review-gated Merge and parent retire remain explicit; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-domain --test p4_j6_01_bounded_swarm -p kiana-core --test p4_j6_01_bounded_swarm --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_j6_01_bounded_swarm.rs repeats `SwarmWorkGraph::projection`, simulates reducer ReadyToMerge→Completed(review), and asserts overlap/duplicate/no-review rejection; kiana-core/tests/p4_j6_01_bounded_swarm.rs guards bounds, child identity, commit-before-dispatch, Company reuse, Unknown/cancel/retire and no second loop; GitHub Actions P4-J6-01 workflow runs fixtures, graph/reducer regressions and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J6-01 is triggered by the eventual push and is not awaited
+status_change: P4-J6-01 source slice is implemented. Bounded fan-out/fan-in contracts and deterministic review-gated merge are now covered by a focused fixture and ControlPlane source evidence.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CellRegistry and portions of Swarm aggregate/reconciliation remain process-local; event-before-dispatch is an explicit recovery window, not cross-process durability; no real concurrent worker/power-loss/Integrator conflict or external/live/physical effect proof is claimed; follow-up SW-04..18/CO-43..48/PD/ER/DEP remains
+reviewer: Codex root implementation review plus WorkGraph/WorkFingerprint/path/budget/concurrency/TTL, Controller Cell, child Company dispatch, replay/Unknown/cancel and independent Merge/retire boundary review; no runtime test reviewer
+```

@@ -121,7 +121,7 @@
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ✅ |
 | `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | 五部门可各自开会；决议写入部门记忆层 | ✅ |
 | `P4-J3-05` | P4 | J3 Memory | `P1-J3-03` | run 蒸馏产出 lesson candidate 入部门层 | ✅ |
-| `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ⏳ |
+| `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ✅ |
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ⏳ |
 | `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ⏳ |
 | `P4-K2-01` | P4 | K2 Trigger | `P0-B-01` | Trigger 只能创建 Workflow/Run，不能直接执行 Capability | ⏳ |
@@ -767,7 +767,7 @@
 | 592 | W8 | 专项 | [`CO-44`](roadmap/companyos.md#step-co-44) | CompanyOS · Integrator、冲突处理与 MergeReceipt | `CO-25`、`CO-26`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-44) |
 | 593 | W8 | 专项 | [`CO-45`](roadmap/companyos.md#step-co-45) | CompanyOS · 多项目优先级、容量与组织成本账 | `CO-02`、`CO-20`、`CO-23`、`CO-36`、`CO-38`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-45) |
 | 594 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | ⏳ | [专项卡](roadmap/companyos.md#step-co-46) |
-| 595 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ⏳ | [基础卡](#step-p4-j6-01) |
+| 595 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ✅ | [基础卡](#step-p4-j6-01) |
 | 596 | W8 | 基础 | [`P4-K2-01`](#step-p4-k2-01) | P4 基础 · 触发器与调度 | `P0-B-01` | ⏳ | [基础卡](#step-p4-k2-01) |
 | 597 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ⏳ | [基础卡](#step-p4-k8-01) |
 | 598 | W8 | 专项 | [`SW-13`](#step-sw-13) | versioned deterministic reducer、冲突和完整覆盖检查 | `CO-43`、`CO-44`、`SW-12` | ⏳ | [专项卡](#step-sw-13) |
@@ -1166,6 +1166,7 @@
 | 当前 210 | `P3-I-06` fake-model coding golden loop | 通过真实 `DaemonHost::handle` 协议入口，以 `ScriptedModel` 驱动 Objective→Project→PM Milestone/Packet→Builder `spawn_from_packet`→Reviewer/Acceptance→Delivery→Closer；断言实际 `OUTPUT.txt`、EventLog evidence、revision/idempotency 与完整 `CompanyClosingReceipt`，并以 source guard 固定 reject/rework/pause/cancel/failure/Unknown/replay 边界；新增 daemon 端到端 fixture、core source guard、workflow 与 fake-model baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-06 已触发但未等待；受控 ScriptedModel 不代表 live provider，Company aggregate/Artifact/EventLog 仍是本地组合，外部 recipient、真实 KPI、跨进程 power-loss、四入口 Company UX、live/physical 业务结果留 CO-35..48/EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 211 | `P4-E-03` department symposium memory | 五个 DepartmentSpec 均可用同一 Symposium/DecisionRecord 合同开有界会议；公开 `symposium.closed` 决议统一进入 `derive_memory_proposal(..., "decision")` 与 `MemoryDistillationJob`，生成带 department collection/evidence 的 Candidate，必须经过 `memory.review` ACL/审批才可晋升；新增 domain 五部门 proposal fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-E-03 已触发但未等待；Candidate 不等于 Active/Qualified，Builder 持久写权限未扩大，跨租户 ACL、durable memory projector、向量索引、外部通知和 live/physical 结果留 CM/PD/SC/NM；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 212 | `P4-J3-05` terminal distillation | 终态 run/失败/取消/Unknown 统一以 source event 做 at-most-once `memory.distillation_queued`，显式 operator consume 走只读 deny-tools Runner，严格 quote/evidence 校验后只产生 department lesson `MemoryProposal` Candidate；`memory.review` 才能晋升，Unknown/失败/重复 claim 可重放且不改写源事实；新增 domain output fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J3-05 已触发但未等待；不声称真实 LLM 质量、生产吞吐、durable worker/索引、跨进程恢复或 live/physical 业务效果，候选准入与数据治理仍留 CM/PD/SC/EQ/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 213 | `P4-J6-01` bounded Swarm | `SwarmPlan`/WorkGraph 固定 parent、partition 输入/输出、路径/数据 scope、预算、并发、深度、TTL 与 receipt-only merge；WorkFingerprint/依赖图拒绝重叠写集、重复任务和非法限制，ControlPlane 先 commit Swarm fact 再复用 Company StartRun 派发 child，Reconcile/Unknown/取消/独立 Review 后才允许 Merge/retire；新增 domain fan-out/fan-in fixture、core authority guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/company source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J6-01 已触发但未等待；MemoryCellRegistry/dispatch 窗口仍非跨进程 durable，未声称真实并发 worker、power-loss recovery、Integrator 冲突合并或 live/physical effect，后续留 SW-04..18/CO-43..48/PD/ER/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1427,6 +1428,7 @@
 | 2026-09-18 | `P3-I-06` fake-model coding 黄金闭环：新增真实 `DaemonHost::handle` Company 命令链 fixture，ScriptedModel 在冻结 packet scope 写入 `OUTPUT.txt`，经 Objective→Project→PM→Builder→Reviewer→Acceptance→Delivery→Closer 生成完整 `CompanyClosingReceipt`；断言实际文件、EventLog evidence、CAS/revision/idempotency，并以 core source guard 固定拒绝/返工/暂停/取消/失败/Unknown/replay 边界；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-E-03` 五部门会议与决议入部门 RAG：确认 initiating/planning/executing/monitoring/closing 都使用同一有界 Symposium/DecisionRecord 合同；公开 `symposium.closed` 通过 `derive_memory_proposal`/`queue_memory_distillation` 生成 `kind=decision` 的 department Candidate，必须由 `memory.review` 显式晋升；新增五部门 domain fixture、core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-J3-05` run 蒸馏与 lesson 入库：终态事件按 source event at-most-once 入队，显式 `memory.distill` 走只读 deny-tools Runner，严格 schema/quote/evidence 校验后生成 department `kind=lesson` Candidate；retain/discard、坏引用、Unknown/重复结算与 `memory.review` 边界纳入 domain/core CI fixture；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-J6-01` 有界 Swarm：补充 fan-out/fan-in domain fixture，重复 projection/WorkFingerprint/重叠路径/并发、TTL、无 review 完成拒绝纳入验收；core guard 固定 Controller Cell/Grant、Company StartRun 复用、commit-before-dispatch、Reconcile/Unknown/取消、独立 Review/Merge 与 parent retire 边界；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2653,9 +2655,9 @@
 
 <a id="step-p4-j6-01"></a>
 
-### P4-J6-01 有界 Swarm　⏳
+### P4-J6-01 有界 Swarm　✅
 
-- **现状**：`SwarmPlan`/`Partition`/`Child Cell`/`MergeDecision` 为 `target`。
+- **现状**：`SwarmPlan`/`SwarmWorkGraph`/Child Cell/Review Merge 已具备预算、并发、TTL、WorkFingerprint 与 EventLog commit-before-dispatch 约束；domain fixture、core guard、CI workflow 与基线已登记。
 - **做什么**：fan-out 必须有 parent、partition、预算、并发、TTL、WorkFingerprint 和 MergeDecision。
 - **风险**：无限 fan-out 会让预算与授权失效。
 - **验收**：`swarm_fanout_is_bounded_and_merges_deterministically`
