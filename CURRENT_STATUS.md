@@ -2112,6 +2112,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-02 quality ID/status/digest/strict DTO source-boundary review; no runtime test reviewer
 ```
 
+### EQ-03 evaluation object evidence (2026-09-17)
+
+```text
+source_snapshot: 9346097 + EQ-03 working-tree slice; kiana-domain/src/{quality,contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/eq03_eval_objects.rs; kiana-core/tests/eq03_eval_objects_guard.rs; .github/workflows/eq03-eval-objects.yml; docs/roadmap/evaluation-objects-baseline.md; docs/roadmap.md
+worktree_status: EQ-03 strict EvalDataset/EvalSuite/EvalCase/GoldenTrace schema/version/provenance contracts and typed ref/digest/cursor checks are scoped to this step; existing core golden_trace capture remains a compatibility input and no store/normalizer/evaluator/Broker path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/quality.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/eq03_eval_objects.rs kiana-core/tests/eq03_eval_objects_guard.rs .github/workflows/eq03-eval-objects.yml docs/roadmap/evaluation-objects-baseline.md docs/roadmap.md
+  rg -n 'EvalDataset|EvalSuite|EvalCase|GoldenTrace|EVAL_DATASET_SCHEMA|EVAL_SUITE_OBJECT_SCHEMA|EVAL_CASE_OBJECT_SCHEMA|GOLDEN_TRACE_SCHEMA|provenance|target_versions|normalized_events|event_cursor|deny_unknown_fields|golden_trace_(header|digest|source)' kiana-domain/src kiana-protocol/src kiana-domain/tests/eq03_eval_objects.rs kiana-core/tests/eq03_eval_objects_guard.rs docs/roadmap/evaluation-objects-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-03 domain/core eval-object targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/eq03_eval_objects.rs schema/version/provenance/refs/cursor/digest/strict/secret fixtures; kiana-core/tests/eq03_eval_objects_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-03 job is queued by the next push and is not awaited
+status_change: EQ-03 source slice is implemented. Domain now owns strict EvalDataset/Suite/Case/GoldenTrace objects with typed identities, privacy/provenance/fixture/oracle metadata, canonical lists, cursor/hash/score/expiry validation and digest integrity; unknown fields/schema or secret config cannot pass.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; dataset/suite/case/trace refs are not yet loaded from an isolated store, GoldenTrace normalization/diff/capture is absent, and experiment/result/candidate/gate/judge/promotion/durable replay remain EQ-04+ / EQ-08+ / ER / PD / SC.
+reviewer: Codex root implementation review plus EQ-03 eval object/provenance/cursor/digest and no-execution-path source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

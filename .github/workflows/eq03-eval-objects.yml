@@ -1,0 +1,48 @@
+name: EQ-03 eval object contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-core/tests/eq03_eval_objects_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-objects-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq03-eval-objects.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-core/tests/eq03_eval_objects_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-objects-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq03-eval-objects.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-objects:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-03 eval object fixtures
+        run: cargo test -p kiana-domain --test eq03_eval_objects --locked -- --test-threads=1
+      - name: Run EQ-03 source guard
+        run: cargo test -p kiana-core --test eq03_eval_objects_guard --locked -- --test-threads=1
+      - name: Compile eval object path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked
