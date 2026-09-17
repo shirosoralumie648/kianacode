@@ -2766,6 +2766,25 @@ limitations: CI-only fixtures have not been executed locally; slow-disk/worker-p
 reviewer: Codex root implementation review plus ER-06 bounded worker, health digest, durable cursor, close state and daemon delegation reconciliation; no runtime test reviewer
 ```
 
+### ER-07 replay projector and checkpoint evidence (2026-09-17)
+
+```text
+source_snapshot: 0e6f9b0 + ER-07 working-tree slice; kiana-domain/src/{projection_contracts,contracts,lib}.rs; kiana-core/src/{projection_checkpoint,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er07_projection_checkpoint.rs; kiana-core/tests/er07_replay_guard.rs; .github/workflows/er07-replay-checkpoint.yml; docs/roadmap/event-receipt-replay-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict ProjectionCheckpoint binds projector/version/source cursor/sorted event IDs/state digest/checkpoint digest; ReplayProjection provides pure from-zero and validated checkpoint+tail folds, skips duplicate event IDs, rejects cursor/projector/fold mismatch, and has no EventStore/Broker/authorization capability; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er07_projection_checkpoint.rs strict/tamper/version/empty-anchor fixtures; kiana-core/tests/er07_replay_guard.rs from-zero/checkpoint+tail duplicate-id equivalence, mismatch/fold failure and read-only source guard; GitHub Actions ER-07 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-07 is triggered by the eventual push and is not awaited
+status_change: ER-07 source slice is implemented. Checkpoints are replaceable read optimizations: invalid or stale checkpoints fail closed and callers can rebuild from zero; duplicate source events do not reapply state, and projection failure cannot mutate authority or issue execution.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; no production projector runner/checkpoint store or cross-process checkpoint transaction exists, and Run/Turn/Invocation/Approval projection recovery, backup/retention and external/live/physical proof remain ER-08+ / PD work
+reviewer: Codex root implementation review plus ER-07 checkpoint digest/cursor compatibility, duplicate replay, fold failure and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

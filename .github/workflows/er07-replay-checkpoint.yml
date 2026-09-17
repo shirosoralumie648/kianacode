@@ -1,0 +1,56 @@
+name: ER-07 replay projector checkpoint
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/projection_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er07_projection_checkpoint.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/er07_replay_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-replay-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er07-replay-checkpoint.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/projection_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er07_projection_checkpoint.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/er07_replay_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-replay-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er07-replay-checkpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-07 projection fixtures
+        run: cargo test -p kiana-domain --test er07_projection_checkpoint --locked -- --test-threads=1
+      - name: Run ER-07 replay source guard
+        run: cargo test -p kiana-core --test er07_replay_guard --locked -- --test-threads=1
+      - name: Compile ER-07 targets
+        run: cargo check --workspace --tests --locked

@@ -295,7 +295,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-07 — 通用 replay reader 和 projector checkpoint　⏳
+##### ER-07 — 通用 replay reader 和 projector checkpoint　✅
 
 - **落点：** `kiana-core/projection.rs`、新建或复用 query projection store；关联 `P0-G-04`、`P2-J5-01`、`CAP-25`。
 - **动作：** 定义 `fold(cursor, events)`、checkpoint digest、schema compatibility、rebuild-from-zero；投影 checkpoint 只优化读取，必须能被原始事件替换。

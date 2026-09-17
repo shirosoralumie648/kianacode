@@ -39,6 +39,7 @@ mod parity;
 mod performance;
 mod platform;
 mod projection;
+mod projection_checkpoint;
 mod receipts;
 mod recovery;
 mod redaction;
@@ -94,6 +95,7 @@ pub use performance::{
     build_performance_baseline, percentile_micros, summarize_benchmark, PerformanceError,
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
+pub use projection_checkpoint::ReplayProjection;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use security_authority::{
     SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
