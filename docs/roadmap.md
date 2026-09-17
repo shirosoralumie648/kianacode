@@ -105,7 +105,7 @@
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ✅ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ✅ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ✅ |
-| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
+| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ✅ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ⏳ |
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
@@ -538,7 +538,7 @@
 | 367 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ✅ | [基础卡](#step-p1-j3-03) |
 | 368 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ✅ | [基础卡](#step-p1-j3-04) |
 | 369 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ✅ | [基础卡](#step-p1-l4-01) |
-| 370 | W4 | 基础 | [`P2-K7-01`](#step-p2-k7-01) | P2 基础 · 数据治理与删除传播 | `P0-A-01a`、`P1-J3-04` | ⏳ | [基础卡](#step-p2-k7-01) |
+| 370 | W4 | 基础 | [`P2-K7-01`](#step-p2-k7-01) | P2 基础 · 数据治理与删除传播 | `P0-A-01a`、`P1-J3-04` | ✅ | [基础卡](#step-p2-k7-01) |
 | 371 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ⏳ | [基础卡](#step-p4-j3-05) |
 | 372 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ⏳ | [基础卡](#step-p4-l5-01) |
 | 373 | W4 | 基础 | [`P4-L6-01`](#step-p4-l6-01) | P4 基础 · 供应链 | `P4-L5-01` | ⏳ | [基础卡](#step-p4-l6-01) |
@@ -1152,6 +1152,7 @@
 | 当前 196 | `P2-K3-01` Human Inbox | Core 聚合 pending approvals、Company review/acceptance/delivery/change/cancel、Company/failure incidents、reconciliation 和 feedback candidates 为稳定排序的六类 HumanInboxItem；`human.resolve` 以 inbox digest、item/action ID、required fields、idempotency 回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K3-01 已触发且未等待；durable NotificationStore/read-state/outbox/delivery/recipient、cross-process inbox projector and external/live/physical human delivery remain NM/UI/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 197 | `P2-K4-01` artifact checkpoint | `WorkspaceCheckpoint` binds project/actor/session/role, run/invocation, transcript offset, path allow, files/data epoch and workspace revision; capture runs before input/write, preview is read-only, restore rechecks exact snapshot/revision/company/path/data/approval and reuses apply_patch transaction, invalidating old approvals/runs and recording workspace.restored;新增 core checkpoint source guard、workflow 与 artifact-checkpoint baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K4-01 已触发且未等待；durable ArtifactStore/version graph, power-loss/cross-process checkpoint projector, backup/recovery and external/live/physical undo remain PD/ER/DEP work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 198 | `P2-K6-01` reliability/reconciliation | `FailureClass` 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；每类都有 `FailureIncident`/`RecoveryPlan`，`failure.incidents` 投影、Human Inbox reconciliation、证据/CAS 幂等 `failure.reconcile` 与 stop-confirmed `failure.release` 均沿 ControlPlane/EventLog，`result_unknown` 不自动 retry 或释放；新增 domain fixture、core source guard、workflow 与 reliability baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K6-01 已触发且未等待；独立跨进程 IncidentStore/queue worker、外部 provider query/receipt、power-loss/physical stop/release 与 live/physical proof 留 ER/PD/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 199 | `P2-K7-01` data governance/deletion propagation | `DataClass`/`Purpose`/`ProcessingGrant`/`Retention` 与 policy digest/revision/data epoch 由 server-owned DataPolicy 校验；revocation/expiry/deletion 通过 DataGovernanceSnapshot 将 receipt/audit/artifact/memory/index/cache/export 统一置为 Unknown/Revoked/Expired，daemon 先持久化拒绝再清理 memory/cache/index/artifact-store/compaction，checkpoint/runner 旧 epoch 失效；新增 domain fixture、core source guard、workflow 与 data-governance baseline | `feature_status=implemented`（domain/core/daemon/query source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K7-01 已触发且未等待；独立 retention worker、跨进程 durable governance store、外部 DB/provider/MCP/backup/log 删除与 live/physical erasure proof 留 PD/ER/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1399,6 +1400,7 @@
 | 2026-09-18 | `P2-K3-01` Human Inbox：Core 统一聚合 Approval/Review/Acceptance/Incident/Reconciliation/Feedback item，列表 digest 稳定排序；resolve 强制 revision、item/action、required fields/idempotency 并回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline；durable NotificationStore/read-state/delivery/external human delivery 留 NM/UI/PD/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K4-01` artifact checkpoint：WorkspaceCheckpoint 绑定 run/session/role/transcript offset/invocation/path/data epoch/workspace revision，写前 capture、preview read-only、restore revision/TOCTOU/company/approval fence，失效旧 approvals/runs 并记录 workspace.restored；新增 core checkpoint source guard、workflow 与 baseline；durable ArtifactStore/power-loss/cross-process recovery 和外部 undo 留 PD/ER/DEP；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K6-01` reliability/reconciliation：FailureClass 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；failure.incidents 投影 FailureIncident/RecoveryPlan，Unknown 进入 Human Inbox reconciliation；failure.reconcile 强制证据/CAS/幂等，failure.release 先对账再确认 stop，明确禁止自动 retry/释放；新增 domain fixture、core source guard、workflow 与 reliability baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-K7-01` data governance：DataPolicy 固定 DataClass/Purpose/ProcessingGrant/Retention、policy digest/revision/data epoch；撤销/过期/删除通过 DataGovernanceSnapshot 同步传播到 receipt/audit/artifact/memory/index/cache/export，pending 状态先置 Unknown，daemon 先持久化拒绝再清理受控 memory/cache/index/artifact-store/compaction，旧 checkpoint/context 失效；新增 domain fixture、core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2323,13 +2325,15 @@
 
 <a id="step-p2-k7-01"></a>
 
-### P2-K7-01 数据治理与删除传播　⏳
+### P2-K7-01 数据治理与删除传播　✅
 
-- **现状**：`DataClass`/`Purpose`/`ProcessingGrant`/`Retention` 为 `target`，删除不会传播。
-- **做什么**：删除、过期和撤销能传播到 Memory、Artifact、Index、Compaction 和 cache policy。
-- **风险**：传播不全等于数据没删干净，却对外声称已删。
+当前 source slice 与 CI-only 证据见 [`p2-k7-01-data-governance-baseline.md`](roadmap/p2-k7-01-data-governance-baseline.md)。
+
+- **现状**：server-owned `DataPolicy` 已固定 `DataClass`/`Purpose`/`ProcessingGrant`/`Retention`、digest/revision/data epoch；治理 snapshot 可从连续 EventLog 重建，但独立跨进程 store/retention worker 尚未纳入本切片。
+- **做什么**：删除、过期和撤销先提升 data epoch 并把 pending derived state 置为 `Unknown`，提交后统一传播到 receipt/audit/artifact/memory/index/cache/export；daemon 在受控路径清理 memory、index、artifact-store、compaction 与 cache，并让旧 checkpoint/runner context 失效。
+- **风险**：传播不全等于数据没删干净，却对外声称已删；清理或外部效果不确定时保持 Revoked/Unknown，不自动重试。
 - **验收**：`deletion_propagates_to_memory_and_index`
-- **依赖 / 边界**：依赖 `P0-A-01a`、`P1-J3-04`；不改变现有 ACL 语义。
+- **依赖 / 边界**：依赖 `P0-A-01a`、`P1-J3-04`；不改变现有 ACL 语义，不把 projection/cache 当事实源。
 - **依据**：`company-os-implementation-outline.md` §Slice K7
 
 

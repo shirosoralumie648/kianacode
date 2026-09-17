@@ -3773,6 +3773,25 @@ limitations: Incident/Recovery and reconciliation queue are EventLog/platform pr
 reviewer: Codex root implementation review plus six-class classification, Unknown/effect/stop fences, evidence/CAS/idempotency, release quarantine and no-second-loop boundary review; no runtime test reviewer
 ```
 
+### P2-K7-01 data governance and deletion propagation evidence (2026-09-18)
+
+```text
+source_snapshot: 4ff8d5e9 + P2-K7-01 evidence slice; kiana-domain/src/governance.rs; kiana-domain/tests/p2_k7_01_data_governance.rs; kiana-core/src/data_governance.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/tests/p2_k7_01_data_governance.rs; kiana-core/tests/oa20_data_governance_projection.rs; kiana-daemon/src/data_governance.rs; kiana-daemon/src/harness_memory.rs; kiana-daemon/src/context_query.rs; kiana-domain/tests/oa20_data_governance.rs; .github/workflows/p2-k7-01-data-governance.yml; docs/roadmap/p2-k7-01-data-governance-baseline.md; docs/roadmap.md
+worktree_status: DataPolicy binds DataClass/Purpose/ProcessingGrant/Retention, policy digest/revision and data epoch; revoke cascades parent grants and increments epoch. DataGovernanceSnapshot preserves source cursor/event IDs and propagates Available/Expired/Revoked/Unknown to receipt/audit/artifact/memory/index/cache/export. daemon data.governance persists revocation before cleaning governed memory/cache/index/artifact-store/compaction, and checkpoint/runner paths reject stale data epochs; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p2_k7_01_data_governance.rs revoke/expiry/seven-store propagation fixture; kiana-core/tests/p2_k7_01_data_governance.rs governance source guard; existing OA-20 domain/core snapshot fixtures; GitHub Actions P2-K7-01 workflow runs fixtures, guards, regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-K7-01 is triggered by the eventual push and is not awaited
+status_change: P2-K7-01 source slice is implemented/reconciled. Revocation, expiry and deletion now carry explicit policy/data-epoch semantics and propagate conservatively across governed derived stores; pending or uncertain propagation remains Unknown/Revoked and never becomes an unverified success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: EventLog facts remain immutable and the snapshot is a rebuildable projection; no independent cross-process governance store/retention worker, power-loss recovery, external DB/provider/MCP/backup/log erasure, generated-artifact cleanup, or live/physical deletion proof is claimed
+reviewer: Codex root implementation review plus policy/grant/retention validation, cursor/digest/epoch fences, pending-vs-committed propagation, path/hash/lock safety and no-second-fact-source boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
