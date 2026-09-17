@@ -96,6 +96,77 @@ pub use kiana_domain::{
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
 pub const AUDIT_QUERY_SCHEMA: &str = "kiana.audit-query.v1";
+pub const QUALITY_COMMAND_SCHEMA: &str = "kiana.quality-command.v1";
+pub const QUALITY_COMMAND_KINDS: &[&str] = &[
+    "eval.run",
+    "eval.capture",
+    "eval.compare",
+    "quality.feedback",
+    "quality.promote",
+    "quality.rollback",
+];
+pub const QUALITY_EVENT_KINDS: &[&str] = &[
+    "eval.run",
+    "eval.capture",
+    "eval.compare",
+    "quality.feedback",
+    "quality.promote",
+    "quality.rollback",
+];
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QualityCommandKind {
+    EvalRun,
+    EvalCapture,
+    EvalCompare,
+    Feedback,
+    Promote,
+    Rollback,
+}
+
+impl QualityCommandKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EvalRun => "eval.run",
+            Self::EvalCapture => "eval.capture",
+            Self::EvalCompare => "eval.compare",
+            Self::Feedback => "quality.feedback",
+            Self::Promote => "quality.promote",
+            Self::Rollback => "quality.rollback",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QualityCommandRequest {
+    pub schema: String,
+    pub command: QualityCommandKind,
+    pub request_id: RequestId,
+    pub arguments: Value,
+}
+
+impl QualityCommandRequest {
+    pub fn new(command: QualityCommandKind, request_id: RequestId, arguments: Value) -> Self {
+        Self {
+            schema: QUALITY_COMMAND_SCHEMA.to_owned(),
+            command,
+            request_id,
+            arguments,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != QUALITY_COMMAND_SCHEMA || self.request_id.as_uuid().is_nil() {
+            return Err("quality_command_schema_invalid".to_owned());
+        }
+        if !self.arguments.is_object() {
+            return Err("quality_command_arguments_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
 
 fn default_role_id() -> String {
     ROLE_BUILDER.to_owned()
@@ -249,6 +320,20 @@ impl RequestEnvelope {
                 arguments,
             }),
         }
+    }
+
+    /// Construct one of the registered evaluation/quality commands through the normal daemon
+    /// command route. This helper does not execute or authorize the command.
+    pub fn quality_command(
+        metadata: RequestMetadata,
+        request: QualityCommandRequest,
+    ) -> Result<Self, String> {
+        request.validate()?;
+        Ok(Self::command(
+            metadata,
+            request.command.as_str(),
+            request.arguments,
+        ))
     }
 
     /// 构造不带证明的审批决定 envelope。

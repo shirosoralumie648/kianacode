@@ -1,0 +1,48 @@
+name: EQ-06 quality protocol
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/eq06_quality_protocol.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/eq06_quality_protocol_guard.rs"
+      - "docs/roadmap/evaluation-protocol-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq06-quality-protocol.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/eq06_quality_protocol.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/eq06_quality_protocol_guard.rs"
+      - "docs/roadmap/evaluation-protocol-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq06-quality-protocol.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-06 protocol fixture
+        run: cargo test -p kiana-protocol --test eq06_quality_protocol --locked -- --test-threads=1
+      - name: Run EQ-06 source guard
+        run: cargo test -p kiana-core --test eq06_quality_protocol_guard --locked -- --test-threads=1
+      - name: Compile quality protocol path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked

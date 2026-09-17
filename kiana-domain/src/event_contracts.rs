@@ -19,6 +19,7 @@ const ACTION_IDS: &[&str] = &["request_id", "action_digest"];
 const COMMUNICATION_IDS: &[&str] = &["message"];
 const COMMUNICATION_LIFECYCLE_IDS: &[&str] = &["message_id"];
 const SWARM_TRANSITION_IDS: &[&str] = &["swarm_plan_id"];
+const QUALITY_IDS: &[&str] = &["request_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -112,6 +113,27 @@ const SWARM_TRANSITION_FIELDS: &[&str] = &[
     "causation_event_id",
     "review_complete",
     "event_digest",
+];
+const QUALITY_FIELDS: &[&str] = &[
+    "request_id",
+    "command",
+    "dataset_id",
+    "suite_id",
+    "case_id",
+    "experiment_id",
+    "result_id",
+    "candidate_id",
+    "gate_id",
+    "decision_id",
+    "feedback_id",
+    "trace_id",
+    "source_cursor",
+    "source_digest",
+    "payload_digest",
+    "reason",
+    "status",
+    "verdict",
+    "evidence_refs",
 ];
 const INVOCATION_FIELDS: &[&str] = &[
     "run_id",
@@ -349,6 +371,54 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "swarm",
         SWARM_TRANSITION_IDS,
         SWARM_TRANSITION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "eval.run",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "eval.capture",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "eval.compare",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "quality.feedback",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "quality.promote",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "quality.rollback",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
         false,
         None
     ),
@@ -698,6 +768,8 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "result.",
         "session.",
         "communication.",
+        "eval.",
+        "quality.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))

@@ -2175,6 +2175,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-05 legacy-to-domain adapter/deterministic ID/report compatibility source-boundary review; no runtime test reviewer
 ```
 
+### EQ-06 quality protocol registry evidence (2026-09-17)
+
+```text
+source_snapshot: d53615d + EQ-06 working-tree slice; kiana-protocol/src/lib.rs; kiana-domain/src/{event_contracts,contracts,lib}.rs; kiana-protocol/tests/eq06_quality_protocol.rs; kiana-core/src/commands.rs; kiana-core/tests/eq06_quality_protocol_guard.rs; .github/workflows/eq06-quality-protocol.yml; docs/roadmap/evaluation-protocol-baseline.md; docs/roadmap.md
+worktree_status: versioned QualityCommandKind/Request, six quality/eval command/event names and required-family event registry are scoped to this step; RequestEnvelope uses the existing generic command route and no quality handler, evaluator, provider/Broker or promotion authority was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-protocol/src/lib.rs kiana-domain/src/event_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/tests/eq06_quality_protocol.rs kiana-core/src/commands.rs kiana-core/tests/eq06_quality_protocol_guard.rs .github/workflows/eq06-quality-protocol.yml docs/roadmap/evaluation-protocol-baseline.md docs/roadmap.md
+  rg -n 'QUALITY_COMMAND_SCHEMA|QualityCommandKind|QualityCommandRequest|QUALITY_(COMMAND|EVENT)_KINDS|quality_command|eval\.(run|capture|compare)|quality\.(feedback|promote|rollback)|QUALITY_FIELDS|unknown_required_event_kind' kiana-protocol/src kiana-domain/src kiana-core/src kiana-protocol/tests/eq06_quality_protocol.rs kiana-core/tests/eq06_quality_protocol_guard.rs docs/roadmap/evaluation-protocol-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-06 protocol/core/domain targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-protocol/tests/eq06_quality_protocol.rs command/event registration, strict envelope and unknown-family fixtures; kiana-core/tests/eq06_quality_protocol_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-06 job is queued by the next push and is not awaited
+status_change: EQ-06 source slice is implemented. Quality/eval command names and RuntimeEvent kinds now share a versioned protocol/schema registry with strict request shape and required-family unknown rejection; the helper only routes through existing Command envelope and cannot grant or execute authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; commands have no handler yet, arguments lack operation-specific authorization/secret policy, event source/owner/materializer/store/ports and quality execution/promotion remain EQ-07+ / EQ-08+ / ER / PD / SC.
+reviewer: Codex root implementation review plus EQ-06 versioned command/event/unknown-family and no-bypass source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

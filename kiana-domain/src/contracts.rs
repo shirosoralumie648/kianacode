@@ -585,6 +585,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.quality-command.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-protocol",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.eval-dataset.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
