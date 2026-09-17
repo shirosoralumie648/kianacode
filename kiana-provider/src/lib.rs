@@ -1,5 +1,6 @@
 //! One admitted model attempt. No Agent loop, tool execution, hidden retries or legacy runtime edges.
 mod config;
+mod credentials;
 mod request;
 mod resolver;
 mod response;

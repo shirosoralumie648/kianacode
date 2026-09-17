@@ -1,3 +1,4 @@
+use crate::credentials::{EnvSecretStore, InlineSecretStore, SecretStore};
 use kiana_domain::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -52,7 +53,8 @@ pub(crate) struct Connection {
     pub route: ModelRoute,
     pub capabilities: ModelCapabilities,
     pub endpoint: reqwest::Url,
-    pub credential: Option<String>,
+    pub credential_ref: Option<SecretRef>,
+    pub credential_store: std::sync::Arc<dyn SecretStore>,
     pub client: reqwest::Client,
     pub limits: TransportLimits,
     pub max_output: u64,
@@ -132,7 +134,7 @@ pub(crate) fn connections(
                 .ok_or_else(|| ModelError::invalid("model_default_route_unavailable"))?
                 .clone()
         } else {
-            let key = if let Some(name) = value.api_key_env {
+            let key_env = if let Some(name) = value.api_key_env {
                 if name.is_empty()
                     || !name
                         .bytes()
@@ -140,10 +142,7 @@ pub(crate) fn connections(
                 {
                     return Err(ModelError::invalid("model_credential_reference_invalid"));
                 }
-                Some(
-                    env(&name)
-                        .ok_or_else(|| ModelError::invalid("model_credential_unavailable"))?,
-                )
+                Some(name)
             } else if value.provider == "ollama" {
                 None
             } else {
@@ -151,15 +150,16 @@ pub(crate) fn connections(
                     "model_profile_credential_reference_required",
                 ));
             };
-            connection(
+            connection_with_credential_env(
                 &profile,
                 ProviderConfig {
                     provider: Some(value.provider),
                     model: Some(value.model),
                     base_url: value.base_url,
-                    api_key: key,
+                    api_key: None,
                 },
                 value.capabilities,
+                key_env,
             )?
         };
         item.route.profile = profile.clone();
@@ -176,7 +176,7 @@ pub(crate) fn connections(
         let scope = json_digest(&json!({
             "provider":connection.route.provider_id,
             "origin":connection.endpoint.as_str(),
-            "credential":connection.credential.as_ref().map(|secret|json_digest(&json!(secret))),
+            "credential":connection.credential_ref.as_ref().map(|reference|reference.reference_digest.clone()),
         }));
         let capacity = capacities
             .entry(scope)
@@ -190,6 +190,15 @@ fn connection(
     name: &str,
     config: ProviderConfig,
     declared: Option<DeclaredCapabilities>,
+) -> Result<Connection, ModelError> {
+    connection_with_credential_env(name, config, declared, None)
+}
+
+fn connection_with_credential_env(
+    name: &str,
+    config: ProviderConfig,
+    declared: Option<DeclaredCapabilities>,
+    credential_env_override: Option<String>,
 ) -> Result<Connection, ModelError> {
     let provider = config
         .provider
@@ -282,22 +291,50 @@ fn connection(
             .set_host(Some("127.0.0.1"))
             .map_err(|_| ModelError::invalid("model_endpoint_invalid"))?;
     }
-    let credential = config.api_key.or_else(|| {
-        if key_env.is_empty() {
-            None
-        } else {
-            env(key_env)
-        }
-    });
-    if protocol != ModelProtocol::OllamaChat && credential.is_none() {
-        return Err(ModelError::invalid("model_credential_unavailable"));
-    }
-    if credential
-        .as_ref()
-        .is_some_and(|value| reqwest::header::HeaderValue::from_str(value).is_err())
+    let configured_env =
+        credential_env_override.or_else(|| (!key_env.is_empty()).then(|| key_env.to_owned()));
+    let (credential_ref, credential_store, credential_revision) = if let Some(value) =
+        config.api_key
     {
-        return Err(ModelError::invalid("model_credential_header_invalid"));
-    }
+        let revision = json_digest(&json!(&value));
+        let reference = SecretRef::new(
+            "inline",
+            format!("config:{name}"),
+            "provider.request",
+            provider.clone(),
+            1,
+        )
+        .map_err(|_| ModelError::invalid("credential_secret_ref_invalid"))?;
+        let store = InlineSecretStore::new(value)?;
+        (
+            Some(reference),
+            std::sync::Arc::new(store) as std::sync::Arc<dyn SecretStore>,
+            revision,
+        )
+    } else if let Some(env_name) = configured_env {
+        let value =
+            env(&env_name).ok_or_else(|| ModelError::invalid("model_credential_unavailable"))?;
+        if reqwest::header::HeaderValue::from_str(&value).is_err() {
+            return Err(ModelError::invalid("model_credential_header_invalid"));
+        }
+        let revision = json_digest(&json!(&value));
+        let reference = SecretRef::new("env", env_name, "provider.request", provider.clone(), 1)
+            .map_err(|_| ModelError::invalid("credential_secret_ref_invalid"))?;
+        (
+            Some(reference),
+            std::sync::Arc::new(EnvSecretStore) as std::sync::Arc<dyn SecretStore>,
+            revision,
+        )
+    } else {
+        if protocol != ModelProtocol::OllamaChat {
+            return Err(ModelError::invalid("model_credential_unavailable"));
+        }
+        (
+            None,
+            std::sync::Arc::new(EnvSecretStore) as std::sync::Arc<dyn SecretStore>,
+            "none".to_owned(),
+        )
+    };
     let streaming = match env("KIANA_STREAMING").as_deref() {
         None | Some("auto" | "on" | "1" | "true" | "yes") => true,
         Some("off" | "0" | "false" | "no") => false,
@@ -359,7 +396,7 @@ fn connection(
         };
     let revision = json_digest(
         &json!({"provider":provider,"protocol":protocol,"model":model,"origin":endpoint.as_str(),
-        "credential_revision":credential.as_ref().map(|key|json_digest(&json!(key))),"declared":declared,"streaming":streaming}),
+        "credential_revision":credential_revision,"declared":declared,"streaming":streaming}),
     );
     let route = ModelRoute {
         provider_id: provider,
@@ -403,7 +440,8 @@ fn connection(
         route,
         capabilities,
         endpoint,
-        credential,
+        credential_ref,
+        credential_store,
         client,
         limits: TransportLimits::default(),
         max_output,
@@ -421,9 +459,9 @@ pub(crate) fn snapshot(
                 connection.route.clone(),
                 connection.capabilities.clone(),
                 connection
-                    .credential
+                    .credential_ref
                     .as_ref()
-                    .map(|secret| json_digest(&serde_json::json!(secret))),
+                    .map(|reference| reference.reference_digest.clone()),
                 if connection.route.profile == "default" {
                     ProviderConfigSource::BuiltinDefault
                 } else {

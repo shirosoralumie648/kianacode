@@ -36,11 +36,50 @@ async fn send_inner(
         .map_err(|_| {
             ModelError::transport("provider_capacity_closed", ModelRetryClass::Never, false)
         })?;
+    let lease_now = unix_ms()?;
+    if lease_now >= prepared.spec.deadline_unix_ms {
+        return Err(ModelError::invalid("model_deadline_expired"));
+    }
+    let endpoint_digest = json_digest(&serde_json::json!(connection.endpoint.as_str()));
+    let mut material = connection
+        .credential_ref
+        .as_ref()
+        .map(|secret_ref| {
+            connection.credential_store.issue(
+                secret_ref,
+                &connection.route.provider_id,
+                &endpoint_digest,
+                lease_now,
+            )
+        })
+        .transpose()?;
+    if let (Some(secret_ref), Some(material)) =
+        (connection.credential_ref.as_ref(), material.as_mut())
+    {
+        material
+            .lease
+            .validate_for(
+                lease_now,
+                &connection.route.provider_id,
+                "provider.request",
+                &connection.route.provider_id,
+                &endpoint_digest,
+            )
+            .map_err(ModelError::invalid)?;
+        if &material.lease.secret_ref != secret_ref {
+            return Err(ModelError::invalid("credential_lease_reference_mismatch"));
+        }
+        material
+            .lease
+            .consume(lease_now)
+            .map_err(ModelError::invalid)?;
+    }
     let mut request = connection
         .client
         .post(connection.endpoint.clone())
         .json(&prepared.wire_body);
-    if let Some(key) = &connection.credential {
+    if let Some(material) = material.as_ref() {
+        let key = &material.value;
         request = match connection.route.protocol {
             ModelProtocol::AnthropicMessages => request
                 .header("x-api-key", key)

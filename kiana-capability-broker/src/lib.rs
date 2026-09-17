@@ -11,7 +11,8 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionExecutionContract,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, CredentialLease,
+    ExtensionExecutionContract,
 };
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
@@ -19,6 +20,29 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 type HandlerKey = (CapabilityKind, String);
+
+/// Revalidate and consume credential metadata immediately before an effect.  The broker never
+/// resolves or returns the raw value; provider/connector adapters keep that operation private to
+/// their final request boundary and may pass only this consumed lease's digest to receipts.
+pub fn consume_credential_lease(
+    lease: &mut CredentialLease,
+    now_unix_ms: u64,
+    provider_account: &str,
+    purpose: &str,
+    audience: &str,
+    endpoint_digest: &str,
+) -> Result<(), PortError> {
+    lease
+        .validate_for(
+            now_unix_ms,
+            provider_account,
+            purpose,
+            audience,
+            endpoint_digest,
+        )
+        .map_err(PortError::Failed)?;
+    lease.consume(now_unix_ms).map_err(PortError::Failed)
+}
 
 #[async_trait]
 /// 单个能力操作的受控执行适配器。
