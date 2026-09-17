@@ -126,6 +126,9 @@ security_reason_codes! {
     PolicyRevisionStale => ("POLICY_REVISION_STALE", Policy, RequiresReauthorization, RefreshAuthority),
     PolicyAuthorityEpochStale => ("POLICY_AUTHORITY_EPOCH_STALE", Policy, RequiresReauthorization, RefreshAuthority),
     PolicyGrantWidening => ("POLICY_GRANT_WIDENING", Policy, Never, Escalate),
+    PolicyOperationUnregistered => ("POLICY_OPERATION_UNREGISTERED", Policy, Never, RequestApproval),
+    PolicyBundleInvalid => ("POLICY_BUNDLE_INVALID", Policy, Never, Quarantine),
+    PolicyAuthorityEpochRollback => ("POLICY_AUTHORITY_EPOCH_ROLLBACK", Policy, RequiresReconciliation, Quarantine),
     DataClassRequired => ("DATA_CLASS_REQUIRED", Data, RequiresReauthorization, ClassifyAndAuthorize),
     DataPurposeDenied => ("DATA_PURPOSE_DENIED", Data, Never, RequestApproval),
     DataBoundaryMismatch => ("DATA_BOUNDARY_MISMATCH", Data, Never, ClassifyAndAuthorize),
@@ -181,6 +184,10 @@ pub fn classify_security_reason(value: &str) -> SecurityReasonCode {
         "permission_denied" | "project_untrusted" | "role_path_denied" => {
             SecurityReasonCode::AuthCallerUntrusted
         }
+        "actor_identity_required" | "authority_context_incomplete" | "role_unknown" => {
+            SecurityReasonCode::AuthPrincipalMissing
+        }
+        "role_tool_denied" | "role_department_mismatch" => SecurityReasonCode::AuthRoleMismatch,
         "approval_required" | "approval_expired" | "hook_ask_unattended" => {
             SecurityReasonCode::PolicyApprovalRequired
         }

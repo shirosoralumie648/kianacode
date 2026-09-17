@@ -2581,6 +2581,7 @@ name = "kiana-policy"
 version = "0.1.0"
 dependencies = [
  "kiana-domain",
+ "serde",
  "serde_json",
 ]
 

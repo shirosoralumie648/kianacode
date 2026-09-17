@@ -2406,6 +2406,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-04 server-owned context/caller-assertion/entry-preflight reconciliation; no runtime test reviewer
 ```
 
+### SC-05 policy bundle and decision trace evidence (2026-09-17)
+
+```text
+source_snapshot: 654c3fd + SC-05 working-tree slice; kiana-policy/src/{lib,security}.rs; kiana-policy/Cargo.toml; kiana-policy/tests/sc05_policy.rs; kiana-core/tests/sc05_policy_guard.rs; kiana-domain/src/{contracts,security_reasons}.rs; .github/workflows/sc05-policy.yml; docs/roadmap/security-policy-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-05 strict PolicyRule/PolicyBundle/PolicyRevision/DecisionTrace contracts, default-deny/deny-first evaluation, revision/authority snapshot fencing, input/context digest trace, BundlePolicyEngine compatibility adapter, domain registry entries, CI fixtures/source guard and roadmap/status overlays are scoped to this step; existing DefaultPolicyEngine/ControlPlane path remains compatible; no Broker/handler/approval execution, second policy loop or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-policy/src/lib.rs kiana-policy/src/security.rs kiana-policy/Cargo.toml kiana-policy/tests/sc05_policy.rs kiana-core/tests/sc05_policy_guard.rs kiana-domain/src/contracts.rs kiana-domain/src/security_reasons.rs .github/workflows/sc05-policy.yml docs/roadmap/security-policy-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'Policy(Bundle|Revision|Rule)|DecisionTrace|BundlePolicyEngine|PolicyEffect|PolicyOutcome|evaluate_with_snapshot|default.*deny|PolicyOperationUnregistered|PolicyAuthorityEpoch(Stale|Rollback)|policy_.*digest|hard_policy_denial' kiana-policy/src kiana-policy/tests kiana-core/tests kiana-domain/src/security_reasons.rs docs/roadmap/security-policy-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; policy/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-policy/tests/sc05_policy.rs default-deny/strict digest, deny-first selector, Ask/Allow trace, epoch/revision drift and unknown-field fixtures; kiana-core/tests/sc05_policy_guard.rs policy purity/trait-boundary source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-05 job is queued by the push and is not awaited
+status_change: SC-05 source slice is implemented. PolicyRule/PolicyBundle now enforce exact selectors, canonical ordering, explicit reason requirements and a non-Allow default; evaluate_with_snapshot checks authority epoch/policy digest before existing hard denials and returns a deterministic DecisionTrace rather than falling back. PolicyRevision and trace are strict/versioned/digest-bound; BundlePolicyEngine adapts the existing PolicyEngine and malformed bundles fail closed without dispatch, approval consumption or Broker access.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ControlPlane still uses the legacy DefaultPolicyEngine unless a caller explicitly installs BundlePolicyEngine, no durable PolicyStore/revision CAS or all-entrypoint policy parity exists, RequestContext lacks typed authority/data epoch so snapshot checks require explicit inputs, and Grant/Approval/DataBoundary/Secret/redaction/TOCTOU/external-effect enforcement remains later SC/CP/CAP/ER/PD work
+reviewer: Codex root implementation review plus SC-05 default-deny/deny-first/revision-trace/dependency-boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

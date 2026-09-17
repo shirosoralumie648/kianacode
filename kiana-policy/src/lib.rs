@@ -23,6 +23,9 @@ use kiana_domain::{
     RiskLevel, RoleSpec,
 };
 
+mod security;
+pub use security::*;
+
 /// 对单个能力请求作出纯策略决定的接口。
 ///
 /// 实现必须只依据传入快照计算结果，不应在这里执行工具或修改上下文。保持同步可以让

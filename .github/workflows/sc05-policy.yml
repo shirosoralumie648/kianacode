@@ -1,0 +1,50 @@
+name: SC-05 policy bundle and decision trace
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/src/security.rs"
+      - "kiana-policy/tests/sc05_policy.rs"
+      - "kiana-core/tests/sc05_policy_guard.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "docs/roadmap/security-policy-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc05-policy.yml"
+  pull_request:
+    paths:
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/src/security.rs"
+      - "kiana-policy/tests/sc05_policy.rs"
+      - "kiana-core/tests/sc05_policy_guard.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "docs/roadmap/security-policy-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc05-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-05 policy fixture
+        run: cargo test -p kiana-policy --test sc05_policy --locked -- --test-threads=1
+      - name: Run SC-05 source guard
+        run: cargo test -p kiana-core --test sc05_policy_guard --locked -- --test-threads=1
+      - name: Compile SC-05 targets
+        run: cargo check -p kiana-policy --tests --locked
