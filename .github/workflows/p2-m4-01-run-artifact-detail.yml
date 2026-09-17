@@ -1,0 +1,62 @@
+name: P2-M4-01 run and artifact detail
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/tests/p2_m4_01_run_artifact_detail.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_thread.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m4-01-run-artifact-detail-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m4-01-run-artifact-detail.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/tests/p2_m4_01_run_artifact_detail.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_thread.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m4-01-run-artifact-detail-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m4-01-run-artifact-detail.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-artifact-detail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run cross-location source guard
+        run: cargo test -p kiana-core --test p2_m4_01_run_artifact_detail --locked -- --test-threads=1
+      - name: Run receipt/checkpoint regression
+        run: cargo test -p kiana-core --test p2_k4_01_checkpoint --locked -- --test-threads=1
+      - name: Run Web thread projection regression
+        run: cargo test -p kiana-entrypoints --lib web_thread::tests --locked -- --test-threads=1
+      - name: Compile P2-M4-01 targets
+        run: cargo check --workspace --tests --locked

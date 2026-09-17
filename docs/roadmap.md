@@ -109,7 +109,7 @@
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ✅ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ✅ |
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ✅ |
-| `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ⏳ |
+| `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ✅ |
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
 | `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ✅ |
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ⏳ |
@@ -621,7 +621,7 @@
 | 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ✅ | [基础卡](#step-p2-k3-01) |
 | 449 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ✅ | [基础卡](#step-p2-m2-01) |
 | 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m3-01) |
-| 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m4-01) |
+| 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m4-01) |
 | 452 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m5-01) |
 | 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
 | 454 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m7-01) |
@@ -1156,6 +1156,7 @@
 | 当前 200 | `P2-L2-01` feedback/candidate | `feedback.submit` 以 evidence、bounded text、candidate id、platform revision/idempotency 写入 FeedbackCandidate；`feedback.review` 要求不同 session 的 reviewer/sponsor、evidence 和 quality outcome，review 只追加 `candidate_only`、`authority_changes_applied=false`，不变更 Role/Grant/Policy/历史事实；新增 core source guard、workflow 与 feedback baseline | `feature_status=implemented`（core/domain/quality source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-L2-01 已触发且未等待；独立 FeedbackStore/quality evaluator/promotion/rollback/自动 worker、外部/live 质量效果留 EQ/ER/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 201 | `P2-M2-01` UI projection | 协议提供 versioned `UiSnapshotV1`/`UiFeedEnvelope`/`UiActionV1`/`UiActionResult` 与 cursor/epoch/pending action/limitation 校验；兼容 `UiSnapshot` 由 DaemonHost 从 owner-scoped EventLog 投影 session/run/status/pending approvals，RunStreamBus 原子拒绝 stale/replayed UI action，subscribe_after/Web/Workbench 在 gap 时回到 snapshot hydration；新增 daemon unit fixture、cross-surface source guard、workflow 与 UI projection baseline | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M2-01 已触发且未等待；跨进程 durable UI cursor/instance/read-state、notification delivery、多 tab/live/physical UI 与外部 human auth 留 UI/NM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 202 | `P2-M3-01` human action cards | Core `HumanAction` 与 protocol `HumanActionCard` 描述 Approval/Review/Acceptance/Incident target/command/allowed decisions/required fields/revision/epoch/digest；Human Inbox/resolve、Web/Workbench/CLI 复用相同 action metadata 并回到原 ControlPlane authority，stale/field/owner/expiry/idempotency fail-closed；新增 daemon source guard、workflow 与 action-card baseline | `feature_status=implemented`（domain/protocol/core/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M3-01 已触发且未等待；跨进程 durable action-card/read-state、external human auth、live delivery 和 full four-surface behavior remain UI/NM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 203 | `P2-M4-01` run/artifact detail | 同一 owner-scoped EventLog/Receipt projection 连接 Run timeline、Invocation/ExecutionReceipt、files/diff、Evidence refs、Artifact refs 与 Receipt digest；Web `web_thread`、Workbench、CLI 和 DaemonHost `/api/receipt` 只读服务端事实，缺失/矛盾/Unknown 保持保守状态；新增 core cross-location source guard、workflow 与 run-artifact-detail baseline | `feature_status=implemented`（core/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M4-01 已触发且未等待；typed durable RunDetail index、artifact diff store、large evidence paging、跨进程 UI cache、完整四入口 runtime/visual parity 和 live/physical proof 留 UI/PD/ER/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1407,6 +1408,7 @@
 | 2026-09-18 | `P2-L2-01` feedback/candidate：feedback.submit/review 绑定 evidence、bounded text、candidate id、platform revision/idempotency 与独立 reviewer/session；review 只追加 candidate-only 事实并标记 authority_changes_applied=false，不修改 Role/Grant/Policy/历史；新增 core source guard、workflow 与 feedback baseline；质量 evaluator/promotion/rollback 留 EQ；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-M2-01` UI projection：协议提供 versioned UiSnapshot/UiFeed/UiAction/UiActionResult 与 cursor/epoch/pending action 校验；DaemonHost 从 owner-scoped EventLog 投影 snapshot，RunStreamBus 原子拒绝 stale/replayed action，subscribe_after/Web/Workbench 对 gap 回到 snapshot hydration；新增 daemon stale-action fixture、cross-surface source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-M3-01` action cards：Core HumanAction 与 protocol HumanActionCard 统一 Approval/Review/Acceptance/Incident 的 target/command/decision/required fields/revision/epoch/digest；Inbox/resolve、Web/Workbench/CLI 复用服务端 action metadata，stale/owner/expiry/field/idempotency fail-closed；新增 daemon source guard、workflow 与 action-card baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-M4-01` run/artifact detail：同一 EventLog/Receipt projection 连接 Run timeline、Invocation/ExecutionReceipt、files/diff、Evidence refs、Artifact refs 与 Receipt digest；Web/Workbench/CLI 只读服务端 timeline/receipt，缺失或冲突保持 Unknown；新增 core cross-location source guard、workflow 与 baseline；typed detail index/diff store 和完整四入口 runtime parity 留后续；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2407,13 +2409,15 @@
 
 <a id="step-p2-m4-01"></a>
 
-### P2-M4-01 Run/Artifact 详情　⏳
+### P2-M4-01 Run/Artifact 详情　✅
 
-- **现状**：Run timeline、Invocation、Diff、Evidence、Receipt 没有统一详情视图。
-- **做什么**：四类详情可相互定位（Receipt ↔ Artifact ↔ Evidence ↔ Review）。
-- **风险**：详情视图若自行拼装数据，会与事件事实不一致。
+当前 source slice 与 CI-only 证据见 [`p2-m4-01-run-artifact-detail-baseline.md`](roadmap/p2-m4-01-run-artifact-detail-baseline.md)。
+
+- **现状**：receipt/aggregation 与 Web thread 已从同一 owner-scoped EventLog 投影 timeline、invocation/execution receipts、files、evidence/artifact refs 和 receipt digest；独立 typed detail index/diff store 仍属后续。
+- **做什么**：以 `run_id`/`event_id`/`invocation_id`/artifact/evidence refs 互相定位；Web、Workbench、CLI 和 DaemonHost receipt 入口只读服务端 projection，缺失/矛盾/Unknown 保持保守状态。
+- **风险**：详情视图若自行拼装数据，会与事件事实不一致；当前 render 只展示受控 projection，不写事实或触发执行。
 - **验收**：`receipt_artifact_and_evidence_cross_locate`
-- **依赖 / 边界**：依赖 `P2-M2-01`；不引入新的存储。
+- **依赖 / 边界**：依赖 `P2-M2-01`；不引入新的事实存储，artifact bytes/diff、evidence paging 和外部 outcome 仍由既有受控 refs/后续 PD/ER 负责。
 - **依据**：`company-os-implementation-outline.md` §Slice M4
 
 

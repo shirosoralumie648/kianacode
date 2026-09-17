@@ -3849,6 +3849,25 @@ limitations: action metadata and replay keys are currently bounded projections/c
 reviewer: Codex root implementation review plus action target/owner/epoch/revision/digest, server-issued decision set, stale/expiry/field/idempotency and no-second-authority boundary review; no runtime test reviewer
 ```
 
+### P2-M4-01 run/artifact detail evidence (2026-09-18)
+
+```text
+source_snapshot: b6c555e0 + P2-M4-01 evidence slice; kiana-protocol/src/ui_contracts.rs; kiana-core/src/{receipts,invocation_projection,artifacts,company_business}.rs; kiana-core/tests/p2_m4_01_run_artifact_detail.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{web.rs,web_thread.rs,workbench_chat.rs,cli.rs}; .github/workflows/p2-m4-01-run-artifact-detail.yml; docs/roadmap/p2-m4-01-run-artifact-detail-baseline.md; docs/roadmap.md
+worktree_status: receipt_from_events/aggregate_receipt_facts and invocation/capability projections retain run/invocation/event/source cursor, execution receipt, files, artifact/evidence/provider refs and redacted aggregation; Web web_thread, Workbench and CLI/DaemonHost receipt paths render the same committed facts, with owner mismatch/terminal conflict/Unknown preserved; no detail surface writes facts or executes Broker/Provider/Runner; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p2_m4_01_run_artifact_detail.rs cross-location source guard; existing P2-K4 checkpoint and Web thread projection regressions; GitHub Actions P2-M4-01 workflow runs guard, receipt/checkpoint, Web thread regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-M4-01 is triggered by the eventual push and is not awaited
+status_change: P2-M4-01 source slice is implemented/reconciled. Run timeline, invocation/execution, file/diff, evidence/artifact references and receipt are connected by committed run/event/invocation identifiers and shared owner-scoped projections.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no independent typed RunDetail endpoint, durable detail index, artifact diff store or cross-process UI cache exists; large evidence/artifact pagination, full four-surface visual/runtime parity, external human auth and live/physical effect or rollback proof remain UI/PD/ER/DEP/SC work
+reviewer: Codex root implementation review plus shared receipt aggregation, invocation/source refs, artifact/evidence linkage, redaction/owner/Unknown and no-second-loop detail boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
