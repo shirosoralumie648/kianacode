@@ -68,7 +68,7 @@
 | `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ✅ |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ✅ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ✅ |
-| `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
+| `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ✅ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
 | `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ⏳ |
@@ -324,7 +324,7 @@
 | 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-06) |
 | 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ✅ | [基础卡](#step-p0-f-01) |
 | 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ✅ | [基础卡](#step-p0-f-02) |
-| 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ⏳ | [基础卡](#step-p0-j1-01) |
+| 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ✅ | [基础卡](#step-p0-j1-01) |
 | 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
 | 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ✅ | [基础卡](#step-p1-d-03) |
 | 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
@@ -1129,6 +1129,7 @@
 | 当前 173 | `P0-F-01` approval surfaces | 统一 `pending_approvals` 与 proof-bound approval decision 通过同一 DaemonHost/client helper 被 Workbench/TTY、Web、one-shot CLI 复用；server challenge/available decisions/expiry 只读展示，拒绝自动批准与第二循环；新增 entrypoints CI source guard、workflow 与 approval baseline | `feature_status=implemented`（protocol/core/client/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-F-01 已触发且未等待；决定事实单次消费、durable OCC、跨进程恢复与外部身份仍留 P0-F-02/F-03/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 174 | `P0-F-02` approval decision | existing core/daemon journal writes typed approved/denied/consumed facts bound to original subject request, actor/scope, proof, expiry and expected version; repeated/expired/conflicting decisions fail closed;新增 core source guard、workflow 与 decision baseline | `feature_status=implemented`（domain/core/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-F-02 已触发且未等待；durable cross-process crash recovery、external approver authn 与 restart continuation 留 P0-F-03/SC/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 175 | `P0-F-03` resume material | approval wait persists redacted RunSnapshot/checkpoint digest/authority and data revisions; fresh core rebuilds pending invocation from EventLog, explicit Resume performs scope/policy/gate/approval recheck, stream CAS and same-Runner restore;新增 core source guard、workflow 与 resume-material baseline | `feature_status=implemented`（domain/core/runner/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-F-03 已触发且未等待；crash-safe cross-process hydration、power-loss reconcile、automatic recovery and external/live/physical proof 留待 H24/H25/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 176 | `P0-J1-01` cancellation state | EventLog RunCancellationFact and domain transitions define Active→Requested→Stopping→Cancelled/ResultUnknown; core/runner signals are adapters; ExecutionStatus exposes Queued/Cancelling and terminal states cannot reopen;新增 domain/core CI fixtures、workflow 与 cancellation baseline | `feature_status=implemented`（domain/core/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-01 已触发且未等待；queued drain、process-group stop confirmation、mid-stream race and cross-process recovery 留待 P0-J1-02/03/04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1353,6 +1354,7 @@
 | 2026-09-18 | `P0-F-01` approval surfaces：回填统一 pending_approvals 与 proof-bound approval decision；Workbench/TTY、Web、one-shot CLI 复用同一 client/DaemonHost helper，challenge/available decisions/expiry 由服务端提供，不自动批准、不创建第二循环；新增 entrypoints source guard、workflow 与 approval baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-F-02` approval decision：回填现有 core/daemon journal 的 typed approved/denied/consumed facts，绑定原始 subject request、actor/scope、proof、expiry 与 expected version；重复/过期/冲突 fail-closed；新增 core source guard、workflow 与 decision baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-F-03` resume material：回填 RunSnapshot/checkpoint digest/authority-data revisions 与 fresh-process pending reconstruction；显式 Resume 做 scope/policy/gate/approval recheck、run.resume_prepared stream CAS、同一 Runner restore，审批 continuation 进入共同 drive_run；新增 core source guards、workflow 与 resume-material baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P0-J1-01` cancellation state：以 EventLog RunCancellationFact/domain transition 为唯一取消事实，core watch/Runner signal 仅作适配器；ExecutionStatus 的 Queued/Cancelling 与不可逆 terminal fence 已固定；新增 domain/core fixtures、workflow 与 cancellation baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1593,10 +1595,12 @@
 
 <a id="step-p0-j1-01"></a>
 
-### P0-J1-01 统一 cancellation token 与状态词表　⏳
+### P0-J1-01 统一 cancellation token 与状态词表　✅
 
-- **现状**：三套取消机制并存——core 用 `watch<bool>`、runner 用 `Mutex<Option<String>>`、legacy 入口第三套。
-- **做什么**：`RunCancellationState { Accepted, Active, Queued, Cancelling, Cancelled, Terminal }` + 转移表；`ExecutionStatus` 补 `Queued` / `Cancelling`。
+当前 source slice 与 CI-only 证据见 [`p0-j1-01-cancellation-baseline.md`](roadmap/p0-j1-01-cancellation-baseline.md)。
+
+- **现状**：取消事实、core watch 和 runner signal 由不同层承载，容易被误读成多套权威。
+- **做什么**：以 EventLog `RunCancellationFact`/domain 转移表为唯一状态权威；core watch 与 runner signal 只作适配器，`ExecutionStatus` 保持 `Queued` / `Cancelling` 中间态并拒绝 terminal 重开。
 - **风险**：新增中间态会改变 `run.cancelled` 时序，必须保住「每 run 恰好一条终态」。
 - **验收**：`cancel_transitions_are_total_and_irreversible`
 - **依赖 / 边界**：依赖 `P0-B-01`；不新增模型可见工具。

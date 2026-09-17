@@ -3336,6 +3336,25 @@ limitations: checkpoint and pending maps remain process-local around crash/power
 reviewer: Codex root implementation review plus P0-F-03 snapshot integrity, explicit-resume, stream CAS and authorization recheck invariants; no runtime test reviewer
 ```
 
+### P0-J1-01 cancellation state vocabulary evidence (2026-09-18)
+
+```text
+source_snapshot: c4c21e6 + P0-J1-01 evidence slice; kiana-domain/src/{states,cancellation}.rs; kiana-core/src/{lifecycle,events,projection}.rs; kiana-runner/src/harness.rs; kiana-domain/tests/p0_j1_01_cancellation.rs; kiana-core/tests/p0_j1_01_cancellation_guard.rs; .github/workflows/p0-j1-01-cancellation.yml; docs/roadmap/p0-j1-01-cancellation-baseline.md
+worktree_status: current cancellation authority is the EventLog RunCancellationFact/domain transition table; core watch and Runner signal are adapters only; ExecutionStatus exposes accepted/queued/cancelling intermediates, stop confirmation distinguishes cancelled from result_unknown, and late terminal reopening is fenced; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p0_j1_01_cancellation.rs state transition/wire fixtures; kiana-core/tests/p0_j1_01_cancellation_guard.rs fact/signal/terminal source guards; GitHub Actions P0-J1-01 workflow runs both fixture targets and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-J1-01 is triggered by the eventual push and is not awaited
+status_change: P0-J1-01 source slice is implemented/reconciled. Cancellation intermediate vocabulary and irreversible terminal semantics are explicit without introducing a second cancellation loop.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: queued tool drain, OS process-group stop confirmation, mid-stream cancellation race and cross-process/power-loss recovery remain P0-J1-02/03/04 and CP/PD/INT work
+reviewer: Codex root implementation review plus P0-J1-01 fact/state/signal ordering and terminal-fence invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

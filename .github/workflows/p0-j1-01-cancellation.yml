@@ -1,0 +1,52 @@
+name: P0-J1-01 cancellation state
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/tests/p0_j1_01_cancellation.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/tests/p0_j1_01_cancellation_guard.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-01-cancellation-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-01-cancellation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/tests/p0_j1_01_cancellation.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/tests/p0_j1_01_cancellation_guard.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-01-cancellation-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-01-cancellation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancellation-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-J1-01 domain fixtures
+        run: cargo test -p kiana-domain --test p0_j1_01_cancellation --locked -- --test-threads=1
+      - name: Run P0-J1-01 core guards
+        run: cargo test -p kiana-core --test p0_j1_01_cancellation_guard --locked -- --test-threads=1
+      - name: Compile P0-J1-01 targets
+        run: cargo check --workspace --tests --locked
