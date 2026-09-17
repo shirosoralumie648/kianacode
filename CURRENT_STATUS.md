@@ -6967,3 +6967,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: trigger/workflow state and scheduling are local EventLog/inline projections without durable worker/timer lease or cross-process power-loss proof; no production scheduler fairness, external connector/provider receipt or live/physical effect is claimed; legacy watcher remains compatibility-only
 reviewer: Codex root implementation review plus trigger owner/role/approval/expiry/firing/concurrency bounds, pure Fire/Advance separation, workflow CAS/idempotency, commit-before-dispatch and no direct capability/no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-K8-01 connector control-plane evidence (2026-09-18)
+
+```text
+source_snapshot: 4372c3ba + P4-K8-01 working-tree slice; kiana-domain/src/{connectors.rs,actions.rs,effect_observation.rs}; kiana-core/src/{connectors.rs,commands.rs}; kiana-daemon/src/connectors.rs; kiana-domain/tests/p4_k8_01_connector.rs; kiana-core/tests/p4_k8_01_connector.rs; .github/workflows/p4-k8-01-connector.yml; docs/roadmap/p4-k8-01-connector-baseline.md; docs/roadmap.md
+worktree_status: connector definitions/bindings now have a focused scoped contract fixture; core normalizes connector.manage/invoke and re-enters authorize_and_execute, daemon consumes prepared permits against local_fixture hashes and records ProviderReceipt/EffectObservation/Unknown/reconcile facts with idempotency; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-domain --test p4_k8_01_connector -p kiana-core --test p4_k8_01_connector --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_k8_01_connector.rs checks read/write risk, scope, revoke/transport failure and strict wire fields; kiana-core/tests/p4_k8_01_connector.rs guards trust/owner/snapshot/approval/payload/rate/idempotency, receipt/reconcile/Unknown and ControlPlane/Broker/no-network boundary; GitHub Actions P4-K8-01 workflow runs connector/effect/integration fixtures and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-K8-01 is triggered by the eventual push and is not awaited
+status_change: P4-K8-01 source slice is implemented. Connector operations cannot bypass ControlPlane authorization or claim external success; only bounded local_fixture observations produce receipts, and Unknown remains reconciliable.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: only local_fixture/local_only transport exists; no external HTTP/account/OAuth/webhook/A2A, production SecretStore, cross-process durable registry/worker, notification delivery or live/physical effect proof is claimed; ProviderReceipt is an adapter observation, not external confirmation
+reviewer: Codex root implementation review plus definition/binding identity, scope/risk derivation, trust/approval, prepared permit, fixture hash, rate/idempotency, receipt/effect observation, Unknown/reconcile and no-direct-network/no-second-loop boundary review; no runtime test reviewer
+```

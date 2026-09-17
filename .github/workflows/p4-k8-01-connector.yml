@@ -1,0 +1,58 @@
+name: P4-K8-01 connector control-plane boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/tests/p4_k8_01_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/p4_k8_01_connector.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-core/tests/integrations_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-k8-01-connector-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-k8-01-connector.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/tests/p4_k8_01_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/p4_k8_01_connector.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-core/tests/integrations_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-k8-01-connector-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-k8-01-connector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run connector contract fixture
+        run: cargo test -p kiana-domain --test p4_k8_01_connector --locked -- --test-threads=1
+      - name: Run connector control-plane source guard
+        run: cargo test -p kiana-core --test p4_k8_01_connector --locked -- --test-threads=1
+      - name: Run integration and receipt regressions
+        run: |
+          cargo test -p kiana-core --test integrations_baseline --locked -- --test-threads=1
+          cargo test -p kiana-domain --test er14_effect_observation --locked -- --test-threads=1
+      - name: Compile P4-K8-01 targets
+        run: cargo check --workspace --tests --locked

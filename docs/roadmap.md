@@ -125,7 +125,7 @@
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ✅ |
 | `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ✅ |
 | `P4-K2-01` | P4 | K2 Trigger | `P0-B-01` | Trigger 只能创建 Workflow/Run，不能直接执行 Capability | ✅ |
-| `P4-K8-01` | P4 | K8 Connector | `P0-A-01a` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ⏳ |
+| `P4-K8-01` | P4 | K8 Connector | `P0-A-01a` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ✅ |
 | `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ⏳ |
 | `P4-L5-01` | P4 | L5 Extension | `P1-H-01` | skill `allowed-tools` 不进 policy；read-only 扩展写操作在 broker 拒绝 | ⏳ |
 | `P4-L6-01` | P4 | L6 Supply chain | `P4-L5-01` | content hash/license/signature/capability diff/rollback 可审计 | ⏳ |
@@ -769,7 +769,7 @@
 | 594 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | ⏳ | [专项卡](roadmap/companyos.md#step-co-46) |
 | 595 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ✅ | [基础卡](#step-p4-j6-01) |
 | 596 | W8 | 基础 | [`P4-K2-01`](#step-p4-k2-01) | P4 基础 · 触发器与调度 | `P0-B-01` | ✅ | [基础卡](#step-p4-k2-01) |
-| 597 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ⏳ | [基础卡](#step-p4-k8-01) |
+| 597 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ✅ | [基础卡](#step-p4-k8-01) |
 | 598 | W8 | 专项 | [`SW-13`](#step-sw-13) | versioned deterministic reducer、冲突和完整覆盖检查 | `CO-43`、`CO-44`、`SW-12` | ⏳ | [专项卡](#step-sw-13) |
 | 599 | W8 | 专项 | [`SW-14`](#step-sw-14) | Independent Review、MergeDecision、MergeReceipt；`company` review + core swarm | `P3-I-04`、`CO-44`、`SW-13` | ⏳ | [专项卡](#step-sw-14) |
 | 600 | W8 | 专项 | [`SW-15`](#step-sw-15) | exactly-once release/retire、残余预算与事实保留 | `SW-14` | ⏳ | [专项卡](#step-sw-15) |
@@ -1170,6 +1170,7 @@
 | 当前 214 | `P4-J7-02` stream sequence/epoch | `RunStreamEnvelope` additive 携带 epoch/sequence/ui_cursor，`RunStreamBus` 每 run 单调递增并保留 terminal replay；协议 cursor 拒绝 gap/epoch 变化、重复安全，Web SSE 使用 Last-Event-ID 并在 gap/lag 回 snapshot，`PROTOCOL_SCHEMA` 保持不变；新增 daemon bus/protocol fixture、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-02 已触发但未等待；游标/广播仍是进程内 best-effort 展示投影，重启恢复、跨设备同步、provider/live stream 和 physical proof 留 P4-J7-03+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 215 | `P4-J7-03` terminal replay/event projection | 已提交 run 事件统一投影 Usage/ToolCall/ApprovalRequested/Error，未知 wire 事件安全降为 Unknown；每 run 保留 bounded terminal，`subscribe_after` 对 gap/epoch/cursor 超前发 gap 但重放未见 terminal，追平后不重复、不触发执行；新增 daemon replay fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-03 已触发但未等待；广播/terminal retention 仍为进程内 best-effort，不声称跨进程 durable、网络 exactly-once、provider/live stream 或 physical proof，后续留 P4-J7-04+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 216 | `P4-K2-01` trigger authority | `TriggerDefinition` 绑定 owner/role/definition version/inputs/approval/expiry/max firings/concurrency；Fire/Tick 只创建 WorkflowInstance，Advance 才返回 effect，ControlPlane 先 commit workflow fact 再复用 Company/Capability 路径；重复 occurrence、owner/role/approval/expiry/预算和 direct capability bypass 均拒绝；新增 workflow fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/workflow/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-K2-01 已触发但未等待；scheduler/trigger aggregate 与 effect 仍是本地 inline/EventLog 投影，未声称 durable worker/timer、公平调度、power-loss、外部/live/physical effect，旧 watcher 仅兼容留 AUT/ER/PD/INT/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 217 | `P4-K8-01` connector boundary | `ConnectorDefinition`/AccountBinding/BindingSnapshot 固定 local_fixture transport、读写 scope/risk、rate/idempotency/reconciliation；connector.manage/invoke 经 core normalize + `authorize_and_execute` + Broker，daemon 按 fixture/hash 返回 ProviderReceipt/EffectObservation 并写 connector EventLog；owner/trust/binding drift、scope/approval/payload/rate/idempotency/Unknown/reconcile 均 fail-closed；新增 domain fixture、core guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-K8-01 已触发但未等待；仅受控 local fixture，不声称外部 HTTP/account/OAuth/webhook/A2A、跨进程 durable registry、通知、live/physical effect，后续留 INT/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1435,6 +1436,7 @@
 | 2026-09-18 | `P4-J7-02` wire sequence/epoch：确认 RunStreamEnvelope/RunStreamBus/SSE additive 携带 epoch、单调 sequence 与 ui_cursor，补 delta→terminal→late replay bus fixture、协议 duplicate/gap/epoch-change fixture 和 CI workflow；保持 `PROTOCOL_SCHEMA` 不变；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-J7-03` 事件投影与 terminal replay：RunStreamBus 已把 committed usage/tool/approval/error 事件映射为展示 envelope，未知类型安全忽略；新增迟到订阅者读取 terminal 的专门 fixture、core source guard 与 CI workflow，gap/epoch/lag 仍要求 snapshot hydration；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-K2-01` 触发器与调度：确认 Trigger Fire/Tick 只由纯 workflow planner 创建实例，Advance 才返回 dispatch effect；owner/role/approval/expiry/max-firings/concurrency/CAS/idempotency 与 no-direct-capability 边界纳入 workflow fixture、core source guard、CI workflow 和 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-K8-01` Connector：补 ConnectorDefinition/AccountBinding scope/risk/revocation/transport fixture，确认 connector.manage/invoke 经 ControlPlane `authorize_and_execute`、Broker 和 local_fixture ProviderReceipt/EffectObservation，幂等/Unknown/reconcile/approval/网络边界纳入 core guard、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2729,9 +2731,9 @@
 
 <a id="step-p4-k8-01"></a>
 
-### P4-K8-01 Connector　⏳
+### P4-K8-01 Connector　✅
 
-- **现状**：`ConnectorDefinition`/`AccountBinding`/`ProviderReceipt` 为 `not_supported`/`target`。
+- **现状**：Connector definition/binding、统一授权入口、local fixture receipt/Unknown 对账已接线；domain fixture、core guard、workflow 与 baseline 已登记。
 - **做什么**：Connector 不绕过 ControlPlane、Approval、Idempotency、Receipt 和 reconciliation。
 - **风险**：Connector 是外部副作用入口，绕过控制面即等于无审计。
 - **验收**：`connector_cannot_bypass_the_control_plane`
