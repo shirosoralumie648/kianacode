@@ -675,4 +675,32 @@ mod tests {
             "a failed sink must not publish a terminal completion"
         );
     }
+
+    #[test]
+    fn stale_ui_action_is_rejected_by_epoch() {
+        let bus = RunStreamBus::default();
+        let cursor = bus.ui_cursor();
+        let action = UiAction {
+            target_id: "approval:one".to_owned(),
+            expected_epoch: cursor.epoch.clone(),
+            expected_cursor: cursor.sequence,
+            idempotency_key: "action-one".to_owned(),
+        };
+        let next = bus.claim_ui_action(&action).expect("fresh action accepted");
+        assert_eq!(next.sequence, cursor.sequence + 1);
+        assert!(matches!(
+            bus.claim_ui_action(&action),
+            Err(PortError::Conflict(reason)) if reason == "ui_action_stale"
+        ));
+        let wrong_epoch = UiAction {
+            expected_epoch: "stale-epoch".to_owned(),
+            expected_cursor: next.sequence,
+            idempotency_key: "action-two".to_owned(),
+            ..action
+        };
+        assert!(matches!(
+            bus.claim_ui_action(&wrong_epoch),
+            Err(PortError::Conflict(reason)) if reason == "ui_action_stale"
+        ));
+    }
 }

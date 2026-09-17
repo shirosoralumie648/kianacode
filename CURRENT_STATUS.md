@@ -3811,6 +3811,25 @@ limitations: candidate facts live in the protected human-operations stream; no i
 reviewer: Codex root implementation review plus candidate lifecycle, evidence/revision/idempotency, independent review, candidate-only marker and no-policy/history-mutation boundary review; no runtime test reviewer
 ```
 
+### P2-M2-01 UI projection evidence (2026-09-18)
+
+```text
+source_snapshot: 130e4d97 + P2-M2-01 evidence slice; kiana-protocol/src/{ui_contracts,lib}.rs; kiana-protocol/tests/ui01_dto.rs; kiana-daemon/src/{run_stream,lib}.rs; kiana-daemon/tests/p2_m2_01_ui_projection.rs; kiana-entrypoints/src/{web.rs,web_page.html,workbench_chat.rs}; .github/workflows/p2-m2-01-ui-projection.yml; docs/roadmap/p2-m2-01-ui-projection-baseline.md; docs/roadmap.md
+worktree_status: versioned UI snapshot/feed/action/result DTOs validate schema, digest, cursor/epoch, revision, pending action and unknown fields; DaemonHost projects owner-scoped EventLog session/run/status/pending facts, RunStreamBus atomically rejects stale/replayed UI actions, and subscribe_after/Web/Workbench signal gaps and require snapshot hydration; UI state remains projection/precondition and never a second authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/src/run_stream.rs stale_ui_action_is_rejected_by_epoch unit fixture; kiana-daemon/tests/p2_m2_01_ui_projection.rs cross-surface source guard; existing kiana-protocol/tests/ui01_dto.rs versioned DTO fixture; GitHub Actions P2-M2-01 workflow runs stale-action fixture, source guard, DTO regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-M2-01 is triggered by the eventual push and is not awaited
+status_change: P2-M2-01 source slice is implemented/reconciled. Unified UI snapshot/action/cursor/epoch contracts and stale/gap fencing now cover protocol, DaemonHost, Web and Workbench projections.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: RunStreamBus cursor and replay keys remain bounded process-local state; durable cross-process UI cursor/instance/read-state, notification delivery, multi-tab/live reconnect, browser/OS effect and external human authentication are not claimed and remain UI/NM/PD/SC work
+reviewer: Codex root implementation review plus schema/digest/cursor/epoch, owner-scoped snapshot, stale/replay action, gap hydration and no-second-loop authority boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

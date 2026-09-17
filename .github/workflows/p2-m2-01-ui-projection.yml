@@ -1,0 +1,56 @@
+name: P2-M2-01 UI projection contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m2-01-ui-projection-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m2-01-ui-projection.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m2-01-ui-projection-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m2-01-ui-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI projection source guard
+        run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - name: Run stale action epoch fixture
+        run: cargo test -p kiana-daemon --lib stale_ui_action_is_rejected_by_epoch --locked -- --test-threads=1
+      - name: Run versioned UI DTO regression
+        run: cargo test -p kiana-protocol --test ui01_dto --locked -- --test-threads=1
+      - name: Compile P2-M2-01 targets
+        run: cargo check --workspace --tests --locked
