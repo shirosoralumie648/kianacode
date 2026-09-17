@@ -1,0 +1,48 @@
+name: P4-J7-03 terminal replay and event projection
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-core/tests/p4_j7_03_terminal_replay.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-j7-03-terminal-replay-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-03-terminal-replay.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-core/tests/p4_j7_03_terminal_replay.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-j7-03-terminal-replay-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-03-terminal-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terminal-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run terminal replay fixture
+        run: cargo test -p kiana-daemon --lib terminal_is_replayed_to_late_subscriber --locked -- --test-threads=1
+      - name: Run event-projection source guard
+        run: cargo test -p kiana-core --test p4_j7_03_terminal_replay --locked -- --test-threads=1
+      - name: Run stream protocol regression
+        run: cargo test -p kiana-protocol --test wire_contracts run_stream_events_are_additive_and_unknown_events_are_ignored --locked -- --test-threads=1
+      - name: Compile P4-J7-03 targets
+        run: cargo check --workspace --tests --locked

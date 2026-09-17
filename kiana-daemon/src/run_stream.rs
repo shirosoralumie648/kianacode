@@ -721,6 +721,47 @@ mod tests {
         assert!(matches!(replay.event, RunStreamEvent::Terminal { .. }));
     }
 
+    #[tokio::test]
+    async fn terminal_is_replayed_to_late_subscriber() {
+        let bus = RunStreamBus::default();
+        let run_id = RunId::new();
+        let mut live = bus.subscribe(run_id);
+        for kind in [
+            "run.usage",
+            "run.capability_requested",
+            "approval.requested",
+            "run.failed",
+        ] {
+            bus.project_committed(
+                &RuntimeEvent::new(
+                    RequestId::new(),
+                    1,
+                    kind,
+                    serde_json::json!({"run_id": run_id}),
+                )
+                .expect("projection event"),
+            );
+            let _ = live.recv().await.expect("projected stream event");
+        }
+        bus.publish_terminal(
+            run_id,
+            ResponseEnvelope {
+                schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                request_id: RequestId::new(),
+                status: ExecutionStatus::Completed,
+                output: serde_json::json!({"terminal": true}),
+                error: None,
+            },
+        );
+        let mut late = bus.subscribe_after(run_id, None);
+        assert!(late.has_gap());
+        let replay = late.recv().await.expect("terminal replay");
+        assert_eq!(replay.sequence, 5);
+        assert!(matches!(replay.event, RunStreamEvent::Terminal { .. }));
+        let mut caught_up = bus.subscribe_after(run_id, Some(late.cursor()));
+        assert!(!caught_up.has_gap());
+    }
+
     #[test]
     fn stale_ui_action_is_rejected_by_epoch() {
         let bus = RunStreamBus::default();

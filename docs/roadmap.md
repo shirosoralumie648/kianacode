@@ -123,7 +123,7 @@
 | `P4-J3-05` | P4 | J3 Memory | `P1-J3-03` | run 蒸馏产出 lesson candidate 入部门层 | ✅ |
 | `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ✅ |
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ✅ |
-| `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ⏳ |
+| `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ✅ |
 | `P4-K2-01` | P4 | K2 Trigger | `P0-B-01` | Trigger 只能创建 Workflow/Run，不能直接执行 Capability | ⏳ |
 | `P4-K8-01` | P4 | K8 Connector | `P0-A-01a` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ⏳ |
 | `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ⏳ |
@@ -331,7 +331,7 @@
 | 162 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ✅ | [基础卡](#step-p1-k5-01) |
 | 163 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ✅ | [基础卡](#step-p3-i-02) |
 | 164 | W2 | 基础 | [`P4-J7-02`](#step-p4-j7-02) | P4 基础 · wire 加 `sequence`/`epoch` | `P0-J7-01` | ✅ | [基础卡](#step-p4-j7-02) |
-| 165 | W2 | 基础 | [`P4-J7-03`](#step-p4-j7-03) | P4 基础 · 事件种类补齐与 terminal 必达 | `P4-J7-02` | ⏳ | [基础卡](#step-p4-j7-03) |
+| 165 | W2 | 基础 | [`P4-J7-03`](#step-p4-j7-03) | P4 基础 · 事件种类补齐与 terminal 必达 | `P4-J7-02` | ✅ | [基础卡](#step-p4-j7-03) |
 | 166 | W2 | 专项 | [`CI-06`](#step-ci-06) | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | `CI-01`、`CI-03`、`CI-04` | ⏳ | [专项卡](#step-ci-06) |
 | 167 | W2 | 专项 | [`CI-07`](#step-ci-07) | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | `CI-02`、`CI-03`、`CI-06` | ⏳ | [专项卡](#step-ci-07) |
 | 168 | W2 | 专项 | [`CI-08`](#step-ci-08) | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | `CI-05`、`CI-06`、`CI-07` | ⏳ | [专项卡](#step-ci-08) |
@@ -1168,6 +1168,7 @@
 | 当前 212 | `P4-J3-05` terminal distillation | 终态 run/失败/取消/Unknown 统一以 source event 做 at-most-once `memory.distillation_queued`，显式 operator consume 走只读 deny-tools Runner，严格 quote/evidence 校验后只产生 department lesson `MemoryProposal` Candidate；`memory.review` 才能晋升，Unknown/失败/重复 claim 可重放且不改写源事实；新增 domain output fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J3-05 已触发但未等待；不声称真实 LLM 质量、生产吞吐、durable worker/索引、跨进程恢复或 live/physical 业务效果，候选准入与数据治理仍留 CM/PD/SC/EQ/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 213 | `P4-J6-01` bounded Swarm | `SwarmPlan`/WorkGraph 固定 parent、partition 输入/输出、路径/数据 scope、预算、并发、深度、TTL 与 receipt-only merge；WorkFingerprint/依赖图拒绝重叠写集、重复任务和非法限制，ControlPlane 先 commit Swarm fact 再复用 Company StartRun 派发 child，Reconcile/Unknown/取消/独立 Review 后才允许 Merge/retire；新增 domain fan-out/fan-in fixture、core authority guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/company source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J6-01 已触发但未等待；MemoryCellRegistry/dispatch 窗口仍非跨进程 durable，未声称真实并发 worker、power-loss recovery、Integrator 冲突合并或 live/physical effect，后续留 SW-04..18/CO-43..48/PD/ER/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 214 | `P4-J7-02` stream sequence/epoch | `RunStreamEnvelope` additive 携带 epoch/sequence/ui_cursor，`RunStreamBus` 每 run 单调递增并保留 terminal replay；协议 cursor 拒绝 gap/epoch 变化、重复安全，Web SSE 使用 Last-Event-ID 并在 gap/lag 回 snapshot，`PROTOCOL_SCHEMA` 保持不变；新增 daemon bus/protocol fixture、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-02 已触发但未等待；游标/广播仍是进程内 best-effort 展示投影，重启恢复、跨设备同步、provider/live stream 和 physical proof 留 P4-J7-03+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 215 | `P4-J7-03` terminal replay/event projection | 已提交 run 事件统一投影 Usage/ToolCall/ApprovalRequested/Error，未知 wire 事件安全降为 Unknown；每 run 保留 bounded terminal，`subscribe_after` 对 gap/epoch/cursor 超前发 gap 但重放未见 terminal，追平后不重复、不触发执行；新增 daemon replay fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-03 已触发但未等待；广播/terminal retention 仍为进程内 best-effort，不声称跨进程 durable、网络 exactly-once、provider/live stream 或 physical proof，后续留 P4-J7-04+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1431,6 +1432,7 @@
 | 2026-09-18 | `P4-J3-05` run 蒸馏与 lesson 入库：终态事件按 source event at-most-once 入队，显式 `memory.distill` 走只读 deny-tools Runner，严格 schema/quote/evidence 校验后生成 department `kind=lesson` Candidate；retain/discard、坏引用、Unknown/重复结算与 `memory.review` 边界纳入 domain/core CI fixture；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-J6-01` 有界 Swarm：补充 fan-out/fan-in domain fixture，重复 projection/WorkFingerprint/重叠路径/并发、TTL、无 review 完成拒绝纳入验收；core guard 固定 Controller Cell/Grant、Company StartRun 复用、commit-before-dispatch、Reconcile/Unknown/取消、独立 Review/Merge 与 parent retire 边界；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-J7-02` wire sequence/epoch：确认 RunStreamEnvelope/RunStreamBus/SSE additive 携带 epoch、单调 sequence 与 ui_cursor，补 delta→terminal→late replay bus fixture、协议 duplicate/gap/epoch-change fixture 和 CI workflow；保持 `PROTOCOL_SCHEMA` 不变；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-J7-03` 事件投影与 terminal replay：RunStreamBus 已把 committed usage/tool/approval/error 事件映射为展示 envelope，未知类型安全忽略；新增迟到订阅者读取 terminal 的专门 fixture、core source guard 与 CI workflow，gap/epoch/lag 仍要求 snapshot hydration；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2691,9 +2693,9 @@
 
 <a id="step-p4-j7-03"></a>
 
-### P4-J7-03 事件种类补齐与 terminal 必达　⏳
+### P4-J7-03 事件种类补齐与 terminal 必达　✅
 
-- **现状**：`Usage`/`ToolCall`/`ApprovalRequested`/`Error` 未投影；terminal 对迟到订阅者不保证必达。
+- **现状**：RunStreamBus 已投影四类已提交事件并为迟到订阅者保留 bounded terminal replay；daemon fixture、core guard、CI workflow 与基线已登记。
 - **做什么**：补齐四类事件投影；terminal 重放给迟到订阅者（`Last-Event-ID`）。
 - **风险**：terminal 丢失会让客户端永远等不到结束。
 - **验收**：`terminal_is_replayed_to_late_subscriber`

@@ -6933,3 +6933,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: RunStreamBus cursor/terminal retention and UI state are process-local best-effort projections; no cross-process cursor durability, guaranteed network delivery, external provider stream, device synchronization or live/physical proof is claimed
 reviewer: Codex root implementation review plus additive wire/schema, per-run sequence, epoch fencing, duplicate/gap handling, terminal replay, SSE Last-Event-ID and EventLog/Receipt authority boundary review; no runtime test reviewer
 ```
+### P4-J7-03 terminal replay evidence (2026-09-18)
+
+```text
+source_snapshot: aa45af69 + P4-J7-03 working-tree slice; kiana-protocol/src/lib.rs; kiana-daemon/src/run_stream.rs; kiana-entrypoints/src/{web.rs,web_page.html}; kiana-core/tests/p4_j7_03_terminal_replay.rs; .github/workflows/p4-j7-03-terminal-replay.yml; docs/roadmap/p4-j7-03-terminal-replay-baseline.md; docs/roadmap.md
+worktree_status: committed RunStream projections now cover Usage/ToolCall/ApprovalRequested/Error and unknown events remain ignorable; each run retains one bounded terminal envelope, late cursors receive terminal replay with gap signaling, caught-up cursors do not duplicate; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-protocol --test p4_j7_02_sequence -p kiana-daemon --lib --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/src/run_stream.rs `terminal_is_replayed_to_late_subscriber` projects usage/tool/approval/error, publishes terminal and replays it to a late subscriber; kiana-core/tests/p4_j7_03_terminal_replay.rs guards projection mappings, unknown/gap/epoch and no-provider boundary; GitHub Actions P4-J7-03 workflow runs daemon/protocol fixtures and stream regression
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-03 is triggered by the eventual push and is not awaited
+status_change: P4-J7-03 source slice is implemented. Terminal responses are replayable to late subscribers without replaying deltas or re-running execution, and committed event kinds have explicit display projections.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: broadcast/terminal retention and gap detection remain process-local best-effort; no cross-process durable stream, network exactly-once delivery, provider-native stream or live/physical effect proof is claimed; EventLog/Receipt remain authoritative
+reviewer: Codex root implementation review plus event-kind mapping, additive unknown handling, per-run terminal retention, late-cursor replay, gap/epoch fencing and no-second-loop/no-provider boundary review; no runtime test reviewer
+```
