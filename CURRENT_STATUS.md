@@ -7018,3 +7018,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: allowed-tools is explanatory metadata rather than an authorization fact; full catalog/activation/resource/invocation lifecycle and durable snapshots remain EXT-06..10, non-Skill adapters and supply-chain verification remain P4-L6/INT/PD/ER/SC, and no external/live/physical effect is claimed
 reviewer: Codex root implementation review plus strict frontmatter bounds, Context-only prompt authority, JSON display escaping, read-only handler classification, required capability/role/network intersection and no-policy/no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-L6-01 extension supply-chain evidence (2026-09-18)
+
+```text
+source_snapshot: 6ce43b54 + P4-L6-01 working-tree slice; kiana-domain/src/extensions.rs; kiana-daemon/src/{extensions.rs,local_packages.rs}; kiana-daemon/tests/p4_l6_01_supply_chain.rs; kiana-domain/tests/p4_l6_01_supply_chain.rs; kiana-core/tests/p4_l6_01_supply_chain.rs; .github/workflows/p4-l6-01-supply-chain.yml; docs/roadmap/p4-l6-01-supply-chain-baseline.md; docs/roadmap.md
+worktree_status: ExtensionRegistry now exposes a pure trusted-key Ed25519 verifier used before package activation; install/upgrade/rollback validate manifest, signature, canonical package content hash and migration/rollback references before EventLog CAS, and receipt carries license/signature/capability diff/previous package; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-daemon --lib --test p4_l6_01_supply_chain -p kiana-domain --test p4_l6_01_supply_chain -p kiana-core --test p4_l6_01_supply_chain --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/src/extensions.rs `extension_signature_is_verified_before_install` signs canonical unsigned manifest with a fixed Ed25519 seed and rejects manifest drift/untrusted publisher; kiana-domain/tests/p4_l6_01_supply_chain.rs checks strict package round-trip, capability/license diff and invalid algorithm/path; kiana-core/tests/p4_l6_01_supply_chain.rs guards verification order, immutable cache/CAS, migration/rollback and no-direct-network boundary; GitHub Actions P4-L6-01 workflow runs daemon/domain/source fixtures and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-L6-01 is triggered by the eventual push and is not awaited
+status_change: P4-L6-01 source slice is implemented. Extension installation and rollback now require auditable signature/content/compatibility verification before lifecycle facts can activate a package.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: trust roots remain local environment key configuration; no production KMS/transparent log/SBOM/advisory quarantine, cross-process registry store, non-Skill adapter activation, external/live/physical effect or distribution proof is claimed; follow-up EXT-20..31/SC-25..30/DEP-39 remains
+reviewer: Codex root implementation review plus strict manifest/signing-bytes contract, trusted publisher lookup, signature-before-content verification order, immutable cache/CAS/idempotency, migration/rollback reference validation and no-script/no-external-effect boundary review; no runtime test reviewer
+```

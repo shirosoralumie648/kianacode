@@ -385,19 +385,7 @@ impl ExtensionRegistry {
         }
         let manifest = &package.manifest;
         manifest.validate().map_err(failed)?;
-        let key = self
-            .trusted_keys
-            .get(&manifest.publisher)
-            .and_then(|keys| keys.get(&manifest.signature.key_id))
-            .ok_or_else(|| failed("extension_publisher_key_untrusted"))?;
-        UnparsedPublicKey::new(&ED25519, decode_hex(key)?)
-            .verify(
-                &manifest
-                    .signing_bytes()
-                    .map_err(|_| failed("extension_manifest_invalid"))?,
-                &decode_hex(&manifest.signature.value)?,
-            )
-            .map_err(|_| failed("extension_signature_verification_failed"))?;
+        verify_manifest_signature(manifest, &self.trusted_keys)?;
         let mut digest = Sha256::new();
         digest.update(b"kiana.extension-content.v1\0");
         let mut size = 0usize;
@@ -707,6 +695,24 @@ fn activation_state(manifest: &ExtensionManifest) -> &'static str {
     }
 }
 
+fn verify_manifest_signature(
+    manifest: &ExtensionManifest,
+    trusted_keys: &BTreeMap<String, BTreeMap<String, String>>,
+) -> Result<(), PortError> {
+    let key = trusted_keys
+        .get(&manifest.publisher)
+        .and_then(|keys| keys.get(&manifest.signature.key_id))
+        .ok_or_else(|| failed("extension_publisher_key_untrusted"))?;
+    UnparsedPublicKey::new(&ED25519, decode_hex(key)?)
+        .verify(
+            &manifest
+                .signing_bytes()
+                .map_err(|_| failed("extension_manifest_invalid"))?,
+            &decode_hex(&manifest.signature.value)?,
+        )
+        .map_err(|_| failed("extension_signature_verification_failed"))
+}
+
 fn canonical_project(value: &str) -> Result<PathBuf, PortError> {
     let path = Path::new(value)
         .canonicalize()
@@ -723,4 +729,90 @@ fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
         .and_then(Value::as_str)
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| failed(format!("extension_argument_required:{key}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verify_manifest_signature;
+    use kiana_domain::{
+        ExtensionEffect, ExtensionManifest, ExtensionNetworkPolicy, ExtensionRequires,
+        ExtensionSignature, ExtensionType, EXTENSION_MANIFEST_SCHEMA,
+    };
+    use ring::signature::{Ed25519KeyPair, KeyPair};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    fn manifest(signature: String) -> ExtensionManifest {
+        ExtensionManifest {
+            schema: EXTENSION_MANIFEST_SCHEMA.to_owned(),
+            extension_id: "review-skill".to_owned(),
+            version: "1.0.0".to_owned(),
+            publisher: "fixture-publisher".to_owned(),
+            license: "MIT".to_owned(),
+            content_hash: "a".repeat(64),
+            signature: ExtensionSignature {
+                algorithm: "ed25519".to_owned(),
+                key_id: "fixture-key".to_owned(),
+                value: signature,
+            },
+            extension_type: ExtensionType::Skill,
+            effect: ExtensionEffect::ReadOnly,
+            provided_capabilities: BTreeSet::new(),
+            required_capabilities: BTreeSet::from(["memory.search".to_owned()]),
+            supported_roles: BTreeSet::from(["builder".to_owned()]),
+            data_classes: BTreeSet::new(),
+            network_policy: ExtensionNetworkPolicy::Deny,
+            secret_refs: BTreeSet::new(),
+            configuration_schema: serde_json::json!({"type": "object"}),
+            migration_ref: None,
+            rollback_ref: None,
+            requires: ExtensionRequires {
+                kiana_version: env!("CARGO_PKG_VERSION").to_owned(),
+                protocol_version: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                capability_versions: BTreeMap::new(),
+                policy_features: BTreeSet::new(),
+                memory_collections: BTreeSet::new(),
+                supported_platforms: BTreeSet::new(),
+                extensions: BTreeMap::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn extension_signature_is_verified_before_install() {
+        let key_pair = Ed25519KeyPair::from_seed_unchecked(&[7_u8; 32]).expect("seed");
+        let mut unsigned = manifest(String::new());
+        let signature = key_pair.sign(&unsigned.signing_bytes().expect("signing bytes"));
+        unsigned.signature.value = hex(signature.as_ref());
+        unsigned.validate().expect("fixture manifest");
+
+        let trusted = BTreeMap::from([(
+            "fixture-publisher".to_owned(),
+            BTreeMap::from([(
+                "fixture-key".to_owned(),
+                hex(key_pair.public_key().as_ref()),
+            )]),
+        )]);
+        assert!(verify_manifest_signature(&unsigned, &trusted).is_ok());
+
+        let mut forged = unsigned.clone();
+        forged.version = "2.0.0".to_owned();
+        assert_eq!(
+            verify_manifest_signature(&forged, &trusted)
+                .expect_err("manifest drift must fail closed")
+                .to_string(),
+            "extension_signature_verification_failed"
+        );
+        let mut untrusted = trusted;
+        untrusted.remove("fixture-publisher");
+        assert_eq!(
+            verify_manifest_signature(&unsigned, &untrusted)
+                .expect_err("unknown publisher must fail closed")
+                .to_string(),
+            "extension_publisher_key_untrusted"
+        );
+    }
 }
