@@ -3089,6 +3089,25 @@ limitations: full Invocation declaration/dispatch and result persistence remain 
 reviewer: Codex root implementation review plus H10 whole-batch validation, deterministic identity derivation, explicit mapping and checkpoint restore fencing; no runtime test reviewer
 ```
 
+### H-11 tool observation evidence (2026-09-18)
+
+```text
+source_snapshot: 2fdefbd + H-11 working-tree slice; kiana-domain/src/{capabilities,contracts,errors}.rs; kiana-runner/src/harness.rs; kiana-runner/tests/h11_tool_observation.rs; kiana-runner/tests/h11_tool_observation_guard.rs; .github/workflows/h11-tool-observation.yml; docs/roadmap/harness-tool-observation-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: ToolObservation v1 classifies capability results from shared dimensions/error policy into succeeded/failed_known/denied/cancelled_not_started/unknown/pending, carries bounded redacted summary/identity/exit/digest/ref and untrusted=true; runner blocks deny/unknown/cancel retry and feeds only known repairable failures as Tool-role data; schema registry entry and CI workflow are present, static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h11_tool_observation.rs unknown no-retry, untrusted output, known failure repair and bounded observation fixtures; kiana-runner/tests/h11_tool_observation_guard.rs source guard; GitHub Actions H11 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H11 is triggered by the eventual push and is not awaited
+status_change: H11 source slice is implemented. Tool output is now a typed data-only observation; authorization-like fields cannot grant permissions, and only explicitly repairable known failures can continue the model loop.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: pending is a schema state not yet produced by the runner, automatic repair remains bounded to the next model step, batch persistence/Invocation outcome/recovery and external/live/physical proof remain H12+ / CP/PD/INT work
+reviewer: Codex root implementation review plus H11 status/error policy mapping, summary bounds/redaction, no-retry gates and model observation data boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

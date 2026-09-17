@@ -327,7 +327,9 @@ sequenceDiagram
 
 <a id="step-h11"></a>
 
-#### H11 — 工具结果分类与给模型的可修复反馈　⏳
+#### H11 — 工具结果分类与给模型的可修复反馈　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-tool-observation-baseline.md`](harness-tool-observation-baseline.md)。
 
 **关联原单元**：`P0-A-02`、`P1-H-02`、`P2-K6-01`。**依赖**：H05、H10。
 

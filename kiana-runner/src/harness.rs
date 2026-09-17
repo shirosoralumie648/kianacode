@@ -24,7 +24,8 @@ use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
     derived_request_id, redact_text, CapabilityResult, ModelAttemptId, ModelAttemptIdentity,
-    PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor, TurnId,
+    PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor, ToolObservation,
+    ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -656,8 +657,47 @@ impl KianaHarness {
             });
         }
 
-        run.messages
-            .push(ModelMessage::tool(call.id, tool_result_text(&result)));
+        let observation = ToolObservation::from_result(call.id.clone(), &result)
+            .map_err(KianaHarnessError::Failed)?;
+        match observation.status {
+            ToolObservationStatus::Denied => {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id,
+                    error: format!(
+                        "tool_denied_no_retry:{}",
+                        observation
+                            .error_code
+                            .map(|code| code.as_str())
+                            .unwrap_or("denied")
+                    ),
+                })?;
+                return Ok(());
+            }
+            ToolObservationStatus::CancelledNotStarted => {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id,
+                    error: "tool_cancelled_not_started".to_owned(),
+                })?;
+                return Ok(());
+            }
+            ToolObservationStatus::Unknown => {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id,
+                    error: "result_unknown:tool_observation_unknown".to_owned(),
+                })?;
+                return Ok(());
+            }
+            ToolObservationStatus::Succeeded
+            | ToolObservationStatus::FailedKnown
+            | ToolObservationStatus::Pending => {}
+        }
+
+        run.messages.push(ModelMessage::tool(
+            call.id,
+            observation
+                .model_text()
+                .map_err(KianaHarnessError::Failed)?,
+        ));
 
         if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
             let _ = request_id;
@@ -1748,13 +1788,6 @@ fn normalize_sandbox(sandbox: &str) -> Result<&str, KianaHarnessError> {
             "sandbox_unsupported:{other}"
         ))),
     }
-}
-
-fn tool_result_text(result: &CapabilityResult) -> String {
-    if let Some(text) = result.output.as_str() {
-        return text.to_owned();
-    }
-    serde_json::to_string(&result.output).unwrap_or_else(|_| "{}".to_owned())
 }
 
 fn stable_invocation_request_id(

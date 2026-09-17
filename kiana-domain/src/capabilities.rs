@@ -1,17 +1,20 @@
 use crate::{
-    allow_list_covers, json_digest, normalize_role_path, ApprovalId, ApprovalPlanPreview,
-    BudgetLeaseId, CapabilityEffectState, CapabilityErrorCode, CapabilityExecutionState,
-    CapabilityGrantId, CapabilityStopState, CellId, DomainError, ExecutionId, ExecutionScope,
-    InvocationId, RequestContext, RequestId, RunId, SchemaVersion, SupervisionLeaseId,
-    CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
+    allow_list_covers, json_digest, normalize_role_path, redact_text, ApprovalId,
+    ApprovalPlanPreview, BudgetLeaseId, CapabilityEffectState, CapabilityErrorCode,
+    CapabilityExecutionState, CapabilityGrantId, CapabilityStopState, CellId, DomainError,
+    ExecutionId, ExecutionScope, InvocationId, RequestContext, RequestId, RunId, SchemaVersion,
+    SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub const CAPABILITY_RESULT_DIMENSIONS_SCHEMA: &str = "kiana.capability-result-dimensions.v1";
 pub const CAPABILITY_OUTCOME_SCHEMA: &str = "kiana.capability-outcome.v1";
 pub const CAPABILITY_RESULT_RECEIPT_SCHEMA: &str = "kiana.capability-result-receipt.v1";
 pub const CAPABILITY_RESULT_RECEIPT_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const TOOL_OBSERVATION_SCHEMA: &str = "kiana.tool-observation.v1";
+pub const TOOL_OBSERVATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const TOOL_OBSERVATION_MAX_SUMMARY: usize = 8 * 1024;
 
 /// Process evidence is intentionally separate from the capability effect.  A process can exit
 /// cleanly while an external effect remains unknown, and an unconfirmed stop is not a successful
@@ -749,6 +752,163 @@ impl CapabilityResult {
             None => code.as_str().to_owned(),
         };
         Self::failure(request_id, error)
+    }
+}
+
+/// Classification delivered to the model after a capability result.  It is an observation, not
+/// an authorization decision; the Broker/Core still decide whether any future intent may run.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolObservationStatus {
+    Succeeded,
+    FailedKnown,
+    Denied,
+    CancelledNotStarted,
+    Unknown,
+    Pending,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolObservationRepair {
+    None,
+    ModelRepair,
+}
+
+/// Bounded, data-only feedback for a model tool message.  Raw output is summarized and marked
+/// untrusted; it can never add a grant, permission, or execution scope to the next request.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolObservation {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub request_id: RequestId,
+    pub call_id: String,
+    pub status: ToolObservationStatus,
+    pub repair: ToolObservationRepair,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    pub summary: String,
+    pub output_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_output_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<CapabilityErrorCode>,
+    pub effect: CapabilityEffectState,
+    pub untrusted: bool,
+}
+
+impl ToolObservation {
+    pub fn from_result(
+        call_id: impl Into<String>,
+        result: &CapabilityResult,
+    ) -> Result<Self, String> {
+        let call_id = call_id.into();
+        if call_id.trim().is_empty() || call_id.len() > 256 {
+            return Err("tool_observation_call_id_invalid".to_owned());
+        }
+        let dimensions = result.dimensions();
+        let error_code = result.failure_code();
+        let status = if result.success {
+            ToolObservationStatus::Succeeded
+        } else if error_code == Some(CapabilityErrorCode::ResultUnknown)
+            || dimensions.effect == CapabilityEffectState::Unknown
+        {
+            ToolObservationStatus::Unknown
+        } else if error_code == Some(CapabilityErrorCode::Cancelled)
+            && dimensions.effect == CapabilityEffectState::NotStarted
+        {
+            ToolObservationStatus::CancelledNotStarted
+        } else if error_code.is_some_and(|code| code.policy().requires_new_authorization) {
+            ToolObservationStatus::Denied
+        } else {
+            ToolObservationStatus::FailedKnown
+        };
+        let repair = if status == ToolObservationStatus::FailedKnown
+            && matches!(
+                error_code,
+                Some(CapabilityErrorCode::ExecutionFailed | CapabilityErrorCode::InvalidArguments)
+            ) {
+            ToolObservationRepair::ModelRepair
+        } else {
+            ToolObservationRepair::None
+        };
+        let encoded = serde_json::to_string(&result.output)
+            .map_err(|_| "tool_observation_output_encode_failed".to_owned())?;
+        let summary = redact_text(&encoded)
+            .chars()
+            .take(TOOL_OBSERVATION_MAX_SUMMARY)
+            .collect::<String>();
+        let observation = Self {
+            schema: TOOL_OBSERVATION_SCHEMA.to_owned(),
+            version: TOOL_OBSERVATION_VERSION,
+            request_id: result.request_id,
+            call_id,
+            status,
+            repair,
+            exit_code: dimensions.exit_code,
+            summary,
+            output_digest: json_digest(&result.output),
+            full_output_ref: result.evidence_refs.first().cloned(),
+            error_code,
+            effect: dimensions.effect,
+            untrusted: true,
+        };
+        observation.validate()?;
+        Ok(observation)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != TOOL_OBSERVATION_SCHEMA
+            || self.version != TOOL_OBSERVATION_VERSION
+            || self.request_id.as_uuid().is_nil()
+            || self.call_id.trim().is_empty()
+            || self.call_id.len() > 256
+            || self.summary.len() > TOOL_OBSERVATION_MAX_SUMMARY
+            || !self.output_digest.starts_with("sha256:")
+            || self.output_digest.len() != 71
+            || !self.output_digest[7..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || self.full_output_ref.as_ref().is_some_and(|reference| {
+                reference.trim().is_empty() || reference.len() > 4_096 || reference.contains('\0')
+            })
+            || !self.untrusted
+        {
+            return Err("tool_observation_invalid".to_owned());
+        }
+        if self.status == ToolObservationStatus::Succeeded && self.error_code.is_some()
+            || self.status == ToolObservationStatus::Unknown
+                && self.repair != ToolObservationRepair::None
+        {
+            return Err("tool_observation_status_conflict".to_owned());
+        }
+        if self.repair == ToolObservationRepair::ModelRepair
+            && self.status != ToolObservationStatus::FailedKnown
+        {
+            return Err("tool_observation_repair_conflict".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn model_text(&self) -> Result<String, String> {
+        self.validate()?;
+        serde_json::to_string(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "request_id": self.request_id,
+            "call_id": self.call_id,
+            "status": self.status,
+            "repair": self.repair,
+            "exit_code": self.exit_code,
+            "summary": self.summary,
+            "output_digest": self.output_digest,
+            "full_output_ref": self.full_output_ref,
+            "error_code": self.error_code,
+            "effect": self.effect,
+            "untrusted": true,
+        }))
+        .map_err(|_| "tool_observation_encode_failed".to_owned())
     }
 }
 
