@@ -1,0 +1,46 @@
+name: P0-M1-01 workbench
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/p0_m1_workbench.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "contrib/desktop/main.js"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-m1-workbench-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-m1-workbench.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/p0_m1_workbench.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "contrib/desktop/main.js"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-m1-workbench-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-m1-workbench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workbench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-M1-01 surface guard
+        run: cargo test -p kiana-entrypoints --test p0_m1_workbench --locked -- --test-threads=1
+      - name: Compile P0-M1-01 targets
+        run: cargo check --workspace --tests --locked

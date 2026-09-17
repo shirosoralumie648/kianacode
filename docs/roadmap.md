@@ -76,7 +76,7 @@
 | `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | 角色步数经 ControlPlane 命令在 harness 生效；环境覆盖、run 间隔离与原有 wall-time 均有行为断言 | ✅ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ✅ |
-| `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
+| `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ✅ |
 | `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ✅ |
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
@@ -617,7 +617,7 @@
 | 444 | W6 | 专项 | [`UI-28`](roadmap/ui-entrypoints.md#step-ui-28) | UI / Entrypoints · 共享静态资产、版本和生产打包 | `UI-20`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-28) |
 | 445 | W6 | 专项 | [`UI-29`](roadmap/ui-entrypoints.md#step-ui-29) | UI / Entrypoints · ACP/IDE session adapter | `UI-01`、`UI-02`、`UI-07`、`UI-18`、`UI-21`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-29) |
 | 446 | W6 | 专项 | [`UI-30`](roadmap/ui-entrypoints.md#step-ui-30) | UI / Entrypoints · IDE editor/terminal capability boundary | `UI-04`、`UI-07`、`UI-29` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-30) |
-| 447 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ⏳ | [基础卡](#step-p0-m1-01) |
+| 447 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ✅ | [基础卡](#step-p0-m1-01) |
 | 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ⏳ | [基础卡](#step-p2-k3-01) |
 | 449 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ⏳ | [基础卡](#step-p2-m2-01) |
 | 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m3-01) |
@@ -1133,6 +1133,7 @@
 | 当前 177 | `P0-J1-02` cancellation drain | Runner serial batch cancellation preserves the first dispatched boundary, drains queued siblings into `ToolCancelled` with `not_executed/replay_safe`, and core records terminal cancellation/unknown facts;新增 runner/core CI guards、workflow 与 drain baseline | `feature_status=implemented`（runner/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-02 已触发且未等待；OS process-group confirmation、mid-stream race and cross-process recovery 留待 P0-J1-03/04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 178 | `P0-J1-03` process-group stop | shell/MCP/long-process adapters create process groups, terminate/poll descendants, drain output and report `stop_confirmed`; unconfirmed stop returns structured `result_unknown`;新增 daemon CI guard、workflow 与 process-group baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-03 已触发且未等待；mid-stream race/late delta、kernel edge cases、durable reconciliation and cross-process recovery 留待 P0-J1-04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 179 | `P0-J1-04` cancel race | existing daemon held-stream race keeps cancel intent before signal, emits no late delta/completion and requires exactly one terminal fact;新增 daemon CI guard/workflow 与 cancel-race baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-04 已触发且未等待；cross-process/power-loss races、provider effect reconciliation and physical proof 留待 CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 180 | `P0-M1-01` Workbench | Workbench/TTY、CLI stream renderer、Web ledger/SSE 与 Desktop web shell 消费同一 run-scoped Terminal/ExecutionStatus；Cancelled/ResultUnknown 保持可见，Desktop 不创建第二循环；新增 entrypoints CI guard/workflow 与 Workbench baseline | `feature_status=implemented`（entrypoints/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-M1-01 已触发且未等待；UiSnapshot/action/reconnect durability、accessibility and physical packaging 留待 UI-01+/P2-M2/P2-M5/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1361,6 +1362,7 @@
 | 2026-09-18 | `P0-J1-02` cancellation drain：串行 Runner 批次保留首个已派发边界，queued siblings 生成 `ToolCancelled` 的 `not_executed/replay_safe` 合成结果，core 在 terminal projection 前保留取消/unknown 事实；新增 runner/core guards、workflow 与 drain baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-J1-03` process-group stop：shell/MCP/long-process adapters 共享进程组 termination/poll/drain，只有正向消失检查写 `stop_confirmed`，无法确认返回 `result_unknown`；新增 daemon guard、workflow 与 process-group baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-J1-04` cancel race：复用 daemon held-stream 竞态回归，取消后无 late delta/completion 且 terminal fact 恰好一次；新增 cancel-race source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P0-M1-01` Workbench：CLI/TTY、CLI stream、Web ledger/SSE 与 Desktop web shell 统一消费 RunStream Terminal/ExecutionStatus，Cancelled/ResultUnknown 可见且 UI 不生成事实；新增 entrypoints/daemon source guard、workflow 与 Workbench baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1745,7 +1747,9 @@
 
 <a id="step-p0-m1-01"></a>
 
-### P0-M1-01 Workbench 基线　⏳
+### P0-M1-01 Workbench 基线　✅
+
+当前 source slice 与 CI-only 证据见 [`p0-m1-workbench-baseline.md`](roadmap/p0-m1-workbench-baseline.md)。
 
 - **现状**：Workbench 已有 conversation/input/status、trust、sandbox、cancel 和 receipt 入口。
 - **做什么**：补齐四表面一致的 terminal state 呈现与 status line/transcript/input 基线。

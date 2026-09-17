@@ -3412,6 +3412,25 @@ limitations: external/provider and kernel descendant races, cross-process/power-
 reviewer: Codex root implementation review plus P0-J1-04 cancel ordering, late-result fencing and terminal uniqueness invariants; no runtime test reviewer
 ```
 
+### P0-M1-01 Workbench terminal-state parity evidence (2026-09-18)
+
+```text
+source_snapshot: d082a5c + P0-M1-01 evidence slice; kiana-entrypoints/src/{workbench_chat,stream_render,web}.rs; kiana-daemon/src/run_stream.rs; contrib/desktop/main.js; kiana-entrypoints/tests/p0_m1_workbench.rs; .github/workflows/p0-m1-workbench.yml; docs/roadmap/p0-m1-workbench-baseline.md
+worktree_status: Workbench/TTY, CLI stream renderer and Web ledger/SSE consume the same run-scoped Terminal/ExecutionStatus projection; Desktop launches the same Web/DaemonHost surface; cancelled and result_unknown remain visible, and no surface writes terminal facts; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-entrypoints/tests/p0_m1_workbench.rs cross-surface terminal/status source guards; existing workbench/stream/web unit fixtures remain CI-only; GitHub Actions P0-M1-01 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-M1-01 is triggered by the eventual push and is not awaited
+status_change: P0-M1-01 source slice is implemented/reconciled. All four product surfaces now derive terminal state from the shared server-owned run response/stream rather than a UI-specific terminal fact.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: versioned UiSnapshot/action/reconnect projector, desktop package runtime evidence, accessibility checks and cross-process stream recovery remain UI-01+/P2-M2/P2-M5/DEP work
+reviewer: Codex root implementation review plus P0-M1-01 terminal/status parity and no-UI-authority invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
