@@ -3241,6 +3241,25 @@ limitations: accepted/consumed input facts are not yet atomically projected by e
 reviewer: Codex root implementation review plus H18 InputId/receipt contract, queue bounds, duplicate/claim ledger, target-turn fence and checkpoint persistence; no runtime test reviewer
 ```
 
+### H-19 Continue / Steer / Inject product wiring evidence (2026-09-18)
+
+```text
+source_snapshot: 31a4488 + H-19 working-tree slice; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-core/src/lifecycle.rs; kiana-runner-protocol/src/lib.rs; kiana-runner/src/{harness,protocol_runner}.rs; kiana-domain/src/event_contracts.rs; kiana-{protocol,runner,core}/tests/h19_*; .github/workflows/h19-steer-inject.yml; docs/roadmap/harness-steer-inject-baseline.md
+worktree_status: additive Steer/Inject requests now use the same versioned client→DaemonHost→ControlPlane route; ControlPlane validates bounded source/target and expected turn, records input.accepted facts (and a rejected claim when Runner refuses delivery), and returns an InputReceipt; Runner defers inputs received while ActiveRun is temporarily out of the map and consumes them at the next safe model-step boundary; Continue v1 remains unchanged; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-protocol/tests/h19_steer_inject.rs additive strict wire round-trip/unknown-field fixtures; kiana-runner/tests/h19_steer_inject.rs blocked first model call with one deferred steer observed exactly once by the next step; kiana-core/tests/h19_steer_inject_guard.rs sandbox/model immutability and stale-turn source guards; GitHub Actions H19 workflow runs all fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H19 is triggered by the eventual push and is not awaited
+status_change: H19 source slice is implemented. Continue/Steer/Inject are no longer test-only helpers: additive wire/client/daemon routing, ControlPlane input.accepted facts/ACK with rejected-delivery closure, stale-turn fencing, and in-flight deferred delivery are explicit.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: accepted/claimed facts and deferred queues remain process-local around cross-process crash/restart; large payloads are bounded inline rather than Artifact-backed; terminal race arbitration, provider-native stream guarantees, durable projector/recovery and external/live/physical proof remain open for later H/PD/ER/provider steps
+reviewer: Codex root implementation review plus H19 protocol, route, turn-fence and deferred-input invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

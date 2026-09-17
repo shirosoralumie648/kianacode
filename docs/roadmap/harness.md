@@ -447,7 +447,9 @@ sequenceDiagram
 
 <a id="step-h19"></a>
 
-#### H19 — Continue / Steer / Inject 的产品接线　⏳
+#### H19 — Continue / Steer / Inject 的产品接线　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-steer-inject-baseline.md`](harness-steer-inject-baseline.md)。
 
 **关联原单元**：`P0-M1-01`、`P1-E-01`、`P2-M3-01`。**依赖**：H08、H18。
 

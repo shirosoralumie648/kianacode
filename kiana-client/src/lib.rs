@@ -7,8 +7,8 @@
 use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
-    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, UiHandshakeRequest,
-    UiHandshakeResponse, UiHealth, WorkPacket,
+    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, TurnId,
+    UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 
@@ -238,6 +238,46 @@ where
         self.transport
             .send(RequestEnvelope::continue_run(
                 metadata, prompt, sandbox, run_id,
+            ))
+            .await
+    }
+
+    /// Queue a turn-bound steering message; the server rejects a stale expected turn.
+    pub async fn steer_run(
+        &self,
+        metadata: RequestMetadata,
+        run_id: RunId,
+        expected_turn_id: TurnId,
+        text: impl Into<String> + Send,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::steer_run(
+                metadata,
+                run_id,
+                expected_turn_id,
+                text,
+            ))
+            .await
+    }
+
+    /// Queue source-labelled input for a future step/turn without waking an idle run.
+    pub async fn inject_run(
+        &self,
+        metadata: RequestMetadata,
+        run_id: RunId,
+        target: impl Into<String> + Send,
+        source: impl Into<String> + Send,
+        text: impl Into<String> + Send,
+        target_turn_id: Option<TurnId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::inject_run(
+                metadata,
+                run_id,
+                target,
+                source,
+                text,
+                target_turn_id,
             ))
             .await
     }

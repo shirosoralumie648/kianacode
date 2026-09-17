@@ -48,6 +48,10 @@ impl ProtocolRunner {
                 run_id,
                 error: "run_not_found".to_owned(),
             }],
+            RunnerCommand::Inject { run_id, .. } => vec![RunnerEvent::Failed {
+                run_id,
+                error: "run_not_found".to_owned(),
+            }],
             RunnerCommand::Cancel { run_id, reason } => vec![RunnerEvent::Failed {
                 run_id,
                 error: format!("cancelled:{reason}"),

@@ -1105,6 +1105,28 @@ impl DaemonHost {
                     .continue_run(context, run.prompt, run.sandbox, run.run_id)
                     .await
             }
+            RequestBody::Steer(request) => {
+                self.core
+                    .steer_run(
+                        context,
+                        request.run_id,
+                        request.expected_turn_id,
+                        request.text,
+                    )
+                    .await
+            }
+            RequestBody::Inject(request) => {
+                self.core
+                    .inject_run(
+                        context,
+                        request.run_id,
+                        request.target,
+                        request.source,
+                        request.text,
+                        request.target_turn_id,
+                    )
+                    .await
+            }
             RequestBody::Resume(run) => self.core.resume_run(context, run.run_id).await,
             RequestBody::ListApprovals(query) => {
                 self.core
@@ -1431,6 +1453,7 @@ fn effective_permission_profile(
         RequestBody::ApprovalDecision(_)
         | RequestBody::Resume(_)
         | RequestBody::ListApprovals(_) => declared,
+        RequestBody::Steer(_) | RequestBody::Inject(_) => declared,
         RequestBody::Review(_) | RequestBody::Close(_) => PermissionProfile::Balanced,
         RequestBody::Command(_) => declared,
         RequestBody::Cancel(_) => declared,

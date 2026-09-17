@@ -6,7 +6,7 @@
 //! runner 自行授予权限的依据。
 
 use kiana_domain::{
-    CapabilityRequest, CapabilityResult, ConversationMessage, RequestId, RunId, TurnId,
+    CapabilityRequest, CapabilityResult, ConversationMessage, InputId, RequestId, RunId, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -54,6 +54,17 @@ pub enum RunnerCommand {
         run_id: RunId,
         /// handler 的结构化结果。
         result: CapabilityResult,
+    },
+    /// Queue an input for the next safe Runner boundary. This never authorizes a capability or
+    /// wakes an idle run; ControlPlane owns the accepted/claimed facts.
+    Inject {
+        run_id: RunId,
+        input_id: InputId,
+        source: String,
+        target: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target_turn_id: Option<TurnId>,
+        text: String,
     },
     /// 继续已有 run。
     Continue {
@@ -196,6 +207,7 @@ impl RunnerCommand {
         match self {
             Self::Start { run_id, .. }
             | Self::CapabilityResult { run_id, .. }
+            | Self::Inject { run_id, .. }
             | Self::Continue { run_id, .. }
             | Self::Cancel { run_id, .. } => *run_id,
         }

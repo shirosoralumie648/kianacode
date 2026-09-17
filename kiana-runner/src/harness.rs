@@ -23,9 +23,9 @@ use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
-    derived_request_id, redact_text, CapabilityResult, ModelAttemptId, ModelAttemptIdentity,
-    PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor, ToolObservation,
-    ToolObservationStatus, TurnId,
+    derived_request_id, redact_text, CapabilityResult, InputId, ModelAttemptId,
+    ModelAttemptIdentity, PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor,
+    ToolObservation, ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -280,6 +280,7 @@ pub struct KianaHarness {
     assignments: Mutex<HashMap<RunId, kiana_domain::ModelAssignment>>,
     histories: Mutex<HashMap<RunId, Vec<ModelMessage>>>,
     in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
+    deferred_inputs: Mutex<HashMap<RunId, Vec<(InboxTarget, InboxMessage)>>>,
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
     max_steps_per_turn: u32,
@@ -311,6 +312,7 @@ impl KianaHarness {
             assignments: Mutex::new(HashMap::new()),
             histories: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
+            deferred_inputs: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
             max_steps_per_turn: config.max_steps_per_turn.max(1),
@@ -419,6 +421,49 @@ impl KianaHarness {
         self.insert_next_step(run_id, text)
     }
 
+    fn enqueue_injected(
+        &self,
+        run_id: RunId,
+        input_id: InputId,
+        source: String,
+        target: InboxTarget,
+        target_turn_id: Option<TurnId>,
+        text: String,
+    ) -> Result<(), KianaHarnessError> {
+        let mut message = InboxMessage::from_source(source, text);
+        message.input_id = input_id;
+        message.target_turn_id = target_turn_id;
+        let mut runs = self
+            .runs
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?;
+        if let Some(run) = runs.get_mut(&run_id) {
+            run.driver
+                .queue_input()
+                .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+            run.inbox
+                .insert_for_run(run_id, target, message)
+                .map_err(KianaHarnessError::Failed)?;
+            return Ok(());
+        }
+        drop(runs);
+        if !self
+            .in_flight
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .contains_key(&run_id)
+        {
+            return Err(KianaHarnessError::Failed("run_not_found".to_owned()));
+        }
+        self.deferred_inputs
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .entry(run_id)
+            .or_default()
+            .push((target, message));
+        Ok(())
+    }
+
     fn insert_next_step(
         &self,
         run_id: RunId,
@@ -429,6 +474,31 @@ impl KianaHarness {
             return Err(KianaHarnessError::Failed(
                 "inbox_message_required".to_owned(),
             ));
+        }
+        let runs = self
+            .runs
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?;
+        let current_turn = runs.get(&run_id).and_then(|run| run.turn_id);
+        if runs.get(&run_id).is_none()
+            && !self
+                .in_flight
+                .lock()
+                .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+                .contains_key(&run_id)
+        {
+            return Err(KianaHarnessError::Failed("run_not_found".to_owned()));
+        }
+        drop(runs);
+        if current_turn.is_none() {
+            return self.enqueue_injected(
+                run_id,
+                InputId::new(),
+                "runner".to_owned(),
+                InboxTarget::NextStep,
+                None,
+                text,
+            );
         }
         let mut runs = self
             .runs
@@ -503,6 +573,27 @@ impl KianaHarness {
             RunnerCommand::CapabilityResult { run_id, result } => {
                 self.on_capability_result(run_id, result, &mut emitter)
                     .await
+            }
+            RunnerCommand::Inject {
+                run_id,
+                input_id,
+                source,
+                target,
+                target_turn_id,
+                text,
+            } => {
+                let target = match target.as_str() {
+                    "next-turn" | "next_turn" => InboxTarget::NextTurn,
+                    "next-step" | "next_step" => InboxTarget::NextStep,
+                    _ => {
+                        emitter.emit_event(RunnerEvent::Failed {
+                            run_id,
+                            error: "inbox_target_invalid".to_owned(),
+                        })?;
+                        return Ok(emitter.into_events());
+                    }
+                };
+                self.enqueue_injected(run_id, input_id, source, target, target_turn_id, text)
             }
             RunnerCommand::Continue { run_id, prompt } => {
                 self.continue_run(run_id, prompt, &mut emitter).await
@@ -944,6 +1035,17 @@ impl KianaHarness {
                 error: "tool_catalog_changed".to_owned(),
             })?;
             return Ok(StepProgress::Finished);
+        }
+        let deferred = self
+            .deferred_inputs
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .remove(&run.run_id)
+            .unwrap_or_default();
+        for (target, message) in deferred {
+            run.inbox
+                .insert_for_run(run.run_id, target, message)
+                .map_err(KianaHarnessError::Failed)?;
         }
         run.steps += 1;
         run.step_id = Some(StepId::new());

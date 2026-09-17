@@ -577,6 +577,179 @@ impl ControlPlane {
             .await
     }
 
+    async fn current_run_turn(
+        &self,
+        run_id: RunId,
+    ) -> Result<Option<kiana_domain::TurnId>, CoreError> {
+        let events = self.events.read_stream("run", &run_id.to_string()).await?;
+        Ok(events
+            .iter()
+            .rev()
+            .find(|event| event.kind == "run.prompt")
+            .and_then(|event| {
+                event.data["turn_id"]
+                    .as_str()
+                    .and_then(kiana_domain::TurnId::parse_str)
+                    .or_else(|| {
+                        serde_json::from_value::<kiana_domain::TurnId>(
+                            event.data["turn_id"].clone(),
+                        )
+                        .ok()
+                    })
+            }))
+    }
+
+    async fn queue_run_input(
+        &self,
+        context: RequestContext,
+        run_id: RunId,
+        target: &str,
+        source: String,
+        text: String,
+        target_turn_id: Option<kiana_domain::TurnId>,
+        expected_turn_id: Option<kiana_domain::TurnId>,
+    ) -> Result<CoreResponse, CoreError> {
+        if text.trim().is_empty() || text.len() > 256 * 1024 {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "inbox_message_invalid",
+            ));
+        }
+        if source.trim().is_empty() || source.len() > 256 || source.contains('\0') {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "inbox_source_invalid",
+            ));
+        }
+        if !matches!(
+            target,
+            "next-step" | "next_step" | "next-turn" | "next_turn"
+        ) {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "inbox_target_invalid",
+            ));
+        }
+        let run_id = match self.resolve_run_id(&context, Some(run_id)).await? {
+            Ok(run_id) => run_id,
+            Err(reason) => return Ok(CoreResponse::blocked(context.request_id, reason)),
+        };
+        let current_turn = self.current_run_turn(run_id).await?;
+        if expected_turn_id.is_some() && expected_turn_id != current_turn {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "stale_turn_steer",
+            ));
+        }
+        let target = if target == "next_step" {
+            "next-step"
+        } else if target == "next_turn" {
+            "next-turn"
+        } else {
+            target
+        };
+        let target_turn_id = if target == "next-step" {
+            target_turn_id.or(current_turn)
+        } else {
+            target_turn_id
+        };
+        if target == "next-step" && target_turn_id != current_turn {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "stale_turn_steer",
+            ));
+        }
+        let input_id = kiana_domain::InputId::new();
+        let mut sequence = 1u64;
+        let accepted_sequence = sequence;
+        let safe_text = kiana_domain::redact_text(&text);
+        self.record_event(
+            context.request_id,
+            &mut sequence,
+            "run.input.accepted",
+            json!({
+                "run_id": run_id,
+                "input_id": input_id,
+                "source": source,
+                "target": target,
+                "target_turn_id": target_turn_id,
+                "text": safe_text,
+                "received_sequence": accepted_sequence,
+                "disposition": "accepted",
+            }),
+        )
+        .await?;
+        let events = self
+            .runner
+            .send(RunnerCommand::Inject {
+                run_id,
+                input_id,
+                source,
+                target: target.to_owned(),
+                target_turn_id,
+                text,
+            })
+            .await?;
+        if let Some(RunnerEvent::Failed { error, .. }) = events.first() {
+            self.record_event(
+                context.request_id,
+                &mut sequence,
+                "run.input.claimed",
+                json!({"run_id":run_id,"input_id":input_id,"source":"control_plane","target":target,
+                    "target_turn_id":target_turn_id,"received_sequence":accepted_sequence,"disposition":"rejected","error":error}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(context.request_id, error.clone()));
+        }
+        let receipt = kiana_domain::InputReceipt::new(
+            input_id,
+            run_id,
+            "control_plane",
+            target,
+            accepted_sequence,
+            kiana_domain::InputDisposition::Accepted,
+        )
+        .map_err(PortError::Failed)?;
+        Ok(CoreResponse::completed(
+            context.request_id,
+            json!({"run_id":run_id,"input_id":input_id,"target":target,"target_turn_id":target_turn_id,"receipt":receipt,"queued":true}),
+        ))
+    }
+
+    /// Queue a turn-bound steering message; it is consumed at the next safe step boundary.
+    pub async fn steer_run(
+        &self,
+        context: RequestContext,
+        run_id: RunId,
+        expected_turn_id: kiana_domain::TurnId,
+        text: String,
+    ) -> Result<CoreResponse, CoreError> {
+        self.queue_run_input(
+            context,
+            run_id,
+            "next-step",
+            "steer".to_owned(),
+            text,
+            Some(expected_turn_id),
+            Some(expected_turn_id),
+        )
+        .await
+    }
+
+    /// Queue source-labelled context input without waking an idle run.
+    pub async fn inject_run(
+        &self,
+        context: RequestContext,
+        run_id: RunId,
+        target: String,
+        source: String,
+        text: String,
+        target_turn_id: Option<kiana_domain::TurnId>,
+    ) -> Result<CoreResponse, CoreError> {
+        self.queue_run_input(context, run_id, &target, source, text, target_turn_id, None)
+            .await
+    }
+
     async fn record_cancel_requested(
         &self,
         context: &RequestContext,

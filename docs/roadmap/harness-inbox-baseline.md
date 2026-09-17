@@ -5,7 +5,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`H18`](harness.md#step-h18) |
-| feature_status | `implemented`（Runner checkpoint/幂等 Inbox/ACK DTO；ControlPlane 入口 EventLog 接线由 H19 继续） |
+| feature_status | `implemented`（Runner checkpoint/幂等 Inbox/ACK DTO；ControlPlane 入口 EventLog 接线已由 H19 接通） |
 | proof_level | `source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions 负责 fixtures |
 | authority | InputId/receipt facts are server-owned; Runner only stores a bounded queue and never parses input text as authority |
 | this step does | InboxMessage 绑定 InputId、source、target、target turn、received sequence；队列 bounded backpressure、duplicate/claimed dedupe、InputReceipt ACK 与 claim ledger；HarnessCheckpoint 序列化/恢复 inbox，claim 在下一安全 step/turn 边界消费 |
@@ -35,6 +35,6 @@ accepted/duplicate/claimed disposition。Inbox 及 claimed ledger 随 HarnessChe
 ## 3. Proof ceiling and handoff
 
 H18 proof ceiling 为 `source`：typed InputId/ACK、bounded queues、duplicate/claim ledger、
-target-turn fence 和 checkpoint round-trip 已建立。跨入口 ControlPlane accepted/consumed
-EventLog 原子事务、steering/reconnect 期间 mailbox、Artifact-backed payload、跨进程恢复和
-live/physical proof 留待 H19、PD/ER。
+target-turn fence 和 checkpoint round-trip 已建立。H19 已补上 additive steer/inject 接线；跨入口
+accepted/claimed 的完整原子事务、steering/reconnect 期间 mailbox、Artifact-backed payload、跨
+进程恢复和 live/physical proof 仍留待后续 H/PD/ER。

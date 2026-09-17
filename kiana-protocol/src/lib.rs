@@ -499,6 +499,47 @@ impl RequestEnvelope {
         }
     }
 
+    /// Queue a steering message for the current turn; Core validates the expected turn before
+    /// forwarding it to Runner.
+    pub fn steer_run(
+        metadata: RequestMetadata,
+        run_id: RunId,
+        expected_turn_id: TurnId,
+        text: impl Into<String>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Steer(SteerRequest {
+                run_id,
+                expected_turn_id,
+                text: text.into(),
+            }),
+        }
+    }
+
+    /// Queue non-waking context input for a future safe turn/step boundary.
+    pub fn inject_run(
+        metadata: RequestMetadata,
+        run_id: RunId,
+        target: impl Into<String>,
+        source: impl Into<String>,
+        text: impl Into<String>,
+        target_turn_id: Option<TurnId>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Inject(InjectRequest {
+                run_id,
+                target: target.into(),
+                source: source.into(),
+                text: text.into(),
+                target_turn_id,
+            }),
+        }
+    }
+
     /// 构造 cancel envelope。
     pub fn cancel_run(
         metadata: RequestMetadata,
@@ -625,6 +666,10 @@ pub enum RequestBody {
     Run(RunRequest),
     /// 继续 run。
     Continue(ContinueRequest),
+    /// Steer the current turn at its next safe step boundary.
+    Steer(SteerRequest),
+    /// Inject source-labelled input without waking an idle turn.
+    Inject(InjectRequest),
     /// Explicitly restore a paused run from the event ledger.
     Resume(ResumeRequest),
     /// Read the same pending approvals from every surface.
@@ -726,6 +771,25 @@ pub struct ContinueRequest {
     pub sandbox: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SteerRequest {
+    pub run_id: RunId,
+    pub expected_turn_id: TurnId,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InjectRequest {
+    pub run_id: RunId,
+    pub target: String,
+    pub source: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_turn_id: Option<TurnId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

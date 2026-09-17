@@ -28,7 +28,10 @@ pub use budget::{
 pub use harness::{
     KianaHarness, KianaHarnessError, RuntimeConfig, HARNESS_ID, HARNESS_RESULT_SCHEMA,
 };
-pub use inbox::{Inbox, InboxMessage, InboxTarget};
+pub use inbox::{
+    Inbox, InboxMessage, InboxTarget, INBOX_MAX_CLAIMED_IDS, INBOX_MAX_MESSAGES,
+    INBOX_MAX_TEXT_BYTES,
+};
 pub use model::{
     ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRequestContext,
     ModelRole, ModelToolCall, ModelUsage, ScriptedModel, UnavailableModel,

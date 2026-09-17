@@ -3433,6 +3433,10 @@ impl RunnerPort for ContinueCancelRaceRunner {
                 run_id,
                 output: json!({ "text": "capability result" }),
             }]),
+            RunnerCommand::Inject { run_id, .. } => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "unexpected_runner_command".to_owned(),
+            }]),
         }
     }
 }
