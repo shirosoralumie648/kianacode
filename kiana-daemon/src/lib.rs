@@ -36,8 +36,9 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
-    HealthProbeKind, HealthSnapshot, IdentityMigration, OrganizationId, PermissionProfile,
-    ProjectIdentity, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
+    DepartmentSpec, HealthProbeKind, HealthSnapshot, IdentityMigration, OrganizationId,
+    PermissionProfile, ProjectIdentity, ProjectTrustSnapshot, RequestContext, ResolvedAssignment,
+    RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -319,6 +320,27 @@ impl DaemonHost {
         context.actor_id = Some(assignment.principal.principal_id.clone());
         context.role_id = assignment.role_id.clone();
         context.department_id = assignment.department_id.clone();
+        let project_trust = self.project_trust_snapshot(&context.project_root, 1)?;
+        let department = DepartmentSpec::lookup(&assignment.department_id)
+            .ok_or_else(|| PortError::Failed("department_unknown".to_owned()))?;
+        let department = kiana_domain::DepartmentSnapshot::from_spec(
+            &department,
+            assignment.assignment_revision,
+            assignment.authority_epoch,
+        )
+        .map_err(PortError::Failed)?;
+        let authority = kiana_core::SecurityAuthoritySnapshot::from_parts(
+            kiana_domain::SecurityContextId::new(),
+            self.principal.identity.clone(),
+            project_trust,
+            assignment.clone(),
+            department,
+            assignment.authority_epoch,
+        )
+        .map_err(PortError::Failed)?;
+        authority
+            .validate_request(&context)
+            .map_err(PortError::Failed)?;
         kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
         Ok(context)
@@ -361,6 +383,21 @@ impl DaemonHost {
             trust_revision,
         )
         .map_err(PortError::Failed)
+    }
+
+    /// Build a server-owned project trust snapshot without accepting the wire trust bit.
+    pub fn project_trust_snapshot(
+        &self,
+        project_root: &str,
+        revision: u64,
+    ) -> Result<ProjectTrustSnapshot, PortError> {
+        let project = self.project_identity(project_root)?;
+        let trusted = self
+            .project_authority
+            .project_trusted(Path::new(project_root))
+            .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?;
+        ProjectTrustSnapshot::from_project(&project, trusted, "daemon.project_authority", revision)
+            .map_err(PortError::Failed)
     }
 
     /// Acquire the one local instance lease for a workspace and write a ready record. The lease

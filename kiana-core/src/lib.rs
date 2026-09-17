@@ -41,6 +41,7 @@ mod receipts;
 mod recovery;
 mod redaction;
 mod replay_diagnostics;
+mod security_authority;
 mod security_context;
 mod sessions;
 mod span_projection;
@@ -82,6 +83,10 @@ pub use performance::{
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
+pub use security_authority::{
+    SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
+    SECURITY_AUTHORITY_SNAPSHOT_VERSION,
+};
 pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 pub use trace_export::{

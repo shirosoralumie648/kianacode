@@ -2448,6 +2448,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-06 session lifecycle/authn opacity/restart-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-07 ProjectTrust and authority snapshot evidence (2026-09-17)
+
+```text
+source_snapshot: bf8fdc8 + SC-07 working-tree slice; kiana-domain/src/{trust_snapshots,assignment,roles,identity,contracts,lib}.rs; kiana-domain/tests/sc07_trust_snapshots.rs; kiana-core/src/{security_authority,lib}.rs; kiana-core/tests/sc07_authority_snapshot.rs; kiana-core/tests/sc07_authority_guard.rs; kiana-daemon/src/lib.rs; .github/workflows/sc07-authority.yml; docs/roadmap/security-authority-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-07 strict ProjectTrustSnapshot/DepartmentSnapshot, SecurityAuthoritySnapshot principal/project/role/department/epoch join, assignment/context daemon wiring, untrusted effect gate, CI fixtures/source guards and roadmap/status overlays are scoped to this step; no external auth provider, durable assignment projector, second authorization/execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/trust_snapshots.rs kiana-domain/src/assignment.rs kiana-domain/src/roles.rs kiana-domain/src/identity.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/sc07_trust_snapshots.rs kiana-core/src/security_authority.rs kiana-core/src/lib.rs kiana-core/tests/sc07_authority_snapshot.rs kiana-core/tests/sc07_authority_guard.rs kiana-daemon/src/lib.rs .github/workflows/sc07-authority.yml docs/roadmap/security-authority-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'ProjectTrustSnapshot|DepartmentSnapshot|SecurityAuthoritySnapshot|context_from_assignment|project_trust_snapshot|validate_request|require_trusted_for_effect|AUTH_PROJECT_MISMATCH|AUTH_ROLE_MISMATCH|authority_epoch|department_snapshot_roles_noncanonical' kiana-domain/src kiana-domain/tests kiana-core/src kiana-core/tests kiana-daemon/src docs/roadmap/security-authority-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core/daemon test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/sc07_trust_snapshots.rs trust/department/assignment fixtures; kiana-core/tests/sc07_authority_snapshot.rs authority join/foreign scope/untrusted effect fixtures; kiana-core/tests/sc07_authority_guard.rs source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-07 job is queued by the push and is not awaited
+status_change: SC-07 source slice is implemented. ProjectTrustSnapshot and DepartmentSnapshot now provide strict server-scoped trust/role catalog values; SecurityAuthoritySnapshot joins those snapshots with server principal and ResolvedAssignment, rejects foreign principal/project/role/department/epoch and provides an explicit untrusted-effect gate. DaemonHost context_from_assignment and project_trust_snapshot use these values before the existing company assignment guard, without adding a second execution path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; AssignmentDirectory and trust authority remain in-memory/local compatibility adapters, role/project revocation and department refresh lack durable CAS/replay, local-user is not external authentication, SecurityContext does not yet carry the full authority snapshot on every request, and Grant/Policy/Approval/Secret/redaction/TOCTOU/external/live/physical enforcement remains SC-08+
+reviewer: Codex root implementation review plus SC-07 server-owned trust/assignment/department/epoch reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

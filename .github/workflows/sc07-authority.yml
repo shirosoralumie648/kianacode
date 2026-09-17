@@ -1,0 +1,60 @@
+name: SC-07 project trust and role authority
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/trust_snapshots.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/sc07_trust_snapshots.rs"
+      - "kiana-core/src/security_authority.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sc07_authority_snapshot.rs"
+      - "kiana-core/tests/sc07_authority_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/security-authority-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc07-authority.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/trust_snapshots.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/sc07_trust_snapshots.rs"
+      - "kiana-core/src/security_authority.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sc07_authority_snapshot.rs"
+      - "kiana-core/tests/sc07_authority_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/security-authority-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc07-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-07 domain fixture
+        run: cargo test -p kiana-domain --test sc07_trust_snapshots --locked -- --test-threads=1
+      - name: Run SC-07 authority fixture
+        run: cargo test -p kiana-core --test sc07_authority_snapshot --locked -- --test-threads=1
+      - name: Run SC-07 source guard
+        run: cargo test -p kiana-core --test sc07_authority_guard --locked -- --test-threads=1
+      - name: Compile SC-07 targets
+        run: cargo check --workspace --tests --locked
