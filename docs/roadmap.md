@@ -106,7 +106,7 @@
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ✅ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ✅ |
 | `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ✅ |
-| `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
+| `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ✅ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ⏳ |
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
 | `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ⏳ |
@@ -829,7 +829,7 @@
 | 653 | W9 | 专项 | [`UI-38`](roadmap/ui-entrypoints.md#step-ui-38) | UI / Entrypoints · 协议/入口 conformance 集成门 | `UI-01`、`UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06`、`UI-07`、`UI-08`、`UI-09`、`UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27`、`UI-28`、`UI-29`、`UI-30`、`UI-31`、`UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-38) |
 | 654 | W9 | 专项 | [`CO-47`](roadmap/companyos.md#step-co-47) | CompanyOS · fake-model Company 黄金闭环与故障矩阵 | `CO-35`、`CO-36`、`CO-37`、`CO-40`、`CO-41`、`CO-42`、`CO-44`、`CO-46` | ⏳ | [专项卡](roadmap/companyos.md#step-co-47) |
 | 655 | W9 | 基础 | [`P1-L1-01`](#step-p1-l1-01) | P1 基础 · EvalSuite 与 GoldenTrace | `P0-G-04` | ✅ | [基础卡](#step-p1-l1-01) |
-| 656 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ⏳ | [基础卡](#step-p2-l2-01) |
+| 656 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ✅ | [基础卡](#step-p2-l2-01) |
 | 657 | W9 | 基础 | [`P3-I-06`](#step-p3-i-06) | P3 基础 · fake-model coding 黄金闭环 | `P3-I-05` | ⏳ | [基础卡](#step-p3-i-06) |
 | 658 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ⏳ | [基础卡](#step-p4-l3-01) |
 | 659 | W9 | 专项 | [`CI-12`](#step-ci-12) | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | `CI-01`、`CI-11`、`CI-02`、`CI-03`、`CI-04`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09`、`CI-10` | ⏳ | [专项卡](#step-ci-12) |
@@ -1153,6 +1153,7 @@
 | 当前 197 | `P2-K4-01` artifact checkpoint | `WorkspaceCheckpoint` binds project/actor/session/role, run/invocation, transcript offset, path allow, files/data epoch and workspace revision; capture runs before input/write, preview is read-only, restore rechecks exact snapshot/revision/company/path/data/approval and reuses apply_patch transaction, invalidating old approvals/runs and recording workspace.restored;新增 core checkpoint source guard、workflow 与 artifact-checkpoint baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K4-01 已触发且未等待；durable ArtifactStore/version graph, power-loss/cross-process checkpoint projector, backup/recovery and external/live/physical undo remain PD/ER/DEP work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 198 | `P2-K6-01` reliability/reconciliation | `FailureClass` 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；每类都有 `FailureIncident`/`RecoveryPlan`，`failure.incidents` 投影、Human Inbox reconciliation、证据/CAS 幂等 `failure.reconcile` 与 stop-confirmed `failure.release` 均沿 ControlPlane/EventLog，`result_unknown` 不自动 retry 或释放；新增 domain fixture、core source guard、workflow 与 reliability baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K6-01 已触发且未等待；独立跨进程 IncidentStore/queue worker、外部 provider query/receipt、power-loss/physical stop/release 与 live/physical proof 留 ER/PD/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 199 | `P2-K7-01` data governance/deletion propagation | `DataClass`/`Purpose`/`ProcessingGrant`/`Retention` 与 policy digest/revision/data epoch 由 server-owned DataPolicy 校验；revocation/expiry/deletion 通过 DataGovernanceSnapshot 将 receipt/audit/artifact/memory/index/cache/export 统一置为 Unknown/Revoked/Expired，daemon 先持久化拒绝再清理 memory/cache/index/artifact-store/compaction，checkpoint/runner 旧 epoch 失效；新增 domain fixture、core source guard、workflow 与 data-governance baseline | `feature_status=implemented`（domain/core/daemon/query source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K7-01 已触发且未等待；独立 retention worker、跨进程 durable governance store、外部 DB/provider/MCP/backup/log 删除与 live/physical erasure proof 留 PD/ER/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 200 | `P2-L2-01` feedback/candidate | `feedback.submit` 以 evidence、bounded text、candidate id、platform revision/idempotency 写入 FeedbackCandidate；`feedback.review` 要求不同 session 的 reviewer/sponsor、evidence 和 quality outcome，review 只追加 `candidate_only`、`authority_changes_applied=false`，不变更 Role/Grant/Policy/历史事实；新增 core source guard、workflow 与 feedback baseline | `feature_status=implemented`（core/domain/quality source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-L2-01 已触发且未等待；独立 FeedbackStore/quality evaluator/promotion/rollback/自动 worker、外部/live 质量效果留 EQ/ER/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1401,6 +1402,7 @@
 | 2026-09-18 | `P2-K4-01` artifact checkpoint：WorkspaceCheckpoint 绑定 run/session/role/transcript offset/invocation/path/data epoch/workspace revision，写前 capture、preview read-only、restore revision/TOCTOU/company/approval fence，失效旧 approvals/runs 并记录 workspace.restored；新增 core checkpoint source guard、workflow 与 baseline；durable ArtifactStore/power-loss/cross-process recovery 和外部 undo 留 PD/ER/DEP；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K6-01` reliability/reconciliation：FailureClass 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；failure.incidents 投影 FailureIncident/RecoveryPlan，Unknown 进入 Human Inbox reconciliation；failure.reconcile 强制证据/CAS/幂等，failure.release 先对账再确认 stop，明确禁止自动 retry/释放；新增 domain fixture、core source guard、workflow 与 reliability baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K7-01` data governance：DataPolicy 固定 DataClass/Purpose/ProcessingGrant/Retention、policy digest/revision/data epoch；撤销/过期/删除通过 DataGovernanceSnapshot 同步传播到 receipt/audit/artifact/memory/index/cache/export，pending 状态先置 Unknown，daemon 先持久化拒绝再清理受控 memory/cache/index/artifact-store/compaction，旧 checkpoint/context 失效；新增 domain fixture、core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-L2-01` feedback/candidate：feedback.submit/review 绑定 evidence、bounded text、candidate id、platform revision/idempotency 与独立 reviewer/session；review 只追加 candidate-only 事实并标记 authority_changes_applied=false，不修改 Role/Grant/Policy/历史；新增 core source guard、workflow 与 feedback baseline；质量 evaluator/promotion/rollback 留 EQ；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2344,13 +2346,15 @@
 
 <a id="step-p2-l2-01"></a>
 
-### P2-L2-01 反馈与候选改进　⏳
+### P2-L2-01 反馈与候选改进　✅
 
-- **现状**：`Feedback`/`Pattern`/`Candidate`/`Promotion` 为 `target`。
-- **做什么**：Feedback 只能产生候选改进，不能直接修改 Role、Grant、Policy 或历史事实。
-- **风险**：反馈若直接改 policy，就绕过了审批与审计。
+当前 source slice 与 CI-only 证据见 [`p2-l2-01-feedback-baseline.md`](roadmap/p2-l2-01-feedback-baseline.md)。
+
+- **现状**：受保护 human-operations stream 已有 `FeedbackCandidate` 的提交、重建和 review 路径；独立 FeedbackStore、自动诊断和质量 promotion 仍不在本切片。
+- **做什么**：`feedback.submit` 绑定 evidence、bounded observation/proposal、candidate id、revision/idempotency；`feedback.review` 要求独立 reviewer/sponsor 和质量证据，只追加 candidate-only review 事实，不直接修改 Role、Grant、Policy、Approval、Receipt 或历史事实。
+- **风险**：反馈若直接改 policy 或被当作质量通过，就绕过审批与审计；当前路径明确保留 candidate-only 边界。
 - **验收**：`feedback_cannot_mutate_policy_or_history`
-- **依赖 / 边界**：依赖 `P1-L1-01`；晋级必须经质量门禁。
+- **依赖 / 边界**：依赖 `P1-L1-01`；晋级必须经独立质量门禁，反馈不创建第二决策循环。
 - **依据**：`company-os-implementation-outline.md` §Slice L2
 
 

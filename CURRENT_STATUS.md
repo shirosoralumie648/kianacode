@@ -3792,6 +3792,25 @@ limitations: EventLog facts remain immutable and the snapshot is a rebuildable p
 reviewer: Codex root implementation review plus policy/grant/retention validation, cursor/digest/epoch fences, pending-vs-committed propagation, path/hash/lock safety and no-second-fact-source boundary review; no runtime test reviewer
 ```
 
+### P2-L2-01 feedback and candidate evidence (2026-09-18)
+
+```text
+source_snapshot: 73660c91 + P2-L2-01 evidence slice; kiana-domain/src/platform.rs; kiana-domain/src/quality.rs; kiana-core/src/platform.rs; kiana-core/src/versioning.rs; kiana-core/tests/p2_l2_01_feedback.rs; kiana-core/tests/p2_k3_01_human_inbox.rs; .github/workflows/p2-l2-01-feedback.yml; docs/roadmap/p2-l2-01-feedback-baseline.md; docs/roadmap.md
+worktree_status: feedback.submit validates bounded category/observation/proposal, evidence, candidate id and platform revision/idempotency before appending FeedbackCandidate; feedback.review requires independent reviewer/sponsor session, evidence and quality outcome, rejects duplicate/self review, and appends candidate-only review with authority_changes_applied=false. Feedback remains a projection/candidate path and does not mutate Role/Grant/Policy/Approval/Receipt or historical facts; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p2_l2_01_feedback.rs candidate-only source guard; existing P2-K3 Human Inbox feedback routing guard; GitHub Actions P2-L2-01 workflow runs source guard, inbox regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-L2-01 is triggered by the eventual push and is not awaited
+status_change: P2-L2-01 source slice is implemented/reconciled. Feedback now produces evidence-bound candidates and independently reviewed candidate-only facts; no direct authority or policy mutation is exposed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: candidate facts live in the protected human-operations stream; no independent FeedbackStore, automatic diagnosis/promotion worker, quality evaluator, rollback path, external effect or live model-quality outcome is claimed; promotion remains an EQ/ER/SC gate concern
+reviewer: Codex root implementation review plus candidate lifecycle, evidence/revision/idempotency, independent review, candidate-only marker and no-policy/history-mutation boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
