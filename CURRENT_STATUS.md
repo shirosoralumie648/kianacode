@@ -3583,6 +3583,25 @@ limitations: provider-generated extraction is still bounded by the local distill
 reviewer: Codex root implementation review plus P1-J3-03 evidence/target validation, bounded similar records and three-tier admission invariants; no runtime test reviewer
 ```
 
+### P1-J3-04 hybrid retrieval evidence (2026-09-18)
+
+```text
+source_snapshot: 335e39d + P1-J3-04 evidence slice; kiana-daemon/src/{memory_retrieval,harness_memory}.rs; kiana-domain/src/memory.rs; kiana-core/src/receipts.rs; kiana-daemon/tests/p1_j3_04_hybrid_retrieval.rs; .github/workflows/p1-j3-04-hybrid-retrieval.yml; docs/roadmap/p1-j3-04-hybrid-retrieval-baseline.md; docs/roadmap.md
+worktree_status: J3-02 ACL-filtered records now use one deterministic CJK-aware BM25/sparse plus optional pinned local token-vectors cosine channel, RRF-60 and MMR-0.7 ranking; model manifest/schema/dimensions/format/file/hash checks fail closed, missing model reports sparse degraded, and hit/harness/receipt provenance carries model and algorithm metadata; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/src/memory_retrieval.rs private pinned-model fixture test; kiana-daemon/tests/p1_j3_04_hybrid_retrieval.rs fail-closed/source contract guard; GitHub Actions P1-J3-04 workflow runs the deterministic fixture, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J3-04 is triggered by the eventual push and is not awaited
+status_change: P1-J3-04 source slice is implemented/reconciled. Hybrid ranking is deterministic for a pinned local fixture model, with explicit sparse degradation and hash-bound model identity; no network embedding path was introduced.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: ONNX/ort inference and production model registry/download remain deferred; token-vectors fixture is not live provider evidence; durable index/cache, selection/sent/cited layering, deletion/revocation propagation and cross-process model/index recovery remain CM/PD/SC work
+reviewer: Codex root implementation review plus BM25/CJK, pinned hash, RRF/MMR determinism, degradation and receipt provenance invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

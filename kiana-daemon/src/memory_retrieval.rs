@@ -297,3 +297,112 @@ pub(crate) fn rank_records(
     }
     Ok(results)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static ENVIRONMENT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    struct EnvGuard {
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl EnvGuard {
+        fn set(value: impl AsRef<std::ffi::OsStr>) -> Self {
+            let previous = std::env::var_os("KIANA_MEMORY_EMBEDDING_MANIFEST");
+            std::env::set_var("KIANA_MEMORY_EMBEDDING_MANIFEST", value);
+            Self { previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => std::env::set_var("KIANA_MEMORY_EMBEDDING_MANIFEST", value),
+                None => std::env::remove_var("KIANA_MEMORY_EMBEDDING_MANIFEST"),
+            }
+        }
+    }
+
+    fn record(id: &str, text: &str, created_at_ms: u64) -> MemoryRecord {
+        MemoryRecord {
+            schema: kiana_domain::MEMORY_RECORD_SCHEMA_V2.to_owned(),
+            id: id.to_owned(),
+            layer: "project".to_owned(),
+            collection: "project:fixture".to_owned(),
+            text: text.to_owned(),
+            created_at_ms,
+            ..MemoryRecord::default()
+        }
+    }
+
+    #[test]
+    fn hybrid_retrieval_is_deterministic_for_a_pinned_model() {
+        let _lock = ENVIRONMENT_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("kiana-memory-hybrid-{stamp}"));
+        fs::create_dir_all(&root).expect("create fixture directory");
+        let model_path = root.join("fixture-vectors.json");
+        let manifest_path = root.join("manifest.json");
+        let model_bytes = serde_json::to_vec(&json!({
+            "schema": "kiana.embedding.token-vectors.v1",
+            "vectors": {
+                "部署": [1.0, 0.0, 0.0],
+                "署策": [0.8, 0.2, 0.0],
+                "策略": [0.0, 1.0, 0.0],
+                "策略化": [0.0, 0.9, 0.1]
+            }
+        }))
+        .expect("encode fixture vectors");
+        fs::write(&model_path, &model_bytes).expect("write fixture vectors");
+        let digest = format!("{:x}", Sha256::digest(&model_bytes));
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&json!({
+                "schema": "kiana.embedding-model.v1",
+                "model_id": "fixture-embedder",
+                "version": "2026-09-18",
+                "sha256": digest,
+                "dimensions": 3,
+                "format": "token-vectors",
+                "path": "fixture-vectors.json"
+            }))
+            .expect("encode fixture manifest"),
+        )
+        .expect("write fixture manifest");
+
+        let _env = EnvGuard::set(&manifest_path);
+        let records = vec![
+            record("matching", "部署策略需要可复核收据", 2),
+            record("related", "部署记录保留审计证据", 1),
+            record("unrelated", "只讨论界面颜色", 3),
+        ];
+        let first = rank_records(&records, "部署策略", 3).expect("first hybrid ranking");
+        let second = rank_records(&records, "部署策略", 3).expect("second hybrid ranking");
+        assert_eq!(first, second);
+        assert_eq!(first[0]["id"], "matching");
+        assert_eq!(
+            first[0]["embedding_model_id"],
+            "fixture-embedder@2026-09-18"
+        );
+        assert_eq!(first[0]["embedding_model_sha256"], digest);
+        assert_eq!(first[0]["degraded"], false);
+        assert_eq!(
+            first[0]["retrieval_algorithm"],
+            "bm25-cjk+cosine+rrf60+mmr0.7.v1"
+        );
+
+        drop(_env);
+        fs::remove_dir_all(root).expect("remove fixture directory");
+    }
+}

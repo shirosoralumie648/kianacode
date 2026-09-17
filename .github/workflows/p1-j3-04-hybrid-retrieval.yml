@@ -1,0 +1,47 @@
+name: P1-J3-04 hybrid retrieval
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/tests/p1_j3_04_hybrid_retrieval.rs"
+      - "kiana-domain/src/memory.rs"
+      - "kiana-core/src/receipts.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j3-04-hybrid-retrieval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j3-04-hybrid-retrieval.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/tests/p1_j3_04_hybrid_retrieval.rs"
+      - "kiana-domain/src/memory.rs"
+      - "kiana-core/src/receipts.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j3-04-hybrid-retrieval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j3-04-hybrid-retrieval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hybrid-retrieval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run pinned-model deterministic fixture
+        run: cargo test -p kiana-daemon --lib memory_retrieval::tests::hybrid_retrieval_is_deterministic_for_a_pinned_model --locked -- --test-threads=1
+      - name: Run hybrid retrieval contract guard
+        run: cargo test -p kiana-daemon --test p1_j3_04_hybrid_retrieval --locked -- --test-threads=1
+      - name: Compile P1-J3-04 targets
+        run: cargo check --workspace --tests --locked
+
