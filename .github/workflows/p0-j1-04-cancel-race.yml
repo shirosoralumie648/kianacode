@@ -1,0 +1,46 @@
+name: P0-J1-04 cancel race
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p0_j1_04_cancel_race.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-04-cancel-race-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-04-cancel-race.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p0_j1_04_cancel_race.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-04-cancel-race-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-04-cancel-race.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancel-race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-J1-04 race regression
+        run: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+      - name: Run P0-J1-04 source guard
+        run: cargo test -p kiana-daemon --test p0_j1_04_cancel_race --locked -- --test-threads=1
+      - name: Compile P0-J1-04 targets
+        run: cargo check --workspace --tests --locked

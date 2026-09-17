@@ -71,7 +71,7 @@
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ✅ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ✅ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ✅ |
-| `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ⏳ |
+| `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ✅ |
 | `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | ✅ |
 | `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | 角色步数经 ControlPlane 命令在 harness 生效；环境覆盖、run 间隔离与原有 wall-time 均有行为断言 | ✅ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
@@ -432,7 +432,7 @@
 | 262 | W3 | 基础 | [`P0-F-03`](#step-p0-f-03) | P0 基础 · 续跑材料落盘与 RunSnapshot | `P0-G-02b`、`P0-G-03`、`P0-F-02` | ✅ | [基础卡](#step-p0-f-03) |
 | 263 | W3 | 基础 | [`P0-J1-02`](#step-p0-j1-02) | P0 基础 · 排空已启动工作 + 合成未启动结果 | `P0-J1-01` | ✅ | [基础卡](#step-p0-j1-02) |
 | 264 | W3 | 基础 | [`P0-J1-03`](#step-p0-j1-03) | P0 基础 · 进程组确认与 `stop_confirmed` | `P0-J1-01` | ✅ | [基础卡](#step-p0-j1-03) |
-| 265 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ⏳ | [基础卡](#step-p0-j1-04) |
+| 265 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ✅ | [基础卡](#step-p0-j1-04) |
 | 266 | W3 | 基础 | [`P1-J4-01`](#step-p1-j4-01) | P1 基础 · Capability Descriptor 与 MCP 生命周期 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-j4-01) |
 | 267 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ⏳ | [基础卡](#step-p2-k4-01) |
 | 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ⏳ | [基础卡](#step-p2-k6-01) |
@@ -1132,6 +1132,7 @@
 | 当前 176 | `P0-J1-01` cancellation state | EventLog RunCancellationFact and domain transitions define Active→Requested→Stopping→Cancelled/ResultUnknown; core/runner signals are adapters; ExecutionStatus exposes Queued/Cancelling and terminal states cannot reopen;新增 domain/core CI fixtures、workflow 与 cancellation baseline | `feature_status=implemented`（domain/core/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-01 已触发且未等待；queued drain、process-group stop confirmation、mid-stream race and cross-process recovery 留待 P0-J1-02/03/04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 177 | `P0-J1-02` cancellation drain | Runner serial batch cancellation preserves the first dispatched boundary, drains queued siblings into `ToolCancelled` with `not_executed/replay_safe`, and core records terminal cancellation/unknown facts;新增 runner/core CI guards、workflow 与 drain baseline | `feature_status=implemented`（runner/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-02 已触发且未等待；OS process-group confirmation、mid-stream race and cross-process recovery 留待 P0-J1-03/04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 178 | `P0-J1-03` process-group stop | shell/MCP/long-process adapters create process groups, terminate/poll descendants, drain output and report `stop_confirmed`; unconfirmed stop returns structured `result_unknown`;新增 daemon CI guard、workflow 与 process-group baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-03 已触发且未等待；mid-stream race/late delta、kernel edge cases、durable reconciliation and cross-process recovery 留待 P0-J1-04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 179 | `P0-J1-04` cancel race | existing daemon held-stream race keeps cancel intent before signal, emits no late delta/completion and requires exactly one terminal fact;新增 daemon CI guard/workflow 与 cancel-race baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-04 已触发且未等待；cross-process/power-loss races、provider effect reconciliation and physical proof 留待 CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1359,6 +1360,7 @@
 | 2026-09-18 | `P0-J1-01` cancellation state：以 EventLog RunCancellationFact/domain transition 为唯一取消事实，core watch/Runner signal 仅作适配器；ExecutionStatus 的 Queued/Cancelling 与不可逆 terminal fence 已固定；新增 domain/core fixtures、workflow 与 cancellation baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-J1-02` cancellation drain：串行 Runner 批次保留首个已派发边界，queued siblings 生成 `ToolCancelled` 的 `not_executed/replay_safe` 合成结果，core 在 terminal projection 前保留取消/unknown 事实；新增 runner/core guards、workflow 与 drain baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-J1-03` process-group stop：shell/MCP/long-process adapters 共享进程组 termination/poll/drain，只有正向消失检查写 `stop_confirmed`，无法确认返回 `result_unknown`；新增 daemon guard、workflow 与 process-group baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P0-J1-04` cancel race：复用 daemon held-stream 竞态回归，取消后无 late delta/completion 且 terminal fact 恰好一次；新增 cancel-race source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1656,7 +1658,9 @@
 
 <a id="step-p0-j1-04"></a>
 
-### P0-J1-04 取消竞态负向证据　⏳
+### P0-J1-04 取消竞态负向证据　✅
+
+当前 source slice 与 CI-only 证据见 [`p0-j1-04-cancel-race-baseline.md`](roadmap/p0-j1-04-cancel-race-baseline.md)。
 
 - **现状**：取消与 dispatch 的竞态没有负向测试覆盖。
 - **做什么**：补竞态用例，证明取消竞争不产生错误完成、不留孤立 tool calls。

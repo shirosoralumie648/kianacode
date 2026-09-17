@@ -3393,6 +3393,25 @@ limitations: kernel/descendant races, mid-stream late-delta fencing, durable sto
 reviewer: Codex root implementation review plus P0-J1-03 process-group lifecycle, confirmation and Unknown fallback invariants; no runtime test reviewer
 ```
 
+### P0-J1-04 cancellation race evidence (2026-09-18)
+
+```text
+source_snapshot: 3274ec0 + P0-J1-04 evidence slice; kiana-daemon/tests/daemon_host.rs; kiana-daemon/src/harness_capabilities.rs; kiana-core/src/{lifecycle,events}.rs; kiana-daemon/tests/p0_j1_04_cancel_race.rs; .github/workflows/p0-j1-04-cancel-race.yml; docs/roadmap/p0-j1-04-cancel-race-baseline.md
+worktree_status: existing held-stream daemon race preserves cancel-before-signal ordering, prevents late model delta/completion, records exactly one terminal cancellation fact, and keeps result_unknown available for uncertain effects; source guard and CI wiring retain the prior runtime assertion unchanged; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/tests/p0_j1_04_cancel_race.rs race/terminal source guards; existing daemon_host::cancelling_mid_stream_never_completes_or_emits_a_late_delta runtime fixture; GitHub Actions P0-J1-04 workflow runs the serialized regression and guard
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-J1-04 is triggered by the eventual push and is not awaited
+status_change: P0-J1-04 source slice is implemented/reconciled. Cancellation races cannot report a wrong completion or late stream result, and terminal uniqueness remains explicit.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: external/provider and kernel descendant races, cross-process/power-loss reconciliation, and physical effect proof remain CP/PD/INT work
+reviewer: Codex root implementation review plus P0-J1-04 cancel ordering, late-result fencing and terminal uniqueness invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
