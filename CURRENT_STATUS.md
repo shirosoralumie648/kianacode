@@ -3754,6 +3754,25 @@ limitations: cross-process durable CheckpointService, ArtifactStore version grap
 reviewer: Codex root implementation review plus snapshot/revision/data/path/TOCTOU, approval/run invalidation and descriptor-relative transaction boundary review; no runtime test reviewer
 ```
 
+### P2-K6-01 reliability and reconciliation evidence (2026-09-18)
+
+```text
+source_snapshot: c0723fa8 + P2-K6-01 evidence slice; kiana-domain/src/platform.rs; kiana-domain/tests/p2_k6_01_reliability.rs; kiana-core/src/platform.rs; kiana-core/src/commands.rs; kiana-core/tests/p2_k6_01_reliability.rs; kiana-core/tests/oa19_incident_projection.rs; kiana-core/tests/er10_resource_projection.rs; kiana-daemon/src/lib.rs; .github/workflows/p2-k6-01-reliability.yml; docs/roadmap/p2-k6-01-reliability-baseline.md; docs/roadmap.md
+worktree_status: FailureClass covers crash/timeout/cancel/disk-full/MCP failure/provider Unknown; each class has a bounded RecoveryPlan and FailureIncident projection. failure.incidents rebuilds committed failure facts, unresolved Unknown enters the Human Inbox reconciliation view, failure.reconcile requires explicit resolution plus owned event evidence/revision/CAS/idempotency, and failure.release requires prior reconciliation plus confirmed stop before resource release; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p2_k6_01_reliability.rs six FailureClass recovery fixture; kiana-core/tests/p2_k6_01_reliability.rs incident/recovery source guard; existing OA-19 observability incident and ER-10 resource quarantine projections; GitHub Actions P2-K6-01 workflow runs fixtures, guards, regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-K6-01 is triggered by the eventual push and is not awaited
+status_change: P2-K6-01 source slice is implemented/reconciled. All six failure classes now have explicit incident/recovery contracts; result_unknown remains reconciliation-required and cannot be automatically retried, released or rewritten as success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Incident/Recovery and reconciliation queue are EventLog/platform projections, not an independent cross-process IncidentStore or background worker; no automatic provider query, external receipt, power-loss durability, cross-process physical stop/release proof, external business outcome, live connector/provider or physical evidence is claimed
+reviewer: Codex root implementation review plus six-class classification, Unknown/effect/stop fences, evidence/CAS/idempotency, release quarantine and no-second-loop boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

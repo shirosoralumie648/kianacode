@@ -104,7 +104,7 @@
 | `P2-J5-01` | P2 | J5 Workflow | `P0-G-04` | 版本固定；重试/取消/审批/补偿可重放 | ✅ |
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ✅ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ✅ |
-| `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ⏳ |
+| `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ✅ |
 | `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ⏳ |
@@ -435,7 +435,7 @@
 | 265 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ✅ | [基础卡](#step-p0-j1-04) |
 | 266 | W3 | 基础 | [`P1-J4-01`](#step-p1-j4-01) | P1 基础 · Capability Descriptor 与 MCP 生命周期 | `P0-A-01a` | ✅ | [基础卡](#step-p1-j4-01) |
 | 267 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ✅ | [基础卡](#step-p2-k4-01) |
-| 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ⏳ | [基础卡](#step-p2-k6-01) |
+| 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ✅ | [基础卡](#step-p2-k6-01) |
 | 269 | W3 | 专项 | [`CI-11`](#step-ci-11) | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | `CI-04`、`CI-10`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09` | ⏳ | [专项卡](#step-ci-11) |
 | 270 | W3 | 专项 | [`OA-11`](#step-oa-11) | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | `OA-10` | ✅ | [专项卡](#step-oa-11) |
 | 271 | W3 | 专项 | [`OA-12`](#step-oa-12) | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | `OA-10` | ✅ | [专项卡](#step-oa-12) |
@@ -1151,6 +1151,7 @@
 | 当前 195 | `P2-J5-01` workflow replay | `WorkflowDefinition`/node execution/state/command schemas and pure planner enforce immutable versions, DAG/role/budget/deadline, approval/signal/cancel/retry/compensation/Unknown boundaries; ControlPlane loads/replays the workflow aggregate, commits CAS/idempotent command facts, and dispatches only after durable reservation via the existing execution spine;新增 workflow deterministic replay fixture、core source guard、workflow 与 baseline | `feature_status=implemented`（domain/workflow/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-J5-01 已触发且未等待；automatic scheduler/queue/claim, cross-process projector/power-loss recovery, external backend and live/physical effect evidence remain AUT/SW/PD/ER work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 196 | `P2-K3-01` Human Inbox | Core 聚合 pending approvals、Company review/acceptance/delivery/change/cancel、Company/failure incidents、reconciliation 和 feedback candidates 为稳定排序的六类 HumanInboxItem；`human.resolve` 以 inbox digest、item/action ID、required fields、idempotency 回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K3-01 已触发且未等待；durable NotificationStore/read-state/outbox/delivery/recipient、cross-process inbox projector and external/live/physical human delivery remain NM/UI/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 197 | `P2-K4-01` artifact checkpoint | `WorkspaceCheckpoint` binds project/actor/session/role, run/invocation, transcript offset, path allow, files/data epoch and workspace revision; capture runs before input/write, preview is read-only, restore rechecks exact snapshot/revision/company/path/data/approval and reuses apply_patch transaction, invalidating old approvals/runs and recording workspace.restored;新增 core checkpoint source guard、workflow 与 artifact-checkpoint baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K4-01 已触发且未等待；durable ArtifactStore/version graph, power-loss/cross-process checkpoint projector, backup/recovery and external/live/physical undo remain PD/ER/DEP work；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 198 | `P2-K6-01` reliability/reconciliation | `FailureClass` 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；每类都有 `FailureIncident`/`RecoveryPlan`，`failure.incidents` 投影、Human Inbox reconciliation、证据/CAS 幂等 `failure.reconcile` 与 stop-confirmed `failure.release` 均沿 ControlPlane/EventLog，`result_unknown` 不自动 retry 或释放；新增 domain fixture、core source guard、workflow 与 reliability baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K6-01 已触发且未等待；独立跨进程 IncidentStore/queue worker、外部 provider query/receipt、power-loss/physical stop/release 与 live/physical proof 留 ER/PD/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1397,6 +1398,7 @@
 | 2026-09-18 | `P2-J5-01` workflow replay：固定 WorkflowDefinition/node/instance/version 与纯 planner，覆盖 DAG、approval/signal/cancel/retry/compensation/Unknown；ControlPlane 读取 EventLog、CAS/idempotency 提交 command fact，提交 reservation 后才 dispatch，replay 不重复执行；新增 workflow replay fixture、core guard、workflow 与 baseline；scheduler/queue/claim、跨进程恢复和外部 live effect 留 AUT/SW/PD/ER；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K3-01` Human Inbox：Core 统一聚合 Approval/Review/Acceptance/Incident/Reconciliation/Feedback item，列表 digest 稳定排序；resolve 强制 revision、item/action、required fields/idempotency 并回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline；durable NotificationStore/read-state/delivery/external human delivery 留 NM/UI/PD/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K4-01` artifact checkpoint：WorkspaceCheckpoint 绑定 run/session/role/transcript offset/invocation/path/data epoch/workspace revision，写前 capture、preview read-only、restore revision/TOCTOU/company/approval fence，失效旧 approvals/runs 并记录 workspace.restored；新增 core checkpoint source guard、workflow 与 baseline；durable ArtifactStore/power-loss/cross-process recovery 和外部 undo 留 PD/ER/DEP；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-K6-01` reliability/reconciliation：FailureClass 覆盖 crash/timeout/cancel/disk-full/MCP failure/provider Unknown；failure.incidents 投影 FailureIncident/RecoveryPlan，Unknown 进入 Human Inbox reconciliation；failure.reconcile 强制证据/CAS/幂等，failure.release 先对账再确认 stop，明确禁止自动 retry/释放；新增 domain fixture、core source guard、workflow 与 reliability baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2302,13 +2304,15 @@
 
 <a id="step-p2-k6-01"></a>
 
-### P2-K6-01 可靠性与对账　⏳
+### P2-K6-01 可靠性与对账　✅
 
-- **现状**：crash/timeout/cancel/disk full/MCP failure/Provider Unknown 没有统一 Incident/Recovery 路径。
-- **做什么**：六类失败各有 Incident 与 RecoveryPlan，`result_unknown` 进 reconciliation queue。
-- **风险**：`result_unknown` 若被自动 retry，可能产生重复副作用。
+当前 source slice 与 CI-only 证据见 [`p2-k6-01-reliability-baseline.md`](roadmap/p2-k6-01-reliability-baseline.md)。
+
+- **现状**：六类失败由已提交运行/能力事实重建为统一 `FailureIncident`，但跨进程 IncidentStore、后台队列 worker 和外部 receipt 仍不是本切片范围。
+- **做什么**：`FailureClass` 为 crash/timeout/cancel/disk full/MCP failure/provider Unknown 各给出 `RecoveryPlan`；`failure.incidents` 与 Human Inbox 暴露未解决项，`failure.reconcile` 以证据/CAS/幂等追加对账事实，`failure.release` 只在对账且 stop-confirmed 后释放资源。
+- **风险**：`result_unknown` 若被自动 retry、自动释放或改写成成功，可能产生重复副作用；当前路径明确 fail-closed。
 - **验收**：`every_failure_class_has_an_incident_and_recovery`
-- **依赖 / 边界**：依赖 `P2-K4-01`；不自动重试 `result_unknown`。
+- **依赖 / 边界**：依赖 `P2-K4-01`；不自动重试或释放 `result_unknown`，不新增第二执行循环。
 - **依据**：`company-os-implementation-outline.md` §Slice K6
 
 
