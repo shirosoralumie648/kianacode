@@ -1,0 +1,45 @@
+name: P1-L4-01 code intelligence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/index.rs"
+      - "kiana-query/tests/p1_l4_01_code_intelligence.rs"
+      - "kiana-daemon/src/context_query.rs"
+      - "kiana-core/src/context_query.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-l4-01-code-intelligence-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-l4-01-code-intelligence.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/index.rs"
+      - "kiana-query/tests/p1_l4_01_code_intelligence.rs"
+      - "kiana-daemon/src/context_query.rs"
+      - "kiana-core/src/context_query.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-l4-01-code-intelligence-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-l4-01-code-intelligence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  code-intelligence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run code intelligence source guard
+        run: cargo test -p kiana-query --test p1_l4_01_code_intelligence --locked -- --test-threads=1
+      - name: Compile P1-L4-01 targets
+        run: cargo check --workspace --tests --locked
+

@@ -3678,6 +3678,25 @@ limitations: legacy capture JSON and strict GoldenTrace are not yet unified thro
 reviewer: Codex root implementation review plus owner/source/hash/revocation/no-side-effect replay boundary review; no runtime test reviewer
 ```
 
+### P1-L4-01 code intelligence evidence (2026-09-18)
+
+```text
+source_snapshot: cba747de + P1-L4-01 evidence slice; kiana-query/src/{repo_map,index}.rs; kiana-daemon/src/context_query.rs; kiana-core/src/context_query.rs; kiana-query/tests/p1_l4_01_code_intelligence.rs; .github/workflows/p1-l4-01-code-intelligence.yml; docs/roadmap/p1-l4-01-code-intelligence-baseline.md; docs/roadmap.md
+worktree_status: RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph retain exact content hashes, canonical relative paths and bounded source fields; daemon render_output adds source_snapshot, local_workspace provenance, captured_at_read freshness and runtime version for JSON/text; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-query/tests/p1_l4_01_code_intelligence.rs RepoMap/Index/Search/Vector/Pack/provenance source guard; GitHub Actions P1-L4-01 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-L4-01 is triggered by the eventual push and is not awaited
+status_change: P1-L4-01 source slice is implemented/reconciled. Code intelligence outputs now expose content/source snapshot and read-time freshness without changing visibility or creating an execution path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: source_snapshot is a read-time hash summary rather than immutable workspace snapshot; generation/atomic index switch, cross-process locking/recovery, semantic provider index, deletion/retention propagation, chunk provenance and selected/sent/cited layers remain CM/PD/OA/SC work
+reviewer: Codex root implementation review plus canonical-root, hash/provenance/freshness and no-authority/no-provider-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

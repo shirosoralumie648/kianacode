@@ -100,7 +100,7 @@
 | `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ✅ |
 | `P1-K5-01` | P1 | K5 Cost/capacity | `P0-G-04` | `UsageRecord`/`CostLedger`/`Quota`；`RuntimeBudget` 与 `ProjectBudget` 不混用 | ✅ |
 | `P1-L1-01` | P1 | L1 Eval | `P0-G-04` | GoldenTrace 绑定源码快照/输入 hash/版本/Receipt；replay 无真实副作用 | ✅ |
-| `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ⏳ |
+| `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ✅ |
 | `P2-J5-01` | P2 | J5 Workflow | `P0-G-04` | 版本固定；重试/取消/审批/补偿可重放 | ⏳ |
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ⏳ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ⏳ |
@@ -537,7 +537,7 @@
 | 366 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ✅ | [基础卡](#step-p1-j3-02) |
 | 367 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ✅ | [基础卡](#step-p1-j3-03) |
 | 368 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ✅ | [基础卡](#step-p1-j3-04) |
-| 369 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-l4-01) |
+| 369 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ✅ | [基础卡](#step-p1-l4-01) |
 | 370 | W4 | 基础 | [`P2-K7-01`](#step-p2-k7-01) | P2 基础 · 数据治理与删除传播 | `P0-A-01a`、`P1-J3-04` | ⏳ | [基础卡](#step-p2-k7-01) |
 | 371 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ⏳ | [基础卡](#step-p4-j3-05) |
 | 372 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ⏳ | [基础卡](#step-p4-l5-01) |
@@ -1147,6 +1147,7 @@
 | 当前 191 | `P1-J8-01` observability receipt | committed EventLog-only receipt now includes bounded `observability` projection: source cursor/event IDs and persistence revision, typed model/provider/usage/retry, capability admission/effect/stop/action digest, run/turn/invocation spans, policy/gate verdict and reason, tool args hash, and cancellation reason; existing redaction remains mandatory and no projection invokes Broker/Provider/Runner;新增 core source guard、workflow 与 observability baseline | `feature_status=implemented`（core/domain/policy source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J8-01 已触发且未等待；durable projector checkpoint, metric/trace exporter, provider invoice/cost reconciliation, cross-process query and live/physical telemetry remain OA/PD/ER/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 192 | `P1-K5-01` cost/capacity | `UsageRecord`/`CostLedger` preserve known token totals and unknown `cost_micros`; Company keeps `ProjectBudget`, `RuntimeBudget` and `Quota` separate, while Runner/Core reserve and settle bounded model/tool budgets before provider/effect;新增 domain fixture、core source guard、workflow 与 cost-capacity baseline | `feature_status=implemented`（domain/core/runner/company source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-K5-01 已触发且未等待；pricing/rate cards, provider invoice/correction/refund, durable quota projector and cross-process settlement remain BQ/CP/PD/ER work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 193 | `P1-L1-01` GoldenTrace | `trace.capture` binds an owner/project/run to controlled source manifest/hash, input/events/runtime version and receipt, appends a new `golden_trace.captured` fact; `trace.replay` validates owner/project/event digest/data revocation and only folds history/invocations with `side_effects=false`/`provider_calls=0`; strict domain GoldenTrace object and provider-independent eval remain adjacent contracts;新增 core source guard、workflow 与 GoldenTrace baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-L1-01 已触发且未等待；durable EvalStore/FixtureStore, typed capture migration, normalizer/diff, isolated runner, judge/promote and live quality evidence remain EQ/ER/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 194 | `P1-L4-01` code intelligence | RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph results retain exact content hashes, canonical relative paths and bounded source fields; daemon `render_output` adds source snapshot, local workspace provenance, captured-at-read freshness and runtime version for JSON/text;新增 kiana-query source guard、workflow 与 code-intelligence baseline | `feature_status=implemented`（query/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-L4-01 已触发且未等待；immutable workspace snapshot/generation, durable index/cache switch, semantic provider index, deletion propagation and chunk/selected provenance remain CM/PD/OA/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1389,6 +1390,7 @@
 | 2026-09-18 | `P1-J8-01` observability receipt：receipt 从 committed EventLog 统一投影 source cursor/persistence revision、model/provider/usage/retry、capability admission/effect/stop/action hash、run/turn/invocation spans、policy/gate verdict、tool args hash 和 cancellation reason；字段只保留 bounded/redacted metadata，projection 不执行 Broker/Provider/Runner；新增 core source guard、workflow 与 observability baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-K5-01` cost/capacity：UsageRecord/CostLedger 保留已知 token 与未知 cost，Company 分离 ProjectBudget/RuntimeBudget/Quota，Runner/Core/CP-11 共享 bounded reserve/settle 和 known/unknown usage 语义；新增 domain fixture、core source guard、workflow 与 cost-capacity baseline；不引入真实计费或第二账本；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-L1-01` GoldenTrace：trace.capture 绑定 owner/project/run、受控 source manifest/hash、input/events/runtime version 和 receipt，并追加新 golden_trace.captured；trace.replay 校验 owner/project、events hash 与 data revocation，只折叠 history/invocation，明确 side_effects=false/provider_calls=0；新增 core source guard、workflow 与 GoldenTrace baseline；typed EvalStore/normalizer/judge/quality platform 留后续；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-L4-01` code intelligence：RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph 结果绑定 content hash、canonical 相对路径和有界来源；daemon 统一 JSON/text 输出附 source snapshot、local workspace、captured-at-read freshness/runtime version；新增 query source guard、workflow 与 code-intelligence baseline；immutable generation、durable index/cache、semantic provider index 和删除传播留 CM/PD/OA/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2214,12 +2216,14 @@
 
 <a id="step-p1-l4-01"></a>
 
-### P1-L4-01 Code intelligence 快照　⏳
+### P1-L4-01 Code intelligence 快照　✅
 
-- **现状**：query/repo-map 已有素材，但结果不带 snapshot 与 freshness。
-- **做什么**：`RepositorySnapshot`/`SymbolIndex`/`DependencyGraph`/`RepoMap` 的结果带 snapshot、来源和 freshness。
-- **风险**：无 freshness 的索引结果会被当成当前事实。
-- **验收**：`code_intelligence_results_carry_freshness`
+当前 source slice 与 CI-only 证据见 [`p1-l4-01-code-intelligence-baseline.md`](roadmap/p1-l4-01-code-intelligence-baseline.md)。
+
+- **现状**：query/repo-map、context search/vector/pack 和 artifact graph 的结果保留内容 hash、canonical 相对路径、来源字段；daemon 统一输出附 source snapshot 与 captured-at-read freshness。
+- **做什么**：`RepositorySnapshot`/`SymbolIndex`/`DependencyGraph`/`RepoMap` 相关结果在读取边界生成 bounded provenance，JSON/text 两种输出都能定位 source、hash、freshness 和 runtime version；不改变现有索引可见范围。
+- **风险**：无 freshness 的索引结果会被当成当前事实；因此 cache/ingest/heuristic 结果只作候选与审计材料，不授予权限或执行权。
+- **验收**：`code_intelligence_results_carry_snapshot_source_and_freshness`
 - **依赖 / 边界**：依赖 `P0-A-01a`；不改变现有索引的可见范围。
 - **依据**：`company-os-implementation-outline.md` §Slice L4
 
