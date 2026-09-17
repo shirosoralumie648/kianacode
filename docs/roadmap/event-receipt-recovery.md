@@ -306,7 +306,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-08 — Run/Turn 状态投影和 terminal 约束　⏳
+##### ER-08 — Run/Turn 状态投影和 terminal 约束　✅
 
 - **落点：** `kiana-core/src/projection.rs`、`lifecycle.rs`；关联 `P0-B-01`、`P0-G-04`、`H27`。
 - **动作：** 统一 Continue 的新 turn 语义、terminal 不复活、相同 terminal 幂等、不同 terminal conflict；补 `AwaitingApproval`、`Cancelling`、`Paused/NeedsRecovery`。

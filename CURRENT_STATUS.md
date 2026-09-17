@@ -2785,6 +2785,25 @@ limitations: CI-only fixtures have not been executed locally; no production proj
 reviewer: Codex root implementation review plus ER-07 checkpoint digest/cursor compatibility, duplicate replay, fold failure and no-authority boundary; no runtime test reviewer
 ```
 
+### ER-08 Run/Turn projection and terminal evidence (2026-09-17)
+
+```text
+source_snapshot: 47f4bce + ER-08 working-tree slice; kiana-core/src/{projection,lifecycle}.rs; kiana-domain/src/states.rs; kiana-core/tests/er08_run_projection.rs; kiana-core/tests/er08_projection_guard.rs; .github/workflows/er08-run-projection.yml; docs/roadmap/event-receipt-run-projection-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: existing project_run_state reducer is now covered by dedicated CI fixtures/source guard: same-stream versions or durable order are folded with event-ID deduplication, approval/cancelling phases are explicit, a new run.prompt is the only turn reset, same terminal replay is idempotent, conflicting terminal kinds fail closed, and events after a terminal are ignored until a new turn; projection remains read-only with no Broker/Runner/authorization path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/er08_run_projection.rs approval/cancelling/terminal/idempotent/conflicting/late-effect/new-turn fixtures; kiana-core/tests/er08_projection_guard.rs terminal reducer/order/no-authority source guard; GitHub Actions ER-08 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-08 is triggered by the eventual push and is not awaited
+status_change: ER-08 source slice is implemented. RunState is derived only from committed facts, terminal conflicts never become a success, and a late event cannot resurrect a completed/cancelled/failed/unknown turn without a new prompt turn fact.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; durable projector runner/checkpoint persistence, Invocation/Execution/Attempt and Approval/Budget/Lease projection, snapshot/restart/resume, and external/live/physical proof remain ER-09+ / CP/PD work
+reviewer: Codex root implementation review plus ER-08 phase ordering, terminal conflict/idempotence, late-event suppression and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

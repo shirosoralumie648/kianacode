@@ -1,0 +1,50 @@
+name: ER-08 run projection and terminal rules
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/er08_run_projection.rs"
+      - "kiana-core/tests/er08_projection_guard.rs"
+      - "kiana-domain/src/states.rs"
+      - "docs/roadmap/event-receipt-run-projection-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er08-run-projection.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/er08_run_projection.rs"
+      - "kiana-core/tests/er08_projection_guard.rs"
+      - "kiana-domain/src/states.rs"
+      - "docs/roadmap/event-receipt-run-projection-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er08-run-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-08 projection fixtures
+        run: cargo test -p kiana-core --test er08_run_projection --locked -- --test-threads=1
+      - name: Run ER-08 projection source guard
+        run: cargo test -p kiana-core --test er08_projection_guard --locked -- --test-threads=1
+      - name: Compile ER-08 targets
+        run: cargo check --workspace --tests --locked
