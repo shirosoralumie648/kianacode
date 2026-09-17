@@ -2217,6 +2217,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-07 port layering/no-provider/no-filesystem/no-execution source-boundary review; no runtime test reviewer
 ```
 
+### EQ-08 deterministic fixture loader evidence (2026-09-17)
+
+```text
+source_snapshot: 70cdc3f + EQ-08 working-tree slice; kiana-commands/src/{eval_fixtures,lib}.rs; kiana-commands/tests/eq08_fixture_loader.rs; kiana-core/tests/eq08_fixture_loader_guard.rs; tests/eval/{README,manifest.json,runtime-events.jsonl}; .github/workflows/eq08-fixture-loader.yml; docs/roadmap/evaluation-fixture-loader-baseline.md; docs/roadmap.md
+worktree_status: strict EvalFixtureManifest/Case and deterministic declared-file loader are scoped to this step; canonical root/relative path/regular file/schema/size/hash checks run before bytes are returned, no implicit operator-home scan or second runner was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-commands/src/eval_fixtures.rs kiana-commands/src/lib.rs kiana-commands/tests/eq08_fixture_loader.rs kiana-core/tests/eq08_fixture_loader_guard.rs tests/eval/README.md tests/eval/manifest.json tests/eval/runtime-events.jsonl .github/workflows/eq08-fixture-loader.yml docs/roadmap/evaluation-fixture-loader-baseline.md docs/roadmap.md
+  rg -n 'EvalFixtureManifest|EvalFixtureCase|LoadedFixtureManifest|load_fixture_manifest|EVAL_FIXTURE_MANIFEST_SCHEMA|fixture_schema_unknown|fixture_manifest_case_id_invalid|resolve_declared_path|canonicalize|starts_with\(root\)' kiana-commands/src kiana-commands/tests/eq08_fixture_loader.rs kiana-core/tests/eq08_fixture_loader_guard.rs tests/eval docs/roadmap/evaluation-fixture-loader-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-08 commands/core loader targets compiled only; no test or smoke command executed locally
+fixture or cassette: tests/eval/manifest.json + runtime-events.jsonl; kiana-commands/tests/eq08_fixture_loader.rs path/schema/duplicate/size/unknown-field fixtures; core source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-08 job is queued by the next push and is not awaited
+status_change: EQ-08 source slice is implemented. A strict manifest and loader now make fixture paths, schemas, case identity/order, file type/size and SHA-256 explicit before returning bytes; undeclared/escaped/unknown/oversized fixtures fail closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; loader remains legacy command test adapter rather than FixtureStore/DaemonHost, does not normalize event payloads or validate secret/cursor/oracle/provider content, and no isolated KIANA_HOME or no-follow/TOCTOU guarantee exists; EQ-09+ / EQ-16+ / PD / SC remain open.
+reviewer: Codex root implementation review plus EQ-08 fixture manifest/path/schema/size determinism and no-second-runner source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

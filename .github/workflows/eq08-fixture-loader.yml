@@ -1,0 +1,46 @@
+name: EQ-08 deterministic evaluation fixtures
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "tests/eval/**"
+      - "kiana-commands/src/eval_fixtures.rs"
+      - "kiana-commands/src/lib.rs"
+      - "kiana-commands/tests/eq08_fixture_loader.rs"
+      - "kiana-core/tests/eq08_fixture_loader_guard.rs"
+      - "docs/roadmap/evaluation-fixture-loader-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq08-fixture-loader.yml"
+  pull_request:
+    paths:
+      - "tests/eval/**"
+      - "kiana-commands/src/eval_fixtures.rs"
+      - "kiana-commands/src/lib.rs"
+      - "kiana-commands/tests/eq08_fixture_loader.rs"
+      - "kiana-core/tests/eq08_fixture_loader_guard.rs"
+      - "docs/roadmap/evaluation-fixture-loader-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq08-fixture-loader.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-loader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-08 fixture loader tests
+        run: cargo test -p kiana-commands --test eq08_fixture_loader --locked -- --test-threads=1
+      - name: Run EQ-08 source guard
+        run: cargo test -p kiana-core --test eq08_fixture_loader_guard --locked -- --test-threads=1
+      - name: Compile deterministic loader path
+        run: cargo check -p kiana-commands -p kiana-core --tests --locked

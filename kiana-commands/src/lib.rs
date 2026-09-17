@@ -22,6 +22,7 @@ pub mod doctor;
 pub mod eda;
 mod eda_netlist;
 pub mod eval;
+pub mod eval_fixtures;
 pub mod evidence;
 pub mod exit;
 pub mod export;

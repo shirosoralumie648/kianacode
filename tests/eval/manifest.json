@@ -1,0 +1,13 @@
+{
+  "schema": "kiana.eval-fixture-manifest.v1",
+  "suite_id": "eq08-smoke",
+  "description": "Checked-in deterministic evaluation fixture",
+  "cases": [
+    {
+      "case_id": "runtime-events",
+      "fixture_ref": "runtime-events.jsonl",
+      "fixture_schema": "kiana.runtime-event-fixture.v1",
+      "max_bytes": 4096
+    }
+  ]
+}
