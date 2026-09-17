@@ -499,6 +499,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "FenceTokenId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "fence_token_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "SessionId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "session_id",
@@ -797,6 +803,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
         owner_crate: "kiana-core",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.authority-fence.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
         compatibility: CompatibilityPolicy::Breaking,
         allow_unknown_fields: false,
     },
@@ -2252,6 +2266,7 @@ mod tests {
         AuditId,
         SecretRefId,
         EvidenceRefId,
+        FenceTokenId,
     );
 
     impl IdRoundTripSample for crate::SessionId {
@@ -2413,6 +2428,7 @@ mod tests {
         AuditId,
         SecretRefId,
         EvidenceRefId,
+        FenceTokenId,
         SessionId,
         WorkFingerprint,
     );

@@ -43,6 +43,7 @@ mod redaction;
 mod replay_diagnostics;
 mod security_authority;
 mod security_context;
+mod security_fence;
 mod sessions;
 mod span_projection;
 mod trace_export;

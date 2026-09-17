@@ -121,6 +121,7 @@ security_reason_codes! {
     AuthProjectMismatch => ("AUTH_PROJECT_MISMATCH", Auth, Never, Escalate),
     AuthRoleMismatch => ("AUTH_ROLE_MISMATCH", Auth, Never, Escalate),
     AuthAudienceMismatch => ("AUTH_AUDIENCE_MISMATCH", Auth, Never, Reauthenticate),
+    AuthSessionGenerationStale => ("AUTH_SESSION_GENERATION_STALE", Auth, RequiresReauthorization, Reauthenticate),
     PolicyScopeEmpty => ("POLICY_SCOPE_EMPTY", Policy, Never, RequestApproval),
     PolicyApprovalRequired => ("POLICY_APPROVAL_REQUIRED", Policy, RequiresReauthorization, RequestApproval),
     PolicyRevisionStale => ("POLICY_REVISION_STALE", Policy, RequiresReauthorization, RefreshAuthority),
@@ -129,6 +130,7 @@ security_reason_codes! {
     PolicyOperationUnregistered => ("POLICY_OPERATION_UNREGISTERED", Policy, Never, RequestApproval),
     PolicyBundleInvalid => ("POLICY_BUNDLE_INVALID", Policy, Never, Quarantine),
     PolicyAuthorityEpochRollback => ("POLICY_AUTHORITY_EPOCH_ROLLBACK", Policy, RequiresReconciliation, Quarantine),
+    PolicyConfigRevisionStale => ("POLICY_CONFIG_REVISION_STALE", Policy, RequiresReauthorization, RefreshAuthority),
     DataClassRequired => ("DATA_CLASS_REQUIRED", Data, RequiresReauthorization, ClassifyAndAuthorize),
     DataPurposeDenied => ("DATA_PURPOSE_DENIED", Data, Never, RequestApproval),
     DataBoundaryMismatch => ("DATA_BOUNDARY_MISMATCH", Data, Never, ClassifyAndAuthorize),
@@ -153,10 +155,12 @@ security_reason_codes! {
     FactCursorGap => ("FACT_CURSOR_GAP", Fact, RequiresReconciliation, ReconcileExternalEffect),
     FactSequenceRollback => ("FACT_SEQUENCE_ROLLBACK", Fact, RequiresReconciliation, ReconcileExternalEffect),
     FactDigestMismatch => ("FACT_DIGEST_MISMATCH", Fact, RequiresReconciliation, Quarantine),
+    FactFenceMismatch => ("FACT_FENCE_MISMATCH", Fact, RequiresReconciliation, Quarantine),
     UnknownResultUnconfirmed => ("UNKNOWN_RESULT_UNCONFIRMED", Unknown, RequiresReconciliation, ReconcileExternalEffect),
     UnknownTimeout => ("UNKNOWN_TIMEOUT", Unknown, RequiresReconciliation, ReconcileExternalEffect),
     UnknownReconciliationRequired => ("UNKNOWN_RECONCILIATION_REQUIRED", Unknown, RequiresReconciliation, ReconcileExternalEffect),
     UnknownUnclassified => ("UNKNOWN_UNCLASSIFIED", Unknown, RequiresReconciliation, Quarantine),
+    UnknownFenceExpired => ("UNKNOWN_FENCE_EXPIRED", Unknown, RequiresReconciliation, Quarantine),
 }
 
 impl std::fmt::Display for SecurityReasonCode {

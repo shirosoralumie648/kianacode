@@ -2469,6 +2469,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-07 server-owned trust/assignment/department/epoch reconciliation; no runtime test reviewer
 ```
 
+### SC-08 authority epoch and session fence evidence (2026-09-17)
+
+```text
+source_snapshot: 30a5d18 + SC-08 working-tree slice; kiana-domain/src/{fencing,ids,contracts,security_reasons,lib}.rs; kiana-domain/tests/sc08_fence.rs; kiana-core/src/{security_fence,authority,lib}.rs; kiana-core/tests/sc08_fence_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/sc08-fence.yml; docs/roadmap/security-fence-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-08 strict AuthorityFence with authority/session/policy/config revisions, monotonic parent digest/sequence and TTL, ControlPlane read/recheck helpers, stable stale/rollback/expiry reasons, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no durable permit store, automatic retry/revocation, second authority source or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/fencing.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/security_reasons.rs kiana-domain/src/lib.rs kiana-domain/tests/sc08_fence.rs kiana-core/src/security_fence.rs kiana-core/src/authority.rs kiana-core/src/lib.rs kiana-core/tests/sc08_fence_guard.rs kiana-protocol/src/lib.rs .github/workflows/sc08-fence.yml docs/roadmap/security-fence-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'AuthorityFence|issue_authority_fence|validate_authority_fence|authority_fence_snapshot|validate_current|validate_successor|PolicyAuthorityEpoch(Rollback|Stale)|AuthSessionGenerationStale|PolicyConfigRevisionStale|UnknownFenceExpired|FACT_FENCE_MISMATCH' kiana-domain/src kiana-domain/tests kiana-core/src kiana-core/tests kiana-protocol/src docs/roadmap/security-fence-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/sc08_fence.rs genesis/successor/digest-chain, epoch/session/policy/config drift, expiry and parent rollback fixtures; kiana-core/tests/sc08_fence_guard.rs source guard for EventLog authority reads and no effect path; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-08 job is queued by the push and is not awaited
+status_change: SC-08 source slice is implemented. AuthorityFence now binds scope/session generation, authority epoch, policy/config digests, sequence/parent and short TTL; ControlPlane exposes read-only issue/validate/snapshot helpers backed by the existing authority stream. Stale/rollback/expired/fence-mismatch inputs return stable reason codes and do not fall back to prior snapshots or dispatch paths.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; fence issuance is not a durable permit or revocation event, current session generation/policy/config are caller-supplied snapshot inputs until SC-09/10/12 bind them atomically, authority facts remain JSONL/compatibility scoped, late observations and handler effect-time fence/reconcile are not globally wired, and external/live/physical safety is unproven
+reviewer: Codex root implementation review plus SC-08 monotonic epoch/session/policy/config fence and no-resurrection reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

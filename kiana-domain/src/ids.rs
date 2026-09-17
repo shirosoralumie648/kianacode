@@ -123,6 +123,7 @@ uuid_id!(OperationId);
 uuid_id!(AuditId);
 uuid_id!(SecretRefId);
 uuid_id!(EvidenceRefId);
+uuid_id!(FenceTokenId);
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
