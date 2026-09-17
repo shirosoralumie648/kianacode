@@ -742,12 +742,36 @@ impl ControlPlane {
             result = kiana_domain::normalize_capability_result(request.request_id, result);
         }
         let mut finalized = FinalizedCapabilityAction::new(redact_capability_result(result));
-        let payload = match run_id {
+        let receipt = match kiana_domain::CapabilityResultReceipt::from_result(
+            &finalized.result,
+            None,
+            None,
+            1,
+            true,
+        ) {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                finalized = FinalizedCapabilityAction::unknown(
+                    request.request_id,
+                    &format!("capability_result_receipt_invalid:{error}"),
+                );
+                kiana_domain::CapabilityResultReceipt::from_result(
+                    &finalized.result,
+                    None,
+                    None,
+                    1,
+                    true,
+                )
+                .map_err(|error| action_error(&error))?
+            }
+        };
+        let mut payload = match run_id {
             Some(run_id) => {
                 capability_event_payload(&finalized.result.output, request, context, run_id)
             }
             None => direct_capability_event_payload(&finalized.result.output, request),
         };
+        payload["result_receipt"] = json!(receipt);
         let kind = match finalized.status {
             ExecutionStatus::Completed => "capability.completed",
             ExecutionStatus::Cancelled => "capability.cancelled",

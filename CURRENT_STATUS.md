@@ -2690,6 +2690,25 @@ limitations: full budget/lease/fence/cancel/result transaction remains split acr
 reviewer: Codex root implementation review plus CP-13 permit digest/action/read-set/dispatch-barrier reconciliation; no runtime test reviewer
 ```
 
+### CP-14 result receipt and reconciliation evidence (2026-09-17)
+
+```text
+source_snapshot: 8ea0684 + CP-14 working-tree slice; kiana-domain/src/{capabilities,contracts,lib}.rs; kiana-core/src/{capabilities,dispatch,events}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp14_result_receipt.rs; kiana-core/tests/cp14_result_guard.rs; .github/workflows/cp14-result-receipt.yml; docs/roadmap/control-plane-result-receipt-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-14 strict digest-only CapabilityResultReceipt now fixes request/execution/invocation/attempt, success, process/effect/stop, effect/unknown/zero-effect/fenced and committed dimensions; direct/Harness/approval finalizer and execution.result_committed include the receipt, while existing committed-only delivery and Unknown settlement paths remain the single spine; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp14_result_receipt.rs success/unknown/digest/flag contradiction fixtures; kiana-core/tests/cp14_result_guard.rs finalizer/result persistence/settlement/delivery source guard; GitHub Actions CP-14 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-14 is triggered by the eventual push and is not awaited
+status_change: CP-14 source slice is implemented. Normalized results cannot claim success with unknown effect or conflicting started/zero-effect dimensions; receipt persistence/Cell settlement failures remain ResultUnknown, and runner delivery is still gated by committed result facts and a delivery CAS.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: receipt digest is not provider/external effect confirmation, budget/lease reconciliation remains split until later transactions, cancellation/handler stop and cross-process recovery are incomplete, and Secret/egress/external/live/physical proof is absent
+reviewer: Codex root implementation review plus CP-14 result dimensions, redaction, unknown and delivery-order reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

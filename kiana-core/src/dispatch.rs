@@ -611,6 +611,32 @@ impl ControlPlane {
             &executed_request,
             1,
         )?;
+        let receipt = match kiana_domain::CapabilityResultReceipt::from_result(
+            &result,
+            Some(permit.execution_id),
+            Some(permit.invocation_id),
+            1,
+            true,
+        ) {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                result = kiana_domain::normalize_capability_result(
+                    permit.request_id,
+                    CapabilityResult::failure(
+                        permit.request_id,
+                        format!("result_unknown:capability_result_receipt_invalid:{error}"),
+                    ),
+                );
+                kiana_domain::CapabilityResultReceipt::from_result(
+                    &result,
+                    Some(permit.execution_id),
+                    Some(permit.invocation_id),
+                    1,
+                    true,
+                )
+                .map_err(|error| dispatch_error(&error))?
+            }
+        };
         let stream = self
             .events
             .read_stream("execution_permit", &execution_id.to_string())
@@ -627,6 +653,7 @@ impl ControlPlane {
             "effect_started":true,"effect_known":!unknown,"zero_effect":false,
             "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
             "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),"fenced":unknown,
+            "result_receipt":receipt,
             "invocation":invocation,
         })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),version+1);
         let batch = TransitionBatch {

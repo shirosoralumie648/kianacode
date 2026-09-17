@@ -1,0 +1,56 @@
+name: CP-14 result receipt and reconciliation boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp14_result_receipt.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/cp14_result_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/control-plane-result-receipt-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp14-result-receipt.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp14_result_receipt.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/cp14_result_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/control-plane-result-receipt-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp14-result-receipt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  result-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-14 result fixture
+        run: cargo test -p kiana-domain --test cp14_result_receipt --locked -- --test-threads=1
+      - name: Run CP-14 source guard
+        run: cargo test -p kiana-core --test cp14_result_guard --locked -- --test-threads=1
+      - name: Compile CP-14 targets
+        run: cargo check --workspace --tests --locked

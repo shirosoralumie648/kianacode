@@ -1,14 +1,17 @@
 use crate::{
-    allow_list_covers, normalize_role_path, ApprovalId, BudgetLeaseId, CapabilityEffectState,
-    CapabilityErrorCode, CapabilityExecutionState, CapabilityGrantId, CapabilityStopState, CellId,
-    DomainError, ExecutionScope, RequestContext, RequestId, RunId, SupervisionLeaseId,
-    CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
+    allow_list_covers, json_digest, normalize_role_path, ApprovalId, BudgetLeaseId,
+    CapabilityEffectState, CapabilityErrorCode, CapabilityExecutionState, CapabilityGrantId,
+    CapabilityStopState, CellId, DomainError, ExecutionId, ExecutionScope, InvocationId,
+    RequestContext, RequestId, RunId, SchemaVersion, SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA,
+    SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const CAPABILITY_RESULT_DIMENSIONS_SCHEMA: &str = "kiana.capability-result-dimensions.v1";
 pub const CAPABILITY_OUTCOME_SCHEMA: &str = "kiana.capability-outcome.v1";
+pub const CAPABILITY_RESULT_RECEIPT_SCHEMA: &str = "kiana.capability-result-receipt.v1";
+pub const CAPABILITY_RESULT_RECEIPT_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 /// Process evidence is intentionally separate from the capability effect.  A process can exit
 /// cleanly while an external effect remains unknown, and an unconfirmed stop is not a successful
@@ -72,6 +75,165 @@ impl CapabilityResultDimensions {
             CapabilityEffectState::Started => CapabilityExecutionState::Executing,
         }
     }
+}
+
+/// Digest-only result evidence shared by direct, Harness and approval-resume finalizers.
+///
+/// The business output stays in the event's redacted payload; this envelope fixes the lifecycle
+/// dimensions and prevents a success/unknown or started/zero-effect contradiction from being
+/// reconstructed differently by each projection.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapabilityResultReceipt {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub request_id: RequestId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_id: Option<ExecutionId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation_id: Option<InvocationId>,
+    pub attempt: u32,
+    pub success: bool,
+    pub dimensions: CapabilityResultDimensions,
+    pub result_digest: String,
+    pub effect_started: bool,
+    pub effect_known: bool,
+    pub zero_effect: bool,
+    pub fenced: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop_confirmed: Option<bool>,
+    pub committed: bool,
+    pub receipt_digest: String,
+}
+
+impl CapabilityResultReceipt {
+    pub fn from_result(
+        result: &CapabilityResult,
+        execution_id: Option<ExecutionId>,
+        invocation_id: Option<InvocationId>,
+        attempt: u32,
+        committed: bool,
+    ) -> Result<Self, String> {
+        let dimensions = result.dimensions();
+        dimensions.validate().map_err(|error| error.to_owned())?;
+        let output = result.output.as_object();
+        let not_executed = output
+            .and_then(|value| value.get("not_executed"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let unknown = dimensions.effect == CapabilityEffectState::Unknown;
+        let effect_started = output
+            .and_then(|value| value.get("effect_started"))
+            .and_then(Value::as_bool)
+            .unwrap_or(!not_executed);
+        let effect_known = output
+            .and_then(|value| value.get("effect_known"))
+            .and_then(Value::as_bool)
+            .unwrap_or(!unknown);
+        let zero_effect = output
+            .and_then(|value| value.get("zero_effect"))
+            .and_then(Value::as_bool)
+            .unwrap_or(not_executed);
+        let fenced = output
+            .and_then(|value| value.get("fenced"))
+            .and_then(Value::as_bool)
+            .unwrap_or(unknown);
+        let stop_confirmed = output
+            .and_then(|value| value.get("stop_confirmed"))
+            .and_then(Value::as_bool);
+        let result_digest = json_digest(
+            &serde_json::to_value(result).map_err(|_| "capability_result_receipt_encode_failed")?,
+        );
+        let mut receipt = Self {
+            schema: CAPABILITY_RESULT_RECEIPT_SCHEMA.to_owned(),
+            version: CAPABILITY_RESULT_RECEIPT_VERSION,
+            request_id: result.request_id,
+            execution_id,
+            invocation_id,
+            attempt,
+            success: result.success,
+            dimensions,
+            result_digest,
+            effect_started,
+            effect_known,
+            zero_effect,
+            fenced,
+            stop_confirmed,
+            committed,
+            receipt_digest: String::new(),
+        };
+        receipt.receipt_digest = receipt.digest();
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub fn from_json(value: &Value) -> Result<Self, String> {
+        let receipt: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "capability_result_receipt_decode_failed".to_owned())?;
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CAPABILITY_RESULT_RECEIPT_SCHEMA
+            || !self
+                .version
+                .is_compatible_with(&CAPABILITY_RESULT_RECEIPT_VERSION)
+            || self.request_id.as_uuid().is_nil()
+            || self.attempt == 0
+            || self.execution_id.is_some_and(|id| id.as_uuid().is_nil())
+            || self.invocation_id.is_some_and(|id| id.as_uuid().is_nil())
+            || self.zero_effect && self.effect_started
+            || !self.effect_known && !self.fenced
+            || self.success
+                && (!self.effect_known
+                    || self.dimensions.effect != CapabilityEffectState::Succeeded)
+        {
+            return Err("capability_result_receipt_inconsistent".to_owned());
+        }
+        self.dimensions
+            .validate()
+            .map_err(|error| error.to_owned())?;
+        validate_digest(
+            &self.result_digest,
+            "capability_result_receipt_result_digest",
+        )?;
+        validate_digest(&self.receipt_digest, "capability_result_receipt_digest")?;
+        if self.receipt_digest != self.digest() {
+            return Err("capability_result_receipt_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "request_id": self.request_id,
+            "execution_id": self.execution_id,
+            "invocation_id": self.invocation_id,
+            "attempt": self.attempt,
+            "success": self.success,
+            "dimensions": self.dimensions,
+            "result_digest": self.result_digest,
+            "effect_started": self.effect_started,
+            "effect_known": self.effect_known,
+            "zero_effect": self.zero_effect,
+            "fenced": self.fenced,
+            "stop_confirmed": self.stop_confirmed,
+            "committed": self.committed,
+        }))
+    }
+}
+
+fn validate_digest(value: &str, field: &str) -> Result<(), String> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(format!("{field}_invalid"));
+    };
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
