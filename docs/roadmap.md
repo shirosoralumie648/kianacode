@@ -115,7 +115,7 @@
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ✅ |
 | `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01a` | 十类业务对象定义与不变量 | ✅ |
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ✅ |
-| `P3-I-03` | P3 | I Company 生命周期 | `P3-I-02`、`P0-G-04` | 新进程可从事件与 Artifact 引用重建全链 | ⏳ |
+| `P3-I-03` | P3 | I Company 生命周期 | `P3-I-02`、`P0-G-04` | 新进程可从事件与 Artifact 引用重建全链 | ✅ |
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ⏳ |
 | `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ⏳ |
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ⏳ |
@@ -714,7 +714,7 @@
 | 540 | W7 | 专项 | [`CO-41`](roadmap/companyos.md#step-co-41) | CompanyOS · Web 与 Desktop 复用同一 Company 状态 | `CO-38`、`CO-39`、`CO-40` | ⏳ | [专项卡](roadmap/companyos.md#step-co-41) |
 | 541 | W7 | 基础 | [`P1-E-02`](#step-p1-e-02) | P1 基础 · Symposium 会议对象契约化 | `P1-E-01` | ✅ | [基础卡](#step-p1-e-02) |
 | 542 | W7 | 基础 | [`P2-J5-01`](#step-p2-j5-01) | P2 基础 · Workflow definition 与重放 | `P0-G-04` | ✅ | [基础卡](#step-p2-j5-01) |
-| 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ⏳ | [基础卡](#step-p3-i-03) |
+| 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ✅ | [基础卡](#step-p3-i-03) |
 | 544 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ⏳ | [基础卡](#step-p3-i-04) |
 | 545 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ⏳ | [基础卡](#step-p3-i-05) |
 | 546 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ⏳ | [基础卡](#step-p4-e-03) |
@@ -1160,6 +1160,7 @@
 | 当前 204 | `P2-M5-01` Web snapshot sync | Web `/api/state` snapshot-first hydration 与 EventSource `onopen`→run 顺序固定；`/api/events` 以 epoch/sequence/last-event-id 订阅，首次 attach、gap、lag、epoch 变化和连接错误转 `stream_gap`/`stream_error` 并要求刷新 snapshot，前端按 generation/cursor 拒绝旧或重复 delta，terminal/receipt 仍权威；新增 Web source guard、真实 loopback 重连 acceptance fixture、workflow 与 web-sync baseline | `feature_status=implemented`（daemon/entrypoints/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M5-01 已触发且未等待；跨进程 durable cursor/read-state、notification/multi-tab delivery、外部/live/physical transport 与 browser/OS proof 留 UI/NM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 205 | `P2-M7-01` accessible fallback | Web/TTY/desktop fallback 已覆盖 ARIA labels/live regions/status text、focus/keyboard（Enter/Ctrl-Enter/Esc/Ctrl-C）、窄屏纵向布局、prefers-contrast/forced-colors、prefers-reduced-motion、skip link、read-only/incomplete/result_unknown 文本和 Desktop Web reuse；新增 entrypoints source guard、workflow 与 accessibility baseline | `feature_status=implemented`（entrypoints/desktop source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M7-01 已触发且未等待；真实浏览器/屏幕阅读器/设备矩阵、OS packaging/notification、external auth 与 live/physical proof 留 UI/NM/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 206 | `P3-I-02` company command/event freeze | 冻结九个基础 Company command/event 对并版本化：propose_objective→ObjectiveProposed、approve_project→ProjectApproved、create_milestone→MilestoneCreated、approve_packet→PacketApproved、start_run→RunStartRequested→RunStarted observation、request_acceptance→AcceptanceRequested、decide_acceptance→AcceptanceDecided、close_project→ProjectClosed、record_outcome→OutcomeRecorded；strict CompanyCommandRequest/CompanyEvent、stream/revision/idempotency、CompanyReplayReducer migration/gap/duplicate/conflict 和 CompanyCommandPolicy 均沿 ControlPlane；新增 core source guard、workflow 与 company-commands baseline | `feature_status=implemented`（domain/protocol/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-02 已触发且未等待；全链重建、durable aggregate index、业务闭环和 power-loss/live/physical proof 留 P3-I-03+、CO/ER/PD/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 207 | `P3-I-03` company chain replay | ControlPlane::load_company 只读 company aggregate stream，经 CompanyReplayReducer 校验 schema/migration/aggregate/owner/revision/idempotency/event identity/state transition，company_snapshot/view 与 receipt 从同一 facts 重建 Objective→Project→Packet→Run→Acceptance→Delivery/ClosingReceipt；artifact/evidence refs 复核 hash/ownership/revocation，未批准/过期/冲突/Unknown fail-closed；新增 core chain source guard、workflow 与 company-chain baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-03 已触发且未等待；跨进程 durable aggregate index/snapshot、完整全链 runtime fixture、power-loss/upcast、外部/live/physical outcome proof 留 P3-I-04+、CO/ER/PD/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1415,6 +1416,7 @@
 | 2026-09-18 | `P2-M5-01` Web sync：`/api/state` snapshot-first hydration、EventSource onopen 后再 run；SSE 使用 epoch/sequence/last-event-id，首次 attach、gap/lag/epoch/连接错误转 machine-readable stream_gap/stream_error，前端 generation/cursor 拒绝重复 delta，terminal/receipt 保持权威；新增 Web source guard、loopback 重连 acceptance fixture、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-M7-01` accessibility：Web/TTY/desktop fallback 覆盖 ARIA/live/status/text、focus/keyboard、窄屏、high-contrast/forced-colors、reduced-motion、skip link 与 read-only/incomplete 状态；新增 entrypoints source guard、workflow 与 accessibility baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P3-I-02` company command/event freeze：固定九个基础 Company command/event 对与 schema v1；start_run 明确为 RunStartRequested reservation→RunStarted observation；CompanyCommandRequest/CompanyEvent strict DTO、stream/revision/idempotency、CompanyReplayReducer migration/gap/duplicate/conflict 和 policy authority 均纳入 CI source/replay 回归；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P3-I-03` company chain replay：ControlPlane::load_company 只读 aggregate stream，经 CompanyReplayReducer 校验 schema/migration/owner/revision/idempotency/event identity/state transition；snapshot/view 与 receipt 从同一 facts 重建 Objective→Project→Packet→Run→Acceptance→Delivery/ClosingReceipt，artifact/evidence refs 校验 hash/ownership/revocation，未批准/过期/冲突/Unknown fail-closed；新增 core chain source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2529,13 +2531,15 @@
 
 <a id="step-p3-i-03"></a>
 
-### P3-I-03 全链重建　⏳
+### P3-I-03 全链重建　✅
 
-- **现状**：Objective → Project → Packet → Run → Acceptance → Receipt 无法从事实重建。
-- **做什么**：新进程可以从事件和 Artifact 引用重建全链。
-- **风险**：未批准、过期审批、越权路径、重复命令和重复交付必须 fail-closed。
+当前 source slice 与 CI-only 证据见 [`p3-i03-company-chain-baseline.md`](roadmap/p3-i03-company-chain-baseline.md)。
+
+- **现状**：ControlPlane 已从 company aggregate EventLog 读取并以 CompanyReplayReducer 重建 CompanyState；snapshot/view、runtime receipt 与 artifact/evidence refs 使用同一事实链，跨进程 durable index/snapshot 仍留后续。
+- **做什么**：新进程按 schema/migration/owner/revision/idempotency/event identity/state transition 重放 Objective→Project→Packet→Run→Acceptance→Delivery/ClosingReceipt；未批准、过期审批/claim、artifact 漂移/撤销、重复命令/交付和 Unknown 均阻断。
+- **风险**：未批准、过期审批、越权路径、重复命令和重复交付必须 fail-closed；reservation/Runtime Completed 不得伪造 started/business Outcome。
 - **验收**：`new_process_rebuilds_the_company_chain`
-- **依赖 / 边界**：依赖 `P3-I-02`、`P0-G-04`；不引入第二事实源。
+- **依赖 / 边界**：依赖 `P3-I-02`、`P0-G-04`；不引入第二事实源或执行循环，Artifact/Receipt 仍是引用与投影。
 - **依据**：`company-os-implementation-outline.md` §Slice I
 
 

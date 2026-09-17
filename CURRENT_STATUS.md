@@ -3925,6 +3925,25 @@ limitations: Company aggregate/replay remains local EventLog projection; full Ob
 reviewer: Codex root implementation review plus nine-pair vocabulary, strict schema/unknown-field, aggregate/revision/idempotency, replay/migration/gap/duplicate and start-run reservation-vs-observation boundary review; no runtime test reviewer
 ```
 
+### P3-I-03 company chain replay evidence (2026-09-18)
+
+```text
+source_snapshot: 26ad2f63 + P3-I-03 evidence slice; kiana-domain/src/{company.rs,company_replay.rs}; kiana-core/src/{company.rs,receipts.rs,artifacts.rs}; kiana-core/tests/p3_i03_company_chain.rs; kiana-domain/tests/{co06_artifact,co07_receipt,co08_replay}.rs; kiana-core/tests/oa27_company_governance.rs; .github/workflows/p3-i03-company-chain.yml; docs/roadmap/p3-i03-company-chain-baseline.md; docs/roadmap.md
+worktree_status: ControlPlane::load_company reads only the protected company aggregate stream and rebuilds CompanyState via CompanyReplayReducer; company_snapshot/view and runtime receipts project Objective/Project/Milestone/Packet/Run/Acceptance/Review/Delivery/ClosingReceipt from committed facts. Artifact/evidence refs verify path/hash/immutability/ownership/revocation, duplicate/gap/schema/revision/idempotency/terminal/approval/claim conflicts fail closed, and replay never dispatches execution; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p3_i03_company_chain.rs chain/reducer/artifact/evidence source guard; existing co08 replay, co06 artifact, co07 receipt and OA-27 Company governance fixtures; GitHub Actions P3-I-03 workflow runs guard, replay/artifact/receipt/governance regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-03 is triggered by the eventual push and is not awaited
+status_change: P3-I-03 source slice is implemented/reconciled. A fresh ControlPlane can rebuild the Company lifecycle and receipts from EventLog plus governed artifact/evidence references without treating reservations, runtime completion or projections as business outcome.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: aggregate/replay is local EventLog projection with explicit v0 adapter; no independent cross-process aggregate index/snapshot checkpoint, full historical upcast, power-loss recovery, external provider/MCP/DB/notification effect proof or live/physical business outcome is claimed
+reviewer: Codex root implementation review plus aggregate stream/reducer/migration, object-chain/ref linkage, owner/revision/idempotency, artifact hash/revocation, terminal/Unknown and no-execution-on-replay boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
