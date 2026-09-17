@@ -1,0 +1,50 @@
+name: ER-16 terminal uniqueness and delivery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/er16_terminal_uniqueness.rs"
+      - "docs/roadmap/event-receipt-terminal-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er16-terminal.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/er16_terminal_uniqueness.rs"
+      - "docs/roadmap/event-receipt-terminal-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er16-terminal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terminal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-16 terminal projection fixtures
+        run: cargo test -p kiana-core --test er16_terminal_uniqueness --locked -- --test-threads=1
+      - name: Compile ER-16 targets
+        run: cargo check --workspace --tests --locked

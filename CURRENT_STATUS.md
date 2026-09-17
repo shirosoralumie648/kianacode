@@ -2937,6 +2937,25 @@ limitations: adapter envelopes are source/runtime-shape evidence only; no cross-
 reviewer: Codex root implementation review plus ER-15 common envelope, adapter commit/stop/effect mapping, Hook/MCP/Memory/Patch negative boundaries and no-authority boundary; no runtime test reviewer
 ```
 
+### ER-16 terminal uniqueness and delivery evidence (2026-09-17)
+
+```text
+source_snapshot: 89caa33 + ER-16 working-tree slice; kiana-core/src/{events,projection,receipts,lifecycle}.rs; kiana-daemon/src/lib.rs; kiana-core/tests/er16_terminal_uniqueness.rs; .github/workflows/er16-terminal.yml; docs/roadmap/event-receipt-terminal-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: record_terminal_event now rejects non-terminal kinds, makes same-kind replay idempotent, returns run_terminal_conflict for cross-kind terminal facts, keeps stable run.terminal command/idempotency CAS and maps exhausted contention to result_unknown:terminal_append_unconfirmed; result_unknown still appends resource quarantine when possible; DaemonHost shutdown orders EventStore flush, observability drain and EventStore close; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/er16_terminal_uniqueness.rs same-kind duplicate, cross-kind conflict, late-event suppression and terminal/shutdown source fixtures; GitHub Actions ER-16 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-16 is triggered by the eventual push and is not awaited
+status_change: ER-16 source slice is implemented. Terminal facts now have an explicit kind/conflict/idempotency/CAS boundary, uncertain terminal append remains Unknown, and shutdown has an ordered flush/close acknowledgement path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: in-memory and JSONL source checks do not prove power-loss/cross-host terminal durability, complete resource quarantine when EventStore itself fails, process-tree stop/reap, restart projection or external/live/physical outcome; those remain ER-17+ / PD/DEP/INT work
+reviewer: Codex root implementation review plus ER-16 terminal kind validation, stable CAS/idempotency, conflict/Unknown handling, quarantine and shutdown ordering; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

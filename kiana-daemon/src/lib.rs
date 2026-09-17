@@ -608,6 +608,16 @@ impl DaemonHost {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
+    /// Graceful shutdown boundary: flush committed facts before draining the best-effort
+    /// observability queue, then close the EventStore. A close/flush error is returned as
+    /// `result_unknown` by callers; dropping the host is never treated as a terminal ack.
+    pub async fn shutdown(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.flush_event_store().await?;
+        let _ = self.flush_observability().await;
+        self.shutdown_observability();
+        self.close_event_store().await
+    }
+
     /// Enqueue a redacted observation without blocking the ControlPlane or EventStore commit.
     pub fn try_enqueue_observability(
         &self,

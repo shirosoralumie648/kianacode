@@ -289,6 +289,12 @@ impl ControlPlane {
         kind: &str,
         data: Value,
     ) -> Result<bool, CoreError> {
+        if !matches!(
+            kind,
+            "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
+        ) {
+            return Err(PortError::Failed("terminal_kind_invalid".to_owned()).into());
+        }
         let scope = self
             .active_terminal_scopes
             .lock()
@@ -305,13 +311,16 @@ impl ControlPlane {
                 .iter()
                 .rposition(|event| event.kind == "run.prompt")
                 .unwrap_or(0);
-            if prior[turn..].iter().any(|event| {
+            if let Some(previous) = prior[turn..].iter().find(|event| {
                 matches!(
                     event.kind.as_str(),
                     "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
                 )
             }) {
-                return Ok(false);
+                if previous.kind == kind {
+                    return Ok(false);
+                }
+                return Err(PortError::Conflict("run_terminal_conflict".to_owned()).into());
             }
             let version = prior
                 .iter()
@@ -390,7 +399,7 @@ impl ControlPlane {
                 Err(error) => return Err(error.into()),
             }
         }
-        Err(PortError::Conflict("run_terminal_contention".to_owned()).into())
+        Err(PortError::Failed("result_unknown:terminal_append_unconfirmed".to_owned()).into())
     }
 
     pub(crate) fn begin_terminal_scope(&self, run_id: RunId) -> TerminalScopeGuard<'_> {
