@@ -3298,6 +3298,25 @@ limitations: transport remains local/in-process compatibility, durable decision 
 reviewer: Codex root implementation review plus P0-F-01 surface parity, server challenge ownership and no-auto-approval invariants; no runtime test reviewer
 ```
 
+### P0-F-02 approval decision and single-use evidence (2026-09-18)
+
+```text
+source_snapshot: 215ac03 + P0-F-02 evidence slice; kiana-core/src/approvals.rs; kiana-daemon/src/journal_approvals.rs; kiana-domain/src/approval_journal.rs; kiana-protocol/src/lib.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/p0_f02_approval_guard.rs; .github/workflows/p0-f02-approval.yml; docs/roadmap/p0-f02-approval-decision-baseline.md
+worktree_status: existing approval decision path is explicitly reconciled as P0-F-02; approved/denied/consumed facts bind original subject request/hash/nonce, actor/scope, expiry and expected version, while repeated, expired or conflicting decisions fail closed; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p0_f02_approval_guard.rs typed decision/consumption, proof/expiry/conflict and original-subject source guards; existing serialized core/daemon approval fixtures remain CI-only; GitHub Actions P0-F-02 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-F-02 is triggered by the eventual push and is not awaited
+status_change: P0-F-02 source slice is implemented/reconciled. Durable approval decision and single-use consumption contracts are explicit and separate from cancellation or the original execution request.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: durable cross-process journal/power-loss recovery, external approver authentication, pending continuation hydration and full receipt projection remain P0-F-03/SC/PD work
+reviewer: Codex root implementation review plus P0-F-02 decision/consumption facts, proof binding, expiry and conflict fencing; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

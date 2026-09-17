@@ -1,0 +1,46 @@
+name: P0-F-02 approval decision
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p0_f02_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-f02-approval-decision-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-f02-approval.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p0_f02_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-f02-approval-decision-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-f02-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval-decision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-F-02 source guards
+        run: cargo test -p kiana-core --test p0_f02_approval_guard --locked -- --test-threads=1
+      - name: Compile P0-F-02 targets
+        run: cargo check --workspace --tests --locked
