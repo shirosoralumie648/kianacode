@@ -271,7 +271,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-05 — JSONL v2 原子 frame、锁与损坏策略　⏳
+##### ER-05 — JSONL v2 原子 frame、锁与损坏策略　✅
 
 - **落点：** `kiana-eventlog/src/jsonl.rs`、`journal_core.rs`、`JOURNAL.md`；关联 `P0-G-04`、`CAP-24`。
 - **动作：** 完成 header/frame upgrade、flock、dirfd/no-follow、write/flush/sync/identity 检查、logical cursor、whole-transaction page；区分可修复 torn tail 与完整 malformed/checksum failure。

@@ -2728,6 +2728,25 @@ limitations: the existing bounded watch is not typed handler StopReport or physi
 reviewer: Codex root implementation review plus CP-15 cancellation state, command/CAS barrier, queue/approval terminalization and result-unknown reconciliation; no runtime test reviewer
 ```
 
+### ER-05 JSONL v2 frame, lock and corruption evidence (2026-09-17)
+
+```text
+source_snapshot: 38bba4a + ER-05 working-tree slice; kiana-domain/src/{journal,contracts,lib}.rs; kiana-eventlog/src/{jsonl,journal_core,event_store_core}.rs; kiana-eventlog/tests/er05_jsonl_v2.rs; kiana-eventlog/JOURNAL.md; .github/workflows/er05-jsonl.yml; docs/roadmap/event-receipt-jsonl-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: JournalHeader now exposes strict schema/writer validation and JournalFrame rejects over-sized or malformed body length/digest before logical event exposure; JsonlEventLog keeps required v2 header upgrade, complete transition frames, whole-commit cursor pages, Unix flock/dirfd/O_NOFOLLOW/identity/sync barriers, legacy-after-v2 refusal, and bounded torn-tail repair versus malformed/checksum failure; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-eventlog/tests/er05_jsonl_v2.rs atomic multi-event page/reopen, malformed first line, checksum tamper, torn-tail repair, legacy-after-v2 refusal and source lock/sync guard; GitHub Actions ER-05 workflow runs integration fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-05 is triggered by the eventual push and is not awaited
+status_change: ER-05 source slice is implemented. Required v2 writer headers and checksummed bounded frames are the only post-upgrade writer format; readers publish only complete validated frames, cursors stop at transaction boundaries, known torn tails repair narrowly, and malformed/unknown/checksum/identity/sync failures remain fail-closed or Unknown.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; power-loss, NFS/cross-host locking, async worker/backpressure/shutdown ack, projector/checkpoint, backup/retention, and external/live/physical effect proof remain ER-06+ / PD/DEP/SC work
+reviewer: Codex root implementation review plus ER-05 frame integrity, writer upgrade, lock/no-follow, sync/identity and corruption classification; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

@@ -638,10 +638,8 @@ fn load_delta(
         if schema == Some(JOURNAL_HEADER_SCHEMA) {
             let header: JournalHeader =
                 serde_json::from_value(value).map_err(|_| failed("eventlog_header_invalid"))?;
-            if header.writer_version != JOURNAL_WRITER_VERSION
-                || !header.required
-                || cache.writer_version == JOURNAL_WRITER_VERSION
-            {
+            header.validate().map_err(failed)?;
+            if cache.writer_version == JOURNAL_WRITER_VERSION {
                 return Err(failed("eventlog_writer_version_unsupported"));
             }
             cache.writer_version = JOURNAL_WRITER_VERSION;

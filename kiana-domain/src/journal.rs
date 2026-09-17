@@ -249,6 +249,17 @@ impl Default for JournalHeader {
         }
     }
 }
+impl JournalHeader {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != JOURNAL_HEADER_SCHEMA || !self.required {
+            return Err("journal_header_invalid".to_owned());
+        }
+        if self.writer_version != JOURNAL_WRITER_VERSION {
+            return Err("journal_writer_version_unsupported".to_owned());
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JournalFramePayload {
@@ -293,7 +304,11 @@ impl JournalFrame {
             return Err("journal_writer_version_unsupported".into());
         }
         let encoded = canonical_journal_bytes(&self.body)?;
-        if encoded.len() as u64 != self.body_len || journal_sha256(&encoded) != self.body_sha256 {
+        if self.body_len > MAX_JOURNAL_FRAME_BYTES as u64
+            || !valid_journal_digest(&self.body_sha256)
+            || encoded.len() as u64 != self.body_len
+            || journal_sha256(&encoded) != self.body_sha256
+        {
             return Err("journal_frame_integrity_failed".into());
         }
         match &self.body {
@@ -324,6 +339,9 @@ impl JournalFrame {
             JournalFramePayload::Event { event } => vec![event.clone()],
         }
     }
+}
+fn valid_journal_digest(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 pub fn journal_sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
