@@ -3488,6 +3488,25 @@ limitations: complete ContextPlan selection/omission, provider tokenizer budget,
 reviewer: Codex root implementation review plus P1-J2-01 section typing, deterministic render, authority separation and provenance invariants; no runtime test reviewer
 ```
 
+### P1-J2-02 context budget evidence (2026-09-18)
+
+```text
+source_snapshot: 9d3620d + P1-J2-02 evidence slice; kiana-domain/src/{prompts,model}.rs; kiana-ports/src/model.rs; kiana-runner/src/harness.rs; kiana-domain/tests/p1_j2_02_budget.rs; kiana-core/tests/p1_j2_02_budget_guard.rs; .github/workflows/p1-j2-02-budget.yml; docs/roadmap/p1-j2-02-budget-baseline.md
+worktree_status: TokenBudget now has explicit message/system/tool-schema/reserved-output components and conservative framing reserve; ModelRequestContext and PreparedModelCall share the same budget, and zero/overflow limits fail closed before provider invocation; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p1_j2_02_budget.rs component accounting/overflow fixtures; kiana-core/tests/p1_j2_02_budget_guard.rs prepared-call/system-tool source guard; GitHub Actions P1-J2-02 workflow runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J2-02 is triggered by the eventual push and is not awaited
+status_change: P1-J2-02 source slice is implemented/reconciled. Tool schemas and system prompt are no longer omitted from the prepared request budget, and exhaustion is a structured pre-send refusal.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: accounting remains a conservative local UTF-8/framing estimate, not provider-specific tokenizer or billing proof; role prompt provider wire, cache/compaction, immutable step snapshot and usage reconciliation remain P1-J2-03/04/H20/H21/P4/CP work
+reviewer: Codex root implementation review plus P1-J2-02 budget component coverage, shared prepared-call validation and fail-closed overflow invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
