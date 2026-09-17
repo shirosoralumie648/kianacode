@@ -1,0 +1,52 @@
+name: P4-L3-01 version governance and drift
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/versioning.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/tests/p4_l3_01_versioning.rs"
+      - "kiana-core/src/versioning.rs"
+      - "kiana-core/tests/p4_l3_01_versioning.rs"
+      - "kiana-services/src/api/provider.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-l3-01-versioning-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-l3-01-versioning.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/versioning.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/tests/p4_l3_01_versioning.rs"
+      - "kiana-core/src/versioning.rs"
+      - "kiana-core/tests/p4_l3_01_versioning.rs"
+      - "kiana-services/src/api/provider.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-l3-01-versioning-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-l3-01-versioning.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run versioning contract fixture
+        run: cargo test -p kiana-domain --test p4_l3_01_versioning --locked -- --test-threads=1
+      - name: Run ControlPlane drift source guard
+        run: cargo test -p kiana-core --test p4_l3_01_versioning --locked -- --test-threads=1
+      - name: Compile P4-L3-01 targets
+        run: cargo check --workspace --tests --locked

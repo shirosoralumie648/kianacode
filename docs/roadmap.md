@@ -126,7 +126,7 @@
 | `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ✅ |
 | `P4-K2-01` | P4 | K2 Trigger | `P0-B-01` | Trigger 只能创建 Workflow/Run，不能直接执行 Capability | ✅ |
 | `P4-K8-01` | P4 | K8 Connector | `P0-A-01a` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ✅ |
-| `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ⏳ |
+| `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ✅ |
 | `P4-L5-01` | P4 | L5 Extension | `P1-H-01` | skill `allowed-tools` 不进 policy；read-only 扩展写操作在 broker 拒绝 | ⏳ |
 | `P4-L6-01` | P4 | L6 Supply chain | `P4-L5-01` | content hash/license/signature/capability diff/rollback 可审计 | ⏳ |
 | `P4-M6-01` | P4 | M6 Desktop shell | `P2-M2-01` | workspace onboarding/health/tray/background/safe close | ⏳ |
@@ -831,7 +831,7 @@
 | 655 | W9 | 基础 | [`P1-L1-01`](#step-p1-l1-01) | P1 基础 · EvalSuite 与 GoldenTrace | `P0-G-04` | ✅ | [基础卡](#step-p1-l1-01) |
 | 656 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ✅ | [基础卡](#step-p2-l2-01) |
 | 657 | W9 | 基础 | [`P3-I-06`](#step-p3-i-06) | P3 基础 · fake-model coding 黄金闭环 | `P3-I-05` | ✅ | [基础卡](#step-p3-i-06) |
-| 658 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ⏳ | [基础卡](#step-p4-l3-01) |
+| 658 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ✅ | [基础卡](#step-p4-l3-01) |
 | 659 | W9 | 专项 | [`CI-12`](#step-ci-12) | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | `CI-01`、`CI-11`、`CI-02`、`CI-03`、`CI-04`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09`、`CI-10` | ⏳ | [专项卡](#step-ci-12) |
 | 660 | W9 | 专项 | [`OA-23`](#step-oa-23) | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | `P1-L1-01`、`OA-08`、`OA-09`、`OA-21` | ✅ | [专项卡](#step-oa-23) |
 | 661 | W9 | 专项 | [`OA-24`](#step-oa-24) | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | `P2-M2-01`、`P2-M3-01`、`P2-M4-01`、`P2-M5-01`、`P2-M5-02`、`OA-16`、`OA-23`、`OA-17`、`OA-18`、`OA-19`、`OA-20`、`OA-21`、`OA-22` | ✅ | [专项卡](#step-oa-24) |
@@ -1170,7 +1170,7 @@
 | 当前 214 | `P4-J7-02` stream sequence/epoch | `RunStreamEnvelope` additive 携带 epoch/sequence/ui_cursor，`RunStreamBus` 每 run 单调递增并保留 terminal replay；协议 cursor 拒绝 gap/epoch 变化、重复安全，Web SSE 使用 Last-Event-ID 并在 gap/lag 回 snapshot，`PROTOCOL_SCHEMA` 保持不变；新增 daemon bus/protocol fixture、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-02 已触发但未等待；游标/广播仍是进程内 best-effort 展示投影，重启恢复、跨设备同步、provider/live stream 和 physical proof 留 P4-J7-03+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 215 | `P4-J7-03` terminal replay/event projection | 已提交 run 事件统一投影 Usage/ToolCall/ApprovalRequested/Error，未知 wire 事件安全降为 Unknown；每 run 保留 bounded terminal，`subscribe_after` 对 gap/epoch/cursor 超前发 gap 但重放未见 terminal，追平后不重复、不触发执行；新增 daemon replay fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-J7-03 已触发但未等待；广播/terminal retention 仍为进程内 best-effort，不声称跨进程 durable、网络 exactly-once、provider/live stream 或 physical proof，后续留 P4-J7-04+/ER/PD/UI/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 216 | `P4-K2-01` trigger authority | `TriggerDefinition` 绑定 owner/role/definition version/inputs/approval/expiry/max firings/concurrency；Fire/Tick 只创建 WorkflowInstance，Advance 才返回 effect，ControlPlane 先 commit workflow fact 再复用 Company/Capability 路径；重复 occurrence、owner/role/approval/expiry/预算和 direct capability bypass 均拒绝；新增 workflow fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/workflow/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-K2-01 已触发但未等待；scheduler/trigger aggregate 与 effect 仍是本地 inline/EventLog 投影，未声称 durable worker/timer、公平调度、power-loss、外部/live/physical effect，旧 watcher 仅兼容留 AUT/ER/PD/INT/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
-| 当前 217 | `P4-K8-01` connector boundary | `ConnectorDefinition`/AccountBinding/BindingSnapshot 固定 local_fixture transport、读写 scope/risk、rate/idempotency/reconciliation；connector.manage/invoke 经 core normalize + `authorize_and_execute` + Broker，daemon 按 fixture/hash 返回 ProviderReceipt/EffectObservation 并写 connector EventLog；owner/trust/binding drift、scope/approval/payload/rate/idempotency/Unknown/reconcile 均 fail-closed；新增 domain fixture、core guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-K8-01 已触发但未等待；仅受控 local fixture，不声称外部 HTTP/account/OAuth/webhook/A2A、跨进程 durable registry、通知、live/physical effect，后续留 INT/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 218 | `P4-L3-01` version governance/drift | `RouteDecision` 从 committed `run.model_turn` 审计元数据绑定 provider/model、ModelProfile、PromptBundle prompt hash、route/configuration/budget/runtime 版本；domain `DriftReport` 以 canonical digest + `BTreeMap` 分桶并去重 event IDs，ControlPlane 只读投影固定 observed-turn/unknown-cost 且禁止自动模型切换；新增 domain fixture、core source guard、workflow 与 versioning baseline；不运行本地测试 | `feature_status=implemented`（domain/core/provider/prompt source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-L3-01 已触发但未等待；当前仍是 EventLog 查询 projection，无 durable EvalStore、online alert、Promote/Rollback、provider quality/billing 或 live/physical proof，后续留 EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1437,6 +1437,7 @@
 | 2026-09-18 | `P4-J7-03` 事件投影与 terminal replay：RunStreamBus 已把 committed usage/tool/approval/error 事件映射为展示 envelope，未知类型安全忽略；新增迟到订阅者读取 terminal 的专门 fixture、core source guard 与 CI workflow，gap/epoch/lag 仍要求 snapshot hydration；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-K2-01` 触发器与调度：确认 Trigger Fire/Tick 只由纯 workflow planner 创建实例，Advance 才返回 dispatch effect；owner/role/approval/expiry/max-firings/concurrency/CAS/idempotency 与 no-direct-capability 边界纳入 workflow fixture、core source guard、CI workflow 和 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-K8-01` Connector：补 ConnectorDefinition/AccountBinding scope/risk/revocation/transport fixture，确认 connector.manage/invoke 经 ControlPlane `authorize_and_execute`、Broker 和 local_fixture ProviderReceipt/EffectObservation，幂等/Unknown/reconcile/approval/网络边界纳入 core guard、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-L3-01` 版本治理与 drift：新增严格 domain `RouteDecision`/`DriftBucket`/`DriftReport`，将 ModelProfile、PromptBundle prompt hash、route/configuration/budget/runtime 版本绑定进 canonical bucket key；ControlPlane 只读投影 committed model turns，固定 observed_turns/unknown cost/禁止自动切换；新增 domain fixture、core source guard、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2748,9 +2749,9 @@
 
 <a id="step-p4-l3-01"></a>
 
-### P4-L3-01 版本治理与 drift　⏳
+### P4-L3-01 版本治理与 drift　✅
 
-- **现状**：`ModelProfile`/`PromptBundle`/`RouteDecision`/`DriftReport` 为 `target`。
+- **现状**：`RouteDecision`/`DriftBucket`/`DriftReport` 已由 domain 严格定义；ControlPlane 从 committed `run.model_turn` 绑定 ModelProfile、PromptBundle prompt hash、route/configuration/budget/runtime 版本并按 canonical digest 分桶，补齐 domain fixture、core guard、workflow 与 baseline。
 - **做什么**：模型、Prompt、Route 与 drift 报告按版本分桶。
 - **风险**：不分桶就无法判断指标变化来自哪次变更。
 - **验收**：`drift_report_is_bucketed_by_version`

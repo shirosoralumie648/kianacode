@@ -6984,3 +6984,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: only local_fixture/local_only transport exists; no external HTTP/account/OAuth/webhook/A2A, production SecretStore, cross-process durable registry/worker, notification delivery or live/physical effect proof is claimed; ProviderReceipt is an adapter observation, not external confirmation
 reviewer: Codex root implementation review plus definition/binding identity, scope/risk derivation, trust/approval, prepared permit, fixture hash, rate/idempotency, receipt/effect observation, Unknown/reconcile and no-direct-network/no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-L3-01 version governance/drift evidence (2026-09-18)
+
+```text
+source_snapshot: e3e53651 + P4-L3-01 working-tree slice; kiana-domain/src/versioning.rs; kiana-domain/src/{model.rs,prompts.rs}; kiana-services/src/api/provider.rs; kiana-core/src/versioning.rs; kiana-domain/tests/p4_l3_01_versioning.rs; kiana-core/tests/p4_l3_01_versioning.rs; .github/workflows/p4-l3-01-versioning.yml; docs/roadmap/p4-l3-01-versioning-baseline.md; docs/roadmap.md
+worktree_status: domain-owned RouteDecision/DriftBucket/DriftReport are strict and canonical; RouteDecision binds provider/model/profile, PromptBundle prompt hash, route digest/configuration revision, budget schema and runtime version; ControlPlane projects only owned committed run.model_turn facts into deterministic BTreeMap buckets, deduplicates event IDs and validates observed-turn/unknown-cost semantics with automatic_model_switch=false; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-domain --test p4_l3_01_versioning -p kiana-core --test p4_l3_01_versioning --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_l3_01_versioning.rs changes model profile to prove distinct canonical buckets, records shared-version/error counters, round-trips strict report and rejects unknown fields/automatic switch; kiana-core/tests/p4_l3_01_versioning.rs guards ModelProfile/PromptBundle/RouteDecision/DriftReport dimensions, EventLog-only projection and no provider/broker/model-switch boundary; GitHub Actions P4-L3-01 workflow runs domain/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-L3-01 is triggered by the eventual push and is not awaited
+status_change: P4-L3-01 source slice is implemented. Version governance now preserves route/prompt/profile/budget/runtime attribution in typed drift buckets without selecting or switching model versions.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: provider ModelProfile catalog remains service-owned and the report is an EventLog query projection; no durable EvalStore, online drift alert, quality causality, billing reconciliation, Promote/Rollback, automatic model switching or live/physical proof is claimed; follow-up EQ/ER/PD/DEP/SC remains
+reviewer: Codex root implementation review plus strict serde/domain validation, canonical digest/key consistency, profile/prompt/route/budget/runtime coverage, owner-scoped committed-event projection, deduplicated counters and no-authority/no-provider boundary review; no runtime test reviewer
+```

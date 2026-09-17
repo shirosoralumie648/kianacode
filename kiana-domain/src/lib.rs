@@ -85,6 +85,7 @@ mod tests;
 mod tool_scheduling;
 mod trust_snapshots;
 mod usage;
+mod versioning;
 mod work_packets;
 
 pub use adapter_result::*;
@@ -161,6 +162,7 @@ pub use symposiums::*;
 pub use tool_scheduling::*;
 pub use trust_snapshots::*;
 pub use usage::*;
+pub use versioning::*;
 pub use work_packets::*;
 
 pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";

@@ -28,7 +28,7 @@ impl ControlPlane {
             .filter_map(|event| event.data["run_id"].as_str())
             .collect::<HashSet<_>>();
         if name == "version.drift" {
-            let mut buckets: BTreeMap<String, Value> = BTreeMap::new();
+            let mut report = kiana_domain::DriftReport::default();
             for event in all.iter().filter(|event| {
                 event.kind == "run.model_turn"
                     && event.data["run_id"]
@@ -36,27 +36,27 @@ impl ControlPlane {
                         .is_some_and(|id| owned.contains(id))
             }) {
                 let metadata = &event.data;
-                let version = json!({"provider":metadata["provider_id"],"model":metadata["model_id"],"prompt_hash":metadata["prompt_hash"],
-                    "budget_schema":metadata["budget"]["schema"],"runtime_version":env!("CARGO_PKG_VERSION")});
-                let key = kiana_domain::json_digest(&version);
-                let bucket=buckets.entry(key).or_insert_with(||json!({"version":version,"turns":0u64,"errors":0u64,"elapsed_ms":0u64,"event_ids":[]}));
-                bucket["turns"] = json!(bucket["turns"].as_u64().unwrap_or(0) + 1);
-                bucket["elapsed_ms"] = json!(bucket["elapsed_ms"]
-                    .as_u64()
-                    .unwrap_or(0)
-                    .saturating_add(metadata["elapsed_ms"].as_u64().unwrap_or(0)));
-                if metadata.get("error").is_some_and(|error| !error.is_null()) {
-                    bucket["errors"] = json!(bucket["errors"].as_u64().unwrap_or(0) + 1);
-                }
-                bucket["event_ids"]
-                    .as_array_mut()
-                    .expect("array")
-                    .push(json!(event.event_id));
+                let version = kiana_domain::RouteDecision::from_model_turn(
+                    metadata,
+                    env!("CARGO_PKG_VERSION"),
+                );
+                let error = metadata.get("error").is_some_and(|value| !value.is_null());
+                report
+                    .record(
+                        version,
+                        event.event_id,
+                        metadata["elapsed_ms"].as_u64().unwrap_or(0),
+                        error,
+                    )
+                    .map_err(|reason| PortError::Failed(reason.to_owned()))?;
             }
+            report
+                .validate()
+                .map_err(|reason| PortError::Failed(reason.to_owned()))?;
             return Ok(CoreResponse::completed(
                 context.request_id,
-                json!({"schema":"kiana.drift-report.v1","buckets":buckets,
-                "automatic_model_switch":false,"measurement":"observed_turns","cost":"unknown"}),
+                serde_json::to_value(report)
+                    .map_err(|_| PortError::Failed("drift_report_encode_failed".to_owned()))?,
             ));
         }
         if name == "trace.replay" {
