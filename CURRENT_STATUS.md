@@ -6848,3 +6848,20 @@ proof-level change: local_behavior plus durable-reopen evidence for non-consumin
 limitations: PendingInvocation and Runner state are still process-local; preflight validation and later consume are separate operations and do not establish an atomic cross-process recovery transaction; no durable continuation projector, kill-9 reconciliation, or full Session/Run/Invocation rebuild is claimed
 reviewer: focused approval replay/restart review with serialized core/daemon verification; no assertions weakened, frozen paths changed, dependency manifests changed, or second execution path added
 ```
+### P3-I-06 fake-model Company golden loop evidence (2026-09-18)
+
+```text
+source_snapshot: 79639b57 + P3-I-06 working-tree slice; kiana-domain/src/{company.rs,company_replay.rs,company_closeout.rs}; kiana-core/src/{company.rs,company_business.rs,collaboration.rs}; kiana-daemon/src/{lib.rs,model_client.rs}; kiana-daemon/tests/p3_i06_company_golden.rs; kiana-core/tests/p3_i06_company_golden.rs; .github/workflows/p3-i06-company-golden.yml; docs/roadmap/p3-i06-company-golden-baseline.md; docs/roadmap.md
+worktree_status: real protocol-entry fixture now drives a trusted ScriptedModel through Sponsor Objective/Project, PM Milestone/Packet, Builder spawn_from_packet, independent Reviewer/Acceptance, local Delivery and Closer CloseProject; the fixture asserts OUTPUT.txt, EventLog evidence, revision/CAS/idempotency and a complete CompanyClosingReceipt; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-daemon --test p3_i06_company_golden -p kiana-core --test p3_i06_company_golden --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/p3_i06_company_golden.rs uses ScriptedModel apply_patch output and real DaemonHost::handle CompanyCommand envelopes; kiana-core/tests/p3_i06_company_golden.rs checks runtime/business evidence separation, replay, rework/pause/cancel/failure/Unknown boundaries and no second model/capability loop; GitHub Actions P3-I-06 workflow runs the fixture, source guard, closeout/governance regressions and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-06 is triggered by the eventual push and is not awaited
+status_change: P3-I-06 source slice is implemented. The fake-model Company path now exercises Objective→Project→Planner→Builder→Reviewer→Acceptance→Delivery→Closer through one DaemonHost/ControlPlane spine and emits a queryable CompanyClosingReceipt with linked file/evidence facts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: ScriptedModel is a deterministic offline fixture, not a live provider; Company aggregate/EventLog/Artifact storage remain the current local composition; rejection/Unknown/cancel/failure paths are source-guarded but not executed locally; external recipient confirmation, semantic KPI outcome, cross-process power-loss recovery, four-entry Company UX and live/physical business proof remain CO-35..48/EQ/ER/PD/DEP/SC work
+reviewer: Codex root implementation review plus Objective/Project/PM packet/Builder spawn/Reviewer criteria/Acceptance/Delivery/Closer receipt linkage, evidence ownership, CAS/idempotency, Unknown/replay and no-second-loop boundary review; no runtime test reviewer
+```
