@@ -2238,6 +2238,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-08 fixture manifest/path/schema/size determinism and no-second-runner source-boundary review; no runtime test reviewer
 ```
 
+### PD-01 storage root/identity evidence (2026-09-17)
+
+```text
+source_snapshot: 6e1bc2f + PD-01 working-tree slice; kiana-domain/src/{storage,ids,contracts,lib}.rs; kiana-daemon/src/{storage,lib}.rs; kiana-domain/tests/pd01_storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/pd01-storage-root.yml; docs/roadmap/persistence-storage-root-baseline.md; docs/roadmap.md
+worktree_status: PD-01 StorageRoot/OwnerScope/StoreIdentity/StorageLockRecord contracts, stable namespace/root digest, daemon KIANA_HOME/HOME resolver and create-new storage lease are scoped to this step; DaemonHost exposes the same lifecycle entry and no ControlPlane/Broker execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/storage.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-daemon/src/storage.rs kiana-daemon/src/lib.rs kiana-domain/tests/pd01_storage.rs kiana-daemon/tests/pd01_storage.rs kiana-core/tests/pd01_storage_guard.rs kiana-protocol/src/lib.rs .github/workflows/pd01-storage-root.yml docs/roadmap/persistence-storage-root-baseline.md docs/roadmap.md
+  rg -n 'Storage(Root|OwnerScope|Namespace|Backend|LockRecord)|StoreIdentity|STORAGE_(ROOT|OWNER_SCOPE|LOCK)_SCHEMA|storage_root_inside_project|storage_network_filesystem_unsupported|storage_lock_(conflict|owner_mismatch)|detect_backend|create_new\(true\)|store-identity.json' kiana-domain/src kiana-daemon/src kiana-protocol/src kiana-domain/tests/pd01_storage.rs kiana-daemon/tests/pd01_storage.rs kiana-core/tests/pd01_storage_guard.rs docs/roadmap/persistence-storage-root-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; PD-01 domain/daemon/core storage targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/pd01_storage.rs stable namespace/identity/network/owner/strict fixtures; kiana-daemon/tests/pd01_storage.rs resolver/identity/lock/project-local fixtures; kiana-core/tests/pd01_storage_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-01 job is queued by the next push and is not awaited
+status_change: PD-01 source slice is implemented. Storage roots now have domain-owned stable identity, owner/instance/authority scope, fixed namespaces and digest; daemon resolves user-level root and persists strict StoreIdentity/0600 create-new StorageLease, rejecting relative/project-local/network/identity/lock conflicts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy adapters still read KIANA_HOME independently, create-new lock is not crash-stale/fd-fenced across machines, network/TOCTOU/fsync-dir detection is bounded, and projection/artifact/backup/migration/retention adapters/recovery remain PD-02+ / ER / DEP / SC.
+reviewer: Codex root implementation review plus PD-01 storage root/owner/identity/namespace/lock and no-second-execution source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

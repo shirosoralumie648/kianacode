@@ -22,6 +22,7 @@ mod memory_retrieval;
 mod model_client;
 mod pre_tool_hooks;
 mod run_stream;
+mod storage;
 mod workspace_checkpoints;
 
 pub use instance::{
@@ -54,6 +55,7 @@ pub use run_stream::RunStreamSubscription;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+pub use storage::{resolve_storage_root, StorageLease};
 
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
@@ -357,6 +359,34 @@ impl DaemonHost {
         endpoint: &str,
     ) -> Result<InstanceLease, PortError> {
         instance::InstanceLease::acquire(workspace, transport, endpoint)
+    }
+
+    /// Resolve the one user-level storage root for every daemon-backed surface. The root is
+    /// derived outside the project tree and bound to the authenticated daemon owner/instance;
+    /// this helper only resolves metadata and does not authorize a command.
+    pub fn storage_root(
+        &self,
+        project_root: impl AsRef<Path>,
+        instance_id: impl Into<String>,
+        authority_epoch: u64,
+    ) -> Result<kiana_domain::StorageRoot, PortError> {
+        resolve_storage_root(
+            project_root.as_ref(),
+            self.principal.actor_id.clone(),
+            instance_id,
+            authority_epoch,
+        )
+    }
+
+    /// Open the daemon's single-writer storage lease after root/owner/instance validation.
+    pub fn acquire_storage(
+        &self,
+        project_root: impl AsRef<Path>,
+        instance_id: impl Into<String>,
+        authority_epoch: u64,
+    ) -> Result<StorageLease, PortError> {
+        let root = self.storage_root(project_root, instance_id, authority_epoch)?;
+        StorageLease::acquire(root)
     }
 
     /// Subscribe to additive run-stream events for one run.

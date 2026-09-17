@@ -1,0 +1,58 @@
+name: PD-01 storage root and identity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/storage.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-daemon/src/storage.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-domain/tests/pd01_storage.rs"
+      - "kiana-daemon/tests/pd01_storage.rs"
+      - "kiana-core/tests/pd01_storage_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/persistence-storage-root-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd01-storage-root.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/storage.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-daemon/src/storage.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-domain/tests/pd01_storage.rs"
+      - "kiana-daemon/tests/pd01_storage.rs"
+      - "kiana-core/tests/pd01_storage_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/persistence-storage-root-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd01-storage-root.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-root:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-01 domain storage fixtures
+        run: cargo test -p kiana-domain --test pd01_storage --locked -- --test-threads=1
+      - name: Run PD-01 daemon storage fixtures
+        run: cargo test -p kiana-daemon --test pd01_storage --locked -- --test-threads=1
+      - name: Run PD-01 source guard
+        run: cargo test -p kiana-core --test pd01_storage_guard --locked -- --test-threads=1
+      - name: Compile storage root path
+        run: cargo check -p kiana-domain -p kiana-daemon -p kiana-protocol -p kiana-core --tests --locked
