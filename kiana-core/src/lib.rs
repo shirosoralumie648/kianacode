@@ -43,6 +43,7 @@ mod receipts;
 mod recovery;
 mod redaction;
 mod replay_diagnostics;
+mod resource_leases;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -107,17 +108,16 @@ pub use trace_export::{
 
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
-    builder_lock_paths, path_locks_conflict, ApprovalDecision, ApprovalId,
-    AuthorizedCapabilityRequest, BudgetLease, CapabilityGrant, CapabilityGrantId, CapabilityKind,
-    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, ClosingReceipt,
-    CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision, MergeReceipt,
-    PendingInvocation, PermissionProfile, PolicyDecision, RequestContext, RequestId, ReviewPacket,
-    RiskLevel, RoleSpec, RunId, RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus,
-    SupervisionLease, SupervisionLeaseId, Symposium, SymposiumClaim, WorkFingerprint, WorkPacket,
-    CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING,
-    MEMORY_SEARCH_SCHEMA, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_CLOSER,
-    ROLE_REVIEWER, SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA, SYMPOSIUM_RESULT_SCHEMA,
-    WORK_PACKET_PATH,
+    path_locks_conflict, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, BudgetLease,
+    CapabilityGrant, CapabilityGrantId, CapabilityKind, CapabilityRequest, CapabilityResult,
+    CellId, CellLifecycle, CellSpec, ClosingReceipt, CommandIntent, CoreResponse, DecisionRecord,
+    ExecutionStatus, GateDecision, MergeReceipt, PendingInvocation, PermissionProfile,
+    PolicyDecision, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
+    RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus, SupervisionLease, SupervisionLeaseId,
+    Symposium, SymposiumClaim, WorkFingerprint, WorkPacket, CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA,
+    DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA, REVIEW_PACKET_PATH,
+    REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_CLOSER, ROLE_REVIEWER, SPAWN_PLAN_SCHEMA,
+    SUPERVISION_LEASE_SCHEMA, SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::{capability_risk_violation, PolicyEngine};

@@ -2652,6 +2652,25 @@ limitations: Project/Run/Turn/parent-child budgets are not yet one durable cross
 reviewer: Codex root implementation review plus CP-11 model/tool reservation, hierarchy, overflow and unknown-usage reconciliation; no runtime test reviewer
 ```
 
+### CP-12 resource lease and fencing evidence (2026-09-17)
+
+```text
+source_snapshot: 99b1c09 + CP-12 working-tree slice; kiana-domain/src/{resource_leases,paths,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-core/src/{sessions,resource_leases,cell_registry,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp12_resource_lease.rs; kiana-core/tests/cp12_resource_guard.rs; .github/workflows/cp12-resource-leases.yml; docs/roadmap/control-plane-resource-lease-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-12 strict ResourceLease binds canonical resource/owner/fence/epoch/sequence/TTL/digests; path-lock acquisition now rejects invalid write-set entries before the existing kernel O_NOFOLLOW+LOCK_NB boundary; CapabilityLease carries a server-generated fencing token and Core exposes authority-backed issue/validate helpers; no second lock/execute path was added; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp12_resource_lease.rs owner/coverage/successor/old-token/canonical-path/tamper fixtures; kiana-core/tests/cp12_resource_guard.rs kernel-lock/O_NOFOLLOW/authority/fencing source guard; GitHub Actions CP-12 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-12 is triggered by the eventual push and is not awaited
+status_change: CP-12 source slice is implemented. Resource leases now fail closed on expired/stale epoch/reused token/owner mismatch and carry a monotonic successor chain; canonical_resource_set no longer drops malformed paths, and Cell capability settlement requires the exact generated fencing token.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: ResourceLease is an immutable observation and does not itself hold an OS lock; path locks remain adapter/process scoped, approval waits still retain existing Cell resources, durable lease/projector and cross-process stale-writer recovery are open, effect-time Patch/MCP/permit integration and cancellation remain CP-13+/CP-16, and Secret/egress/external/live/physical proof is absent
+reviewer: Codex root implementation review plus CP-12 canonical write-set, kernel lock, owner/epoch/token and successor reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

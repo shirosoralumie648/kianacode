@@ -287,7 +287,8 @@ impl ControlPlane {
         session_id: &str,
         path_allow: &[String],
     ) -> Result<(), &'static str> {
-        let paths = builder_lock_paths(path_allow);
+        let paths =
+            kiana_domain::canonical_resource_set(path_allow).map_err(|_| "path_lock_invalid")?;
         let mut locks = self
             .path_locks
             .lock()
@@ -395,11 +396,12 @@ pub(crate) fn acquire_durable_path_locks(
 ) -> Result<Vec<PathLockLease>, &'static str> {
     let root = durable_path_lock_root();
     fs::create_dir_all(&root).map_err(|_| "path_lock_unavailable")?;
+    let paths = kiana_domain::canonical_resource_set(paths).map_err(|_| "path_lock_invalid")?;
     // Shared ancestor locks and an exclusive leaf lock detect file/directory overlap
     // across processes while allowing unrelated subtrees to proceed concurrently.
     let mut modes = std::collections::BTreeMap::<String, bool>::new();
     for path in paths {
-        let normalized = kiana_domain::normalize_role_path(path).ok_or("path_lock_invalid")?;
+        let normalized = kiana_domain::normalize_role_path(&path).ok_or("path_lock_invalid")?;
         modes.entry(".".to_owned()).or_insert(false);
         let mut ancestor = Path::new(&normalized).parent();
         while let Some(parent) = ancestor {

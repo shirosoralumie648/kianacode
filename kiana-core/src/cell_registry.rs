@@ -8,7 +8,8 @@
 use async_trait::async_trait;
 use kiana_domain::{
     builder_lock_paths, AgentTemplate, BudgetLease, BudgetLeaseId, CellId, CellLifecycle, CellSpec,
-    RequestId, RetirementRecord, RoleSpec, RunId, SpawnPlanId, SpawnPlanStatus, WorkFingerprint,
+    FenceTokenId, RequestId, RetirementRecord, RoleSpec, RunId, SpawnPlanId, SpawnPlanStatus,
+    WorkFingerprint,
 };
 use kiana_ports::{
     CapabilityLease, CapabilityOutcome, CellRegistryPort, PortError, SpawnReservation,
@@ -841,6 +842,7 @@ impl CellRegistryPort for MemoryCellRegistry {
             cell_id,
             capability_grant_id,
             budget_lease_id,
+            fencing_token: FenceTokenId::new(),
             effect_count,
         };
         let record = state

@@ -707,6 +707,8 @@ pub struct CapabilityLease {
     pub capability_grant_id: CapabilityGrantId,
     /// 本次调用扣减的预算租约 ID。
     pub budget_lease_id: BudgetLeaseId,
+    /// Server-generated fencing token; a stale or copied completion cannot settle another lease.
+    pub fencing_token: kiana_domain::FenceTokenId,
     /// 为本次调用预记的有后果动作数量；只读调用通常为零。
     pub effect_count: u32,
 }
