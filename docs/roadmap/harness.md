@@ -297,7 +297,9 @@ sequenceDiagram
 
 <a id="step-h09"></a>
 
-#### H09 — 工具目录成为单一、可版本化的数据源　⏳
+#### H09 — 工具目录成为单一、可版本化的数据源　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-tool-catalog-baseline.md`](harness-tool-catalog-baseline.md)。
 
 **关联原单元**：`P1-H-01/02`、`P1-J4-01`。**依赖**：H04、H05。
 

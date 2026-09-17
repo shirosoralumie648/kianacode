@@ -1043,7 +1043,7 @@ impl DaemonHost {
             let configuration_revision = kiana_domain::json_digest(&serde_json::json!({
                 "project_identity":project_identity,"role_catalog":kiana_domain::RoleCatalog::builtin(),"department_catalog":kiana_domain::DepartmentCatalog::builtin(),"local_roles":self.principal.allowed_roles,
                 "model_profiles":std::env::var("KIANA_MODEL_PROFILES_JSON").unwrap_or_default(),
-                "policy":"kiana.default-policy.content.v2","tool_catalog":kiana_domain::tool_schemas(),
+                "policy":"kiana.default-policy.content.v2","tool_catalog_digest":kiana_domain::tool_catalog_digest(),
                 "action_catalog":kiana_domain::capability_action_catalog_digest(),
                 "security_context_digest":security_context.context_digest,
             }));

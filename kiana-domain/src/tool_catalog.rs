@@ -1,4 +1,4 @@
-//! The canonical five-tool catalog shared by model, policy and broker adapters.
+//! The canonical model-tool schema catalog shared by model, policy and broker adapters.
 use serde_json::{json, Value};
 
 /// 模型可见的 shell 工具名称。
@@ -12,10 +12,11 @@ pub const TOOL_MEMORY_SEARCH: &str = "memory.search";
 /// 记忆写入工具名称。
 pub const TOOL_MEMORY_WRITE: &str = "memory.write";
 
-/// 返回五个固定模型工具的 JSON schema。
+/// 返回当前受支持的模型工具 schema 列表。
 ///
 /// schema 只约束模型输出形状；每个字段仍会在能力映射、策略、审批和 Broker 中再次
-/// 校验。新增工具必须同时更新角色目录、策略映射和拒绝测试，不能只在这里追加 schema。
+/// 校验。新增工具必须同时更新版本化 `ToolCatalogSnapshot`、角色目录、策略映射和拒绝
+/// 测试，不能只在这里追加 schema。
 pub fn tool_schemas() -> Vec<Value> {
     vec![
         json!({

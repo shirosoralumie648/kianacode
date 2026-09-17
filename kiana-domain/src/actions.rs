@@ -645,6 +645,7 @@ pub fn capability_action_catalog_digest() -> String {
     // invalidate a previously prepared action even if its outward JSON schema stayed equal.
     crate::json_digest(&json!({"schema":ACTION_CATALOG_SCHEMA,
         "contracts":ACTION_OPERATIONS.iter().map(|operation|capability_action_descriptor(operation).expect("closed catalog")).collect::<Vec<_>>(),
+        "tool_catalog_digest": crate::tool_catalog_digest(),
         "normalizer_source":include_str!("actions.rs"),"schema_validator_source":include_str!("tool_catalog.rs")}))
 }
 

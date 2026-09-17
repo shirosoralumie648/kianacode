@@ -3051,6 +3051,25 @@ limitations: process-group confirmation and MCP behavior are covered by existing
 reviewer: Codex root implementation review plus H08 watch propagation, model deadline fence, retry cancellation and shell/MCP stop-confirmation boundaries; no runtime test reviewer
 ```
 
+### H-09 versioned tool catalog evidence (2026-09-17)
+
+```text
+source_snapshot: c37d5e1 + H-09 working-tree slice; kiana-domain/src/{tool_authority,tool_catalog,actions,model}.rs; kiana-runner/src/{tools,harness,lib}.rs; kiana-provider/src/request.rs; kiana-provider/tests/oa08_provider_telemetry.rs; kiana-daemon/src/lib.rs; kiana-runner/tests/h09_tool_catalog.rs; kiana-runner/tests/h09_tool_catalog_guard.rs; .github/workflows/h09-tool-catalog.yml; docs/roadmap/harness-tool-catalog-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: ToolCatalogSnapshot/ToolDescriptor now pins schema/version/digest, wire/alias, capability/risk, argument/result schema, output/replay metadata; PreparedModelCall tool hash, runner checkpoint, action catalog and daemon configuration revision bind the snapshot; mapper and provider wire resolver use the same descriptor; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h09_tool_catalog.rs unadvertised tool/wire collision, catalog drift and mapper consistency fixtures; kiana-runner/tests/h09_tool_catalog_guard.rs version/digest/pin/no-fallback source guard; GitHub Actions H09 workflow runs catalog fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H09 is triggered by the eventual push and is not awaited
+status_change: H09 source slice is implemented. A model-visible tool list is now an explicit versioned snapshot, and schema/alias/handler drift invalidates prepared requests, checkpoints, actions and configuration pins before dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: current five-tool descriptor dataset remains the supported baseline, provider-specific catalog migrations and remote handler parity are not proven, approval durable recovery still depends on later steps, and external/live/physical proof remains H10+ / CP/PD/P4/INT work
+reviewer: Codex root implementation review plus H09 snapshot validation, alias/wire uniqueness, request/checkpoint/action pinning and mapper/provider resolver consistency; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

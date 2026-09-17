@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 
 pub(crate) fn wire_name(name: &str) -> String {
-    name.replace('.', "_")
+    kiana_domain::tool_wire_name(name).unwrap_or_else(|| name.replace('.', "_"))
 }
 pub(crate) fn internal_name(name: &str, tools: &[Value]) -> Result<String, ModelError> {
     tools
@@ -145,7 +145,7 @@ pub(crate) fn compile(
         route,
         request_hash: String::new(),
         budget,
-        tool_catalog_hash: json_digest(&json!(request.tools)),
+        tool_catalog_hash: kiana_domain::tool_catalog_hash(&request.tools),
         request,
         wire_body: body,
     };

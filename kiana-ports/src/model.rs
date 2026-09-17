@@ -31,7 +31,7 @@ pub trait ModelClient: Send + Sync {
             wire_body: serde_json::to_value(&request)
                 .map_err(|_| ModelError::invalid("model_request_invalid"))?,
             budget: context.budget(),
-            tool_catalog_hash: kiana_domain::json_digest(&serde_json::json!(request.tools)),
+            tool_catalog_hash: kiana_domain::tool_catalog_hash(&request.tools),
             request,
             request_hash: String::new(),
         };

@@ -6,16 +6,15 @@
 //! [`CapabilityRequest`]，不会直接执行命令、写文件、访问 MCP 或读写记忆。
 
 use crate::model::ModelToolCall;
-use kiana_domain::{CapabilityKind, CapabilityRequest, RequestId, RiskLevel};
+use kiana_domain::{CapabilityRequest, RequestId, RiskLevel};
 use serde_json::{json, Value};
 
-use kiana_domain::model_tool_name;
-#[cfg(test)]
-use kiana_domain::validate_schema_value;
 pub use kiana_domain::{
     tool_schemas, validate_tool_arguments, TOOL_APPLY_PATCH, TOOL_MCP, TOOL_MEMORY_SEARCH,
     TOOL_MEMORY_WRITE, TOOL_SHELL,
 };
+#[cfg(test)]
+use kiana_domain::{validate_schema_value, CapabilityKind};
 
 /// 将一次模型工具调用映射成带风险等级的能力请求。
 ///
@@ -29,15 +28,19 @@ pub fn capability_for_tool(
     sandbox: &str,
     project_root: &str,
 ) -> Result<CapabilityRequest, String> {
-    let canonical =
-        model_tool_name(&call.name).ok_or_else(|| format!("tool_unsupported:{}", call.name))?;
+    let catalog = kiana_domain::current_tool_catalog();
+    catalog.validate()?;
+    let descriptor = catalog
+        .descriptor(&call.name)
+        .ok_or_else(|| format!("tool_unsupported:{}", call.name))?;
+    let canonical = descriptor.name.as_str();
     validate_tool_arguments(&call.name, &call.arguments)?;
 
     match canonical {
         TOOL_SHELL => Ok(CapabilityRequest::new(
             RequestId::new(),
-            CapabilityKind::Process,
-            "shell.exec",
+            descriptor.capability.clone(),
+            descriptor.operation.clone(),
             json!({
                 "command": call.arguments.get("command").cloned().unwrap_or(Value::Null),
                 "workdir": call.arguments.get("workdir").cloned().unwrap_or(Value::Null),
@@ -50,8 +53,8 @@ pub fn capability_for_tool(
         .with_risk(shell_risk(sandbox))),
         TOOL_APPLY_PATCH => Ok(CapabilityRequest::new(
             RequestId::new(),
-            CapabilityKind::Filesystem,
-            "apply_patch",
+            descriptor.capability.clone(),
+            descriptor.operation.clone(),
             json!({
                 "patch": call.arguments.get("patch").cloned().unwrap_or(Value::Null),
                 "path": call.arguments.get("path").cloned().unwrap_or(Value::Null),
@@ -63,8 +66,8 @@ pub fn capability_for_tool(
         .with_risk(RiskLevel::LocalWrite)),
         TOOL_MCP => Ok(CapabilityRequest::new(
             RequestId::new(),
-            CapabilityKind::Network,
-            "mcp.call",
+            descriptor.capability.clone(),
+            descriptor.operation.clone(),
             json!({
                 "server": call.arguments.get("server").cloned().unwrap_or(Value::Null),
                 "tool": call.arguments.get("tool").cloned().unwrap_or(
@@ -79,8 +82,8 @@ pub fn capability_for_tool(
         .with_risk(RiskLevel::ExternalSideEffect)),
         TOOL_MEMORY_SEARCH => Ok(CapabilityRequest::new(
             RequestId::new(),
-            CapabilityKind::Query,
-            TOOL_MEMORY_SEARCH,
+            descriptor.capability.clone(),
+            descriptor.operation.clone(),
             json!({
                 "query": call.arguments.get("query").cloned().unwrap_or(Value::Null),
                 "collection": call.arguments.get("collection").cloned().unwrap_or(Value::Null),
@@ -93,8 +96,8 @@ pub fn capability_for_tool(
         .with_risk(RiskLevel::ReadOnly)),
         TOOL_MEMORY_WRITE => Ok(CapabilityRequest::new(
             RequestId::new(),
-            CapabilityKind::Filesystem,
-            TOOL_MEMORY_WRITE,
+            descriptor.capability.clone(),
+            descriptor.operation.clone(),
             json!({
                 "collection": call.arguments.get("collection").cloned().unwrap_or(Value::Null),
                 "text": call.arguments.get("text").cloned().unwrap_or(Value::Null),

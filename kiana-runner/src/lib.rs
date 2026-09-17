@@ -43,3 +43,4 @@ pub use stream_normalizer::{
     ModelStreamAccumulator, STREAM_NORMALIZER_MAX_DELTAS, STREAM_NORMALIZER_MAX_TEXT_BYTES,
     STREAM_NORMALIZER_MAX_TOOL_BLOCKS, STREAM_NORMALIZER_MAX_TOOL_BYTES,
 };
+pub use tools::capability_for_tool;

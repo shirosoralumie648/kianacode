@@ -133,6 +133,7 @@ struct ActiveRun {
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
     max_steps_per_turn: u32,
+    tool_catalog_digest: String,
     wall_time_started_at: Instant,
     last_text: String,
     cancellation: Arc<RunCancellation>,
@@ -175,6 +176,8 @@ struct HarnessCheckpoint {
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
     max_steps_per_turn: u32,
+    #[serde(default)]
+    tool_catalog_digest: String,
     wall_time_elapsed_ms: u64,
     last_text: String,
 }
@@ -516,6 +519,8 @@ impl KianaHarness {
             });
         }
         let sandbox = normalize_sandbox(&sandbox)?;
+        let tool_catalog = kiana_domain::current_tool_catalog();
+        tool_catalog.validate().map_err(KianaHarnessError::Failed)?;
         let cancellation = Arc::new(RunCancellation::default());
         let mut run = ActiveRun {
             run_id,
@@ -539,6 +544,7 @@ impl KianaHarness {
             last_tool_call: None,
             steps: 0,
             max_steps_per_turn: max_steps_per_turn.min(self.max_steps_per_turn),
+            tool_catalog_digest: tool_catalog.digest,
             wall_time_started_at,
             last_text: String::new(),
             cancellation: cancellation.clone(),
@@ -846,6 +852,13 @@ impl KianaHarness {
             emitter.emit_event(RunnerEvent::Failed {
                 run_id: run.run_id,
                 error,
+            })?;
+            return Ok(StepProgress::Finished);
+        }
+        if kiana_domain::tool_catalog_digest() != run.tool_catalog_digest {
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id: run.run_id,
+                error: "tool_catalog_changed".to_owned(),
             })?;
             return Ok(StepProgress::Finished);
         }
@@ -1224,7 +1237,7 @@ impl KianaHarness {
                 "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"model_attempt_id":model_attempt_id,
                 "turn_id":run.turn_id,"step_id":step_id,"step_identity":step_identity.clone(),"attempt_identity":attempt_identity,"attempt":attempt+1,
                 "provider_id":route.provider_id,"model_id":result.as_ref().ok().and_then(|reply|reply.output.model_id.as_ref()).unwrap_or(&route.model_id),
-                "prepared":audit.clone(),"route_digest":audit["route_digest"],"prompt_version":audit["prompt_version"],
+                "prepared":audit.clone(),"route_digest":audit["route_digest"],"prompt_version":audit["prompt_version"],"tool_catalog_digest":run.tool_catalog_digest,
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
                 "harness_budget":{"schema":crate::budget::HARNESS_BUDGET_SCHEMA,"scope":budget_scope,"source":budget_limits.source.as_str(),"max_model_steps_per_turn":budget_limits.max_model_steps_per_turn,"max_attempts_per_task":budget_limits.max_attempts_per_task,"max_tool_calls_per_task":budget_limits.max_tool_calls_per_task,"max_repairs_per_task":budget_limits.max_repairs_per_task,"max_compactions_per_task":budget_limits.max_compactions_per_task,"max_tokens_per_task":budget_limits.max_tokens_per_task,"model_attempts":budget_usage.model_attempts,"tool_calls":budget_usage.tool_calls,"repairs":budget_usage.repairs,"compactions":budget_usage.compactions,"reserved_tokens":budget_usage.reserved_tokens,"charged_tokens":budget_usage.charged_tokens,"unknown_attempts":budget_usage.unknown_attempts},
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
@@ -1544,6 +1557,7 @@ impl RunnerPort for KianaHarness {
             last_tool_call: run.last_tool_call.clone(),
             steps: run.steps,
             max_steps_per_turn: run.max_steps_per_turn,
+            tool_catalog_digest: run.tool_catalog_digest.clone(),
             wall_time_elapsed_ms: run
                 .wall_time_started_at
                 .elapsed()
@@ -1567,6 +1581,15 @@ impl RunnerPort for KianaHarness {
                 .is_some_and(|(turn_id, assignment_turn)| turn_id != assignment_turn)
         {
             return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
+        }
+        let current_tool_catalog = kiana_domain::current_tool_catalog();
+        current_tool_catalog.validate().map_err(PortError::Failed)?;
+        if !checkpoint.tool_catalog_digest.trim().is_empty()
+            && checkpoint.tool_catalog_digest != current_tool_catalog.digest
+        {
+            return Err(PortError::Failed(
+                "runner_checkpoint_tool_catalog_changed".to_owned(),
+            ));
         }
         let driver = checkpoint
             .driver
@@ -1627,6 +1650,7 @@ impl RunnerPort for KianaHarness {
                 last_tool_call: checkpoint.last_tool_call,
                 steps: checkpoint.steps,
                 max_steps_per_turn: checkpoint.max_steps_per_turn.min(self.max_steps_per_turn),
+                tool_catalog_digest: current_tool_catalog.digest,
                 wall_time_started_at: started,
                 last_text: checkpoint.last_text,
                 cancellation: Arc::new(RunCancellation::default()),

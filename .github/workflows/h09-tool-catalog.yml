@@ -1,0 +1,64 @@
+name: H09 tool catalog
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h09_tool_catalog.rs"
+      - "kiana-runner/tests/h09_tool_catalog_guard.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/tests/oa08_provider_telemetry.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-tool-catalog-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h09-tool-catalog.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h09_tool_catalog.rs"
+      - "kiana-runner/tests/h09_tool_catalog_guard.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/tests/oa08_provider_telemetry.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-tool-catalog-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h09-tool-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tool-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H09 catalog fixtures
+        run: cargo test -p kiana-runner --test h09_tool_catalog --locked -- --test-threads=1
+      - name: Run H09 source guard
+        run: cargo test -p kiana-runner --test h09_tool_catalog_guard --locked -- --test-threads=1
+      - name: Compile H09 targets
+        run: cargo check --workspace --tests --locked

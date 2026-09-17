@@ -711,7 +711,10 @@ impl PreparedModelCall {
         self.request_hash = self.fingerprint();
     }
     pub fn validate(&self) -> Result<(), ModelError> {
-        if self.schema != MODEL_CALL_SCHEMA || self.request_hash != self.fingerprint() {
+        if self.schema != MODEL_CALL_SCHEMA
+            || self.tool_catalog_hash != crate::tool_catalog_hash(&self.request.tools)
+            || self.request_hash != self.fingerprint()
+        {
             return Err(ModelError::invalid("model_prepared_request_changed"));
         }
         self.budget.validate().map_err(ModelError::invalid)?;
