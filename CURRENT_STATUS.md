@@ -3374,6 +3374,25 @@ limitations: the first already-dispatched effect still needs stop/effect confirm
 reviewer: Codex root implementation review plus P0-J1-02 serial drain, not-executed/replay-safe labeling and core terminal handoff invariants; no runtime test reviewer
 ```
 
+### P0-J1-03 process-group stop confirmation evidence (2026-09-18)
+
+```text
+source_snapshot: e0ec416 + P0-J1-03 evidence slice; kiana-daemon/src/{harness_capabilities,harness_mcp,mcp_stdio,execution_control}.rs; kiana-daemon/tests/daemon_host.rs; kiana-daemon/tests/p0_j1_03_process_group.rs; .github/workflows/p0-j1-03-process-group.yml; docs/roadmap/p0-j1-03-process-group-baseline.md
+worktree_status: shell/MCP/long-process adapters create isolated process groups, terminate and poll descendants, drain bounded output, and report stop_confirmed only after positive absence confirmation; failure to confirm is structured result_unknown/reconciliation rather than cancelled success; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/tests/p0_j1_03_process_group.rs process-group/stop-evidence source guards; existing daemon_host cancel_stops_in_flight_shell_before_it_writes runtime fixture; GitHub Actions P0-J1-03 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-J1-03 is triggered by the eventual push and is not awaited
+status_change: P0-J1-03 source slice is implemented/reconciled. `stop_confirmed` now represents positive adapter evidence and unconfirmed termination remains Unknown.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: kernel/descendant races, mid-stream late-delta fencing, durable stop/reconciliation and cross-process/power-loss proof remain P0-J1-04 and CP/PD/INT work
+reviewer: Codex root implementation review plus P0-J1-03 process-group lifecycle, confirmation and Unknown fallback invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

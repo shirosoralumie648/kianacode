@@ -1,0 +1,46 @@
+name: P0-J1-03 process group
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p0_j1_03_process_group.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-03-process-group-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-03-process-group.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p0_j1_03_process_group.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-03-process-group-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-03-process-group.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-group:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-J1-03 process guard
+        run: cargo test -p kiana-daemon --test p0_j1_03_process_group --locked -- --test-threads=1
+      - name: Compile P0-J1-03 targets
+        run: cargo check --workspace --tests --locked
