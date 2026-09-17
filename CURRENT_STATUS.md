@@ -3564,6 +3564,25 @@ limitations: durable index/cache/projector, exact hybrid model health, context s
 reviewer: Codex root implementation review plus P1-J3-02 ACL-before-read, ranking metadata, provenance and receipt projection invariants; no runtime test reviewer
 ```
 
+### P1-J3-03 memory proposal and admission evidence (2026-09-18)
+
+```text
+source_snapshot: a9d1e1e + P1-J3-03 evidence slice; kiana-domain/src/{memory_proposals,memory_distillation}.rs; kiana-core/src/{memory_distillation,memory_proposals}.rs; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/p1_j3_03_memory_proposal.rs; kiana-core/tests/p1_j3_03_memory_proposal_guard.rs; .github/workflows/p1-j3-03-memory-proposal.yml; docs/roadmap/p1-j3-03-memory-proposal-baseline.md
+worktree_status: terminal/meeting output enters a bounded distillation job; strict MemoryProposal validates evidence quotes, ADD/UPDATE/DELETE targets and top-three similar records; extraction failure emits an incident without rewriting the source run; memory.review is the only materialization path from Candidate/Draft to Qualified/Active or Rejected, with scratch as the explicit ephemeral exception; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p1_j3_03_memory_proposal.rs evidence/similar/target validation fixtures; kiana-core/tests/p1_j3_03_memory_proposal_guard.rs distillation/review source guard; GitHub Actions P1-J3-03 workflow runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J3-03 is triggered by the eventual push and is not awaited
+status_change: P1-J3-03 source slice is implemented/reconciled. Memory extraction proposals are evidence-bound candidates and require the existing human review path for persistent admission.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: provider-generated extraction is still bounded by the local distillation adapter; cross-process queue/projector, durable proposal recovery, hybrid index and deletion/revocation propagation remain P1-J3-04/CM/PD/SC work
+reviewer: Codex root implementation review plus P1-J3-03 evidence/target validation, bounded similar records and three-tier admission invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
