@@ -3032,6 +3032,25 @@ limitations: task-chain ledger is process-local and project+role keyed; restart/
 reviewer: Codex root implementation review plus H07 config source/priority, pre-provider reservation, conservative settlement and task-chain isolation; no runtime test reviewer
 ```
 
+### H-08 deadline and cancellation propagation evidence (2026-09-17)
+
+```text
+source_snapshot: e8e9032 + H-08 working-tree slice; kiana-ports/src/model.rs; kiana-runner/src/harness.rs; kiana-runner/tests/h08_cancellation.rs; kiana-runner/tests/h08_cancellation_guard.rs; kiana-daemon/src/{harness_capabilities,mcp_stdio}.rs; kiana-daemon/tests/daemon_host.rs; kiana-core/src/dispatch.rs; .github/workflows/h08-cancellation.yml; docs/roadmap/harness-cancellation-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: RunCancellation now exposes a watch signal alongside its typed reason; every model attempt uses cancellable admitted/prepared port wrappers and the existing Harness deadline/select/race fence; shell and MCP paths retain bounded process-group/read/write/stop confirmation and result_unknown boundaries; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h08_cancellation.rs silent model deadline and retry-backoff cancellation fixtures; kiana-runner/tests/h08_cancellation_guard.rs source guard; GitHub Actions H08 workflow runs runner fixtures/source guard and existing daemon mid-stream/process-group cancellation fixtures
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H08 is triggered by the eventual push and is not awaited
+status_change: H08 source slice is implemented. Cancellation now reaches the model port before response completion, silent model attempts are bounded by deadline, and cancellation races cannot turn a completed/unknown effect into a guessed success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: process-group confirmation and MCP behavior are covered by existing source/contracts and CI fixtures but real OS/provider/network fault injection, cross-process cancellation durability, full P0-J1 state vocabulary and external/live/physical proof remain future CP/P4/PD/INT work
+reviewer: Codex root implementation review plus H08 watch propagation, model deadline fence, retry cancellation and shell/MCP stop-confirmation boundaries; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

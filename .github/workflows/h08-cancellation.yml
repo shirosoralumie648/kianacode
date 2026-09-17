@@ -1,0 +1,66 @@
+name: H08 cancellation and deadlines
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/model.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h08_cancellation.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-cancellation-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h08-cancellation.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/model.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h08_cancellation.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-cancellation-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h08-cancellation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancellation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H08 runner fixtures
+        run: cargo test -p kiana-runner --test h08_cancellation --locked -- --test-threads=1
+      - name: Run H08 source guard
+        run: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+      - name: Recheck existing daemon cancellation fixtures
+        run: >-
+          cargo test -p kiana-daemon --test daemon_host
+          cancelling_mid_stream_never_completes_or_emits_a_late_delta
+          --locked -- --test-threads=1
+      - name: Recheck shell process-group cancellation
+        run: >-
+          cargo test -p kiana-daemon --test daemon_host
+          cancel_stops_in_flight_shell_before_it_writes
+          --locked -- --test-threads=1
+      - name: Compile H08 targets
+        run: cargo check --workspace --tests --locked

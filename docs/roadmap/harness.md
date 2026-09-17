@@ -282,7 +282,9 @@ sequenceDiagram
 
 <a id="step-h08"></a>
 
-#### H08 — 将 deadline 和取消贯穿静默 I/O　⏳
+#### H08 — 将 deadline 和取消贯穿静默 I/O　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-cancellation-baseline.md`](harness-cancellation-baseline.md)。
 
 **关联原单元**：`P0-J1-01/03/04`。**依赖**：H03、H06、H07。
 

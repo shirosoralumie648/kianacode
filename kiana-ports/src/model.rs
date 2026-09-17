@@ -68,6 +68,42 @@ pub trait ModelClient: Send + Sync {
         self.complete_prepared(prepared, on_delta).await
     }
 
+    /// Cancellation-aware model admission.  The default wraps the single admitted attempt so
+    /// every provider implementation inherits the same fence; a provider may additionally pass
+    /// the signal into its transport, but dropping the future is never interpreted as success.
+    async fn complete_admitted_cancellable(
+        &self,
+        prepared: PreparedModelCall,
+        permit: ModelCallPermit,
+        admission: &dyn crate::ModelBudgetPort,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        mut cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<ModelReply, ModelError> {
+        tokio::select! {
+            biased;
+            _ = crate::wait_for_cancellation(&mut cancellation) => {
+                Err(ModelError::transport("model_cancelled_before_response", ModelRetryClass::Never, false))
+            }
+            result = self.complete_admitted(prepared, permit, admission, on_delta) => result,
+        }
+    }
+
+    /// Cancellation-aware non-admitted model attempt for offline/legacy adapters.
+    async fn complete_prepared_cancellable(
+        &self,
+        prepared: PreparedModelCall,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        mut cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<ModelReply, ModelError> {
+        tokio::select! {
+            biased;
+            _ = crate::wait_for_cancellation(&mut cancellation) => {
+                Err(ModelError::transport("model_cancelled_before_response", ModelRetryClass::Never, false))
+            }
+            result = self.complete_prepared(prepared, on_delta) => result,
+        }
+    }
+
     /// Describe the exact system prompt and wire accounting before any network call.
     fn request_context(&self, request: &ModelRequest) -> ModelRequestContext {
         ModelRequestContext::for_request(request)

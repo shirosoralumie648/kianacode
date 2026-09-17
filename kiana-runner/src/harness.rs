@@ -179,10 +179,21 @@ struct HarnessCheckpoint {
     last_text: String,
 }
 
-#[derive(Default)]
 struct RunCancellation {
     error: Mutex<Option<String>>,
     changed: tokio::sync::Notify,
+    signal: tokio::sync::watch::Sender<bool>,
+}
+
+impl Default for RunCancellation {
+    fn default() -> Self {
+        let (signal, _receiver) = tokio::sync::watch::channel(false);
+        Self {
+            error: Mutex::new(None),
+            changed: tokio::sync::Notify::new(),
+            signal,
+        }
+    }
 }
 
 impl RunCancellation {
@@ -203,6 +214,7 @@ impl RunCancellation {
             return Ok(false);
         }
         *state = Some(error);
+        let _ = self.signal.send(true);
         self.changed.notify_one();
         Ok(true)
     }
@@ -218,6 +230,10 @@ impl RunCancellation {
         self.error
             .lock()
             .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))
+    }
+
+    fn subscribe(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.signal.subscribe()
     }
 }
 
@@ -1136,6 +1152,7 @@ impl KianaHarness {
                 None
             };
             let cancellation = run.cancellation.clone();
+            let cancellation_signal = cancellation.subscribe();
             let mut redactor = StreamingRedactor::new();
             let mut stream = ModelStreamAccumulator::new(model_attempt_id);
             let run_id = run.run_id;
@@ -1160,10 +1177,18 @@ impl KianaHarness {
             let future = async {
                 if let (Some(guard), Some(permit)) = (&admission, permit) {
                     self.model
-                        .complete_admitted(prepared, permit, guard.as_ref(), &mut callback)
+                        .complete_admitted_cancellable(
+                            prepared,
+                            permit,
+                            guard.as_ref(),
+                            &mut callback,
+                            cancellation_signal,
+                        )
                         .await
                 } else {
-                    self.model.complete_prepared(prepared, &mut callback).await
+                    self.model
+                        .complete_prepared_cancellable(prepared, &mut callback, cancellation_signal)
+                        .await
                 }
             };
             let result = tokio::select! {
