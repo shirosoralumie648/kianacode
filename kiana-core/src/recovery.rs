@@ -66,6 +66,14 @@ impl ControlPlane {
                         "approval_continuation_unavailable".to_owned(),
                     ))
                 })?;
+                let resume_binding = match approval_event.data.get("resume_binding") {
+                    Some(value) => Some(serde_json::from_value(value.clone()).map_err(|_| {
+                        CoreError::Port(PortError::Failed(
+                            "approval_resume_binding_invalid".to_owned(),
+                        ))
+                    })?),
+                    None => None,
+                };
                 PendingInvocation {
                     approval_id,
                     challenge: material.challenge,
@@ -81,6 +89,7 @@ impl ControlPlane {
                     request: material.request,
                     context: context.clone(),
                     sandbox: sandbox.to_owned(),
+                    resume_binding,
                 }
             }
         };
@@ -147,9 +156,47 @@ impl ControlPlane {
         {
             return Err(PortError::Failed("approval_action_changed".to_owned()).into());
         }
+        let resume_binding = match pending.resume_binding.as_ref() {
+            Some(binding) => {
+                binding
+                    .validate_against(
+                        run_id,
+                        pending.event_request_id,
+                        &material.request,
+                        context,
+                        sandbox,
+                    )
+                    .map_err(PortError::Failed)?;
+                binding.clone()
+            }
+            None => {
+                let pending_batch_digest = material
+                    .request
+                    .arguments
+                    .get("pending_batch_digest")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| {
+                        json_digest(&json!({
+                            "request_id": material.request.request_id,
+                            "call_id": material.request.arguments.get("call_id"),
+                        }))
+                    });
+                kiana_domain::InvocationResumeBinding::from_request(
+                    run_id,
+                    pending.event_request_id,
+                    &material.request,
+                    context,
+                    sandbox,
+                    pending_batch_digest,
+                )
+                .map_err(PortError::Failed)?
+            }
+        };
         pending.challenge = material.challenge;
         pending.request = material.request;
         pending.context = context.clone();
+        pending.resume_binding = Some(resume_binding);
         // The cursor is local to the continuation request stream. A global event sequence can
         // belong to an unrelated aggregate and would allow a stale approval to overwrite facts.
         let latest_sequence = events
@@ -508,10 +555,16 @@ impl ControlPlane {
             // Keep original capability IDs, while placing subsequent facts in this explicit resume request.
             pending.context.request_id = context.request_id;
             pending.event_request_id = context.request_id;
+            if let Some(binding) = pending.resume_binding.as_mut() {
+                binding
+                    .rebind_event_request(context.request_id)
+                    .map_err(PortError::Failed)?;
+            }
             // `run.resume_prepared` is sequence 1 in the fresh request-local continuation;
             // pending approval facts appended by this resume therefore start at sequence 2.
             pending.event_sequence = 2;
             let challenge = pending.challenge.clone();
+            let resume_binding = pending.resume_binding.clone();
             self.pending_invocations
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -519,7 +572,8 @@ impl ControlPlane {
             return Ok(CoreResponse {
                 request_id: context.request_id,
                 status: ExecutionStatus::AwaitingApproval,
-                output: json!({"run_id":run_id,"session_id":context.session_id,"restored":true,"approval":challenge}),
+                output: json!({"run_id":run_id,"session_id":context.session_id,"restored":true,
+                    "approval":challenge,"resume_binding":resume_binding}),
                 error: Some("approval_required".to_owned()),
             });
         }

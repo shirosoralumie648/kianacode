@@ -1185,6 +1185,7 @@ impl ControlPlane {
                                 output: json!({
                                     "approval": pending.challenge,
                                     "capability": pending.request,
+                                    "resume_binding": pending.resume_binding,
                                     "run_id": run_id
                                 }),
                                 error: Some("approval_required".to_owned()),

@@ -434,6 +434,7 @@ impl ControlPlane {
         reason: &str,
         run_id: Option<RunId>,
         event_request_id: RequestId,
+        resume_binding: Option<&kiana_domain::InvocationResumeBinding>,
         sequence: &mut u64,
     ) -> Result<kiana_domain::ApprovalChallenge, CoreError> {
         let mut approval_context = context.clone();
@@ -518,6 +519,9 @@ impl ControlPlane {
         if let Some(run_id) = run_id {
             data["run_id"] = json!(run_id);
         }
+        if let Some(binding) = resume_binding {
+            data["resume_binding"] = json!(binding);
+        }
         let requested = RuntimeEvent::new(
             event_request_id,
             *sequence,
@@ -534,7 +538,8 @@ impl ControlPlane {
                     "run.awaiting_approval",
                     json!({"run_id":run_id,"approval_id":challenge.approval_id,
                         "capability_request_id":request.request_id,"attempt":1,"effect_started":false,
-                        "effect_known":true,"zero_effect":true,"stop_state":"not_requested","fenced":false}),
+                        "effect_known":true,"zero_effect":true,"stop_state":"not_requested","fenced":false,
+                        "resume_binding":resume_binding}),
                 )?
                 .with_stream_metadata(aggregate_type, &aggregate_id, version + 2),
             );
@@ -817,11 +822,19 @@ impl ControlPlane {
         let mut request = request;
         if let Some(arguments) = request.arguments.as_object_mut() {
             arguments.insert("run_id".to_owned(), json!(run_id));
-            arguments.insert(
-                "turn_id".to_owned(),
-                json!(kiana_domain::TurnId::from_uuid(request_id.as_uuid())),
-            );
+            arguments
+                .entry("turn_id".to_owned())
+                .or_insert_with(|| json!(kiana_domain::TurnId::from_uuid(request_id.as_uuid())));
         }
+        let request_turn_id = request
+            .arguments
+            .get("turn_id")
+            .and_then(|value| serde_json::from_value::<kiana_domain::TurnId>(value.clone()).ok())
+            .unwrap_or_else(|| kiana_domain::TurnId::from_uuid(request_id.as_uuid()));
+        let request_step_id = request
+            .arguments
+            .get("step_id")
+            .and_then(|value| serde_json::from_value::<kiana_domain::StepId>(value.clone()).ok());
         let original = request.clone();
         let request = match self
             .prepare_capability_action_cancellable(
@@ -854,7 +867,8 @@ impl ControlPlane {
                         "attempt":1,"effect_started":false,"effect_known":true,
                         "zero_effect":true,"stop_state":"not_requested","fenced":false,
                         "action_digest":kiana_domain::capability_action_digest(&original),
-                        "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+                        "turn_id":request_turn_id,
+                        "step_id":request_step_id,
                         "invocation_id":kiana_domain::InvocationId::from_uuid(original.request_id.as_uuid()),
                         "arguments":redact_event_value(&original.arguments)}),
                 )
@@ -879,7 +893,8 @@ impl ControlPlane {
             "run.tool_call",
             json!({"run_id":run_id,
             "capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
-            "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+            "turn_id":request_turn_id,
+            "step_id":request_step_id,
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
             "execution_scope":request.execution_scope,
             "tool":request.capability,"operation":request.operation}),
@@ -891,7 +906,8 @@ impl ControlPlane {
             "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
             "stop_state":"not_requested","fenced":false,
             "action_digest":kiana_domain::capability_action_digest(&request),
-            "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+            "turn_id":request_turn_id,
+            "step_id":request_step_id,
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
             "execution_scope":request.execution_scope,
             "arguments":redact_event_value(&request.arguments)})).await?;
@@ -934,6 +950,26 @@ impl ControlPlane {
                 return Ok(Err(reason));
             }
             GateDecision::AwaitingApproval { reason } => {
+                let pending_batch_digest = request
+                    .arguments
+                    .get("pending_batch_digest")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| {
+                        kiana_domain::json_digest(&json!({
+                            "request_id": request.request_id,
+                            "call_id": request.arguments.get("call_id"),
+                        }))
+                    });
+                let resume_binding = kiana_domain::InvocationResumeBinding::from_request(
+                    run_id,
+                    request_id,
+                    &request,
+                    context,
+                    sandbox,
+                    pending_batch_digest,
+                )
+                .map_err(|error| action_error(&error))?;
                 let challenge = match self
                     .stage_capability_action(
                         context,
@@ -941,6 +977,7 @@ impl ControlPlane {
                         &reason,
                         Some(run_id),
                         request_id,
+                        Some(&resume_binding),
                         sequence,
                     )
                     .await
@@ -974,6 +1011,7 @@ impl ControlPlane {
                             request,
                             context: context.clone(),
                             sandbox: sandbox.to_owned(),
+                            resume_binding: Some(resume_binding),
                         },
                     );
                 return Ok(Ok(None));

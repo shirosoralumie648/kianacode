@@ -44,6 +44,7 @@ const RUN_FIELDS: &[&str] = &[
     "turn",
     "text",
     "step",
+    "step_id",
     "error",
     "reason",
     "outcome",
@@ -70,6 +71,7 @@ const RUN_FIELDS: &[&str] = &[
     "capability_grant_id",
     "budget_lease_id",
     "execution_scope",
+    "resume_binding",
     "cancellation_state",
     "cancellation_reason",
     "cancellation_targets",
@@ -219,6 +221,7 @@ const APPROVAL_FIELDS: &[&str] = &[
     "zero_effect",
     "stop_state",
     "fenced",
+    "resume_binding",
     "error",
 ];
 const ACTION_FIELDS: &[&str] = &[

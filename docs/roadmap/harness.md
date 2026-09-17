@@ -372,7 +372,9 @@ sequenceDiagram
 
 <a id="step-h14"></a>
 
-#### H14 — 审批暂停与原调用恢复　⏳
+#### H14 — 审批暂停与原调用恢复　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-approval-resume-baseline.md`](harness-approval-resume-baseline.md)。
 
 **关联原单元**：`P0-F-01/02/03`、`P0-G-03`。**依赖**：H12、H13。
 

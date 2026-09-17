@@ -3146,6 +3146,25 @@ limitations: EventLog adapter crash/power-loss and cross-process CAS durability,
 reviewer: Codex root implementation review plus H13 invocation event ordering, result receipt/outcome metadata, delivery CAS and unknown projection boundaries; no runtime test reviewer
 ```
 
+### H-14 approval pause and original invocation resume evidence (2026-09-18)
+
+```text
+source_snapshot: 61103ad + H-14 working-tree slice; kiana-domain/src/{invocation_resume,capabilities,contracts,event_contracts,lib}.rs; kiana-runner/src/harness.rs; kiana-core/src/{approvals,capabilities,lifecycle,recovery}.rs; kiana-domain/tests/h14_invocation_resume.rs; kiana-core/tests/h14_approval_resume.rs; .github/workflows/h14-approval-resume.yml; docs/roadmap/harness-approval-resume-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: Runner emits server-owned Turn/Step and ordered pending-batch digest with each tool request; Core stores a strict InvocationResumeBinding beside the pending approval and RunSnapshot/event facts; approval waits remain AwaitingApproval without a fake tool failure; approve revalidates binding/material/path/scope/authority/policy/budget/cancel before the existing permit/dispatch and result-delivery path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h14_invocation_resume.rs binding round-trip and changed-parameter/owner rejection; kiana-core/tests/h14_approval_resume.rs expiry/change, duplicate-decision, and identity source guards; GitHub Actions H14 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H14 is triggered by the eventual push and is not awaited
+status_change: H14 source slice is implemented. Pending approval now carries an explicit owner/identity/parameter/catalog/authority/sandbox/batch binding, and same-process approval resumes the original invocation through the existing Runner result and next-step path; denial/cancel/expiry and binding drift close the pending run without dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: PendingInvocation and Runner checkpoint ownership remain process-local; cross-process hydration, power-loss CAS/reconcile, path-lock/resource-version projector, external effect observation and exactly-once effects remain H24/H25/PD/INT work
+reviewer: Codex root implementation review plus H14 binding, proof, pre-dispatch revalidation, idempotent decision and original Turn/Step/Invocation continuity; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

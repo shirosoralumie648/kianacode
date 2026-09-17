@@ -1479,6 +1479,21 @@ impl KianaHarness {
             .ok_or_else(|| "tool_queue_empty".to_owned())?;
         let mut request =
             capability_for_tool_with_request_id(call, pending_id, &run.sandbox, &run.project_root)?;
+        let turn_id = run
+            .turn_id
+            .unwrap_or_else(|| TurnId::from_uuid(run.run_id.as_uuid()));
+        let step_id = run
+            .step_id
+            .ok_or_else(|| "step_identity_missing".to_owned())?;
+        let pending_batch = run
+            .pending_tools
+            .iter()
+            .map(|pending| json!({"request_id":pending.request_id,"call_id":pending.call.id,"phase":pending.phase}))
+            .collect::<Vec<_>>();
+        request.arguments["turn_id"] = json!(turn_id);
+        request.arguments["step_id"] = json!(step_id);
+        request.arguments["pending_batch_digest"] =
+            json!(kiana_domain::json_digest(&json!(pending_batch)));
         let limits = self.effective_budget(run)?;
         self.budget_ledger
             .reserve_tool_call(&Self::budget_scope(run), limits)?;

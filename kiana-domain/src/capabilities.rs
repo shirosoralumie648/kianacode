@@ -2,8 +2,8 @@ use crate::{
     allow_list_covers, json_digest, normalize_role_path, redact_text, ApprovalId,
     ApprovalPlanPreview, BudgetLeaseId, CapabilityEffectState, CapabilityErrorCode,
     CapabilityExecutionState, CapabilityGrantId, CapabilityStopState, CellId, DomainError,
-    ExecutionId, ExecutionScope, InvocationId, RequestContext, RequestId, RunId, SchemaVersion,
-    SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
+    ExecutionId, ExecutionScope, InvocationId, InvocationResumeBinding, RequestContext, RequestId,
+    RunId, SchemaVersion, SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -556,6 +556,10 @@ pub struct PendingInvocation {
     pub context: RequestContext,
     /// 当时请求的沙箱档位。
     pub sandbox: String,
+    /// Server-owned continuation binding. Legacy snapshots may omit this and are rebuilt only
+    /// after the protected approval material has been revalidated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_binding: Option<InvocationResumeBinding>,
 }
 
 /// A display projection of a challenge; available decisions are server-owned.

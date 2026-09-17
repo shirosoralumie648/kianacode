@@ -60,6 +60,7 @@ impl ControlPlane {
                         &reason,
                         None,
                         request_id,
+                        None,
                         &mut sequence,
                     )
                     .await?;
@@ -215,19 +216,49 @@ impl ControlPlane {
         // Verify the exact execution material before recording Approved. The approval journal
         // owns the decision CAS; its later dispatch transaction consumes the single-use authority.
         if decision == ApprovalDecision::Approve {
-            let validated = self
+            let validated = match self
                 .approvals
                 .pending_with_proof(context, approval_id, request_hash, nonce)
-                .await?;
-            let prepared = self
+                .await
+            {
+                Ok(validated) => validated,
+                Err(error) => {
+                    if let Some(response) = self
+                        .close_live_pending_approval(context, approval_id, &error.to_string())
+                        .await?
+                    {
+                        return Ok(response);
+                    }
+                    return Ok(CoreResponse::blocked(context.request_id, error.to_string()));
+                }
+            };
+            let prepared = match self
                 .prepare_capability_action(
                     context,
                     validated.request.clone(),
                     None,
                     has_live_invocation || persisted_approval.is_some(),
                 )
-                .await?;
+                .await
+            {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    if let Some(response) = self
+                        .close_live_pending_approval(context, approval_id, &error.to_string())
+                        .await?
+                    {
+                        return Ok(response);
+                    }
+                    return Err(error);
+                }
+            };
             if prepared != validated.request {
+                if let Some(response) = self
+                    .close_live_pending_approval(context, approval_id, "approval_action_changed")
+                    .await?
+                {
+                    return Ok(response);
+                }
                 return Ok(CoreResponse::blocked(
                     context.request_id,
                     "approval_action_changed",
@@ -243,17 +274,43 @@ impl ControlPlane {
             match gate {
                 GateDecision::Allowed { .. } => {}
                 GateDecision::Denied { reason } => {
-                    return Ok(CoreResponse::blocked(context.request_id, reason))
+                    if let Some(response) = self
+                        .close_live_pending_approval(context, approval_id, &reason)
+                        .await?
+                    {
+                        return Ok(response);
+                    }
+                    return Ok(CoreResponse::blocked(context.request_id, reason));
                 }
                 GateDecision::AwaitingApproval { .. } => {
+                    if let Some(response) = self
+                        .close_live_pending_approval(
+                            context,
+                            approval_id,
+                            "approval_requirements_changed",
+                        )
+                        .await?
+                    {
+                        return Ok(response);
+                    }
                     return Ok(CoreResponse::blocked(
                         context.request_id,
                         "approval_requirements_changed",
-                    ))
+                    ));
                 }
             }
             if let Some(run_id) = live_run {
                 if *self.watch_cancel(run_id).borrow() {
+                    if let Some(response) = self
+                        .close_live_pending_approval(
+                            context,
+                            approval_id,
+                            "cancelled:before_approval",
+                        )
+                        .await?
+                    {
+                        return Ok(response);
+                    }
                     return Ok(CoreResponse::blocked(
                         context.request_id,
                         "cancelled:before_approval",
@@ -384,6 +441,48 @@ impl ControlPlane {
         .await
     }
 
+    /// Close a live Run-bound continuation when approval proof/material/authority changes before
+    /// the decision can be committed. Direct approvals have no in-memory invocation and retain
+    /// their existing compatibility response; a Run-bound approval is always stopped fail-closed.
+    async fn close_live_pending_approval(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        reason: &str,
+    ) -> Result<Option<CoreResponse>, CoreError> {
+        let invocation = self
+            .pending_invocations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&approval_id);
+        let Some(invocation) = invocation else {
+            return Ok(None);
+        };
+        let _ = self
+            .approvals
+            .invalidate(context, approval_id, reason)
+            .await;
+        let mut continuation = context.clone();
+        continuation.request_id = invocation.event_request_id;
+        let mut sequence = invocation.event_sequence.saturating_add(1);
+        let status = if reason.starts_with("cancelled:") {
+            ExecutionStatus::Cancelled
+        } else {
+            ExecutionStatus::Failed
+        };
+        self.finish_rejected_approval(
+            &continuation,
+            context.request_id,
+            approval_id,
+            &invocation,
+            reason,
+            status,
+            &mut sequence,
+        )
+        .await
+        .map(Some)
+    }
+
     async fn replay_approval_decision(
         &self,
         context: &RequestContext,
@@ -510,15 +609,76 @@ impl ControlPlane {
                 )
                 .await;
         }
+        if invocation.approval_id != approval_id
+            || invocation.challenge.approval_id != approval_id
+            || invocation.challenge.request_id != invocation.request_id
+            || invocation.request_id != invocation.request.request_id
+        {
+            return self
+                .finish_rejected_approval(
+                    &continuation_context,
+                    request_id,
+                    approval_id,
+                    &invocation,
+                    "approval_binding_changed",
+                    ExecutionStatus::Failed,
+                    &mut sequence,
+                )
+                .await;
+        }
         let mut pending_request = invocation.request.clone();
+        let (turn_id, step_id) = if let Some(binding) = invocation.resume_binding.as_ref() {
+            if let Err(error) = binding.validate_against(
+                invocation.run_id,
+                invocation.event_request_id,
+                &pending_request,
+                decision_context,
+                &invocation.sandbox,
+            ) {
+                return self
+                    .finish_rejected_approval(
+                        &continuation_context,
+                        request_id,
+                        approval_id,
+                        &invocation,
+                        &error,
+                        ExecutionStatus::Failed,
+                        &mut sequence,
+                    )
+                    .await;
+            }
+            (binding.turn_id, binding.step_id)
+        } else {
+            let turn_id = pending_request
+                .arguments
+                .get("turn_id")
+                .and_then(|value| {
+                    serde_json::from_value::<kiana_domain::TurnId>(value.clone()).ok()
+                })
+                .or_else(|| {
+                    pending_request
+                        .execution_scope
+                        .as_ref()
+                        .and_then(|scope| scope.turn_id)
+                })
+                .or_else(|| {
+                    Some(kiana_domain::TurnId::from_uuid(
+                        invocation.event_request_id.as_uuid(),
+                    ))
+                });
+            let step_id = pending_request.arguments.get("step_id").and_then(|value| {
+                serde_json::from_value::<kiana_domain::StepId>(value.clone()).ok()
+            });
+            (turn_id, step_id)
+        };
         if let Some(arguments) = pending_request.arguments.as_object_mut() {
             arguments.insert("run_id".to_owned(), json!(invocation.run_id));
-            arguments.insert(
-                "turn_id".to_owned(),
-                json!(kiana_domain::TurnId::from_uuid(
-                    invocation.event_request_id.as_uuid()
-                )),
-            );
+            if let Some(turn_id) = turn_id {
+                arguments.insert("turn_id".to_owned(), json!(turn_id));
+            }
+            if let Some(step_id) = step_id {
+                arguments.insert("step_id".to_owned(), json!(step_id));
+            }
         }
         let request = match self
             .prepare_capability_action(
