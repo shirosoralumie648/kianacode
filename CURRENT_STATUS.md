@@ -3716,6 +3716,25 @@ limitations: scheduler/queue/claim/ClockPort, automatic occurrence recovery, cro
 reviewer: Codex root implementation review plus definition-version, planner determinism, CAS/idempotency, evidence/terminal and single-execution-spine boundary review; no runtime test reviewer
 ```
 
+### P2-K3-01 Human Inbox evidence (2026-09-18)
+
+```text
+source_snapshot: 08349bf2 + P2-K3-01 evidence slice; kiana-core/src/platform.rs; kiana-core/src/{commands,approvals,company}.rs; kiana-domain/src/platform.rs; kiana-core/tests/p2_k3_01_human_inbox.rs; kiana-core/tests/sc10_approval_binding.rs; .github/workflows/p2-k3-01-human-inbox.yml; docs/roadmap/p2-k3-01-human-inbox-baseline.md; docs/roadmap.md
+worktree_status: Core human_items aggregates pending approvals, Company review/acceptance/delivery/change/cancel, Company/failure incidents, reconciliation and feedback candidates as stable sorted HumanInboxItem kinds; human.resolve requires inbox digest, item/action IDs, required fields and idempotency, then routes to the original approval/company/failure/feedback authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p2_k3_01_human_inbox.rs six-kind/list digest/resolve source guard; kiana-core/tests/sc10_approval_binding.rs self-approval/expiry/one-shot/raw-field fixtures; GitHub Actions P2-K3-01 workflow runs guard, approval regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-K3-01 is triggered by the eventual push and is not awaited
+status_change: P2-K3-01 source slice is implemented/reconciled. Human decisions now share one bounded inbox projection and resolve route without granting the Inbox independent authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: HumanInboxItem/list revision is rebuilt from Approval/Company/EventLog projections; durable NotificationStore/read-state/outbox/delivery/recipient channel, cross-process inbox checkpoint, external human authentication, retention/withdraw/supersede and live/physical delivery remain NM/UI/PD/SC work
+reviewer: Codex root implementation review plus six-kind aggregation, stale/action-field fences, original-authority routing and no-second-loop boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

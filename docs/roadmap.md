@@ -102,7 +102,7 @@
 | `P1-L1-01` | P1 | L1 Eval | `P0-G-04` | GoldenTrace 绑定源码快照/输入 hash/版本/Receipt；replay 无真实副作用 | ✅ |
 | `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ✅ |
 | `P2-J5-01` | P2 | J5 Workflow | `P0-G-04` | 版本固定；重试/取消/审批/补偿可重放 | ✅ |
-| `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ⏳ |
+| `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ✅ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ⏳ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ⏳ |
 | `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
@@ -618,7 +618,7 @@
 | 445 | W6 | 专项 | [`UI-29`](roadmap/ui-entrypoints.md#step-ui-29) | UI / Entrypoints · ACP/IDE session adapter | `UI-01`、`UI-02`、`UI-07`、`UI-18`、`UI-21`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-29) |
 | 446 | W6 | 专项 | [`UI-30`](roadmap/ui-entrypoints.md#step-ui-30) | UI / Entrypoints · IDE editor/terminal capability boundary | `UI-04`、`UI-07`、`UI-29` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-30) |
 | 447 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ✅ | [基础卡](#step-p0-m1-01) |
-| 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ⏳ | [基础卡](#step-p2-k3-01) |
+| 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ✅ | [基础卡](#step-p2-k3-01) |
 | 449 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ⏳ | [基础卡](#step-p2-m2-01) |
 | 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m3-01) |
 | 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m4-01) |
@@ -1149,6 +1149,7 @@
 | 当前 193 | `P1-L1-01` GoldenTrace | `trace.capture` binds an owner/project/run to controlled source manifest/hash, input/events/runtime version and receipt, appends a new `golden_trace.captured` fact; `trace.replay` validates owner/project/event digest/data revocation and only folds history/invocations with `side_effects=false`/`provider_calls=0`; strict domain GoldenTrace object and provider-independent eval remain adjacent contracts;新增 core source guard、workflow 与 GoldenTrace baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-L1-01 已触发且未等待；durable EvalStore/FixtureStore, typed capture migration, normalizer/diff, isolated runner, judge/promote and live quality evidence remain EQ/ER/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 194 | `P1-L4-01` code intelligence | RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph results retain exact content hashes, canonical relative paths and bounded source fields; daemon `render_output` adds source snapshot, local workspace provenance, captured-at-read freshness and runtime version for JSON/text;新增 kiana-query source guard、workflow 与 code-intelligence baseline | `feature_status=implemented`（query/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-L4-01 已触发且未等待；immutable workspace snapshot/generation, durable index/cache switch, semantic provider index, deletion propagation and chunk/selected provenance remain CM/PD/OA/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 195 | `P2-J5-01` workflow replay | `WorkflowDefinition`/node execution/state/command schemas and pure planner enforce immutable versions, DAG/role/budget/deadline, approval/signal/cancel/retry/compensation/Unknown boundaries; ControlPlane loads/replays the workflow aggregate, commits CAS/idempotent command facts, and dispatches only after durable reservation via the existing execution spine;新增 workflow deterministic replay fixture、core source guard、workflow 与 baseline | `feature_status=implemented`（domain/workflow/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-J5-01 已触发且未等待；automatic scheduler/queue/claim, cross-process projector/power-loss recovery, external backend and live/physical effect evidence remain AUT/SW/PD/ER work；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 196 | `P2-K3-01` Human Inbox | Core 聚合 pending approvals、Company review/acceptance/delivery/change/cancel、Company/failure incidents、reconciliation 和 feedback candidates 为稳定排序的六类 HumanInboxItem；`human.resolve` 以 inbox digest、item/action ID、required fields、idempotency 回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K3-01 已触发且未等待；durable NotificationStore/read-state/outbox/delivery/recipient、cross-process inbox projector and external/live/physical human delivery remain NM/UI/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1393,6 +1394,7 @@
 | 2026-09-18 | `P1-L1-01` GoldenTrace：trace.capture 绑定 owner/project/run、受控 source manifest/hash、input/events/runtime version 和 receipt，并追加新 golden_trace.captured；trace.replay 校验 owner/project、events hash 与 data revocation，只折叠 history/invocation，明确 side_effects=false/provider_calls=0；新增 core source guard、workflow 与 GoldenTrace baseline；typed EvalStore/normalizer/judge/quality platform 留后续；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-L4-01` code intelligence：RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph 结果绑定 content hash、canonical 相对路径和有界来源；daemon 统一 JSON/text 输出附 source snapshot、local workspace、captured-at-read freshness/runtime version；新增 query source guard、workflow 与 code-intelligence baseline；immutable generation、durable index/cache、semantic provider index 和删除传播留 CM/PD/OA/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-J5-01` workflow replay：固定 WorkflowDefinition/node/instance/version 与纯 planner，覆盖 DAG、approval/signal/cancel/retry/compensation/Unknown；ControlPlane 读取 EventLog、CAS/idempotency 提交 command fact，提交 reservation 后才 dispatch，replay 不重复执行；新增 workflow replay fixture、core guard、workflow 与 baseline；scheduler/queue/claim、跨进程恢复和外部 live effect 留 AUT/SW/PD/ER；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-K3-01` Human Inbox：Core 统一聚合 Approval/Review/Acceptance/Incident/Reconciliation/Feedback item，列表 digest 稳定排序；resolve 强制 revision、item/action、required fields/idempotency 并回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline；durable NotificationStore/read-state/delivery/external human delivery 留 NM/UI/PD/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2260,12 +2262,14 @@
 
 <a id="step-p2-k3-01"></a>
 
-### P2-K3-01 Human Inbox　⏳
+### P2-K3-01 Human Inbox　✅
 
-- **现状**：审批、复核、验收、异常分散在不同界面，没有统一待办入口。
-- **做什么**：Approval、Review、Acceptance、Incident 和 Reconciliation 进入同一 Human Inbox。
-- **风险**：Inbox 若只做展示不做 resolve，会形成第二套决策入口。
-- **验收**：`human_inbox_collects_all_decision_types`
+当前 source slice 与 CI-only 证据见 [`p2-k3-01-human-inbox-baseline.md`](roadmap/p2-k3-01-human-inbox-baseline.md)。
+
+- **现状**：Core `human_items` 已把 pending Approval、Company Review/Acceptance/Delivery/Change/Cancel、Incident、Failure Reconciliation 与 Feedback candidate 汇聚为稳定排序的 `HumanInboxItem`。
+- **做什么**：每项带 kind/title/source_ref/detail/run_id 和可执行 `HumanAction`；`human.resolve` 绑定 inbox digest、item/action ID、required fields 与 idempotency，并回到原 approval/company/failure/feedback ControlPlane authority。
+- **风险**：stale/unknown item/action、额外或缺失字段、非 trusted/operator context 和自批/过期/重复决定 fail-closed；Inbox 不直接写事实、不创建第二决策循环。
+- **验收**：`human_inbox_unifies_control_items_without_a_second_authority`
 - **依赖 / 边界**：依赖 `P0-F-02`；决策仍由 ControlPlane resolve。
 - **依据**：`company-os-implementation-outline.md` §Slice K3
 

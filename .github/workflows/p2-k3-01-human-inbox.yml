@@ -1,0 +1,51 @@
+name: P2-K3-01 human inbox
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/sc10_approval_binding.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-k3-01-human-inbox-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-k3-01-human-inbox.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/sc10_approval_binding.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-k3-01-human-inbox-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-k3-01-human-inbox.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  human-inbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run human inbox source guard
+        run: cargo test -p kiana-core --test p2_k3_01_human_inbox --locked -- --test-threads=1
+      - name: Run approval binding regression
+        run: cargo test -p kiana-core --test sc10_approval_binding --locked -- --test-threads=1
+      - name: Compile P2-K3-01 targets
+        run: cargo check --workspace --tests --locked
+
