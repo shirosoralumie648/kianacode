@@ -840,7 +840,7 @@ impl DaemonHost {
                 return ResponseEnvelope::rejected(request_id, "parity_unauthenticated");
             }
         }
-        let mut metadata = request.metadata;
+        let metadata = request.metadata;
         let permission_profile =
             effective_permission_profile(&request.body, metadata.permission_profile);
         if let RequestBody::ApprovalDecision(decision) = &request.body {
@@ -864,7 +864,6 @@ impl DaemonHost {
         {
             return ResponseEnvelope::rejected(request_id, "approval_context_mismatch");
         }
-        metadata.actor_id = Some(self.principal.actor_id.clone());
         if metadata.session_id.is_empty() {
             return ResponseEnvelope::rejected(request_id, "session_id_required");
         }
@@ -899,29 +898,51 @@ impl DaemonHost {
             return ResponseEnvelope::rejected(request_id, "role_department_mismatch");
         }
 
-        let context = RequestContext {
+        let project_identity = match self.project_identity(&metadata.project_root) {
+            Ok(identity) => identity,
+            Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
+        };
+        let requested_context = RequestContext {
             request_id,
             session_id: metadata.session_id,
             project_root: metadata.project_root,
             actor_id: metadata.actor_id,
-            project_trusted,
+            project_trusted: metadata.project_trusted,
             permission_profile,
-            role_id: role.role_id,
-            department_id: role.department_id,
+            role_id: role.role_id.clone(),
+            department_id: role.department_id.clone(),
             work_packet_id: None,
             cell_id: None,
             path_allow: Vec::new(),
         };
+        let security_context = match self
+            .core
+            .resolve_security_context(
+                &requested_context,
+                self.principal.identity.clone(),
+                project_identity.clone(),
+                project_trusted,
+                &role,
+            )
+            .await
+        {
+            Ok(context) => context,
+            Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
+        };
+        if request_may_execute(&request.body) && !security_context.project_trusted {
+            return ResponseEnvelope::rejected(request_id, "project_untrusted");
+        }
+        let context = match security_context.apply_to_request(requested_context) {
+            Ok(context) => context,
+            Err(reason) => return ResponseEnvelope::rejected(request_id, reason),
+        };
         if request_may_execute(&request.body) {
-            let project_identity = match self.project_identity(&context.project_root) {
-                Ok(identity) => identity,
-                Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
-            };
             let configuration_revision = kiana_domain::json_digest(&serde_json::json!({
                 "project_identity":project_identity,"role_catalog":kiana_domain::RoleCatalog::builtin(),"department_catalog":kiana_domain::DepartmentCatalog::builtin(),"local_roles":self.principal.allowed_roles,
                 "model_profiles":std::env::var("KIANA_MODEL_PROFILES_JSON").unwrap_or_default(),
                 "policy":"kiana.default-policy.content.v2","tool_catalog":kiana_domain::tool_schemas(),
                 "action_catalog":kiana_domain::capability_action_catalog_digest(),
+                "security_context_digest":security_context.context_digest,
             }));
             if let Err(error) = self
                 .core

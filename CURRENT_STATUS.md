@@ -2385,6 +2385,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-03 stable-code/unknown-classification/raw-error boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-04 SecurityContext and entry identity boundary evidence (2026-09-17)
+
+```text
+source_snapshot: f7c7346 + SC-04 working-tree slice; kiana-core/src/{security_context,lib}.rs; kiana-daemon/src/lib.rs; kiana-core/tests/sc04_security_context.rs; kiana-core/tests/sc04_security_context_guard.rs; kiana-domain/src/contracts.rs; .github/workflows/sc04-security-context.yml; docs/roadmap/security-context-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-04 strict server-owned SecurityContext, actor/session/project/role/department/trust assertion checks, authority/data epoch and policy digest snapshot, untrusted effect gate, DaemonHost preflight wiring, CI fixtures/source guards and roadmap/status overlays are scoped to this step; no external auth provider, second authorization loop, second execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/security_context.rs kiana-core/src/lib.rs kiana-daemon/src/lib.rs kiana-core/tests/sc04_security_context.rs kiana-core/tests/sc04_security_context_guard.rs kiana-domain/src/contracts.rs .github/workflows/sc04-security-context.yml docs/roadmap/security-context-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'SecurityContext|resolve_security_context|validate_request_assertions|apply_to_request|require_trusted_for_effect|AuthCallerUntrusted|AuthProjectMismatch|AUTH_PROJECT_UNTRUSTED|authority_epoch|data_epoch|project_trusted' kiana-core/src/security_context.rs kiana-core/src/lib.rs kiana-daemon/src/lib.rs kiana-core/tests/sc04_security_context.rs kiana-core/tests/sc04_security_context_guard.rs docs/roadmap/security-context-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; core/daemon test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/sc04_security_context.rs server-owned context round-trip, actor/anonymous/project/role/forged-trust deny and untrusted-effect gate; kiana-core/tests/sc04_security_context_guard.rs daemon/core source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-04 job is queued by the push and is not awaited
+status_change: SC-04 source slice is implemented. ControlPlane now exposes a strict SecurityContext built from daemon-owned principal, project identity/trust, role descriptor and authority revision/epoch; caller actor/session/project/role/department/trust assertions are checked before legacy RequestContext projection, and untrusted server snapshots cannot enter effect admission. DaemonHost performs this preflight before existing command/run/approval/query routing and includes the context digest in effect configuration evidence; no new execution or authorization loop was added.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; AuthenticatedPrincipalRef remains local-user compatibility identity, ProjectTrust and authority/session assignment remain partial/in-memory or JSONL scoped, role selection still comes from a server-validated catalog/assignment boundary but is not durable external authentication, data_epoch is the current compatibility value, all four entrypoint parity and complete policy/Grant/approval/SecretStore/redaction/TOCTOU/external-effect enforcement remain future SC/CP/CAP/ER/PD work
+reviewer: Codex root implementation review plus SC-04 server-owned context/caller-assertion/entry-preflight reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

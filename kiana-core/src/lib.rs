@@ -41,6 +41,7 @@ mod receipts;
 mod recovery;
 mod redaction;
 mod replay_diagnostics;
+mod security_context;
 mod sessions;
 mod span_projection;
 mod trace_export;
@@ -81,6 +82,7 @@ pub use performance::{
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
+pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
