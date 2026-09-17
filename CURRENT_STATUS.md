@@ -2196,6 +2196,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-06 versioned command/event/unknown-family and no-bypass source-boundary review; no runtime test reviewer
 ```
 
+### EQ-07 quality ports evidence (2026-09-17)
+
+```text
+source_snapshot: a5cce7c + EQ-07 working-tree slice; kiana-ports/src/lib.rs; kiana-domain/src/quality.rs; kiana-ports/tests/eq07_quality_ports.rs; kiana-core/tests/eq07_quality_ports_guard.rs; .github/workflows/eq07-quality-ports.yml; docs/roadmap/evaluation-ports-baseline.md; docs/roadmap.md
+worktree_status: EvalStore/FixtureStore/TraceSource/ArtifactReader/Judge/MetricsSink/Clock traits are scoped to this step with default structured unsupported errors; ports expose only domain typed objects, opaque refs, RuntimeEvent/cursor, ArtifactRef and JSON, no adapter or execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-ports/src/lib.rs kiana-domain/src/quality.rs kiana-ports/tests/eq07_quality_ports.rs kiana-core/tests/eq07_quality_ports_guard.rs .github/workflows/eq07-quality-ports.yml docs/roadmap/evaluation-ports-baseline.md docs/roadmap.md
+  rg -n 'trait (EvalStore|FixtureStore|TraceSource|ArtifactReader|Judge|MetricsSink|Clock)|eval_store_unsupported|fixture_store_unsupported|trace_source_unsupported|kiana_daemon|kiana_provider|PathBuf|reqwest' kiana-ports/src/lib.rs kiana-ports/tests/eq07_quality_ports.rs kiana-core/tests/eq07_quality_ports_guard.rs docs/roadmap/evaluation-ports-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-07 ports/domain/core targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-ports/tests/eq07_quality_ports.rs compile-only fake adapters/default unsupported boundaries; kiana-core/tests/eq07_quality_ports_guard.rs dependency source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-07 job is queued by the next push and is not awaited
+status_change: EQ-07 source slice is implemented. Quality persistence/fixture/trace/artifact/judge/metrics/clock boundaries now exist below core without daemon/provider/filesystem/network coupling, and unsupported adapters fail explicitly rather than silently degrading.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; all new ports lack production adapters, durable CAS/recovery, scope/path isolation, source authentication, normalizer/runner integration, judge quality evidence and promotion authority; EQ-08+ / ER / PD / SC remain open.
+reviewer: Codex root implementation review plus EQ-07 port layering/no-provider/no-filesystem/no-execution source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

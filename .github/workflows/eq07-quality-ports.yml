@@ -1,0 +1,44 @@
+name: EQ-07 quality ports
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/eq07_quality_ports.rs"
+      - "kiana-core/tests/eq07_quality_ports_guard.rs"
+      - "kiana-domain/src/quality.rs"
+      - "docs/roadmap/evaluation-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq07-quality-ports.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/eq07_quality_ports.rs"
+      - "kiana-core/tests/eq07_quality_ports_guard.rs"
+      - "kiana-domain/src/quality.rs"
+      - "docs/roadmap/evaluation-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq07-quality-ports.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-ports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-07 quality port fixture
+        run: cargo test -p kiana-ports --test eq07_quality_ports --locked -- --test-threads=1
+      - name: Run EQ-07 source guard
+        run: cargo test -p kiana-core --test eq07_quality_ports_guard --locked -- --test-threads=1
+      - name: Compile quality port path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-protocol -p kiana-core --tests --locked

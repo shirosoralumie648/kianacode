@@ -24,11 +24,13 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
     BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
     CellLifecycle, CellSpec, CommunicationMessage, ConfigSnapshot, CorrelationContext,
-    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
-    PendingApproval, Principal, ProjectId, ProjectIdentity, RequestContext, RequestId,
-    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef,
-    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, SwarmLineage, SwarmPlanId,
-    TraceSummary, WorkFingerprint,
+    CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite,
+    EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint,
+    ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity,
+    QualityArtifact, QualityArtifactId, RequestContext, RequestId, ResolvedAssignment,
+    RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
+    SpawnPlan, SpawnPlanId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary,
+    WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -172,6 +174,112 @@ pub trait CredentialRotationPort: Send + Sync {
 }
 
 pub use CredentialRotationPort as RotationRevokePort;
+
+/// Versioned quality-object persistence boundary. Implementations must preserve object digests,
+/// reject stale revisions and return a typed conflict instead of silently overwriting facts.
+#[async_trait]
+pub trait EvalStore: Send + Sync {
+    async fn put_quality_artifact(&self, _artifact: QualityArtifact) -> Result<(), PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn read_quality_artifact(
+        &self,
+        _artifact_id: QualityArtifactId,
+    ) -> Result<Option<QualityArtifact>, PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn put_dataset(&self, _dataset: EvalDataset) -> Result<(), PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn read_dataset(
+        &self,
+        _dataset_id: EvalDatasetId,
+    ) -> Result<Option<EvalDataset>, PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn put_suite(&self, _suite: EvalSuite) -> Result<(), PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn read_suite(&self, _suite_id: EvalSuiteId) -> Result<Option<EvalSuite>, PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn put_case(&self, _case: EvalCase) -> Result<(), PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn read_case(&self, _case_id: EvalCaseId) -> Result<Option<EvalCase>, PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn put_golden_trace(&self, _trace: GoldenTrace) -> Result<(), PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+
+    async fn read_golden_trace(
+        &self,
+        _trace_id: GoldenTraceId,
+    ) -> Result<Option<GoldenTrace>, PortError> {
+        Err(PortError::Unavailable("eval_store_unsupported".to_owned()))
+    }
+}
+
+/// Read-only fixture bytes by an opaque reference and server-derived scope digest. A fixture
+/// adapter must not expose filesystem paths or fall back to the operator workspace.
+#[async_trait]
+pub trait FixtureStore: Send + Sync {
+    async fn read_fixture(
+        &self,
+        fixture_ref: &str,
+        scope_digest: &str,
+    ) -> Result<Vec<u8>, PortError>;
+}
+
+/// Read committed RuntimeEvent facts for a run after a logical cursor. Deltas are never authority
+/// and an unsupported cursor read must remain a typed error rather than an empty result.
+#[async_trait]
+pub trait TraceSource: Send + Sync {
+    async fn read_trace_events(
+        &self,
+        run_id: RunId,
+        after_cursor: EventCursor,
+        limit: usize,
+    ) -> Result<Vec<RuntimeEvent>, PortError>;
+}
+
+/// Read immutable artifact bytes referenced by a GoldenTrace. The port does not accept a current
+/// workspace path and cannot mutate an artifact or its authorization scope.
+#[async_trait]
+pub trait ArtifactReader: Send + Sync {
+    async fn read_artifact(&self, reference: &ArtifactRef) -> Result<Vec<u8>, PortError>;
+}
+
+/// Semantic judge boundary. A judge returns bounded JSON findings only; it cannot promote a
+/// candidate, authorize capabilities or mutate canonical history.
+#[async_trait]
+pub trait Judge: Send + Sync {
+    async fn judge(
+        &self,
+        case: &EvalCase,
+        trace: &GoldenTrace,
+    ) -> Result<serde_json::Value, PortError>;
+}
+
+/// Quality metrics projection sink. A metrics write is not a quality verdict or policy mutation.
+#[async_trait]
+pub trait MetricsSink: Send + Sync {
+    async fn record_eval_result(&self, result: &EvalCaseResult) -> Result<(), PortError>;
+}
+
+/// Deterministic clock boundary for evaluation and expiry checks; it has no sleep or I/O effect.
+pub trait Clock: Send + Sync {
+    fn now_unix_ms(&self) -> u64;
+}
 
 /// Append/read typed Swarm lineage without granting dispatch authority. Implementations must
 /// preserve the lineage digest and reject cross-swarm or stale-epoch records.
