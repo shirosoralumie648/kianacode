@@ -3431,6 +3431,25 @@ limitations: versioned UiSnapshot/action/reconnect projector, desktop package ru
 reviewer: Codex root implementation review plus P0-M1-01 terminal/status parity and no-UI-authority invariants; no runtime test reviewer
 ```
 
+### P1-C-02 Cell lifecycle and retirement evidence (2026-09-18)
+
+```text
+source_snapshot: 0bf2f1d + P1-C-02 evidence slice; kiana-core/src/{cell_registry,collaboration}.rs; kiana-domain/src/{work_packets,states}.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/p1_c02_cell_lifecycle.rs; .github/workflows/p1-c02-cell-lifecycle.yml; docs/roadmap/p1-c02-cell-lifecycle-baseline.md
+worktree_status: MemoryCellRegistry reserve/commit/terminal/retire validates scoped template/grant/budget/supervision/path identities; active capabilities fence retirement; release_resources returns only the owning budget reservation, removes still-owned path locks idempotently, and emits grant/supervision/budget retirement identity; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p1_c02_cell_lifecycle.rs reserve/commit/retire ownership and release source guards; existing serialized control_plane Cell cancellation/path-lock fixtures remain CI-only; GitHub Actions P1-C-02 workflow runs the guards and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-C-02 is triggered by the eventual push and is not awaited
+status_change: P1-C-02 source slice is implemented/reconciled. Cell resource lifecycle and exactly-once owned release are explicit, with no cross-Cell cleanup.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: MemoryCellRegistry remains process-local; durable Cell/Grant/Budget/Lease projection, restart recovery, scheduler/Swarm claims and cross-process fencing remain AUT/SW/ER/PD/CP work
+reviewer: Codex root implementation review plus P1-C-02 reserve/commit/terminal/retire and owned-resource-release invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

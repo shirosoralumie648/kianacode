@@ -78,7 +78,7 @@
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ✅ |
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ✅ |
 | `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ✅ |
-| `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
+| `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ✅ |
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ✅ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ✅ |
@@ -325,7 +325,7 @@
 | 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ✅ | [基础卡](#step-p0-f-01) |
 | 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ✅ | [基础卡](#step-p0-f-02) |
 | 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ✅ | [基础卡](#step-p0-j1-01) |
-| 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
+| 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ✅ | [基础卡](#step-p1-c-02) |
 | 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ✅ | [基础卡](#step-p1-d-03) |
 | 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
 | 162 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ⏳ | [基础卡](#step-p1-k5-01) |
@@ -1134,6 +1134,7 @@
 | 当前 178 | `P0-J1-03` process-group stop | shell/MCP/long-process adapters create process groups, terminate/poll descendants, drain output and report `stop_confirmed`; unconfirmed stop returns structured `result_unknown`;新增 daemon CI guard、workflow 与 process-group baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-03 已触发且未等待；mid-stream race/late delta、kernel edge cases、durable reconciliation and cross-process recovery 留待 P0-J1-04/CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 179 | `P0-J1-04` cancel race | existing daemon held-stream race keeps cancel intent before signal, emits no late delta/completion and requires exactly one terminal fact;新增 daemon CI guard/workflow 与 cancel-race baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-04 已触发且未等待；cross-process/power-loss races、provider effect reconciliation and physical proof 留待 CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 180 | `P0-M1-01` Workbench | Workbench/TTY、CLI stream renderer、Web ledger/SSE 与 Desktop web shell 消费同一 run-scoped Terminal/ExecutionStatus；Cancelled/ResultUnknown 保持可见，Desktop 不创建第二循环；新增 entrypoints CI guard/workflow 与 Workbench baseline | `feature_status=implemented`（entrypoints/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-M1-01 已触发且未等待；UiSnapshot/action/reconnect durability、accessibility and physical packaging 留待 UI-01+/P2-M2/P2-M5/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 181 | `P1-C-02` Cell lifecycle | MemoryCellRegistry reserve/commit/terminal/retire validates all scoped resources; retirement releases only its own budget/path locks once and records grant/supervision IDs, with active-capability fence;新增 core CI guard/workflow 与 Cell lifecycle baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-C-02 已触发且未等待；durable Cell/Grant/Budget/Lease projection、restart recovery、scheduler/Swarm and cross-process fencing 留待 AUT/SW/ER/PD/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1363,6 +1364,7 @@
 | 2026-09-18 | `P0-J1-03` process-group stop：shell/MCP/long-process adapters 共享进程组 termination/poll/drain，只有正向消失检查写 `stop_confirmed`，无法确认返回 `result_unknown`；新增 daemon guard、workflow 与 process-group baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-J1-04` cancel race：复用 daemon held-stream 竞态回归，取消后无 late delta/completion 且 terminal fact 恰好一次；新增 cancel-race source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-M1-01` Workbench：CLI/TTY、CLI stream、Web ledger/SSE 与 Desktop web shell 统一消费 RunStream Terminal/ExecutionStatus，Cancelled/ResultUnknown 可见且 UI 不生成事实；新增 entrypoints/daemon source guard、workflow 与 Workbench baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-C-02` Cell lifecycle：MemoryCellRegistry reserve/commit/terminal/retire 统一校验模板/grant/budget/supervision/path，active capability 未结束不可 retire，release_resources 只释放本 Cell 的 budget/path 并幂等记录 retirement；新增 core guard、workflow 与 Cell lifecycle baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1787,7 +1789,9 @@
 
 <a id="step-p1-c-02"></a>
 
-### P1-C-02 Cell 生命周期与 retire　⏳
+### P1-C-02 Cell 生命周期与 retire　✅
+
+当前 source slice 与 CI-only 证据见 [`p1-c02-cell-lifecycle-baseline.md`](roadmap/p1-c02-cell-lifecycle-baseline.md)。
 
 - **现状**：registry/budget 仍是进程内状态，尚无 durable Cell projector 和跨进程恢复。
 - **做什么**：打通 reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁和预算。

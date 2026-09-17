@@ -1,0 +1,44 @@
+name: P1-C-02 cell lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-c02-cell-lifecycle-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-c02-cell-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-c02-cell-lifecycle-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-c02-cell-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cell-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P1-C-02 core lifecycle guards
+        run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --locked -- --test-threads=1
+      - name: Compile P1-C-02 targets
+        run: cargo check --workspace --tests --locked
