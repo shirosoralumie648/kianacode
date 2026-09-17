@@ -2671,6 +2671,25 @@ limitations: ResourceLease is an immutable observation and does not itself hold 
 reviewer: Codex root implementation review plus CP-12 canonical write-set, kernel lock, owner/epoch/token and successor reconciliation; no runtime test reviewer
 ```
 
+### CP-13 execution permit and dispatch barrier evidence (2026-09-17)
+
+```text
+source_snapshot: 90c2ae1 + CP-13 working-tree slice; kiana-domain/src/{dispatch,contracts,lib}.rs; kiana-core/src/{dispatch,capabilities}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp13_dispatch_permit.rs; kiana-core/tests/cp13_dispatch_guard.rs; .github/workflows/cp13-dispatch-permit.yml; docs/roadmap/control-plane-dispatch-permit-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-13 strict DispatchPermit now carries schema/version/digest and exact action/project/authority bindings; ControlPlane prepares it only after current read-set and cancellation/policy checks, JournalPermitVerifier validates the opaque permit and CASes invocation.dispatching before the existing invocation.executing handler boundary; no second broker or execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp13_dispatch_permit.rs exact action/expiry/digest/read-set fixtures; kiana-core/tests/cp13_dispatch_guard.rs committed-permit/cancel/Broker barrier source guard; GitHub Actions CP-13 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-13 is triggered by the eventual push and is not awaited
+status_change: CP-13 source slice is implemented. Forged authorization strings cannot mint a permit; changed action/project identity, expiry, duplicate authority read-set, missing permit and replayed execution streams fail closed, and only a committed execution.prepared transition can reach invocation.dispatching and the Broker's permit verifier.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: full budget/lease/fence/cancel/result transaction remains split across CP-11/12 and CP-14+/16, external services cannot receive an exactly-once claim, cross-process crash/recovery and stale worker fencing remain open, and Secret/egress/external/live/physical proof is absent
+reviewer: Codex root implementation review plus CP-13 permit digest/action/read-set/dispatch-barrier reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

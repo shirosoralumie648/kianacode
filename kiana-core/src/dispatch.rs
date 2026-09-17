@@ -1,7 +1,7 @@
 use super::*;
 use kiana_domain::{
     derived_request_id, json_digest, AggregateVersion, CommitOutcome, DispatchPermit, ExecutionId,
-    InvocationId, TransitionBatch, TurnId, DISPATCH_PERMIT_SCHEMA,
+    InvocationId, TransitionBatch, TurnId, DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
 };
 
 pub fn project_root_identity(root: &str) -> Result<Value, PortError> {
@@ -112,16 +112,15 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
         if records.len() != 1 || records[0].kind != "execution.prepared" {
             return Err(dispatch_error("execution_permit_unavailable"));
         }
-        let permit: DispatchPermit = serde_json::from_value(records[0].data["permit"].clone())
+        let permit = DispatchPermit::from_json(&records[0].data["permit"])
             .map_err(|_| dispatch_error("execution_permit_invalid"))?;
         let now = now_ms()?;
-        if permit.schema != DISPATCH_PERMIT_SCHEMA
-            || permit.execution_id.to_string() != id
-            || permit.project_identity != project_root_identity(&permit.context.project_root)?
-            || permit.request_id != request.request.request_id
-            || permit.action_digest != kiana_domain::capability_action_digest(&request.request)
-            || now < permit.issued_at_unix_ms
-            || now >= permit.expires_at_unix_ms
+        let project_identity = project_root_identity(&permit.context.project_root)?;
+        if permit.execution_id.to_string() != id
+            || permit.version != DISPATCH_PERMIT_VERSION
+            || permit
+                .validate_for_request(&request.request, &project_identity, now)
+                .is_err()
         {
             return Err(dispatch_error("execution_permit_scope_or_expiry_mismatch"));
         }
@@ -487,8 +486,10 @@ impl ControlPlane {
                 value.version += 1;
             }
         }
-        let permit = DispatchPermit {
+        let issued_at_unix_ms = now_ms()?;
+        let mut permit = DispatchPermit {
             schema: DISPATCH_PERMIT_SCHEMA.to_owned(),
+            version: DISPATCH_PERMIT_VERSION,
             execution_id,
             invocation_id,
             request_id: request.request_id,
@@ -500,9 +501,12 @@ impl ControlPlane {
             action_digest: kiana_domain::capability_action_digest(request),
             project_identity: project_root_identity(&context.project_root)?,
             authority_versions: permit_authority,
-            issued_at_unix_ms: now_ms()?,
+            issued_at_unix_ms,
             expires_at_unix_ms: expiry,
+            permit_digest: String::new(),
         };
+        permit.permit_digest = permit.digest();
+        permit.validate().map_err(|error| dispatch_error(&error))?;
         authority_versions.push(AggregateVersion {
             aggregate_type: "execution_permit".to_owned(),
             aggregate_id: execution_id.to_string(),
