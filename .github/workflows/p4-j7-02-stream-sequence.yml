@@ -1,0 +1,54 @@
+name: P4-J7-02 run stream sequence and epoch
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-j7-02-stream-sequence-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-02-stream-sequence.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-j7-02-stream-sequence-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-02-stream-sequence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stream-sequence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run protocol cursor fixture
+        run: cargo test -p kiana-protocol --test p4_j7_02_sequence --locked -- --test-threads=1
+      - name: Run daemon monotonic stream fixture
+        run: cargo test -p kiana-daemon --lib run_stream_sequence_is_monotonic --locked -- --test-threads=1
+      - name: Run UI stream regressions
+        run: |
+          cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+          cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - name: Compile P4-J7-02 targets
+        run: cargo check --workspace --tests --locked

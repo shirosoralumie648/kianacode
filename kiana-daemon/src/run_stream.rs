@@ -13,6 +13,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 
+#[cfg(test)]
+use kiana_protocol::ExecutionStatus;
+
 const RUN_STREAM_CAPACITY: usize = 256;
 const MAX_RETAINED_RUNS: usize = 128;
 const TERMINAL_RETENTION: Duration = Duration::from_secs(600);
@@ -674,6 +677,48 @@ mod tests {
                 .is_err(),
             "a failed sink must not publish a terminal completion"
         );
+    }
+
+    #[tokio::test]
+    async fn run_stream_sequence_is_monotonic() {
+        let bus = RunStreamBus::default();
+        let run_id = RunId::new();
+        let mut subscription = bus.subscribe(run_id);
+        bus.publish_delta(run_id, "one".to_owned());
+        bus.publish_delta(run_id, "two".to_owned());
+        let first = subscription.recv().await.expect("first delta");
+        let second = subscription.recv().await.expect("second delta");
+        assert_eq!(first.epoch, second.epoch);
+        assert_eq!(first.sequence, 1);
+        assert_eq!(second.sequence, 2);
+        assert_eq!(first.ui_cursor, 0);
+        assert_eq!(second.ui_cursor, 0);
+
+        bus.publish_terminal(
+            run_id,
+            ResponseEnvelope {
+                schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                request_id: RequestId::new(),
+                status: ExecutionStatus::Completed,
+                output: serde_json::json!({"ok": true}),
+                error: None,
+            },
+        );
+        let terminal = subscription.recv().await.expect("terminal");
+        assert_eq!(terminal.sequence, 3);
+        assert!(matches!(terminal.event, RunStreamEvent::Terminal { .. }));
+        assert!(terminal.ui_cursor > second.ui_cursor);
+
+        let cursor = UiCursor {
+            epoch: first.epoch.clone(),
+            sequence: second.sequence,
+        };
+        let mut late = bus.subscribe_after(run_id, Some(&cursor));
+        assert!(late.has_gap());
+        let replay = late.recv().await.expect("late terminal replay");
+        assert_eq!(replay.epoch, first.epoch);
+        assert_eq!(replay.sequence, terminal.sequence);
+        assert!(matches!(replay.event, RunStreamEvent::Terminal { .. }));
     }
 
     #[test]

@@ -6916,3 +6916,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CellRegistry and portions of Swarm aggregate/reconciliation remain process-local; event-before-dispatch is an explicit recovery window, not cross-process durability; no real concurrent worker/power-loss/Integrator conflict or external/live/physical effect proof is claimed; follow-up SW-04..18/CO-43..48/PD/ER/DEP remains
 reviewer: Codex root implementation review plus WorkGraph/WorkFingerprint/path/budget/concurrency/TTL, Controller Cell, child Company dispatch, replay/Unknown/cancel and independent Merge/retire boundary review; no runtime test reviewer
 ```
+### P4-J7-02 stream sequence/epoch evidence (2026-09-18)
+
+```text
+source_snapshot: e9687329 + P4-J7-02 working-tree slice; kiana-protocol/src/lib.rs; kiana-daemon/src/run_stream.rs; kiana-protocol/tests/p4_j7_02_sequence.rs; kiana-daemon/tests/p2_m2_01_ui_projection.rs; kiana-entrypoints/src/{web.rs,web_page.html}; kiana-entrypoints/tests/p2_m5_01_web_sync.rs; .github/workflows/p4-j7-02-stream-sequence.yml; docs/roadmap/p4-j7-02-stream-sequence-baseline.md; docs/roadmap.md
+worktree_status: additive RunStreamEnvelope epoch/sequence/ui_cursor and RunStreamBus per-run monotonic cursor are covered by a real delta→terminal→late-replay bus fixture; protocol cursor rejects gaps/epoch changes and treats duplicate delivery idempotently; Web SSE/Last-Event-ID and snapshot fallback remain on the same projection path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-protocol --test p4_j7_02_sequence -p kiana-daemon --lib --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/src/run_stream.rs `run_stream_sequence_is_monotonic` publishes two deltas and terminal then replays terminal to a late cursor; kiana-protocol/tests/p4_j7_02_sequence.rs covers duplicate/gap/epoch-change; GitHub Actions P4-J7-02 workflow runs protocol/daemon fixtures and UI stream regressions
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-02 is triggered by the eventual push and is not awaited
+status_change: P4-J7-02 source slice is implemented. Stream envelopes now carry additive monotonic sequence/epoch metadata without changing PROTOCOL_SCHEMA, and stale/gapped display updates fail closed or request snapshot hydration.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: RunStreamBus cursor/terminal retention and UI state are process-local best-effort projections; no cross-process cursor durability, guaranteed network delivery, external provider stream, device synchronization or live/physical proof is claimed
+reviewer: Codex root implementation review plus additive wire/schema, per-run sequence, epoch fencing, duplicate/gap handling, terminal replay, SSE Last-Event-ID and EventLog/Receipt authority boundary review; no runtime test reviewer
+```
