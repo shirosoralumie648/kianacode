@@ -3184,6 +3184,25 @@ limitations: output storage remains a local adapter without cross-process Artifa
 reviewer: Codex root implementation review plus H15 streaming limits, typed output reference integrity, owner/run/epoch/expiry fencing and cursor page semantics; no runtime test reviewer
 ```
 
+### H-16 parallel-read groups and exclusive barrier evidence (2026-09-18)
+
+```text
+source_snapshot: 9db12d6 + H-16 working-tree slice; kiana-domain/src/{tool_authority,tool_scheduling,lib}.rs; kiana-runner/src/harness.rs; kiana-core/src/{dispatch,capabilities}.rs; kiana-domain/tests/h16_tool_scheduling.rs; kiana-core/tests/h16_parallel_barriers.rs; .github/workflows/h16-parallel-barriers.yml; docs/roadmap/harness-parallel-barriers-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: ToolCatalog descriptors now carry scheduling class, coarse resource claims and bounded max_parallelism; deterministic ToolBatchPlan groups adjacent read-only calls and makes every side-effecting call an exclusive barrier; Runner validates the plan before pending admission, while every request continues through independent ControlPlane authorization/permit/result CAS; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h16_tool_scheduling.rs read-group/barrier planning fixtures; kiana-core/tests/h16_parallel_barriers.rs write barrier, revocation, H13 outcome and source-order guards; GitHub Actions H16 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H16 is triggered by the eventual push and is not awaited
+status_change: H16 source slice is implemented. Batch scheduling metadata and deterministic barrier semantics are now part of the versioned tool catalog; a batch-level allow cannot authorize an unstarted sibling.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Harness external behavior remains serialized while the safe plan contract is introduced; bounded worker-pool overlap, cross-process resource CAS, queue-head pressure and external/live/physical effect proof remain later CAP/ER/PD/INT work
+reviewer: Codex root implementation review plus H16 scheduling metadata, source-order planner, exclusive barrier, per-call revalidation and H13 no-rerun handoff; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

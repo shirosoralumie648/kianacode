@@ -52,6 +52,12 @@ pub struct ToolDescriptor {
     pub output_limit: u64,
     pub execution_mode: String,
     pub replay_class: String,
+    /// Deterministic scheduler class. Read-only calls may share a bounded group; every other
+    /// operation is an exclusive barrier and is still re-authorized independently by Core.
+    pub scheduling: String,
+    /// Coarse resource claims used by the batch planner; values never grant access by themselves.
+    pub resources: Vec<String>,
+    pub max_parallelism: u32,
 }
 
 impl ToolCatalogSnapshot {
@@ -89,6 +95,16 @@ impl ToolCatalogSnapshot {
                     } else {
                         "replay_safe".to_owned()
                     },
+                    scheduling: if spec.side_effecting {
+                        "exclusive".to_owned()
+                    } else {
+                        "parallel_read".to_owned()
+                    },
+                    resources: match spec.operation {
+                        "memory.search" => vec!["memory".to_owned()],
+                        _ => vec!["workspace".to_owned()],
+                    },
+                    max_parallelism: if spec.side_effecting { 1 } else { 4 },
                 })
             })
             .collect::<Vec<_>>();
@@ -127,6 +143,15 @@ impl ToolCatalogSnapshot {
                 || tool.operation.trim().is_empty()
                 || tool.execution_mode != "brokered"
                 || !matches!(tool.replay_class.as_str(), "replay_safe" | "reconcile")
+                || !matches!(tool.scheduling.as_str(), "parallel_read" | "exclusive")
+                || tool.resources.is_empty()
+                || tool
+                    .resources
+                    .iter()
+                    .any(|resource| resource.trim().is_empty())
+                || tool.max_parallelism == 0
+                || tool.scheduling == "parallel_read" && tool.side_effecting
+                || tool.scheduling == "exclusive" && tool.max_parallelism != 1
                 || tool.output_limit == 0
                 || tool.output_limit > 16 * 1024 * 1024
                 || !names.insert(tool.name.clone())

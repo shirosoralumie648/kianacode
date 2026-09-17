@@ -402,7 +402,9 @@ sequenceDiagram
 
 <a id="step-h16"></a>
 
-#### H16 — 有界并行工具组与独占屏障　⏳
+#### H16 — 有界并行工具组与独占屏障　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-parallel-barriers-baseline.md`](harness-parallel-barriers-baseline.md)。
 
 **关联原单元**：`P1-H-01/03`、`P0-J1-02`、`P1-K5-01`。**依赖**：H08、H09、H12、H13、H15。
 

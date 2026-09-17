@@ -1097,6 +1097,8 @@ impl KianaHarness {
         run.pending_tools.clear();
         kiana_domain::validate_model_calls(&output.tool_calls)
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+        let _batch_plan =
+            kiana_domain::plan_tool_batch(&output.tool_calls).map_err(KianaHarnessError::Failed)?;
         let mapped = output
             .tool_calls
             .into_iter()

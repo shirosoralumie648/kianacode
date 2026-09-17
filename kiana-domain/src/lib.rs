@@ -80,6 +80,7 @@ mod swarm_reducer;
 mod symposiums;
 #[cfg(test)]
 mod tests;
+mod tool_scheduling;
 mod trust_snapshots;
 mod usage;
 mod work_packets;
@@ -153,6 +154,7 @@ pub use swarm_graph::*;
 pub use swarm_identity::*;
 pub use swarm_reducer::*;
 pub use symposiums::*;
+pub use tool_scheduling::*;
 pub use trust_snapshots::*;
 pub use usage::*;
 pub use work_packets::*;
