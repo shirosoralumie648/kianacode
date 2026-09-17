@@ -138,6 +138,16 @@ impl ControlPlane {
         kind: &str,
         data: Value,
     ) -> Result<(), CoreError> {
+        if data.get("source").is_some() {
+            let source = data
+                .get("source")
+                .and_then(Value::as_str)
+                .ok_or_else(|| PortError::Failed("notification_event_source_unknown".to_owned()))?;
+            let source =
+                kiana_domain::notification_event_source(source).map_err(PortError::Failed)?;
+            kiana_domain::validate_notification_event(kind, source, &data)
+                .map_err(PortError::Failed)?;
+        }
         // EventLog is the canonical boundary: generic runner output must be redacted before it
         // can become durable fact or feed a receipt projection.
         let (data, redaction_profile, data_epoch, artifact_refs) = prepare_event_payload(&data)?;

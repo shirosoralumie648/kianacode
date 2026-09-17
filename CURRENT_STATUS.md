@@ -2049,6 +2049,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-02 lifecycle/recipient/authority/eventlog source-boundary review; no runtime test reviewer
 ```
 
+### NM-03 notification event registry evidence (2026-09-17)
+
+```text
+source_snapshot: e0e0b02 + NM-03 working-tree slice; kiana-domain/src/{notification_events,event_contracts,contracts,lib}.rs; kiana-core/src/events.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/nm03_event_registry.rs; kiana-core/tests/nm03_event_registry_guard.rs; .github/workflows/nm03-event-registry.yml; docs/roadmap/notifications-event-registry-baseline.md; docs/roadmap.md
+worktree_status: NM-03 server-owned notification event class/source registry and critical owner guard are scoped to this step; core append validates explicit source metadata before redaction/append while legacy events without source remain compatibility facts, and no projector/delivery/second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/notification_events.rs kiana-domain/src/event_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/events.rs kiana-protocol/src/lib.rs kiana-domain/tests/nm03_event_registry.rs kiana-core/tests/nm03_event_registry_guard.rs .github/workflows/nm03-event-registry.yml docs/roadmap/notifications-event-registry-baseline.md docs/roadmap.md
+  rg -n 'NOTIFICATION_EVENT_(SPECS|REGISTRY_SCHEMA)|NotificationEvent(Class|Source|Spec)|notification_event_(kind_unregistered|source_untrusted|owner_required|source_mismatch)|validate_notification_(event|runtime_event)|data.get\("source"\)' kiana-domain/src kiana-core/src kiana-protocol/src kiana-domain/tests/nm03_event_registry.rs kiana-core/tests/nm03_event_registry_guard.rs docs/roadmap/notifications-event-registry-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; NM-03 registry fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/nm03_event_registry.rs mapping, unknown kind/source, model/UI self-report and ownerless critical fixtures; kiana-core/tests/nm03_event_registry_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-03 job is queued by the next push and is not awaited
+status_change: NM-03 source slice is implemented. Domain now classifies only registered committed notification events, rejects unknown required families, model/UI critical self-reports, source mismatch and ownerless critical facts; core explicit-source append boundary reuses this guard without changing legacy payload compatibility.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy events lacking explicit source are not yet materialized, and committed-only projector/cursor/checkpoint, recipient/scope resolver, delivery/OCC/outbox/read state and cross-process recovery remain NM-04+ / ER / PD / SC.
+reviewer: Codex root implementation review plus NM-03 event registry/source/owner and no-self-reported-critical-fact source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
