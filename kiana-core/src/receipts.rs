@@ -342,6 +342,7 @@ pub(crate) fn receipt_from_events(
             "aggregation": aggregation,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
+            "observability": observability_from_events(run_id, events),
             "output": output,
         }),
         context,
@@ -817,6 +818,111 @@ pub(crate) fn capabilities_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
             })
         })
         .collect()
+}
+
+fn bounded_observation_text(value: Option<&Value>) -> Option<String> {
+    let text = value.and_then(Value::as_str).map(redact_event_text)?;
+    let mut bounded = text.chars().take(256).collect::<String>();
+    if text.chars().count() > 256 {
+        while bounded.len() > 253 {
+            bounded.pop();
+        }
+        bounded.push('…');
+    }
+    (!bounded.is_empty()).then_some(bounded)
+}
+
+fn digest_observation(data: &Value, names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| {
+        let value = data.get(*name).and_then(Value::as_str)?;
+        let hex = value.strip_prefix("sha256:")?;
+        (hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .then(|| value.to_owned())
+    })
+}
+
+fn policy_observations_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.kind == "capability.decision")
+        .map(|(index, event)| {
+            let policy = event.data.get("policy");
+            let gate = event.data.get("gate");
+            json!({
+                "event_id": event.event_id,
+                "source_cursor": index.saturating_add(1),
+                "request_id": event.data.get("capability_request_id").cloned().unwrap_or_else(|| json!(event.request_id)),
+                "policy_verdict": policy.and_then(|value| value.get("decision")).and_then(Value::as_str),
+                "policy_reason": bounded_observation_text(policy.and_then(|value| value.get("reason"))),
+                "gate_verdict": gate.and_then(|value| value.get("decision")).and_then(Value::as_str),
+                "gate_reason": bounded_observation_text(gate.and_then(|value| value.get("reason"))),
+                "policy_revision": policy.and_then(|value| value.get("policy_revision")).and_then(Value::as_u64),
+                "authority_epoch": event.data.get("authority_epoch").and_then(Value::as_u64),
+                "action_digest": digest_observation(&event.data, &["action_digest", "args_fingerprint"]),
+                "tool_args_hash": digest_observation(&event.data, &["args_fingerprint", "action_digest"]),
+            })
+        })
+        .collect()
+}
+
+fn cancellation_observations_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| {
+            event.kind.contains("cancel")
+                || event.data.get("cancellation_reason").is_some()
+                || event.data.get("cancel_reason").is_some()
+        })
+        .map(|(index, event)| {
+            json!({
+                "event_id": event.event_id,
+                "source_cursor": index.saturating_add(1),
+                "kind": event.kind,
+                "reason": bounded_observation_text(event.data.get("cancellation_reason").or_else(|| event.data.get("cancel_reason")).or_else(|| event.data.get("reason")).or_else(|| event.data.get("error"))),
+                "stop_confirmed": event.data.get("stop_confirmed").and_then(Value::as_bool),
+                "action_digest": digest_observation(&event.data, &["action_digest", "args_fingerprint"]),
+            })
+        })
+        .collect()
+}
+
+fn observability_from_events(run_id: RunId, events: &[RuntimeEvent]) -> Value {
+    let source_cursor = events.len().min(u64::MAX as usize) as u64;
+    let source_event_ids = events
+        .iter()
+        .rev()
+        .map(|event| event.event_id)
+        .take(kiana_domain::MAX_SOURCE_EVENT_IDS)
+        .collect::<Vec<_>>();
+    let persistence_revision = kiana_domain::json_digest(&json!({
+        "source_cursor": source_cursor,
+        "source_event_ids": source_event_ids,
+    }));
+    let model_attempts = crate::project_model_attempts(run_id, events)
+        .ok()
+        .and_then(|records| serde_json::to_value(records).ok())
+        .unwrap_or_else(|| json!([]));
+    let capability_attempts = crate::project_capability_attempts(run_id, events)
+        .ok()
+        .and_then(|records| serde_json::to_value(records).ok())
+        .unwrap_or_else(|| json!([]));
+    let span_lifecycle = crate::project_spans(run_id, events)
+        .ok()
+        .and_then(|records| serde_json::to_value(records).ok())
+        .unwrap_or_else(|| json!([]));
+    json!({
+        "schema": kiana_domain::OBSERVABILITY_SCHEMA,
+        "source_cursor": source_cursor,
+        "source_event_ids": source_event_ids,
+        "persistence_revision": persistence_revision,
+        "model_attempts": model_attempts,
+        "capability_attempts": capability_attempts,
+        "span_lifecycle": span_lifecycle,
+        "policy_decisions": policy_observations_from_events(events),
+        "cancellations": cancellation_observations_from_events(events),
+    })
 }
 
 /// Model calls, including calls that produce tools, are projected from the authoritative ledger.

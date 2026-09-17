@@ -97,7 +97,7 @@
 | `P1-J3-03` | P1 | J3 Memory | `P1-J3-01`、`P0-F-01` | 抽取建议包带 evidence 与相似旧记录；三档准入落地 | ✅ |
 | `P1-J3-04` | P1 | J3 Memory | `P1-J3-02` | hybrid 检索（BM25+本地向量+RRF+MMR）确定性可复现；模型 hash 校验 fail-closed | ✅ |
 | `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01a` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ✅ |
-| `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ⏳ |
+| `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ✅ |
 | `P1-K5-01` | P1 | K5 Cost/capacity | `P0-G-04` | `UsageRecord`/`CostLedger`/`Quota`；`RuntimeBudget` 与 `ProjectBudget` 不混用 | ⏳ |
 | `P1-L1-01` | P1 | L1 Eval | `P0-G-04` | GoldenTrace 绑定源码快照/输入 hash/版本/Receipt；replay 无真实副作用 | ⏳ |
 | `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ⏳ |
@@ -327,7 +327,7 @@
 | 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ✅ | [基础卡](#step-p0-j1-01) |
 | 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ✅ | [基础卡](#step-p1-c-02) |
 | 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ✅ | [基础卡](#step-p1-d-03) |
-| 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
+| 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ✅ | [基础卡](#step-p1-j8-01) |
 | 162 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ⏳ | [基础卡](#step-p1-k5-01) |
 | 163 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ⏳ | [基础卡](#step-p3-i-02) |
 | 164 | W2 | 基础 | [`P4-J7-02`](#step-p4-j7-02) | P4 基础 · wire 加 `sequence`/`epoch` | `P0-J7-01` | ⏳ | [基础卡](#step-p4-j7-02) |
@@ -1144,6 +1144,7 @@
 | 当前 188 | `P1-J3-03` memory proposal | terminal/meeting output queues bounded distillation; strict MemoryProposal requires evidence quotes, caps similar records at three and enforces ADD/UPDATE/DELETE targets; review materializes Candidate/Draft to Qualified/Active/Rejected while scratch stays ephemeral;新增 domain/core CI fixtures、workflow 与 proposal baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J3-03 已触发且未等待；provider extraction, durable cross-process queue/projector, durable hybrid index and deletion propagation remain CM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 189 | `P1-J3-04` hybrid retrieval | deterministic CJK-aware BM25 plus optional pinned local token-vectors cosine channel, RRF-60 and MMR-0.7 ranking; manifest/schema/dimension/format/file/hash checks fail closed, missing model degrades to sparse with explicit reason, and hit/receipt provenance remains wired;新增 daemon runtime fixture/source guard、workflow 与 hybrid baseline | `feature_status=implemented`（daemon/domain/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J3-04 已触发且未等待；ONNX/ort inference and production model registry/download, durable index/cache, selection/sent/cited layering and deletion propagation remain deferred to CM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 190 | `P1-J4-01` MCP lifecycle | server-owned capability descriptors bind `mcp.discover`/`mcp.call` to Network risk/resource/schema/reconciliation/idempotency metadata; stdio-only registry pins config/executable/argument files, operator-only discovery commits protocol/tool catalog/version/health facts, prepared calls recheck trust/scope/pins/schema/drift, and per-invocation process groups report cancellation/stop/Unknown without false success;新增 daemon MCP source guard、workflow 与 lifecycle baseline | `feature_status=implemented`（domain/broker/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J4-01 已触发且未等待；HTTP/SSE/WS、legacy client、durable health heartbeat/pool and external/live/physical outcome proof remain unsupported/deferred to CAP/PD/ER/SC/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 191 | `P1-J8-01` observability receipt | committed EventLog-only receipt now includes bounded `observability` projection: source cursor/event IDs and persistence revision, typed model/provider/usage/retry, capability admission/effect/stop/action digest, run/turn/invocation spans, policy/gate verdict and reason, tool args hash, and cancellation reason; existing redaction remains mandatory and no projection invokes Broker/Provider/Runner;新增 core source guard、workflow 与 observability baseline | `feature_status=implemented`（core/domain/policy source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J8-01 已触发且未等待；durable projector checkpoint, metric/trace exporter, provider invoice/cost reconciliation, cross-process query and live/physical telemetry remain OA/PD/ER/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1383,6 +1384,7 @@
 | 2026-09-18 | `P1-J3-03` memory proposal：terminal/meeting 输出进入 bounded distillation，strict MemoryProposal 绑定 evidence quote、ADD/UPDATE/DELETE target 和 top-3 similar records；review 走 Candidate/Draft→Qualified/Active/Rejected，scratch 例外；新增 domain/core fixtures、workflow 与 proposal baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J3-04` hybrid retrieval：在 J3-02 ACL 结果上接入 CJK 双字组/BM25 风格稀疏通道、本地钉版 token-vectors cosine、RRF-60、MMR-0.7；manifest/hash/模型边界 fail-closed，模型缺失显式 sparse degraded，命中和 receipt 保留模型/算法/provenance；新增 daemon CI runtime fixture/source guard、workflow 与 hybrid baseline；ONNX/ort、生产模型 registry、durable index/cache 明确留后续；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J4-01` MCP lifecycle：补 server-owned descriptor 与 stdio-only MCP discovery/call 生命周期；配置/可执行文件/参数文件、trust/scope、schema/result、catalog/version/health 和过程组 stop 均有边界，discovery facts 写入 EventLog，取消/Unknown 不伪造成功；新增 daemon source guard、workflow 与 MCP baseline；HTTP/SSE/WS legacy client 和 durable/live/physical 外部效果继续明确受限；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-J8-01` observability receipt：receipt 从 committed EventLog 统一投影 source cursor/persistence revision、model/provider/usage/retry、capability admission/effect/stop/action hash、run/turn/invocation spans、policy/gate verdict、tool args hash 和 cancellation reason；字段只保留 bounded/redacted metadata，projection 不执行 Broker/Provider/Runner；新增 core source guard、workflow 与 observability baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2150,10 +2152,13 @@
 
 <a id="step-p1-j8-01"></a>
 
-### P1-J8-01 Observability 与 trace/receipt　⏳
+### P1-J8-01 Observability 与 trace/receipt　✅
 
-- **现状**：provider/model、policy verdict、usage、retry/cancel reason 没有统一记录。
-- **做什么**：记录 provider/model、policy verdict、tool arguments hash、workspace、timing、usage/cost、retry/cancellation reason 和 persistence revision，同时不泄露 secrets。
+当前 source slice 与 CI-only 证据见 [`p1-j8-01-observability-baseline.md`](roadmap/p1-j8-01-observability-baseline.md)。
+
+- **现状**：committed EventLog 已可由 core receipt 统一投影 provider/model、policy/gate verdict、tool action/args hash、workspace/run span、timing、usage、retry/cache、cancel/stop 和 source/persistence revision。
+- **做什么**：`receipt_from_events` 增加只读 `observability` 区段，组合 model/capability/span typed projections、policy/cancellation observations 和 bounded source digest；所有字段经过 redaction，不携带 prompt、原始 tool args、shell/path、header、token 或 raw response。
+- **风险**：malformed/truncated/timeout/retry/missing usage、deny/expired approval、Unknown/未确认 stop 和 source gap 不能被观测层改成成功；projection 不调用 Broker/Provider/Runner，不授予权限。
 - **风险**：记录 tool arguments 若不做 redaction 就是泄密面。
 - **验收**：`observability_record_is_redacted_and_traceable`
 - **依赖 / 边界**：依赖 `P0-G-04`；复用现有 `redact_event_value` 边界。

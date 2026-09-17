@@ -3621,6 +3621,25 @@ limitations: HTTP/SSE/WS and legacy service client remain outside the product pa
 reviewer: Codex root implementation review plus descriptor binding, trust/scope pin, schema/result, health/version, process-group stop and Unknown boundary review; no runtime test reviewer
 ```
 
+### P1-J8-01 observability receipt evidence (2026-09-18)
+
+```text
+source_snapshot: b04bbad + P1-J8-01 evidence slice; kiana-core/src/{receipts,capability_attempt_projection,model_attempt_projection,span_projection,redaction}.rs; kiana-domain/src/observability.rs; kiana-policy/src/security.rs; kiana-core/tests/p1_j8_01_observability.rs; .github/workflows/p1-j8-01-observability.yml; docs/roadmap/p1-j8-01-observability-baseline.md; docs/roadmap.md
+worktree_status: committed EventLog-only run receipts now include bounded observability projection for source cursor/event IDs and persistence revision, typed model/provider/usage/retry, capability admission/effect/stop/action digest, run/turn/invocation spans, policy/gate verdict/reason, tool args hash and cancellation reason; existing redaction boundary is retained and projection invokes no Broker/Provider/Runner; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p1_j8_01_observability.rs receipt/projection/redaction source guard; existing kiana-core/tests/oa07_span_lifecycle.rs, oa08_model_instrumentation.rs and oa09_capability_instrumentation.rs CI fixtures; GitHub Actions P1-J8-01 workflow runs the guard, OA-08/OA-09 projection fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J8-01 is triggered by the eventual push and is not awaited
+status_change: P1-J8-01 source slice is implemented/reconciled. Run receipts now make provider/model, policy/gate, action/args digest, usage/retry/cancel and persistence/source provenance jointly queryable without exposing secret-bearing payloads.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: observability and typed projections remain re-buildable from EventLog without durable projector checkpoint; tool_args_hash is normalized action/args fingerprint rather than external receipt, persistence_revision is a source digest rather than cross-store fsync transaction, and metric/trace exporters, provider invoice/cost reconciliation, cross-process query and live/physical telemetry remain OA/PD/ER/SC work
+reviewer: Codex root implementation review plus source-only receipt/projection/redaction and no-execution-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
