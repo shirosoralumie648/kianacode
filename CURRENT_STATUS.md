@@ -2842,6 +2842,25 @@ limitations: CI-only fixtures have not been executed locally; the reducer is a r
 reviewer: Codex root implementation review plus ER-10 pending approval, budget linkage, lease/cell lifecycle, duplicate/empty source and no-authority boundary; no runtime test reviewer
 ```
 
+### ER-11 receipt DTO and redacted view evidence (2026-09-17)
+
+```text
+source_snapshot: b3280dc + ER-11 working-tree slice; kiana-domain/src/{receipt_contracts,contracts,lib}.rs; kiana-core/src/{receipts,capability_attempt_projection}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er11_receipt_contracts.rs; kiana-core/tests/er11_receipt_guard.rs; .github/workflows/er11-receipt-dto.yml; docs/roadmap/event-receipt-receipt-dto-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict RunReceipt and ExecutionReceipt now bind schema/version, owner/project/status, source cursor/event IDs, redaction profile, feature/proof levels, result/receipt digests and fenced effect dimensions; compatibility receipt_from_events keeps the legacy run-result view while attaching typed receipts built only from persisted events and attempt projections, with projection failures surfaced as result_unknown/error markers and no raw prompt/args/secret/output; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er11_receipt_contracts.rs strict owner/source/redaction, unknown effect/fence and unknown/tamper/version fixtures; kiana-core/tests/er11_receipt_guard.rs typed integration/redaction/projection-error and no raw/authority source guard; GitHub Actions ER-11 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-11 is triggered by the eventual push and is not awaited
+status_change: ER-11 source slice is implemented. Receipt status is derived from committed run facts, missing/unknown results remain visible, owner/scope and source provenance are explicit, and the typed projection cannot issue permission or claim an external effect.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; cost/files/evidence aggregation, provider/external receipts, artifact read failure, durable projector/checkpoint/restart, and multi-entrypoint parity remain ER-12+ / PD/CP work, with no external/live/physical proof
+reviewer: Codex root implementation review plus ER-11 strict receipt schema, owner/source/redaction/proof fields, Unknown/fence and compatibility projection boundaries; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

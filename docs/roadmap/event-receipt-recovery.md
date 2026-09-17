@@ -339,7 +339,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-11 — Receipt DTO、redacted view 与 source cursor　⏳
+##### ER-11 — Receipt DTO、redacted view 与 source cursor　✅
 
 - **落点：** `kiana-core/receipts.rs`、`kiana-protocol`、query ports；关联 `P1-J8-01`、`P2-M2/M4/M5`、`CAP-25`。
 - **动作：** 将当前 receipt helper 收敛成版本化 `RunReceipt`/`ExecutionReceipt`/`CommandReceipt` DTO；每个字段标明 source event/artifact、redaction、missing/unknown 和 owner。

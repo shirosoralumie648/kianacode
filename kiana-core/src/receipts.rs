@@ -301,6 +301,9 @@ pub(crate) fn receipt_from_events(
     let invocation_projection = crate::project_invocations(run_id, events);
     let invocation_error = invocation_projection.as_ref().err().cloned();
     let invocations = invocation_projection.ok();
+    let typed_receipt = typed_run_receipt(context, run_id, output.clone(), events)
+        .unwrap_or_else(|error| json!({"error": error, "status": "result_unknown"}));
+    let typed_execution_receipts = typed_execution_receipts(run_id, events);
     let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -331,6 +334,8 @@ pub(crate) fn receipt_from_events(
             "memory_proposals": events.iter().filter(|event| event.kind == "memory.proposed").map(|event| event.data.clone()).collect::<Vec<_>>(),
             "invocations":invocations,
             "invocation_projection_error":invocation_error,
+            "run_receipt": typed_receipt,
+            "execution_receipts": typed_execution_receipts,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "output": output,
@@ -340,6 +345,131 @@ pub(crate) fn receipt_from_events(
     // Re-apply the boundary while projecting so legacy events written before centralized
     // redaction cannot reintroduce a credential into a restart receipt.
     redact_event_value(&receipt)
+}
+
+fn typed_run_receipt(
+    context: &RequestContext,
+    run_id: RunId,
+    output: Value,
+    events: &[RuntimeEvent],
+) -> Result<Value, String> {
+    let state = crate::project_run_state(run_id, events).map_err(|error| error.to_string())?;
+    let status = match state.outcome {
+        Some(crate::RunOutcome::Completed) => ExecutionStatus::Completed,
+        Some(crate::RunOutcome::Failed) => ExecutionStatus::Failed,
+        Some(crate::RunOutcome::Cancelled) => ExecutionStatus::Cancelled,
+        Some(crate::RunOutcome::ResultUnknown) => ExecutionStatus::ResultUnknown,
+        None => match state.phase {
+            crate::RunPhase::Queued => ExecutionStatus::Queued,
+            crate::RunPhase::AwaitingApproval => ExecutionStatus::AwaitingApproval,
+            crate::RunPhase::Cancelling => ExecutionStatus::Cancelling,
+            crate::RunPhase::Running | crate::RunPhase::Authorized | crate::RunPhase::Terminal => {
+                ExecutionStatus::Running
+            }
+        },
+    };
+    let terminal_reason = events
+        .iter()
+        .rev()
+        .find(|event| {
+            matches!(
+                event.kind.as_str(),
+                "run.failed" | "run.cancelled" | "run.result_unknown"
+            )
+        })
+        .and_then(|event| event.data.get("error"))
+        .and_then(Value::as_str)
+        .map(redact_event_text);
+    let mut seen_event_ids = HashSet::new();
+    let source_event_ids = events
+        .iter()
+        .rev()
+        .map(|event| event.event_id)
+        .filter(|event_id| seen_event_ids.insert(*event_id))
+        .take(kiana_domain::MAX_SOURCE_EVENT_IDS)
+        .collect::<Vec<_>>();
+    if source_event_ids.is_empty() {
+        return Err("run_receipt_source_empty".to_owned());
+    }
+    let profile = kiana_domain::RedactionProfile::for_signal(kiana_domain::RedactionSignal::Audit);
+    let receipt = kiana_domain::RunReceipt::new(
+        run_id,
+        context.session_id.clone(),
+        context.actor_id.clone(),
+        kiana_domain::json_digest(&json!({
+            "project_root": ControlPlane::canonical_project_root(&context.project_root)
+        })),
+        status,
+        terminal_reason,
+        events.len().min(u64::MAX as usize) as u64,
+        source_event_ids,
+        profile.profile_digest,
+        "implemented",
+        "source",
+        kiana_domain::json_digest(&output),
+        typed_execution_receipts(run_id, events)
+            .iter()
+            .filter_map(|value| value.get("receipt_digest").and_then(Value::as_str))
+            .map(str::to_owned)
+            .collect(),
+    )?;
+    receipt.to_json()
+}
+
+fn typed_execution_receipts(run_id: RunId, events: &[RuntimeEvent]) -> Vec<Value> {
+    let profile = kiana_domain::RedactionProfile::for_signal(kiana_domain::RedactionSignal::Audit);
+    let Ok(records) = crate::project_capability_attempts(run_id, events) else {
+        return Vec::new();
+    };
+    records
+        .into_iter()
+        .filter_map(|record| {
+            let status = match record.effect {
+                kiana_domain::CapabilityEffectState::Succeeded => {
+                    kiana_domain::CapabilityExecutionState::Succeeded
+                }
+                kiana_domain::CapabilityEffectState::Failed => {
+                    if record.admission == kiana_domain::CapabilityAdmissionState::Denied {
+                        kiana_domain::CapabilityExecutionState::Denied
+                    } else {
+                        kiana_domain::CapabilityExecutionState::Failed
+                    }
+                }
+                kiana_domain::CapabilityEffectState::Unknown => {
+                    kiana_domain::CapabilityExecutionState::Unknown
+                }
+                kiana_domain::CapabilityEffectState::Started => {
+                    kiana_domain::CapabilityExecutionState::Executing
+                }
+                kiana_domain::CapabilityEffectState::NotStarted => {
+                    if record.approval == kiana_domain::CapabilityApprovalState::Pending {
+                        kiana_domain::CapabilityExecutionState::AwaitingApproval
+                    } else {
+                        kiana_domain::CapabilityExecutionState::Requested
+                    }
+                }
+            };
+            kiana_domain::ExecutionReceipt::new(
+                record.request_id,
+                record.execution_id,
+                record.invocation_id,
+                record.attempt,
+                record.action_digest,
+                status,
+                record.effect_known,
+                record.stop_confirmed,
+                record.fenced,
+                None,
+                record.source_cursor,
+                record.source_event_ids,
+                profile.profile_digest.clone(),
+                "implemented",
+                "source",
+            )
+            .ok()
+            .and_then(|receipt| receipt.to_json().ok())
+        })
+        .collect()
 }
 pub(crate) fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestContext) -> bool {
     let Some(identity) = events.iter().find(|event| event.kind == "run.authorized") else {

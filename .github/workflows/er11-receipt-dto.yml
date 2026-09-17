@@ -1,0 +1,56 @@
+name: ER-11 receipt DTO and redacted view
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er11_receipt_contracts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-receipt-dto-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er11-receipt-dto.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er11_receipt_contracts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-receipt-dto-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er11-receipt-dto.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-dto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-11 receipt contract fixtures
+        run: cargo test -p kiana-domain --test er11_receipt_contracts --locked -- --test-threads=1
+      - name: Run ER-11 receipt source guard
+        run: cargo test -p kiana-core --test er11_receipt_guard --locked -- --test-threads=1
+      - name: Compile ER-11 targets
+        run: cargo check --workspace --tests --locked
