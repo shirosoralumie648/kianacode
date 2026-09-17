@@ -24,6 +24,11 @@ macro_rules! uuid_id {
             pub const fn as_uuid(self) -> Uuid {
                 self.0
             }
+
+            /// 从字符串解析 UUID；首尾空白会被忽略，格式错误返回 `None`。
+            pub fn parse_str(value: &str) -> Option<Self> {
+                Uuid::parse_str(value.trim()).ok().map(Self::from_uuid)
+            }
         }
 
         impl Default for $name {
@@ -108,13 +113,16 @@ uuid_id!(AssignmentId);
 uuid_id!(ProjectAssignmentId);
 uuid_id!(EvidenceId);
 uuid_id!(CriterionId);
-
-impl RunId {
-    /// 从字符串解析 run UUID；首尾空白会被忽略，格式错误返回 `None`。
-    pub fn parse_str(value: &str) -> Option<Self> {
-        Uuid::parse_str(value.trim()).ok().map(Self::from_uuid)
-    }
-}
+uuid_id!(SecurityRegistryId);
+uuid_id!(SecurityContextId);
+uuid_id!(SecurityPolicyId);
+uuid_id!(SecurityDecisionId);
+uuid_id!(SecurityEventId);
+uuid_id!(GrantId);
+uuid_id!(OperationId);
+uuid_id!(AuditId);
+uuid_id!(SecretRefId);
+uuid_id!(EvidenceRefId);
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]

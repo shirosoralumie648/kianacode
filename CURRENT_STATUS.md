@@ -2343,6 +2343,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-01 threat/asset/evidence catalog and non-inflation source review; no runtime test reviewer
 ```
 
+### SC-02 security IDs and schema registry evidence (2026-09-17)
+
+```text
+source_snapshot: b4e0947 + SC-02 working-tree slice; kiana-domain/src/{ids,contracts,security_contracts,lib}.rs; kiana-domain/tests/sc02_security_contract.rs; kiana-core/tests/sc02_security_contract_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/sc02-security-contract.yml; docs/roadmap/security-contract-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-02 stable security IDs, unique canonical-registry projection, strict versioned security envelope, monotonic digest/epoch/sequence links, secret-safe payload guard, explicit upcast boundary, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no SecurityContext/authn/policy/SecretStore/Audit projector, second schema registry, second execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/security_contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/sc02_security_contract.rs kiana-core/tests/sc02_security_contract_guard.rs kiana-protocol/src/lib.rs .github/workflows/sc02-security-contract.yml docs/roadmap/security-contract-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'Security(Registry|Context|Policy|Decision|Event)Id|GrantId|OperationId|AuditId|SecretRefId|EvidenceRefId|SecuritySchemaRegistry|SecurityObjectEnvelope|upcast_security_(object|registry)|security_.*(rollback|unknown_major|secret_field|duplicate_id)' kiana-domain/src kiana-domain/tests kiana-core/tests kiana-protocol/src docs/roadmap/security-contract-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/sc02_security_contract.rs genesis/successor registry, duplicate ID, unknown major, digest/epoch/sequence rollback, secret serde/payload and explicit upcast fixtures; kiana-core/tests/sc02_security_contract_guard.rs domain-only source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-02 job is queued by the push and is not awaited
+status_change: SC-02 source slice is implemented. Ten security-specific stable UUID ID contracts are registered; SecuritySchemaRegistry is generated from the single SCHEMA_CONTRACTS source and rejects duplicate/drifted entries, unknown major, noncanonical order, stale digest and revision/authority/data/sequence or parent-chain rollback. SecurityObjectEnvelope provides strict versioned object/event serialization, bounded canonical payloads, digest chaining and recursive secret marker/value rejection; unknown major and unregistered migration fail closed. Protocol only re-exports these domain contracts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the registry snapshot is process-generated and not a persisted cross-process authority, IDs do not authenticate callers or grant capability, the envelope payload remains a generic domain boundary until SC-03/04 bind reason/context objects, no SecretStore/redaction-at-every-output/Audit projector/TOCTOU or external effect is proven, and future migrations must be explicitly registered rather than inferred
+reviewer: Codex root implementation review plus SC-02 ID/schema/digest/epoch/sequence/secret-boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
