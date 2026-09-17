@@ -7070,3 +7070,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: EventStore commit and JSONL projection are ordered but not one cross-storage atomic transaction; projection repair is explicit future work, multi-target accept_proposal is blocked in production, and no cross-process worker/power-loss/durable index-generation/processing-grant/source-dependency/live/physical proof is claimed; CM-06/PD/SC/ER remain
 reviewer: Codex root implementation review plus EventStore stream identity/CAS/idempotency, mutation-before-journal ordering, bounded body reference, replay reconstruction, projection lag/un-journaled refusal, torn/duplicate/gap handling and no-second-fact-source boundary review; no runtime test reviewer
 ```
+### CM-06 source dependency graph evidence (2026-09-18)
+
+```text
+source_snapshot: 2f2a4d02 + CM-06 working-tree slice; kiana-domain/src/source_dependencies.rs; kiana-domain/src/{context_scope.rs,governance.rs,memory.rs}; kiana-core/src/data_governance.rs; kiana-domain/tests/cm06_source_dependencies.rs; kiana-core/tests/cm06_source_dependencies.rs; .github/workflows/cm06-source-dependencies.yml; docs/roadmap/cm06-source-dependencies-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: domain-owned SourceDependencyGraph deterministically indexes Memory/Evidence/Event/Artifact/File/ContextPlan/Index/Summary/Plan derived-to-dependency edges; reverse BFS returns affected closure for a source, revoke_source advances data_epoch and emits SourceInvalidation, while unknown/self/duplicate edge, digest and epoch rollback fail closed; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/cm06_source_dependencies.rs builds ordered/reversed graphs, checks deterministic digest/closure, unrelated source isolation, epoch invalidation/rollback and strict unknown/missing/duplicate edges; kiana-core/tests/cm06_source_dependencies.rs guards graph/governance integration markers and no authority bypass; GitHub Actions CM-06 workflow runs domain fixture, core guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-06 is triggered by the eventual push and is not awaited
+status_change: CM-06 source slice is implemented. Source revocation now has a typed, deterministic impact closure and monotonic governance epoch without deleting or rewriting authoritative facts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: graph is currently a domain projection contract, not an independently durable EventStore aggregate or UI/query command; DataGovernance cleanup/delete workers, artifact/index/cache integration, cross-process repair and power-loss evidence remain CM-07+/PD/SC/ER; no semantic recall or external/live/physical effect proof is claimed
+reviewer: Codex root implementation review plus node/edge bounded validation, canonical ordering/digest, reverse dependency closure, unrelated scope isolation, monotonic data_epoch and no-delete/no-authority mutation boundary review; no runtime test reviewer
+```

@@ -322,9 +322,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-06 · Source dependency graph 与治理 epoch　⏳
+##### CM-06 · Source dependency graph 与治理 epoch　✅
 
-记录 Memory→Evidence→Event/Artifact/File、ContextPlan→Memory/Index、Summary→Event/Plan 的依赖；撤销/删除/过期更新 data epoch，所有派生物可查询影响范围。验收：`revoking_source_invalidates_all_derived_context`、`unrelated_scope_is_not_invalidated`。
+新增 domain `SourceDependencyGraph`/`DependencyNode`/`DependencyEdge`/`SourceInvalidation`：按 Memory→Evidence→Event/Artifact/File、ContextPlan→Memory/Index、Summary→Event/Plan 的 `derived→dependency` 边确定性排序、digest 和反向 BFS 闭包；`revoke_source` 只接受递增 data epoch 并返回 affected node IDs，epoch rollback、unknown/self/duplicate/drift fail-closed。新增 domain fixture、core governance guard、workflow 与 [CM-06 baseline](cm06-source-dependencies-baseline.md)。实际 DataGovernance 清理/物理删除仍由后续 PD/SC/CM 承接。验收：`revoking_source_invalidates_all_derived_context`、`unrelated_scope_is_not_invalidated`。
 
 #### 采集、分块与代码上下文（CM-07–CM-14）
 
