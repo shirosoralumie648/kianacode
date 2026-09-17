@@ -342,7 +342,9 @@ sequenceDiagram
 
 <a id="step-h12"></a>
 
-#### H12 — 串行批次先完整闭环，再考虑并行　⏳
+#### H12 — 串行批次先完整闭环，再考虑并行　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-serial-batch-baseline.md`](harness-serial-batch-baseline.md)。
 
 **关联原单元**：`P0-J1-02`、`P0-G-02b`。**依赖**：H08、H10、H11。
 

@@ -3108,6 +3108,25 @@ limitations: pending is a schema state not yet produced by the runner, automatic
 reviewer: Codex root implementation review plus H11 status/error policy mapping, summary bounds/redaction, no-retry gates and model observation data boundary; no runtime test reviewer
 ```
 
+### H-12 serial tool batch evidence (2026-09-18)
+
+```text
+source_snapshot: 30a5cb0 + H-12 working-tree slice; kiana-runner/src/harness.rs; kiana-runner/tests/h12_serial_batch.rs; kiana-runner/tests/h12_serial_batch_guard.rs; .github/workflows/h12-serial-batch.yml; docs/roadmap/harness-serial-batch-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: pending tool entries now carry queued/dispatched/settled phase; full batch mapping completes before queue admission, result ID/phase is checked before pop, and wrong result preserves pending state; only the front call dispatches, successful/known observations unlock the next, and cancel drains remaining queued calls into replay-safe not_executed events; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h12_serial_batch.rs wrong result, cancelled batch and three serial calls fixtures; kiana-runner/tests/h12_serial_batch_guard.rs phase/order/no-bypass source guard; GitHub Actions H12 workflow runs serial fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H12 is triggered by the eventual push and is not awaited
+status_change: H12 source slice is implemented. Ordered tool batches no longer consume pending state on wrong replies or dispatch queued siblings after cancellation; the next model step starts only after the batch is drained.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: batch declaration/outcome is still process-local runner state, durable Invocation ledger and crash/recovery windows remain H13+, and external/live/physical effect proof is not claimed
+reviewer: Codex root implementation review plus H12 phase transitions, wrong-result fencing, serial dispatch barrier and cancellation drain semantics; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

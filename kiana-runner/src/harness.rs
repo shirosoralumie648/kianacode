@@ -130,7 +130,7 @@ struct ActiveRun {
     prompt_sources: Vec<serde_json::Value>,
     model_assignment: Option<kiana_domain::ModelAssignment>,
     model_route: Option<kiana_domain::ModelRoute>,
-    pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
+    pending_tools: VecDeque<PendingTool>,
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
     max_steps_per_turn: u32,
@@ -138,6 +138,22 @@ struct ActiveRun {
     wall_time_started_at: Instant,
     last_text: String,
     cancellation: Arc<RunCancellation>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum PendingToolPhase {
+    Queued,
+    Dispatched,
+    Settled,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PendingTool {
+    request_id: kiana_domain::RequestId,
+    call: ModelToolCall,
+    phase: PendingToolPhase,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -173,7 +189,7 @@ struct HarnessCheckpoint {
     model_assignment: Option<kiana_domain::ModelAssignment>,
     #[serde(default)]
     model_route: Option<kiana_domain::ModelRoute>,
-    pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
+    pending_tools: VecDeque<PendingTool>,
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
     max_steps_per_turn: u32,
@@ -633,18 +649,33 @@ impl KianaHarness {
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
         let mut run = self.take_run(run_id)?;
-        let Some((expected_id, call)) = run.pending_tools.pop_front() else {
+        let Some(expected) = run.pending_tools.front() else {
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "unexpected_capability_result".to_owned(),
             });
         };
+        let expected_id = expected.request_id;
+        if expected.phase != PendingToolPhase::Dispatched {
+            self.store_unless_terminal(run, &[])?;
+            return emitter.emit_event(RunnerEvent::Failed {
+                run_id,
+                error: "capability_result_before_dispatch".to_owned(),
+            });
+        }
         if expected_id != result.request_id {
+            self.store_unless_terminal(run, &[])?;
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "capability_result_mismatch".to_owned(),
             });
         }
+        let mut pending = run
+            .pending_tools
+            .pop_front()
+            .expect("pending capability was checked above");
+        pending.phase = PendingToolPhase::Settled;
+        let call = pending.call;
         let effect_known =
             result.dimensions().effect != kiana_domain::CapabilityEffectState::Unknown;
         run.driver
@@ -699,8 +730,11 @@ impl KianaHarness {
                 .map_err(KianaHarnessError::Failed)?,
         ));
 
-        if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
-            let _ = request_id;
+        if let Some(next_call) = run
+            .pending_tools
+            .front()
+            .map(|pending| pending.call.clone())
+        {
             run.driver
                 .model_output(run.pending_tools.len() as u32, false)
                 .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
@@ -799,10 +833,12 @@ impl KianaHarness {
                     .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
                 // The first queued call may already be executing at the control plane.
                 // Only the remaining calls can be proven not to have been dispatched.
-                run.pending_tools.pop_front();
-                for (request_id, call) in run.pending_tools.drain(..) {
+                let _in_flight = run.pending_tools.pop_front();
+                for pending in run.pending_tools.drain(..) {
                     emitter.emit_event(RunnerEvent::ToolCancelled {
-                        run_id,request_id,call_id:call.id,
+                        run_id,
+                        request_id: pending.request_id,
+                        call_id: pending.call.id,
                         result:json!({"error":"cancelled:queued","not_executed":true,"replay_safe":true}),
                     })?;
                 }
@@ -1073,7 +1109,11 @@ impl KianaHarness {
                     &run.sandbox,
                     &run.project_root,
                 )
-                .map(|request| (request.request_id, call))
+                .map(|request| PendingTool {
+                    request_id: request.request_id,
+                    call,
+                    phase: PendingToolPhase::Queued,
+                })
             })
             .collect::<Result<Vec<_>, _>>();
         let mapped = match mapped {
@@ -1095,7 +1135,7 @@ impl KianaHarness {
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
         match run.pending_tools.front().cloned() {
-            Some((_, call)) => match self.emit_tool_request(run, &call) {
+            Some(pending) => match self.emit_tool_request(run, &pending.call) {
                 Ok(event) => emitter.emit_event(event)?,
                 Err(error) => emitter.replace_event_since(
                     checkpoint,
@@ -1435,7 +1475,7 @@ impl KianaHarness {
         let pending_id = run
             .pending_tools
             .front()
-            .map(|(id, _)| *id)
+            .map(|pending| pending.request_id)
             .ok_or_else(|| "tool_queue_empty".to_owned())?;
         let mut request =
             capability_for_tool_with_request_id(call, pending_id, &run.sandbox, &run.project_root)?;
@@ -1455,8 +1495,14 @@ impl KianaHarness {
             _ => Vec::new(),
         };
         request.arguments["_extension_scopes"] = json!(scopes);
-        if let Some((pending_id, _)) = run.pending_tools.front_mut() {
-            *pending_id = request.request_id;
+        if let Some(pending) = run.pending_tools.front_mut() {
+            if pending.request_id != request.request_id {
+                return Err("capability_request_identity_changed".to_owned());
+            }
+            if pending.phase != PendingToolPhase::Queued {
+                return Err("capability_request_already_dispatched".to_owned());
+            }
+            pending.phase = PendingToolPhase::Dispatched;
         }
         Ok(RunnerEvent::CapabilityRequested {
             run_id: run.run_id,
@@ -1657,7 +1703,9 @@ impl RunnerPort for KianaHarness {
         }
         let sandbox = normalize_sandbox(&checkpoint.sandbox)?;
         let mut ids = std::collections::HashSet::new();
-        for (ordinal, (request_id, call)) in checkpoint.pending_tools.iter().enumerate() {
+        for (ordinal, pending) in checkpoint.pending_tools.iter().enumerate() {
+            let request_id = pending.request_id;
+            let call = &pending.call;
             if !ids.insert(&call.id) || call.id.trim().is_empty() {
                 return Err(PortError::Failed(
                     "runner_checkpoint_duplicate_tool".to_owned(),
@@ -1669,7 +1717,7 @@ impl RunnerPort for KianaHarness {
             let step_id = checkpoint
                 .step_id
                 .ok_or_else(|| PortError::Failed("runner_checkpoint_step_missing".to_owned()))?;
-            if *request_id
+            if request_id
                 != stable_invocation_request_id_parts(run_id, turn_id, step_id, &call.id, ordinal)
             {
                 return Err(PortError::Failed(
@@ -1678,11 +1726,16 @@ impl RunnerPort for KianaHarness {
             }
             capability_for_tool_with_request_id(
                 call,
-                *request_id,
+                request_id,
                 sandbox,
                 &checkpoint.project_root,
             )
             .map_err(PortError::Failed)?;
+            if pending.phase == PendingToolPhase::Settled {
+                return Err(PortError::Failed(
+                    "runner_checkpoint_settled_tool_pending".to_owned(),
+                ));
+            }
         }
         let elapsed = Duration::from_millis(checkpoint.wall_time_elapsed_ms);
         if self

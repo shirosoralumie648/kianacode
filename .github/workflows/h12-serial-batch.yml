@@ -1,0 +1,50 @@
+name: H12 serial tool batches
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h12_serial_batch.rs"
+      - "kiana-runner/tests/h12_serial_batch_guard.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-serial-batch-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h12-serial-batch.yml"
+  pull_request:
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h12_serial_batch.rs"
+      - "kiana-runner/tests/h12_serial_batch_guard.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-serial-batch-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h12-serial-batch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  serial-batch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H12 serial fixtures
+        run: cargo test -p kiana-runner --test h12_serial_batch --locked -- --test-threads=1
+      - name: Run H12 source guard
+        run: cargo test -p kiana-runner --test h12_serial_batch_guard --locked -- --test-threads=1
+      - name: Compile H12 targets
+        run: cargo check --workspace --tests --locked
