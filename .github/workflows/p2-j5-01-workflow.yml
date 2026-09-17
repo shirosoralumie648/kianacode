@@ -1,0 +1,57 @@
+name: P2-J5-01 workflow replay
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/lib.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/p2_j5_01_replay.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/p2_j5_01_workflow_guard.rs"
+      - "kiana-workflow/tests/state_matrix.rs"
+      - "kiana-core/tests/automation_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-j5-01-workflow-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-j5-01-workflow.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/lib.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/p2_j5_01_replay.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/p2_j5_01_workflow_guard.rs"
+      - "kiana-workflow/tests/state_matrix.rs"
+      - "kiana-core/tests/automation_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-j5-01-workflow-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-j5-01-workflow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run workflow replay fixture
+        run: cargo test -p kiana-workflow --test p2_j5_01_replay --locked -- --test-threads=1
+      - name: Run workflow core source guard
+        run: cargo test -p kiana-core --test p2_j5_01_workflow_guard --locked -- --test-threads=1
+      - name: Run workflow state regression
+        run: cargo test -p kiana-workflow --test state_matrix --locked -- --test-threads=1
+      - name: Run automation spine regression
+        run: cargo test -p kiana-core --test automation_baseline --locked -- --test-threads=1
+      - name: Compile P2-J5-01 targets
+        run: cargo check --workspace --tests --locked
+

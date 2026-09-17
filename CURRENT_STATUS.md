@@ -3697,6 +3697,25 @@ limitations: source_snapshot is a read-time hash summary rather than immutable w
 reviewer: Codex root implementation review plus canonical-root, hash/provenance/freshness and no-authority/no-provider-boundary review; no runtime test reviewer
 ```
 
+### P2-J5-01 workflow replay evidence (2026-09-18)
+
+```text
+source_snapshot: 789b0425 + P2-J5-01 evidence slice; kiana-domain/src/automation.rs; kiana-workflow/src/{lib,durable}.rs; kiana-core/src/automation.rs; kiana-workflow/tests/p2_j5_01_replay.rs; kiana-core/tests/p2_j5_01_workflow_guard.rs; .github/workflows/p2-j5-01-workflow.yml; docs/roadmap/p2-j5-01-workflow-baseline.md; docs/roadmap.md
+worktree_status: versioned WorkflowDefinition/node/instance contracts and pure plan_command enforce DAG, role/budget/deadline, input digest, approval/signal/cancel/retry/compensation/Unknown boundaries; ControlPlane loads/replays workflow EventLog, commits CAS/idempotent command facts and dispatches only after durable reservation through the existing execution spine; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-workflow/tests/p2_j5_01_replay.rs deterministic fixed-authority/definition/command replay fixture; kiana-core/tests/p2_j5_01_workflow_guard.rs single-spine/CAS/idempotency/source guard; existing workflow state and automation baseline fixtures; GitHub Actions P2-J5-01 workflow runs all listed fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-J5-01 is triggered by the eventual push and is not awaited
+status_change: P2-J5-01 source slice is implemented/reconciled. Workflow definition versions are immutable, replay uses the same pure planner and idempotency/CAS facts, and only post-commit effects reach the existing ControlPlane/Broker path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: scheduler/queue/claim/ClockPort, automatic occurrence recovery, cross-process projector/power-loss reconciliation and external workflow backend remain AUT/SW/PD/ER work; WorkflowEffect and local EventLog wiring do not prove provider/Broker/external outcome or compensation success/live/physical behavior
+reviewer: Codex root implementation review plus definition-version, planner determinism, CAS/idempotency, evidence/terminal and single-execution-spine boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
