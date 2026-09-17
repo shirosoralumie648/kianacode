@@ -1,0 +1,56 @@
+name: CP-08 grant authority and revocation epoch
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/grant_authority.rs"
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp08_grant_ledger.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp08_grant_guard.rs"
+      - "docs/roadmap/control-plane-grant-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp08-grant.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/grant_authority.rs"
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp08_grant_ledger.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp08_grant_guard.rs"
+      - "docs/roadmap/control-plane-grant-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp08-grant.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-08 grant fixture
+        run: cargo test -p kiana-domain --test cp08_grant_ledger --locked -- --test-threads=1
+      - name: Run CP-08 source guard
+        run: cargo test -p kiana-core --test cp08_grant_guard --locked -- --test-threads=1
+      - name: Compile CP-08 targets
+        run: cargo check --workspace --tests --locked

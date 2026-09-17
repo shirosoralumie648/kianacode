@@ -2574,6 +2574,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-07 complete-frame/receipt/read-set/recovery-boundary reconciliation; no runtime test reviewer
 ```
 
+### CP-08 Grant authority and revocation epoch evidence (2026-09-17)
+
+```text
+source_snapshot: b4da8aa + CP-08 working-tree slice; kiana-domain/src/{grant_authority,authority,scope,ids,contracts,lib}.rs; kiana-domain/tests/cp08_grant_ledger.rs; kiana-core/src/{authority,cell_registry}.rs; kiana-core/tests/cp08_grant_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cp08-grant.yml; docs/roadmap/control-plane-grant-baseline.md; docs/roadmap/control-plane.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CP-08 strict GrantAuthorityEnvelope/GrantLedgerSnapshot/GrantLedger root-child binding, ScopeSet subset, sequence/revision/epoch/revocation checks, snapshot restore, existing authority/cell source guard and roadmap/status overlays are scoped to this step; no durable GrantStore/permit consumer, second authority source/execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/grant_authority.rs kiana-domain/src/authority.rs kiana-domain/src/scope.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/cp08_grant_ledger.rs kiana-core/src/authority.rs kiana-core/src/cell_registry.rs kiana-core/tests/cp08_grant_guard.rs kiana-protocol/src/lib.rs .github/workflows/cp08-grant.yml docs/roadmap/control-plane-grant-baseline.md docs/roadmap/control-plane.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'GrantAuthorityEnvelope|GrantLedger(Snapshot)?|root_run|parent_grant_id|grant_ledger_child_scope_widened|active_grant|GrantAuthorityStatus::Revoked|AuthorityLedger::rebuild|authority_epoch|CellRegistryPort' kiana-domain/src kiana-domain/tests kiana-core/src kiana-core/tests kiana-protocol/src docs/roadmap/control-plane-grant-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp08_grant_ledger.rs root/child subset, duplicate/gap/foreign/widening, ancestor revoke and snapshot restore fixtures; kiana-core/tests/cp08_grant_guard.rs source guard for authority/cell boundaries; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-08 job is queued by the push and is not awaited
+status_change: CP-08 source slice is implemented. GrantAuthorityEnvelope binds root/child principal/project/issuer/scope/expiry/revision/authority epoch; GrantLedger accepts only sequential unique additions whose child scope is a subset of an existing parent, and ancestor revocation fences descendants at current epoch. Snapshot validation/restore preserves canonical order and revoked history without resurrecting active authority; existing AuthorityLedger remains the EventLog-backed authority source.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; GrantLedger is an in-memory pure reducer not yet atomically persisted with all Cell/Approval/Permit transitions, authority/assignment revocation and cross-process recovery remain partial, ScopeSet does not prove OS/TOCTOU/egress or SecretStore safety, and external/live/physical effect proof is absent
+reviewer: Codex root implementation review plus CP-08 root/child grant subset/revocation/epoch/recovery reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
