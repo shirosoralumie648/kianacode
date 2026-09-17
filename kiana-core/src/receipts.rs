@@ -304,6 +304,9 @@ pub(crate) fn receipt_from_events(
     let typed_receipt = typed_run_receipt(context, run_id, output.clone(), events)
         .unwrap_or_else(|error| json!({"error": error, "status": "result_unknown"}));
     let typed_execution_receipts = typed_execution_receipts(run_id, events);
+    let aggregation = aggregate_receipt_facts(run_id, events)
+        .and_then(|aggregation| aggregation.to_json())
+        .unwrap_or_else(|error| json!({"error": error, "verification": "unknown"}));
     let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -336,6 +339,7 @@ pub(crate) fn receipt_from_events(
             "invocation_projection_error":invocation_error,
             "run_receipt": typed_receipt,
             "execution_receipts": typed_execution_receipts,
+            "aggregation": aggregation,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "output": output,
@@ -470,6 +474,133 @@ fn typed_execution_receipts(run_id: RunId, events: &[RuntimeEvent]) -> Vec<Value
             .and_then(|receipt| receipt.to_json().ok())
         })
         .collect()
+}
+
+pub fn aggregate_receipt_facts(
+    run_id: RunId,
+    events: &[RuntimeEvent],
+) -> Result<kiana_domain::ReceiptAggregation, String> {
+    let events = try_filter_run_events(events, run_id)?;
+    if events.is_empty() {
+        return Err("receipt_aggregation_source_empty".to_owned());
+    }
+    let source_cursor = events.len().min(u64::MAX as usize) as u64;
+    let mut seen = HashSet::new();
+    let mut source_event_ids = Vec::new();
+    let mut model_turns = 0u64;
+    let mut committed_executions = 0u64;
+    let mut input_tokens = Some(0u64);
+    let mut output_tokens = Some(0u64);
+    let mut usage_unknown = false;
+    let mut files_changed = Vec::new();
+    let mut memory_hits = 0u64;
+    let mut evidence_ref_digests = Vec::new();
+    let mut provider_receipt_refs = Vec::new();
+    let mut verification = kiana_domain::AggregationVerification::Complete;
+    for event in &events {
+        if !seen.insert(event.event_id) {
+            continue;
+        }
+        source_event_ids.push(event.event_id);
+        if event.payload_recoverable == Some(false) {
+            verification = kiana_domain::AggregationVerification::Partial;
+        }
+        if event.data.get("committed") == Some(&Value::Bool(false)) {
+            verification = kiana_domain::AggregationVerification::Partial;
+        }
+        if event.kind == "run.model_turn" && event.data["attempted"] == true {
+            model_turns = model_turns.saturating_add(1);
+            let input = event
+                .data
+                .pointer("/usage/input_tokens")
+                .and_then(Value::as_u64);
+            let output = event
+                .data
+                .pointer("/usage/output_tokens")
+                .and_then(Value::as_u64);
+            match (input, output) {
+                (Some(input), Some(output)) => {
+                    input_tokens = input_tokens.and_then(|current| current.checked_add(input));
+                    output_tokens = output_tokens.and_then(|current| current.checked_add(output));
+                    if input_tokens.is_none() || output_tokens.is_none() {
+                        usage_unknown = true;
+                    }
+                }
+                _ => {
+                    usage_unknown = true;
+                    input_tokens = None;
+                    output_tokens = None;
+                    verification = kiana_domain::AggregationVerification::Partial;
+                }
+            }
+        }
+        if event.kind == "execution.result_committed" {
+            committed_executions = committed_executions.saturating_add(1);
+            if event.data.get("effect_known") == Some(&Value::Bool(false)) {
+                verification = kiana_domain::AggregationVerification::Unknown;
+            }
+        }
+        if event.kind == "capability.completed" {
+            if let Some(changed) = event.data.get("changed").and_then(Value::as_array) {
+                for item in changed {
+                    let Some(path) = item.get("path").and_then(Value::as_str) else {
+                        verification = kiana_domain::AggregationVerification::Partial;
+                        continue;
+                    };
+                    let Some(path) = kiana_domain::normalize_role_path(path) else {
+                        verification = kiana_domain::AggregationVerification::Partial;
+                        continue;
+                    };
+                    files_changed.push(path);
+                }
+            }
+            if event.data.get("schema").and_then(Value::as_str)
+                == Some(kiana_domain::MEMORY_SEARCH_SCHEMA)
+            {
+                memory_hits = memory_hits.saturating_add(
+                    event
+                        .data
+                        .get("hits")
+                        .and_then(Value::as_array)
+                        .map_or(0, |hits| hits.len() as u64),
+                );
+            }
+        }
+        if let Some(refs) = event.data.get("evidence_refs").and_then(Value::as_array) {
+            evidence_ref_digests.extend(refs.iter().map(kiana_domain::json_digest));
+        }
+        for field in ["provider_receipt_ref", "provider_receipt_id"] {
+            if let Some(reference) = event.data.get(field).and_then(Value::as_str) {
+                provider_receipt_refs.push(kiana_domain::json_digest(
+                    &json!({"field":field,"reference":reference}),
+                ));
+            }
+        }
+    }
+    if usage_unknown && verification == kiana_domain::AggregationVerification::Complete {
+        verification = kiana_domain::AggregationVerification::Partial;
+    }
+    source_event_ids = source_event_ids
+        .into_iter()
+        .rev()
+        .take(kiana_domain::MAX_SOURCE_EVENT_IDS)
+        .collect();
+    kiana_domain::ReceiptAggregation::new(
+        source_cursor,
+        source_event_ids,
+        model_turns,
+        committed_executions,
+        input_tokens,
+        output_tokens,
+        usage_unknown,
+        None,
+        false,
+        files_changed,
+        memory_hits,
+        evidence_ref_digests,
+        provider_receipt_refs,
+        verification,
+    )
 }
 pub(crate) fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestContext) -> bool {
     let Some(identity) = events.iter().find(|event| event.kind == "run.authorized") else {

@@ -2861,6 +2861,25 @@ limitations: CI-only fixtures have not been executed locally; cost/files/evidenc
 reviewer: Codex root implementation review plus ER-11 strict receipt schema, owner/source/redaction/proof fields, Unknown/fence and compatibility projection boundaries; no runtime test reviewer
 ```
 
+### ER-12 receipt aggregation and evidence evidence (2026-09-17)
+
+```text
+source_snapshot: 047c6d6 + ER-12 working-tree slice; kiana-domain/src/{receipt_aggregation,receipt_contracts,contracts,lib}.rs; kiana-core/src/receipts.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/tests/er12_receipt_aggregation.rs; .github/workflows/er12-receipt-aggregation.yml; docs/roadmap/event-receipt-aggregation-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict ReceiptAggregation now binds source cursor/event IDs, model turns, committed executions, known/unknown usage tokens, normalized files, memory hits, hashed evidence/provider refs, verification and cost-estimate separation; aggregate_receipt_facts reads only run-scoped persisted facts, deduplicates event IDs, marks usage/effect/commit uncertainty, and compatibility receipts include the aggregate without settling budget or exposing raw refs; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er12_receipt_aggregation.rs strict estimate/path/ref/digest fixtures; kiana-core/tests/er12_receipt_aggregation.rs committed token/file/memory/evidence aggregation, unknown usage/effect, empty/foreign source and no-settlement source guard; GitHub Actions ER-12 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-12 is triggered by the eventual push and is not awaited
+status_change: ER-12 source slice is implemented. Uncommitted/invalid files and incomplete usage do not become cost/file success, effect uncertainty remains Unknown, refs are digest-only, and no provider estimate is used for budget settlement.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; provider rate cards/billing, ArtifactStore provenance/retention/revoke, changeset durability, result delivery/recovery and external/live/physical proof remain ER-13+ / PD/INT/BQ work
+reviewer: Codex root implementation review plus ER-12 committed-fact filtering, usage uncertainty, path/ref redaction, cost separation and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

@@ -350,7 +350,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-12 — Cost、files、model turns 与 evidence aggregation　⏳
+##### ER-12 — Cost、files、model turns 与 evidence aggregation　✅
 
 - **落点：** `receipts.rs`、`artifacts`、`usage`、workspace changeset；关联 `P1-K5-01`、`P2-K4-01`、`CO-24`。
 - **动作：** 仅从 committed model/effect/changeset/artifact facts 汇总 cost、files_changed、model turns、memory hits、verification；外部账单必须带 provider receipt ref，估算值单独标记。
