@@ -5,9 +5,9 @@
 //! gate、审批和生命周期。新增字段优先使用 `serde(default)` 保持旧客户端可读取，但这
 //! 只是兼容性策略，不代表缺失字段自动安全或自动允许。
 
-use kiana_domain::CoreResponse;
+use kiana_domain::{canonical_scopes, json_digest, CoreResponse};
 pub use kiana_domain::{
-    normalize_role_path, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
+    normalize_role_path, redact_text, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
     AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
     ApprovalId, ApprovalMaterialState, ApprovalPlanPreview, ArtifactId, ArtifactProvenance,
@@ -21,9 +21,9 @@ pub use kiana_domain::{
     CellLifecycle, CellSpec, ChildCellId, ClosingReceipt, CommunicationLifecycleEvent,
     CommunicationLifecycleStatus, CommunicationMessage, CommunicationMessageKind,
     CompanyCommandReceipt, CompanyReceiptStatus, CompanyScope, CompanyScopeRegistry, ComponentId,
-    ConfigSnapshot, Criterion, CriterionId, DataBoundary, DataBoundaryId, DecisionActorKind,
-    DecisionOption, DecisionPurpose, DelegationId, DelegationPacket, DeliveryAttempt,
-    DeliveryAttemptId, DeliveryAttemptStatus, DeliveryReceipt, DeliveryReceiptId,
+    ConfigSnapshot, CredentialDisplayStatus, Criterion, CriterionId, DataBoundary, DataBoundaryId,
+    DecisionActorKind, DecisionOption, DecisionPurpose, DelegationId, DelegationPacket,
+    DeliveryAttempt, DeliveryAttemptId, DeliveryAttemptStatus, DeliveryReceipt, DeliveryReceiptId,
     DeliveryReceiptStatus, DepartmentCatalog, DepartmentSnapshot, DispatchIntent, DispatchIntentId,
     DispatchIntentStatus, DispatchPermit, EffectObservation, EffectObservationState,
     EntryPointKind, EntryPointParitySnapshot, EvalCase, EvalCaseId, EvalDataset, EvalDatasetId,
@@ -701,6 +701,255 @@ pub struct CommandRequest {
     pub name: String,
     /// 命令参数。
     pub arguments: Value,
+}
+
+/// Read-only provider credential probe request.  The request carries only a secret reference;
+/// raw credential material is resolved by the provider boundary, never by the wire protocol.
+pub const PROVIDER_CREDENTIAL_PROBE_REQUEST_SCHEMA: &str =
+    "kiana.provider-credential-probe-request.v1";
+/// Read-only provider credential probe response.  The response is a bounded status projection and
+/// intentionally contains digests/generations rather than token or key values.
+pub const PROVIDER_CREDENTIAL_PROBE_RESPONSE_SCHEMA: &str =
+    "kiana.provider-credential-probe-response.v1";
+/// Protocol projection for the server-owned provider.use decision.
+pub const PROVIDER_USE_POLICY_VIEW_SCHEMA: &str = "kiana.provider-use-policy-view.v1";
+
+fn provider_probe_bounded(value: &str, max: usize) -> bool {
+    !value.trim().is_empty() && value.len() <= max && !value.contains(['\0', '\r', '\n'])
+}
+
+fn provider_probe_digest(value: &str) -> bool {
+    value
+        .strip_prefix("sha256:")
+        .is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+}
+
+fn provider_probe_reason(value: &str) -> bool {
+    provider_probe_bounded(value, 256)
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
+/// A request to inspect provider credential readiness without performing a provider side effect.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCredentialProbeRequest {
+    pub schema: String,
+    pub provider_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_ref: Option<SecretRef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requested_scopes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_policy_revision: Option<String>,
+}
+
+impl ProviderCredentialProbeRequest {
+    pub fn new(
+        provider_id: impl Into<String>,
+        credential_ref: Option<SecretRef>,
+        requested_scopes: Vec<String>,
+        expected_policy_revision: Option<String>,
+    ) -> Result<Self, String> {
+        let requested_scopes = canonical_scopes(requested_scopes)?;
+        let request = Self {
+            schema: PROVIDER_CREDENTIAL_PROBE_REQUEST_SCHEMA.to_owned(),
+            provider_id: provider_id.into(),
+            credential_ref,
+            requested_scopes,
+            expected_policy_revision,
+        };
+        request.validate()?;
+        Ok(request)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CREDENTIAL_PROBE_REQUEST_SCHEMA
+            || !provider_probe_bounded(&self.provider_id, 128)
+            || canonical_scopes(self.requested_scopes.clone()).as_ref()
+                != Ok(&self.requested_scopes)
+        {
+            return Err("provider_credential_probe_request_invalid".to_owned());
+        }
+        if let Some(reference) = &self.credential_ref {
+            reference.validate()?;
+        }
+        if self
+            .expected_policy_revision
+            .as_deref()
+            .is_some_and(|revision| !provider_probe_digest(revision))
+        {
+            return Err("provider_credential_probe_policy_revision_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Bounded, non-authorizing result of a credential probe.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCredentialProbeResponse {
+    pub schema: String,
+    pub provider_id: String,
+    pub status: CredentialDisplayStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_ref_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub granted_scopes: Vec<String>,
+    pub policy_revision: String,
+    pub reason: String,
+    pub checked_at_unix_ms: u64,
+    pub response_digest: String,
+}
+
+impl ProviderCredentialProbeResponse {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        provider_id: impl Into<String>,
+        status: CredentialDisplayStatus,
+        credential_ref: Option<&SecretRef>,
+        credential_generation: Option<u64>,
+        expires_at_unix_ms: Option<u64>,
+        granted_scopes: Vec<String>,
+        policy_revision: impl Into<String>,
+        reason: impl Into<String>,
+        checked_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        if let Some(reference) = credential_ref {
+            reference.validate()?;
+        }
+        let granted_scopes = canonical_scopes(granted_scopes)?;
+        let mut response = Self {
+            schema: PROVIDER_CREDENTIAL_PROBE_RESPONSE_SCHEMA.to_owned(),
+            provider_id: provider_id.into(),
+            status,
+            credential_ref_digest: credential_ref
+                .map(|reference| reference.reference_digest.clone()),
+            credential_generation,
+            expires_at_unix_ms,
+            granted_scopes,
+            policy_revision: policy_revision.into(),
+            reason: reason.into(),
+            checked_at_unix_ms,
+            response_digest: String::new(),
+        };
+        response.response_digest = response.digest();
+        response.validate()?;
+        Ok(response)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CREDENTIAL_PROBE_RESPONSE_SCHEMA
+            || !provider_probe_bounded(&self.provider_id, 128)
+            || canonical_scopes(self.granted_scopes.clone()).as_ref() != Ok(&self.granted_scopes)
+            || !provider_probe_digest(&self.policy_revision)
+            || !provider_probe_reason(&self.reason)
+            || self.checked_at_unix_ms == 0
+            || !provider_probe_digest(&self.response_digest)
+            || self.response_digest != self.digest()
+        {
+            return Err("provider_credential_probe_response_invalid".to_owned());
+        }
+        if let Some(reference_digest) = &self.credential_ref_digest {
+            if !provider_probe_digest(reference_digest) {
+                return Err("provider_credential_probe_ref_digest_invalid".to_owned());
+            }
+        }
+        if self
+            .credential_generation
+            .is_some_and(|generation| generation == 0)
+        {
+            return Err("provider_credential_probe_generation_invalid".to_owned());
+        }
+        if self.expires_at_unix_ms.is_some_and(|expires| expires == 0) {
+            return Err("provider_credential_probe_expiry_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "provider_id": self.provider_id,
+            "status": self.status,
+            "credential_ref_digest": self.credential_ref_digest,
+            "credential_generation": self.credential_generation,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+            "granted_scopes": self.granted_scopes,
+            "policy_revision": self.policy_revision,
+            "reason": self.reason,
+            "checked_at_unix_ms": self.checked_at_unix_ms,
+        }))
+    }
+}
+
+/// Wire-level copy of the provider.use decision.  It carries no policy internals beyond the
+/// matched rule identifier and revision needed to explain a read-only diagnostic.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderUsePolicyEffect {
+    Allow,
+    Deny,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderUsePolicyView {
+    pub schema: String,
+    pub provider_id: String,
+    pub operation: String,
+    pub effect: ProviderUsePolicyEffect,
+    pub credential_status: CredentialDisplayStatus,
+    pub reason: String,
+    pub policy_revision: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matched_rule: Option<String>,
+}
+
+impl ProviderUsePolicyView {
+    pub fn new(
+        provider_id: impl Into<String>,
+        operation: impl Into<String>,
+        effect: ProviderUsePolicyEffect,
+        credential_status: CredentialDisplayStatus,
+        reason: impl Into<String>,
+        policy_revision: impl Into<String>,
+        matched_rule: Option<String>,
+    ) -> Result<Self, String> {
+        let view = Self {
+            schema: PROVIDER_USE_POLICY_VIEW_SCHEMA.to_owned(),
+            provider_id: provider_id.into(),
+            operation: operation.into(),
+            effect,
+            credential_status,
+            reason: reason.into(),
+            policy_revision: policy_revision.into(),
+            matched_rule,
+        };
+        view.validate()?;
+        Ok(view)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_USE_POLICY_VIEW_SCHEMA
+            || !provider_probe_bounded(&self.provider_id, 128)
+            || !provider_probe_bounded(&self.operation, 128)
+            || !provider_probe_reason(&self.reason)
+            || !provider_probe_digest(&self.policy_revision)
+            || self
+                .matched_rule
+                .as_deref()
+                .is_some_and(|rule| !provider_probe_bounded(rule, 256))
+        {
+            return Err("provider_use_policy_view_invalid".to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

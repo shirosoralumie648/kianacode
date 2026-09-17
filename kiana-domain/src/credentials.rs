@@ -6,6 +6,21 @@ use serde::{Deserialize, Serialize};
 pub const CREDENTIAL_LEASE_SCHEMA: &str = "kiana.credential-lease.v1";
 pub const CREDENTIAL_LEASE_DEFAULT_TTL_MS: u64 = 60_000;
 
+/// Safe status vocabulary for provider probes and user-facing diagnostics.  None of these
+/// variants carry the credential value or a transport error body.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialDisplayStatus {
+    Configured,
+    Missing,
+    Expired,
+    ReauthRequired,
+    ScopeInsufficient,
+    Revoked,
+    Unsupported,
+    Unknown,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialLease {

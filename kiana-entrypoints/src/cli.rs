@@ -247,7 +247,12 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
 
     if let Some(result) = run_local_command(&args, &runtime_flags).await? {
         if !result.value.is_empty() {
-            println!("{}", result.value);
+            let output = if args.first().map(String::as_str) == Some("auth") {
+                crate::provider_diagnostics::sanitize_command_output("auth", &result.value)
+            } else {
+                result.value
+            };
+            println!("{}", output);
         }
         return Ok(());
     }
@@ -8918,7 +8923,7 @@ async fn direct_connect_app_auth_status_handler(
                 Value::String("kiana.auth-status.v1".to_string()),
             );
         }
-        Ok(value)
+        Ok(crate::provider_diagnostics::sanitize_auth_status(&value))
     }) {
         Ok(value) => axum::Json(value).into_response(),
         Err(error) => direct_connect_json_error(

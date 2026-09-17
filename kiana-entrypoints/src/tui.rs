@@ -1063,6 +1063,7 @@ fn auth_settings_section(result: std::result::Result<String, String>) -> Setting
         Ok(value) => value,
         Err(error) => return command_error_section(title, format!("invalid auth JSON: {error}")),
     };
+    let value = crate::provider_diagnostics::sanitize_auth_status(&value);
 
     let mut rows = vec![
         SettingsRow::new("api_key", json_path_display(&value, &["api_key"])),

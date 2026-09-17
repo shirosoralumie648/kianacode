@@ -1,0 +1,69 @@
+name: CI-10 provider policy and credential diagnostics
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/credentials.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-policy/src/provider.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/ci10_provider_policy.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ci10_provider_probe.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/tui.rs"
+      - "kiana-entrypoints/tests/ci10_provider_diagnostics.rs"
+      - "kiana-core/tests/ci10_provider_policy_guard.rs"
+      - "docs/roadmap/ci10-provider-policy-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci10-provider-policy.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/credentials.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-policy/src/provider.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/ci10_provider_policy.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ci10_provider_probe.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/tui.rs"
+      - "kiana-entrypoints/tests/ci10_provider_diagnostics.rs"
+      - "kiana-core/tests/ci10_provider_policy_guard.rs"
+      - "docs/roadmap/ci10-provider-policy-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci10-provider-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run provider policy fixtures
+        run: cargo test -p kiana-policy --test ci10_provider_policy --locked -- --test-threads=1
+      - name: Run provider probe protocol fixtures
+        run: cargo test -p kiana-protocol --test ci10_provider_probe --locked -- --test-threads=1
+      - name: Run entrypoint diagnostic fixtures
+        run: cargo test -p kiana-entrypoints --test ci10_provider_diagnostics --locked -- --test-threads=1
+      - name: Run provider policy source guard
+        run: cargo test -p kiana-core --test ci10_provider_policy_guard --locked -- --test-threads=1
+      - name: Compile CI-10 targets
+        run: cargo check --workspace --tests --locked
+

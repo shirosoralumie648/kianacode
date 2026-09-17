@@ -7158,3 +7158,25 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: OAuthManager is not yet wired to a real IdP HTTP client or ProviderGateway credential backend; token file intentionally remains provider-secret storage and is only best-effort memory/file hygiene, not HSM/physical erasure; workload attestation, scope policy, browser callback listener, cross-process durable projector/revocation, OAuth receipt/audit and external/live provider effect remain CI-10/11, PD/SC/ER follow-up
 reviewer: Codex root implementation review plus strict PKCE/state/redirect binding and one-shot callback, token response bounds/scope, early-skew single-flight, transient/permanent/revoked behavior, generation CAS race, symlink/0600 atomic persistence and domain/provider raw-token boundary review; no runtime test reviewer
 ```
+
+### CI-10 Provider policy and credential diagnostics evidence (2026-09-18)
+
+```text
+source_snapshot: b98072c2 + CI-10 working-tree slice; kiana-domain/src/{credentials.rs,contracts.rs,lib.rs}; kiana-policy/src/{provider.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-entrypoints/src/{provider_diagnostics.rs,lib.rs,cli.rs,tui.rs}; kiana-policy/tests/ci10_provider_policy.rs; kiana-protocol/tests/ci10_provider_probe.rs; kiana-entrypoints/tests/ci10_provider_diagnostics.rs; kiana-core/tests/ci10_provider_policy_guard.rs; .github/workflows/ci10-provider-policy.yml; docs/roadmap/ci10-provider-policy-baseline.md; docs/roadmap.md
+worktree_status: `ProviderPolicyBundle` is a server-owned, strict, digest-bound default-deny policy with deterministic precedence/declaration selection and fail-closed invalid-request handling; configured credentials are necessary but never sufficient, and missing/expired/reauth/scope-insufficient/revoked/unsupported/unknown states have distinct reasons.  Protocol probe request/response and policy-view DTOs carry only SecretRef/digest/generation/expiry/status metadata with canonical scopes and strict unknown-field/digest checks.  CLI, TUI and direct loopback app-server auth status now pass compatibility output through one presence-only sanitizer that redacts key/token/preview fields; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-protocol --tests --locked --offline
+  cargo check -p kiana-policy --tests --locked --offline
+  cargo check -p kiana-entrypoints --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-policy/tests/ci10_provider_policy.rs covers default deny, precedence/last declaration, distinct scope/missing reasons, wrong operation, duplicate IDs and strict unknown fields; kiana-protocol/tests/ci10_provider_probe.rs covers canonical SecretRef-only request, digest-bound response, scope status, tamper and unknown fields; kiana-entrypoints/tests/ci10_provider_diagnostics.rs covers nested token/key redaction and non-auth passthrough; kiana-core/tests/ci10_provider_policy_guard.rs guards policy/probe/sanitizer markers and CLI/TUI/HTTP wiring; GitHub Actions CI-10 workflow runs all fixtures and workspace compile
+exit_code: 0 for format, focused workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-10 is triggered by the eventual push and is not awaited
+status_change: CI-10 source slice is implemented.  Provider.use evaluation is now an explicit server-owned deny-first boundary, read-only credential probes preserve scope/expiry/re-auth distinctions without authorization side effects, and user-facing auth diagnostics are presence-only.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: policy bundles are not yet loaded from a durable per-project store and ProviderGateway admission does not consume this bundle; probe DTOs are not wired to live IdP/provider health calls; compatibility auth command still owns provider-local credential handling behind the sanitizer; CI-11 remains responsible for durable audit/redaction/rotation/recovery projection; no external/live/physical effect proof is claimed
+reviewer: Codex root implementation review plus default-deny/precedence and invalid-policy fail-closed semantics, distinct credential status reasons, SecretRef/digest-only wire DTOs, strict scope/unknown-field checks, CLI/TUI/HTTP presence-only projection and no-second-loop/no-secret boundary review; no runtime test reviewer
+```
