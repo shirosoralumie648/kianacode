@@ -8,7 +8,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest as ShaDigest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use uuid::Uuid;
 
 pub const QUALITY_ARTIFACT_SCHEMA: &str = "kiana.quality-artifact.v1";
 pub const QUALITY_TRANSITION_SCHEMA: &str = "kiana.quality-transition.v1";
@@ -930,6 +932,197 @@ pub struct GoldenTrace {
     pub expires_at_unix_ms: Option<u64>,
     pub provenance_ref: String,
     pub trace_digest: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyEvalQualityBundle {
+    pub schema: String,
+    pub legacy_suite_id: String,
+    pub legacy_suite_digest: String,
+    pub dataset: EvalDataset,
+    pub suite: EvalSuite,
+    pub cases: Vec<EvalCase>,
+    pub bundle_digest: String,
+}
+
+/// Convert the legacy command's v1 JSON into typed quality objects without changing its output.
+///
+/// The adapter is deliberately deterministic for string-based legacy IDs and rejects unknown
+/// fields rather than silently dropping them. It is a read-only compatibility boundary; no
+/// fixture path is opened and no evaluator/provider is invoked here.
+pub fn adapt_legacy_eval_suite(
+    value: Value,
+    owner_id: impl Into<String>,
+) -> Result<LegacyEvalQualityBundle, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "legacy_eval_suite_object_required".to_owned())?;
+    if object
+        .keys()
+        .any(|key| !matches!(key.as_str(), "schema" | "id" | "description" | "cases"))
+    {
+        return Err("legacy_eval_suite_unknown_field".to_owned());
+    }
+    if object.get("schema").and_then(Value::as_str) != Some(EVAL_SUITE_OBJECT_SCHEMA) {
+        return Err("legacy_eval_suite_schema_unknown".to_owned());
+    }
+    let legacy_suite_id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "legacy_eval_suite_id_required".to_owned())?
+        .to_owned();
+    let cases = object
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "legacy_eval_suite_cases_required".to_owned())?;
+    if cases.is_empty() || cases.len() > MAX_EVAL_REFERENCES {
+        return Err("legacy_eval_suite_cases_invalid".to_owned());
+    }
+    let owner_id = owner_id.into();
+    required(&owner_id, "legacy_eval_owner", MAX_QUALITY_OWNER)?;
+    let suite_id = EvalSuiteId::from_uuid(stable_quality_uuid("legacy-suite", &legacy_suite_id));
+    let dataset_id =
+        EvalDatasetId::from_uuid(stable_quality_uuid("legacy-dataset", &legacy_suite_id));
+    let mut typed_cases = Vec::with_capacity(cases.len());
+    for raw in cases {
+        let case = raw
+            .as_object()
+            .ok_or_else(|| "legacy_eval_case_object_required".to_owned())?;
+        if case
+            .keys()
+            .any(|key| !matches!(key.as_str(), "id" | "kind" | "fixture" | "expect"))
+        {
+            return Err("legacy_eval_case_unknown_field".to_owned());
+        }
+        let case_key = case
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "legacy_eval_case_id_required".to_owned())?;
+        let kind = case
+            .get("kind")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "legacy_eval_case_kind_required".to_owned())?;
+        let fixture = case
+            .get("fixture")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "legacy_eval_case_fixture_required".to_owned())?;
+        let expect = case
+            .get("expect")
+            .and_then(Value::as_object)
+            .ok_or_else(|| "legacy_eval_case_expect_required".to_owned())?;
+        let allowed_expect = [
+            "final_status",
+            "stop_reason",
+            "min_event_count",
+            "tool_call_count",
+            "tool_error_count",
+            "required_tool_names",
+            "final_text_contains",
+            "max_input_tokens",
+            "max_output_tokens",
+        ];
+        if expect
+            .keys()
+            .any(|key| !allowed_expect.contains(&key.as_str()))
+        {
+            return Err("legacy_eval_expect_unknown_field".to_owned());
+        }
+        let expected_state = expect
+            .get("final_status")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("unspecified");
+        let mut typed = EvalCase::new(
+            suite_id,
+            fixture,
+            None,
+            json!({"legacy_kind": kind}),
+            Vec::new(),
+            expected_state,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            "internal",
+        )?;
+        typed.case_id = EvalCaseId::from_uuid(stable_quality_uuid(
+            "legacy-case",
+            &format!("{legacy_suite_id}:{case_key}"),
+        ));
+        typed.owner_id = owner_id.clone();
+        typed.case_digest = typed.digest();
+        typed.validate()?;
+        typed_cases.push(typed);
+    }
+    typed_cases.sort_by_key(|case| case.case_id.to_string());
+    if typed_cases
+        .iter()
+        .map(|case| case.case_id.to_string())
+        .collect::<BTreeSet<_>>()
+        .len()
+        != typed_cases.len()
+    {
+        return Err("legacy_eval_case_duplicate".to_owned());
+    }
+    let case_refs = typed_cases
+        .iter()
+        .map(|case| case.case_id)
+        .collect::<Vec<_>>();
+    let mut dataset = EvalDataset::new(
+        "legacy_eval",
+        owner_id.clone(),
+        vec![format!("legacy-suite:{legacy_suite_id}")],
+        "internal",
+        EvalSplit::Regression,
+        case_refs.clone(),
+        0,
+        None,
+    )?;
+    dataset.dataset_id = dataset_id;
+    dataset.dataset_digest = dataset.digest();
+    dataset.validate()?;
+    let mut suite = EvalSuite::new(
+        dataset.dataset_id,
+        "legacy",
+        "replay",
+        case_refs,
+        vec!["legacy.eval".to_owned()],
+        "legacy.scoring",
+        "legacy.safety",
+        "legacy.budget",
+        None,
+        EVAL_CASE_OBJECT_SCHEMA,
+        owner_id,
+    )?;
+    suite.suite_id = suite_id;
+    suite.suite_digest = suite.digest();
+    suite.validate()?;
+    let legacy_suite_digest = json_digest(&value);
+    let mut bundle = LegacyEvalQualityBundle {
+        schema: "kiana.legacy-eval-quality-bundle.v1".to_owned(),
+        legacy_suite_id,
+        legacy_suite_digest,
+        dataset,
+        suite,
+        cases: typed_cases,
+        bundle_digest: String::new(),
+    };
+    bundle.bundle_digest = json_digest(&serde_json::to_value(&bundle).unwrap_or(Value::Null));
+    Ok(bundle)
+}
+
+fn stable_quality_uuid(namespace: &str, key: &str) -> Uuid {
+    let digest = Sha256::digest(format!("{namespace}:{key}").as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
 }
 
 impl GoldenTrace {

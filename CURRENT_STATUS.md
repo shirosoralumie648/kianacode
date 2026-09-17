@@ -2154,6 +2154,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-04 dataset/case admission metadata and no-store/no-execution source-boundary review; no runtime test reviewer
 ```
 
+### EQ-05 legacy eval adapter evidence (2026-09-17)
+
+```text
+source_snapshot: 6960d64 + EQ-05 working-tree slice; kiana-domain/src/quality.rs; kiana-commands/Cargo.toml; Cargo.lock; kiana-commands/src/eval.rs; kiana-commands/tests/eq05_legacy_adapter.rs; kiana-core/tests/eq05_legacy_adapter_guard.rs; .github/workflows/eq05-legacy-adapter.yml; docs/roadmap/evaluation-legacy-adapter-baseline.md; docs/roadmap.md
+worktree_status: explicit legacy kiana.eval-suite.v1 → typed LegacyEvalQualityBundle adapter is scoped to this step; EvalCommand validates the bundle then preserves legacy report/baseline/metrics output, no fixture path is opened by the adapter and no second evaluator/runner/promotion path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/quality.rs kiana-commands/Cargo.toml Cargo.lock kiana-commands/src/eval.rs kiana-commands/tests/eq05_legacy_adapter.rs kiana-core/tests/eq05_legacy_adapter_guard.rs .github/workflows/eq05-legacy-adapter.yml docs/roadmap/evaluation-legacy-adapter-baseline.md docs/roadmap.md
+  rg -n 'adapt_legacy_eval_suite|LegacyEvalQualityBundle|stable_quality_uuid|legacy_eval_(suite|case|expect)_|suite_value|EVAL_REPORT_SCHEMA|kiana-domain' kiana-domain/src/quality.rs kiana-commands/src/eval.rs kiana-commands/tests/eq05_legacy_adapter.rs kiana-core/tests/eq05_legacy_adapter_guard.rs docs/roadmap/evaluation-legacy-adapter-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-05 domain/commands/core adapter targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-commands/tests/eq05_legacy_adapter.rs deterministic typed ID/bundle and unknown-field rejection fixtures; kiana-core/tests/eq05_legacy_adapter_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-05 job is queued by the next push and is not awaited
+status_change: EQ-05 source slice is implemented. Legacy eval suite JSON now passes an explicit strict domain adapter with deterministic typed IDs/digests before the existing evaluator runs, while the old report/baseline/metrics wire fields remain unchanged.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy EvalCommand remains caller-path/read-only compatibility surface, adapter does not authenticate owner or open FixtureStore, and normalizer/Judge/EvalStore/experiment/gate/promote/rollback/durable evidence remain EQ-06+ / ER / PD / SC.
+reviewer: Codex root implementation review plus EQ-05 legacy-to-domain adapter/deterministic ID/report compatibility source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

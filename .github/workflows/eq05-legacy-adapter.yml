@@ -1,0 +1,50 @@
+name: EQ-05 legacy eval adapter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-commands/Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq05_legacy_adapter.rs"
+      - "kiana-domain/src/quality.rs"
+      - "kiana-core/tests/eq05_legacy_adapter_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-legacy-adapter-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq05-legacy-adapter.yml"
+  pull_request:
+    paths:
+      - "kiana-commands/Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq05_legacy_adapter.rs"
+      - "kiana-domain/src/quality.rs"
+      - "kiana-core/tests/eq05_legacy_adapter_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-legacy-adapter-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq05-legacy-adapter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-eval-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-05 adapter fixture
+        run: cargo test -p kiana-commands --test eq05_legacy_adapter --locked -- --test-threads=1
+      - name: Run EQ-05 source guard
+        run: cargo test -p kiana-core --test eq05_legacy_adapter_guard --locked -- --test-threads=1
+      - name: Compile legacy adapter path
+        run: cargo check -p kiana-domain -p kiana-commands -p kiana-core --tests --locked

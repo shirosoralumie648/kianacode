@@ -382,9 +382,13 @@ fn run_suite(path: &Path, baseline_path: Option<&Path>) -> Result<EvalReport> {
         .canonicalize()?;
     let suite_bytes = fs::read(&suite_path)
         .with_context(|| format!("failed to read eval suite {}", path.display()))?;
-    let suite: EvalSuite =
+    let suite_value: Value =
         serde_json::from_slice(&suite_bytes).context("invalid eval suite JSON")?;
+    let suite: EvalSuite =
+        serde_json::from_value(suite_value.clone()).context("invalid eval suite JSON")?;
     validate_suite(&suite)?;
+    kiana_domain::adapt_legacy_eval_suite(suite_value, "legacy-eval")
+        .map_err(|error| anyhow!("legacy eval quality adapter rejected suite: {error}"))?;
 
     let mut case_reports = Vec::with_capacity(suite.cases.len());
     for case in suite.cases {
