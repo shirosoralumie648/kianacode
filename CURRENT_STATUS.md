@@ -2994,6 +2994,25 @@ limitations: ApprovalPlanPreview is a redacted projection; in-memory/JSONL mater
 reviewer: Codex root implementation review plus CAP-06 preview redaction, material/action/scope revalidation and no-authority boundary; no runtime test reviewer
 ```
 
+### H-06 stream normalizer evidence (2026-09-17)
+
+```text
+source_snapshot: 870a777 + H-06 working-tree slice; kiana-domain/src/model.rs; kiana-runner/src/{stream_normalizer,harness,lib,model}.rs; kiana-runner/tests/h06_stream_normalizer.rs; kiana-runner/tests/h06_stream_guard.rs; .github/workflows/h06-stream-normalizer.yml; docs/roadmap/harness-stream-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: ModelStreamAccumulator is the single bounded per-attempt assembly path for Text/ToolArguments/Usage/Stop fragments; it enforces attempt-local delta/text/tool limits, tool identity and JSON validation, usage monotonicity, duplicate/conflicting stop rejection, EOF-without-stop failure and late-delta cancellation fence; KianaHarness sends callback deltas through the accumulator and validates the complete output before tool requests; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h06_stream_normalizer.rs interleaved tool/text, invalid split JSON, EOF without stop and late-cancel fixtures; kiana-runner/tests/h06_stream_guard.rs single accumulator/limits/no-partial-dispatch source guard; GitHub Actions H06 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H06 is triggered by the eventual push and is not awaited
+status_change: H06 source slice is implemented. Stream and buffered model paths now share one attempt-bound accumulator; incomplete or conflicting streams cannot produce tool dispatch or completed turn output.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: only source/cassette adapters are covered; real provider frame/reconnect/slow-consumer behavior, durable attempt ledger, billing/retry integration, terminal/recovery and external/live/physical proof remain H07+ / P4 / ER/PD/INT work
+reviewer: Codex root implementation review plus H06 accumulator identity/limits/JSON/stop/cancel boundaries and Harness integration; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

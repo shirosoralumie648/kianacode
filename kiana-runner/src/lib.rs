@@ -15,6 +15,7 @@ mod inbox;
 mod model;
 mod protocol_runner;
 mod state_driver;
+mod stream_normalizer;
 mod tools;
 
 pub use harness::{
@@ -30,4 +31,8 @@ pub use state_driver::{
     transition, DriverError, DriverInput, DriverIntent, DriverTerminal, DriverTransition,
     HarnessPhase, RunDriver, RunFrame, TurnFrame, DEFAULT_MAILBOX_CAPACITY, RUN_FRAME_SCHEMA,
     TURN_FRAME_SCHEMA,
+};
+pub use stream_normalizer::{
+    ModelStreamAccumulator, STREAM_NORMALIZER_MAX_DELTAS, STREAM_NORMALIZER_MAX_TEXT_BYTES,
+    STREAM_NORMALIZER_MAX_TOOL_BLOCKS, STREAM_NORMALIZER_MAX_TOOL_BYTES,
 };

@@ -512,15 +512,27 @@ impl ModelOutput {
 #[non_exhaustive]
 /// 模型轮次中逐步交付的增量。
 ///
-/// 当前只定义文本增量；后续可新增工具调用参数、usage、stop_reason 等变体，调用方应保留
-/// 通配分支。无论交付多少增量，`complete_streaming` 返回的 [`ModelOutput`] 始终是该轮次的
-/// 完整聚合结果。
+/// 增量可携带文本、工具参数、累计 usage 或显式 stop；调用方必须保留通配分支，以便未知
+/// provider item 失败关闭。无论交付多少增量，`complete_streaming` 返回的 [`ModelOutput`]
+/// 始终是该轮次的完整聚合结果。
 pub enum ModelDelta {
     /// 一段自然语言文本增量。
     Text {
         /// 本次新增的文本。
         text: String,
     },
+    /// A fragment of one tool's JSON arguments. The index/identity is server/provider supplied;
+    /// fragments are buffered and never become a tool request before final validation.
+    ToolArguments {
+        index: u32,
+        id: String,
+        name: String,
+        partial_json: String,
+    },
+    /// Cumulative usage observed while a provider stream is open.
+    Usage { usage: ModelUsage },
+    /// Explicit provider stop marker. A duplicate or conflicting marker is invalid.
+    Stop { reason: String },
 }
 
 pub const MODEL_CALL_SCHEMA: &str = "kiana.model-call.v1";

@@ -252,7 +252,9 @@ sequenceDiagram
 
 <a id="step-h06"></a>
 
-#### H06 — 一个流归一化器产生增量与完整响应　⏳
+#### H06 — 一个流归一化器产生增量与完整响应　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-stream-baseline.md`](harness-stream-baseline.md)。
 
 **关联原单元**：`P0-J7-01`、`P4-J7-02/03`。**依赖**：H05。
 

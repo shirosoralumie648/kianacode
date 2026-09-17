@@ -18,6 +18,7 @@ use crate::model::{
     UnavailableModel,
 };
 use crate::state_driver::RunDriver;
+use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
@@ -1043,15 +1044,20 @@ impl KianaHarness {
             };
             let cancellation = run.cancellation.clone();
             let mut redactor = StreamingRedactor::new();
+            let mut stream = ModelStreamAccumulator::new(model_attempt_id);
             let run_id = run.run_id;
             let mut callback = |delta: ModelDelta| -> Result<(), String> {
                 if let Some(error) = cancellation.error().map_err(|e| e.to_string())? {
                     return Err(error);
                 }
-                let text = match delta {
-                    ModelDelta::Text { text } => text,
-                    _ => return Err("model_delta_unsupported".to_owned()),
+                let text = match &delta {
+                    ModelDelta::Text { text } => text.clone(),
+                    _ => String::new(),
                 };
+                stream.push(delta)?;
+                if text.is_empty() {
+                    return Ok(());
+                }
                 let text = redactor.push(&text);
                 if text.is_empty() {
                     return Ok(());
@@ -1103,11 +1109,18 @@ impl KianaHarness {
             })})?;
             match result {
                 Ok(reply) => {
+                    if let Some(error) = cancellation.error().map_err(|e| e.to_string())? {
+                        stream.cancel();
+                        return Err(error);
+                    }
+                    let output = stream
+                        .finish(reply.output)
+                        .map_err(|error| format!("model_stream_normalization_failed:{error}"))?;
                     let tail = redactor.finish();
                     if !tail.is_empty() {
                         emitter.emit(RunnerEvent::Delta { run_id, text: tail })?;
                     }
-                    return Ok(reply.output);
+                    return Ok(output);
                 }
                 Err(error)
                     if attempt < 2

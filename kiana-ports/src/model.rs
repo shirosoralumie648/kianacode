@@ -84,7 +84,7 @@ pub trait ModelClient: Send + Sync {
     /// 再把完整文本作为一条 [`ModelDelta::Text`] 交给 `on_delta`；文本为空时不调用回调。
     ///
     /// `on_delta` 是同步回调，不创建后台任务。调用方可在回调中转发到自己的 channel，并通过
-    /// 返回错误表达背压或取消。将来原生流式实现可沿用该回调交付工具调用、usage 和
+    /// 返回错误表达背压或取消。原生流式实现可沿用该回调交付工具调用、usage 和
     /// stop_reason 增量，最终仍返回完整聚合的 [`ModelOutput`]。
     async fn complete_streaming(
         &self,

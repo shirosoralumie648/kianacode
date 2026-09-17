@@ -1,0 +1,52 @@
+name: H06 stream normalizer
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-runner/src/stream_normalizer.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h06_stream_normalizer.rs"
+      - "kiana-runner/tests/h06_stream_guard.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-stream-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h06-stream-normalizer.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-runner/src/stream_normalizer.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h06_stream_normalizer.rs"
+      - "kiana-runner/tests/h06_stream_guard.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-stream-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h06-stream-normalizer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stream-normalizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H06 stream fixtures
+        run: cargo test -p kiana-runner --test h06_stream_normalizer --locked -- --test-threads=1
+      - name: Run H06 source guard
+        run: cargo test -p kiana-runner --test h06_stream_guard --locked -- --test-threads=1
+      - name: Compile H06 targets
+        run: cargo check --workspace --tests --locked
