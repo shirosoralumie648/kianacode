@@ -846,7 +846,7 @@ impl DaemonHost {
         execution_control::ExecutionControl::register(&mut capabilities, events.clone())?;
         let mcp_registry = harness_mcp::McpRegistry::new(events.clone())?;
         harness_mcp::register(&mut capabilities, mcp_registry.clone())?;
-        harness_memory::register(&mut capabilities)?;
+        harness_memory::register(&mut capabilities, events.clone())?;
         workspace_checkpoints::register(&mut capabilities)?;
         data_governance::register(&mut capabilities)?;
         connectors::register(&mut capabilities, events.clone())?;

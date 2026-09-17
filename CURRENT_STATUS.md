@@ -7053,3 +7053,20 @@ proof-level_change: source plus static syntax evidence only; no local_behavior, 
 limitations: no real desktop session/tray OS integration, macOS backend, notification delivery, signed installer/upgrade, cross-restart DaemonHost recovery or live/physical effect proof is claimed; worker confirmation covers process tree only and EventLog/Receipt remain DaemonHost/ControlPlane authority
 reviewer: Codex root implementation review plus preload IPC scope, workspace containment/onboarding, loopback readiness, tray/background behavior, shutdown idempotency, process-group descendant cleanup and bounded unconfirmed-stop failure review; no runtime test reviewer
 ```
+### CM-05 Memory EventStore projection evidence (2026-09-18)
+
+```text
+source_snapshot: 57a1b48e + CM-05 working-tree slice; kiana-domain/src/memory_journal.rs; kiana-daemon/src/{harness_memory.rs,lib.rs}; kiana-eventlog/src/{event_store_core.rs,journal_core.rs,jsonl.rs,memory.rs}; kiana-ports/src/lib.rs; kiana-domain/tests/cm05_memory_eventstore.rs; kiana-daemon/tests/cm05_memory_eventstore.rs; kiana-core/tests/cm05_memory_eventstore.rs; .github/workflows/cm05-memory-eventstore.yml; docs/roadmap/cm05-memory-eventstore-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: production MemoryScope now carries the DaemonHost EventStore; memory write/review completes server mutation preflight then appends idempotent/CAS `memory.fact` with bounded body ref before JSONL projection, while search/review compare committed stream replay against file and fail with memory_projection_unjournaled or memory_projection_lag; project_memory_facts rebuilds latest records by contiguous stream version and rejects duplicate/gap/hash drift; production proposal batch materialization is explicitly blocked until journal support; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/cm05_memory_eventstore.rs covers no-unjournaled projection, deterministic replay, latest-record replacement, duplicate/gap and body hash failure; kiana-daemon/tests/cm05_memory_eventstore.rs checks journal-before-JSONL ordering and lag guards; kiana-core/tests/cm05_memory_eventstore.rs binds EventStore/CAS/source boundaries; GitHub Actions CM-05 workflow runs domain fixture, daemon/core guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-05 is triggered by the eventual push and is not awaited
+status_change: CM-05 source slice is implemented. EventStore is the only committed memory fact source in the production handler path; JSONL remains a rebuildable projection with explicit lag/unjournaled refusal.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: EventStore commit and JSONL projection are ordered but not one cross-storage atomic transaction; projection repair is explicit future work, multi-target accept_proposal is blocked in production, and no cross-process worker/power-loss/durable index-generation/processing-grant/source-dependency/live/physical proof is claimed; CM-06/PD/SC/ER remain
+reviewer: Codex root implementation review plus EventStore stream identity/CAS/idempotency, mutation-before-journal ordering, bounded body reference, replay reconstruction, projection lag/un-journaled refusal, torn/duplicate/gap handling and no-second-fact-source boundary review; no runtime test reviewer
+```

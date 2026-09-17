@@ -314,9 +314,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-05 · EventStore 唯一提交点与 JSONL/index 投影　⏳
+##### CM-05 · EventStore 唯一提交点与 JSONL/index 投影　✅
 
-把 memory facts、review decision、正文引用和 projection cursor 纳入现有事务/CAS；投影重放可重建，投影落后返回可解释状态。覆盖崩溃前后、账本失败、重复提交和 torn tail。验收：`memory_commit_has_no_unjournaled_visibility`、`projection_rebuild_matches_committed_memory`。
+`MemoryScope` 复用 DaemonHost 的 EventStore；memory write/review 在 JSONL append 前提交带 body ref 的 `memory.fact` 幂等 stream，`project_memory_facts` 可按 cursor/version 重建最新记录，search/review 对 unjournaled 或 lagging projection 返回结构化拒绝。新增 domain replay fixture、daemon append-order guard、core EventStore guard、workflow 与 [CM-05 baseline](cm05-memory-eventstore-baseline.md)。生产 proposal 批量物化在 journal 接线完成前显式 fail-closed，避免第二事实源。验收：`memory_commit_has_no_unjournaled_visibility`、`projection_rebuild_matches_committed_memory`。
 
 <a id="step-cm-06"></a>
 

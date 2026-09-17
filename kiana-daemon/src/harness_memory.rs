@@ -7,15 +7,16 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     json_digest, memory_query_terms, AdapterCommitState, AdapterResultKind,
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, EvidenceStatus, MemoryAdmission,
-    MemoryClassification, MemoryCollection, MemoryMutation, MemoryMutationLedger,
-    MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt, MemoryMutationTarget,
-    MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState,
-    Purpose, RoleSpec, SourceKind, SourceRef, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
+    MemoryBodyRef, MemoryClassification, MemoryCollection, MemoryJournalFact, MemoryMutation,
+    MemoryMutationLedger, MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt,
+    MemoryMutationTarget, MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope,
+    MemorySensitivity, MemoryState, Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef,
+    MEMORY_FACT_EVENT_KIND, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
     MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
     MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
-    MEMORY_WRITE_SCHEMA,
+    MEMORY_STREAM, MEMORY_WRITE_SCHEMA,
 };
-use kiana_ports::PortError;
+use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -38,11 +39,13 @@ const REVIEW_OPERATION: &str = "memory.review";
 #[derive(Clone)]
 struct MemoryScope {
     home: Option<PathBuf>,
+    events: Option<std::sync::Arc<dyn EventStorePort>>,
 }
 impl MemoryScope {
-    fn capture() -> Self {
+    fn capture(events: Option<std::sync::Arc<dyn EventStorePort>>) -> Self {
         Self {
             home: std::env::var_os(KIANA_HOME_ENV).map(PathBuf::from),
+            events,
         }
     }
     fn check(&self, arguments: &Value) -> Result<(), PortError> {
@@ -86,8 +89,140 @@ fn server_memory_scope(
     }
     Ok(scope)
 }
-pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
-    let scope = MemoryScope::capture();
+
+fn memory_stream_id(
+    scope: &MemoryScope,
+    project_root: &str,
+    collection: &str,
+    session_id: &str,
+) -> String {
+    let session_scope = MemoryCollection::parse(collection)
+        .filter(|parsed| parsed.layer == MEMORY_LAYER_INSTANCE_SCRATCH)
+        .map(|_| session_id)
+        .unwrap_or_default();
+    json_digest(&json!({
+        "home": scope.home,
+        "project_root": project_root,
+        "collection": collection,
+        "session_id": session_scope,
+    }))
+}
+
+/// Confirm that the file projection has caught up with the committed memory stream.  An empty
+/// EventStore stream plus a non-empty file is treated as unjournaled visibility, not a cache hit.
+async fn ensure_memory_projection(scope: &MemoryScope, arguments: &Value) -> Result<(), PortError> {
+    let Some(events) = scope.events.clone() else {
+        return Ok(());
+    };
+    let role = RoleSpec::lookup(&optional_string(arguments, "role_id").unwrap_or_default())
+        .ok_or_else(|| failed("role_unknown"))?;
+    let collections = if optional_string(arguments, "collection").is_some() {
+        vec![required_collection(arguments)?]
+    } else {
+        requested_collections(arguments, &role)?
+    };
+    let project_root = optional_string(arguments, "project_root").unwrap_or_default();
+    let session_id = optional_string(arguments, "session_id").unwrap_or_default();
+    for collection in collections {
+        let stream_id = memory_stream_id(scope, &project_root, &collection.collection, &session_id);
+        let committed = events.read_stream(MEMORY_STREAM, &stream_id).await?;
+        let path = collection_path_scoped(
+            &collection,
+            &project_root,
+            &session_id,
+            scope.home.as_deref(),
+        )?;
+        let projected = tokio::task::spawn_blocking(move || read_records(&path))
+            .await
+            .map_err(|error| failed(format!("memory_projection_read_join_failed:{error}")))??;
+        if committed.is_empty() {
+            if !projected.is_empty() {
+                return Err(failed("memory_projection_unjournaled"));
+            }
+            continue;
+        }
+        let projection = kiana_domain::project_memory_facts(&committed).map_err(failed)?;
+        if !projection.matches_records(&projected) {
+            return Err(failed("memory_projection_lag"));
+        }
+    }
+    Ok(())
+}
+
+/// Commit a memory fact before its JSONL projection is appended.  This synchronous helper is
+/// called from `spawn_blocking`; `Handle::block_on` therefore waits on the EventStore without
+/// blocking the Tokio worker thread that owns the request.
+fn journal_memory_fact(
+    scope: &MemoryScope,
+    request_id: Option<kiana_domain::RequestId>,
+    project_root: &str,
+    collection: &str,
+    session_id: &str,
+    operation: &str,
+    mutation_key: &str,
+    record: &MemoryRecord,
+) -> Result<(u64, bool), PortError> {
+    let Some(events) = scope.events.clone() else {
+        return Ok((0, false));
+    };
+    let request_id = request_id.ok_or_else(|| failed("memory_journal_request_required"))?;
+    let stream_id = memory_stream_id(scope, project_root, collection, session_id);
+    let event_key = format!("memory.fact:{stream_id}:{mutation_key}");
+    let handle = tokio::runtime::Handle::try_current()
+        .map_err(|_| failed("memory_journal_runtime_unavailable"))?;
+    handle.block_on(async move {
+        let history = events.read_stream(MEMORY_STREAM, &stream_id).await?;
+        let projection = kiana_domain::project_memory_facts(&history).map_err(failed)?;
+        let expected = projection.source_cursor;
+        if let Some(previous) = history
+            .iter()
+            .find(|event| event.idempotency_key.as_deref() == Some(event_key.as_str()))
+        {
+            let fact: MemoryJournalFact = serde_json::from_value(previous.data.clone())
+                .map_err(|_| failed("memory_fact_decode_failed"))?;
+            if fact.operation != operation
+                || json_digest(&serde_json::to_value(&fact.record).unwrap_or(Value::Null))
+                    != json_digest(&serde_json::to_value(record).unwrap_or(Value::Null))
+            {
+                return Err(PortError::Conflict(
+                    "memory_journal_idempotency_payload_mismatch".to_owned(),
+                ));
+            }
+            return Ok((previous.stream_version.unwrap_or(expected), true));
+        }
+        let version = expected
+            .checked_add(1)
+            .ok_or_else(|| failed("memory_journal_version_exhausted"))?;
+        let fact = MemoryJournalFact::new(
+            operation,
+            mutation_key,
+            record.clone(),
+            MemoryBodyRef::new(&stream_id, &record.content_hash),
+        );
+        fact.validate().map_err(failed)?;
+        let event = RuntimeEvent::new(
+            request_id,
+            1,
+            MEMORY_FACT_EVENT_KIND,
+            serde_json::to_value(fact).map_err(|_| failed("memory_fact_encode_failed"))?,
+        )
+        .map_err(|error| failed(format!("memory_fact_event_invalid:{error}")))?
+        .with_stream_metadata(MEMORY_STREAM, stream_id, version)
+        .with_idempotency_key(event_key);
+        let result = events
+            .append_idempotent_expected(event, Some(expected))
+            .await?;
+        Ok((
+            result.event.stream_version.unwrap_or(version),
+            result.replayed,
+        ))
+    })
+}
+pub(crate) fn register(
+    broker: &mut CapabilityBroker,
+    events: std::sync::Arc<dyn EventStorePort>,
+) -> Result<(), PortError> {
+    let scope = MemoryScope::capture(Some(events));
     broker.register_static(
         CapabilityKind::Query,
         SEARCH_OPERATION,
@@ -120,6 +255,7 @@ impl CapabilityHandler for MemorySearchHandler {
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
         server_memory_scope(&request, &arguments, false)?;
+        ensure_memory_projection(&self.0, &arguments).await?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || search_records_scoped(&arguments, &scope))
             .await
@@ -193,6 +329,7 @@ impl CapabilityHandler for MemoryReviewHandler {
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
         let mutation_scope = server_memory_scope(&request, &arguments, true)?;
+        ensure_memory_projection(&self.0, &arguments).await?;
         let execution_scope = request
             .request
             .execution_scope
@@ -205,6 +342,7 @@ impl CapabilityHandler for MemoryReviewHandler {
             review_records_with_mutation(
                 &arguments,
                 &scope,
+                Some(request_id),
                 Some(&mutation_scope),
                 policy_epoch,
                 data_epoch,
@@ -224,7 +362,7 @@ impl CapabilityHandler for MemoryReviewHandler {
 
 #[cfg(test)]
 fn search_records(arguments: &Value) -> Result<Value, PortError> {
-    search_records_scoped(arguments, &MemoryScope::capture())
+    search_records_scoped(arguments, &MemoryScope::capture(None))
 }
 fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value, PortError> {
     let query = required_string(arguments, "query", "memory_query_required")?;
@@ -281,7 +419,7 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
 
 #[cfg(test)]
 fn write_record(arguments: &Value) -> Result<Value, PortError> {
-    write_record_scoped(arguments, &MemoryScope::capture(), None)
+    write_record_scoped(arguments, &MemoryScope::capture(None), None)
 }
 fn write_record_scoped(
     arguments: &Value,
@@ -403,6 +541,8 @@ fn write_record_with_mutation(
         } else {
             (record, false)
         };
+    let mut journal_cursor = 0u64;
+    let mut journal_replayed = false;
     let mutation_receipt = if let Some(mutation_scope) = mutation_scope {
         let payload = serde_json::to_value(&record).map_err(|_| failed("memory_record_invalid"))?;
         let mutation = MemoryMutation::new(
@@ -419,6 +559,18 @@ fn write_record_with_mutation(
         )
         .map_err(failed)?;
         if replayed {
+            let (cursor, replayed_event) = journal_memory_fact(
+                scope,
+                request_id,
+                &project_root,
+                &record.collection,
+                &record.session_id,
+                "write",
+                &mutation_key,
+                &record,
+            )?;
+            journal_cursor = cursor;
+            journal_replayed = replayed_event;
             Some(replayed_memory_receipt(&mutation, record.revision)?)
         } else {
             let mut ledger = MemoryMutationLedger::new();
@@ -432,6 +584,18 @@ fn write_record_with_mutation(
             else {
                 return Err(failed("memory_mutation_unexpected_replay"));
             };
+            let (cursor, replayed_event) = journal_memory_fact(
+                scope,
+                request_id,
+                &project_root,
+                &record.collection,
+                &record.session_id,
+                "write",
+                &mutation_key,
+                &record,
+            )?;
+            journal_cursor = cursor;
+            journal_replayed = replayed_event;
             append_record_file(&mut file, &record)?;
             Some(receipt)
         }
@@ -447,6 +611,7 @@ fn write_record_with_mutation(
         "promoted":false,"origin":record.origin,"admission_state":record.admission_state,
         "state":record.state,"revision":record.revision,"classification":record.classification,
         "effect_committed":true,"write_synced":true,"replayed":replayed,
+        "journaled":scope.events.is_some(),"journal_replayed":journal_replayed,"projection_cursor":journal_cursor,
         "idempotency_key":mutation_key,"mutation_receipt":mutation_receipt,
         "stop_confirmed":true}),
     )
@@ -456,15 +621,16 @@ fn write_record_with_mutation(
 /// boundary stamps the operator identity and requires approval of the exact revision.
 #[cfg(test)]
 fn review_records(arguments: &Value) -> Result<Value, PortError> {
-    review_records_scoped(arguments, &MemoryScope::capture())
+    review_records_scoped(arguments, &MemoryScope::capture(None))
 }
 fn review_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value, PortError> {
-    review_records_with_mutation(arguments, scope, None, 1, 1)
+    review_records_with_mutation(arguments, scope, None, None, 1, 1)
 }
 
 fn review_records_with_mutation(
     arguments: &Value,
     scope: &MemoryScope,
+    request_id: Option<kiana_domain::RequestId>,
     mutation_scope: Option<&DomainMemoryScope>,
     policy_epoch: u64,
     data_epoch: u64,
@@ -491,6 +657,9 @@ fn review_records_with_mutation(
     let session = optional_string(arguments, "session_id").unwrap_or_default();
     let path = collection_path_scoped(&collection, &project, &session, scope.home.as_deref())?;
     if action == "accept_proposal" {
+        if scope.events.is_some() {
+            return Err(failed("memory_proposal_event_journal_required"));
+        }
         return accept_proposal(arguments, &collection, &path, &actor);
     }
     if action == "list" {
@@ -632,10 +801,25 @@ fn review_records_with_mutation(
     record.reviewed_by = Some(actor);
     record.review_reason = Some(reason);
     record.reviewed_at_ms = Some(now_ms());
+    let (journal_cursor, journal_replayed) = if mutation_scope.is_some() {
+        journal_memory_fact(
+            scope,
+            request_id,
+            &project,
+            &record.collection,
+            &record.session_id,
+            "review",
+            &mutation_key,
+            &record,
+        )?
+    } else {
+        (0, false)
+    };
     append_record_file(&mut file, &record)?;
     Ok(
         json!({"schema":MEMORY_REVIEW_SCHEMA,"action":action,"record":record.hit(),"revision":record.revision,
-            "idempotency_key":mutation_key,"mutation_receipt":mutation_receipt}),
+            "idempotency_key":mutation_key,"mutation_receipt":mutation_receipt,
+            "journaled":scope.events.is_some(),"journal_replayed":journal_replayed,"projection_cursor":journal_cursor}),
     )
 }
 
@@ -833,7 +1017,7 @@ fn collection_path(
         collection,
         project_root,
         session_id,
-        MemoryScope::capture().home.as_deref(),
+        MemoryScope::capture(None).home.as_deref(),
     )
 }
 fn collection_path_scoped(
