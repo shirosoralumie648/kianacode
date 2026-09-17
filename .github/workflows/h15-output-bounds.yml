@@ -1,0 +1,58 @@
+name: H15 output bounds
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/execution_output.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h15_output_ref.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-output-bounds-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h15-output-bounds.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/execution_output.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h15_output_ref.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-output-bounds-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h15-output-bounds.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  output-bounds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H15 domain fixtures
+        run: cargo test -p kiana-domain --test h15_output_ref --locked -- --test-threads=1
+      - name: Run H15 daemon fixtures
+        run: cargo test -p kiana-daemon --test h15_output_limits --locked -- --test-threads=1
+      - name: Compile H15 targets
+        run: cargo check --workspace --tests --locked

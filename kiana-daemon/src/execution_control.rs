@@ -2,14 +2,15 @@
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, RequestId, RuntimeEvent,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExecutionOutputRef,
+    InvocationId, RequestId, RunId, RuntimeEvent,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -708,11 +709,42 @@ pub(crate) fn store_output(
     let epoch = request.request.arguments["source_data_revision"]
         .as_u64()
         .unwrap_or(current);
-    let record = json!({"schema":"kiana.execution-output.v1","identity":identity(&request.request.arguments),"data_epoch":epoch,"output":captured});
+    let identity = identity(&request.request.arguments);
+    let content_digest = kiana_domain::json_digest(&json!(&captured));
+    let size_bytes = serde_json::to_vec(&captured)
+        .map_err(|_| error("output_encode_failed"))?
+        .len() as u64;
+    let run_id = request.request.arguments["run_id"]
+        .as_str()
+        .and_then(RunId::parse_str);
+    let now = unix_time_ms()?;
+    let expires_at_unix_ms = now
+        .checked_add(
+            Duration::from_secs(15 * 60)
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64,
+        )
+        .ok_or_else(|| error("output_expiry_overflow"))?;
+    let output_ref = ExecutionOutputRef::new(
+        request.request.request_id,
+        run_id,
+        InvocationId::from_uuid(request.request.request_id.as_uuid()),
+        content_digest,
+        size_bytes,
+        kiana_domain::json_digest(&identity),
+        expires_at_unix_ms,
+    )
+    .map_err(|_| error("output_reference_invalid"))?;
+    let record = json!({"schema":"kiana.execution-output.v1","identity":identity,"data_epoch":epoch,
+        "expires_at_unix_ms":expires_at_unix_ms,"output_ref":output_ref.clone(),"output":captured});
     let bytes = serde_json::to_vec(&record).map_err(|_| error("output_encode_failed"))?;
     crate::local_packages::LocalDir::open(&output_directory()?, true)?
         .publish(&format!("{id}.json"), &bytes)?;
-    output["output_ref"] = json!({"output_id":id,"schema":"kiana.execution-output.v1","sha256":crate::local_packages::sha256(&bytes),"preview_bytes":8192});
+    let mut output_ref =
+        serde_json::to_value(output_ref).map_err(|_| error("output_reference_encode_failed"))?;
+    output_ref["sha256"] = json!(format!("sha256:{}", crate::local_packages::sha256(&bytes)));
+    output_ref["preview_bytes"] = json!(8192);
+    output["output_ref"] = output_ref;
     Ok(())
 }
 fn read_output(arguments: &Value) -> Result<Value, PortError> {
@@ -723,6 +755,21 @@ fn read_output(arguments: &Value) -> Result<Value, PortError> {
     let record: Value =
         serde_json::from_slice(&bytes).map_err(|_| error("output_record_invalid"))?;
     check_owner(&record["identity"], arguments)?;
+    let output_ref: ExecutionOutputRef = serde_json::from_value(record["output_ref"].clone())
+        .map_err(|_| error("output_reference_invalid"))?;
+    output_ref
+        .validate()
+        .map_err(|_| error("output_reference_invalid"))?;
+    if output_ref.output_id != id
+        || output_ref.invocation_id != InvocationId::from_uuid(id.as_uuid())
+        || output_ref.scope_digest != kiana_domain::json_digest(&record["identity"])
+        || record["expires_at_unix_ms"] != json!(output_ref.expires_at_unix_ms)
+    {
+        return Err(error("output_reference_integrity_mismatch"));
+    }
+    if unix_time_ms()? >= output_ref.expires_at_unix_ms {
+        return Err(error("output_reference_expired"));
+    }
     if record["data_epoch"]
         != json!(
             crate::data_governance::read_policy(Path::new(required(arguments, "project_root")?))?
@@ -736,6 +783,9 @@ fn read_output(arguments: &Value) -> Result<Value, PortError> {
         return Err(error("output_stream_invalid"));
     }
     let text = record["output"][stream].as_str().unwrap_or_default();
+    if output_ref.content_digest != kiana_domain::json_digest(&record["output"]) {
+        return Err(error("output_content_digest_mismatch"));
+    }
     let start = arguments["offset"].as_u64().unwrap_or(0) as usize;
     if start > text.len() || !text.is_char_boundary(start) {
         return Err(error("output_offset_invalid"));
@@ -746,8 +796,30 @@ fn read_output(arguments: &Value) -> Result<Value, PortError> {
     while !text.is_char_boundary(end) {
         end -= 1;
     }
+    let cursor = kiana_domain::json_digest(&json!({
+        "output_id": id,
+        "stream": stream,
+        "offset": start,
+        "content_digest": output_ref.content_digest,
+    }));
+    if arguments
+        .get("cursor")
+        .and_then(Value::as_str)
+        .is_some_and(|provided| provided != cursor)
+    {
+        return Err(error("output_cursor_invalid"));
+    }
+    let next_cursor = (end < text.len()).then(|| {
+        kiana_domain::json_digest(&json!({
+            "output_id": id,
+            "stream": stream,
+            "offset": end,
+            "content_digest": output_ref.content_digest,
+        }))
+    });
     Ok(
-        json!({"output_id":id,"stream":stream,"text":&text[start..end],"next_offset":end,"complete":end==text.len()}),
+        json!({"output_id":id,"stream":stream,"text":&text[start..end],"next_offset":end,
+            "next_cursor":next_cursor,"content_digest":output_ref.content_digest,"complete":end==text.len()}),
     )
 }
 fn local_package(arguments: &Value) -> Result<Value, PortError> {
@@ -843,7 +915,7 @@ fn local_package(arguments: &Value) -> Result<Value, PortError> {
     )
 }
 fn identity(arguments: &Value) -> Value {
-    json!({"actor_id":arguments["actor_id"],"session_id":arguments["session_id"],"role_id":arguments["role_id"],"department_id":arguments["department_id"],"project_root":arguments["project_root"]})
+    json!({"actor_id":arguments["actor_id"],"session_id":arguments["session_id"],"role_id":arguments["role_id"],"department_id":arguments["department_id"],"project_root":arguments["project_root"],"run_id":arguments["run_id"]})
 }
 fn check_owner(stored: &Value, arguments: &Value) -> Result<(), PortError> {
     for name in [
@@ -857,6 +929,11 @@ fn check_owner(stored: &Value, arguments: &Value) -> Result<(), PortError> {
             return Err(error("execution_owner_mismatch"));
         }
     }
+    if !stored["run_id"].is_null()
+        && (arguments["run_id"].is_null() || stored["run_id"] != arguments["run_id"])
+    {
+        return Err(error("execution_owner_run_mismatch"));
+    }
     Ok(())
 }
 fn required<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
@@ -867,4 +944,11 @@ fn required<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
 }
 fn error(reason: &str) -> PortError {
     PortError::Failed(reason.to_owned())
+}
+
+fn unix_time_ms() -> Result<u64, PortError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .map_err(|_| error("output_clock_invalid"))
 }

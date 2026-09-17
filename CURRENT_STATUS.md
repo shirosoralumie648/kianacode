@@ -3165,6 +3165,25 @@ limitations: PendingInvocation and Runner checkpoint ownership remain process-lo
 reviewer: Codex root implementation review plus H14 binding, proof, pre-dispatch revalidation, idempotent decision and original Turn/Step/Invocation continuity; no runtime test reviewer
 ```
 
+### H-15 bounded output and paged reference evidence (2026-09-18)
+
+```text
+source_snapshot: 533771f + H-15 working-tree slice; kiana-domain/src/{execution_output,actions,contracts,lib}.rs; kiana-daemon/src/{harness_capabilities,execution_control}.rs; kiana-core/src/capabilities.rs; kiana-domain/tests/h15_output_ref.rs; kiana-daemon/tests/h15_output_limits.rs; .github/workflows/h15-output-bounds.yml; docs/roadmap/harness-output-bounds-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: shell stdout/stderr capture keeps chunked byte/line/observed limits and drain timeout; complete redacted output is stored outside model/event payloads behind strict ExecutionOutputRef with output/run/invocation/content/scope/expiry digests; operator-only execution.output.read rechecks owner/run/data epoch/reference/content and returns bounded UTF-8 pages with stable cursor; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h15_output_ref.rs strict reference round-trip/tamper fixtures; kiana-daemon/tests/h15_output_limits.rs bounded capture, cross-run denial, expiry and paging source guards; GitHub Actions H15 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H15 is triggered by the eventual push and is not awaited
+status_change: H15 source slice is implemented. Large output is bounded before buffering, safe complete content is referenced rather than injected into model history, and paged reads cannot cross owner/run/epoch/expiry/content boundaries.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: output storage remains a local adapter without cross-process ArtifactStore lifecycle, retention/deletion propagation or backup proof; MCP/connector result bounds and external/live/physical effect proof remain ER/PD/INT work
+reviewer: Codex root implementation review plus H15 streaming limits, typed output reference integrity, owner/run/epoch/expiry fencing and cursor page semantics; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

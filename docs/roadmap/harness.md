@@ -387,7 +387,9 @@ sequenceDiagram
 
 <a id="step-h15"></a>
 
-#### H15 — 工具输出有界、完整结果可按需读取　⏳
+#### H15 — 工具输出有界、完整结果可按需读取　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-output-bounds-baseline.md`](harness-output-bounds-baseline.md)。
 
 **关联原单元**：`P1-H-03`、`P2-K4-01`、`P2-K7-01`。**依赖**：H09、H11、H13。
 

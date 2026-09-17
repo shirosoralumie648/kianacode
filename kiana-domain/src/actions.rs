@@ -260,6 +260,8 @@ pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionD
             "transaction_id":{"type":"string","minLength":1,"maxLength":256},
             "resolution":{"type":"string","enum":["commit","rollback"]},
             "output_id":{"type":"string","minLength":1,"maxLength":256},
+            "run_id":{"type":"string","minLength":36,"maxLength":36},
+            "cursor":{"type":"string","minLength":1,"maxLength":256},
             "process_id":{"type":"string","minLength":1,"maxLength":256},
             "data":{"type":"string","maxLength":65536},
             "rows":{"type":"integer","minimum":1,"maximum":4096},
