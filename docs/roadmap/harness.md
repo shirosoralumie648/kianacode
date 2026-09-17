@@ -267,7 +267,9 @@ sequenceDiagram
 
 <a id="step-h07"></a>
 
-#### H07 — 贯通预算配置、预留与累计结算　⏳
+#### H07 — 贯通预算配置、预留与累计结算　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-budget-baseline.md`](harness-budget-baseline.md)。
 
 **关联原单元**：`P0-J1-05a/05b`、`P1-K5-01`。**依赖**：H05。
 

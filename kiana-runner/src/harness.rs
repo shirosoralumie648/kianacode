@@ -9,6 +9,7 @@
 //! Tools never execute here. Each call becomes a `CapabilityRequest` for the
 //! control plane broker.
 
+use crate::budget::{BudgetLedger, HarnessBudgetConfig};
 use crate::compact::{
     compact_if_needed, COMPACT_USER_MESSAGE_MAX_TOKENS, DEFAULT_COMPACT_TRIGGER_TOKENS,
 };
@@ -44,6 +45,7 @@ pub struct RuntimeConfig {
     pub max_steps_per_turn: u32,
     pub repeated_tool_call_threshold: u32,
     pub wall_time_budget: Option<Duration>,
+    pub budget: HarnessBudgetConfig,
     pub compact_trigger_tokens: usize,
     pub compact_user_message_max_tokens: usize,
 }
@@ -54,6 +56,7 @@ impl Default for RuntimeConfig {
             max_steps_per_turn: 32,
             repeated_tool_call_threshold: 3,
             wall_time_budget: None,
+            budget: HarnessBudgetConfig::default(),
             compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
             compact_user_message_max_tokens: COMPACT_USER_MESSAGE_MAX_TOKENS,
         }
@@ -232,6 +235,9 @@ struct StartInput {
 pub struct KianaHarness {
     model: Arc<dyn ModelClient>,
     model_budget: Mutex<Option<Arc<dyn kiana_ports::ModelBudgetPort>>>,
+    budget_ledger: BudgetLedger,
+    budget_config: HarnessBudgetConfig,
+    budget_config_error: Option<String>,
     runs: Mutex<HashMap<RunId, ActiveRun>>,
     assignments: Mutex<HashMap<RunId, kiana_domain::ModelAssignment>>,
     histories: Mutex<HashMap<RunId, Vec<ModelMessage>>>,
@@ -255,9 +261,14 @@ impl KianaHarness {
     }
 
     pub fn with_config(model: Arc<dyn ModelClient>, config: RuntimeConfig) -> Self {
+        let budget_config = config.budget;
+        let budget_config_error = budget_config.validate().err();
         Self {
             model,
             model_budget: Mutex::new(None),
+            budget_ledger: BudgetLedger::default(),
+            budget_config,
+            budget_config_error,
             runs: Mutex::new(HashMap::new()),
             assignments: Mutex::new(HashMap::new()),
             histories: Mutex::new(HashMap::new()),
@@ -277,7 +288,51 @@ impl KianaHarness {
             compact_trigger_tokens: self.compact_trigger_tokens,
             compact_user_message_max_tokens: self.compact_user_message_max_tokens,
             wall_time_budget: self.wall_time_budget,
+            budget: self.budget_config,
         }
+    }
+
+    fn effective_budget(&self, run: &ActiveRun) -> Result<HarnessBudgetConfig, String> {
+        if let Some(error) = &self.budget_config_error {
+            return Err(format!("runtime_config_invalid:budget:{error}"));
+        }
+        let mut budget = self.budget_config;
+        budget.max_model_steps_per_turn =
+            budget.max_model_steps_per_turn.min(run.max_steps_per_turn);
+        if let Some(authority) = run
+            .model_assignment
+            .as_ref()
+            .and_then(|assignment| assignment.runtime_budget.as_ref())
+        {
+            authority
+                .validate()
+                .map_err(|error| format!("effective_budget_invalid:{error}"))?;
+            budget.max_model_steps_per_turn = budget
+                .max_model_steps_per_turn
+                .min(authority.max_model_calls.min(u64::from(u32::MAX)) as u32);
+            budget.max_tokens_per_task = budget.max_tokens_per_task.min(authority.max_tokens);
+            let authority_wall_time = Duration::from_millis(authority.max_wall_time_ms);
+            budget.max_wall_time_per_task = Some(
+                budget
+                    .max_wall_time_per_task
+                    .map_or(authority_wall_time, |configured| {
+                        configured.min(authority_wall_time)
+                    }),
+            );
+        }
+        budget
+            .validate()
+            .map_err(|error| format!("effective_budget_invalid:{error}"))?;
+        Ok(budget)
+    }
+
+    fn budget_scope(run: &ActiveRun) -> String {
+        let role = run
+            .model_assignment
+            .as_ref()
+            .map(|assignment| assignment.role_id.as_str())
+            .unwrap_or("unassigned");
+        format!("project:{}:role:{role}", run.project_root)
     }
 
     pub fn with_compact_budget(mut self, trigger_tokens: usize, retain_tokens: usize) -> Self {
@@ -753,6 +808,31 @@ impl KianaHarness {
             })?;
             return Ok(StepProgress::Finished);
         }
+        let budget = match self.effective_budget(run) {
+            Ok(budget) => budget,
+            Err(error) => {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id: run.run_id,
+                    error,
+                })?;
+                return Ok(StepProgress::Finished);
+            }
+        };
+        let budget_scope = Self::budget_scope(run);
+        if run.steps >= budget.max_model_steps_per_turn {
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id: run.run_id,
+                error: "budget_exceeded:model_steps".to_owned(),
+            })?;
+            return Ok(StepProgress::Finished);
+        }
+        if let Err(error) = self.budget_ledger.check_time(&budget_scope, budget) {
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id: run.run_id,
+                error,
+            })?;
+            return Ok(StepProgress::Finished);
+        }
         run.steps += 1;
         run.step_id = Some(StepId::new());
         run.driver
@@ -771,6 +851,13 @@ impl KianaHarness {
         run.messages = compact.messages;
 
         if compact.applied {
+            if let Err(error) = self.budget_ledger.reserve_compaction(&budget_scope, budget) {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id: run.run_id,
+                    error,
+                })?;
+                return Ok(StepProgress::Finished);
+            }
             emitter.emit_event(RunnerEvent::Compacted {
                 run_id: run.run_id,
                 tokens_before: compact.tokens_before as u64,
@@ -990,6 +1077,8 @@ impl KianaHarness {
             .unwrap_or_else(|| TurnId::from_uuid(run.run_id.as_uuid()));
         let step_identity = StepIdentity::new(run.run_id, turn_id, step_id, run.steps)
             .map_err(|error| format!("step_identity_invalid:{error}"))?;
+        let budget_limits = self.effective_budget(run)?;
+        let budget_scope = Self::budget_scope(run);
         for attempt in 0..3u32 {
             if let Some(error) = run.cancellation.error().map_err(|e| e.to_string())? {
                 return Err(error);
@@ -1032,13 +1121,17 @@ impl KianaHarness {
             let audit = prepared.audit();
             let route = prepared.route.clone();
             let budget = prepared.budget.clone();
+            let reservation =
+                self.budget_ledger
+                    .reserve_attempt(&budget_scope, budget_limits, budget.total)?;
             let permit = if let Some(guard) = &admission {
-                Some(
-                    guard
-                        .reserve_prepared(&prepared)
-                        .await
-                        .map_err(|error| format!("model_admission_denied:{error}"))?,
-                )
+                match guard.reserve_prepared(&prepared).await {
+                    Ok(permit) => Some(permit),
+                    Err(error) => {
+                        self.budget_ledger.release_attempt(reservation)?;
+                        return Err(format!("model_admission_denied:{error}"));
+                    }
+                }
             } else {
                 None
             };
@@ -1077,11 +1170,20 @@ impl KianaHarness {
                 result=tokio::time::timeout(remaining.saturating_sub(started.elapsed()),future)=>result.unwrap_or_else(|_|Err(kiana_domain::ModelError::transport("model_attempt_deadline",ModelRetryClass::Never,true))),
                 error=cancellation.cancelled()=>Err(kiana_domain::ModelError::invalid(error)),
             };
-            let measured = result
+            let measured = match result
                 .as_ref()
                 .ok()
                 .and_then(|reply| reply.output.usage.as_ref())
-                .and_then(|usage| usage.input_tokens.checked_add(usage.output_tokens));
+            {
+                Some(usage) => Some(
+                    usage
+                        .input_tokens
+                        .checked_add(usage.output_tokens)
+                        .ok_or_else(|| "model_usage_overflow".to_owned())?,
+                ),
+                None => None,
+            };
+            self.budget_ledger.settle_attempt(reservation, measured)?;
             if let Some(guard) = &admission {
                 guard
                     .settle(run.run_id, attempt_id, measured)
@@ -1092,12 +1194,14 @@ impl KianaHarness {
                 .as_ref()
                 .ok()
                 .and_then(|reply| reply.output.usage.as_ref());
+            let budget_usage = self.budget_ledger.snapshot(&budget_scope)?;
             emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
                 "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"model_attempt_id":model_attempt_id,
                 "turn_id":run.turn_id,"step_id":step_id,"step_identity":step_identity.clone(),"attempt_identity":attempt_identity,"attempt":attempt+1,
                 "provider_id":route.provider_id,"model_id":result.as_ref().ok().and_then(|reply|reply.output.model_id.as_ref()).unwrap_or(&route.model_id),
                 "prepared":audit.clone(),"route_digest":audit["route_digest"],"prompt_version":audit["prompt_version"],
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
+                "harness_budget":{"schema":crate::budget::HARNESS_BUDGET_SCHEMA,"scope":budget_scope,"source":budget_limits.source.as_str(),"max_model_steps_per_turn":budget_limits.max_model_steps_per_turn,"max_attempts_per_task":budget_limits.max_attempts_per_task,"max_tool_calls_per_task":budget_limits.max_tool_calls_per_task,"max_repairs_per_task":budget_limits.max_repairs_per_task,"max_compactions_per_task":budget_limits.max_compactions_per_task,"max_tokens_per_task":budget_limits.max_tokens_per_task,"model_attempts":budget_usage.model_attempts,"tool_calls":budget_usage.tool_calls,"repairs":budget_usage.repairs,"compactions":budget_usage.compactions,"reserved_tokens":budget_usage.reserved_tokens,"charged_tokens":budget_usage.charged_tokens,"unknown_attempts":budget_usage.unknown_attempts},
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
                 "finish":result.as_ref().ok().map(|reply|reply.finish),
@@ -1129,6 +1233,10 @@ impl KianaHarness {
                             ModelRetryClass::BeforeSend | ModelRetryClass::Rejected
                         ) =>
                 {
+                    if matches!(error.retry_class, ModelRetryClass::Rejected) {
+                        self.budget_ledger
+                            .reserve_repair(&budget_scope, budget_limits)?;
+                    }
                     let delay =
                         Duration::from_millis(error.retry_after_ms.unwrap_or(100u64 << attempt));
                     if delay >= remaining.saturating_sub(started.elapsed()) {
@@ -1238,6 +1346,9 @@ impl KianaHarness {
             .front()
             .map(|(id, _)| *id)
             .ok_or_else(|| "tool_queue_empty".to_owned())?;
+        let limits = self.effective_budget(run)?;
+        self.budget_ledger
+            .reserve_tool_call(&Self::budget_scope(run), limits)?;
         request.request_id = pending_id;
         // Extension provenance comes from the immutable system bundle loaded by daemon.
         // Model-provided fields are overwritten even when the trusted scope is empty.

@@ -52,7 +52,7 @@ use kiana_protocol::{
     RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
     UiSnapshot, PROTOCOL_SCHEMA,
 };
-use kiana_runner::{KianaHarness, RuntimeConfig};
+use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
 use run_stream::RunStreamBus;
 pub use run_stream::RunStreamSubscription;
 use std::path::Path;
@@ -62,6 +62,12 @@ pub use storage::{resolve_storage_root, StorageLease};
 
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
+const ENV_HARNESS_MAX_ATTEMPTS: &str = "KIANA_HARNESS_MAX_ATTEMPTS";
+const ENV_HARNESS_MAX_TOOL_CALLS: &str = "KIANA_HARNESS_MAX_TOOL_CALLS";
+const ENV_HARNESS_MAX_REPAIRS: &str = "KIANA_HARNESS_MAX_REPAIRS";
+const ENV_HARNESS_MAX_COMPACTIONS: &str = "KIANA_HARNESS_MAX_COMPACTIONS";
+const ENV_HARNESS_MAX_TOKENS: &str = "KIANA_HARNESS_MAX_TOKENS";
+const ENV_HARNESS_TASK_WALL_TIME_MS: &str = "KIANA_HARNESS_TASK_WALL_TIME_MS";
 const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
 
 /// Validate optional protected-transport metadata before any request reaches the ControlPlane.
@@ -1238,16 +1244,27 @@ pub struct LocalModelConfig {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct HarnessRuntimeConfig {
     pub max_steps_override: Option<u32>,
+    pub wall_time_override: Option<Duration>,
+    pub budget: HarnessBudgetConfig,
 }
 
 impl HarnessRuntimeConfig {
     fn into_runtime_config(self, role: Option<RoleSpec>) -> RuntimeConfig {
         let mut config = RuntimeConfig::default();
+        config.budget = self.budget;
+        config.wall_time_budget = self.wall_time_override;
         if let Some(max_steps) = self
             .max_steps_override
             .or_else(|| role.map(|role| role.max_steps))
         {
             config.max_steps_per_turn = max_steps;
+            if self.max_steps_override.is_none()
+                && self.budget.source == HarnessBudgetSource::Default
+            {
+                config.budget.max_model_steps_per_turn =
+                    config.budget.max_model_steps_per_turn.min(max_steps);
+                config.budget.source = HarnessBudgetSource::Role;
+            }
         }
         config
     }
@@ -1269,66 +1286,95 @@ fn harness_runtime_config_from_env() -> Result<HarnessRuntimeConfig, PortError> 
 fn harness_runtime_config_from_lookup(
     mut lookup: impl FnMut(&str) -> Result<String, std::env::VarError>,
 ) -> Result<HarnessRuntimeConfig, PortError> {
-    match lookup(ENV_HARNESS_MAX_STEPS) {
-        Ok(raw) => {
-            let max_steps = raw
-                .trim()
-                .parse::<u32>()
-                .map_err(|_| invalid_runtime_config(ENV_HARNESS_MAX_STEPS))?;
-            if max_steps == 0 {
-                return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
-            }
-            Ok(HarnessRuntimeConfig {
-                max_steps_override: Some(max_steps),
-            })
-        }
-        Err(std::env::VarError::NotPresent) => Ok(HarnessRuntimeConfig::default()),
-        Err(std::env::VarError::NotUnicode(_)) => {
-            Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS))
-        }
+    let mut config = HarnessRuntimeConfig::default();
+    let mut environment_override = false;
+    if let Some(max_steps) = parse_u32_override(&mut lookup, ENV_HARNESS_MAX_STEPS)? {
+        config.max_steps_override = Some(max_steps);
+        config.budget.max_model_steps_per_turn = max_steps;
+        environment_override = true;
     }
+    if let Some(wall_time_ms) = parse_u64_override(&mut lookup, ENV_HARNESS_WALL_TIME_MS)? {
+        config.wall_time_override = Some(Duration::from_millis(wall_time_ms));
+        environment_override = true;
+    }
+    if let Some(value) = parse_u32_override(&mut lookup, ENV_HARNESS_MAX_ATTEMPTS)? {
+        config.budget.max_attempts_per_task = value;
+        environment_override = true;
+    }
+    if let Some(value) = parse_u32_override(&mut lookup, ENV_HARNESS_MAX_TOOL_CALLS)? {
+        config.budget.max_tool_calls_per_task = value;
+        environment_override = true;
+    }
+    if let Some(value) = parse_u32_override(&mut lookup, ENV_HARNESS_MAX_REPAIRS)? {
+        config.budget.max_repairs_per_task = value;
+        environment_override = true;
+    }
+    if let Some(value) = parse_u32_override(&mut lookup, ENV_HARNESS_MAX_COMPACTIONS)? {
+        config.budget.max_compactions_per_task = value;
+        environment_override = true;
+    }
+    if let Some(value) = parse_u64_override(&mut lookup, ENV_HARNESS_MAX_TOKENS)? {
+        config.budget.max_tokens_per_task = value;
+        environment_override = true;
+    }
+    if let Some(value) = parse_u64_override(&mut lookup, ENV_HARNESS_TASK_WALL_TIME_MS)? {
+        config.budget.max_wall_time_per_task = Some(Duration::from_millis(value));
+        environment_override = true;
+    }
+    if environment_override {
+        config.budget.source = HarnessBudgetSource::Environment;
+    }
+    config
+        .budget
+        .validate()
+        .map_err(|error| PortError::Failed(format!("runtime_config_invalid:budget:{error}")))?;
+    Ok(config)
 }
 
 fn runtime_config_from_lookup(
     mut lookup: impl FnMut(&str) -> Result<String, std::env::VarError>,
 ) -> Result<RuntimeConfig, PortError> {
-    let mut config = RuntimeConfig::default();
+    Ok(harness_runtime_config_from_lookup(&mut lookup)?.into_runtime_config(None))
+}
 
-    match lookup(ENV_HARNESS_MAX_STEPS) {
+fn parse_u32_override(
+    lookup: &mut impl FnMut(&str) -> Result<String, std::env::VarError>,
+    name: &str,
+) -> Result<Option<u32>, PortError> {
+    match lookup(name) {
         Ok(raw) => {
-            let max_steps = raw
+            let value = raw
                 .trim()
                 .parse::<u32>()
-                .map_err(|_| invalid_runtime_config(ENV_HARNESS_MAX_STEPS))?;
-            if max_steps == 0 {
-                return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
+                .map_err(|_| invalid_runtime_config(name))?;
+            if value == 0 {
+                return Err(invalid_runtime_config(name));
             }
-            config.max_steps_per_turn = max_steps;
+            Ok(Some(value))
         }
-        Err(std::env::VarError::NotPresent) => {}
-        Err(std::env::VarError::NotUnicode(_)) => {
-            return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
-        }
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => Err(invalid_runtime_config(name)),
     }
+}
 
-    match lookup(ENV_HARNESS_WALL_TIME_MS) {
+fn parse_u64_override(
+    lookup: &mut impl FnMut(&str) -> Result<String, std::env::VarError>,
+    name: &str,
+) -> Result<Option<u64>, PortError> {
+    match lookup(name) {
         Ok(raw) => {
-            let wall_time_ms = raw
+            let value = raw
                 .trim()
                 .parse::<u64>()
-                .map_err(|_| invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS))?;
-            if wall_time_ms == 0 {
-                return Err(invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS));
+                .map_err(|_| invalid_runtime_config(name))?;
+            if value == 0 {
+                return Err(invalid_runtime_config(name));
             }
-            config.wall_time_budget = Some(Duration::from_millis(wall_time_ms));
+            Ok(Some(value))
         }
-        Err(std::env::VarError::NotPresent) => {}
-        Err(std::env::VarError::NotUnicode(_)) => {
-            return Err(invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS));
-        }
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => Err(invalid_runtime_config(name)),
     }
-
-    Ok(config)
 }
 
 fn invalid_runtime_config(name: &str) -> PortError {

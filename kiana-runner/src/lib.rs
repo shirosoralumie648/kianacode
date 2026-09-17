@@ -9,6 +9,7 @@
 //! 不等于已接入 live provider。`reference/` 中的上游源码只作为审计对照，不是 workspace
 //! 成员或运行时依赖。
 
+mod budget;
 mod compact;
 mod harness;
 mod inbox;
@@ -18,6 +19,12 @@ mod state_driver;
 mod stream_normalizer;
 mod tools;
 
+pub use budget::{
+    BudgetUsageSnapshot, HarnessBudgetConfig, HarnessBudgetSource, DEFAULT_MAX_ATTEMPTS_PER_TASK,
+    DEFAULT_MAX_COMPACTIONS_PER_TASK, DEFAULT_MAX_MODEL_STEPS_PER_TURN,
+    DEFAULT_MAX_REPAIRS_PER_TASK, DEFAULT_MAX_TOKENS_PER_TASK, DEFAULT_MAX_TOOL_CALLS_PER_TASK,
+    HARNESS_BUDGET_SCHEMA,
+};
 pub use harness::{
     KianaHarness, KianaHarnessError, RuntimeConfig, HARNESS_ID, HARNESS_RESULT_SCHEMA,
 };

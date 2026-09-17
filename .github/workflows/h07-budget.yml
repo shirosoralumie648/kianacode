@@ -1,0 +1,60 @@
+name: H07 harness budget
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-runner/src/budget.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h07_budget.rs"
+      - "kiana-runner/tests/h07_budget_guard.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/usage.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-budget-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h07-budget.yml"
+  pull_request:
+    paths:
+      - "kiana-runner/src/budget.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h07_budget.rs"
+      - "kiana-runner/tests/h07_budget_guard.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/usage.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-budget-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h07-budget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H07 budget fixtures
+        run: cargo test -p kiana-runner --test h07_budget --locked -- --test-threads=1
+      - name: Run H07 source guard
+        run: cargo test -p kiana-runner --test h07_budget_guard --locked -- --test-threads=1
+      - name: Compile H07 targets
+        run: cargo check --workspace --tests --locked

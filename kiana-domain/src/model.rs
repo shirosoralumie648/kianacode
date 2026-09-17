@@ -1,5 +1,7 @@
 //! Shared model values. Provider wire content is compiled before admission.
-use crate::{ModelAttemptId, RequestId, RunId, SchemaVersion, StepId, TokenBudget, TurnId};
+use crate::{
+    ModelAttemptId, RequestId, RunId, RuntimeBudget, SchemaVersion, StepId, TokenBudget, TurnId,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -560,6 +562,10 @@ pub struct ModelAssignment {
     pub project_trusted: bool,
     pub authority_revision: Option<String>,
     pub max_wall_time_ms: u64,
+    /// Authority-selected runtime ceiling. Legacy assignments may omit this field; when present
+    /// the Harness intersects it with deployment and role/task limits before admission.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_budget: Option<RuntimeBudget>,
 }
 impl ModelAssignment {
     pub fn validate(&self) -> Result<(), ModelError> {
@@ -575,6 +581,10 @@ impl ModelAssignment {
             || !self.project_trusted
             || self.project_root.trim().is_empty()
             || self.max_wall_time_ms == 0
+            || self
+                .runtime_budget
+                .as_ref()
+                .is_some_and(|budget| budget.validate().is_err())
         {
             return Err(ModelError::invalid("model_assignment_invalid"));
         }

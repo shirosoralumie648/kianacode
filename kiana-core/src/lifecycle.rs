@@ -296,6 +296,7 @@ impl ControlPlane {
                 project_trusted: context.project_trusted,
                 authority_revision: authority_revision.clone(),
                 max_wall_time_ms: runtime_budget.max_wall_time_ms,
+                runtime_budget: Some(runtime_budget.clone()),
             },
         )?;
 

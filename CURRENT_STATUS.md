@@ -3013,6 +3013,25 @@ limitations: only source/cassette adapters are covered; real provider frame/reco
 reviewer: Codex root implementation review plus H06 accumulator identity/limits/JSON/stop/cancel boundaries and Harness integration; no runtime test reviewer
 ```
 
+### H-07 harness budget evidence (2026-09-17)
+
+```text
+source_snapshot: dfa9b4d + H-07 working-tree slice; kiana-runner/src/{budget,harness,lib}.rs; kiana-domain/src/{model,usage}.rs; kiana-core/src/lifecycle.rs; kiana-ports/src/lib.rs; kiana-daemon/src/lib.rs; kiana-runner/tests/h07_budget.rs; kiana-runner/tests/h07_budget_guard.rs; .github/workflows/h07-budget.yml; docs/roadmap/harness-budget-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: HarnessBudgetConfig validates constructor/environment values fail-closed and records default/environment/role source; BudgetLedger keeps project+role task-chain counters for attempts, tools, repairs, compactions and tokens, reserves before provider and settles after usage; unknown usage consumes the reservation; ModelAssignment authority runtime budget and CP-11 ModelBudgetPort remain in the admission chain; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h07_budget.rs task-chain Continue reset, provider retry attempt budget, invalid effective budget and cross-project role isolation fixtures; kiana-runner/tests/h07_budget_guard.rs source ordering/bypass guard; GitHub Actions H07 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H07 is triggered by the eventual push and is not awaited
+status_change: H07 source slice is implemented. Runner budgets model steps/attempts/tool calls/repair/compaction/time/tokens separately, and a failed or unknown model attempt cannot be retried for free or reset by Continue.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: task-chain ledger is process-local and project+role keyed; restart/cross-process/parallel sibling merge still relies on future durable projector work, CP-11 authority remains the final lease boundary, provider tokenizer/billing and human-wait TTL are not proven, and external/live/physical proof remains H08+ / CP/PD/INT work
+reviewer: Codex root implementation review plus H07 config source/priority, pre-provider reservation, conservative settlement and task-chain isolation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
