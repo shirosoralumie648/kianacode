@@ -29,8 +29,8 @@ use kiana_domain::{
     ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity,
     QualityArtifact, QualityArtifactId, RequestContext, RequestId, ResolvedAssignment,
     RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
-    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, SupervisionLease, SwarmLineage,
-    SwarmPlanId, TraceSummary, WorkFingerprint,
+    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth, StorageSchemaRegistry,
+    StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -279,6 +279,178 @@ pub trait MetricsSink: Send + Sync {
 /// Deterministic clock boundary for evaluation and expiry checks; it has no sleep or I/O effect.
 pub trait Clock: Send + Sync {
     fn now_unix_ms(&self) -> u64;
+}
+
+/// Apply/read a projection using a committed source cursor. Implementations must not advance a
+/// checkpoint before the page is atomically applied, and an unsupported capability is not an
+/// empty projection.
+#[async_trait]
+pub trait ProjectionStorePort: Send + Sync {
+    fn capabilities(&self) -> Option<StorageHealth> {
+        None
+    }
+
+    async fn apply_events(
+        &self,
+        _projection: &str,
+        _events: Vec<RuntimeEvent>,
+        _expected_source_cursor: EventCursor,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "projection_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn read_projection(
+        &self,
+        _projection: &str,
+        _source_cursor: EventCursor,
+    ) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "projection_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn checkpoint(
+        &self,
+        _projection: &str,
+        _source_cursor: EventCursor,
+        _expected_revision: u64,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "projection_store_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Stage/commit immutable artifacts by their typed version and content hash. A store must reject
+/// hash/scope drift and may never replace an existing version through an implicit fallback.
+#[async_trait]
+pub trait ArtifactStorePort: Send + Sync {
+    async fn stage_artifact(
+        &self,
+        _version: ArtifactVersion,
+        _content: Vec<u8>,
+    ) -> Result<ArtifactRef, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn commit_artifact(
+        &self,
+        _reference: ArtifactRef,
+        _expected_revision: Option<u64>,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn read_artifact(&self, _reference: &ArtifactRef) -> Result<Vec<u8>, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn verify_artifact(&self, _reference: &ArtifactRef) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "artifact_store_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Snapshot/verify/restore boundary for a StorageRoot. Backup manifests are opaque values until
+/// a domain schema is validated; restore must be explicitly authorized and never silently mutate
+/// the active store.
+#[async_trait]
+pub trait BackupStorePort: Send + Sync {
+    async fn create_backup(
+        &self,
+        _store_id: StoreIdentityId,
+        _source_cursor: EventCursor,
+    ) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "backup_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn verify_backup(&self, _manifest: serde_json::Value) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "backup_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn restore_backup(
+        &self,
+        _manifest: serde_json::Value,
+        _expected_source_cursor: EventCursor,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "backup_store_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Ordered schema migration lifecycle. Applying a migration requires the caller to pin the
+/// registry digest and expected format; the port cannot invent or skip an upcaster.
+#[async_trait]
+pub trait MigrationRunnerPort: Send + Sync {
+    async fn preflight(
+        &self,
+        _registry: StorageSchemaRegistry,
+    ) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "migration_runner_unsupported".to_owned(),
+        ))
+    }
+
+    async fn apply(
+        &self,
+        _from_format_version: u32,
+        _to_format_version: u32,
+        _registry_digest: &str,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "migration_runner_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Retention planning/tombstone/purge boundary. Purge must be explicit and append a durable
+/// tombstone; a missing capability is reported rather than treated as “nothing to delete”.
+#[async_trait]
+pub trait RetentionStorePort: Send + Sync {
+    async fn plan_retention(
+        &self,
+        _store_id: StoreIdentityId,
+        _before_cursor: EventCursor,
+    ) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "retention_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn append_tombstone(
+        &self,
+        _store_id: StoreIdentityId,
+        _object_ref: &str,
+        _reason: &str,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "retention_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn purge_tombstoned(
+        &self,
+        _store_id: StoreIdentityId,
+        _expected_tombstone_revision: u64,
+    ) -> Result<u64, PortError> {
+        Err(PortError::Unavailable(
+            "retention_store_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Append/read typed Swarm lineage without granting dispatch authority. Implementations must

@@ -2301,6 +2301,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-03 storage error/health/reconcile taxonomy and no-success-fallback source-boundary review; no runtime test reviewer
 ```
 
+### PD-04 storage lifecycle ports evidence (2026-09-17)
+
+```text
+source_snapshot: 7103b8a + PD-04 working-tree slice; kiana-ports/src/lib.rs; kiana-domain/src/{storage_health,storage_schema,storage,lib}.rs; kiana-protocol/src/lib.rs; kiana-ports/tests/pd04_storage_ports.rs; kiana-core/tests/pd04_storage_ports_guard.rs; .github/workflows/pd04-storage-ports.yml; docs/roadmap/persistence-storage-ports-baseline.md; docs/roadmap.md
+worktree_status: ProjectionStorePort/ArtifactStorePort/BackupStorePort/MigrationRunnerPort/RetentionStorePort typed lifecycle boundaries are scoped to this step; defaults return explicit Unsupported and no concrete adapter, filesystem/provider/network type or execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-ports/src/lib.rs kiana-domain/src/{storage_health,storage_schema,storage,lib}.rs kiana-protocol/src/lib.rs kiana-ports/tests/pd04_storage_ports.rs kiana-core/tests/pd04_storage_ports_guard.rs .github/workflows/pd04-storage-ports.yml docs/roadmap/persistence-storage-ports-baseline.md docs/roadmap.md
+  rg -n 'trait (ProjectionStorePort|ArtifactStorePort|BackupStorePort|MigrationRunnerPort|RetentionStorePort)|projection_store_unsupported|artifact_store_unsupported|backup_store_unsupported|migration_runner_unsupported|retention_store_unsupported|expected_source_cursor|append_tombstone|expected_tombstone_revision|StorageSchemaRegistry' kiana-ports/src/lib.rs kiana-ports/tests/pd04_storage_ports.rs kiana-core/tests/pd04_storage_ports_guard.rs docs/roadmap/persistence-storage-ports-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; PD-04 ports/domain/protocol/core targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-ports/tests/pd04_storage_ports.rs compile-only fake lifecycle ports/default Unsupported; kiana-core/tests/pd04_storage_ports_guard.rs no-fallback/no-execution source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-04 job is queued by the next push and is not awaited
+status_change: PD-04 source slice is implemented. Projection/artifact/backup/migration/retention lifecycle traits now have typed cursor/revision/hash/schema/tombstone boundaries and explicit Unsupported defaults, keeping storage capability absence distinct from empty success and below core/provider/filesystem layers.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no production adapters/CAS/fsync/SQLite/JSONL/projector/backup/migration/retention implementation or cross-process recovery exists, and bytes/manifests still require later redaction/privacy/scope enforcement; PD-05+ / ER / DEP / SC remain open.
+reviewer: Codex root implementation review plus PD-04 storage port layering/no-fallback/no-execution source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

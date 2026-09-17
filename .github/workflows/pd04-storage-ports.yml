@@ -1,0 +1,44 @@
+name: PD-04 storage lifecycle ports
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/pd04_storage_ports.rs"
+      - "kiana-core/tests/pd04_storage_ports_guard.rs"
+      - "kiana-domain/src/storage_health.rs"
+      - "docs/roadmap/persistence-storage-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd04-storage-ports.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/pd04_storage_ports.rs"
+      - "kiana-core/tests/pd04_storage_ports_guard.rs"
+      - "kiana-domain/src/storage_health.rs"
+      - "docs/roadmap/persistence-storage-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd04-storage-ports.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-ports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-04 storage ports fixture
+        run: cargo test -p kiana-ports --test pd04_storage_ports --locked -- --test-threads=1
+      - name: Run PD-04 source guard
+        run: cargo test -p kiana-core --test pd04_storage_ports_guard --locked -- --test-threads=1
+      - name: Compile storage ports path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-protocol -p kiana-core --tests --locked
