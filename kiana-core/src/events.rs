@@ -340,6 +340,13 @@ pub(crate) fn aggregate_for_event(
     request_id: kiana_domain::RequestId,
     data: &Value,
 ) -> (String, String) {
+    if let Some(message_id) = data
+        .get("message_id")
+        .and_then(Value::as_str)
+        .filter(|message_id| !message_id.trim().is_empty())
+    {
+        return ("communication".to_owned(), message_id.to_owned());
+    }
     if let Some(packet_id) = data
         .get("packet_id")
         .and_then(Value::as_str)

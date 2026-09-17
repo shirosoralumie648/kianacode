@@ -2028,6 +2028,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-01 strict contract/scope/secret/upcast and no-second-bus source-boundary review; no runtime test reviewer
 ```
 
+### NM-02 communication lifecycle evidence (2026-09-17)
+
+```text
+source_snapshot: db0d9e1 + NM-02 working-tree slice; kiana-domain/src/{communication,event_contracts,contracts,lib}.rs; kiana-core/src/{communication,commands,events}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/nm02_lifecycle.rs; kiana-core/tests/nm02_lifecycle_guard.rs; .github/workflows/nm02-lifecycle.yml; docs/roadmap/notifications-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: NM-02 CommunicationLifecycleEvent and server-routed communication.ack/reject/escalate facts are scoped to this step; Handoff ACK is recipient/reason/terminal fenced, Incident escalation carries evidence, message text never invokes Company/Capability execution, and EventLog communication aggregate is the only commit path; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/communication.rs kiana-domain/src/event_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/communication.rs kiana-core/src/commands.rs kiana-core/src/events.rs kiana-protocol/src/lib.rs kiana-domain/tests/nm02_lifecycle.rs kiana-core/tests/nm02_lifecycle_guard.rs .github/workflows/nm02-lifecycle.yml docs/roadmap/notifications-lifecycle-baseline.md docs/roadmap.md
+  rg -n 'CommunicationLifecycle(Event|Status)|communication\.(ack|reject|escalate|handoff_acknowledged|handoff_rejected|incident_escalated)|load_communication|communication_sender_(mismatch|role_invalid)|communication_handoff_(ack_invalid|not_pending)|communication_incident_escalation|authority_granted|aggregate_for_event' kiana-domain/src kiana-core/src kiana-protocol/src kiana-domain/tests/nm02_lifecycle.rs kiana-core/tests/nm02_lifecycle_guard.rs docs/roadmap/notifications-lifecycle-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; NM-02 fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/nm02_lifecycle.rs directed Handoff ACK/reject, terminal/authority denial, Incident escalation evidence, unknown-field fixtures; kiana-core/tests/nm02_lifecycle_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-02 job is queued by the next push and is not awaited
+status_change: NM-02 source slice is implemented. Seven communication kinds now share server-authored lifecycle facts; Handoff ACK/reject requires the committed Sent fact, exact recipient and reason, Incident escalation is evidence-bearing, actor/role/project trust is rechecked, and no message can grant authority or directly dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; old request-aggregate communication events are compatibility-only, ACK does not yet drive Company/Swarm dispatch, and notification materialization/subscription resolver/outbox/read-state/external delivery/cross-process recovery remain NM-03+ / ER / PD / SC.
+reviewer: Codex root implementation review plus NM-02 lifecycle/recipient/authority/eventlog source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

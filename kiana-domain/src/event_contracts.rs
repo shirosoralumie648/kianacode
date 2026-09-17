@@ -17,6 +17,7 @@ const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const APPROVAL_IDS: &[&str] = &["approval_id"];
 const ACTION_IDS: &[&str] = &["request_id", "action_digest"];
 const COMMUNICATION_IDS: &[&str] = &["message"];
+const COMMUNICATION_LIFECYCLE_IDS: &[&str] = &["message_id"];
 const SWARM_TRANSITION_IDS: &[&str] = &["swarm_plan_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -87,6 +88,11 @@ const REQUEST_FIELDS: &[&str] = &[
 ];
 const COMMUNICATION_FIELDS: &[&str] = &[
     "message",
+    "message_id",
+    "lifecycle",
+    "accepted",
+    "reason",
+    "evidence_refs",
     "authority_granted",
     "project_root",
     "actor_id",
@@ -294,6 +300,30 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.incident",
         "communication",
         COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.handoff_acknowledged",
+        "communication",
+        COMMUNICATION_LIFECYCLE_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.handoff_rejected",
+        "communication",
+        COMMUNICATION_LIFECYCLE_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.incident_escalated",
+        "communication",
+        COMMUNICATION_LIFECYCLE_IDS,
         COMMUNICATION_FIELDS,
         false,
         None

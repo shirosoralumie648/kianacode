@@ -475,6 +475,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.communication-lifecycle.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.principal.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

@@ -1,0 +1,54 @@
+name: NM-02 communication lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/communication.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/nm02_lifecycle.rs"
+      - "kiana-core/src/communication.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/nm02_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/notifications-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm02-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/communication.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/nm02_lifecycle.rs"
+      - "kiana-core/src/communication.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/nm02_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/notifications-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm02-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  communication-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run NM-02 lifecycle fixtures
+        run: cargo test -p kiana-domain --test nm02_lifecycle --locked -- --test-threads=1
+      - name: Run NM-02 source guard
+        run: cargo test -p kiana-core --test nm02_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile communication path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-protocol -p kiana-core --tests --locked

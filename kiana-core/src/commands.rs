@@ -193,9 +193,15 @@ impl ControlPlane {
                 .continue_new_turn(context, prompt, sandbox, previous)
                 .await;
         }
-        if intent.name == "communication.send" {
+        if matches!(
+            intent.name.as_str(),
+            "communication.send"
+                | "communication.ack"
+                | "communication.reject"
+                | "communication.escalate"
+        ) {
             return self
-                .handle_communication_command(context, intent.arguments)
+                .handle_communication_command(context, &intent.name, intent.arguments)
                 .await;
         }
         if matches!(
