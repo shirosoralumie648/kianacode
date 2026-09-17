@@ -103,7 +103,7 @@
 | `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ✅ |
 | `P2-J5-01` | P2 | J5 Workflow | `P0-G-04` | 版本固定；重试/取消/审批/补偿可重放 | ✅ |
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ✅ |
-| `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ⏳ |
+| `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ✅ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ⏳ |
 | `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
@@ -434,7 +434,7 @@
 | 264 | W3 | 基础 | [`P0-J1-03`](#step-p0-j1-03) | P0 基础 · 进程组确认与 `stop_confirmed` | `P0-J1-01` | ✅ | [基础卡](#step-p0-j1-03) |
 | 265 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ✅ | [基础卡](#step-p0-j1-04) |
 | 266 | W3 | 基础 | [`P1-J4-01`](#step-p1-j4-01) | P1 基础 · Capability Descriptor 与 MCP 生命周期 | `P0-A-01a` | ✅ | [基础卡](#step-p1-j4-01) |
-| 267 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ⏳ | [基础卡](#step-p2-k4-01) |
+| 267 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ✅ | [基础卡](#step-p2-k4-01) |
 | 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ⏳ | [基础卡](#step-p2-k6-01) |
 | 269 | W3 | 专项 | [`CI-11`](#step-ci-11) | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | `CI-04`、`CI-10`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09` | ⏳ | [专项卡](#step-ci-11) |
 | 270 | W3 | 专项 | [`OA-11`](#step-oa-11) | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | `OA-10` | ✅ | [专项卡](#step-oa-11) |
@@ -1150,6 +1150,7 @@
 | 当前 194 | `P1-L4-01` code intelligence | RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph results retain exact content hashes, canonical relative paths and bounded source fields; daemon `render_output` adds source snapshot, local workspace provenance, captured-at-read freshness and runtime version for JSON/text;新增 kiana-query source guard、workflow 与 code-intelligence baseline | `feature_status=implemented`（query/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-L4-01 已触发且未等待；immutable workspace snapshot/generation, durable index/cache switch, semantic provider index, deletion propagation and chunk/selected provenance remain CM/PD/OA/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 195 | `P2-J5-01` workflow replay | `WorkflowDefinition`/node execution/state/command schemas and pure planner enforce immutable versions, DAG/role/budget/deadline, approval/signal/cancel/retry/compensation/Unknown boundaries; ControlPlane loads/replays the workflow aggregate, commits CAS/idempotent command facts, and dispatches only after durable reservation via the existing execution spine;新增 workflow deterministic replay fixture、core source guard、workflow 与 baseline | `feature_status=implemented`（domain/workflow/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-J5-01 已触发且未等待；automatic scheduler/queue/claim, cross-process projector/power-loss recovery, external backend and live/physical effect evidence remain AUT/SW/PD/ER work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 196 | `P2-K3-01` Human Inbox | Core 聚合 pending approvals、Company review/acceptance/delivery/change/cancel、Company/failure incidents、reconciliation 和 feedback candidates 为稳定排序的六类 HumanInboxItem；`human.resolve` 以 inbox digest、item/action ID、required fields、idempotency 回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K3-01 已触发且未等待；durable NotificationStore/read-state/outbox/delivery/recipient、cross-process inbox projector and external/live/physical human delivery remain NM/UI/PD/SC work；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 197 | `P2-K4-01` artifact checkpoint | `WorkspaceCheckpoint` binds project/actor/session/role, run/invocation, transcript offset, path allow, files/data epoch and workspace revision; capture runs before input/write, preview is read-only, restore rechecks exact snapshot/revision/company/path/data/approval and reuses apply_patch transaction, invalidating old approvals/runs and recording workspace.restored;新增 core checkpoint source guard、workflow 与 artifact-checkpoint baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K4-01 已触发且未等待；durable ArtifactStore/version graph, power-loss/cross-process checkpoint projector, backup/recovery and external/live/physical undo remain PD/ER/DEP work；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1395,6 +1396,7 @@
 | 2026-09-18 | `P1-L4-01` code intelligence：RepoMap/ContextIndex/Search/Vector/Pack/Artifact graph 结果绑定 content hash、canonical 相对路径和有界来源；daemon 统一 JSON/text 输出附 source snapshot、local workspace、captured-at-read freshness/runtime version；新增 query source guard、workflow 与 code-intelligence baseline；immutable generation、durable index/cache、semantic provider index 和删除传播留 CM/PD/OA/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-J5-01` workflow replay：固定 WorkflowDefinition/node/instance/version 与纯 planner，覆盖 DAG、approval/signal/cancel/retry/compensation/Unknown；ControlPlane 读取 EventLog、CAS/idempotency 提交 command fact，提交 reservation 后才 dispatch，replay 不重复执行；新增 workflow replay fixture、core guard、workflow 与 baseline；scheduler/queue/claim、跨进程恢复和外部 live effect 留 AUT/SW/PD/ER；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-K3-01` Human Inbox：Core 统一聚合 Approval/Review/Acceptance/Incident/Reconciliation/Feedback item，列表 digest 稳定排序；resolve 强制 revision、item/action、required fields/idempotency 并回到原 approval/company/failure/feedback authority；新增 core source guard、workflow 与 Human Inbox baseline；durable NotificationStore/read-state/delivery/external human delivery 留 NM/UI/PD/SC；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-K4-01` artifact checkpoint：WorkspaceCheckpoint 绑定 run/session/role/transcript offset/invocation/path/data epoch/workspace revision，写前 capture、preview read-only、restore revision/TOCTOU/company/approval fence，失效旧 approvals/runs 并记录 workspace.restored；新增 core checkpoint source guard、workflow 与 baseline；durable ArtifactStore/power-loss/cross-process recovery 和外部 undo 留 PD/ER/DEP；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2281,12 +2283,14 @@
 
 <a id="step-p2-k4-01"></a>
 
-### P2-K4-01 Artifact 版本与编辑级 undo　⏳
+### P2-K4-01 Artifact 版本与编辑级 undo　✅
 
-- **现状**：已有 `apply_patch` 前置快照（capture_preconditions / restore_snapshot），但没有绑定 transcript 的 CheckpointService。
-- **做什么**：首发只做状态层 + 编辑级 undo——CheckpointService 绑定 transcript offset + workspace revision + invocation，写工具前与用户输入前快照。
-- **风险**：preview 绝不能写盘；undo 是受控操作，不作为模型可见工具。
-- **验收**：`restore_invalidates_stale_approval`
+当前 source slice 与 CI-only 证据见 [`p2-k4-01-artifact-checkpoint-baseline.md`](roadmap/p2-k4-01-artifact-checkpoint-baseline.md)。
+
+- **现状**：`WorkspaceCheckpoint` 已绑定 project/actor/session/role、run/invocation、transcript offset、path allow、files/data epoch 和 workspace revision；capture 在用户输入及非只读写前触发，preview/restore 复用 apply_patch 快照与事务。
+- **做什么**：restore 重新校验 exact checkpoint EventLog snapshot、current revision、company/path/data scope 和 approval/policy/gate/permit，写入前失效旧 approvals、停止旧 runs，完成后追加 `workspace.restored` 并标记 runner context invalidated。
+- **风险**：preview 绝不写盘；revision/TOCTOU、敏感/二进制/hardlink/symlink、scope/company/data epoch 或 stop 未确认均 fail-closed；undo 是 operator-only 受控动作，不进入模型工具面。
+- **验收**：`checkpoint_restore_invalidates_approvals_and_runner_context`
 - **依赖 / 边界**：依赖 `P0-G-04`；文件层 shadow git 列为第二阶段。
 - **依据**：`company-os-implementation-outline.md` §Slice K4（A-10）
 

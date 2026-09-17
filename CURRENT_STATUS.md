@@ -3735,6 +3735,25 @@ limitations: HumanInboxItem/list revision is rebuilt from Approval/Company/Event
 reviewer: Codex root implementation review plus six-kind aggregation, stale/action-field fences, original-authority routing and no-second-loop boundary review; no runtime test reviewer
 ```
 
+### P2-K4-01 artifact checkpoint evidence (2026-09-18)
+
+```text
+source_snapshot: 25ac3ddb + P2-K4-01 evidence slice; kiana-domain/src/platform.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/src/{dispatch,lifecycle}.rs; kiana-daemon/src/{workspace_checkpoints,apply_patch}.rs; kiana-core/tests/p2_k4_01_checkpoint.rs; .github/workflows/p2-k4-01-checkpoint.yml; docs/roadmap/p2-k4-01-artifact-checkpoint-baseline.md; docs/roadmap.md
+worktree_status: WorkspaceCheckpoint binds project/actor/session/role, run/invocation, transcript offset, path allow, files/data epoch and workspace revision; capture runs before input/write, preview is read-only, restore rechecks exact snapshot/revision/company/path/data/approval and reuses apply_patch transaction, invalidating old approvals/runs and recording workspace.restored; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p2_k4_01_checkpoint.rs checkpoint field/restore invalidation source guard; existing P1-H03 path and ER-07 replay checkpoint fixtures; GitHub Actions P2-K4-01 workflow runs guard, path/replay regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-K4-01 is triggered by the eventual push and is not awaited
+status_change: P2-K4-01 source slice is implemented/reconciled. Edit-level checkpoint capture/preview/restore is bound to transcript/workspace/invocation facts and invalidates stale approval/run context before restore writes.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: cross-process durable CheckpointService, ArtifactStore version graph, power-loss atomicity, projector checkpoint, backup/restore and external/database/generated-artifact undo remain PD/ER/DEP work; captured file snapshots do not prove external provider/MCP/DB effects or live/physical rollback
+reviewer: Codex root implementation review plus snapshot/revision/data/path/TOCTOU, approval/run invalidation and descriptor-relative transaction boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
