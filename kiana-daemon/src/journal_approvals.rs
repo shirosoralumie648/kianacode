@@ -3,10 +3,11 @@
 use async_trait::async_trait;
 use kiana_domain::{
     canonical_journal_bytes, journal_sha256, json_digest, redact_text, redact_value,
-    AggregateVersion, ApprovalChallenge, ApprovalDecision, ApprovalDecisionRecord, ApprovalId,
-    ApprovalState, CapabilityKind, CapabilityRequest, CommitOutcome, PendingApproval,
-    PermissionProfile, PreparedApprovalConsumption, RequestContext, RequestId, RoleSpec,
-    RuntimeEvent, SessionId, TransitionBatch, APPROVAL_CHALLENGE_SCHEMA,
+    AggregateVersion, ApprovalChallenge, ApprovalDecision, ApprovalDecisionRecord,
+    ApprovalExecutionMaterial, ApprovalId, ApprovalMaterialState, ApprovalState, CapabilityKind,
+    CapabilityRequest, CommitOutcome, PendingApproval, PermissionProfile,
+    PreparedApprovalConsumption, RequestContext, RequestId, RoleSpec, RuntimeEvent, SessionId,
+    TransitionBatch, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_ports::{ApprovalStorePort, EventStorePort, PortError};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -59,6 +60,8 @@ struct Subject {
     binding: Binding,
     payload_digest: String,
     recoverable: bool,
+    #[serde(default)]
+    material: ApprovalExecutionMaterial,
     issued_at_ms: u64,
     scope: String,
 }
@@ -153,7 +156,15 @@ impl JournalApprovalStore {
                 .map(|payload| payload.request.clone())
                 .ok_or_else(|| failed("approval_payload_unrecoverable"))?
         };
-        if digest(&request)? != record.subject.payload_digest
+        let raw = serde_json::to_value(&request).map_err(|_| failed("approval_payload_invalid"))?;
+        let preview = serde_json::to_value(&record.subject.preview.request)
+            .map_err(|_| failed("approval_preview_invalid"))?;
+        if !record
+            .subject
+            .material
+            .matches_payloads(&raw, &preview)
+            .map_err(|error| failed(&error))?
+            || digest(&request)? != record.subject.payload_digest
             || subject_hash(
                 &request,
                 &record.subject.binding,
@@ -361,8 +372,20 @@ impl ApprovalStorePort for JournalApprovalStore {
             safe["arguments"] = json!({"preview":"[REDACTED]"});
         }
         let recoverable = safe == raw;
+        let preview_value = safe.clone();
         let preview: CapabilityRequest =
             serde_json::from_value(safe).map_err(|_| failed("approval_preview_invalid"))?;
+        let material = ApprovalExecutionMaterial::from_payloads(
+            &raw,
+            &preview_value,
+            if recoverable {
+                ApprovalMaterialState::InlineRedacted
+            } else {
+                ApprovalMaterialState::VolatileProtected
+            },
+            expires,
+        )
+        .map_err(|error| failed(&error))?;
         let subject = Subject {
             schema: APPROVAL_SCHEMA.to_owned(),
             preview: PendingApproval {
@@ -372,6 +395,7 @@ impl ApprovalStorePort for JournalApprovalStore {
             binding,
             payload_digest: digest(&request)?,
             recoverable,
+            material,
             issued_at_ms: now,
             scope: "once".to_owned(),
         };
@@ -945,6 +969,9 @@ fn fold(id: ApprovalId, events: &[RuntimeEvent]) -> Result<Record, PortError> {
             .all(|b| b.is_ascii_hexdigit())
         || subject.preview.challenge.expires_at_unix_ms <= subject.issued_at_ms
         || subject.binding.authority_versions.len() != 1
+        || subject.material.validate().is_err()
+        || subject.material.expires_at_unix_ms != subject.preview.challenge.expires_at_unix_ms
+        || subject.material.payload_digest != format!("sha256:{}", subject.payload_digest)
         || subject.preview.challenge.request_id != subject.preview.request.request_id
         || subject.preview.challenge.risk != subject.preview.request.risk
         || subject.preview.request.cell_id != subject.binding.cell_id

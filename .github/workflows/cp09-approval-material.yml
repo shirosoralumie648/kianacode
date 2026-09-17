@@ -1,0 +1,52 @@
+name: CP-09 approval subject and execution material
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp09_approval_material.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/tests/cp09_approval_guard.rs"
+      - "docs/roadmap/control-plane-approval-material-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp09-approval-material.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp09_approval_material.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/tests/cp09_approval_guard.rs"
+      - "docs/roadmap/control-plane-approval-material-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp09-approval-material.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval-material:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-09 material fixture
+        run: cargo test -p kiana-domain --test cp09_approval_material --locked -- --test-threads=1
+      - name: Run CP-09 source guard
+        run: cargo test -p kiana-core --test cp09_approval_guard --locked -- --test-threads=1
+      - name: Compile CP-09 targets
+        run: cargo check --workspace --tests --locked

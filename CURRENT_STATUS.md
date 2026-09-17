@@ -2595,6 +2595,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-08 root/child grant subset/revocation/epoch/recovery reconciliation; no runtime test reviewer
 ```
 
+### CP-09 approval subject and execution material evidence (2026-09-17)
+
+```text
+source_snapshot: 15faaa1 + CP-09 working-tree slice; kiana-domain/src/{approval_journal,contracts,lib}.rs; kiana-daemon/src/journal_approvals.rs; kiana-protocol/src/lib.rs; kiana-core/src/{approvals,approval_binding}.rs; kiana-domain/tests/cp09_approval_material.rs; kiana-core/tests/cp09_approval_guard.rs; .github/workflows/cp09-approval-material.yml; docs/roadmap/control-plane-approval-material-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-09 strict ApprovalExecutionMaterial/ApprovalMaterialState binds exact payload and redacted preview digests with expiry/state; JournalApprovalStore stages only a redacted challenge plus digest-only material, keeps unrecoverable payload in a bounded volatile cache, removes it on failed commit, and rechecks material/request/authority before activation, decision, and consumption; protocol re-export and roadmap/status evidence are scoped to this step; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp09_approval_material.rs digest/strict/redaction fixtures; kiana-core/tests/cp09_approval_guard.rs preview/volatile/authority/continuation source guard; GitHub Actions CP-09 workflow runs the fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-09 is triggered by the eventual push and is not awaited
+status_change: CP-09 source slice is implemented. Approval subject retains final capability request/action, caller/session/project/role binding, policy version, target/path scope, expiry and independent random nonce; preview is display-only, secret/raw material is never serialized into the staged journal event, and lost volatile material fails closed instead of replaying a redacted preview.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: volatile payload remains process-local (not a durable SecretStore/protected archive), old approval records without material require explicit reauthorization, Human Inbox is still the existing approve/deny projection, standing/input/cancel decisions remain unsupported, and durable pending/decision/consume CAS, Broker effect, cross-process recovery, external/live/physical proof remain CP-10+ work
+reviewer: Codex root implementation review plus CP-09 subject/material/redaction/replay reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
