@@ -1,0 +1,56 @@
+name: H13 invocation ledger
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/h13_invocation_ledger.rs"
+      - "kiana-core/tests/h13_invocation_ledger_guard.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-invocation-ledger-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h13-invocation-ledger.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/h13_invocation_ledger.rs"
+      - "kiana-core/tests/h13_invocation_ledger_guard.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-invocation-ledger-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h13-invocation-ledger.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invocation-ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H13 invocation fixtures
+        run: cargo test -p kiana-core --test h13_invocation_ledger --locked -- --test-threads=1
+      - name: Run H13 source guard
+        run: cargo test -p kiana-core --test h13_invocation_ledger_guard --locked -- --test-threads=1
+      - name: Compile H13 targets
+        run: cargo check --workspace --tests --locked

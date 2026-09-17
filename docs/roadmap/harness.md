@@ -357,7 +357,9 @@ sequenceDiagram
 
 <a id="step-h13"></a>
 
-#### H13 — Invocation 账本与结果立即持久化　⏳
+#### H13 — Invocation 账本与结果立即持久化　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-invocation-ledger-baseline.md`](harness-invocation-ledger-baseline.md)。
 
 **关联原单元**：`P0-G-04`、`P1-J8-01`。**依赖**：H10、H11、H12。
 

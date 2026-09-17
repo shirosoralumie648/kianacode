@@ -210,9 +210,19 @@ impl ControlPlane {
         }) {
             return Err(dispatch_error("cancelled:result_delivery_run_inactive"));
         }
-        let event=RuntimeEvent::new(command_id,1,"result.delivery_claimed",json!({"run_id":run_id,
-            "capability_request_id":result.request_id,"result_digest":json_digest(&json!(result)),"delivery_policy":"single_advance"}))
-            .map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("result_delivery",result.request_id.to_string(),1);
+        let outcome_state = result.execution_state();
+        let receipt_digest = result.output["result_receipt"]["receipt_digest"].clone();
+        let event = RuntimeEvent::new(
+            command_id,
+            1,
+            "result.delivery_claimed",
+            json!({"run_id":run_id,
+            "capability_request_id":result.request_id,"result_digest":json_digest(&json!(result)),
+            "receipt_digest":receipt_digest,"outcome_state":outcome_state,"outcome_ready":true,
+            "delivery_policy":"single_advance"}),
+        )
+        .map_err(|e| dispatch_error(&e.to_string()))?
+        .with_stream_metadata("result_delivery", result.request_id.to_string(), 1);
         let batch = TransitionBatch {
             command_id,
             command_digest: json_digest(&json!({"run_id":run_id,"result":result})),
@@ -666,9 +676,11 @@ impl ControlPlane {
             .max()
             .unwrap_or(0);
         let final_id = derived_request_id("execution.result", &execution_id.to_string());
+        let outcome_state = result.execution_state();
         let event=RuntimeEvent::new(final_id,1,"execution.result_committed",json!({
             "run_id":run_id,"turn_id":turn_id,"invocation_id":invocation_id,"execution_id":execution_id,
             "capability_request_id":permit.request_id,"result":result,"attempt":1,
+            "outcome_state":outcome_state,"outcome_ready":true,
             "effect_started":true,"effect_known":!unknown,"zero_effect":false,
             "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
             "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),"fenced":unknown,

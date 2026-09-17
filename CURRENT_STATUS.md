@@ -3127,6 +3127,25 @@ limitations: batch declaration/outcome is still process-local runner state, dura
 reviewer: Codex root implementation review plus H12 phase transitions, wrong-result fencing, serial dispatch barrier and cancellation drain semantics; no runtime test reviewer
 ```
 
+### H-13 invocation ledger evidence (2026-09-18)
+
+```text
+source_snapshot: c0b6db6 + H-13 working-tree slice; kiana-core/src/{dispatch,capabilities,lifecycle,invocation_projection,recovery}.rs; kiana-domain/src/capabilities.rs; kiana-core/tests/h13_invocation_ledger.rs; kiana-core/tests/h13_invocation_ledger_guard.rs; .github/workflows/h13-invocation-ledger.yml; docs/roadmap/harness-invocation-ledger-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: Core records request/decision/prepared/dispatching/executing/result/delivery boundaries through EventLog CAS; result commit and delivery claim now carry receipt/outcome_ready/outcome_state metadata; broker execution remains after committed invocation boundary, and projection turns dispatch without outcome into Unknown; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/h13_invocation_ledger.rs persisted outcome/dispatch-without-outcome projection fixtures; kiana-core/tests/h13_invocation_ledger_guard.rs event-order/CAS/no-reexecute source guard; GitHub Actions H13 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H13 is triggered by the eventual push and is not awaited
+status_change: H13 source slice is implemented. Invocation facts and result receipts are committed before runner delivery, and durable projections fail closed on missing or conflicting outcomes.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: EventLog adapter crash/power-loss and cross-process CAS durability, approval resume and external effect reconciliation remain H14+ / CP/PD/INT work; no exactly-once external effect is claimed
+reviewer: Codex root implementation review plus H13 invocation event ordering, result receipt/outcome metadata, delivery CAS and unknown projection boundaries; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
