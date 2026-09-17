@@ -3868,6 +3868,25 @@ limitations: no independent typed RunDetail endpoint, durable detail index, arti
 reviewer: Codex root implementation review plus shared receipt aggregation, invocation/source refs, artifact/evidence linkage, redaction/owner/Unknown and no-second-loop detail boundary review; no runtime test reviewer
 ```
 
+### P2-M5-01 Web snapshot sync evidence (2026-09-18)
+
+```text
+source_snapshot: 4d445730 + P2-M5-01 evidence slice; kiana-entrypoints/src/{web.rs,web_page.html}; kiana-entrypoints/tests/cli_web.rs; kiana-entrypoints/tests/p2_m5_01_web_sync.rs; kiana-daemon/src/run_stream.rs; kiana-protocol/src/lib.rs; .github/workflows/p2-m5-01-web-sync.yml; docs/roadmap/p2-m5-01-web-sync-baseline.md; docs/roadmap.md
+worktree_status: Web snapshot-first hydration obtains /api/state and waits for EventSource onopen before /api/run; /api/events uses epoch/sequence/last-event-id and DaemonHost subscribe_after, emits machine-readable gap/error for initial attach, cursor gap, lag, epoch change or closed stream, and retains only bounded terminal replay. Browser refresh generations/cursors reject stale or duplicate deltas, mark incomplete and require receipt; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-entrypoints/tests/cli_web.rs web_sse_reconnect_emits_stream_gap_without_replaying_delta_items loopback reconnect fixture; kiana-entrypoints/tests/p2_m5_01_web_sync.rs source guard; existing Web gap/stream error unit regressions; GitHub Actions P2-M5-01 workflow runs reconnect acceptance, source guard, gap regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-M5-01 is triggered by the eventual push and is not awaited
+status_change: P2-M5-01 source slice is implemented/reconciled. Snapshot hydration, cursor/epoch/gap handling, refresh ordering and no-duplicate-delta reconnect semantics are fixed across Web/DaemonHost/RunStreamBus.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: stream retention/cursors/action keys remain bounded daemon-process projections; durable cross-process cursor/read-state, notification/multi-tab delivery, browser/OS transport, external/live provider effects and physical proof are not claimed and remain UI/NM/PD/SC work
+reviewer: Codex root implementation review plus snapshot-first ordering, last-event-id parsing, epoch/sequence gap, terminal replay, refresh generation and receipt-authoritative boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
