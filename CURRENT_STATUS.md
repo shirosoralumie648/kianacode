@@ -7087,3 +7087,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: graph is currently a domain projection contract, not an independently durable EventStore aggregate or UI/query command; DataGovernance cleanup/delete workers, artifact/index/cache integration, cross-process repair and power-loss evidence remain CM-07+/PD/SC/ER; no semantic recall or external/live/physical effect proof is claimed
 reviewer: Codex root implementation review plus node/edge bounded validation, canonical ordering/digest, reverse dependency closure, unrelated scope isolation, monotonic data_epoch and no-delete/no-authority mutation boundary review; no runtime test reviewer
 ```
+### CI-06 single ConfigResolver evidence (2026-09-18)
+
+```text
+source_snapshot: 3faf9219 + CI-06 working-tree slice; kiana-provider/src/{resolver.rs,config.rs,lib.rs}; kiana-domain/src/{identity_contracts.rs,provider_config.rs}; kiana-daemon/src/model_client.rs; kiana-provider/tests/ci06_config_resolver.rs; kiana-daemon/tests/ci06_config_resolver.rs; kiana-core/tests/ci06_config_resolver.rs; .github/workflows/ci06-config-resolver.yml; docs/roadmap/ci06-config-resolver-baseline.md; docs/roadmap/config-credentials-identity-baseline.md; docs/roadmap.md
+worktree_status: ProviderGateway now constructs connections and ProviderConfigSnapshot only through ConfigResolver; trusted workspace overlays are parsed by strict versioned DTO after project_trusted, reject unknown schema/fields, oversized or invalid profiles/env refs/endpoints, and can produce secret-free ConfigSnapshot with canonical config/trust revisions; daemon's alternate profile parser remains under cfg(test) legacy_fixtures only; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-provider/tests/ci06_config_resolver.rs rejects untrusted workspace, unknown major/field, userinfo/query URL, unknown profile and oversize input, then round-trips canonical secret-free snapshot and resolver-backed gateway; kiana-daemon/tests/ci06_config_resolver.rs guards legacy parser isolation; kiana-core/tests/ci06_config_resolver.rs guards trust/revision/no-provider boundary; GitHub Actions CI-06 workflow runs provider fixture, daemon/core guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-06 is triggered by the eventual push and is not awaited
+status_change: CI-06 source slice is implemented. Product provider configuration has one resolver entrypoint with explicit trust, schema, endpoint and revision fences.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Config/Connection still hold raw credential only inside provider adapter until CI-07 SecretStore/CredentialLease; workspace overlay is a pure API not yet dynamically loaded per project, no cross-process ConfigSnapshotStore/atomic reload or OAuth/provider policy/live/physical evidence is claimed; legacy compatibility parser remains test-only
+reviewer: Codex root implementation review plus resolver single-entrypoint wiring, strict workspace schema and trust ordering, endpoint/redirect-safe URL checks, profile/env bounds, canonical secret-free snapshot, revision fencing and cfg(test)-only legacy boundary review; no runtime test reviewer
+```

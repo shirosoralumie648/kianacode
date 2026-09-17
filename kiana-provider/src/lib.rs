@@ -1,6 +1,7 @@
 //! One admitted model attempt. No Agent loop, tool execution, hidden retries or legacy runtime edges.
 mod config;
 mod request;
+mod resolver;
 mod response;
 mod telemetry;
 mod transport;
@@ -8,19 +9,25 @@ use async_trait::async_trait;
 pub use config::ProviderConfig;
 use kiana_domain::*;
 use kiana_ports::{ModelBudgetPort, ModelClient};
+pub use resolver::{
+    redacted_workspace_value, ConfigResolver, WorkspaceConfig, WorkspaceProfile,
+    MAX_WORKSPACE_CONFIG_BYTES,
+};
 use std::collections::BTreeMap;
 pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
 
 pub struct ProviderGateway {
     connections: BTreeMap<String, config::Connection>,
     explicit_profiles: bool,
+    configuration: ProviderConfigSnapshot,
 }
 impl ProviderGateway {
     pub fn from_env(config: ProviderConfig) -> Result<Self, ModelError> {
-        let (connections, explicit_profiles) = config::connections(config)?;
+        let resolved = resolver::ConfigResolver::resolve(config)?;
         Ok(Self {
-            connections,
-            explicit_profiles,
+            connections: resolved.connections,
+            explicit_profiles: resolved.explicit_profiles,
+            configuration: resolved.snapshot,
         })
     }
     pub fn catalog(&self) -> serde_json::Value {
@@ -36,28 +43,7 @@ impl ProviderGateway {
     }
 
     pub fn configuration_snapshot(&self) -> Result<ProviderConfigSnapshot, ModelError> {
-        let profiles = self
-            .connections
-            .values()
-            .map(|connection| {
-                ProviderProfileSnapshot::new(
-                    connection.route.clone(),
-                    connection.capabilities.clone(),
-                    connection
-                        .credential
-                        .as_ref()
-                        .map(|secret| json_digest(&serde_json::json!(secret))),
-                    if connection.route.profile == "default" {
-                        ProviderConfigSource::BuiltinDefault
-                    } else {
-                        ProviderConfigSource::Profile
-                    },
-                )
-                .map_err(ModelError::invalid)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        ProviderConfigSnapshot::new(ProviderSelectionMode::Live, profiles)
-            .map_err(ModelError::invalid)
+        Ok(self.configuration.clone())
     }
 
     pub fn model_catalog(&self) -> Result<ModelCatalog, ModelError> {

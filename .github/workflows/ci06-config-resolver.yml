@@ -1,0 +1,56 @@
+name: CI-06 single config resolver
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/resolver.rs"
+      - "kiana-provider/tests/ci06_config_resolver.rs"
+      - "kiana-daemon/src/model_client.rs"
+      - "kiana-daemon/tests/ci06_config_resolver.rs"
+      - "kiana-core/tests/ci06_config_resolver.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "docs/roadmap/ci06-config-resolver-baseline.md"
+      - "docs/roadmap/config-credentials-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci06-config-resolver.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/resolver.rs"
+      - "kiana-provider/tests/ci06_config_resolver.rs"
+      - "kiana-daemon/src/model_client.rs"
+      - "kiana-daemon/tests/ci06_config_resolver.rs"
+      - "kiana-core/tests/ci06_config_resolver.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "docs/roadmap/ci06-config-resolver-baseline.md"
+      - "docs/roadmap/config-credentials-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci06-config-resolver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config-resolver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run resolver behavior fixture
+        run: cargo test -p kiana-provider --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Run daemon legacy-boundary guard
+        run: cargo test -p kiana-daemon --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Run resolver source guard
+        run: cargo test -p kiana-core --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Compile CI-06 targets
+        run: cargo check --workspace --tests --locked

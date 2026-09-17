@@ -410,3 +410,28 @@ fn connection(
         capacity: std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrency)),
     })
 }
+
+pub(crate) fn snapshot(
+    connections: &BTreeMap<String, Connection>,
+) -> Result<ProviderConfigSnapshot, ModelError> {
+    let profiles = connections
+        .values()
+        .map(|connection| {
+            ProviderProfileSnapshot::new(
+                connection.route.clone(),
+                connection.capabilities.clone(),
+                connection
+                    .credential
+                    .as_ref()
+                    .map(|secret| json_digest(&serde_json::json!(secret))),
+                if connection.route.profile == "default" {
+                    ProviderConfigSource::BuiltinDefault
+                } else {
+                    ProviderConfigSource::Profile
+                },
+            )
+            .map_err(ModelError::invalid)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    ProviderConfigSnapshot::new(ProviderSelectionMode::Live, profiles).map_err(ModelError::invalid)
+}
