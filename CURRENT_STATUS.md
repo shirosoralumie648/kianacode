@@ -3469,6 +3469,25 @@ limitations: cross-process decision projector, department memory/RAG admission, 
 reviewer: Codex root implementation review plus P1-E-02 Symposium contract, chair/attendee fences, DecisionRecord preservation and durable event handoff; no runtime test reviewer
 ```
 
+### P1-J2-01 typed context sections evidence (2026-09-18)
+
+```text
+source_snapshot: fa81cae + P1-J2-01 evidence slice; kiana-domain/src/prompts.rs; kiana-daemon/src/harness_skills.rs; kiana-core/src/lifecycle.rs; kiana-domain/tests/p1_j2_01_context.rs; kiana-core/tests/p1_j2_01_context_guard.rs; .github/workflows/p1-j2-01-context.yml; docs/roadmap/p1-j2-01-context-sections-baseline.md
+worktree_status: PromptSection carries name/order/text/source/authority, render_prompt sorts deterministically, per-section provenance hashes exact text, and PromptBundle partitions Product versus Context sections; core/daemon harness assembly consumes the typed bundle without granting authority from context text; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p1_j2_01_context.rs deterministic order/provenance fixtures; kiana-core/tests/p1_j2_01_context_guard.rs typed assembly source guard; GitHub Actions P1-J2-01 workflow runs domain fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J2-01 is triggered by the eventual push and is not awaited
+status_change: P1-J2-01 source slice is implemented/reconciled. Typed context sections, deterministic rendering and provenance are explicit foundations for later budgeting and immutable step snapshots.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: complete ContextPlan selection/omission, provider tokenizer budget, role-pack source, immutable StepContext and retrieval/index durability remain P1-J2-02/03/04, H20/CM work
+reviewer: Codex root implementation review plus P1-J2-01 section typing, deterministic render, authority separation and provenance invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

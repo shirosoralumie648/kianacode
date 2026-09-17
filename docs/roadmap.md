@@ -88,7 +88,7 @@
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ✅ |
 | `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ✅ |
-| `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
+| `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ✅ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ⏳ |
 | `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
@@ -530,7 +530,7 @@
 | 359 | W4 | 专项 | [`EXT-24`](roadmap/skills-plugins-hooks.md#step-ext-24) | Skills / Plugins / Hooks · secret、state 和 migration | `EXT-22`、`EXT-23` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-24) |
 | 360 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |
 | 361 | W4 | 专项 | [`EXT-26`](roadmap/skills-plugins-hooks.md#step-ext-26) | Skills / Plugins / Hooks · Plugin component adapter | `EXT-15`、`EXT-21`、`EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-26) |
-| 362 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ⏳ | [基础卡](#step-p1-j2-01) |
+| 362 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ✅ | [基础卡](#step-p1-j2-01) |
 | 363 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-02) |
 | 364 | W4 | 基础 | [`P1-J2-03`](#step-p1-j2-03) | P1 基础 · 角色 prompt 接线 | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-03) |
 | 365 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ⏳ | [基础卡](#step-p1-j2-04) |
@@ -1136,6 +1136,7 @@
 | 当前 180 | `P0-M1-01` Workbench | Workbench/TTY、CLI stream renderer、Web ledger/SSE 与 Desktop web shell 消费同一 run-scoped Terminal/ExecutionStatus；Cancelled/ResultUnknown 保持可见，Desktop 不创建第二循环；新增 entrypoints CI guard/workflow 与 Workbench baseline | `feature_status=implemented`（entrypoints/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-M1-01 已触发且未等待；UiSnapshot/action/reconnect durability、accessibility and physical packaging 留待 UI-01+/P2-M2/P2-M5/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 181 | `P1-C-02` Cell lifecycle | MemoryCellRegistry reserve/commit/terminal/retire validates all scoped resources; retirement releases only its own budget/path locks once and records grant/supervision IDs, with active-capability fence;新增 core CI guard/workflow 与 Cell lifecycle baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-C-02 已触发且未等待；durable Cell/Grant/Budget/Lease projection、restart recovery、scheduler/Swarm and cross-process fencing 留待 AUT/SW/ER/PD/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 182 | `P1-E-02` Symposium | Symposium validates department/chair/attendee/round contracts, runs bounded private speaker sessions or explicit anti-meeting, writes typed DecisionRecord/artifact and durable `symposium.closed`; existing core regressions cover replay inputs and department artifacts;新增 core CI guard/workflow 与 Symposium baseline | `feature_status=implemented`（domain/core/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-E-02 已触发且未等待；durable cross-process decision projector、department RAG admission and external human decisions 留待 P4-E-03/PD/ER/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 183 | `P1-J2-01` context sections | typed PromptSection with deterministic `(order,name,source)` rendering, Product/Context authority separation and per-section prompt hash provenance are consumed by PromptBundle/core/daemon assembly;新增 domain/core CI fixtures、workflow 与 context-sections baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-01 已触发且未等待；token budget coverage、role provider wire、role-pack source and immutable StepContext remain P1-J2-02/03/04/H20/CM；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1367,6 +1368,7 @@
 | 2026-09-18 | `P0-M1-01` Workbench：CLI/TTY、CLI stream、Web ledger/SSE 与 Desktop web shell 统一消费 RunStream Terminal/ExecutionStatus，Cancelled/ResultUnknown 可见且 UI 不生成事实；新增 entrypoints/daemon source guard、workflow 与 Workbench baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-C-02` Cell lifecycle：MemoryCellRegistry reserve/commit/terminal/retire 统一校验模板/grant/budget/supervision/path，active capability 未结束不可 retire，release_resources 只释放本 Cell 的 budget/path 并幂等记录 retirement；新增 core guard、workflow 与 Cell lifecycle baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-E-02` Symposium：补现有会议对象/投票/黑板/DecisionRecord 的验收追踪；chair/attendee/round 边界 fail-closed，speaker 使用隔离 Harness session，`symposium.closed` 与部门 Decision artifact 作为 durable replay source；新增 core guard、workflow 与多轮/反会议回归；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-J2-01` context sections：回填 typed PromptSection、(order,name,source) 确定性 render、Product/Context authority 分层与 per-section prompt hash provenance；PromptBundle/core/daemon 复用，新增 domain/core fixtures、workflow 与 context-sections baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1965,10 +1967,12 @@
 
 <a id="step-p1-j2-01"></a>
 
-### P1-J2-01 类型化区段 + provenance　⏳
+### P1-J2-01 类型化区段 + provenance　✅
 
-- **现状**：context 按字符串拼接，无区段类型、无 provenance。
-- **做什么**：`PromptSection{name, order, text}` + `render_prompt()`，每个区段带来源。
+当前 source slice 与 CI-only 证据见 [`p1-j2-01-context-sections-baseline.md`](roadmap/p1-j2-01-context-sections-baseline.md)。
+
+- **现状**：`PromptSection`、确定性 `render_prompt()` 和 section provenance 已存在，但此前未有 P1 验收追踪。
+- **做什么**：固定 `PromptSection{name, order, text, source, authority}`、排序渲染和来源 hash，并由 PromptBundle 区分 product/context 区段。
 - **风险**：改了拼接顺序会影响 cassette 命中，必须固定 `order`。
 - **验收**：`context_sections_render_with_provenance`
 - **依赖 / 边界**：依赖 `P0-G-04`；不新增模型可见工具。
