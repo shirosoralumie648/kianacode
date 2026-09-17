@@ -146,6 +146,8 @@ pub(crate) fn compile(
         request_hash: String::new(),
         budget,
         tool_catalog_hash: kiana_domain::tool_catalog_hash(&request.tools),
+        provider_account: Some(connection.provider_account.clone()),
+        credential_revision: Some(connection.credential_revision.clone()),
         request,
         wire_body: body,
     };
@@ -193,14 +195,7 @@ fn normalize_structured_request(
                     route_digest,
                     ..
                 } => {
-                    let expected_route = json_digest(&json!({
-                        "provider_id": route.provider_id,
-                        "protocol": route.protocol,
-                        "model_id": route.model_id,
-                        "profile": route.profile,
-                        "configuration_revision": route.configuration_revision,
-                        "streaming": route.streaming,
-                    }));
+                    let expected_route = route.digest();
                     if provider_id != route.provider_id
                         || protocol != route.protocol
                         || route_digest != expected_route

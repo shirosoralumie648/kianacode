@@ -59,6 +59,15 @@ impl kiana_ports::ModelBudgetPort for JournalModelBudget {
                 .spec
                 .deadline_unix_ms
                 .min(now.saturating_add(60_000)),
+            route_digest: Some(prepared.route.digest()),
+            configuration_revision: Some(prepared.route.configuration_revision.clone()),
+            authority_revision: prepared
+                .spec
+                .assignment
+                .as_ref()
+                .and_then(|assignment| assignment.authority_revision.clone()),
+            credential_revision: prepared.credential_revision.clone(),
+            provider_account: prepared.provider_account.clone(),
         };
         self.reserve_call(
             run_id,
@@ -75,6 +84,15 @@ impl kiana_ports::ModelBudgetPort for JournalModelBudget {
         permit: &kiana_domain::ModelCallPermit,
     ) -> Result<(), PortError> {
         prepared.validate().map_err(|e| failed(&e.to_string()))?;
+        let now = time_ms()?;
+        prepared
+            .spec
+            .assignment
+            .as_ref()
+            .ok_or_else(|| failed("model_assignment_required"))?;
+        permit
+            .validate_for_prepared(prepared, now)
+            .map_err(|error| failed(&error.code))?;
         if permit.schema != "kiana.model-call-permit.v1"
             || permit.request_hash != prepared.request_hash
             || permit.attempt_id != prepared.spec.attempt_id
@@ -83,7 +101,7 @@ impl kiana_ports::ModelBudgetPort for JournalModelBudget {
                 .assignment
                 .as_ref()
                 .is_none_or(|assignment| assignment.run_id != permit.run_id)
-            || time_ms()? >= permit.expires_at_unix_ms
+            || now >= permit.expires_at_unix_ms
         {
             return Err(failed("model_permit_scope_or_expiry_mismatch"));
         }

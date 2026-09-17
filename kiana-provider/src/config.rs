@@ -53,7 +53,9 @@ pub(crate) struct Connection {
     pub route: ModelRoute,
     pub capabilities: ModelCapabilities,
     pub endpoint: reqwest::Url,
+    pub provider_account: String,
     pub credential_ref: Option<SecretRef>,
+    pub credential_revision: String,
     pub credential_store: std::sync::Arc<dyn SecretStore>,
     pub client: reqwest::Client,
     pub limits: TransportLimits,
@@ -398,6 +400,10 @@ fn connection_with_credential_env(
         &json!({"provider":provider,"protocol":protocol,"model":model,"origin":endpoint.as_str(),
         "credential_revision":credential_revision,"declared":declared,"streaming":streaming}),
     );
+    let provider_account = json_digest(&json!({
+        "provider": provider,
+        "connection": name,
+    }));
     let route = ModelRoute {
         provider_id: provider,
         protocol,
@@ -440,7 +446,9 @@ fn connection_with_credential_env(
         route,
         capabilities,
         endpoint,
+        provider_account,
         credential_ref,
+        credential_revision,
         credential_store,
         client,
         limits: TransportLimits::default(),

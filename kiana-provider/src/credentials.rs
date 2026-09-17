@@ -30,10 +30,15 @@ pub(crate) trait SecretStore: Send + Sync {
     #[allow(dead_code)]
     fn backend(&self) -> SecretBackend;
 
+    /// Read only the current value digest for pre-admission revision fencing.  The implementation
+    /// may touch its protected source, but it never returns the value itself.
+    fn current_revision(&self, secret_ref: &SecretRef) -> Result<String, ModelError>;
+
     fn issue(
         &self,
         secret_ref: &SecretRef,
         provider_account: &str,
+        audience: &str,
         endpoint_digest: &str,
         now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError>;
@@ -44,6 +49,7 @@ pub(crate) trait SecretStore: Send + Sync {
 /// retain an internal header copy, so this is not represented as a durability or HSM claim.
 pub(crate) struct SecretMaterial {
     pub(crate) lease: CredentialLease,
+    pub(crate) credential_revision: String,
     pub(crate) value: String,
 }
 
@@ -66,9 +72,29 @@ fn validate_value(value: &str) -> Result<(), ModelError> {
         .map_err(|_| ModelError::invalid("model_credential_header_invalid"))
 }
 
+fn env_value(secret_ref: &SecretRef) -> Result<String, ModelError> {
+    if secret_ref.store != "env"
+        || secret_ref.key.is_empty()
+        || !secret_ref
+            .key
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+    {
+        return Err(ModelError::invalid("credential_secret_ref_invalid"));
+    }
+    let value = std::env::var(&secret_ref.key)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ModelError::invalid("model_credential_unavailable"))?;
+    validate_value(&value)?;
+    Ok(value)
+}
+
 fn materialize(
     secret_ref: &SecretRef,
     provider_account: &str,
+    audience: &str,
     endpoint_digest: &str,
     now_unix_ms: u64,
     value: String,
@@ -81,13 +107,17 @@ fn materialize(
         secret_ref.clone(),
         provider_account,
         PROVIDER_CREDENTIAL_PURPOSE,
-        provider_account,
+        audience,
         endpoint_digest,
         now_unix_ms,
         CREDENTIAL_LEASE_DEFAULT_TTL_MS,
     )
     .map_err(|_| ModelError::invalid("credential_lease_invalid"))?;
-    Ok(SecretMaterial { lease, value })
+    Ok(SecretMaterial {
+        lease,
+        credential_revision: kiana_domain::json_digest(&serde_json::json!(&value)),
+        value,
+    })
 }
 
 /// Environment-backed adapter.  The environment name is an opaque `SecretRef.key`; the value
@@ -100,30 +130,24 @@ impl SecretStore for EnvSecretStore {
         SecretBackend::Env
     }
 
+    fn current_revision(&self, secret_ref: &SecretRef) -> Result<String, ModelError> {
+        let value = env_value(secret_ref)?;
+        Ok(kiana_domain::json_digest(&serde_json::json!(&value)))
+    }
+
     fn issue(
         &self,
         secret_ref: &SecretRef,
         provider_account: &str,
+        audience: &str,
         endpoint_digest: &str,
         now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError> {
-        if secret_ref.store != "env"
-            || secret_ref.key.is_empty()
-            || !secret_ref
-                .key
-                .bytes()
-                .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
-        {
-            return Err(ModelError::invalid("credential_secret_ref_invalid"));
-        }
-        let value = std::env::var(&secret_ref.key)
-            .ok()
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| ModelError::invalid("model_credential_unavailable"))?;
+        let value = env_value(secret_ref)?;
         materialize(
             secret_ref,
             provider_account,
+            audience,
             endpoint_digest,
             now_unix_ms,
             value,
@@ -137,12 +161,14 @@ impl SecretStore for EnvSecretStore {
 #[derive(Clone, Debug)]
 pub(crate) struct InlineSecretStore {
     value: Arc<String>,
+    revision: String,
 }
 
 impl InlineSecretStore {
     pub(crate) fn new(value: String) -> Result<Self, ModelError> {
         validate_value(&value)?;
         Ok(Self {
+            revision: kiana_domain::json_digest(&serde_json::json!(&value)),
             value: Arc::new(value),
         })
     }
@@ -153,10 +179,18 @@ impl SecretStore for InlineSecretStore {
         SecretBackend::Inline
     }
 
+    fn current_revision(&self, secret_ref: &SecretRef) -> Result<String, ModelError> {
+        if secret_ref.store != "inline" {
+            return Err(ModelError::invalid("credential_secret_ref_invalid"));
+        }
+        Ok(self.revision.clone())
+    }
+
     fn issue(
         &self,
         secret_ref: &SecretRef,
         provider_account: &str,
+        audience: &str,
         endpoint_digest: &str,
         now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError> {
@@ -166,6 +200,7 @@ impl SecretStore for InlineSecretStore {
         materialize(
             secret_ref,
             provider_account,
+            audience,
             endpoint_digest,
             now_unix_ms,
             self.value.as_str().to_owned(),
@@ -184,10 +219,17 @@ impl SecretStore for KeyringSecretStore {
         SecretBackend::Keyring
     }
 
+    fn current_revision(&self, _secret_ref: &SecretRef) -> Result<String, ModelError> {
+        Err(ModelError::invalid(
+            "credential_backend_unsupported:keyring",
+        ))
+    }
+
     fn issue(
         &self,
         _secret_ref: &SecretRef,
         _provider_account: &str,
+        _audience: &str,
         _endpoint_digest: &str,
         _now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError> {
@@ -208,10 +250,15 @@ impl SecretStore for FileSecretStore {
         SecretBackend::File
     }
 
+    fn current_revision(&self, _secret_ref: &SecretRef) -> Result<String, ModelError> {
+        Err(ModelError::invalid("credential_backend_unsupported:file"))
+    }
+
     fn issue(
         &self,
         _secret_ref: &SecretRef,
         _provider_account: &str,
+        _audience: &str,
         _endpoint_digest: &str,
         _now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError> {
@@ -230,10 +277,15 @@ impl SecretStore for OsSecretStore {
         SecretBackend::Os
     }
 
+    fn current_revision(&self, _secret_ref: &SecretRef) -> Result<String, ModelError> {
+        Err(ModelError::invalid("credential_backend_unsupported:os"))
+    }
+
     fn issue(
         &self,
         _secret_ref: &SecretRef,
         _provider_account: &str,
+        _audience: &str,
         _endpoint_digest: &str,
         _now_unix_ms: u64,
     ) -> Result<SecretMaterial, ModelError> {
@@ -260,13 +312,19 @@ mod tests {
         let endpoint_digest =
             kiana_domain::json_digest(&serde_json::json!("https://provider.invalid/v1"));
         let mut material = store
-            .issue(&secret_ref, "fake-provider", &endpoint_digest, 1_000)
+            .issue(
+                &secret_ref,
+                "fake-account",
+                "fake-provider",
+                &endpoint_digest,
+                1_000,
+            )
             .expect("lease");
         material
             .lease
             .validate_for(
                 1_001,
-                "fake-provider",
+                "fake-account",
                 PROVIDER_CREDENTIAL_PURPOSE,
                 "fake-provider",
                 &endpoint_digest,
@@ -288,7 +346,7 @@ mod tests {
             kiana_domain::json_digest(&serde_json::json!("https://provider.invalid/v1"));
         assert_eq!(
             KeyringSecretStore
-                .issue(&reference, "account", &endpoint_digest, 1_000)
+                .issue(&reference, "account", "audience", &endpoint_digest, 1_000)
                 .err()
                 .expect("keyring denial")
                 .code,
@@ -296,7 +354,7 @@ mod tests {
         );
         assert_eq!(
             FileSecretStore
-                .issue(&reference, "account", &endpoint_digest, 1_000)
+                .issue(&reference, "account", "audience", &endpoint_digest, 1_000)
                 .err()
                 .expect("file denial")
                 .code,
@@ -304,7 +362,7 @@ mod tests {
         );
         assert_eq!(
             OsSecretStore
-                .issue(&reference, "account", &endpoint_digest, 1_000)
+                .issue(&reference, "account", "audience", &endpoint_digest, 1_000)
                 .err()
                 .expect("os denial")
                 .code,

@@ -1,0 +1,66 @@
+name: CI-08 provider route admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/src/telemetry.rs"
+      - "kiana-provider/src/credentials.rs"
+      - "kiana-provider/tests/ci08_route_admission.rs"
+      - "kiana-provider/tests/oa08_provider_telemetry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/tests/ci08_route_admission.rs"
+      - "kiana-domain/tests/ci08_route_admission.rs"
+      - "docs/roadmap/ci08-route-admission-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci08-route-admission.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/src/telemetry.rs"
+      - "kiana-provider/src/credentials.rs"
+      - "kiana-provider/tests/ci08_route_admission.rs"
+      - "kiana-provider/tests/oa08_provider_telemetry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/tests/ci08_route_admission.rs"
+      - "kiana-domain/tests/ci08_route_admission.rs"
+      - "docs/roadmap/ci08-route-admission-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci08-route-admission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  route-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run route admission domain fixture
+        run: cargo test -p kiana-domain --test ci08_route_admission --locked -- --test-threads=1
+      - name: Run fake provider route fixture
+        run: cargo test -p kiana-provider --test ci08_route_admission --locked -- --test-threads=1
+      - name: Run route admission source guard
+        run: cargo test -p kiana-core --test ci08_route_admission --locked -- --test-threads=1
+      - name: Compile CI-08 targets
+        run: cargo check --workspace --tests --locked

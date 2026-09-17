@@ -5,7 +5,7 @@
 //! small allow-listed summary.  Prompt text, tool arguments, authentication headers, endpoint
 //! URLs and response bodies are intentionally not representable in the returned value.
 
-use kiana_domain::{json_digest, ModelError, PreparedModelCall};
+use kiana_domain::{ModelError, PreparedModelCall};
 use serde_json::{json, Value};
 
 pub const MODEL_ATTEMPT_TELEMETRY_SCHEMA: &str = "kiana.model-attempt.v1";
@@ -18,14 +18,6 @@ pub const MODEL_ATTEMPT_TELEMETRY_SCHEMA: &str = "kiana.model-attempt.v1";
 pub fn safe_prepared_metadata(prepared: &PreparedModelCall) -> Result<Value, ModelError> {
     prepared.validate()?;
     let route = &prepared.route;
-    let route_identity = json!({
-        "provider_id": route.provider_id,
-        "protocol": route.protocol,
-        "model_id": route.model_id,
-        "profile": route.profile,
-        "configuration_revision": route.configuration_revision,
-        "streaming": route.streaming,
-    });
     Ok(json!({
         "schema": MODEL_ATTEMPT_TELEMETRY_SCHEMA,
         "model_call_id": prepared.spec.call_id,
@@ -35,9 +27,11 @@ pub fn safe_prepared_metadata(prepared: &PreparedModelCall) -> Result<Value, Mod
         "provider_id": route.provider_id,
         "model_id": route.model_id,
         "streaming": route.streaming,
-        "route_digest": json_digest(&route_identity),
+        "route_digest": route.digest(),
         "prompt_version": prepared.request_hash,
         "tool_catalog_hash": prepared.tool_catalog_hash,
         "budget": prepared.budget,
+        "provider_account": prepared.provider_account,
+        "credential_revision": prepared.credential_revision,
     }))
 }

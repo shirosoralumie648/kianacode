@@ -34,6 +34,8 @@ pub trait ModelClient: Send + Sync {
             tool_catalog_hash: kiana_domain::tool_catalog_hash(&request.tools),
             request,
             request_hash: String::new(),
+            provider_account: None,
+            credential_revision: None,
         };
         prepared.seal();
         prepared.validate()?;

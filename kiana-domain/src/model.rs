@@ -640,6 +640,21 @@ pub struct ModelRoute {
     pub configuration_revision: String,
     pub streaming: bool,
 }
+
+impl ModelRoute {
+    /// Canonical digest used when a model route is copied into an admission permit or receipt.
+    /// Keep this identity independent from wire request bytes and authentication material.
+    pub fn digest(&self) -> String {
+        crate::json_digest(&json!({
+            "provider_id": self.provider_id,
+            "protocol": self.protocol,
+            "model_id": self.model_id,
+            "profile": self.profile,
+            "configuration_revision": self.configuration_revision,
+            "streaming": self.streaming,
+        }))
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ModelResponseFormat {
@@ -691,6 +706,11 @@ pub struct PreparedModelCall {
     pub request_hash: String,
     pub budget: TokenBudget,
     pub tool_catalog_hash: String,
+    /// Opaque provider binding copied from the trusted connection; raw credentials never enter
+    /// this object.
+    pub provider_account: Option<String>,
+    /// Digest of the credential revision observed when the connection was resolved.
+    pub credential_revision: Option<String>,
 }
 impl std::fmt::Debug for PreparedModelCall {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -704,7 +724,8 @@ impl PreparedModelCall {
     pub fn fingerprint(&self) -> String {
         crate::json_digest(
             &json!({"schema":self.schema,"spec":self.spec,"route":self.route,
-            "wire":self.wire_body,"request":self.request,"budget":self.budget,"tool_catalog_hash":self.tool_catalog_hash}),
+            "wire":self.wire_body,"request":self.request,"budget":self.budget,"tool_catalog_hash":self.tool_catalog_hash,
+            "provider_account":self.provider_account,"credential_revision":self.credential_revision}),
         )
     }
     pub fn seal(&mut self) {
@@ -731,21 +752,14 @@ impl PreparedModelCall {
         // This is the only model-request summary that may enter a RuntimeEvent.  Keep the
         // route fields bounded and add hashes for route/prompt identity; never include the
         // compiled wire body, messages, tools, headers or provider response here.
-        let route_identity = json!({
-            "provider_id": self.route.provider_id,
-            "protocol": self.route.protocol,
-            "model_id": self.route.model_id,
-            "profile": self.route.profile,
-            "configuration_revision": self.route.configuration_revision,
-            "streaming": self.route.streaming,
-        });
         json!({"schema":self.schema,"model_call_id":self.spec.call_id,"model_request_id":self.spec.attempt_id,
             "model_attempt_id":self.spec.model_attempt_id,"step_id":self.spec.step_id,
             "run_id":self.spec.assignment.as_ref().map(|a|a.run_id),"step":self.spec.step,
-            "purpose":self.spec.purpose,"route":self.route,"route_digest":crate::json_digest(&route_identity),
+            "purpose":self.spec.purpose,"route":self.route,"route_digest":self.route.digest(),
             "prompt_version":self.request_hash,"request_hash":self.request_hash,
             "tool_catalog_hash":self.tool_catalog_hash,"budget":self.budget,
-            "streaming":self.route.streaming,"deadline_unix_ms":self.spec.deadline_unix_ms})
+            "streaming":self.route.streaming,"deadline_unix_ms":self.spec.deadline_unix_ms,
+            "provider_account":self.provider_account,"credential_revision":self.credential_revision})
     }
 }
 
@@ -758,6 +772,66 @@ pub struct ModelCallPermit {
     pub attempt_id: RequestId,
     pub request_hash: String,
     pub expires_at_unix_ms: u64,
+    /// Optional during migration; the provider path requires these fields before network effect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub configuration_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_account: Option<String>,
+}
+
+impl ModelCallPermit {
+    /// Validate the immutable route/authority/credential binding copied from a prepared call.
+    /// Legacy adapters may omit the optional fields, but a networked provider must require them
+    /// at its own effect boundary.
+    pub fn validate_for_prepared(
+        &self,
+        prepared: &PreparedModelCall,
+        now_unix_ms: u64,
+    ) -> Result<(), ModelError> {
+        if self.schema != "kiana.model-call-permit.v1"
+            || self.request_hash != prepared.request_hash
+            || self.attempt_id != prepared.spec.attempt_id
+            || prepared
+                .spec
+                .assignment
+                .as_ref()
+                .is_some_and(|assignment| assignment.run_id != self.run_id)
+            || now_unix_ms >= self.expires_at_unix_ms
+        {
+            return Err(ModelError::invalid("model_permit_scope_or_expiry_mismatch"));
+        }
+        let expected_route_digest = prepared.route.digest();
+        if self.route_digest.as_deref() != Some(expected_route_digest.as_str())
+            || self.configuration_revision.as_deref()
+                != Some(prepared.route.configuration_revision.as_str())
+            || self.credential_revision != prepared.credential_revision
+            || self.provider_account != prepared.provider_account
+        {
+            return Err(ModelError::invalid("model_route_admission_drift"));
+        }
+        let expected_authority = prepared
+            .spec
+            .assignment
+            .as_ref()
+            .and_then(|assignment| assignment.authority_revision.as_ref());
+        if self.authority_revision.as_ref() != expected_authority {
+            return Err(ModelError::invalid("model_authority_revision_drift"));
+        }
+        if self.route_digest.is_none()
+            || self.configuration_revision.is_none()
+            || self.credential_revision.is_none()
+            || self.provider_account.is_none()
+        {
+            return Err(ModelError::invalid("model_route_admission_missing"));
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

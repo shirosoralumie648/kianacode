@@ -45,6 +45,8 @@ fn prepared() -> PreparedModelCall {
         request_hash: String::new(),
         budget: TokenBudget::new(128, 0, 0, 16, 4096),
         tool_catalog_hash: kiana_domain::tool_catalog_hash(&[]),
+        provider_account: None,
+        credential_revision: None,
     };
     prepared.seal();
     prepared

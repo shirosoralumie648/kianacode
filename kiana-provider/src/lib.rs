@@ -125,6 +125,16 @@ impl ModelClient for ProviderGateway {
         {
             return Err(ModelError::invalid("model_route_changed_after_admission"));
         }
+        let admission_now = transport::unix_ms()?;
+        permit.validate_for_prepared(&prepared, admission_now)?;
+        if let Some(secret_ref) = &connection.credential_ref {
+            let current_revision = connection.credential_store.current_revision(secret_ref)?;
+            if current_revision != connection.credential_revision {
+                return Err(ModelError::invalid("model_credential_revision_changed"));
+            }
+        } else if connection.credential_revision != "none" {
+            return Err(ModelError::invalid("model_credential_revision_missing"));
+        }
         admission
             .consume_prepared(&prepared, &permit)
             .await

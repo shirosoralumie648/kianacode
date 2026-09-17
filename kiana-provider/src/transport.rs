@@ -47,6 +47,7 @@ async fn send_inner(
         .map(|secret_ref| {
             connection.credential_store.issue(
                 secret_ref,
+                &connection.provider_account,
                 &connection.route.provider_id,
                 &endpoint_digest,
                 lease_now,
@@ -60,7 +61,7 @@ async fn send_inner(
             .lease
             .validate_for(
                 lease_now,
-                &connection.route.provider_id,
+                &connection.provider_account,
                 "provider.request",
                 &connection.route.provider_id,
                 &endpoint_digest,
@@ -68,6 +69,9 @@ async fn send_inner(
             .map_err(ModelError::invalid)?;
         if &material.lease.secret_ref != secret_ref {
             return Err(ModelError::invalid("credential_lease_reference_mismatch"));
+        }
+        if material.credential_revision != connection.credential_revision {
+            return Err(ModelError::invalid("model_credential_revision_changed"));
         }
         material
             .lease
@@ -77,6 +81,7 @@ async fn send_inner(
     let mut request = connection
         .client
         .post(connection.endpoint.clone())
+        .header("x-kiana-provider-account", &connection.provider_account)
         .json(&prepared.wire_body);
     if let Some(material) = material.as_ref() {
         let key = &material.value;
