@@ -2091,6 +2091,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-01 legacy schema/field/error compatibility source-boundary review; no runtime test reviewer
 ```
 
+### EQ-02 quality identity/lifecycle evidence (2026-09-17)
+
+```text
+source_snapshot: 7b4c85f + EQ-02 working-tree slice; kiana-domain/src/{ids,contracts,quality,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/eq02_quality_contract.rs; kiana-core/tests/eq02_quality_guard.rs; .github/workflows/eq02-quality-contract.yml; docs/roadmap/evaluation-quality-contract-baseline.md; docs/roadmap.md
+worktree_status: EQ-02 domain-owned quality/eval object IDs, strict QualityArtifact/QualityStateTransition DTOs, status matrix, digest/owner/source/time validation and canonical bytes are scoped to this step; no EvalStore/Judge/Promote/Broker or second evaluator path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/quality.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/eq02_quality_contract.rs kiana-core/tests/eq02_quality_guard.rs .github/workflows/eq02-quality-contract.yml docs/roadmap/evaluation-quality-contract-baseline.md docs/roadmap.md
+  rg -n 'QualityArtifact(Id|Status)?|QualityTransitionId|QualityStateTransition|Eval(Dataset|Suite|Case|Experiment|Result)Id|GoldenTraceId|Quality(Candidate|Gate|GateDecision)Id|FeedbackId|DriftAlertId|QUALITY_(ARTIFACT|TRANSITION)_SCHEMA|deny_unknown_fields|canonical_quality_bytes|quality_transition_invalid' kiana-domain/src kiana-protocol/src kiana-domain/tests/eq02_quality_contract.rs kiana-core/tests/eq02_quality_guard.rs docs/roadmap/evaluation-quality-contract-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-02 domain/core quality targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/eq02_quality_contract.rs stable ID/status/digest/strict/time/owner fixtures; kiana-core/tests/eq02_quality_guard.rs domain ownership/no-promotion source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-02 job is queued by the next push and is not awaited
+status_change: EQ-02 source slice is implemented. Quality identity and lifecycle primitives now have domain-owned stable IDs, strict schemas, canonical digests/bytes, owner/source integrity and deny-first monotonic status transitions; no quality result can grant or promote authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; full EvalDataset/Suite/Case/GoldenTrace/Experiment/Result/Candidate/Gate semantics, stores, normalizer/judge, isolation, scoring, promote/rollback and cross-process durable evidence remain EQ-03+ / ER / PD / SC.
+reviewer: Codex root implementation review plus EQ-02 quality ID/status/digest/strict DTO source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

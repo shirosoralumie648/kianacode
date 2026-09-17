@@ -1,0 +1,50 @@
+name: EQ-02 quality contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/eq02_quality_contract.rs"
+      - "kiana-core/tests/eq02_quality_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-quality-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq02-quality-contract.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/eq02_quality_contract.rs"
+      - "kiana-core/tests/eq02_quality_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/evaluation-quality-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq02-quality-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-02 quality contract fixture
+        run: cargo test -p kiana-domain --test eq02_quality_contract --locked -- --test-threads=1
+      - name: Run EQ-02 source guard
+        run: cargo test -p kiana-core --test eq02_quality_guard --locked -- --test-threads=1
+      - name: Compile quality contract path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked
