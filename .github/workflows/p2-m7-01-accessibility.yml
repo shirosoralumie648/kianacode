@@ -1,0 +1,52 @@
+name: P2-M7-01 accessible fallback
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/workbench.rs"
+      - "kiana-entrypoints/tests/p2_m7_01_accessibility.rs"
+      - "kiana-entrypoints/tests/cli_web.rs"
+      - "contrib/desktop/main.js"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m7-01-accessibility-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m7-01-accessibility.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/workbench.rs"
+      - "kiana-entrypoints/tests/p2_m7_01_accessibility.rs"
+      - "kiana-entrypoints/tests/cli_web.rs"
+      - "contrib/desktop/main.js"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m7-01-accessibility-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m7-01-accessibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accessible-fallback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run accessibility source guard
+        run: cargo test -p kiana-entrypoints --test p2_m7_01_accessibility --locked -- --test-threads=1
+      - name: Run Web status and focus regression
+        run: cargo test -p kiana-entrypoints --lib web_page_ --locked -- --test-threads=1
+      - name: Run TTY Workbench regression
+        run: cargo test -p kiana-entrypoints --lib workbench_chat::tests --locked -- --test-threads=1
+      - name: Compile P2-M7-01 targets
+        run: cargo check --workspace --tests --locked

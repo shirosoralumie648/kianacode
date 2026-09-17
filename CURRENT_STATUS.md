@@ -3887,6 +3887,25 @@ limitations: stream retention/cursors/action keys remain bounded daemon-process 
 reviewer: Codex root implementation review plus snapshot-first ordering, last-event-id parsing, epoch/sequence gap, terminal replay, refresh generation and receipt-authoritative boundary review; no runtime test reviewer
 ```
 
+### P2-M7-01 accessible fallback evidence (2026-09-18)
+
+```text
+source_snapshot: 5204cc0b + P2-M7-01 evidence slice; kiana-entrypoints/src/{web_page.html,web.rs,workbench_chat.rs,workbench.rs}; kiana-entrypoints/tests/p2_m7_01_accessibility.rs; contrib/desktop/main.js; .github/workflows/p2-m7-01-accessibility.yml; docs/roadmap/p2-m7-01-accessibility-baseline.md; docs/roadmap.md
+worktree_status: Web/TTY/Desktop fallback exposes status/error/receipt/incomplete/result_unknown text, ARIA labels/live regions, focus-visible/skip-link/focus restoration, keyboard Enter/Ctrl-Enter/Esc/Ctrl-C, narrow vertical layout, high-contrast/forced-colors and reduced-motion rules; Desktop reuses Web shell and no independent execution/status authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-entrypoints/tests/p2_m7_01_accessibility.rs accessibility source guard; existing Web page status/focus/stream tests and Workbench key tests; GitHub Actions P2-M7-01 workflow runs guard, Web regressions, TTY regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P2-M7-01 is triggered by the eventual push and is not awaited
+status_change: P2-M7-01 source slice is implemented/reconciled. Safety-relevant state remains reachable without color, animation or a live stream, with text/ARIA/focus/keyboard and narrow/high-contrast/reduced-motion fallback.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no browser/screen-reader/device automation, OS accessibility/notification packaging, external human auth, cross-process durable UI state or live/physical proof is claimed; fallback projections remain non-authoritative and defer to EventLog/Receipt/ControlPlane
+reviewer: Codex root implementation review plus status-without-color, keyboard/focus, ARIA/live, narrow/high-contrast/reduced-motion and Desktop reuse boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
