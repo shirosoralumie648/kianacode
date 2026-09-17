@@ -3279,6 +3279,25 @@ limitations: Runner/checkpoint and pending approval hydration remain process-loc
 reviewer: Codex root implementation review plus P0-G-03 ResumeRequest, snapshot/CAS, scope revalidation and shared drive_run invariants; no runtime test reviewer
 ```
 
+### P0-F-01 approval surfaces evidence (2026-09-18)
+
+```text
+source_snapshot: f7ac080 + P0-F-01 evidence slice; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-core/src/recovery.rs; kiana-core/src/approvals.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{harness_run,workbench_chat,web,product_command}.rs; kiana-entrypoints/tests/p0_f01_approval_surfaces.rs; .github/workflows/p0-f01-approval.yml; docs/roadmap/p0-f01-approval-baseline.md
+worktree_status: Workbench/TTY, Web and one-shot product CLI now explicitly share the server-owned pending_approvals view and proof-bound approval decision envelope; challenge ID/hash/nonce, available decisions and expiry remain server supplied, while surfaces do not auto-approve or start a second execution loop; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-entrypoints/tests/p0_f01_approval_surfaces.rs shared query/decision and no-auto-approval source guards; GitHub Actions P0-F-01 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-F-01 is triggered by the eventual push and is not awaited
+status_change: P0-F-01 source slice is implemented/reconciled. Three product surfaces now expose the same pending approval contract and response path without granting capability authority in the UI/CLI layer.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: transport remains local/in-process compatibility, durable decision facts and single-use OCC are P0-F-02, restart continuation is P0-F-03, and external human authentication/live/physical proof remain later SC/PD work
+reviewer: Codex root implementation review plus P0-F-01 surface parity, server challenge ownership and no-auto-approval invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

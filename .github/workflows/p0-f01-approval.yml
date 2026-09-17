@@ -1,0 +1,54 @@
+name: P0-F-01 approval surfaces
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/tests/p0_f01_approval_surfaces.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-f01-approval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-f01-approval.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/tests/p0_f01_approval_surfaces.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-f01-approval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-f01-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval-surfaces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-F-01 surface guard
+        run: cargo test -p kiana-entrypoints --test p0_f01_approval_surfaces --locked -- --test-threads=1
+      - name: Compile P0-F-01 targets
+        run: cargo check --workspace --tests --locked

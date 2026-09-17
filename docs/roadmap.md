@@ -60,7 +60,7 @@
 | `P0-A-01b` | P0 | A 契约注册表 | `P0-A-01a` | schema 注册表；unknown field / unknown event / migration 规则 | ✅ |
 | `P0-A-02` | P0 | A 契约注册表 | `P0-A-01a` | `CapabilityErrorCode` + `failure_code()`，每码有 CLI exit / HTTP status / 可重试映射 | ✅ |
 | `P0-B-01` | P0 | B 正式状态机 | `P0-A-01a` | Cell/WorkPacket/CapabilityExecution/Approval 四张转移表；非法转移与重复请求有断言 | ✅ |
-| `P0-F-01` | P0 | F Approval | `P0-B-01` | TTY/Web/一次性 CLI 三处可列举同一 pending 并回复 | ⏳ |
+| `P0-F-01` | P0 | F Approval | `P0-B-01` | TTY/Web/一次性 CLI 三处可列举同一 pending 并回复 | ✅ |
 | `P0-F-02` | P0 | F Approval | `P0-F-01` | 每次批/拒都有 durable 记录；重复消费与过期被拒 | ⏳ |
 | `P0-F-03` | P0 | F Approval | `P0-G-02b`、`P0-G-03`、`P0-F-02` | 重启默认暂停；显式恢复重新过授权，续跑同一 Runner；缺材料 fail-closed | ⏳ |
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
@@ -322,7 +322,7 @@
 | 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | ✅ | [专项卡](roadmap/harness.md#step-h14) |
 | 154 | W2 | 专项 | [`CM-05`](roadmap/context-memory.md#step-cm-05) | Context / Memory · EventStore 唯一提交点与 JSONL/index 投影 | `CM-04` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-05) |
 | 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-06) |
-| 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ⏳ | [基础卡](#step-p0-f-01) |
+| 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ✅ | [基础卡](#step-p0-f-01) |
 | 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ⏳ | [基础卡](#step-p0-f-02) |
 | 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ⏳ | [基础卡](#step-p0-j1-01) |
 | 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
@@ -1126,6 +1126,7 @@
 | 当前 170 | `H18` inbox | 新增 InputId/InputReceipt 与可 checkpoint 的双队列 Inbox，绑定 source/target/target turn/received sequence；重复/claimed 输入幂等，队列与 claim ledger 有界并返回 backpressure，Runner 在 claim 边界拒绝跨 Turn steering，HarnessCheckpoint 保存/恢复 inbox；新增 domain/runner/core CI fixtures/source guard、workflow 与 inbox baseline | `feature_status=implemented`（domain/runner/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions H18 已触发且未等待；所有入口的 ControlPlane/EventLog accepted/consumed 原子 ACK、大 payload Artifact 与跨进程 projector 留待 H19/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 171 | `H19` Continue / Steer / Inject | additive `SteerRequest`/`InjectRequest` 与 Runner `Inject` 命令接入同一 Client→DaemonHost→ControlPlane 主路径；ControlPlane 校验 source/target/expected turn，记录 `run.input.accepted`、bounded ACK，并在 Runner 拒绝时记录 rejected claim；ActiveRun 暂时移出 map 时由 in-flight deferred mailbox 接收，下一安全 step 恰好消费一次；新增 protocol/runner/core CI fixtures/source guard、workflow 与 steer/inject baseline | `feature_status=implemented`（protocol/client/daemon/core/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions H19 已触发且未等待；跨进程 accepted/claimed 原子 projector、大 payload Artifact、provider-native/live stream 与 H20+ durable recovery 留待后续步骤；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 172 | `P0-G-03` resume entrypoint | 既有 strict `ResumeRequest` 通过 DaemonHost 路由到 `ControlPlane::resume_run`；恢复从 EventLog snapshot/invocation projection 重建并校验 owner/scope/authority/data epoch，使用 `run.resume_prepared` CAS 和同一 Runner；审批继续路径进入共同 `drive_run`；新增 core CI source guards/workflow 与 resume baseline | `feature_status=implemented`（core/protocol/client/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-G-03 已触发且未等待；自动启动恢复、全量跨进程 Runner projector 和 power-loss/reconcile/live/physical proof 留待 P0-F-03/H24/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 173 | `P0-F-01` approval surfaces | 统一 `pending_approvals` 与 proof-bound approval decision 通过同一 DaemonHost/client helper 被 Workbench/TTY、Web、one-shot CLI 复用；server challenge/available decisions/expiry 只读展示，拒绝自动批准与第二循环；新增 entrypoints CI source guard、workflow 与 approval baseline | `feature_status=implemented`（protocol/core/client/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-F-01 已触发且未等待；决定事实单次消费、durable OCC、跨进程恢复与外部身份仍留 P0-F-02/F-03/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1347,6 +1348,7 @@
 | 2026-09-18 | `H18` inbox：新增 InputId/InputReceipt 与可 checkpoint 的双队列 Inbox，绑定 source/target/target turn/received sequence；duplicate/claimed 幂等、队列/claim ledger 有界 backpressure、跨 Turn steering 拒绝，HarnessCheckpoint 保存/恢复 inbox；新增 domain/runner/core fixtures/source guard、workflow 与 inbox baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `H19` Continue / Steer / Inject：新增 additive Steer/Inject wire 与 client/daemon/core 路由；Steer 绑定 expected_turn_id 并只排 next-step，Inject 带 source/target 且不唤醒 idle turn；ControlPlane 写 input.accepted，并在 Runner 拒绝时写 rejected claim；ActiveRun 暂时移出 map 时由 deferred mailbox 接住，下一安全 step 单次消费；新增 protocol/runner/core CI fixtures/source guard、workflow 与 steer/inject baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-G-03` resume entrypoint：回填既有 strict ResumeRequest 与 DaemonHost→ControlPlane 路由；resume 从 EventLog snapshot/invocation projection 重建、重验 scope/authority/data epoch，`run.resume_prepared` 做 stream CAS，恢复同一 Runner，审批 continuation 进入共同 `drive_run`；新增 core source guard、workflow 与 resume baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P0-F-01` approval surfaces：回填统一 pending_approvals 与 proof-bound approval decision；Workbench/TTY、Web、one-shot CLI 复用同一 client/DaemonHost helper，challenge/available decisions/expiry 由服务端提供，不自动批准、不创建第二循环；新增 entrypoints source guard、workflow 与 approval baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1443,7 +1445,9 @@
 
 <a id="step-p0-f-01"></a>
 
-### P0-F-01 审批一等请求/应答　⏳
+### P0-F-01 审批一等请求/应答　✅
+
+当前 source slice 与 CI-only 证据见 [`p0-f01-approval-baseline.md`](roadmap/p0-f01-approval-baseline.md)。
 
 - **现状**：审批以请求内联形式出现，三处前端各自渲染，没有统一的 pending 列表。
 - **做什么**：`kiana-protocol` 定义审批请求/应答（单号、对象、`available_decisions`、有效期），由 DaemonHost 发出，TTY / Web / 一次性 CLI 三处渲染并回复。
