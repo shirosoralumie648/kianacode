@@ -1,0 +1,50 @@
+name: SC-03 security reason codes
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/sc03_security_reason.rs"
+      - "kiana-core/tests/sc03_security_reason_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/security-reason-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc03-security-reason.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/sc03_security_reason.rs"
+      - "kiana-core/tests/sc03_security_reason_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/security-reason-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc03-security-reason.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-reason:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-03 domain fixture
+        run: cargo test -p kiana-domain --test sc03_security_reason --locked -- --test-threads=1
+      - name: Run SC-03 source guard
+        run: cargo test -p kiana-core --test sc03_security_reason_guard --locked -- --test-threads=1
+      - name: Compile SC-03 targets
+        run: cargo check -p kiana-domain --tests --locked

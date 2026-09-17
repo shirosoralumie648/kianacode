@@ -2364,6 +2364,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-02 ID/schema/digest/epoch/sequence/secret-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-03 stable security reason codes evidence (2026-09-17)
+
+```text
+source_snapshot: 85076a2 + SC-03 working-tree slice; kiana-domain/src/{security_reasons,contracts,lib}.rs; kiana-domain/tests/sc03_security_reason.rs; kiana-core/tests/sc03_security_reason_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/sc03-security-reason.yml; docs/roadmap/security-reason-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-03 stable AUTH/POLICY/DATA/SECRET/EXT/FS/NET/RESOURCE/FACT/UNKNOWN reason codes, class/retryability/remediation policy, bounded legacy classifier, strict digest-only SecurityReason DTO, protocol re-export, CI fixtures/source guard and roadmap/status overlays are scoped to this step; existing CapabilityErrorCode compatibility remains unchanged; no policy evaluator, SecurityContext, SecretStore, redaction pipeline, effect/retry path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/security_reasons.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/sc03_security_reason.rs kiana-core/tests/sc03_security_reason_guard.rs kiana-protocol/src/lib.rs .github/workflows/sc03-security-reason.yml docs/roadmap/security-reason-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'SecurityReason(Code|Policy|Class)|AUTH_|POLICY_|DATA_|SECRET_|EXT_|FS_|NET_|RESOURCE_|FACT_|UNKNOWN_|classify_security_reason|retryability|remediation|detail_digest|deny_unknown_fields' kiana-domain/src kiana-domain/tests kiana-core/tests kiana-protocol/src docs/roadmap/security-reason-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/sc03_security_reason.rs stable code/policy/legacy mapping/unknown/reason serde/digest fixtures; kiana-core/tests/sc03_security_reason_guard.rs domain/protocol/no-raw-error source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-03 job is queued by the push and is not awaited
+status_change: SC-03 source slice is implemented. SecurityReasonCode now covers the ten stable families from AUTH through UNKNOWN, each with an explicit class, retryability and remediation; unknown legacy text never becomes permission or retry authority and maps to conservative UNKNOWN. SecurityReason is strict/versioned, carries only typed operation/evidence references and optional SHA-256 detail digest, rejects raw error/provider/prompt/secret fields, and is re-exported by protocol without execution semantics.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; reason classification is not yet wired to every ControlPlane/entrypoint response, old CapabilityErrorCode diagnostics remain compatibility paths, policy/retry/remediation values do not themselves execute actions, and SecurityContext/authority binding, recursive output redaction, audit persistence, external reconciliation and durable/live/physical proof remain SC-04+
+reviewer: Codex root implementation review plus SC-03 stable-code/unknown-classification/raw-error boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
