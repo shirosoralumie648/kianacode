@@ -7001,3 +7001,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: provider ModelProfile catalog remains service-owned and the report is an EventLog query projection; no durable EvalStore, online drift alert, quality causality, billing reconciliation, Promote/Rollback, automatic model switching or live/physical proof is claimed; follow-up EQ/ER/PD/DEP/SC remains
 reviewer: Codex root implementation review plus strict serde/domain validation, canonical digest/key consistency, profile/prompt/route/budget/runtime coverage, owner-scoped committed-event projection, deduplicated counters and no-authority/no-provider boundary review; no runtime test reviewer
 ```
+### P4-L5-01 extension/skill authority evidence (2026-09-18)
+
+```text
+source_snapshot: 0dffc13a + P4-L5-01 working-tree slice; kiana-skills/src/{types.rs,loader.rs}; kiana-daemon/src/harness_skills.rs; kiana-domain/src/{extensions.rs,extension_contracts.rs}; kiana-capability-broker/src/lib.rs; kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs; kiana-core/tests/p4_l5_01_skill_allowed_tools.rs; .github/workflows/p4-l5-01-extension-skills.yml; docs/roadmap/p4-l5-01-extension-skills-baseline.md; docs/roadmap.md
+worktree_status: Skill `allowed-tools` is parsed with bounds and rendered only as JSON display-only Context metadata; ExtensionExecutionContract remains an additional intersection and Broker rechecks effect/handler/required-capability/role/network before dispatch; a read-only extension requesting shell/process/write behavior is rejected with extension_read_only_write_denied; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-daemon --lib --test p4_l5_01_skill_allowed_tools -p kiana-domain --test p4_l5_01_skill_allowed_tools -p kiana-core --test p4_l5_01_skill_allowed_tools --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/src/harness_skills.rs `skill_allowed_tools_cannot_grant_shell` proves shell.exec is display-only Context; kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs proves a read-only extension cannot classify shell/process as executable while read-only memory.search remains admissible; kiana-core/tests/p4_l5_01_skill_allowed_tools.rs guards parser/prompt/broker/control-plane boundaries and no allowed_tools broker lookup; GitHub Actions P4-L5-01 workflow runs daemon/domain/source fixtures and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-L5-01 is triggered by the eventual push and is not awaited
+status_change: P4-L5-01 source slice is implemented. Skill declarations cannot grant shell or expand policy; extension effect and capability checks are enforced at the broker boundary.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: allowed-tools is explanatory metadata rather than an authorization fact; full catalog/activation/resource/invocation lifecycle and durable snapshots remain EXT-06..10, non-Skill adapters and supply-chain verification remain P4-L6/INT/PD/ER/SC, and no external/live/physical effect is claimed
+reviewer: Codex root implementation review plus strict frontmatter bounds, Context-only prompt authority, JSON display escaping, read-only handler classification, required capability/role/network intersection and no-policy/no-second-loop boundary review; no runtime test reviewer
+```

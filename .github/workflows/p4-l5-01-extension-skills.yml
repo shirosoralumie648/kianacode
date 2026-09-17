@@ -1,0 +1,56 @@
+name: P4-L5-01 extension and skill authority boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-skills/src/types.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-core/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "docs/roadmap/skills-plugins-hooks-baseline.md"
+      - "docs/roadmap/p4-l5-01-extension-skills-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-l5-01-extension-skills.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-skills/src/types.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-core/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "docs/roadmap/skills-plugins-hooks-baseline.md"
+      - "docs/roadmap/p4-l5-01-extension-skills-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-l5-01-extension-skills.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run daemon skill metadata fixture
+        run: cargo test -p kiana-daemon --lib skill_allowed_tools_cannot_grant_shell --locked -- --test-threads=1
+      - name: Run domain extension boundary fixture
+        run: cargo test -p kiana-domain --test p4_l5_01_skill_allowed_tools --locked -- --test-threads=1
+      - name: Run source authority guard
+        run: cargo test -p kiana-core --test p4_l5_01_skill_allowed_tools --locked -- --test-threads=1
+      - name: Compile P4-L5-01 targets
+        run: cargo check --workspace --tests --locked
