@@ -1,0 +1,62 @@
+name: ER-15 adapter result boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/adapter_result.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/er15_adapter_result.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-core/tests/er15_adapter_result_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-adapter-result-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er15-adapter-result.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/adapter_result.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/er15_adapter_result.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-core/tests/er15_adapter_result_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/event-receipt-adapter-result-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er15-adapter-result.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapter-result:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-15 adapter result fixtures
+        run: cargo test -p kiana-domain --test er15_adapter_result --locked -- --test-threads=1
+      - name: Run ER-15 adapter source guard
+        run: cargo test -p kiana-core --test er15_adapter_result_guard --locked -- --test-threads=1
+      - name: Compile ER-15 targets
+        run: cargo check --workspace --tests --locked

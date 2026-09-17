@@ -2918,6 +2918,25 @@ limitations: repository connectors remain local_fixture-only; no external transp
 reviewer: Codex root implementation review plus ER-14 observation state, owner/audience/idempotency binding, connector integration and Unknown/no-effect boundary; no runtime test reviewer
 ```
 
+### ER-15 adapter result boundary evidence (2026-09-17)
+
+```text
+source_snapshot: 323789b + ER-15 working-tree slice; kiana-domain/src/{adapter_result,capabilities,contracts,lib}.rs; kiana-daemon/src/{harness_capabilities,harness_memory,harness_mcp,pre_tool_hooks,apply_patch}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er15_adapter_result.rs; kiana-core/tests/er15_adapter_result_guard.rs; .github/workflows/er15-adapter-result.yml; docs/roadmap/event-receipt-adapter-result-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict AdapterResult binds adapter kind, bounded output/evidence digests, process/effect/stop dimensions, adapter-local commit state and reconciliation fence; shell/patch, Memory search/write/review, MCP success/unknown/cancel and Hook decision facts attach the same envelope, while Hook updated-input mutation is rejected, MCP uncertainty retains workspace, Memory reports sync boundary and Patch retains prepared transaction/rollback evidence; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er15_adapter_result.rs strict/digest/bounded/Unknown/cancelled/Hook fixtures; kiana-core/tests/er15_adapter_result_guard.rs adapter wiring, Hook mutation deny, MCP retain/Unknown, Memory sync and Patch transaction/rollback source guard; GitHub Actions ER-15 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-15 is triggered by the eventual push and is not awaited
+status_change: ER-15 source slice is implemented. Adapter-local result boundaries are explicit and bounded before ControlPlane result commit; unknown/partial/cancelled work remains fenced and no adapter metadata grants authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: adapter envelopes are source/runtime-shape evidence only; no cross-process adapter checkpoint, power-loss proof, external Hook/MCP effect, provider/live receipt, or physical exactly-once evidence exists; terminal uniqueness, snapshots and real integration remain ER-16+ / INT/PD/DEP work
+reviewer: Codex root implementation review plus ER-15 common envelope, adapter commit/stop/effect mapping, Hook/MCP/Memory/Patch negative boundaries and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

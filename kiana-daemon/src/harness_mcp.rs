@@ -1,8 +1,9 @@
 //! MCP discovery and business calls use the same permit-protected broker.
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    AggregateVersion, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-    CapabilityResult, CommitOutcome, RequestContext, RequestId, RuntimeEvent, TransitionBatch,
+    AdapterCommitState, AdapterResultKind, AggregateVersion, AuthorizedCapabilityRequest,
+    CapabilityKind, CapabilityRequest, CapabilityResult, CommitOutcome, RequestContext, RequestId,
+    RuntimeEvent, TransitionBatch,
 };
 use kiana_ports::{EventStorePort, PortError};
 #[cfg(test)]
@@ -445,7 +446,13 @@ impl McpHandler {
             result.output["not_executed"] = json!(!started);
             result.output["workspace"] = json!(publication);
             result.output["diagnostics"] = diagnostics;
-            return Ok(result);
+            let commit = if !started && stop_confirmed {
+                AdapterCommitState::NotStarted
+            } else {
+                AdapterCommitState::Unknown
+            };
+            return kiana_domain::attach_adapter_result(result, AdapterResultKind::Mcp, commit)
+                .map_err(|error| mcp_failed(format!("adapter_result_invalid:{error}")));
         }
         let (result, tools) = performed.map_err(|error| {
             if started {
@@ -464,7 +471,12 @@ impl McpHandler {
             if let Some(reference) = output["evidence_ref"].as_str() {
                 response.evidence_refs.push(reference.to_owned());
             }
-            return Ok(response);
+            return kiana_domain::attach_adapter_result(
+                response,
+                AdapterResultKind::Mcp,
+                AdapterCommitState::Committed,
+            )
+            .map_err(|error| mcp_failed(format!("adapter_result_invalid:{error}")));
         }
         let failed = result["isError"] == true;
         let mut output = json!({"schema":MCP_RESULT_SCHEMA,"server":config.name,"tool":arguments["tool"],"transport":"stdio",
@@ -476,12 +488,18 @@ impl McpHandler {
         if failed {
             output["error"] = json!("execution_failed:mcp_tool_is_error");
         }
-        Ok(CapabilityResult {
+        let response = CapabilityResult {
             request_id: request.request.request_id,
             success: !failed,
             output,
             evidence_refs: Vec::new(),
-        })
+        };
+        kiana_domain::attach_adapter_result(
+            response,
+            AdapterResultKind::Mcp,
+            AdapterCommitState::Committed,
+        )
+        .map_err(|error| mcp_failed(format!("adapter_result_invalid:{error}")))
     }
 }
 

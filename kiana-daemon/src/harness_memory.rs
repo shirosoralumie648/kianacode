@@ -5,14 +5,15 @@
 
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    json_digest, memory_query_terms, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    EvidenceStatus, MemoryAdmission, MemoryClassification, MemoryCollection, MemoryMutation,
-    MemoryMutationLedger, MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt,
-    MemoryMutationTarget, MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope,
-    MemorySensitivity, MemoryState, Purpose, RoleSpec, SourceKind, SourceRef, MEMORY_LAYER_COMPANY,
-    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
-    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2,
-    MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
+    json_digest, memory_query_terms, AdapterCommitState, AdapterResultKind,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, EvidenceStatus, MemoryAdmission,
+    MemoryClassification, MemoryCollection, MemoryMutation, MemoryMutationLedger,
+    MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt, MemoryMutationTarget,
+    MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState,
+    Purpose, RoleSpec, SourceKind, SourceRef, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
+    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
+    MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
+    MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::PortError;
 use serde_json::{json, Value};
@@ -123,7 +124,13 @@ impl CapabilityHandler for MemorySearchHandler {
         let output = tokio::task::spawn_blocking(move || search_records_scoped(&arguments, &scope))
             .await
             .map_err(|error| PortError::Failed(format!("memory_search_join_failed:{error}")))??;
-        Ok(CapabilityResult::success(request_id, output))
+        let result = CapabilityResult::success(request_id, output);
+        kiana_domain::attach_adapter_result(
+            result,
+            AdapterResultKind::Memory,
+            AdapterCommitState::Committed,
+        )
+        .map_err(|error| failed(format!("adapter_result_invalid:{error}")))
     }
 }
 
@@ -162,7 +169,13 @@ impl CapabilityHandler for MemoryWriteHandler {
         })
         .await
         .map_err(|error| PortError::Failed(format!("memory_write_join_failed:{error}")))??;
-        Ok(CapabilityResult::success(request_id, output))
+        let result = CapabilityResult::success(request_id, output);
+        kiana_domain::attach_adapter_result(
+            result,
+            AdapterResultKind::Memory,
+            AdapterCommitState::Committed,
+        )
+        .map_err(|error| failed(format!("adapter_result_invalid:{error}")))
     }
 }
 
@@ -199,7 +212,13 @@ impl CapabilityHandler for MemoryReviewHandler {
         })
         .await
         .map_err(|error| failed(format!("memory_review_join_failed:{error}")))??;
-        Ok(CapabilityResult::success(request_id, output))
+        let result = CapabilityResult::success(request_id, output);
+        kiana_domain::attach_adapter_result(
+            result,
+            AdapterResultKind::Memory,
+            AdapterCommitState::Committed,
+        )
+        .map_err(|error| failed(format!("adapter_result_invalid:{error}")))
     }
 }
 

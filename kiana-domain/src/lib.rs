@@ -9,6 +9,7 @@
 //! `ResultUnknown` 与“没有副作用”严格区分，并以 EventLog/Receipt 作为事实来源，不把
 //! transcript、UI 投影或模型自述当作状态权威。
 
+mod adapter_result;
 mod approval_journal;
 mod artifact_contracts;
 mod assignment;
@@ -80,6 +81,7 @@ mod trust_snapshots;
 mod usage;
 mod work_packets;
 
+pub use adapter_result::*;
 pub use approval_journal::*;
 pub use artifact_contracts::*;
 pub use assignment::*;

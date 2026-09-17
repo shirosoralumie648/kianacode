@@ -6,7 +6,10 @@
 use crate::apply_patch::apply_codex_patch;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
-use kiana_domain::{AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult};
+use kiana_domain::{
+    AdapterCommitState, AdapterResultKind, AuthorizedCapabilityRequest, CapabilityKind,
+    CapabilityResult,
+};
 use kiana_ports::PortError;
 use kiana_runner_protocol::{DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE};
 use serde_json::{json, Value};
@@ -160,7 +163,12 @@ async fn execute_shell(
         result.success = false;
         result.output["error"] = json!("execution_failed:output_capture_incomplete");
     }
-    Ok(result)
+    kiana_domain::attach_adapter_result(
+        result,
+        AdapterResultKind::Shell,
+        AdapterCommitState::Committed,
+    )
+    .map_err(|error| PortError::Failed(format!("adapter_result_invalid:{error}")))
 }
 
 struct ApplyPatchHandler;
@@ -222,7 +230,13 @@ impl CapabilityHandler for ApplyPatchHandler {
         let output = tokio::task::spawn_blocking(move || apply_codex_patch(&project_root, &patch))
             .await
             .map_err(|error| PortError::Failed(format!("apply_patch_join_failed:{error}")))??;
-        Ok(CapabilityResult::success(request_id, output))
+        let result = CapabilityResult::success(request_id, output);
+        kiana_domain::attach_adapter_result(
+            result,
+            AdapterResultKind::Patch,
+            AdapterCommitState::Committed,
+        )
+        .map_err(|error| PortError::Failed(format!("adapter_result_invalid:{error}")))
     }
 }
 

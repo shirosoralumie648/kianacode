@@ -1,6 +1,10 @@
 //! Trusted executable hooks use the daemon's read-only process boundary.
 use async_trait::async_trait;
-use kiana_domain::{CapabilityRequest, RequestContext, RequestId, RuntimeEvent};
+use kiana_domain::{
+    AdapterCommitState, AdapterResult, AdapterResultKind, CapabilityEffectState,
+    CapabilityProcessState, CapabilityRequest, CapabilityStopState, RequestContext, RequestId,
+    RuntimeEvent,
+};
 use kiana_ports::{EventStorePort, PortError, PreToolHookDecision, PreToolHookPort};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -171,12 +175,50 @@ impl QueryPreToolHooks {
                 PreToolHookDecision::Ask { .. } => "ask",
                 PreToolHookDecision::Block(_) => "block",
             };
+            let adapter_result = match &output {
+                Ok(value) => {
+                    let process = if value["not_executed"] == true {
+                        CapabilityProcessState::NotStarted
+                    } else {
+                        CapabilityProcessState::Exited
+                    };
+                    let stop = match value["stop_confirmed"].as_bool() {
+                        Some(true) => CapabilityStopState::Confirmed,
+                        Some(false) => CapabilityStopState::Unconfirmed,
+                        None => CapabilityStopState::NotRequested,
+                    };
+                    AdapterResult::from_observation(
+                        request.request_id,
+                        AdapterResultKind::Hook,
+                        AdapterCommitState::Committed,
+                        process,
+                        stop,
+                        CapabilityEffectState::NotStarted,
+                        value,
+                        &[],
+                        stop == CapabilityStopState::Unconfirmed,
+                    )
+                }
+                Err(_) => AdapterResult::from_observation(
+                    request.request_id,
+                    AdapterResultKind::Hook,
+                    AdapterCommitState::Unknown,
+                    CapabilityProcessState::Unknown,
+                    CapabilityStopState::Unknown,
+                    CapabilityEffectState::Unknown,
+                    &Value::Null,
+                    &[],
+                    true,
+                ),
+            }
+            .map_err(|_| failed("hook_result_metadata_invalid"))?;
             let event=RuntimeEvent::new(RequestId::new(),1,"hook.decision",json!({"parent_request_id":request.request_id,
                 "session_id":context.session_id,"project_root":context.project_root,"actor_id":context.actor_id,
                 "phase":"PreToolUse","hook_snapshot":snapshot.digest,"command_digest":kiana_domain::journal_sha256(command.as_bytes()),
                 "index":index,"decision":code,"duration_ms":started.elapsed().as_millis(),"sandbox":"read-only",
                 "output_digest":output.as_ref().ok().map(kiana_domain::json_digest),"raw_output_retained":false,
-                "stop_confirmed":output.as_ref().ok().and_then(|value|value.get("stop_confirmed"))})).map_err(|_|failed("hook_event_invalid"))?;
+                "stop_confirmed":output.as_ref().ok().and_then(|value|value.get("stop_confirmed")),
+                "adapter_result":adapter_result})).map_err(|_|failed("hook_event_invalid"))?;
             self.events.append(event).await?;
             match decision {
                 PreToolHookDecision::Block(reason) => {

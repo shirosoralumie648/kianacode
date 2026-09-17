@@ -385,7 +385,9 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-15 — Hook、MCP、Memory、Patch 结果统一边界　⏳
+##### ER-15 — Hook、MCP、Memory、Patch 结果统一边界　✅
+
+当前 source slice 与 CI-only 证据见 [`event-receipt-adapter-result-baseline.md`](event-receipt-adapter-result-baseline.md)。
 
 - **落点：** `kiana-daemon/harness_*`、`apply_patch.rs`、`mcp_stdio.rs`、memory；关联 `CAP-13/18/19/21/22`、`H29/H30`。
 - **动作：** 所有 adapter 返回统一 bounded result + effect/stop metadata；stdout/stderr、MCP frame、memory commit、patch changeset 在 result commit 前完成自身 durable boundary。
