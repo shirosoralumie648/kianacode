@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiana · 开始</title>
+  <style>
+    :root {
+      --bg: #0b0d10; --panel: #161a21; --card: #1b212b; --border: #2a313c;
+      --text: #e7ecf3; --muted: #8b93a1; --accent: #4c8dff; --ok: #3dd68c;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 72px; }
+    .kicker { color: var(--accent); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { font-size: 32px; margin: 8px 0 12px; }
+    .lead { color: var(--muted); max-width: 62ch; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 28px 0 32px; }
+    .step { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+    .step .n { color: var(--accent); font-weight: 700; font-size: 12px; }
+    .step h3 { margin: 6px 0 4px; font-size: 15px; }
+    .step p { margin: 0; color: var(--muted); font-size: 13px; }
+    .cards { display: grid; gap: 12px; }
+    button.choice { text-align: left; padding: 18px; border-radius: 14px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text); font: inherit; cursor: pointer; width: 100%; }
+    button.choice:hover { border-color: var(--accent); }
+    button.choice .title { font-weight: 700; display: block; margin-bottom: 4px; font-size: 16px; }
+    button.choice .sub { color: var(--muted); font-size: 13px; }
+    .last { font-family: ui-monospace, monospace; font-size: 12px; color: var(--ok); }
+    .faq { margin-top: 36px; color: var(--muted); }
+    .faq h2 { color: var(--text); font-size: 14px; text-transform: uppercase; letter-spacing: .08em; }
+    .faq details { border-top: 1px solid var(--border); padding: 10px 0; }
+    .faq summary { cursor: pointer; color: var(--text); }
+    .error { margin-top: 16px; color: #ff6b6b; white-space: pre-wrap; min-height: 1.4em; }
+    .busy { color: var(--accent); }
+    code { background: #11161d; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">Kiana desktop</div>
+    <h1>先选工作区，再让工人干活</h1>
+    <p class="lead">
+      这是 Codex 形的本地工作台。工人只会改你选定的文件夹。
+      可以打开现有项目，也可以先不选，让 Kiana 在 <code>~/.kiana/workspaces</code> 自动建一个 scratch 项目。
+    </p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>选工作区</h3><p>现有文件夹，或自动新建。不选就不会动你别的盘。</p></div>
+      <div class="step"><div class="n">2</div><h3>信任这个文件夹</h3><p>未信任时不能写文件。自动创建的 scratch 会尽量直接信任。</p></div>
+      <div class="step"><div class="n">3</div><h3>用自然语言派活</h3><p>Builder 用 shell / apply_patch 干活。不声称 token 流式。</p></div>
+    </div>
+    <div class="cards">
+      <button class="choice" id="continueBtn" hidden>
+        <span class="title">继续上次的工作区</span>
+        <span class="sub last" id="lastPath"></span>
+      </button>
+      <button class="choice" id="openBtn">
+        <span class="title">打开已有文件夹…</span>
+        <span class="sub">弹出系统对话框，选仓库或任意目录。适合已有代码。</span>
+      </button>
+      <button class="choice" id="newBtn">
+        <span class="title">先不选项目，自动创建</span>
+        <span class="sub">在 ~/.kiana/workspaces 下新建 dated 项目。Agent 只在那里写 README 和后续文件。</span>
+      </button>
+    </div>
+    <div class="error" id="error"></div>
+    <section class="faq">
+      <h2>开始前要知道</h2>
+      <details open>
+        <summary>不选项目会写到哪里？</summary>
+        <p>只会写到 <code>~/.kiana/workspaces/project-日期/</code>，不会拿当前家目录当工程。</p>
+      </details>
+      <details>
+        <summary>信任是什么？</summary>
+        <p>项目大门。未信任时任何写盘都会 fail-closed。点「信任」只作用于当前工作区。</p>
+      </details>
+      <details>
+        <summary>关窗口会停掉工人吗？</summary>
+        <p>关窗口可以选 Keep in background 留在托盘。Quit 才停 DaemonHost。</p>
+      </details>
+    </section>
+  </div>
+  <script>
+    const errorEl = document.getElementById("error");
+    function showError(err) {
+      errorEl.classList.remove("busy");
+      errorEl.textContent = err && err.message ? err.message : String(err || "");
+    }
+    async function run(action, label) {
+      errorEl.classList.add("busy");
+      errorEl.textContent = label || "正在启动 DaemonHost…";
+      try {
+        await action();
+      } catch (err) {
+        showError(err);
+      }
+    }
+    async function boot() {
+      if (!window.kianaDesktop) {
+        showError("桌面预加载丢失。请重装 kiana-desktop。");
+        return;
+      }
+      const state = await window.kianaDesktop.state();
+      if (state.last) {
+        document.getElementById("continueBtn").hidden = false;
+        document.getElementById("lastPath").textContent = state.last;
+      }
+      if (state.error) showError(state.error);
+    }
+    document.getElementById("continueBtn").onclick = () =>
+      run(() => window.kianaDesktop.continueLast(), "正在打开上次工作区…");
+    document.getElementById("openBtn").onclick = () =>
+      run(() => window.kianaDesktop.openFolder(), "选择文件夹后会启动工人…");
+    document.getElementById("newBtn").onclick = () =>
+      run(() => window.kianaDesktop.newProject(), "正在 ~/.kiana/workspaces 创建项目…");
+    boot().catch(showError);
+  </script>
+</body>
+</html>

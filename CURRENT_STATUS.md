@@ -7035,3 +7035,21 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: trust roots remain local environment key configuration; no production KMS/transparent log/SBOM/advisory quarantine, cross-process registry store, non-Skill adapter activation, external/live/physical effect or distribution proof is claimed; follow-up EXT-20..31/SC-25..30/DEP-39 remains
 reviewer: Codex root implementation review plus strict manifest/signing-bytes contract, trusted publisher lookup, signature-before-content verification order, immutable cache/CAS/idempotency, migration/rollback reference validation and no-script/no-external-effect boundary review; no runtime test reviewer
 ```
+### P4-M6-01 desktop shell evidence (2026-09-18)
+
+```text
+source_snapshot: e4259e89 + P4-M6-01 working-tree slice; contrib/desktop/{main.js,preload.js,welcome.html}; contrib/desktop/lib/{worker.js,workspace.js,find-kiana.js,parse-url.js,close-policy.js}; contrib/desktop/tests/p4_m6_01_desktop.test.js; .github/workflows/p4-m6-01-desktop.yml; docs/roadmap/p4-m6-01-desktop-baseline.md; docs/roadmap.md
+worktree_status: Electron preload exposes bounded workspace state/open/new/continue; welcome onboarding creates only ~/.kiana/workspaces scratch projects, starts loopback DaemonHost after readiness URL, and reuses tray/background path; worker stop owns a dedicated process group, confirms tree exit after SIGTERM, uses bounded SIGKILL/taskkill fallback and before-quit shutdownComplete fencing; static verification is complete and commit/push follow this evidence update
+command_argv:
+  git diff --check
+  node --check contrib/desktop/main.js
+  node --check contrib/desktop/lib/worker.js
+  node --check contrib/desktop/tests/p4_m6_01_desktop.test.js
+cwd/environment: repository root; Linux x86_64; Node syntax-only checks; CI-only runtime process-tree test; no local Node test, Rust test or smoke binary executed
+fixture or cassette: contrib/desktop/tests/p4_m6_01_desktop.test.js `desktop_safe_close_leaves_no_orphan_process` starts a detached child that ignores SIGTERM and verifies bounded fallback leaves no process group, plus source assertions for onboarding/health/tray/background/close; GitHub Actions P4-M6-01 runs the fixture from contrib/desktop
+exit_code: 0 for source checks and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-M6-01 is triggered by the eventual push and is not awaited
+status_change: P4-M6-01 source slice is implemented. Desktop workspace lifecycle and safe-close process-tree boundary are covered without adding a second runtime or authority path.
+proof-level_change: source plus static syntax evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no real desktop session/tray OS integration, macOS backend, notification delivery, signed installer/upgrade, cross-restart DaemonHost recovery or live/physical effect proof is claimed; worker confirmation covers process tree only and EventLog/Receipt remain DaemonHost/ControlPlane authority
+reviewer: Codex root implementation review plus preload IPC scope, workspace containment/onboarding, loopback readiness, tray/background behavior, shutdown idempotency, process-group descendant cleanup and bounded unconfirmed-stop failure review; no runtime test reviewer
+```

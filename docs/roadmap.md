@@ -129,7 +129,7 @@
 | `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ✅ |
 | `P4-L5-01` | P4 | L5 Extension | `P1-H-01` | skill `allowed-tools` 不进 policy；read-only 扩展写操作在 broker 拒绝 | ✅ |
 | `P4-L6-01` | P4 | L6 Supply chain | `P4-L5-01` | content hash/license/signature/capability diff/rollback 可审计 | ✅ |
-| `P4-M6-01` | P4 | M6 Desktop shell | `P2-M2-01` | workspace onboarding/health/tray/background/safe close | ⏳ |
+| `P4-M6-01` | P4 | M6 Desktop shell | `P2-M2-01` | workspace onboarding/health/tray/background/safe close | ✅ |
 
 ---
 
@@ -625,7 +625,7 @@
 | 452 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m5-01) |
 | 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
 | 454 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m7-01) |
-| 455 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ⏳ | [基础卡](#step-p4-m6-01) |
+| 455 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ✅ | [基础卡](#step-p4-m6-01) |
 | 456 | W6 | 专项 | [`OA-16`](#step-oa-16) | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | `CP-21`、`CP-22`、`OA-15` | ✅ | [专项卡](#step-oa-16) |
 | 457 | W6 | 专项 | [`OA-17`](#step-oa-17) | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | `OA-15`、`OA-16` | ✅ | [专项卡](#step-oa-17) |
 | 458 | W6 | 专项 | [`OA-18`](#step-oa-18) | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | `OA-03`、`OA-16`、`OA-17` | ✅ | [专项卡](#step-oa-18) |
@@ -1173,6 +1173,7 @@
 | 当前 218 | `P4-L3-01` version governance/drift | `RouteDecision` 从 committed `run.model_turn` 审计元数据绑定 provider/model、ModelProfile、PromptBundle prompt hash、route/configuration/budget/runtime 版本；domain `DriftReport` 以 canonical digest + `BTreeMap` 分桶并去重 event IDs，ControlPlane 只读投影固定 observed-turn/unknown-cost 且禁止自动模型切换；新增 domain fixture、core source guard、workflow 与 versioning baseline；不运行本地测试 | `feature_status=implemented`（domain/core/provider/prompt source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-L3-01 已触发但未等待；当前仍是 EventLog 查询 projection，无 durable EvalStore、online alert、Promote/Rollback、provider quality/billing 或 live/physical proof，后续留 EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 219 | `P4-L5-01` extension/skill authority | `SKILL.md` 的 `allowed-tools` 经严格 parser 后只作为 JSON display-only Context metadata，永不进入 policy、grant、sandbox 或五工具 registry；ExtensionExecutionContract 在 Broker 侧重检 required capability/role/effect/network，read-only extension 的 shell/process/write handler fail-closed；新增 daemon/domain/core fixtures、workflow 与 extension baseline；不运行本地测试 | `feature_status=implemented`（skills/domain/daemon/broker source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-L5-01 已触发但未等待；完整 catalog/activate/resource/invoke lifecycle、durable snapshot、非 Skill adapter、外部网络与 live/physical effect 留 EXT-06..10/P4-L6/INT/PD/ER/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 220 | `P4-L6-01` extension supply chain | ExtensionRegistry 在 install/upgrade/rollback 前按 manifest schema→trusted publisher Ed25519→canonical content hash→migration/rollback reference 顺序验证；EventLog CAS/idempotency receipt 记录 license、signature_verified、capability diff、previous package 与 rollback snapshot，坏签名/hash/引用/未信任 key fail-closed；新增 daemon signature fixture、domain package fixture、core order guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-L6-01 已触发但未等待；信任根仍是本地 env key，未声称生产 KMS/透明日志/SBOM/advisory、跨进程 registry、非 Skill adapter 或外部/live/physical effect，后续留 EXT/SC/DEP/INT/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 221 | `P4-M6-01` desktop shell | Electron 壳通过 preload 提供 workspace onboarding/state/open/new/continue，loopback DaemonHost readiness/health，tray/background 与显式 close decision；worker 独立进程组先 SIGTERM、超时 bounded SIGKILL/taskkill 并在 `before-quit` 防重入，workspace 切换等待旧树停止；新增 Node process-tree/source fixture、CI workflow 与 Desktop baseline；不运行本地测试 | `feature_status=implemented`（desktop source + remote fixture wiring）、`proof_level=source`；本地不执行 Node 测试，只做源码/配置检查，GitHub Actions P4-M6-01 已触发但未等待；真实桌面会话、macOS backend、OS notification、安装/升级签名、跨重启恢复及 live/physical proof 未声称，后续留 UI/NM/DEP/PD/ER/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1442,6 +1443,7 @@
 | 2026-09-18 | `P4-L3-01` 版本治理与 drift：新增严格 domain `RouteDecision`/`DriftBucket`/`DriftReport`，将 ModelProfile、PromptBundle prompt hash、route/configuration/budget/runtime 版本绑定进 canonical bucket key；ControlPlane 只读投影 committed model turns，固定 observed_turns/unknown cost/禁止自动切换；新增 domain fixture、core source guard、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-L5-01` 扩展与 Skill：`allowed-tools` 通过 strict parser 后只作为 display-only Context metadata，明确不进入 policy/grant/sandbox/five-tool registry；Broker 的 `ExtensionExecutionContract` 重检 effect/required capability/role/network，read-only shell/process/write handler 明确拒绝；新增 daemon/domain/core fixture、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P4-L6-01` 供应链：ExtensionRegistry 安装前按 manifest validate→trusted publisher Ed25519→canonical content hash→migration/rollback reference 顺序验证，EventLog CAS receipt 记录 signature/license/capability diff/previous package；新增 daemon 固定种子签名 fixture、domain package/hash/diff fixture、core 顺序 guard、CI workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-M6-01` Desktop 壳：确认 preload/workspace onboarding、loopback readiness、tray/background 和 close decision；worker 独立进程组采用 SIGTERM→bounded SIGKILL/taskkill，before-quit 防重复，workspace 切换先确认旧树退出；新增 Node 无孤儿进程与 source fixture、CI workflow 与 Desktop baseline；不运行本地测试，静态 Node 源码检查完成，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2804,9 +2806,9 @@
 
 <a id="step-p4-m6-01"></a>
 
-### P4-M6-01 Desktop 壳　⏳
+### P4-M6-01 Desktop 壳　✅
 
-- **现状**：`contrib/desktop` 为 `partial`，安装、升级、worker 崩溃恢复和供应链证据未达生产级。
+- **现状**：Electron 壳已提供 workspace onboarding/health、loopback DaemonHost、tray/background 与显式 safe-close；独立进程组停止、bounded kill fallback 和无孤儿进程 fixture/CI baseline 已登记。生产安装/升级与跨重启恢复仍保持限制声明。
 - **做什么**：workspace onboarding、health、tray、background、safe close。
 - **风险**：safe close 若留下孤儿进程，会与下一次启动争抢锁。
 - **验收**：`desktop_safe_close_leaves_no_orphan_process`

@@ -1,0 +1,49 @@
+{
+  "name": "kiana-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell around kiana web. Same DaemonHost. Loopback only.",
+  "main": "main.js",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --linux deb"
+  },
+  "dependencies": {
+    "electron": "^33.2.1"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "dev.kiana.desktop",
+    "productName": "Kiana",
+    "files": [
+      "main.js",
+      "preload.js",
+      "welcome.html",
+      "lib/**/*",
+      "icon.png"
+    ],
+    "linux": {
+      "target": [
+        "deb"
+      ],
+      "category": "Development",
+      "executableName": "kiana-desktop",
+      "icon": "icon.png",
+      "synopsis": "Local-first Kiana workbench",
+      "desktop": {
+        "Name": "Kiana",
+        "Comment": "Local-first agent workbench",
+        "Categories": "Development;Utility;",
+        "StartupWMClass": "Kiana"
+      }
+    },
+    "deb": {
+      "packageName": "kiana-desktop"
+    }
+  }
+}

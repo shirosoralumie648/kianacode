@@ -1,0 +1,49 @@
+name: P4-M6-01 desktop shell
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/worker.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/workspace.js"
+      - "contrib/desktop/lib/find-kiana.js"
+      - "contrib/desktop/lib/parse-url.js"
+      - "contrib/desktop/welcome.html"
+      - "contrib/desktop/tests/p4_m6_01_desktop.test.js"
+      - "docs/roadmap/p4-m6-01-desktop-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-m6-01-desktop.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/worker.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/workspace.js"
+      - "contrib/desktop/lib/find-kiana.js"
+      - "contrib/desktop/lib/parse-url.js"
+      - "contrib/desktop/welcome.html"
+      - "contrib/desktop/tests/p4_m6_01_desktop.test.js"
+      - "docs/roadmap/p4-m6-01-desktop-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-m6-01-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contrib/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run desktop process-tree and onboarding fixture
+        run: node --test tests/p4_m6_01_desktop.test.js
