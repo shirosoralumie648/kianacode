@@ -1,7 +1,8 @@
 //! Journal-backed admission runs before the existing Harness calls its provider.
 use super::*;
 use kiana_domain::{
-    derived_request_id, json_digest, AggregateVersion, RuntimeBudget, TransitionBatch,
+    derived_request_id, json_digest, AggregateVersion, BudgetLeaseId, BudgetReservationFact,
+    BudgetScope, BudgetSettlementFact, ExecutionId, RuntimeBudget, TransitionBatch,
 };
 
 pub struct JournalModelBudget {
@@ -146,8 +147,21 @@ impl kiana_ports::ModelBudgetPort for JournalModelBudget {
             .filter_map(|e| e.stream_version)
             .max()
             .unwrap_or(0);
+        let settled_at = time_ms()?;
+        let reservation: BudgetReservationFact =
+            serde_json::from_value(reservation.data["reservation_fact"].clone())
+                .map_err(|_| failed("model_budget_reservation_fact_invalid"))?;
+        if reservation.reservation_id != request_id
+            || reservation.run_id != run_id
+            || reservation.budget_lease_id != BudgetLeaseId::from_uuid(run_id.as_uuid())
+        {
+            return Err(failed("model_budget_reservation_fact_invalid"));
+        }
+        let settlement = BudgetSettlementFact::new(&reservation, tokens, settled_at)
+            .map_err(|error| failed(&error))?;
         let payload = json!({"run_id":run_id,"model_request_id":request_id,"charged_tokens":charged,
-            "reported_tokens":tokens,"usage_known":tokens.is_some(),"reservation_exceeded":charged>upper,"at_unix_ms":time_ms()?});
+            "reported_tokens":tokens,"usage_known":tokens.is_some(),"reservation_exceeded":charged>upper,"at_unix_ms":settled_at,
+            "settlement_fact":settlement});
         let event = RuntimeEvent::new(command_id, 1, "model.settled", payload)
             .map_err(|e| failed(&e.to_string()))?
             .with_stream_metadata("model_budget", run_id.to_string(), version + 1);
@@ -244,6 +258,8 @@ impl JournalModelBudget {
             .read_stream("model_budget", &run_id.to_string())
             .await?;
         let mut reserved = HashMap::new();
+        let mut reservation_facts = HashMap::new();
+        let mut settled = std::collections::HashSet::new();
         let mut calls = 0u64;
         for event in &records {
             let key = event.data["model_request_id"]
@@ -252,6 +268,26 @@ impl JournalModelBudget {
             match event.kind.as_str() {
                 "model.reserved" => {
                     calls = calls.saturating_add(1);
+                    let reservation: BudgetReservationFact =
+                        serde_json::from_value(event.data["reservation_fact"].clone())
+                            .map_err(|_| failed("model_budget_reservation_fact_invalid"))?;
+                    if reservation.validate().is_err()
+                        || reservation.reservation_id
+                            != RequestId::parse_str(key)
+                                .ok_or_else(|| failed("model_budget_reservation_fact_invalid"))?
+                        || reservation.execution_id
+                            != ExecutionId::from_uuid(reservation.reservation_id.as_uuid())
+                        || reservation.run_id != run_id
+                        || reservation.budget_lease_id != BudgetLeaseId::from_uuid(run_id.as_uuid())
+                        || reservation.model_calls != 1
+                        || reservation.tool_calls != 0
+                        || reservation.tokens
+                            != event.data["tokens"]
+                                .as_u64()
+                                .ok_or_else(|| failed("model_budget_record_invalid"))?
+                    {
+                        return Err(failed("model_budget_reservation_fact_invalid"));
+                    }
                     if reserved
                         .insert(
                             key.to_owned(),
@@ -263,8 +299,21 @@ impl JournalModelBudget {
                     {
                         return Err(failed("model_budget_duplicate_reservation"));
                     }
+                    reservation_facts.insert(key.to_owned(), reservation);
                 }
                 "model.settled" => {
+                    let settlement: BudgetSettlementFact =
+                        serde_json::from_value(event.data["settlement_fact"].clone())
+                            .map_err(|_| failed("model_budget_settlement_fact_invalid"))?;
+                    let reservation = reservation_facts
+                        .get(key)
+                        .ok_or_else(|| failed("model_budget_settlement_orphan"))?;
+                    settlement
+                        .validate_against(reservation)
+                        .map_err(|_| failed("model_budget_settlement_fact_invalid"))?;
+                    if !settled.insert(key.to_owned()) {
+                        return Err(failed("model_budget_duplicate_settlement"));
+                    }
                     let charge = event.data["charged_tokens"]
                         .as_u64()
                         .ok_or_else(|| failed("model_budget_record_invalid"))?;
@@ -303,7 +352,28 @@ impl JournalModelBudget {
             .max()
             .unwrap_or(0);
         let command_id = derived_request_id("model.reserve", &request_id.to_string());
+        let reservation_fact = BudgetReservationFact::new(
+            request_id,
+            ExecutionId::from_uuid(request_id.as_uuid()),
+            run_id,
+            BudgetLeaseId::from_uuid(run_id.as_uuid()),
+            BudgetScope::Run,
+            None,
+            1,
+            0,
+            tokens,
+            0,
+            prepared
+                .map(|(call, _)| call.budget.reserved_output.max(1))
+                .unwrap_or(tokens.max(1)),
+            authority_version,
+            version,
+            now,
+            now.saturating_add(60_000),
+        )
+        .map_err(|error| failed(&error))?;
         let payload = json!({"run_id":run_id,"model_request_id":request_id,"tokens":tokens,"at_unix_ms":now,
+            "reservation_fact":reservation_fact,
             "request_count":calls+1,"charged_and_reserved_tokens":used+tokens,"limit":limit,"basis":"text_bytes_plus_output_limit"});
         let event = RuntimeEvent::new(command_id, 1, "model.reserved", payload.clone())
             .map_err(|e| failed(&e.to_string()))?

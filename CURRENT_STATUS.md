@@ -2633,6 +2633,25 @@ limitations: old MemoryApprovalStore remains compatibility/test migration input 
 reviewer: Codex root implementation review plus CP-10 fact/CAS/idempotency/single-consumption reconciliation; no runtime test reviewer
 ```
 
+### CP-11 unified model/tool budget evidence (2026-09-17)
+
+```text
+source_snapshot: 8572b0d + CP-11 working-tree slice; kiana-domain/src/{budget_contracts,work_packets,lib,contracts}.rs; kiana-core/src/{cell_registry,model_budget}.rs; kiana-ports/src/lib.rs; kiana-runner/src/harness.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp11_budget_contracts.rs; kiana-core/tests/cp11_budget_guard.rs; .github/workflows/cp11-budget-contracts.yml; docs/roadmap/control-plane-budget-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-11 adds strict BudgetScope/ReservationFact/SettlementFact contracts and shared BudgetLease model-call accounting; CellRegistry and JournalModelBudget changes remain on the existing control-plane/eventlog spine, with no second budget ledger or execution loop; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp11_budget_contracts.rs shared model/tool lease, scope and known/unknown settlement fixtures; kiana-core/tests/cp11_budget_guard.rs source guard for reserve-before-provider, execution idempotency and conservative unknown usage; GitHub Actions CP-11 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-11 is triggered by the eventual push and is not awaited
+status_change: CP-11 source slice is implemented. BudgetLease now accounts model-call count and token usage in the same ledger as tool/effect consumption; strict reservation/settlement facts bind Run/Execution/Request/Lease, five scope classes, parent linkage, authority epoch, expected version and expiry; JournalModelBudget embeds and validates these facts and rejects duplicate settlements while CellRegistry uses the shared model consumption method.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Project/Run/Turn/parent-child budgets are not yet one durable cross-process projector, model/tool sibling reservations remain adapter-local, provider tokenizer/pricing and refunds are not claimed, old snapshots use compatibility defaults, and lease/fence/permit atomicity, Secret/egress, crash recovery and external/live/physical proof remain CP-12+ / CP-13/14 work
+reviewer: Codex root implementation review plus CP-11 model/tool reservation, hierarchy, overflow and unknown-usage reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

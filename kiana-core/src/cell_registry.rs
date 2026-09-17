@@ -138,6 +138,7 @@ impl MemoryCellRegistry {
         left.schema == right.schema
             && left.lease_id == right.lease_id
             && left.max_tool_calls == right.max_tool_calls
+            && left.model_call_limit() == right.model_call_limit()
             && left.max_tokens == right.max_tokens
             && left.max_wall_clock_ms == right.max_wall_clock_ms
             && left.max_concurrency == right.max_concurrency
@@ -207,7 +208,7 @@ impl CellRegistryPort for MemoryCellRegistry {
             .ok_or_else(|| PortError::Failed("spawn_budget_ledger_missing".to_owned()))?;
         if !already_charged {
             budget
-                .consume(0, tokens, 0)
+                .consume_model_call(tokens)
                 .map_err(|reason| PortError::Conflict(reason.to_owned()))?;
         }
         let snapshot = budget.clone();

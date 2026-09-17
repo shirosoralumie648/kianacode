@@ -276,6 +276,10 @@ pub struct BudgetLease {
     pub schema: String,
     pub lease_id: BudgetLeaseId,
     pub max_tool_calls: u64,
+    /// Model calls share this lease with tool calls. Zero is the legacy-wire sentinel and
+    /// resolves to `max_tool_calls` so old snapshots cannot silently widen the limit.
+    #[serde(default)]
+    pub max_model_calls: u64,
     pub max_tokens: u64,
     pub max_wall_clock_ms: u64,
     pub max_concurrency: u32,
@@ -286,6 +290,8 @@ pub struct BudgetLease {
     pub reserved_budget: u64,
     #[serde(default)]
     pub tool_calls_used: u64,
+    #[serde(default)]
+    pub model_calls_used: u64,
     #[serde(default)]
     pub tokens_used: u64,
     #[serde(default)]
@@ -304,6 +310,7 @@ impl BudgetLease {
             schema: BUDGET_LEASE_SCHEMA.to_owned(),
             lease_id: BudgetLeaseId::new(),
             max_tool_calls,
+            max_model_calls: max_tool_calls,
             max_tokens,
             max_wall_clock_ms,
             max_concurrency,
@@ -311,6 +318,7 @@ impl BudgetLease {
             max_reserved_budget: max_tool_calls,
             reserved_budget: 0,
             tool_calls_used: 0,
+            model_calls_used: 0,
             tokens_used: 0,
             effects_used: 0,
         }
@@ -328,6 +336,7 @@ impl BudgetLease {
             return Err("budget_lease_limit_required");
         }
         if self.tool_calls_used > self.max_tool_calls
+            || self.model_calls_used > self.model_call_limit()
             || self.tokens_used > self.max_tokens
             || self.effects_used > self.max_effects
             || self.reserved_budget > self.reservation_limit()
@@ -344,6 +353,14 @@ impl BudgetLease {
             self.max_tool_calls
         } else {
             self.max_reserved_budget
+        }
+    }
+
+    pub fn model_call_limit(&self) -> u64 {
+        if self.max_model_calls == 0 {
+            self.max_tool_calls
+        } else {
+            self.max_model_calls
         }
     }
 
@@ -399,6 +416,25 @@ impl BudgetLease {
         self.effects_used = self
             .effects_used
             .checked_add(effects)
+            .ok_or("budget_lease_exceeded")?;
+        Ok(())
+    }
+
+    /// Account one model call and its conservative token upper bound in the same lease used by
+    /// capability calls. Unknown provider usage is never treated as a free call.
+    pub fn consume_model_call(&mut self, tokens: u64) -> Result<(), &'static str> {
+        if self.model_calls_used >= self.model_call_limit()
+            || tokens > self.max_tokens.saturating_sub(self.tokens_used)
+        {
+            return Err("budget_lease_exceeded");
+        }
+        self.model_calls_used = self
+            .model_calls_used
+            .checked_add(1)
+            .ok_or("budget_lease_exceeded")?;
+        self.tokens_used = self
+            .tokens_used
+            .checked_add(tokens)
             .ok_or("budget_lease_exceeded")?;
         Ok(())
     }

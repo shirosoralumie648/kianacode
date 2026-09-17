@@ -1,0 +1,60 @@
+name: CP-11 unified model and tool budgets
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/budget_contracts.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp11_budget_contracts.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/tests/cp11_budget_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/control-plane-budget-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp11-budget-contracts.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/budget_contracts.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp11_budget_contracts.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/tests/cp11_budget_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/control-plane-budget-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp11-budget-contracts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  budget-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-11 budget fixtures
+        run: cargo test -p kiana-domain --test cp11_budget_contracts --locked -- --test-threads=1
+      - name: Run CP-11 source guard
+        run: cargo test -p kiana-core --test cp11_budget_guard --locked -- --test-threads=1
+      - name: Compile CP-11 targets
+        run: cargo check --workspace --tests --locked
