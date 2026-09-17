@@ -2880,6 +2880,25 @@ limitations: CI-only fixtures have not been executed locally; provider rate card
 reviewer: Codex root implementation review plus ER-12 committed-fact filtering, usage uncertainty, path/ref redaction, cost separation and no-authority boundary; no runtime test reviewer
 ```
 
+### ER-13 result commit and delivery evidence (2026-09-17)
+
+```text
+source_snapshot: 421baf7 + ER-13 working-tree slice; kiana-core/src/{dispatch,capabilities,approvals,lifecycle}.rs; kiana-runner/src/{harness,protocol_runner}.rs; kiana-domain/src/capabilities.rs; kiana-core/tests/er13_result_delivery.rs; .github/workflows/er13-result-delivery.yml; docs/roadmap/event-receipt-result-delivery-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: direct/Harness/approval-resume paths share finalize_capability_action; dispatch commits execution.result_committed before result.delivery_claimed, binds delivery/run versions and result digest, rejects replayed/different claim or terminal/cancelled run, and maps callback uncertainty/unknown effect to Unknown; Runner only receives committed result and has no second model loop; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/er13_result_delivery.rs finalizer/shared-path, result-commit-before-delivery, delivery CAS/replay/terminal fence and no-repeat source guard; GitHub Actions ER-13 workflow runs source guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-13 is triggered by the eventual push and is not awaited
+status_change: ER-13 source slice is implemented. A committed result is the only input to delivery; claim replay does not dispatch another effect, terminal/cancel fences block late delivery, and an uncertain callback cannot be reported as successful completion.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only source guard has not been executed locally; runner callback crash/replay behavior, provider receipts, terminal shutdown/flush, cross-process delivery recovery and external/live/physical exactly-once proof remain ER-14+ / CP/PD work
+reviewer: Codex root implementation review plus ER-13 shared finalizer, commit-before-delivery, CAS/replay, terminal fence and callback-unknown boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

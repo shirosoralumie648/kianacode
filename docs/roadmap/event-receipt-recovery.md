@@ -363,7 +363,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-13 — 统一 result commit 和 result delivery　⏳
+##### ER-13 — 统一 result commit 和 result delivery　✅
 
 - **落点：** `kiana-core/dispatch.rs`、`capabilities.rs`、`runner` adapter；关联 `CP-05/14`、`H11/H13`、`CAP-24`。
 - **动作：** 将 direct、Harness、approval-resume 三路径收敛到同一个 prepare→dispatch→result commit→delivery handler；result commit 先于 runner callback，delivery 用稳定 command id 去重。

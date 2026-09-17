@@ -1,0 +1,52 @@
+name: ER-13 result commit and delivery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/er13_result_delivery.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/event-receipt-result-delivery-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er13-result-delivery.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/er13_result_delivery.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "docs/roadmap/event-receipt-result-delivery-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er13-result-delivery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  result-delivery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-13 result delivery source guard
+        run: cargo test -p kiana-core --test er13_result_delivery --locked -- --test-threads=1
+      - name: Compile ER-13 targets
+        run: cargo check --workspace --tests --locked
