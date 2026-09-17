@@ -2259,6 +2259,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-01 storage root/owner/identity/namespace/lock and no-second-execution source-boundary review; no runtime test reviewer
 ```
 
+### PD-02 storage schema/canonical/upcast evidence (2026-09-17)
+
+```text
+source_snapshot: c6cce35 + PD-02 working-tree slice; kiana-domain/src/{storage_schema,memory,contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/pd02_schema.rs; kiana-core/tests/pd02_schema_guard.rs; .github/workflows/pd02-schema.yml; docs/roadmap/persistence-schema-baseline.md; docs/roadmap.md
+worktree_status: StorageSchemaRegistry uniqueness/digest, canonical storage bytes/number policy and named memory v1→v2 upcast are scoped to this step; unknown expected/major/field/non-migratable schema paths fail closed and no migration runner/Broker/execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/storage_schema.rs kiana-domain/src/memory.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/pd02_schema.rs kiana-core/tests/pd02_schema_guard.rs .github/workflows/pd02-schema.yml docs/roadmap/persistence-schema-baseline.md docs/roadmap.md
+  rg -n 'StorageSchemaRegistry|validate_schema_registry|schema_contracts_digest|canonical_storage_(bytes|digest)|upcast_storage_value|upcast_memory_record|storage_schema_(unknown_major|expected_unknown)|storage_migration_non_migratable_field|storage_noncanonical_number|SCHEMA_MIGRATIONS' kiana-domain/src kiana-protocol/src kiana-domain/tests/pd02_schema.rs kiana-core/tests/pd02_schema_guard.rs docs/roadmap/persistence-schema-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; PD-02 domain/protocol/core schema targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/pd02_schema.rs registry/canonical number/unknown-field, memory legacy upcast/unknown major/field/expected schema fixtures; kiana-core/tests/pd02_schema_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-02 job is queued by the next push and is not awaited
+status_change: PD-02 source slice is implemented. Domain schema registry is unique/digest-bound, canonical bytes reject unsafe numeric forms, and only a named memory-record v1→v2 migration is accepted with destination lifecycle validation; unknown schema/field/migration never silently downgrades.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; registry is process-static, legacy migration coverage is intentionally narrow, SQLite/migration journal/backup/CAS/fsync/replay/quarantine and all adapter integration remain PD-03+ / ER / DEP / SC.
+reviewer: Codex root implementation review plus PD-02 schema uniqueness/canonical/upcast and fail-closed migration source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
