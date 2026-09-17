@@ -312,7 +312,9 @@ sequenceDiagram
 
 <a id="step-h10"></a>
 
-#### H10 — 一次生成、全程稳定的调用身份　⏳
+#### H10 — 一次生成、全程稳定的调用身份　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-invocation-identity-baseline.md`](harness-invocation-identity-baseline.md)。
 
 **关联原单元**：`P0-G-02a/04`、`P1-H-02`。**依赖**：H02、H09。
 

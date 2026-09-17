@@ -20,11 +20,11 @@ use crate::model::{
 };
 use crate::state_driver::RunDriver;
 use crate::stream_normalizer::ModelStreamAccumulator;
-use crate::tools::{capability_for_tool, tool_schemas};
+use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
-    redact_text, CapabilityResult, ModelAttemptId, ModelAttemptIdentity, PromptBundle, RunId,
-    StepId, StepIdentity, StreamingRedactor, TurnId,
+    derived_request_id, redact_text, CapabilityResult, ModelAttemptId, ModelAttemptIdentity,
+    PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -1021,21 +1021,35 @@ impl KianaHarness {
         run.pending_tools.clear();
         kiana_domain::validate_model_calls(&output.tool_calls)
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
-        for call in output.tool_calls {
-            match capability_for_tool(&call, &run.sandbox, &run.project_root) {
-                Ok(request) => run.pending_tools.push_back((request.request_id, call)),
-                Err(error) => {
-                    emitter.replace_event_since(
-                        checkpoint,
-                        RunnerEvent::Failed {
-                            run_id: run.run_id,
-                            error,
-                        },
-                    )?;
-                    return Ok(StepProgress::Finished);
-                }
+        let mapped = output
+            .tool_calls
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, call)| {
+                let request_id = stable_invocation_request_id(run, &call, ordinal);
+                capability_for_tool_with_request_id(
+                    &call,
+                    request_id,
+                    &run.sandbox,
+                    &run.project_root,
+                )
+                .map(|request| (request.request_id, call))
+            })
+            .collect::<Result<Vec<_>, _>>();
+        let mapped = match mapped {
+            Ok(mapped) => mapped,
+            Err(error) => {
+                emitter.replace_event_since(
+                    checkpoint,
+                    RunnerEvent::Failed {
+                        run_id: run.run_id,
+                        error,
+                    },
+                )?;
+                return Ok(StepProgress::Finished);
             }
-        }
+        };
+        run.pending_tools.extend(mapped);
         run.driver
             .model_output(run.pending_tools.len() as u32, false)
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
@@ -1378,16 +1392,16 @@ impl KianaHarness {
         if let Some(error) = self.record_tool_call(run, call) {
             return Err(error);
         }
-        let mut request = capability_for_tool(call, &run.sandbox, &run.project_root)?;
         let pending_id = run
             .pending_tools
             .front()
             .map(|(id, _)| *id)
             .ok_or_else(|| "tool_queue_empty".to_owned())?;
+        let mut request =
+            capability_for_tool_with_request_id(call, pending_id, &run.sandbox, &run.project_root)?;
         let limits = self.effective_budget(run)?;
         self.budget_ledger
             .reserve_tool_call(&Self::budget_scope(run), limits)?;
-        request.request_id = pending_id;
         // Extension provenance comes from the immutable system bundle loaded by daemon.
         // Model-provided fields are overwritten even when the trusted scope is empty.
         let scopes = match run
@@ -1603,14 +1617,32 @@ impl RunnerPort for KianaHarness {
         }
         let sandbox = normalize_sandbox(&checkpoint.sandbox)?;
         let mut ids = std::collections::HashSet::new();
-        for (_, call) in &checkpoint.pending_tools {
+        for (ordinal, (request_id, call)) in checkpoint.pending_tools.iter().enumerate() {
             if !ids.insert(&call.id) || call.id.trim().is_empty() {
                 return Err(PortError::Failed(
                     "runner_checkpoint_duplicate_tool".to_owned(),
                 ));
             }
-            capability_for_tool(call, sandbox, &checkpoint.project_root)
-                .map_err(PortError::Failed)?;
+            let turn_id = checkpoint
+                .turn_id
+                .unwrap_or_else(|| TurnId::from_uuid(run_id.as_uuid()));
+            let step_id = checkpoint
+                .step_id
+                .ok_or_else(|| PortError::Failed("runner_checkpoint_step_missing".to_owned()))?;
+            if *request_id
+                != stable_invocation_request_id_parts(run_id, turn_id, step_id, &call.id, ordinal)
+            {
+                return Err(PortError::Failed(
+                    "runner_checkpoint_invocation_identity_mismatch".to_owned(),
+                ));
+            }
+            capability_for_tool_with_request_id(
+                call,
+                *request_id,
+                sandbox,
+                &checkpoint.project_root,
+            )
+            .map_err(PortError::Failed)?;
         }
         let elapsed = Duration::from_millis(checkpoint.wall_time_elapsed_ms);
         if self
@@ -1723,6 +1755,36 @@ fn tool_result_text(result: &CapabilityResult) -> String {
         return text.to_owned();
     }
     serde_json::to_string(&result.output).unwrap_or_else(|_| "{}".to_owned())
+}
+
+fn stable_invocation_request_id(
+    run: &ActiveRun,
+    call: &ModelToolCall,
+    ordinal: usize,
+) -> RequestId {
+    let turn_id = run
+        .turn_id
+        .unwrap_or_else(|| TurnId::from_uuid(run.run_id.as_uuid()));
+    let step_id = run
+        .step_id
+        .unwrap_or_else(|| StepId::from_uuid(run.run_id.as_uuid()));
+    stable_invocation_request_id_parts(run.run_id, turn_id, step_id, &call.id, ordinal)
+}
+
+fn stable_invocation_request_id_parts(
+    run_id: RunId,
+    turn_id: TurnId,
+    step_id: StepId,
+    assistant_item_id: &str,
+    ordinal: usize,
+) -> RequestId {
+    derived_request_id(
+        "harness.invocation",
+        &format!(
+            "run={}:turn={}:step={}:assistant_item={}:ordinal={ordinal}",
+            run_id, turn_id, step_id, assistant_item_id
+        ),
+    )
 }
 
 #[cfg(test)]

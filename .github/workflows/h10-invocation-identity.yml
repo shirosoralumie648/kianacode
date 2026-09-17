@@ -1,0 +1,58 @@
+name: H10 invocation identity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h10_invocation_identity.rs"
+      - "kiana-runner/tests/h10_invocation_identity_guard.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-invocation-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h10-invocation-identity.yml"
+  pull_request:
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h10_invocation_identity.rs"
+      - "kiana-runner/tests/h10_invocation_identity_guard.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-invocation-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h10-invocation-identity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invocation-identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H10 identity fixtures
+        run: cargo test -p kiana-runner --test h10_invocation_identity --locked -- --test-threads=1
+      - name: Run H10 source guard
+        run: cargo test -p kiana-runner --test h10_invocation_identity_guard --locked -- --test-threads=1
+      - name: Compile H10 targets
+        run: cargo check --workspace --tests --locked

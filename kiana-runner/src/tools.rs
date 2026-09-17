@@ -28,6 +28,18 @@ pub fn capability_for_tool(
     sandbox: &str,
     project_root: &str,
 ) -> Result<CapabilityRequest, String> {
+    capability_for_tool_with_request_id(call, RequestId::new(), sandbox, project_root)
+}
+
+/// Map a model call using a server-derived stable request identity.  The legacy wrapper above is
+/// retained for callers that only need a one-shot conversion; Harness/checkpoint paths must pass
+/// the same ID so approval, emit and restore never mint a new invocation.
+pub fn capability_for_tool_with_request_id(
+    call: &ModelToolCall,
+    request_id: RequestId,
+    sandbox: &str,
+    project_root: &str,
+) -> Result<CapabilityRequest, String> {
     let catalog = kiana_domain::current_tool_catalog();
     catalog.validate()?;
     let descriptor = catalog
@@ -38,7 +50,7 @@ pub fn capability_for_tool(
 
     match canonical {
         TOOL_SHELL => Ok(CapabilityRequest::new(
-            RequestId::new(),
+            request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
             json!({
@@ -52,7 +64,7 @@ pub fn capability_for_tool(
         )
         .with_risk(shell_risk(sandbox))),
         TOOL_APPLY_PATCH => Ok(CapabilityRequest::new(
-            RequestId::new(),
+            request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
             json!({
@@ -65,7 +77,7 @@ pub fn capability_for_tool(
         )
         .with_risk(RiskLevel::LocalWrite)),
         TOOL_MCP => Ok(CapabilityRequest::new(
-            RequestId::new(),
+            request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
             json!({
@@ -81,7 +93,7 @@ pub fn capability_for_tool(
         )
         .with_risk(RiskLevel::ExternalSideEffect)),
         TOOL_MEMORY_SEARCH => Ok(CapabilityRequest::new(
-            RequestId::new(),
+            request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
             json!({
@@ -95,7 +107,7 @@ pub fn capability_for_tool(
         )
         .with_risk(RiskLevel::ReadOnly)),
         TOOL_MEMORY_WRITE => Ok(CapabilityRequest::new(
-            RequestId::new(),
+            request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
             json!({

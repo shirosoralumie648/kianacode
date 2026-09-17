@@ -3070,6 +3070,25 @@ limitations: current five-tool descriptor dataset remains the supported baseline
 reviewer: Codex root implementation review plus H09 snapshot validation, alias/wire uniqueness, request/checkpoint/action pinning and mapper/provider resolver consistency; no runtime test reviewer
 ```
 
+### H-10 invocation identity evidence (2026-09-17)
+
+```text
+source_snapshot: 30961cb + H-10 working-tree slice; kiana-runner/src/{harness,tools,lib}.rs; kiana-domain/src/{model,execution_identity}.rs; kiana-ports/src/lib.rs; kiana-core/src/dispatch.rs; kiana-runner/tests/h10_invocation_identity.rs; kiana-runner/tests/h10_invocation_identity_guard.rs; .github/workflows/h10-invocation-identity.yml; docs/roadmap/harness-invocation-identity-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: complete assistant tool batches are validated before mapping/dispatch; each request ID is derived once from run/turn/step/assistant item/ordinal, explicit mapper identity is reused for emit and checkpoint restore, and restore rejects catalog or tuple identity drift; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h10_invocation_identity.rs invalid second call, duplicate call ID, queue/checkpoint/restore identity fixtures; kiana-runner/tests/h10_invocation_identity_guard.rs source guard; GitHub Actions H10 workflow runs identity fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H10 is triggered by the eventual push and is not awaited
+status_change: H10 source slice is implemented. Invalid assistant batches cannot partially dispatch, and a restored queued request preserves the same server-derived identity instead of minting a new request ID.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: full Invocation declaration/dispatch and result persistence remain H11–H13, approval recovery/CAS and provider/external effect proof remain later CP/PD/INT work, and provider call IDs remain correlation metadata only
+reviewer: Codex root implementation review plus H10 whole-batch validation, deterministic identity derivation, explicit mapping and checkpoint restore fencing; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
