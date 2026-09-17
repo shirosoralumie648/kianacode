@@ -91,7 +91,7 @@
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ✅ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ✅ |
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ✅ |
-| `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
+| `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ✅ |
 | `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ✅ |
 | `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ⏳ |
 | `P1-J3-03` | P1 | J3 Memory | `P1-J3-01`、`P0-F-01` | 抽取建议包带 evidence 与相似旧记录；三档准入落地 | ⏳ |
@@ -533,7 +533,7 @@
 | 362 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ✅ | [基础卡](#step-p1-j2-01) |
 | 363 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ✅ | [基础卡](#step-p1-j2-02) |
 | 364 | W4 | 基础 | [`P1-J2-03`](#step-p1-j2-03) | P1 基础 · 角色 prompt 接线 | `P1-J2-01` | ✅ | [基础卡](#step-p1-j2-03) |
-| 365 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ⏳ | [基础卡](#step-p1-j2-04) |
+| 365 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ✅ | [基础卡](#step-p1-j2-04) |
 | 366 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ⏳ | [基础卡](#step-p1-j3-02) |
 | 367 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ⏳ | [基础卡](#step-p1-j3-03) |
 | 368 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ⏳ | [基础卡](#step-p1-j3-04) |
@@ -1139,6 +1139,7 @@
 | 当前 183 | `P1-J2-01` context sections | typed PromptSection with deterministic `(order,name,source)` rendering, Product/Context authority separation and per-section prompt hash provenance are consumed by PromptBundle/core/daemon assembly;新增 domain/core CI fixtures、workflow 与 context-sections baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-01 已触发且未等待；token budget coverage、role provider wire、role-pack source and immutable StepContext remain P1-J2-02/03/04/H20/CM；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 184 | `P1-J2-02` context budget | TokenBudget includes message/system/tool-schema/reserved-output components with conservative framing reserve; prepared model calls validate the same total and fail closed on zero/overflow limits;新增 domain/core CI fixtures、workflow 与 budget baseline | `feature_status=implemented`（domain/model/ports/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-02 已触发且未等待；provider tokenizer/wire exactness、cache/compaction/billing and immutable step snapshot 留待 P1-J2-03/04/H20/H21/P4/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 185 | `P1-J2-03` role prompt | assigned RoleSpec prompt is encoded in PromptBundle, carried by Runner and mapped to provider system field after the product safety section; environment additions stay policy-subject;新增 core source guard/workflow 与 role-prompt baseline | `feature_status=implemented`（domain/core/runner/daemon/provider source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-03 已触发且未等待；role-pack loading/source trust, immutable StepContext and exact provider framing 留待 P1-J2-04/H20/H21/EXT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 186 | `P1-J2-04` role packs | nine RoleSpec factories load bundled role-pack files; PromptBundle/Assignment/RunSnapshot/Receipt preserve prompt_hash; trusted project skills/extensions remain bounded Context after ProjectTrust;新增 domain/core CI fixtures、workflow 与 role-pack baseline | `feature_status=implemented`（domain/core/daemon/skills source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-04 已触发且未等待；signed/hot role packs、immutable StepContext/provider framing/cache and cross-process catalog recovery 留待 EXT/SC/DEP/H20/H21；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1373,6 +1374,7 @@
 | 2026-09-18 | `P1-J2-01` context sections：回填 typed PromptSection、(order,name,source) 确定性 render、Product/Context authority 分层与 per-section prompt hash provenance；PromptBundle/core/daemon 复用，新增 domain/core fixtures、workflow 与 context-sections baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J2-02` context budget：TokenBudget 按同一 prepared request 计入 messages/system prompt/tool schemas/reserved output 与 framing reserve，零/超限在 provider 前 fail-closed；新增 domain/core fixtures、workflow 与 budget baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J2-03` role prompt：core 按 assigned RoleSpec 构造 PromptBundle，Runner 携带 bundle，daemon provider 解码并写入 system 字段，产品安全区段保持优先；新增 core source guard、workflow 与 role-prompt baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-J2-04` role packs：九个 RoleSpec factory 编译期加载 role-packs/*.md，PromptBundle/Assignment/RunSnapshot/Receipt 绑定 prompt_hash；ProjectTrust 后的 skills/extensions 仅作为 bounded Context；新增 domain/core fixtures、workflow 与 role-pack baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2028,10 +2030,12 @@
 
 <a id="step-p1-j2-04"></a>
 
-### P1-J2-04 提示词来源与角色包加载　⏳
+### P1-J2-04 提示词来源与角色包加载　✅
 
-- **现状**：`provider_system_prompt()`（`kiana-daemon/src/model_client.rs:166`）先读环境变量，否则回落 `RoleSpec::builder().prompt`——角色提示词写死在 `roles.rs` 构造函数，不从 kiana-skills 角色包加载。
-- **做什么**：角色提示词改从角色包 / `kiana-skills` 加载；`prompt_hash` 进收据可复现。
+当前 source slice 与 CI-only 证据见 [`p1-j2-04-role-pack-baseline.md`](roadmap/p1-j2-04-role-pack-baseline.md)。
+
+- **现状**：九个 `RoleSpec` factory 已从 `kiana-domain/role-packs/*.md` 编译期加载并计算 hash，project skills/extensions 由 trust-aware daemon loader 作为 Context 注入；此前缺少独立验收追踪。
+- **做什么**：固定 role-pack 内容/hash 在 PromptBundle、Assignment、RunSnapshot/Receipt 中可复现，并保留 ProjectTrust 后的低信任 skill context 边界。
 - **风险**：提示词换源后 hash 必须按换源后的内容计算，否则收据复现失效；环境变量逃生口保留但不得成为产品路径。
 - **验收**：`role_prompt_loads_from_the_role_pack`
 - **依赖 / 边界**：依赖 `P1-J2-03`（先有管道再换源）；提示词产品拥有（12-factor #2）。

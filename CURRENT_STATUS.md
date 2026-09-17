@@ -3526,6 +3526,25 @@ limitations: provider-native framing/tokenizer and live route proof, role-pack l
 reviewer: Codex root implementation review plus P1-J2-03 RoleSpec/PromptBundle/provider system routing, safety ordering and authority separation; no runtime test reviewer
 ```
 
+### P1-J2-04 role-pack source and hash evidence (2026-09-18)
+
+```text
+source_snapshot: fd35cfe + P1-J2-04 evidence slice; kiana-domain/src/{roles,prompts}.rs; kiana-domain/role-packs/*.md; kiana-daemon/src/harness_skills.rs; kiana-core/src/{lifecycle,recovery,receipts}.rs; kiana-domain/tests/p1_j2_04_role_pack.rs; kiana-core/tests/p1_j2_04_role_pack_guard.rs; .github/workflows/p1-j2-04-role-pack.yml; docs/roadmap/p1-j2-04-role-pack-baseline.md
+worktree_status: all nine RoleSpec factories load compile-time role-pack files and derive stable prompt_hash; PromptBundle validates exact role content, lifecycle/receipt/snapshot facts carry the hash, and ProjectTrust-gated skills/extensions remain bounded Context sections; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p1_j2_04_role_pack.rs nine role-pack/hash/bundle fixtures; kiana-core/tests/p1_j2_04_role_pack_guard.rs receipt/resume/trust source guard; GitHub Actions P1-J2-04 workflow runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J2-04 is triggered by the eventual push and is not awaited
+status_change: P1-J2-04 source slice is implemented/reconciled. Role-pack source and prompt hash are now explicit and reproducible across PromptBundle, assignment, snapshot and receipt boundaries.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: role packs remain compile-time bundled without signed/hot updates; provider exact framing/cache, immutable StepContext and cross-process catalog recovery remain EXT/SC/DEP/H20/H21 work
+reviewer: Codex root implementation review plus P1-J2-04 role-pack source, hash propagation, ProjectTrust context boundary and resume drift fence; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

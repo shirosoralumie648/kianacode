@@ -1,0 +1,54 @@
+name: P1-J2-04 role packs
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/role-packs/*.md"
+      - "kiana-domain/tests/p1_j2_04_role_pack.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/p1_j2_04_role_pack_guard.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j2-04-role-pack-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j2-04-role-pack.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/role-packs/*.md"
+      - "kiana-domain/tests/p1_j2_04_role_pack.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/p1_j2_04_role_pack_guard.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j2-04-role-pack-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j2-04-role-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  role-packs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P1-J2-04 domain fixtures
+        run: cargo test -p kiana-domain --test p1_j2_04_role_pack --locked -- --test-threads=1
+      - name: Run P1-J2-04 core guard
+        run: cargo test -p kiana-core --test p1_j2_04_role_pack_guard --locked -- --test-threads=1
+      - name: Compile P1-J2-04 targets
+        run: cargo check --workspace --tests --locked
