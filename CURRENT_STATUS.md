@@ -3659,6 +3659,25 @@ limitations: pricing/rate cards, provider invoice/correction/refund, durable quo
 reviewer: Codex root implementation review plus typed budget separation, conservative usage, provider-before-reservation and no-second-ledger boundary review; no runtime test reviewer
 ```
 
+### P1-L1-01 GoldenTrace evidence (2026-09-18)
+
+```text
+source_snapshot: 10d682a4 + P1-L1-01 evidence slice; kiana-core/src/{versioning,receipts,eval}.rs; kiana-domain/src/quality.rs; kiana-core/tests/p1_l1_01_golden_trace.rs; kiana-domain/tests/eq03_eval_objects.rs; .github/workflows/p1-l1-01-golden-trace.yml; docs/roadmap/p1-l1-01-golden-trace-baseline.md; docs/roadmap.md
+worktree_status: trace.capture binds an authenticated/trusted owner/project/run to controlled source manifest/hash, input/events/runtime version and receipt, appending a new golden_trace.captured fact; trace.replay validates owner/project/event digest/data revocation and only folds history/invocations with side_effects=false/provider_calls=0; strict domain GoldenTrace remains the typed contract; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p1_l1_01_golden_trace.rs capture/replay source guard; kiana-domain/tests/eq03_eval_objects.rs strict GoldenTrace object fixtures; existing core eval_baseline/provider-independent replay regression; GitHub Actions P1-L1-01 workflow runs guard, object fixtures, eval baseline and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-L1-01 is triggered by the eventual push and is not awaited
+status_change: P1-L1-01 source slice is implemented/reconciled. GoldenTrace capture/replay now has explicit source/input/version/receipt binding and a no-side-effect replay contract.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: legacy capture JSON and strict GoldenTrace are not yet unified through durable EvalStore/FixtureStore, normalizer/diff, isolated runner, Judge, experiment/result/gate or promote/rollback; replay proves local projection behavior only, not model quality, business Outcome, payment, external effect or live/physical evidence
+reviewer: Codex root implementation review plus owner/source/hash/revocation/no-side-effect replay boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

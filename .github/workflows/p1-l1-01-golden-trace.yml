@@ -1,0 +1,53 @@
+name: P1-L1-01 golden trace
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/versioning.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/eval.rs"
+      - "kiana-domain/src/quality.rs"
+      - "kiana-core/tests/p1_l1_01_golden_trace.rs"
+      - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-core/tests/eval_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-l1-01-golden-trace-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-l1-01-golden-trace.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/versioning.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/eval.rs"
+      - "kiana-domain/src/quality.rs"
+      - "kiana-core/tests/p1_l1_01_golden_trace.rs"
+      - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-core/tests/eval_baseline.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-l1-01-golden-trace-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-l1-01-golden-trace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden-trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run GoldenTrace source guard
+        run: cargo test -p kiana-core --test p1_l1_01_golden_trace --locked -- --test-threads=1
+      - name: Run strict GoldenTrace object fixtures
+        run: cargo test -p kiana-domain --test eq03_eval_objects --locked -- --test-threads=1
+      - name: Run provider-independent eval baseline
+        run: cargo test -p kiana-core --test eval_baseline --locked -- --test-threads=1
+      - name: Compile P1-L1-01 targets
+        run: cargo check --workspace --tests --locked
+
