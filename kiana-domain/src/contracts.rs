@@ -37,6 +37,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "InputId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "input_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "RunId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "run_id",
@@ -890,6 +896,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         name: "kiana.job-handle.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.input-receipt.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
         owner_crate: "kiana-domain",
         compatibility: CompatibilityPolicy::Breaking,
         allow_unknown_fields: false,

@@ -3222,6 +3222,25 @@ limitations: process map and JobHandle projector remain process-local; cross-pro
 reviewer: Codex root implementation review plus H17 handle identity, owner/run/turn/authority/TTL fencing, restart no-attach policy and operation-level invocation boundaries; no runtime test reviewer
 ```
 
+### H-18 checkpointed Inbox and input receipt evidence (2026-09-18)
+
+```text
+source_snapshot: 55bb304 + H-18 working-tree slice; kiana-domain/src/{ids,contracts,inbox_contract,lib}.rs; kiana-runner/src/{inbox,harness}.rs; kiana-runner/tests/h18_inbox.rs; kiana-core/tests/h18_inbox_guard.rs; .github/workflows/h18-inbox.yml; docs/roadmap/harness-inbox-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: Inbox messages now carry server-owned InputId, source, target, target turn and monotonic received sequence; NextTurn/NextStep queues and claimed ledger are bounded, duplicate/claimed replays are idempotent, queue overflow returns backpressure, and InputReceipt provides accepted/duplicate/claimed ACK projection; HarnessCheckpoint serializes/restores inbox and claim state, while claim rejects cross-turn steering; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h18_inbox.rs duplicate/claim, checkpoint order and cross-turn fixtures; kiana-core/tests/h18_inbox_guard.rs claim/checkpoint/backpressure source guards; GitHub Actions H18 workflow runs runner fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H18 is triggered by the eventual push and is not awaited
+status_change: H18 source slice is implemented. Input identity, ACK/claim semantics, bounded backpressure and checkpoint round-trip are now explicit Runner contracts; no duplicate input is consumed twice.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: accepted/consumed input facts are not yet atomically projected by every ControlPlane entrypoint; large payload Artifact refs, reconnect/steer protocol and cross-process Inbox projector remain H19/PD/ER work
+reviewer: Codex root implementation review plus H18 InputId/receipt contract, queue bounds, duplicate/claim ledger, target-turn fence and checkpoint persistence; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

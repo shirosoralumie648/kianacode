@@ -182,6 +182,8 @@ struct HarnessCheckpoint {
     driver: Option<RunDriver>,
     sandbox: String,
     project_root: String,
+    #[serde(default)]
+    inbox: Inbox,
     messages: Vec<ModelMessage>,
     #[serde(default)]
     prompt_sources: Vec<serde_json::Value>,
@@ -438,8 +440,11 @@ impl KianaHarness {
         run.driver
             .queue_input()
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+        let mut message = InboxMessage::user(text);
+        message.target_turn_id = run.turn_id;
         run.inbox
-            .insert(InboxTarget::NextStep, InboxMessage::user(text));
+            .insert_for_run(run_id, InboxTarget::NextStep, message)
+            .map_err(KianaHarnessError::Failed)?;
         Ok(())
     }
 
@@ -626,7 +631,8 @@ impl KianaHarness {
             .queue_input()
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         run.inbox
-            .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
+            .insert_for_run(run_id, InboxTarget::NextTurn, InboxMessage::user(prompt))
+            .map_err(KianaHarnessError::Failed)?;
         for message in run.inbox.claim(InboxTarget::NextTurn) {
             run.messages.push(ModelMessage::user(message.text));
         }
@@ -693,7 +699,7 @@ impl KianaHarness {
         match observation.status {
             ToolObservationStatus::Denied => {
                 emitter.emit_event(RunnerEvent::Failed {
-                    run_id,
+                    run_id: run.run_id,
                     error: format!(
                         "tool_denied_no_retry:{}",
                         observation
@@ -800,7 +806,8 @@ impl KianaHarness {
             .queue_input()
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         run.inbox
-            .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
+            .insert_for_run(run_id, InboxTarget::NextTurn, InboxMessage::user(prompt))
+            .map_err(KianaHarnessError::Failed)?;
         for message in run.inbox.claim(InboxTarget::NextTurn) {
             run.messages.push(ModelMessage::user(message.text));
         }
@@ -945,6 +952,16 @@ impl KianaHarness {
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
         for message in run.inbox.claim(InboxTarget::NextStep) {
+            if message
+                .target_turn_id
+                .is_some_and(|turn| Some(turn) != run.turn_id)
+            {
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id: run.run_id,
+                    error: "inbox_target_turn_mismatch".to_owned(),
+                })?;
+                return Ok(StepProgress::Finished);
+            }
             run.messages.push(ModelMessage::user(message.text));
         }
 
@@ -1666,6 +1683,7 @@ impl RunnerPort for KianaHarness {
             driver: Some(run.driver.clone()),
             sandbox: run.sandbox.clone(),
             project_root: run.project_root.clone(),
+            inbox: run.inbox.clone(),
             messages: run.messages.clone(),
             prompt_sources: run.prompt_sources.clone(),
             model_assignment: run.model_assignment.clone(),
@@ -1699,6 +1717,7 @@ impl RunnerPort for KianaHarness {
         {
             return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
         }
+        checkpoint.inbox.validate().map_err(PortError::Failed)?;
         let current_tool_catalog = kiana_domain::current_tool_catalog();
         current_tool_catalog.validate().map_err(PortError::Failed)?;
         if !checkpoint.tool_catalog_digest.trim().is_empty()
@@ -1783,7 +1802,7 @@ impl RunnerPort for KianaHarness {
                 driver,
                 sandbox: checkpoint.sandbox,
                 project_root: checkpoint.project_root,
-                inbox: Inbox::default(),
+                inbox: checkpoint.inbox,
                 messages: checkpoint.messages,
                 prompt_sources: checkpoint.prompt_sources,
                 model_assignment: checkpoint.model_assignment,

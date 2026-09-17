@@ -432,7 +432,9 @@ sequenceDiagram
 
 <a id="step-h18"></a>
 
-#### H18 — 持久 Inbox、ACK 与原子消费　⏳
+#### H18 — 持久 Inbox、ACK 与原子消费　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-inbox-baseline.md`](harness-inbox-baseline.md)。
 
 **关联原单元**：`P0-G-02a/02b`、`P0-G-04`、`P1-E-01`。**依赖**：H02、H03、H13。
 
