@@ -3640,6 +3640,25 @@ limitations: observability and typed projections remain re-buildable from EventL
 reviewer: Codex root implementation review plus source-only receipt/projection/redaction and no-execution-boundary review; no runtime test reviewer
 ```
 
+### P1-K5-01 cost/capacity evidence (2026-09-18)
+
+```text
+source_snapshot: 30e83ef + P1-K5-01 evidence slice; kiana-domain/src/{usage,budget_contracts,company}.rs; kiana-core/src/{model_budget,cell_registry,receipts}.rs; kiana-runner/src/budget.rs; kiana-domain/tests/p1_k5_01_cost_capacity.rs; kiana-core/tests/p1_k5_01_cost_capacity_guard.rs; .github/workflows/p1-k5-01-cost-capacity.yml; docs/roadmap/p1-k5-01-cost-capacity-baseline.md; docs/roadmap.md
+worktree_status: UsageRecord/CostLedger preserve known token totals and unknown cost; Company keeps ProjectBudget, RuntimeBudget and Quota separate; Runner/Core/CP-11 reserve and settle bounded model/tool budgets before provider/effect and keep unknown usage conservative; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p1_k5_01_cost_capacity.rs UsageRecord/CostLedger and Runtime/Project/Quota separation fixtures; kiana-core/tests/p1_k5_01_cost_capacity_guard.rs source guard; existing CP-11 and H-07 fixtures; GitHub Actions P1-K5-01 workflow runs all listed fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-K5-01 is triggered by the eventual push and is not awaited
+status_change: P1-K5-01 source slice is implemented/reconciled. Runtime usage, project budget and quota semantics are typed and separated; missing usage/cost remains Unknown rather than zero or paid.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: pricing/rate cards, provider invoice/correction/refund, durable quota projector, cross-process atomic settlement, capacity backend and external/live/physical billing evidence remain BQ/CP/PD/ER work; CostLedger is an observation projection and does not prove payment or provider acceptance
+reviewer: Codex root implementation review plus typed budget separation, conservative usage, provider-before-reservation and no-second-ledger boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
