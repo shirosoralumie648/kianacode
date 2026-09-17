@@ -1,0 +1,48 @@
+name: CAP-05 permit verification and single dispatch
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-domain/src/dispatch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cap05_permit.rs"
+      - "docs/roadmap/capability-permit-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap05-permit.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-domain/src/dispatch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cap05_permit.rs"
+      - "docs/roadmap/capability-permit-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap05-permit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  permit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CAP-05 permit fixtures and guard
+        run: cargo test -p kiana-core --test cap05_permit --locked -- --test-threads=1
+      - name: Compile CAP-05 targets
+        run: cargo check --workspace --tests --locked

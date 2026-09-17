@@ -418,7 +418,9 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-05 — 核验授权事实，原子领取一次执行
+#### CAP-05 — 核验授权事实，原子领取一次执行　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-permit-baseline.md`](capability-permit-baseline.md)。
 
 - **落点：** core/capabilities、recovery、approvals，broker/dispatch，ports，EventStore CAS。
 - **步骤：** 复用 CP-13 对 `claim_invocation` 的扩展及 `DispatchPermit`，按 §20.5 区分签发与一次 start 消费；不新增独立事件存储或 HashSet。permit 绑定 principal、输入、scope、catalog/binding、environment plan、epoch 和 expiry。正常调用、审批续跑、operator/extension 入口共用同一派发函数。

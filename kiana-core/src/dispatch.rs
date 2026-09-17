@@ -108,7 +108,13 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             .authorization_id
             .strip_prefix("permit:")
             .ok_or_else(|| dispatch_error("execution_permit_required"))?;
+        if id.trim().is_empty() {
+            return Err(dispatch_error("execution_permit_required"));
+        }
         let records = self.events.read_stream("execution_permit", id).await?;
+        if records.len() > 1 {
+            return Err(dispatch_error("execution_permit_already_consumed"));
+        }
         if records.len() != 1 || records[0].kind != "execution.prepared" {
             return Err(dispatch_error("execution_permit_unavailable"));
         }
@@ -123,6 +129,19 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
                 .is_err()
         {
             return Err(dispatch_error("execution_permit_scope_or_expiry_mismatch"));
+        }
+        for dependency in &permit.authority_versions {
+            let current = self
+                .events
+                .read_stream(&dependency.aggregate_type, &dependency.aggregate_id)
+                .await?
+                .iter()
+                .filter_map(|event| event.stream_version.or(Some(event.sequence)))
+                .max()
+                .unwrap_or(0);
+            if current != dependency.version {
+                return Err(dispatch_error("old_epoch_permit_rejected"));
+            }
         }
         let mut expected = permit.authority_versions.clone();
         expected.push(AggregateVersion {

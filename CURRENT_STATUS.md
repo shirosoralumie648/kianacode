@@ -2956,6 +2956,25 @@ limitations: in-memory and JSONL source checks do not prove power-loss/cross-hos
 reviewer: Codex root implementation review plus ER-16 terminal kind validation, stable CAS/idempotency, conflict/Unknown handling, quarantine and shutdown ordering; no runtime test reviewer
 ```
 
+### CAP-05 permit verification and single dispatch evidence (2026-09-17)
+
+```text
+source_snapshot: 02d9e1a + CAP-05 working-tree slice; kiana-core/src/dispatch.rs; kiana-capability-broker/src/lib.rs; kiana-domain/src/dispatch.rs; kiana-ports/src/lib.rs; kiana-core/tests/cap05_permit.rs; .github/workflows/cap05-permit.yml; docs/roadmap/capability-permit-baseline.md; docs/roadmap/capability.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: JournalPermitVerifier now rejects missing/empty permit identities, distinguishes an already-consumed execution_permit stream, validates strict DispatchPermit/request/project/expiry, rechecks every authority_versions dependency immediately before CAS consumption, and returns old_epoch_permit_rejected on drift; only committed invocation.dispatching reaches the existing handler path, while concurrent/unknown consumption remains fenced; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/cap05_permit.rs MemoryEventLog prepared permit, concurrent single-consumer and opaque/empty authorization fixtures plus commit-before-handler source guard; GitHub Actions CAP-05 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-05 is triggered by the eventual push and is not awaited
+status_change: CAP-05 source slice is implemented. Broker authorization is now a server-verified opaque permit with authority epoch recheck and durable single-consume CAS; an unconfirmed dispatch cannot invoke a handler.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: fixture uses in-memory EventStore and does not prove JSONL power-loss/cross-process races, OS spawn crash recovery, process/effect exactly-once, approval continuation, provider receipts or external/live/physical outcomes; those remain CAP-06+/CP/ER/PD/INT work
+reviewer: Codex root implementation review plus CAP-05 permit identity, authority read-set epoch recheck, single-consume CAS and no-handler-before-commit boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
