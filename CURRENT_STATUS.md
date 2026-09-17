@@ -3545,6 +3545,25 @@ limitations: role packs remain compile-time bundled without signed/hot updates; 
 reviewer: Codex root implementation review plus P1-J2-04 role-pack source, hash propagation, ProjectTrust context boundary and resume drift fence; no runtime test reviewer
 ```
 
+### P1-J3-02 memory retrieval and ACL evidence (2026-09-18)
+
+```text
+source_snapshot: 9ffe7e2 + P1-J3-02 evidence slice; kiana-daemon/src/{harness_memory,memory_retrieval}.rs; kiana-domain/src/{context_scope,roles,memory}.rs; kiana-core/src/receipts.rs; kiana-daemon/tests/daemon_host.rs; kiana-daemon/tests/p1_j3_02_memory.rs; .github/workflows/p1-j3-02-memory.yml; docs/roadmap/p1-j3-02-memory-retrieval-baseline.md
+worktree_status: server-derived MemoryScope and RoleSpec knowledge grants reject unauthorized collections before file reads; searchable/revoked/scratch filters feed deterministic sparse/dense/RRF/MMR ranking with score components, and receipt projection attaches retrieval event/request/query/role provenance; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-daemon/tests/p1_j3_02_memory.rs ACL/ranking/receipt source guards; existing daemon_host project-hit and unauthorized-collection runtime fixtures; GitHub Actions P1-J3-02 workflow runs the guard, selected receipt regression and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J3-02 is triggered by the eventual push and is not awaited
+status_change: P1-J3-02 source slice is implemented/reconciled. Memory hits now carry explicit relevance/provenance and remain bounded by server ACLs through both scope and role grants.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: durable index/cache/projector, exact hybrid model health, context selection/omission and deletion/revocation propagation remain P1-J3-04/CM/PD/SC work; no network embedding service is introduced
+reviewer: Codex root implementation review plus P1-J3-02 ACL-before-read, ranking metadata, provenance and receipt projection invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

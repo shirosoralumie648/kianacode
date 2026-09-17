@@ -93,7 +93,7 @@
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ✅ |
 | `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ✅ |
 | `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ✅ |
-| `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ⏳ |
+| `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ✅ |
 | `P1-J3-03` | P1 | J3 Memory | `P1-J3-01`、`P0-F-01` | 抽取建议包带 evidence 与相似旧记录；三档准入落地 | ⏳ |
 | `P1-J3-04` | P1 | J3 Memory | `P1-J3-02` | hybrid 检索（BM25+本地向量+RRF+MMR）确定性可复现；模型 hash 校验 fail-closed | ⏳ |
 | `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01a` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ⏳ |
@@ -534,7 +534,7 @@
 | 363 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ✅ | [基础卡](#step-p1-j2-02) |
 | 364 | W4 | 基础 | [`P1-J2-03`](#step-p1-j2-03) | P1 基础 · 角色 prompt 接线 | `P1-J2-01` | ✅ | [基础卡](#step-p1-j2-03) |
 | 365 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ✅ | [基础卡](#step-p1-j2-04) |
-| 366 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ⏳ | [基础卡](#step-p1-j3-02) |
+| 366 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ✅ | [基础卡](#step-p1-j3-02) |
 | 367 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ⏳ | [基础卡](#step-p1-j3-03) |
 | 368 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ⏳ | [基础卡](#step-p1-j3-04) |
 | 369 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-l4-01) |
@@ -1140,6 +1140,7 @@
 | 当前 184 | `P1-J2-02` context budget | TokenBudget includes message/system/tool-schema/reserved-output components with conservative framing reserve; prepared model calls validate the same total and fail closed on zero/overflow limits;新增 domain/core CI fixtures、workflow 与 budget baseline | `feature_status=implemented`（domain/model/ports/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-02 已触发且未等待；provider tokenizer/wire exactness、cache/compaction/billing and immutable step snapshot 留待 P1-J2-03/04/H20/H21/P4/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 185 | `P1-J2-03` role prompt | assigned RoleSpec prompt is encoded in PromptBundle, carried by Runner and mapped to provider system field after the product safety section; environment additions stay policy-subject;新增 core source guard/workflow 与 role-prompt baseline | `feature_status=implemented`（domain/core/runner/daemon/provider source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-03 已触发且未等待；role-pack loading/source trust, immutable StepContext and exact provider framing 留待 P1-J2-04/H20/H21/EXT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 186 | `P1-J2-04` role packs | nine RoleSpec factories load bundled role-pack files; PromptBundle/Assignment/RunSnapshot/Receipt preserve prompt_hash; trusted project skills/extensions remain bounded Context after ProjectTrust;新增 domain/core CI fixtures、workflow 与 role-pack baseline | `feature_status=implemented`（domain/core/daemon/skills source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J2-04 已触发且未等待；signed/hot role packs、immutable StepContext/provider framing/cache and cross-process catalog recovery 留待 EXT/SC/DEP/H20/H21；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 187 | `P1-J3-02` memory retrieval | server-derived MemoryScope/RoleSpec ACL rejects unauthorized collections before read; admitted searchable records receive deterministic score/matched terms/components, and receipt folds retrieval event/request/query/role provenance;新增 daemon CI guard/workflow 与 memory retrieval baseline | `feature_status=implemented`（domain/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-J3-02 已触发且未等待；durable index/cache, exact hybrid model lifecycle, context selection and deletion propagation 留待 P1-J3-04/CM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1375,6 +1376,7 @@
 | 2026-09-18 | `P1-J2-02` context budget：TokenBudget 按同一 prepared request 计入 messages/system prompt/tool schemas/reserved output 与 framing reserve，零/超限在 provider 前 fail-closed；新增 domain/core fixtures、workflow 与 budget baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J2-03` role prompt：core 按 assigned RoleSpec 构造 PromptBundle，Runner 携带 bundle，daemon provider 解码并写入 system 字段，产品安全区段保持优先；新增 core source guard、workflow 与 role-prompt baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-J2-04` role packs：九个 RoleSpec factory 编译期加载 role-packs/*.md，PromptBundle/Assignment/RunSnapshot/Receipt 绑定 prompt_hash；ProjectTrust 后的 skills/extensions 仅作为 bounded Context；新增 domain/core fixtures、workflow 与 role-pack baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-J3-02` memory retrieval：server-derived MemoryScope/RoleSpec grants 在读前拒绝越权 collection，searchable/revoked/scratch 过滤后执行确定性 score/matched_terms/components，receipt 折叠 retrieval event/request/query/role provenance；新增 daemon source guard、workflow 与 receipt/ACL 回归；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2066,10 +2068,12 @@
 
 <a id="step-p1-j3-02"></a>
 
-### P1-J3-02 分层检索与密级　⏳
+### P1-J3-02 分层检索与密级　✅
 
-- **现状**：分层存储已存在——home 侧 `company/user/user-prefs/user-private.jsonl`，项目侧 `department/role/project/instance/*.jsonl`（`kiana-daemon/src/harness_memory.rs:220-293`）；读写两端都有 RoleSpec grants ACL（`allows_knowledge` / `allows_memory_write`）。缺：相关性打分（现为纯 AND 词项包含 `text_matches`）、命中与收据的显式关联（COMPANY.md 的 `AgentInstance.retrieved`）、「检索结果不得静默拼进系统提示」的强制。
-- **做什么**：检索升级为多词项 OR + 计数打分（CLI 侧 `search_memory_records` 已有此实现，搬到 harness 工具面）；命中显式写进收据（谁查了什么、用了哪几条、来自哪层）。
+当前 source slice 与 CI-only 证据见 [`p1-j3-02-memory-retrieval-baseline.md`](roadmap/p1-j3-02-memory-retrieval-baseline.md)。
+
+- **现状**：分层 JSONL、server-derived MemoryScope/RoleSpec grants、确定性 rank_records 与 receipt memory-hit projection 已存在；此前缺少 P1 验收追踪与统一回执说明。
+- **做什么**：固定多词项相关性评分/可选本地 dense 融合、ACL-before-read、revoked/searchable 过滤、hit provenance 和“结果作为 tool context 而非 system authority”的边界。
 - **风险**：无法指认来源的内容不得进入 Reviewer 的「已验证」结论。
 - **验收**：`memory_hits_respect_knowledge_grants_and_reach_the_receipt`
 - **依赖 / 边界**：依赖 `P1-J3-01`；检索结果本回合注入、下回合重查，不得静默拼进系统提示；不引入网络 embedding 服务。

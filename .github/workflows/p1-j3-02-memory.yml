@@ -1,0 +1,50 @@
+name: P1-J3-02 memory retrieval
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p1_j3_02_memory.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-core/src/receipts.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j3-02-memory-retrieval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j3-02-memory.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-daemon/tests/p1_j3_02_memory.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-core/src/receipts.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-j3-02-memory-retrieval-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-j3-02-memory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-retrieval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P1-J3-02 source guard
+        run: cargo test -p kiana-daemon --test p1_j3_02_memory --locked -- --test-threads=1
+      - name: Run P1-J3-02 receipt regression
+        run: cargo test -p kiana-daemon --test daemon_host builder_project_search_hits_land_on_receipt --locked -- --test-threads=1
+      - name: Compile P1-J3-02 targets
+        run: cargo check --workspace --tests --locked
