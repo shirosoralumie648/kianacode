@@ -839,6 +839,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.entrypoint-command.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-core",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.entrypoint-parity-matrix.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-core",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.policy-bundle.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

@@ -2532,6 +2532,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-10 exact approval subject/self-approval/one-shot/replay boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-11 entrypoint and adapter parity evidence (2026-09-17)
+
+```text
+source_snapshot: 9411160 + SC-11 working-tree slice; kiana-core/src/{entrypoint_parity,parity,lib}.rs; kiana-core/tests/sc11_entrypoint_parity.rs; kiana-core/tests/sc11_entrypoint_guard.rs; kiana-domain/src/{parity,contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; .github/workflows/sc11-entrypoint-parity.yml; docs/roadmap/security-entrypoint-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-11 strict EntrypointCommand/EntrypointParityMatrix, expanded entrypoint labels, optional RequestMetadata label, fixed DaemonHost→ControlPlane route, denied-handler zero-effect invariant, CI fixtures/source guards and roadmap/status overlays are scoped to this step; no local authority/second execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/entrypoint_parity.rs kiana-core/src/parity.rs kiana-core/src/lib.rs kiana-core/tests/sc11_entrypoint_parity.rs kiana-core/tests/sc11_entrypoint_guard.rs kiana-domain/src/parity.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-daemon/src/lib.rs .github/workflows/sc11-entrypoint-parity.yml docs/roadmap/security-entrypoint-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'EntrypointCommand|EntrypointParityMatrix|ENTRYPOINT_ROUTE|daemonhost\.controlplane|EntrypointDecision|entrypoint_parity_denied_handler_effect|entrypoint|SecurityContext|DaemonHost|ControlPlane' kiana-core/src kiana-core/tests kiana-domain/src kiana-protocol/src kiana-daemon/src docs/roadmap/security-entrypoint-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/sc11_entrypoint_parity.rs multi-entry command digest/route, deny zero-effect, unknown/alternate-route/digest mismatch fixtures; kiana-core/tests/sc11_entrypoint_guard.rs source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-11 job is queued by the push and is not awaited
+status_change: SC-11 source slice is implemented. EntrypointCommand and EntrypointParityMatrix now normalize CLI/TTY/Web/Workbench/Desktop/scheduler/swarm/connector requests to one fixed DaemonHost→ControlPlane route with common request/arguments/context digests; Denied handler_calls cannot be nonzero, alternate routes and mismatched command identities fail closed. RequestMetadata entrypoint is optional correlation only; existing EventLog parity projection remains the authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; historical adapters do not all yet populate the optional label or matrix, transport/session/HumanInbox/receipt/redaction/unknown parity is not durable, scheduler/swarm/connector effect routes still require later integration, and external/live/physical safety remains unproven
+reviewer: Codex root implementation review plus SC-11 single-route/zero-effect/entrypoint-label parity reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

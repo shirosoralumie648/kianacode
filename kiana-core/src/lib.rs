@@ -31,6 +31,7 @@ mod memory_distillation;
 mod model_budget;
 pub use model_budget::JournalModelBudget;
 mod capability_attempt_projection;
+mod entrypoint_parity;
 mod memory_proposals;
 mod metrics;
 mod model_attempt_projection;
@@ -67,6 +68,10 @@ pub use capability_attempt_projection::{
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
 pub use data_governance::{project_data_governance, project_data_governance_snapshot};
+pub use entrypoint_parity::{
+    EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,
+    ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,
+};
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,

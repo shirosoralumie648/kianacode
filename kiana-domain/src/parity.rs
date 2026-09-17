@@ -12,9 +12,13 @@ pub const MAX_PARITY_LIMITATIONS: usize = 16;
 #[serde(rename_all = "snake_case")]
 pub enum EntryPointKind {
     Cli,
+    Tty,
     Web,
     Workbench,
     Desktop,
+    Scheduler,
+    Swarm,
+    Connector,
 }
 
 fn nonempty(value: &str, field: &str, max: usize) -> Result<(), String> {

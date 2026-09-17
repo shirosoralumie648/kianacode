@@ -232,6 +232,9 @@ pub struct RequestMetadata {
     /// Explicit compatibility marker for the historical local-user migration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity_mode: Option<String>,
+    /// Optional server-recognized entrypoint label; it is correlation metadata, never authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entrypoint: Option<EntryPointKind>,
 }
 
 impl RequestMetadata {
@@ -253,7 +256,13 @@ impl RequestMetadata {
             host: None,
             credential_ref: None,
             identity_mode: None,
+            entrypoint: None,
         }
+    }
+
+    pub fn with_entrypoint(mut self, entrypoint: EntryPointKind) -> Self {
+        self.entrypoint = Some(entrypoint);
+        self
     }
 
     /// 用角色快照同步 role/department 字段。
