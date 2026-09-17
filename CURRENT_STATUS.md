@@ -2553,6 +2553,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-11 single-route/zero-effect/entrypoint-label parity reconciliation; no runtime test reviewer
 ```
 
+### CP-07 JSONL transaction frame and recovery reader evidence (2026-09-17)
+
+```text
+source_snapshot: ed226ee + CP-07 working-tree slice; kiana-domain/src/journal.rs; kiana-domain/tests/cp07_journal_frame.rs; kiana-eventlog/src/{jsonl,journal_core}.rs; kiana-core/src/dispatch.rs; kiana-core/tests/cp07_journal_guard.rs; .github/workflows/cp07-journal.yml; docs/roadmap/control-plane-journal-baseline.md; docs/roadmap/control-plane.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CP-07 complete JournalFrame body/receipt/read-set/ID/sequence validation, logical event expansion, existing JsonlEventLog checksum/header/version/sync/repair/O_NOFOLLOW writer boundary, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no second EventLog/store, core disk backend, automatic retry or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/journal.rs kiana-domain/tests/cp07_journal_frame.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/journal_core.rs kiana-core/src/dispatch.rs kiana-core/tests/cp07_journal_guard.rs .github/workflows/cp07-journal.yml docs/roadmap/control-plane-journal-baseline.md docs/roadmap/control-plane.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'JournalFrame|JournalFramePayload|body_sha256|logical_events|journal_frame_integrity_failed|eventlog_legacy_writer_after_upgrade|eventlog_repair_failed|eventlog_recovery_sync_failed|commit_transition|commit_confirmed|sync_all|O_NOFOLLOW' kiana-domain/src kiana-domain/tests kiana-eventlog/src kiana-core/src kiana-core/tests docs/roadmap/control-plane-journal-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp07_journal_frame.rs complete transition/event frame, receipt/read-set, checksum, strict unknown/nil event and legacy sequence fixtures; kiana-core/tests/cp07_journal_guard.rs source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-07 job is queued by the push and is not awaited
+status_change: CP-07 source slice is implemented. JournalFrame now validates complete transition receipts/read sets and legacy event identity before logical expansion; JsonlEventLog continues the single-writer complete-frame/sync/repair/version boundary and rejects legacy writers after v2 upgrade. Committed/replayed/conflict/unknown outcomes remain explicit and Core still gates dispatch through commit_confirmed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; actual power-loss durability and multi-process crash/recovery are not proven, legacy compatibility remains reader-scoped, EventStore capabilities vary by adapter, Unknown commit responses still require explicit read_command/reconciliation, and CP-08+ / ER/PD/DEP must bind authority/projectors/backup/retention before any durable claim
+reviewer: Codex root implementation review plus CP-07 complete-frame/receipt/read-set/recovery-boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

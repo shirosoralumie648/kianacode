@@ -1,0 +1,50 @@
+name: CP-07 JSONL transaction frame recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/tests/cp07_journal_frame.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/cp07_journal_guard.rs"
+      - "docs/roadmap/control-plane-journal-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp07-journal.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/tests/cp07_journal_frame.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/cp07_journal_guard.rs"
+      - "docs/roadmap/control-plane-journal-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp07-journal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-07 frame fixture
+        run: cargo test -p kiana-domain --test cp07_journal_frame --locked -- --test-threads=1
+      - name: Run CP-07 source guard
+        run: cargo test -p kiana-core --test cp07_journal_guard --locked -- --test-threads=1
+      - name: Compile CP-07 targets
+        run: cargo check --workspace --tests --locked

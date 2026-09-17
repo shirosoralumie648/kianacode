@@ -296,10 +296,33 @@ impl JournalFrame {
         if encoded.len() as u64 != self.body_len || journal_sha256(&encoded) != self.body_sha256 {
             return Err("journal_frame_integrity_failed".into());
         }
+        match &self.body {
+            JournalFramePayload::Transition { batch, receipt } => {
+                batch.validate().map_err(|error| error.to_owned())?;
+                receipt.validate_against(batch)?;
+            }
+            JournalFramePayload::Event { event } => {
+                if event.event_id.as_uuid().is_nil()
+                    || event.request_id.as_uuid().is_nil()
+                    || event.sequence == 0
+                    || event.kind.trim().is_empty()
+                {
+                    return Err("journal_frame_event_invalid".into());
+                }
+            }
+        }
         if canonical_journal_bytes(self)?.len() > MAX_JOURNAL_FRAME_BYTES {
             return Err("journal_frame_size_limit".into());
         }
         Ok(())
+    }
+
+    /// Return the logical events carried by a complete frame without exposing an incomplete tail.
+    pub fn logical_events(&self) -> Vec<RuntimeEvent> {
+        match &self.body {
+            JournalFramePayload::Transition { batch, .. } => batch.events.clone(),
+            JournalFramePayload::Event { event } => vec![event.clone()],
+        }
     }
 }
 pub fn journal_sha256(bytes: &[u8]) -> String {
