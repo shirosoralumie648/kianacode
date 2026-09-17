@@ -1,0 +1,46 @@
+name: P0-G-03 resume
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-g03-resume-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-g03-resume.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-g03-resume-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-g03-resume.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-G-03 source guards
+        run: cargo test -p kiana-core --test p0_g03_resume_guard --locked -- --test-threads=1
+      - name: Compile P0-G-03 targets
+        run: cargo check --workspace --tests --locked

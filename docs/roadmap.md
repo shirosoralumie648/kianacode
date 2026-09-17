@@ -66,7 +66,7 @@
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
 | `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ✅ |
-| `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
+| `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ✅ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ✅ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
@@ -428,7 +428,7 @@
 | 258 | W3 | 专项 | [`H17`](roadmap/harness.md#step-h17) | Harness · 后台进程和长工具的可恢复句柄 | `H08`、`H13`、`H15` | ✅ | [专项卡](roadmap/harness.md#step-h17) |
 | 259 | W3 | 专项 | [`H18`](roadmap/harness.md#step-h18) | Harness · 持久 Inbox、ACK 与原子消费 | `H02`、`H03`、`H13` | ✅ | [专项卡](roadmap/harness.md#step-h18) |
 | 260 | W3 | 专项 | [`H19`](roadmap/harness.md#step-h19) | Harness · Continue / Steer / Inject 的产品接线 | `H08`、`H18` | ✅ | [专项卡](roadmap/harness.md#step-h19) |
-| 261 | W3 | 基础 | [`P0-G-03`](#step-p0-g-03) | P0 基础 · `resume_run` 与协议入口 | `P0-G-02b` | ⏳ | [基础卡](#step-p0-g-03) |
+| 261 | W3 | 基础 | [`P0-G-03`](#step-p0-g-03) | P0 基础 · `resume_run` 与协议入口 | `P0-G-02b` | ✅ | [基础卡](#step-p0-g-03) |
 | 262 | W3 | 基础 | [`P0-F-03`](#step-p0-f-03) | P0 基础 · 续跑材料落盘与 RunSnapshot | `P0-G-02b`、`P0-G-03`、`P0-F-02` | ⏳ | [基础卡](#step-p0-f-03) |
 | 263 | W3 | 基础 | [`P0-J1-02`](#step-p0-j1-02) | P0 基础 · 排空已启动工作 + 合成未启动结果 | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-02) |
 | 264 | W3 | 基础 | [`P0-J1-03`](#step-p0-j1-03) | P0 基础 · 进程组确认与 `stop_confirmed` | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-03) |
@@ -1125,6 +1125,7 @@
 | 当前 169 | `H17` job handle | 新增 strict `JobHandle`，绑定 process start request/invocation、Run/Turn、owner/session、project digest、authority epoch、process-group evidence 与 TTL；process start 先写 prepared，spawn 后写 started handle；poll/stdin/resize/stop 重新校验 owner/scope/authority/expiry，poll 返回 cursor，重启无 live process 不按 PID attach；新增 domain/daemon CI fixtures/source guard、workflow 与 job-handle baseline | `feature_status=implemented`（domain/daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions H17 已触发且未等待；跨进程 process projector/进程组恢复、Artifact/stream durability 与 external/live/physical proof 留待 H24/H25、PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 170 | `H18` inbox | 新增 InputId/InputReceipt 与可 checkpoint 的双队列 Inbox，绑定 source/target/target turn/received sequence；重复/claimed 输入幂等，队列与 claim ledger 有界并返回 backpressure，Runner 在 claim 边界拒绝跨 Turn steering，HarnessCheckpoint 保存/恢复 inbox；新增 domain/runner/core CI fixtures/source guard、workflow 与 inbox baseline | `feature_status=implemented`（domain/runner/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions H18 已触发且未等待；所有入口的 ControlPlane/EventLog accepted/consumed 原子 ACK、大 payload Artifact 与跨进程 projector 留待 H19/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 171 | `H19` Continue / Steer / Inject | additive `SteerRequest`/`InjectRequest` 与 Runner `Inject` 命令接入同一 Client→DaemonHost→ControlPlane 主路径；ControlPlane 校验 source/target/expected turn，记录 `run.input.accepted`、bounded ACK，并在 Runner 拒绝时记录 rejected claim；ActiveRun 暂时移出 map 时由 in-flight deferred mailbox 接收，下一安全 step 恰好消费一次；新增 protocol/runner/core CI fixtures/source guard、workflow 与 steer/inject baseline | `feature_status=implemented`（protocol/client/daemon/core/runner source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions H19 已触发且未等待；跨进程 accepted/claimed 原子 projector、大 payload Artifact、provider-native/live stream 与 H20+ durable recovery 留待后续步骤；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 172 | `P0-G-03` resume entrypoint | 既有 strict `ResumeRequest` 通过 DaemonHost 路由到 `ControlPlane::resume_run`；恢复从 EventLog snapshot/invocation projection 重建并校验 owner/scope/authority/data epoch，使用 `run.resume_prepared` CAS 和同一 Runner；审批继续路径进入共同 `drive_run`；新增 core CI source guards/workflow 与 resume baseline | `feature_status=implemented`（core/protocol/client/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-G-03 已触发且未等待；自动启动恢复、全量跨进程 Runner projector 和 power-loss/reconcile/live/physical proof 留待 P0-F-03/H24/PD/ER；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1345,6 +1346,7 @@
 | 2026-09-18 | `H17` job handle：新增 strict JobHandle 绑定 process start invocation、Run/Turn、owner/session、project/authority、process-group evidence 与 TTL；start 先 prepared 后 started，poll/stdin/resize/stop 重验句柄，重启不按 PID attach，poll 提供 cursor；新增 domain/daemon fixtures/source guard、workflow 与 job-handle baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `H18` inbox：新增 InputId/InputReceipt 与可 checkpoint 的双队列 Inbox，绑定 source/target/target turn/received sequence；duplicate/claimed 幂等、队列/claim ledger 有界 backpressure、跨 Turn steering 拒绝，HarnessCheckpoint 保存/恢复 inbox；新增 domain/runner/core fixtures/source guard、workflow 与 inbox baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `H19` Continue / Steer / Inject：新增 additive Steer/Inject wire 与 client/daemon/core 路由；Steer 绑定 expected_turn_id 并只排 next-step，Inject 带 source/target 且不唤醒 idle turn；ControlPlane 写 input.accepted，并在 Runner 拒绝时写 rejected claim；ActiveRun 暂时移出 map 时由 deferred mailbox 接住，下一安全 step 单次消费；新增 protocol/runner/core CI fixtures/source guard、workflow 与 steer/inject baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P0-G-03` resume entrypoint：回填既有 strict ResumeRequest 与 DaemonHost→ControlPlane 路由；resume 从 EventLog snapshot/invocation projection 重建、重验 scope/authority/data epoch，`run.resume_prepared` 做 stream CAS，恢复同一 Runner，审批 continuation 进入共同 `drive_run`；新增 core source guard、workflow 与 resume baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1543,7 +1545,9 @@
 
 <a id="step-p0-g-03"></a>
 
-### P0-G-03 `resume_run` 与协议入口　⏳
+### P0-G-03 `resume_run` 与协议入口　✅
+
+当前 source slice 与 CI-only 证据见 [`p0-g03-resume-baseline.md`](roadmap/p0-g03-resume-baseline.md)。
 
 - **现状**：没有跨进程 resume 入口；`CURRENT_STATUS.md` 把「跨进程完整 resume」记为 `deferred`。
 - **做什么**：`kiana-core` 新增 `resume_run`，复用同一条 `drive_run`；`kiana-protocol` 加 additive 的 `ResumeRequest`。

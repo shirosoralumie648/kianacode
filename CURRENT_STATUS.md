@@ -3260,6 +3260,25 @@ limitations: accepted/claimed facts and deferred queues remain process-local aro
 reviewer: Codex root implementation review plus H19 protocol, route, turn-fence and deferred-input invariants; no runtime test reviewer
 ```
 
+### P0-G-03 explicit resume entrypoint evidence (2026-09-18)
+
+```text
+source_snapshot: 42865d8 + P0-G-03 evidence slice; kiana-core/src/recovery.rs; kiana-core/src/lifecycle.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-core/tests/p0_g03_resume_guard.rs; .github/workflows/p0-g03-resume.yml; docs/roadmap/p0-g03-resume-baseline.md
+worktree_status: existing ResumeRequest and DaemonHost→ControlPlane route are now explicitly reconciled as the P0-G-03 source slice; resume rebuilds the EventLog snapshot/invocation projection, rechecks owner/scope/authority/data epoch and snapshot freshness, claims run.resume_prepared at the observed stream version, restores the same Runner, and sends approved continuation through the shared drive_run; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p0_g03_resume_guard.rs resume route/shared-drive and missing-snapshot/stale-scope source guards; existing core/daemon resume fixtures remain CI-only; GitHub Actions P0-G-03 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-G-03 is triggered by the eventual push and is not awaited
+status_change: P0-G-03 source slice is implemented/reconciled. Explicit Resume is additive, fail-closed and routed through the existing lifecycle/Runner path; no startup auto-resume or PID attachment is introduced.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Runner/checkpoint and pending approval hydration remain process-local around crash/restart; full durable projector, power-loss reconciliation, automatic recovery policy and external/live/physical proof remain P0-F-03/H24/H25/PD/ER work
+reviewer: Codex root implementation review plus P0-G-03 ResumeRequest, snapshot/CAS, scope revalidation and shared drive_run invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
