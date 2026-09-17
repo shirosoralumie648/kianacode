@@ -3944,6 +3944,25 @@ limitations: aggregate/replay is local EventLog projection with explicit v0 adap
 reviewer: Codex root implementation review plus aggregate stream/reducer/migration, object-chain/ref linkage, owner/revision/idempotency, artifact hash/revocation, terminal/Unknown and no-execution-on-replay boundary review; no runtime test reviewer
 ```
 
+### P3-I-04 acceptance snapshot and independent review evidence (2026-09-18)
+
+```text
+source_snapshot: cd811cb9 + P3-I-04 evidence slice; kiana-domain/src/company.rs; kiana-core/src/{company.rs,company_business.rs,company_governance.rs,collaboration.rs}; kiana-core/tests/p3_i04_acceptance_review.rs; kiana-domain/tests/p3_i01_company_objects.rs; kiana-core/tests/{oa27_company_governance,control_plane}.rs; .github/workflows/p3-i04-acceptance-review.yml; docs/roadmap/p3-i04-acceptance-review-baseline.md; docs/roadmap.md
+worktree_status: RequestAcceptance captures immutable CriteriaSnapshot from project/milestone/packet versions and criteria, binding Builder run/session/evidence. RecordReview requires a different reviewer session, exact criteria keys and inherited evidence; DecideAcceptance rechecks acceptance/review IDs, snapshot, author run/session, reviewer role/session and decision-specific evidence. Business review and Company governance preserve the same independent identity and frozen target boundaries; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p3_i04_acceptance_review.rs acceptance/review source guard; existing domain Company object, OA-27 governance and ControlPlane fresh-review fixtures; GitHub Actions P3-I-04 workflow runs guard, object/governance/fresh-review regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-04 is triggered by the eventual push and is not awaited
+status_change: P3-I-04 source slice is implemented/reconciled. Acceptance criteria are frozen at request time and independent Review/Decision cannot mutate Builder run, evidence, criteria or historical CompanyEvent.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: acceptance/review facts remain local Company EventLog projection; no cross-process durable AcceptanceStore, external reviewer authentication, semantic quality guarantee, external delivery confirmation, power-loss recovery or live/physical business outcome proof is claimed
+reviewer: Codex root implementation review plus criteria snapshot/version maps, author/reviewer session separation, criterion/evidence completeness, role/assignment/decision recheck, immutable Builder facts and no-second-authority boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

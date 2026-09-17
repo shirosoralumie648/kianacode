@@ -1,0 +1,60 @@
+name: P3-I-04 acceptance snapshot and review
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/tests/p3_i04_acceptance_review.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p3-i04-acceptance-review-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p3-i04-acceptance-review.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/tests/p3_i04_acceptance_review.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p3-i04-acceptance-review-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p3-i04-acceptance-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run acceptance/review source guard
+        run: cargo test -p kiana-core --test p3_i04_acceptance_review --locked -- --test-threads=1
+      - name: Run Company object regression
+        run: cargo test -p kiana-domain --test p3_i01_company_objects --locked -- --test-threads=1
+      - name: Run Company governance regression
+        run: cargo test -p kiana-core --test oa27_company_governance --locked -- --test-threads=1
+      - name: Run independent review control-plane regression
+        run: cargo test -p kiana-core --test control_plane review_author_run_uses_a_fresh_reviewer_session --locked -- --test-threads=1
+      - name: Compile P3-I-04 targets
+        run: cargo check --workspace --tests --locked
