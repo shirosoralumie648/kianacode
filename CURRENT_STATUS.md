@@ -3317,6 +3317,25 @@ limitations: durable cross-process journal/power-loss recovery, external approve
 reviewer: Codex root implementation review plus P0-F-02 decision/consumption facts, proof binding, expiry and conflict fencing; no runtime test reviewer
 ```
 
+### P0-F-03 resume material and RunSnapshot evidence (2026-09-18)
+
+```text
+source_snapshot: c1136a5 + P0-F-03 evidence slice; kiana-core/src/{recovery,approvals,lifecycle}.rs; kiana-domain/src/capabilities.rs; kiana-runner/src/harness.rs; kiana-daemon/src/journal_approvals.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/p0_f03_resume_guard.rs; .github/workflows/p0-f03-resume.yml; docs/roadmap/p0-f03-resume-material-baseline.md
+worktree_status: approval pauses persist a redacted RunSnapshot with runner-state digest, authority/data revisions and pending invocation material; fresh core rebuilds the pending projection from EventLog, requires explicit Resume, rechecks scope/policy/gate/approval, claims run.resume_prepared at the observed stream version and restores the same Runner before the shared approval→drive_run continuation; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p0_f03_resume_guard.rs fresh-process reconstruction, explicit-resume and policy/gate/approval recheck source guards; existing serialized core/daemon resume fixtures remain CI-only; GitHub Actions P0-F-03 workflow runs the guards and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-F-03 is triggered by the eventual push and is not awaited
+status_change: P0-F-03 source slice is implemented/reconciled. Restarted pending approvals now have explicit, redacted, digest-bound material and a fail-closed Resume entrypoint; startup does not auto-resume.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: checkpoint and pending maps remain process-local around crash/power loss, no full durable Runner/projector or reconciliation queue is claimed, and external human authn/effect/live/physical proof remains later H24/H25/PD/SC/INT work
+reviewer: Codex root implementation review plus P0-F-03 snapshot integrity, explicit-resume, stream CAS and authorization recheck invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
