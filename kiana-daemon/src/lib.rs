@@ -1041,12 +1041,13 @@ impl DaemonHost {
             }
             RequestBody::ApprovalDecision(decision) => {
                 self.core
-                    .decide_approval_with_proof(
+                    .decide_approval_with_proof_and_version(
                         &context,
                         decision.approval_id,
                         decision.decision,
                         decision.request_hash.as_deref(),
                         decision.nonce.as_deref(),
+                        decision.expected_version,
                     )
                     .await
             }

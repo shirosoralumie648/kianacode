@@ -1322,6 +1322,27 @@ pub trait ApprovalStorePort: Send + Sync {
         }
     }
 
+    /// Record a decision against an optional server-issued aggregate version.  A compatibility
+    /// adapter may continue to accept the legacy method when no version is supplied, but it must
+    /// fail closed rather than silently ignoring a caller-provided expected version.
+    async fn decide_with_proof_and_version(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: kiana_domain::ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+        expected_version: Option<u64>,
+    ) -> Result<PendingApproval, PortError> {
+        if expected_version.is_some() {
+            return Err(PortError::Unavailable(
+                "approval_expected_version_unsupported".to_owned(),
+            ));
+        }
+        self.decide_with_proof(context, approval_id, decision, request_hash, nonce)
+            .await
+    }
+
     /// 为待审批能力请求创建暂存记录和发给审批者的 challenge。
     ///
     /// 暂存成功不代表审批已经生效。实现应校验 `context.request_id` 与请求一致，并将

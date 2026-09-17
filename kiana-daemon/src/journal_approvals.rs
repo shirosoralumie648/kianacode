@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use kiana_domain::{
     canonical_journal_bytes, journal_sha256, json_digest, redact_text, redact_value,
-    AggregateVersion, ApprovalChallenge, ApprovalDecision, ApprovalDecisionRecord,
-    ApprovalExecutionMaterial, ApprovalId, ApprovalMaterialState, ApprovalState, CapabilityKind,
-    CapabilityRequest, CommitOutcome, PendingApproval, PermissionProfile,
-    PreparedApprovalConsumption, RequestContext, RequestId, RoleSpec, RuntimeEvent, SessionId,
-    TransitionBatch, APPROVAL_CHALLENGE_SCHEMA,
+    AggregateVersion, ApprovalChallenge, ApprovalConsumptionFact, ApprovalDecision,
+    ApprovalDecisionFact, ApprovalDecisionRecord, ApprovalExecutionMaterial, ApprovalId,
+    ApprovalMaterialState, ApprovalState, CapabilityKind, CapabilityRequest, CommitOutcome,
+    PendingApproval, PermissionProfile, PreparedApprovalConsumption, RequestContext, RequestId,
+    RoleSpec, RuntimeEvent, SessionId, TransitionBatch, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_ports::{ApprovalStorePort, EventStorePort, PortError};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -75,6 +75,8 @@ struct Record {
     decision_command_id: Option<RequestId>,
     decided_by: Option<String>,
     dispatch_command_id: Option<RequestId>,
+    decision_digest: Option<String>,
+    consumption_digest: Option<String>,
 }
 
 impl JournalApprovalStore {
@@ -614,20 +616,35 @@ impl ApprovalStorePort for JournalApprovalStore {
         if record.state != ApprovalState::Active {
             return Err(failed("approval_not_active"));
         }
+        let now = unix_ms()?;
         let (next, pending) = if decision == ApprovalDecision::Approve {
             self.check_authority(&record).await?;
             (ApprovalState::Approved, self.material(&record).await?)
         } else {
             (ApprovalState::Denied, record.subject.preview.clone())
         };
+        let decision_fact = ApprovalDecisionFact::new(
+            id,
+            record.subject.preview.request.request_id,
+            record.subject.preview.challenge.request_hash.clone(),
+            decision,
+            context.actor_id.clone().unwrap_or_default(),
+            context.request_id,
+            record.version,
+            record.subject.binding.authority_versions[0].clone(),
+            now,
+            record.subject.preview.challenge.expires_at_unix_ms,
+        )
+        .map_err(|error| failed(&error))?;
         let event = transition_event(
             &record,
             next,
             context.request_id,
             json!({"decision":decision,
             "decision_command_id":context.request_id,"decided_by":context.actor_id}),
-            unix_ms()?,
+            now,
         )?;
+        let event = with_fact(event, "decision_fact", &decision_fact)?;
         self.commit_one(
             &record,
             event,
@@ -644,6 +661,30 @@ impl ApprovalStorePort for JournalApprovalStore {
                 .remove(&record.subject.preview.challenge.request_hash);
         }
         Ok(pending)
+    }
+
+    async fn decide_with_proof_and_version(
+        &self,
+        context: &RequestContext,
+        id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+        expected_version: Option<u64>,
+    ) -> Result<PendingApproval, PortError> {
+        if let Some(expected_version) = expected_version {
+            let record = self.load(id).await?;
+            // A replay of the original command returns its durable decision even when the
+            // caller retained the pre-decision version.  Only an undecided subject is rejected
+            // for a stale expected version.
+            if record.decision.is_none() && record.version != expected_version {
+                return Err(PortError::Conflict(
+                    "approval_expected_version_conflict".to_owned(),
+                ));
+            }
+        }
+        self.decide_with_proof(context, id, decision, request_hash, nonce)
+            .await
     }
 
     async fn read_decision(
@@ -664,6 +705,8 @@ impl ApprovalStorePort for JournalApprovalStore {
             dispatch_command_id: record.dispatch_command_id,
             payload_available,
             version: record.version,
+            decision_digest: record.decision_digest,
+            consumption_digest: record.consumption_digest,
         })
     }
 
@@ -681,14 +724,32 @@ impl ApprovalStorePort for JournalApprovalStore {
         }
         self.check_authority(&record).await?;
         let pending = self.material(&record).await?;
+        let now = unix_ms()?;
         let event = transition_event(
             &record,
             ApprovalState::Consumed,
             dispatch_command_id,
             json!({"dispatch_command_id":dispatch_command_id,
             "decision_command_id":record.decision_command_id,"decided_by":record.decided_by}),
-            unix_ms()?,
+            now,
         )?;
+        let decision_command_id = record
+            .decision_command_id
+            .ok_or_else(|| failed("approval_decision_command_missing"))?;
+        let authority_version = record.subject.binding.authority_versions[0].clone();
+        let consumption_fact = ApprovalConsumptionFact::new(
+            id,
+            record.subject.preview.request.request_id,
+            record.subject.preview.challenge.request_hash.clone(),
+            decision_command_id,
+            dispatch_command_id,
+            record.version,
+            authority_version,
+            now,
+            record.subject.preview.challenge.expires_at_unix_ms,
+        )
+        .map_err(|error| failed(&error))?;
+        let event = with_fact(event, "consumption_fact", &consumption_fact)?;
         Ok(PreparedApprovalConsumption {
             expected_version: AggregateVersion::new(
                 APPROVAL_STREAM,
@@ -945,6 +1006,23 @@ fn transition_event(
             .with_stream_metadata(APPROVAL_STREAM, id.to_string(), record.version + 1),
     )
 }
+
+fn with_fact<T: Serialize>(
+    mut event: RuntimeEvent,
+    field: &str,
+    fact: &T,
+) -> Result<RuntimeEvent, PortError> {
+    let object = event
+        .data
+        .as_object_mut()
+        .ok_or_else(|| failed("approval_transition_invalid"))?;
+    object.insert(
+        field.to_owned(),
+        serde_json::to_value(fact).map_err(|_| failed("approval_transition_invalid"))?,
+    );
+    event.data = redact_value(&event.data);
+    Ok(event)
+}
 fn fold(id: ApprovalId, events: &[RuntimeEvent]) -> Result<Record, PortError> {
     let first = events.first().ok_or_else(|| failed("approval_not_found"))?;
     if first.kind != "approval.staged"
@@ -998,6 +1076,8 @@ fn fold(id: ApprovalId, events: &[RuntimeEvent]) -> Result<Record, PortError> {
         decision_command_id: None,
         decided_by: None,
         dispatch_command_id: None,
+        decision_digest: None,
+        consumption_digest: None,
     };
     for event in &events[1..] {
         if event.stream_version != Some(record.version + 1)
@@ -1038,25 +1118,52 @@ fn fold(id: ApprovalId, events: &[RuntimeEvent]) -> Result<Record, PortError> {
             } else {
                 ApprovalDecision::Deny
             };
-            if event.data["decision"] != json!(decision)
-                || event.data["decided_by"] != record.subject.binding.actor_id
+            let fact: ApprovalDecisionFact =
+                serde_json::from_value(event.data["decision_fact"].clone())
+                    .map_err(|_| failed("approval_journal_decision_invalid"))?;
+            if fact.validate().is_err()
+                || fact.approval_id != id
+                || fact.subject_request_id != record.subject.preview.request.request_id
+                || fact.request_hash != record.subject.preview.challenge.request_hash
+                || fact.decision != decision
+                || fact.command_id != event.request_id
+                || fact.expected_version != record.version - 1
+                || fact.authority_version != record.subject.binding.authority_versions[0]
+                || fact.expires_at_unix_ms != record.subject.preview.challenge.expires_at_unix_ms
+                || event.data["decision"] != json!(decision)
+                || event.data["decided_by"] != json!(fact.actor_id)
                 || event.data["decision_command_id"] != json!(event.request_id)
             {
                 return Err(failed("approval_journal_decision_invalid"));
             }
             record.decision = Some(decision);
             record.decision_command_id = Some(event.request_id);
-            record.decided_by = Some(record.subject.binding.actor_id.clone());
+            record.decided_by = Some(fact.actor_id);
+            record.decision_digest = Some(fact.decision_digest);
         }
         if next == ApprovalState::Consumed {
-            let dispatch = event.data["dispatch_command_id"]
-                .as_str()
-                .and_then(|id| serde_json::from_value::<RequestId>(json!(id)).ok())
-                .ok_or_else(|| failed("approval_dispatch_identity_required"))?;
-            if dispatch != event.request_id {
+            let fact: ApprovalConsumptionFact =
+                serde_json::from_value(event.data["consumption_fact"].clone())
+                    .map_err(|_| failed("approval_consumption_fact_invalid"))?;
+            let decision_command_id = record
+                .decision_command_id
+                .ok_or_else(|| failed("approval_decision_command_missing"))?;
+            if fact.validate().is_err()
+                || fact.approval_id != id
+                || fact.subject_request_id != record.subject.preview.request.request_id
+                || fact.request_hash != record.subject.preview.challenge.request_hash
+                || fact.decision_command_id != decision_command_id
+                || fact.dispatch_command_id != event.request_id
+                || fact.expected_version != record.version - 1
+                || fact.authority_version != record.subject.binding.authority_versions[0]
+                || fact.expires_at_unix_ms != record.subject.preview.challenge.expires_at_unix_ms
+                || fact.consumed_at_unix_ms != at
+                || event.data["dispatch_command_id"] != json!(event.request_id)
+            {
                 return Err(failed("approval_dispatch_identity_mismatch"));
             }
-            record.dispatch_command_id = Some(dispatch);
+            record.dispatch_command_id = Some(fact.dispatch_command_id);
+            record.consumption_digest = Some(fact.consumption_digest);
         }
     }
     Ok(record)

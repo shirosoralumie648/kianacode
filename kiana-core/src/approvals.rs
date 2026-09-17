@@ -93,6 +93,29 @@ impl ControlPlane {
         request_hash: Option<&str>,
         nonce: Option<&str>,
     ) -> Result<CoreResponse, CoreError> {
+        self.decide_approval_with_proof_and_version(
+            context,
+            approval_id,
+            decision,
+            request_hash,
+            nonce,
+            None,
+        )
+        .await
+    }
+
+    /// Decide one exact pending subject with an optional server-issued aggregate version.  The
+    /// version is an optimistic-concurrency assertion; once a durable decision exists, retries
+    /// replay that decision before considering a stale client version.
+    pub async fn decide_approval_with_proof_and_version(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+        expected_version: Option<u64>,
+    ) -> Result<CoreResponse, CoreError> {
         let record = self.approvals.read_decision(context, approval_id).await?;
         if request_hash.is_some_and(|hash| hash != record.challenge.request_hash)
             || nonce.is_some_and(|nonce| nonce != record.challenge.nonce)
@@ -106,6 +129,20 @@ impl ControlPlane {
             return self
                 .replay_approval_decision(context, &record, decision)
                 .await;
+        }
+        if expected_version.is_some_and(|version| version == 0) {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "approval_expected_version_invalid",
+            ));
+        }
+        if record.decision.is_none()
+            && expected_version.is_some_and(|version| version != record.version)
+        {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "approval_expected_version_conflict",
+            ));
         }
         let scoped_context = self
             .approvals
@@ -226,7 +263,14 @@ impl ControlPlane {
         }
         let pending = match self
             .approvals
-            .decide_with_proof(context, approval_id, decision, request_hash, nonce)
+            .decide_with_proof_and_version(
+                context,
+                approval_id,
+                decision,
+                request_hash,
+                nonce,
+                expected_version,
+            )
             .await
         {
             Ok(pending) => pending,

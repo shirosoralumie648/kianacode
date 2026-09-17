@@ -402,6 +402,11 @@ pub struct ApprovalView {
     pub operation: String,
     pub arguments: Value,
     pub available_decisions: Vec<ApprovalDecision>,
+    /// Server-owned approval aggregate version for optimistic-concurrency retries.  Legacy
+    /// adapters may omit it; a caller that supplies a version must then be rejected by that
+    /// adapter rather than having the assertion silently ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_version: Option<u64>,
 }
 
 /// A quiescent runner checkpoint. The control plane alone persists/restores it.

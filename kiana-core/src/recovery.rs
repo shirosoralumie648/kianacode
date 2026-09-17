@@ -174,6 +174,22 @@ impl ControlPlane {
         }
         let mut approvals = Vec::new();
         for pending in self.approvals.list_pending(context).await? {
+            let expected_version = match self
+                .approvals
+                .read_decision(context, pending.challenge.approval_id)
+                .await
+            {
+                Ok(record) => Some(record.version),
+                Err(PortError::Unavailable(reason))
+                    if reason == "approval_decision_read_unsupported" =>
+                {
+                    None
+                }
+                Err(PortError::Failed(reason)) if reason == "approval_payload_unrecoverable" => {
+                    None
+                }
+                Err(error) => return Err(error.into()),
+            };
             let scope = self
                 .approvals
                 .context_for_pending(context, pending.challenge.approval_id)
@@ -184,6 +200,7 @@ impl ControlPlane {
                 operation: pending.request.operation,
                 arguments: redact_event_value(&pending.request.arguments),
                 available_decisions: vec![ApprovalDecision::Approve, ApprovalDecision::Deny],
+                expected_version,
             });
         }
         Ok(CoreResponse::completed(

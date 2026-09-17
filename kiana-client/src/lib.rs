@@ -162,13 +162,37 @@ where
         request_hash: Option<String>,
         nonce: Option<String>,
     ) -> Result<ResponseEnvelope, ClientError> {
+        self.approval_decision_with_proof_and_version(
+            metadata,
+            approval_id,
+            decision,
+            request_hash,
+            nonce,
+            None,
+        )
+        .await
+    }
+
+    /// Submit a proof-bound approval decision with an optional expected journal version.  The
+    /// server treats the version as an optimistic-concurrency check and replays durable
+    /// decisions by command identity.
+    pub async fn approval_decision_with_proof_and_version(
+        &self,
+        metadata: RequestMetadata,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<String>,
+        nonce: Option<String>,
+        expected_version: Option<u64>,
+    ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
-            .send(RequestEnvelope::approval_decision_with_proof(
+            .send(RequestEnvelope::approval_decision_with_proof_and_version(
                 metadata,
                 approval_id,
                 decision,
                 request_hash,
                 nonce,
+                expected_version,
             ))
             .await
     }

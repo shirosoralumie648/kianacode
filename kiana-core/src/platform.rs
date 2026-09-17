@@ -648,7 +648,7 @@ impl ControlPlane {
         for pending in pending_approvals {
             let id = pending.challenge.approval_id.to_string();
             items.push(HumanInboxItem{item_id:format!("approval:{id}"),kind:HumanInboxKind::Approval,title:pending.operation.clone(),source_ref:format!("approval:{id}"),run_id:None,
-                detail:json!({"challenge":pending.challenge,"arguments":kiana_domain::redact_value(&pending.arguments)}),actions:[("approve","批准"),("deny","拒绝")].into_iter().map(|(decision,label)|action(decision,label,"approval",json!({"approval_id":id,"decision":decision,"request_hash":pending.challenge.request_hash,"nonce":pending.challenge.nonce}),&[])).collect()});
+                detail:json!({"challenge":pending.challenge,"arguments":kiana_domain::redact_value(&pending.arguments),"expected_version":pending.expected_version}),actions:[("approve","批准"),("deny","拒绝")].into_iter().map(|(decision,label)|action(decision,label,"approval",json!({"approval_id":id,"decision":decision,"request_hash":pending.challenge.request_hash,"nonce":pending.challenge.nonce,"expected_version":pending.expected_version}),&[])).collect()});
         }
         let snapshot = self.company_snapshot(context.clone()).await?;
         if snapshot.status != ExecutionStatus::Completed {

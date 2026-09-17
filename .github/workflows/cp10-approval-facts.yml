@@ -1,0 +1,64 @@
+name: CP-10 approval decisions and single consumption
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp10_approval_facts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/tests/cp10_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/control-plane-approval-facts-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp10-approval-facts.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/approval_journal.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp10_approval_facts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/tests/cp10_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/control-plane-approval-facts-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp10-approval-facts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval-facts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-10 approval fact fixture
+        run: cargo test -p kiana-domain --test cp10_approval_facts --locked -- --test-threads=1
+      - name: Run CP-10 source guard
+        run: cargo test -p kiana-core --test cp10_approval_guard --locked -- --test-threads=1
+      - name: Compile CP-10 targets
+        run: cargo check --workspace --tests --locked

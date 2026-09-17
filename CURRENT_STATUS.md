@@ -2614,6 +2614,25 @@ limitations: volatile payload remains process-local (not a durable SecretStore/p
 reviewer: Codex root implementation review plus CP-09 subject/material/redaction/replay reconciliation; no runtime test reviewer
 ```
 
+### CP-10 approval facts and single-consumption evidence (2026-09-17)
+
+```text
+source_snapshot: edd745a + CP-10 working-tree slice; kiana-domain/src/{approval_journal,capabilities,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/{journal_approvals,lib}.rs; kiana-core/src/{approvals,recovery,platform}.rs; kiana-domain/tests/cp10_approval_facts.rs; kiana-core/tests/cp10_approval_guard.rs; .github/workflows/cp10-approval-facts.yml; docs/roadmap/control-plane-approval-facts-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: CP-10 strict ApprovalDecisionFact/ApprovalConsumptionFact are embedded in the existing EventLog approval aggregate; decision facts bind subject request/hash, actor, command, authority version, expiry and expected aggregate version, while consumption facts separately bind the Approved→Consumed dispatch command; Core and protocol expose optional expected-version OCC and server pending views; no second approval store or execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp10_approval_facts.rs strict fact/digest/version fixtures; kiana-core/tests/cp10_approval_guard.rs journal-CAS/replay/expected-version/standing-rule source guard; GitHub Actions CP-10 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-10 is triggered by the eventual push and is not awaited
+status_change: CP-10 source slice is implemented. Approve/deny transitions now carry validated immutable decision facts and command identities; stale expected versions fail before a new decision, one CAS winner is retained under contention, retries replay the recorded decision, and Approved remains distinct from the later dispatch-time Consumed fact. Pending views preserve server-owned approve/deny decisions and may carry the current journal version.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: old MemoryApprovalStore remains compatibility/test migration input and does not receive the new fact contract, external approver identity/self-approval policy is still bounded by existing local ingress, standing/input/cancel scopes remain unsupported, CP-13 still owns the full permit/budget/lease atomicity, and cross-process crash/recovery, SecretStore, Broker effect and external/live/physical proof remain open
+reviewer: Codex root implementation review plus CP-10 fact/CAS/idempotency/single-consumption reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
