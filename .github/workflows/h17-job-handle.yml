@@ -1,0 +1,54 @@
+name: H17 job handle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h17_job_handle.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/tests/h17_job_handle.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-job-handle-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h17-job-handle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h17_job_handle.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/tests/h17_job_handle.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap/harness-job-handle-baseline.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h17-job-handle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  job-handle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H17 domain fixtures
+        run: cargo test -p kiana-domain --test h17_job_handle --locked -- --test-threads=1
+      - name: Run H17 daemon fixtures
+        run: cargo test -p kiana-daemon --test h17_job_handle --locked -- --test-threads=1
+      - name: Compile H17 targets
+        run: cargo check --workspace --tests --locked

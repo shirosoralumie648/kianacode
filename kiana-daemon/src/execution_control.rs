@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExecutionOutputRef,
-    InvocationId, RequestId, RunId, RuntimeEvent,
+    InvocationId, JobHandle, RequestId, RunId, RuntimeEvent, SessionId, TurnId,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
@@ -184,11 +184,35 @@ impl ExecutionControl {
                 .stderr(std::process::Stdio::piped());
         }
         let id = RequestId::new().to_string();
+        let job_id = RequestId::parse_str(&id).ok_or_else(|| error("process_id_invalid"))?;
         let authority = self.authority(&root.to_string_lossy()).await?;
-        let identity = json!({"process_id":id,"actor_id":arguments["actor_id"],"session_id":arguments["session_id"],
+        let run_id = arguments["run_id"].as_str().and_then(RunId::parse_str);
+        let turn_id = arguments["turn_id"]
+            .as_str()
+            .and_then(TurnId::parse_str)
+            .or_else(|| {
+                arguments["turn_id"]
+                    .as_str()
+                    .and_then(|value| serde_json::from_str::<TurnId>(value).ok())
+            });
+        let actor_id = required(arguments, "actor_id")?;
+        let session_id = SessionId::new(required(arguments, "session_id")?);
+        let authority_epoch = authority["version"]
+            .as_u64()
+            .filter(|epoch| *epoch > 0)
+            .ok_or_else(|| error("process_authority_epoch_invalid"))?;
+        let project_digest = kiana_domain::json_digest(&json!({
+            "project_root": root,
+            "session_id": session_id,
+        }));
+        let expires_at_unix_ms = unix_time_ms()?
+            .checked_add(timeout as u64)
+            .ok_or_else(|| error("process_expiry_overflow"))?;
+        let mut identity = json!({"process_id":id,"actor_id":arguments["actor_id"],"session_id":arguments["session_id"],
             "role_id":arguments["role_id"],"department_id":arguments["department_id"],"project_root":root,"authority":authority,
+            "run_id":run_id,"turn_id":turn_id,
             "path_allow":paths,"sandbox":sandbox,"request_id":request.request.request_id,"execution_id":request.authorization_id,
-            "timeout_ms":timeout,"pty":tty});
+            "timeout_ms":timeout,"pty":tty,"job_handle":Value::Null});
         {
             let map = self
                 .processes
@@ -214,6 +238,20 @@ impl ExecutionControl {
             .spawn()
             .map_err(|cause| error(&format!("process_spawn_failed:{cause}")))?;
         let pid = child.id();
+        let job_handle = JobHandle::new(
+            job_id,
+            request.request.request_id,
+            run_id,
+            turn_id,
+            actor_id,
+            session_id,
+            project_digest,
+            authority_epoch,
+            pid,
+            expires_at_unix_ms,
+        )
+        .map_err(|_| error("job_handle_invalid"))?;
+        identity["job_handle"] = json!(job_handle);
         let (cancelled, mut cancellation) = watch::channel(false);
         let (input, input_rx) = mpsc::channel(8);
         let entry = Arc::new(ProcessEntry {
@@ -290,6 +328,7 @@ impl ExecutionControl {
         let control = self.clone();
         let process_id = id.clone();
         let root_text = root.to_string_lossy().into_owned();
+        let job_handle_value = identity["job_handle"].clone();
         tokio::spawn(async move {
             let _leases = leases;
             let _capacity = capacity;
@@ -359,7 +398,7 @@ impl ExecutionControl {
             }
         });
         Ok(
-            json!({"process_id":id,"state":"running","started":true,"stop_confirmed":false,"timeout_ms":timeout,"pty":tty,"query_extends_lease":false}),
+            json!({"process_id":id,"job_handle":job_handle_value,"state":"running","started":true,"stop_confirmed":false,"timeout_ms":timeout,"pty":tty,"query_extends_lease":false}),
         )
     }
     async fn continuation(
@@ -378,19 +417,32 @@ impl ExecutionControl {
             let records = self.events.read_stream("process", id).await?;
             let identity = records
                 .iter()
-                .find(|event| event.kind == "process.prepared")
+                .rev()
+                .find(|event| event.kind == "process.started")
+                .or_else(|| {
+                    records
+                        .iter()
+                        .find(|event| event.kind == "process.prepared")
+                })
                 .map(|event| &event.data)
                 .ok_or_else(|| error("process_not_found"))?;
             check_owner(identity, arguments)?;
+            validate_job_handle(identity, arguments)?;
             if request.request.operation != "process.poll" {
                 return Err(error(
                     "result_unknown:process_handle_unavailable_after_restart",
                 ));
             }
-            return Ok(records.iter().rev().find(|event|event.kind=="process.finished").map(|event|event.data["outcome"].clone())
-                .unwrap_or_else(||json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false})));
+            let outcome = records.iter().rev().find(|event|event.kind=="process.finished").map(|event|event.data["outcome"].clone())
+                .unwrap_or_else(||json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false}));
+            let handle = serde_json::from_value::<JobHandle>(identity["job_handle"].clone())
+                .map_err(|_| error("job_handle_invalid"))?;
+            return Ok(
+                json!({"process_id":id,"job_handle":handle,"outcome":outcome,"cursor":Value::Null,"output_unavailable":"process_handle_not_live"}),
+            );
         };
         check_owner(&entry.identity, arguments)?;
+        validate_job_handle(&entry.identity, arguments)?;
         let operation = request.request.operation.as_str();
         if operation == "process.poll" {
             if self.authority(required(arguments, "project_root")?).await?
@@ -400,12 +452,26 @@ impl ExecutionControl {
                     json!({"process_id":id,"outcome":entry.state.lock().unwrap_or_else(|error|error.into_inner()).clone(),"output_unavailable":"authority_or_data_revision_changed"}),
                 );
             }
+            let handle: JobHandle = serde_json::from_value(entry.identity["job_handle"].clone())
+                .map_err(|_| error("job_handle_invalid"))?;
+            let output_cursor = {
+                let output = entry
+                    .output
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                kiana_domain::json_digest(&json!({
+                    "job_id": id,
+                    "stdout_bytes": output.0.len(),
+                    "stderr_bytes": output.1.len(),
+                    "handle_digest": handle.handle_digest,
+                }))
+            };
             let output = entry
                 .output
                 .lock()
                 .unwrap_or_else(|error| error.into_inner());
             return Ok(
-                json!({"process_id":id,"outcome":entry.state.lock().unwrap_or_else(|error|error.into_inner()).clone(),"stdout":output.0,"stderr":output.1,"preview_limit_bytes":65536}),
+                json!({"process_id":id,"job_handle":handle,"outcome":entry.state.lock().unwrap_or_else(|error|error.into_inner()).clone(),"stdout":output.0,"stderr":output.1,"preview_limit_bytes":65536,"cursor":output_cursor}),
             );
         }
         if operation == "process.stop" {
@@ -916,6 +982,45 @@ fn local_package(arguments: &Value) -> Result<Value, PortError> {
 }
 fn identity(arguments: &Value) -> Value {
     json!({"actor_id":arguments["actor_id"],"session_id":arguments["session_id"],"role_id":arguments["role_id"],"department_id":arguments["department_id"],"project_root":arguments["project_root"],"run_id":arguments["run_id"]})
+}
+fn validate_job_handle(identity: &Value, arguments: &Value) -> Result<JobHandle, PortError> {
+    let handle: JobHandle = serde_json::from_value(identity["job_handle"].clone())
+        .map_err(|_| error("job_handle_invalid"))?;
+    handle.validate().map_err(|_| error("job_handle_invalid"))?;
+    if handle.process_group_id.is_none() {
+        return Err(error("job_handle_process_identity_missing"));
+    }
+    let job_id = serde_json::from_value::<RequestId>(identity["process_id"].clone())
+        .map_err(|_| error("job_handle_invalid"))?;
+    let start_request_id = serde_json::from_value::<RequestId>(identity["request_id"].clone())
+        .map_err(|_| error("job_handle_invalid"))?;
+    if handle.job_id != job_id || handle.start_request_id != start_request_id {
+        return Err(error("job_handle_identity_mismatch"));
+    }
+    if unix_time_ms()? >= handle.expires_at_unix_ms {
+        return Err(error("job_handle_expired"));
+    }
+    if handle.owner_id != required(arguments, "actor_id")?
+        || handle.session_id != SessionId::new(required(arguments, "session_id")?)
+    {
+        return Err(error("job_handle_owner_mismatch"));
+    }
+    let requested_run = arguments["run_id"].as_str().and_then(RunId::parse_str);
+    let requested_turn = arguments["turn_id"].as_str().and_then(TurnId::parse_str);
+    if handle.run_id != requested_run || handle.turn_id != requested_turn {
+        return Err(error("job_handle_scope_mismatch"));
+    }
+    let root = Path::new(required(arguments, "project_root")?)
+        .canonicalize()
+        .map_err(|_| error("project_root_unavailable"))?;
+    let project_digest = kiana_domain::json_digest(&json!({
+        "project_root": root,
+        "session_id": handle.session_id,
+    }));
+    if handle.project_digest != project_digest {
+        return Err(error("job_handle_project_mismatch"));
+    }
+    Ok(handle)
 }
 fn check_owner(stored: &Value, arguments: &Value) -> Result<(), PortError> {
     for name in [

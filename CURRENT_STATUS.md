@@ -3203,6 +3203,25 @@ limitations: Harness external behavior remains serialized while the safe plan co
 reviewer: Codex root implementation review plus H16 scheduling metadata, source-order planner, exclusive barrier, per-call revalidation and H13 no-rerun handoff; no runtime test reviewer
 ```
 
+### H-17 long-running JobHandle evidence (2026-09-18)
+
+```text
+source_snapshot: 16305b7 + H-17 working-tree slice; kiana-domain/src/{job_handle,contracts,lib}.rs; kiana-daemon/src/execution_control.rs; kiana-core/src/capabilities.rs; kiana-domain/tests/h17_job_handle.rs; kiana-daemon/tests/h17_job_handle.rs; .github/workflows/h17-job-handle.yml; docs/roadmap/harness-job-handle-baseline.md; docs/roadmap/harness.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: process.start now records a strict JobHandle after spawn, binding start request/invocation, optional Run/Turn, owner/session, project digest, authority epoch, process-group evidence and TTL; poll/stdin/resize/stop validate the handle and each operation remains a separate ControlPlane invocation; restart paths return persisted outcome for poll only and never attach by PID; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h17_job_handle.rs handle round-trip/tamper fixtures; kiana-daemon/tests/h17_job_handle.rs foreign owner, PID reuse, no-restart and distinct-operation source guards; GitHub Actions H17 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H17 is triggered by the eventual push and is not awaited
+status_change: H17 source slice is implemented. Long-running process continuations now require a typed, owner/scoped/authority-bound JobHandle with positive process-group evidence and expiry; no restart path can silently reattach a process.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: process map and JobHandle projector remain process-local; cross-process process-group/handle recovery, complete output stream durability, kill-9/power-loss reconciliation and external/live/physical proof remain H24/H25/PD/INT work
+reviewer: Codex root implementation review plus H17 handle identity, owner/run/turn/authority/TTL fencing, restart no-attach policy and operation-level invocation boundaries; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

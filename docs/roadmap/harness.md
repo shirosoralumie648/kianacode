@@ -417,7 +417,9 @@ sequenceDiagram
 
 <a id="step-h17"></a>
 
-#### H17 — 后台进程和长工具的可恢复句柄　⏳
+#### H17 — 后台进程和长工具的可恢复句柄　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-job-handle-baseline.md`](harness-job-handle-baseline.md)。
 
 **关联原单元**：`P1-H-03`、`P0-J1-03`、`P2-K6-01`。**依赖**：H08、H13、H15。
 

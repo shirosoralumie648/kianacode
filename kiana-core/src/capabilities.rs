@@ -315,7 +315,15 @@ impl ControlPlane {
         if from_runner || context.cell_id.is_some() {
             arguments.remove("operator_authorized");
         }
-        if !from_runner && operation != "execution.output.read" {
+        let preserves_continuation_scope = matches!(
+            operation,
+            "execution.output.read"
+                | "process.poll"
+                | "process.stdin"
+                | "process.resize"
+                | "process.stop"
+        );
+        if !from_runner && !preserves_continuation_scope {
             // Direct/operator calls cannot select a Harness Run or Turn through compatibility
             // arguments; only the lifecycle/runner path may carry these server references.
             arguments.remove("run_id");
