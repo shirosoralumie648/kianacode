@@ -1,0 +1,42 @@
+name: EQ-01 legacy eval compatibility
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq01_compatibility.rs"
+      - "kiana-core/tests/eq01_compatibility_guard.rs"
+      - "docs/roadmap/evaluation-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq01-compatibility.yml"
+  pull_request:
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq01_compatibility.rs"
+      - "kiana-core/tests/eq01_compatibility_guard.rs"
+      - "docs/roadmap/evaluation-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq01-compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-01 compatibility fixture
+        run: cargo test -p kiana-commands --test eq01_compatibility --locked -- --test-threads=1
+      - name: Run EQ-01 source guard
+        run: cargo test -p kiana-core --test eq01_compatibility_guard --locked -- --test-threads=1
+      - name: Compile legacy eval path
+        run: cargo check -p kiana-commands -p kiana-core --tests --locked

@@ -2070,6 +2070,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-03 event registry/source/owner and no-self-reported-critical-fact source-boundary review; no runtime test reviewer
 ```
 
+### EQ-01 legacy evaluation contract evidence (2026-09-17)
+
+```text
+source_snapshot: 9815fdb + EQ-01 working-tree slice; kiana-commands/src/eval.rs; kiana-commands/tests/eq01_compatibility.rs; kiana-core/tests/eq01_compatibility_guard.rs; .github/workflows/eq01-compatibility.yml; docs/roadmap/evaluation-contract-baseline.md; docs/roadmap.md
+worktree_status: legacy eval suite/report/baseline schema and limits are extracted into public constants used by the parser; JSON field/error/compatibility fixture inventories are explicit deletion fences, with no second evaluator or promotion authority added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-commands/src/eval.rs kiana-commands/tests/eq01_compatibility.rs kiana-core/tests/eq01_compatibility_guard.rs .github/workflows/eq01-compatibility.yml docs/roadmap/evaluation-contract-baseline.md docs/roadmap.md
+  rg -n 'EVAL_(SUITE|REPORT|BASELINE)_SCHEMA|EVAL_MAX_(CASES|FIXTURE_BYTES|FIXTURE_LINES)|LEGACY_EVAL_(JSON_FIELDS|ERROR_CODES|JSON_COMPATIBILITY_TESTS)|serde\(deny_unknown_fields\)' kiana-commands/src/eval.rs kiana-commands/tests/eq01_compatibility.rs kiana-core/tests/eq01_compatibility_guard.rs docs/roadmap/evaluation-contract-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-01 command/core compatibility targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-commands/tests/eq01_compatibility.rs legacy schema/field/error/fixture inventory; kiana-core/tests/eq01_compatibility_guard.rs parser source fence; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-01 job is queued by the next push and is not awaited
+status_change: EQ-01 source slice is implemented. Legacy eval schema literals and limits now have one public parser-owned contract, while report/baseline JSON fields, stable finding/error codes and compatibility fixture names are explicitly recorded against untracked deletion or rename.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy parser still uses caller-selected fixture paths and has no durable EvalStore, isolated runner, TraceNormalizer, quality gate, promote/rollback or real model-quality evidence; EQ-02+ remains open.
+reviewer: Codex root implementation review plus EQ-01 legacy schema/field/error compatibility source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

@@ -10,12 +10,74 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-const SUITE_SCHEMA: &str = "kiana.eval-suite.v1";
-const REPORT_SCHEMA: &str = "kiana.eval-report.v1";
-const BASELINE_SCHEMA: &str = "kiana.eval-baseline.v1";
-const MAX_CASES: usize = 256;
-const MAX_FIXTURE_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_FIXTURE_LINES: usize = 100_000;
+/// Stable legacy eval wire schema names. Removing or renaming one requires an explicit migration
+/// entry and a compatibility fixture; callers must not duplicate these literals.
+pub const EVAL_SUITE_SCHEMA: &str = "kiana.eval-suite.v1";
+pub const EVAL_REPORT_SCHEMA: &str = "kiana.eval-report.v1";
+pub const EVAL_BASELINE_SCHEMA: &str = "kiana.eval-baseline.v1";
+pub const EVAL_MAX_CASES: usize = 256;
+pub const EVAL_MAX_FIXTURE_BYTES: u64 = 16 * 1024 * 1024;
+pub const EVAL_MAX_FIXTURE_LINES: usize = 100_000;
+
+/// Fields emitted by the legacy report/baseline command. This inventory is an explicit deletion
+/// fence for the compatibility surface: a field may only disappear with a recorded upcast.
+pub const LEGACY_EVAL_JSON_FIELDS: &[&str] = &[
+    "schema",
+    "suite_id",
+    "suite_sha256",
+    "status",
+    "summary",
+    "baseline",
+    "cases",
+    "provided",
+    "path",
+    "sha256",
+    "findings",
+    "id",
+    "kind",
+    "fixture",
+    "fixture_sha256",
+    "metrics",
+    "event_count",
+    "event_type_counts",
+    "assistant_text_count",
+    "tool_call_count",
+    "tool_result_count",
+    "tool_error_count",
+    "tool_names",
+    "input_tokens",
+    "output_tokens",
+    "final_status",
+    "stop_reason",
+    "final_text",
+    "code",
+    "expected",
+    "actual",
+    "message",
+];
+
+/// Stable error/finding codes asserted by the legacy compatibility suite.
+pub const LEGACY_EVAL_ERROR_CODES: &[&str] = &[
+    "baseline_case_missing_from_suite",
+    "baseline_threshold_exceeded",
+    "baseline_value_mismatch",
+    "eval_fixture_empty",
+    "eval_fixture_invalid_json",
+    "eval_fixture_event_type_missing",
+    "eval_fixture_event_not_object",
+];
+
+/// GitHub CI compatibility fixtures that pin schema, field and rejection behavior before the
+/// domain quality DTOs replace this parser.
+pub const LEGACY_EVAL_JSON_COMPATIBILITY_TESTS: &[&str] = &[
+    "eval_run_reports_deterministic_runtime_metrics",
+    "eval_run_compares_local_baseline_thresholds",
+    "eval_run_fails_when_baseline_regresses",
+    "eval_rejects_invalid_baseline_contracts",
+    "eval_rejects_invalid_suite_and_fixture_contracts",
+    "eval_rejects_missing_or_invalid_usage_tokens",
+    "eval_rejects_symlink_fixture_escape",
+];
 
 pub struct EvalCommand;
 
@@ -358,7 +420,7 @@ fn run_suite(path: &Path, baseline_path: Option<&Path>) -> Result<EvalReport> {
         .as_ref()
         .is_some_and(|baseline| baseline.status == EvalStatus::Failed);
     Ok(EvalReport {
-        schema: REPORT_SCHEMA,
+        schema: EVAL_REPORT_SCHEMA,
         suite_id: suite.id,
         suite_sha256: sha256_hex(&suite_bytes),
         status: if failed == 0 && !baseline_failed {
@@ -408,7 +470,7 @@ fn evaluate_baseline(
     }
 
     Ok(EvalBaselineReport {
-        schema: BASELINE_SCHEMA,
+        schema: EVAL_BASELINE_SCHEMA,
         provided: true,
         path: baseline_path
             .file_name()
@@ -427,9 +489,9 @@ fn evaluate_baseline(
 }
 
 fn validate_baseline(baseline: &EvalBaseline, suite_id: &str) -> Result<()> {
-    if baseline.schema != BASELINE_SCHEMA {
+    if baseline.schema != EVAL_BASELINE_SCHEMA {
         return Err(anyhow!(
-            "unsupported eval baseline schema '{}'; expected {BASELINE_SCHEMA}",
+            "unsupported eval baseline schema '{}'; expected {EVAL_BASELINE_SCHEMA}",
             baseline.schema
         ));
     }
@@ -442,8 +504,8 @@ fn validate_baseline(baseline: &EvalBaseline, suite_id: &str) -> Result<()> {
     if baseline.cases.is_empty() {
         return Err(anyhow!("eval baseline must contain at least one case"));
     }
-    if baseline.cases.len() > MAX_CASES {
-        return Err(anyhow!("eval baseline exceeds {MAX_CASES} cases"));
+    if baseline.cases.len() > EVAL_MAX_CASES {
+        return Err(anyhow!("eval baseline exceeds {EVAL_MAX_CASES} cases"));
     }
     for (case_id, expected) in &baseline.cases {
         if case_id.trim().is_empty() {
@@ -578,9 +640,9 @@ fn compare_baseline_string(
 }
 
 fn validate_suite(suite: &EvalSuite) -> Result<()> {
-    if suite.schema != SUITE_SCHEMA {
+    if suite.schema != EVAL_SUITE_SCHEMA {
         return Err(anyhow!(
-            "unsupported eval suite schema '{}'; expected {SUITE_SCHEMA}",
+            "unsupported eval suite schema '{}'; expected {EVAL_SUITE_SCHEMA}",
             suite.schema
         ));
     }
@@ -590,8 +652,8 @@ fn validate_suite(suite: &EvalSuite) -> Result<()> {
     if suite.cases.is_empty() {
         return Err(anyhow!("eval suite must contain at least one case"));
     }
-    if suite.cases.len() > MAX_CASES {
-        return Err(anyhow!("eval suite exceeds {MAX_CASES} cases"));
+    if suite.cases.len() > EVAL_MAX_CASES {
+        return Err(anyhow!("eval suite exceeds {EVAL_MAX_CASES} cases"));
     }
     let mut ids = BTreeSet::new();
     for case in &suite.cases {
@@ -650,11 +712,11 @@ fn run_case(suite_dir: &Path, case: EvalCase) -> Result<EvalCaseReport> {
         ));
     }
     let metadata = fs::metadata(&fixture_path)?;
-    if metadata.len() > MAX_FIXTURE_BYTES {
+    if metadata.len() > EVAL_MAX_FIXTURE_BYTES {
         return Err(anyhow!(
             "eval fixture '{}' exceeds {} bytes",
             case.fixture,
-            MAX_FIXTURE_BYTES
+            EVAL_MAX_FIXTURE_BYTES
         ));
     }
     let fixture_bytes = fs::read(&fixture_path)?;
@@ -685,9 +747,9 @@ fn replay_metrics(contents: &str, case_id: &str) -> Result<EvalMetrics> {
         if line.trim().is_empty() {
             continue;
         }
-        if metrics.event_count as usize >= MAX_FIXTURE_LINES {
+        if metrics.event_count as usize >= EVAL_MAX_FIXTURE_LINES {
             return Err(anyhow!(
-                "eval fixture for case '{case_id}' exceeds {MAX_FIXTURE_LINES} events"
+                "eval fixture for case '{case_id}' exceeds {EVAL_MAX_FIXTURE_LINES} events"
             ));
         }
         let record: Value = serde_json::from_str(line).with_context(|| {
