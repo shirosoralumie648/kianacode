@@ -3355,6 +3355,25 @@ limitations: queued tool drain, OS process-group stop confirmation, mid-stream c
 reviewer: Codex root implementation review plus P0-J1-01 fact/state/signal ordering and terminal-fence invariants; no runtime test reviewer
 ```
 
+### P0-J1-02 queued cancellation drain evidence (2026-09-18)
+
+```text
+source_snapshot: f49c114 + P0-J1-02 evidence slice; kiana-runner/src/harness.rs; kiana-core/src/{lifecycle,capabilities}.rs; kiana-runner/tests/{h12_serial_batch,p0_j1_02_cancellation}.rs; kiana-core/tests/p0_j1_02_cancellation_guard.rs; .github/workflows/p0-j1-02-cancellation.yml; docs/roadmap/p0-j1-02-cancellation-drain-baseline.md
+worktree_status: serial Runner batches preserve the first dispatched boundary and drain queued siblings into bounded ToolCancelled results marked not_executed/replay_safe; core cancellation helpers retain those facts before terminal cancellation/unknown projection; synthetic results cannot authorize or claim external effects; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/p0_j1_02_cancellation.rs queue-drain/replay-safe source guards; existing h12_serial_batch cancellation runtime fixture; kiana-core/tests/p0_j1_02_cancellation_guard.rs core handoff guard; GitHub Actions P0-J1-02 workflow runs guards and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-J1-02 is triggered by the eventual push and is not awaited
+status_change: P0-J1-02 source slice is implemented/reconciled. Unstarted queued siblings now receive explicit replay-safe synthetic results instead of being silently dropped or reported as successful effects.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: the first already-dispatched effect still needs stop/effect confirmation; mid-stream late-delta fencing, process-group proof, cross-process recovery and power-loss reconciliation remain P0-J1-03/04 and CP/PD/INT work
+reviewer: Codex root implementation review plus P0-J1-02 serial drain, not-executed/replay-safe labeling and core terminal handoff invariants; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

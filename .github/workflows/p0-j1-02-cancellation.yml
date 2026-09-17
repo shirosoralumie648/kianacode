@@ -1,0 +1,48 @@
+name: P0-J1-02 cancellation drain
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h12_serial_batch.rs"
+      - "kiana-runner/tests/p0_j1_02_cancellation.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/tests/p0_j1_02_cancellation_guard.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-02-cancellation-drain-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-02-cancellation.yml"
+  pull_request:
+    paths:
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h12_serial_batch.rs"
+      - "kiana-runner/tests/p0_j1_02_cancellation.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/tests/p0_j1_02_cancellation_guard.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p0-j1-02-cancellation-drain-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-j1-02-cancellation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancellation-drain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-J1-02 runner guard
+        run: cargo test -p kiana-runner --test p0_j1_02_cancellation --locked -- --test-threads=1
+      - name: Run P0-J1-02 core guard
+        run: cargo test -p kiana-core --test p0_j1_02_cancellation_guard --locked -- --test-threads=1
+      - name: Compile P0-J1-02 targets
+        run: cargo check --workspace --tests --locked
