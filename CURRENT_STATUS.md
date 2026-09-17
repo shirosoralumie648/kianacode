@@ -3507,6 +3507,25 @@ limitations: accounting remains a conservative local UTF-8/framing estimate, not
 reviewer: Codex root implementation review plus P1-J2-02 budget component coverage, shared prepared-call validation and fail-closed overflow invariants; no runtime test reviewer
 ```
 
+### P1-J2-03 role prompt provider wiring evidence (2026-09-18)
+
+```text
+source_snapshot: 1f34d13 + P1-J2-03 evidence slice; kiana-domain/src/{prompts,roles}.rs; kiana-core/src/lifecycle.rs; kiana-runner/src/harness.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/p1_j2_03_role_prompt_guard.rs; .github/workflows/p1-j2-03-role-prompt.yml; docs/roadmap/p1-j2-03-role-prompt-baseline.md
+worktree_status: ControlPlane builds a RoleSpec-bound PromptBundle, Runner carries its encoded bundle, and daemon ProviderModelClient decodes the exact Product-authority system prompt and sends it in the provider system field; product safety remains before role text and environment additions stay policy-subject; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p1_j2_03_role_prompt_guard.rs role/system/safety source guards; existing daemon harness prompt bundle fixture remains CI-only; GitHub Actions P1-J2-03 workflow runs the guard and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-J2-03 is triggered by the eventual push and is not awaited
+status_change: P1-J2-03 source slice is implemented/reconciled. Assigned role prompt now reaches provider system content through the existing harness path without becoming capability authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: provider-native framing/tokenizer and live route proof, role-pack loading/trust/invalidation, immutable StepContext and exact snapshot/cache remain P1-J2-04/H20/H21/EXT work
+reviewer: Codex root implementation review plus P1-J2-03 RoleSpec/PromptBundle/provider system routing, safety ordering and authority separation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
