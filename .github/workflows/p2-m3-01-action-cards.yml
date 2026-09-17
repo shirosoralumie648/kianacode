@@ -1,0 +1,68 @@
+name: P2-M3-01 human action cards
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-core/tests/p2_m3_01_action_cards.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m3-01-action-card-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m3-01-action-cards.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-core/tests/p2_m3_01_action_cards.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p2-m3-01-action-card-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p2-m3-01-action-cards.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action-cards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run shared action-card source guard
+        run: cargo test -p kiana-core --test p2_m3_01_action_cards --locked -- --test-threads=1
+      - name: Run UI projection action regression
+        run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - name: Run Human Inbox action regression
+        run: cargo test -p kiana-core --test p2_k3_01_human_inbox --locked -- --test-threads=1
+      - name: Run protocol action DTO regression
+        run: cargo test -p kiana-protocol --test ui01_dto --locked -- --test-threads=1
+      - name: Compile P2-M3-01 targets
+        run: cargo check --workspace --tests --locked

@@ -108,7 +108,7 @@
 | `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ✅ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ✅ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ✅ |
-| `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
+| `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ✅ |
 | `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ⏳ |
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
 | `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ✅ |
@@ -620,7 +620,7 @@
 | 447 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ✅ | [基础卡](#step-p0-m1-01) |
 | 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ✅ | [基础卡](#step-p2-k3-01) |
 | 449 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ✅ | [基础卡](#step-p2-m2-01) |
-| 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m3-01) |
+| 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m3-01) |
 | 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m4-01) |
 | 452 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m5-01) |
 | 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
@@ -1155,6 +1155,7 @@
 | 当前 199 | `P2-K7-01` data governance/deletion propagation | `DataClass`/`Purpose`/`ProcessingGrant`/`Retention` 与 policy digest/revision/data epoch 由 server-owned DataPolicy 校验；revocation/expiry/deletion 通过 DataGovernanceSnapshot 将 receipt/audit/artifact/memory/index/cache/export 统一置为 Unknown/Revoked/Expired，daemon 先持久化拒绝再清理 memory/cache/index/artifact-store/compaction，checkpoint/runner 旧 epoch 失效；新增 domain fixture、core source guard、workflow 与 data-governance baseline | `feature_status=implemented`（domain/core/daemon/query source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-K7-01 已触发且未等待；独立 retention worker、跨进程 durable governance store、外部 DB/provider/MCP/backup/log 删除与 live/physical erasure proof 留 PD/ER/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 200 | `P2-L2-01` feedback/candidate | `feedback.submit` 以 evidence、bounded text、candidate id、platform revision/idempotency 写入 FeedbackCandidate；`feedback.review` 要求不同 session 的 reviewer/sponsor、evidence 和 quality outcome，review 只追加 `candidate_only`、`authority_changes_applied=false`，不变更 Role/Grant/Policy/历史事实；新增 core source guard、workflow 与 feedback baseline | `feature_status=implemented`（core/domain/quality source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-L2-01 已触发且未等待；独立 FeedbackStore/quality evaluator/promotion/rollback/自动 worker、外部/live 质量效果留 EQ/ER/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 201 | `P2-M2-01` UI projection | 协议提供 versioned `UiSnapshotV1`/`UiFeedEnvelope`/`UiActionV1`/`UiActionResult` 与 cursor/epoch/pending action/limitation 校验；兼容 `UiSnapshot` 由 DaemonHost 从 owner-scoped EventLog 投影 session/run/status/pending approvals，RunStreamBus 原子拒绝 stale/replayed UI action，subscribe_after/Web/Workbench 在 gap 时回到 snapshot hydration；新增 daemon unit fixture、cross-surface source guard、workflow 与 UI projection baseline | `feature_status=implemented`（protocol/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M2-01 已触发且未等待；跨进程 durable UI cursor/instance/read-state、notification delivery、多 tab/live/physical UI 与外部 human auth 留 UI/NM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 202 | `P2-M3-01` human action cards | Core `HumanAction` 与 protocol `HumanActionCard` 描述 Approval/Review/Acceptance/Incident target/command/allowed decisions/required fields/revision/epoch/digest；Human Inbox/resolve、Web/Workbench/CLI 复用相同 action metadata 并回到原 ControlPlane authority，stale/field/owner/expiry/idempotency fail-closed；新增 daemon source guard、workflow 与 action-card baseline | `feature_status=implemented`（domain/protocol/core/daemon/entrypoints source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P2-M3-01 已触发且未等待；跨进程 durable action-card/read-state、external human auth、live delivery 和 full four-surface behavior remain UI/NM/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1405,6 +1406,7 @@
 | 2026-09-18 | `P2-K7-01` data governance：DataPolicy 固定 DataClass/Purpose/ProcessingGrant/Retention、policy digest/revision/data epoch；撤销/过期/删除通过 DataGovernanceSnapshot 同步传播到 receipt/audit/artifact/memory/index/cache/export，pending 状态先置 Unknown，daemon 先持久化拒绝再清理受控 memory/cache/index/artifact-store/compaction，旧 checkpoint/context 失效；新增 domain fixture、core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-L2-01` feedback/candidate：feedback.submit/review 绑定 evidence、bounded text、candidate id、platform revision/idempotency 与独立 reviewer/session；review 只追加 candidate-only 事实并标记 authority_changes_applied=false，不修改 Role/Grant/Policy/历史；新增 core source guard、workflow 与 feedback baseline；质量 evaluator/promotion/rollback 留 EQ；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P2-M2-01` UI projection：协议提供 versioned UiSnapshot/UiFeed/UiAction/UiActionResult 与 cursor/epoch/pending action 校验；DaemonHost 从 owner-scoped EventLog 投影 snapshot，RunStreamBus 原子拒绝 stale/replayed action，subscribe_after/Web/Workbench 对 gap 回到 snapshot hydration；新增 daemon stale-action fixture、cross-surface source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P2-M3-01` action cards：Core HumanAction 与 protocol HumanActionCard 统一 Approval/Review/Acceptance/Incident 的 target/command/decision/required fields/revision/epoch/digest；Inbox/resolve、Web/Workbench/CLI 复用服务端 action metadata，stale/owner/expiry/field/idempotency fail-closed；新增 daemon source guard、workflow 与 action-card baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2386,13 +2388,15 @@
 
 <a id="step-p2-m3-01"></a>
 
-### P2-M3-01 人工动作卡　⏳
+### P2-M3-01 人工动作卡　✅
 
-- **现状**：审批、复核、验收、异常的动作界面各写一份。
-- **做什么**：Approval、Review、Acceptance、Incident 动作卡三处（CLI/TTY/Web）复用同一实现。
-- **风险**：动作卡若各自决定 `available_decisions`，会出现越权选项。
+当前 source slice 与 CI-only 证据见 [`p2-m3-01-action-card-baseline.md`](roadmap/p2-m3-01-action-card-baseline.md)。
+
+- **现状**：Core `HumanAction` 与 protocol `HumanActionCard` 已描述动作 ID、命令、target、owner/epoch、revision、allowed decisions、required fields、digest；Inbox/resolve 与审批 challenge 仍由原 ControlPlane authority 生成。
+- **做什么**：Approval、Review、Acceptance、Incident 在 CLI/TTY/Web 的展示/提交路径复用服务端 action metadata；stale、owner、expiry、required field、scope、idempotency 和不可用 decision 均在服务端 fail-closed。
+- **风险**：动作卡若各自决定 `available_decisions`，会出现越权选项；当前 surface 只显示 server-issued actions，不把 UI 选项当授权。
 - **验收**：`action_card_is_shared_by_all_surfaces`
-- **依赖 / 边界**：依赖 `P2-M2-01`；动作必须带 target ID、owner、expected epoch 和 idempotency key。
+- **依赖 / 边界**：依赖 `P2-M2-01`；动作必须带 target ID、owner/expected epoch、revision/digest 和 idempotency key，UI 不创建第二决策循环。
 - **依据**：`company-os-implementation-outline.md` §Slice M3
 
 
