@@ -6882,3 +6882,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: Candidate proposals are not Active/Qualified memory and are not automatically persisted through memory.write; Builder persistent write permissions remain unchanged; cross-tenant department ACL, durable projector/recovery, production index/vector search, external notifications and live/physical business outcomes remain CM/PD/SC/NM/ER work
 reviewer: Codex root implementation review plus five-department catalog, chair/attendee/round, public-decision-only evidence, Candidate/admission, ACL/promotion and no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-J3-05 terminal distillation evidence (2026-09-18)
+
+```text
+source_snapshot: 8756a882 + P4-J3-05 working-tree slice; kiana-domain/src/{memory_distillation.rs,memory_proposals.rs}; kiana-core/src/{events.rs,lifecycle.rs,memory_distillation.rs,memory_proposals.rs}; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/p4_j3_05_distillation.rs; kiana-core/tests/p4_j3_05_distillation.rs; .github/workflows/p4-j3-05-distillation.yml; docs/roadmap/p4-j3-05-distillation-baseline.md; docs/roadmap.md
+worktree_status: terminal run outcomes now queue at-most-once memory distillation jobs; explicit consume uses a read-only deny-tools Runner, strict schema/quote/evidence validation produces only department lesson Candidate proposals, and memory.review remains the promotion boundary; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-domain --test p4_j3_05_distillation -p kiana-core --test p4_j3_05_distillation --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_j3_05_distillation.rs validates retain/discard, exact source quote, malformed quote rejection and Candidate lesson output; kiana-core/tests/p4_j3_05_distillation.rs guards terminal queue/claim/start/finish/failure/Unknown/idempotency, memory.review and no direct Broker/Provider boundary; GitHub Actions P4-J3-05 workflow runs fixtures, proposal regression and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J3-05 is triggered by the eventual push and is not awaited
+status_change: P4-J3-05 source slice is implemented. Run terminal facts can produce bounded, evidence-cited lesson candidates in the source department collection without changing the source outcome or granting automatic knowledge authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Scripted/fixture validation does not establish LLM semantic quality or production throughput; candidate queue and memory JSONL remain local adapters, cross-process worker/power-loss recovery, durable index/vector recall, retention/revocation and real business impact remain CM/PD/ER/PD/SC/EQ work
+reviewer: Codex root implementation review plus terminal trigger, at-most-once source key, deny-tools internal run, strict output/quote/evidence, Candidate-only admission, memory.review ACL and Unknown/no-second-loop boundary review; no runtime test reviewer
+```
