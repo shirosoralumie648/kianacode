@@ -25,6 +25,8 @@ pub const MAX_EVAL_PROVENANCE: usize = 32;
 pub const MAX_EVAL_REFERENCES: usize = 256;
 pub const MAX_EVAL_EVENTS: usize = 4_096;
 pub const MAX_EVAL_CONFIG_BYTES: usize = 256 * 1024;
+pub const MAX_EVAL_WORKLOAD_TAGS: usize = 32;
+pub const MAX_EVAL_MINIMUM_SAMPLE: u32 = 1_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -361,6 +363,43 @@ fn validate_expiry(
     Ok(())
 }
 
+fn valid_privacy_class(value: &str) -> bool {
+    matches!(
+        value,
+        "public" | "internal" | "confidential" | "restricted" | "red_team"
+    )
+}
+
+fn canonical_tags(mut values: Vec<String>, field: &str) -> Result<Vec<String>, String> {
+    if values.len() > MAX_EVAL_WORKLOAD_TAGS
+        || values.iter().any(|value| {
+            value.trim().is_empty()
+                || value.len() > MAX_QUALITY_OBJECT_TYPE
+                || value.contains('\0')
+                || redact_text(value) != value.as_str()
+        })
+    {
+        return Err(format!("{field}_invalid"));
+    }
+    values = values
+        .into_iter()
+        .map(|value| value.trim().to_owned())
+        .collect();
+    values.sort();
+    if values.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(format!("{field}_duplicate"));
+    }
+    Ok(values)
+}
+
+fn default_minimum_sample() -> u32 {
+    1
+}
+
+fn default_quality_owner() -> String {
+    "quality-owner".to_owned()
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvalSplit {
@@ -383,6 +422,10 @@ pub struct EvalDataset {
     pub privacy_class: String,
     pub split: EvalSplit,
     pub case_refs: Vec<EvalCaseId>,
+    #[serde(default = "default_minimum_sample")]
+    pub minimum_sample: u32,
+    #[serde(default)]
+    pub workload_tags: Vec<String>,
     pub created_at_unix_ms: u64,
     #[serde(default)]
     pub expires_at_unix_ms: Option<u64>,
@@ -397,11 +440,12 @@ impl EvalDataset {
         mut provenance: Vec<String>,
         privacy_class: impl Into<String>,
         split: EvalSplit,
-        case_refs: Vec<EvalCaseId>,
+        mut case_refs: Vec<EvalCaseId>,
         created_at_unix_ms: u64,
         expires_at_unix_ms: Option<u64>,
     ) -> Result<Self, String> {
         provenance.sort();
+        case_refs.sort_by_key(ToString::to_string);
         let mut dataset = Self {
             schema: EVAL_DATASET_SCHEMA.to_owned(),
             version: QUALITY_OBJECT_SCHEMA_VERSION,
@@ -412,6 +456,8 @@ impl EvalDataset {
             privacy_class: privacy_class.into(),
             split,
             case_refs,
+            minimum_sample: default_minimum_sample(),
+            workload_tags: Vec::new(),
             created_at_unix_ms,
             expires_at_unix_ms,
             dataset_digest: String::new(),
@@ -434,11 +480,22 @@ impl EvalDataset {
             "eval_dataset_privacy",
             MAX_QUALITY_OBJECT_TYPE,
         )?;
+        if !valid_privacy_class(&self.privacy_class) {
+            return Err("eval_dataset_privacy_invalid".to_owned());
+        }
         required_list(
             &self.provenance,
             "eval_dataset_provenance",
             MAX_EVAL_PROVENANCE,
         )?;
+        if self.minimum_sample == 0 || self.minimum_sample > MAX_EVAL_MINIMUM_SAMPLE {
+            return Err("eval_dataset_minimum_sample_invalid".to_owned());
+        }
+        if canonical_tags(self.workload_tags.clone(), "eval_dataset_workload_tags")?
+            != self.workload_tags
+        {
+            return Err("eval_dataset_workload_tags_noncanonical".to_owned());
+        }
         if self.case_refs.is_empty() || self.case_refs.len() > MAX_EVAL_REFERENCES {
             return Err("eval_dataset_cases_invalid".to_owned());
         }
@@ -465,6 +522,29 @@ impl EvalDataset {
         Ok(())
     }
 
+    pub fn with_sampling_policy(
+        mut self,
+        minimum_sample: u32,
+        workload_tags: Vec<String>,
+    ) -> Result<Self, String> {
+        self.minimum_sample = minimum_sample;
+        self.workload_tags = canonical_tags(workload_tags, "eval_dataset_workload_tags")?;
+        self.dataset_digest = self.digest();
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn validate_for_admission(&self, now_unix_ms: u64) -> Result<(), String> {
+        self.validate()?;
+        if self
+            .expires_at_unix_ms
+            .is_some_and(|expires| now_unix_ms >= expires)
+        {
+            return Err("eval_dataset_expired".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -476,6 +556,8 @@ impl EvalDataset {
             "privacy_class": self.privacy_class,
             "split": self.split,
             "case_refs": self.case_refs,
+            "minimum_sample": self.minimum_sample,
+            "workload_tags": self.workload_tags,
             "created_at_unix_ms": self.created_at_unix_ms,
             "expires_at_unix_ms": self.expires_at_unix_ms,
         }))
@@ -651,6 +733,14 @@ pub struct EvalCase {
     pub forbidden_effects: Vec<String>,
     pub assertions: Vec<String>,
     pub privacy_class: String,
+    #[serde(default = "default_quality_owner")]
+    pub owner_id: String,
+    #[serde(default)]
+    pub expires_at_unix_ms: Option<u64>,
+    #[serde(default = "default_minimum_sample")]
+    pub minimum_sample: u32,
+    #[serde(default)]
+    pub workload_tags: Vec<String>,
     pub case_digest: String,
 }
 
@@ -689,6 +779,10 @@ impl EvalCase {
             forbidden_effects,
             assertions,
             privacy_class: privacy_class.into(),
+            owner_id: default_quality_owner(),
+            expires_at_unix_ms: None,
+            minimum_sample: default_minimum_sample(),
+            workload_tags: Vec::new(),
             case_digest: String::new(),
         };
         case.case_digest = case.digest();
@@ -722,6 +816,19 @@ impl EvalCase {
             "eval_case_privacy",
             MAX_QUALITY_OBJECT_TYPE,
         )?;
+        if !valid_privacy_class(&self.privacy_class) {
+            return Err("eval_case_privacy_invalid".to_owned());
+        }
+        required(&self.owner_id, "eval_case_owner", MAX_QUALITY_OWNER)?;
+        if self.minimum_sample == 0 || self.minimum_sample > MAX_EVAL_MINIMUM_SAMPLE {
+            return Err("eval_case_minimum_sample_invalid".to_owned());
+        }
+        if canonical_tags(self.workload_tags.clone(), "eval_case_workload_tags")?
+            != self.workload_tags
+        {
+            return Err("eval_case_workload_tags_noncanonical".to_owned());
+        }
+        validate_expiry(0, self.expires_at_unix_ms, "eval_case")?;
         for (values, field) in [
             (&self.expected_events, "eval_case_expected_events"),
             (&self.expected_artifacts, "eval_case_expected_artifacts"),
@@ -743,6 +850,33 @@ impl EvalCase {
         Ok(())
     }
 
+    pub fn with_admission_policy(
+        mut self,
+        owner_id: impl Into<String>,
+        minimum_sample: u32,
+        workload_tags: Vec<String>,
+        expires_at_unix_ms: Option<u64>,
+    ) -> Result<Self, String> {
+        self.owner_id = owner_id.into();
+        self.minimum_sample = minimum_sample;
+        self.workload_tags = canonical_tags(workload_tags, "eval_case_workload_tags")?;
+        self.expires_at_unix_ms = expires_at_unix_ms;
+        self.case_digest = self.digest();
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn validate_for_admission(&self, now_unix_ms: u64) -> Result<(), String> {
+        self.validate()?;
+        if self
+            .expires_at_unix_ms
+            .is_some_and(|expires| now_unix_ms >= expires)
+        {
+            return Err("eval_case_expired".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -759,6 +893,10 @@ impl EvalCase {
             "forbidden_effects": self.forbidden_effects,
             "assertions": self.assertions,
             "privacy_class": self.privacy_class,
+            "owner_id": self.owner_id,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+            "minimum_sample": self.minimum_sample,
+            "workload_tags": self.workload_tags,
         }))
     }
 }

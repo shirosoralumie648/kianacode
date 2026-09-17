@@ -2133,6 +2133,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-03 eval object/provenance/cursor/digest and no-execution-path source-boundary review; no runtime test reviewer
 ```
 
+### EQ-04 evaluation admission metadata evidence (2026-09-17)
+
+```text
+source_snapshot: d52b955 + EQ-04 working-tree slice; kiana-domain/src/quality.rs; kiana-domain/tests/eq04_admission.rs; kiana-core/tests/eq04_admission_guard.rs; .github/workflows/eq04-admission.yml; docs/roadmap/evaluation-admission-baseline.md; docs/roadmap.md
+worktree_status: EvalDataset/EvalCase privacy/split/owner/expiry/minimum_sample/workload_tags admission checks are scoped to this step; legacy defaults are explicit, `validate_for_admission(now)` is pure and no FixtureStore/runner/provider/Broker path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/quality.rs kiana-domain/tests/eq04_admission.rs kiana-core/tests/eq04_admission_guard.rs .github/workflows/eq04-admission.yml docs/roadmap/evaluation-admission-baseline.md docs/roadmap.md
+  rg -n 'EvalSplit|privacy_class|minimum_sample|workload_tags|validate_for_admission|eval_(dataset|case)_(expired|privacy|minimum_sample|workload_tags)|canonical_tags|valid_privacy_class' kiana-domain/src/quality.rs kiana-domain/tests/eq04_admission.rs kiana-core/tests/eq04_admission_guard.rs docs/roadmap/evaluation-admission-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; EQ-04 admission targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/eq04_admission.rs expired/unowned dataset, case metadata, privacy/tag invalid and admission fixtures; kiana-core/tests/eq04_admission_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-04 job is queued by the next push and is not awaited
+status_change: EQ-04 source slice is implemented. Dataset/Case admission metadata now has bounded privacy/split/owner/expiry/sample/tag contracts with canonical ordering and explicit expiry evaluation; expired, unowned, unknown privacy, bad tags/sample/expiry/secret inputs fail closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; owner is not yet authenticated Principal/ProjectTrust, expiry is not a durable clock/lease, refs are not loaded through isolated FixtureStore, and runner/normalizer/judge/gate/promotion/recovery remain EQ-08+ / ER / PD / SC.
+reviewer: Codex root implementation review plus EQ-04 dataset/case admission metadata and no-store/no-execution source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

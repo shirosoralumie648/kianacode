@@ -1,0 +1,42 @@
+name: EQ-04 evaluation admission metadata
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/tests/eq04_admission.rs"
+      - "kiana-core/tests/eq04_admission_guard.rs"
+      - "docs/roadmap/evaluation-admission-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq04-admission.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/quality.rs"
+      - "kiana-domain/tests/eq04_admission.rs"
+      - "kiana-core/tests/eq04_admission_guard.rs"
+      - "docs/roadmap/evaluation-admission-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq04-admission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluation-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-04 admission fixture
+        run: cargo test -p kiana-domain --test eq04_admission --locked -- --test-threads=1
+      - name: Run EQ-04 source guard
+        run: cargo test -p kiana-core --test eq04_admission_guard --locked -- --test-threads=1
+      - name: Compile admission path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked
