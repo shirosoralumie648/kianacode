@@ -1,0 +1,50 @@
+name: P4-K2-01 trigger authority
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/p4_k2_01_trigger.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/p4_k2_01_trigger.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-k2-01-trigger-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-k2-01-trigger.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/p4_k2_01_trigger.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/p4_k2_01_trigger.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-k2-01-trigger-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-k2-01-trigger.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run trigger authority fixture
+        run: cargo test -p kiana-workflow --test p4_k2_01_trigger --locked -- --test-threads=1
+      - name: Run ControlPlane trigger source guard
+        run: cargo test -p kiana-core --test p4_k2_01_trigger --locked -- --test-threads=1
+      - name: Run automation compatibility regression
+        run: cargo test -p kiana-core --test automation_baseline --locked -- --test-threads=1
+      - name: Compile P4-K2-01 targets
+        run: cargo check --workspace --tests --locked

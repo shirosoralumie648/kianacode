@@ -6950,3 +6950,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: broadcast/terminal retention and gap detection remain process-local best-effort; no cross-process durable stream, network exactly-once delivery, provider-native stream or live/physical effect proof is claimed; EventLog/Receipt remain authoritative
 reviewer: Codex root implementation review plus event-kind mapping, additive unknown handling, per-run terminal retention, late-cursor replay, gap/epoch fencing and no-second-loop/no-provider boundary review; no runtime test reviewer
 ```
+### P4-K2-01 trigger authority evidence (2026-09-18)
+
+```text
+source_snapshot: 3f1e1d8b + P4-K2-01 working-tree slice; kiana-domain/src/automation.rs; kiana-workflow/src/{lib.rs,durable.rs}; kiana-core/src/{automation.rs,commands.rs}; kiana-workflow/tests/p4_k2_01_trigger.rs; kiana-core/tests/p4_k2_01_trigger.rs; .github/workflows/p4-k2-01-trigger.yml; docs/roadmap/p4-k2-01-trigger-baseline.md; docs/roadmap.md
+worktree_status: TriggerDefinition/Fire/Tick now have a focused pure-planner fixture: Fire creates a trigger-bound WorkflowInstance without a capability effect, concurrent Reject is explicit, and only Advance returns a dispatch effect; ControlPlane commits workflow facts before Company/Capability dispatch and rechecks owner/role/approval/expiry/idempotency; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-workflow --test p4_k2_01_trigger -p kiana-core --test p4_k2_01_trigger --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-workflow/tests/p4_k2_01_trigger.rs registers a capability workflow, fires a manual trigger and proves Fire has no effect while Advance produces WorkflowEffect::Dispatch; kiana-core/tests/p4_k2_01_trigger.rs guards trigger bounds, evidence/CAS/idempotency and commit-before-dispatch/no-second-loop; GitHub Actions P4-K2-01 workflow runs fixture, automation baseline and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-K2-01 is triggered by the eventual push and is not awaited
+status_change: P4-K2-01 source slice is implemented. Triggers can create bounded workflow/run intent but cannot execute capabilities directly; execution remains a later ControlPlane-authorized effect.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: trigger/workflow state and scheduling are local EventLog/inline projections without durable worker/timer lease or cross-process power-loss proof; no production scheduler fairness, external connector/provider receipt or live/physical effect is claimed; legacy watcher remains compatibility-only
+reviewer: Codex root implementation review plus trigger owner/role/approval/expiry/firing/concurrency bounds, pure Fire/Advance separation, workflow CAS/idempotency, commit-before-dispatch and no direct capability/no-second-loop boundary review; no runtime test reviewer
+```
