@@ -769,6 +769,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.session-assertion.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.policy-bundle.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

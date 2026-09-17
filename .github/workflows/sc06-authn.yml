@@ -1,0 +1,58 @@
+name: SC-06 principal session authn boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/session_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/sc06_session.rs"
+      - "kiana-daemon/src/authn.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/sc06_authn.rs"
+      - "kiana-core/tests/sc06_authn_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/security-authn-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc06-authn.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/session_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/sc06_session.rs"
+      - "kiana-daemon/src/authn.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/sc06_authn.rs"
+      - "kiana-core/tests/sc06_authn_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/security-authn-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc06-authn.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-06 domain fixture
+        run: cargo test -p kiana-domain --test sc06_session --locked -- --test-threads=1
+      - name: Run SC-06 daemon fixture
+        run: cargo test -p kiana-daemon --test sc06_authn --locked -- --test-threads=1
+      - name: Run SC-06 source guard
+        run: cargo test -p kiana-core --test sc06_authn_guard --locked -- --test-threads=1
+      - name: Compile SC-06 targets
+        run: cargo check --workspace --tests --locked

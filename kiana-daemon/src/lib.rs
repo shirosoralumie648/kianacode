@@ -3,6 +3,7 @@
 mod apply_patch;
 #[cfg(test)]
 mod approval_store;
+mod authn;
 mod connectors;
 mod context_query;
 mod data_governance;
@@ -25,6 +26,7 @@ mod run_stream;
 mod storage;
 mod workspace_checkpoints;
 
+pub use authn::LocalAuthnAdapter;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
 };
@@ -131,6 +133,7 @@ fn loopback_authority(value: &str) -> bool {
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
     principal: AuthenticatedPrincipal,
+    authn: LocalAuthnAdapter,
     assignment_directory: InMemoryAssignmentDirectory,
     project_authority: Arc<dyn ProjectTrustAuthority>,
     run_stream: Arc<RunStreamBus>,
@@ -199,9 +202,13 @@ impl DaemonHost {
         project_authority: Arc<dyn ProjectTrustAuthority>,
         run_stream: Arc<RunStreamBus>,
     ) -> Self {
+        let principal = AuthenticatedPrincipal::local();
+        let authn = LocalAuthnAdapter::new(principal.identity.clone())
+            .expect("local authenticated principal must validate");
         Self {
             core,
-            principal: AuthenticatedPrincipal::local(),
+            principal,
+            authn,
             assignment_directory: InMemoryAssignmentDirectory::new(),
             project_authority,
             run_stream,
@@ -210,6 +217,12 @@ impl DaemonHost {
                     .expect("static observability queue capacity is non-zero"),
             ),
         }
+    }
+
+    /// Return the local compatibility authn adapter. Session state is process-local and does not
+    /// itself grant a role or capability; each request still enters SecurityContext/ControlPlane.
+    pub fn authn_adapter(&self) -> LocalAuthnAdapter {
+        self.authn.clone()
     }
 
     /// 只读解析一个角色的 harness runtime 配置。
@@ -786,6 +799,15 @@ impl DaemonHost {
     pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {
         let request_id = request.metadata.request_id;
         if let Err(error) = validate_protected_ingress(&request.metadata) {
+            return ResponseEnvelope::rejected(request_id, error.to_string());
+        }
+        let protected_identity =
+            request.metadata.identity_mode.as_deref() == Some("protected_local");
+        if let Err(error) = self.authn.validate_if_present(
+            request.metadata.session_id.as_str(),
+            authn::LocalAuthnAdapter::now_unix_ms(),
+            protected_identity,
+        ) {
             return ResponseEnvelope::rejected(request_id, error.to_string());
         }
         let publish_run_response = matches!(

@@ -2427,6 +2427,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-05 default-deny/deny-first/revision-trace/dependency-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-06 Principal/session/authn adapter evidence (2026-09-17)
+
+```text
+source_snapshot: 6ea69ba + SC-06 working-tree slice; kiana-domain/src/{session_contracts,identity_contracts,contracts,lib}.rs; kiana-domain/tests/sc06_session.rs; kiana-daemon/src/{authn,lib}.rs; kiana-daemon/tests/sc06_authn.rs; kiana-core/tests/sc06_authn_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/sc06-authn.yml; docs/roadmap/security-authn-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-06 strict SessionAssertion/AuthenticationAssurance/SessionStatus lifecycle, opaque LocalAuthnAdapter, expiry/revoke/duplicate/missing protected guards, DaemonHost preflight, protocol exports, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no bearer/raw secret store, external auth provider, role assignment, second execution path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/session_contracts.rs kiana-domain/src/identity_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/sc06_session.rs kiana-daemon/src/authn.rs kiana-daemon/src/lib.rs kiana-daemon/tests/sc06_authn.rs kiana-core/tests/sc06_authn_guard.rs kiana-protocol/src/lib.rs .github/workflows/sc06-authn.yml docs/roadmap/security-authn-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'SessionAssertion|AuthenticationAssurance|SessionStatus|LocalAuthnAdapter|validate_if_present|AUTH_SESSION_(REPLAY|MISSING|EXPIRED|REVOKED)|protected_local|bearer|access_token|refresh_token' kiana-domain/src kiana-domain/tests kiana-daemon/src kiana-daemon/tests kiana-core/tests kiana-protocol/src docs/roadmap/security-authn-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/daemon/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/sc06_session.rs session/principal lifecycle and strict serde fixtures; kiana-daemon/tests/sc06_authn.rs opaque session issue/validation/expiry/revoke/replay fixtures; kiana-core/tests/sc06_authn_guard.rs source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-06 job is queued by the push and is not awaited
+status_change: SC-06 source slice is implemented. Domain now provides strict bounded SessionAssertion with assurance, expiry, credential generation, authority epoch, digest and non-resurrecting status transitions; daemon LocalAuthnAdapter validates known sessions, rejects duplicate/revoked/expired/missing protected sessions and stores only opaque principal references. DaemonHost performs the adapter check before SecurityContext/ControlPlane while unknown legacy sessions remain explicit compatibility, and protocol re-exports session DTOs.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; session state is process-local and lost on restart, LocalAuthnAdapter is local-user compatibility rather than OAuth/Unix peer/tenant authentication, protected credential_ref remains an opaque ingress assertion, authority epoch is compatibility value 1 and no durable revocation/generation projector or cross-process fence exists, role/ProjectTrust/Grant/policy/SecretStore/redaction/provider/external/physical enforcement remains later SC/CP/CAP/ER/PD work
+reviewer: Codex root implementation review plus SC-06 session lifecycle/authn opacity/restart-boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
