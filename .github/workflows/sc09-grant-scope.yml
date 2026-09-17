@@ -1,0 +1,50 @@
+name: SC-09 grant scope intersection
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-policy/src/grant_scope.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/sc09_grant_scope.rs"
+      - "kiana-domain/src/scope.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/tests/sc09_grant_scope_guard.rs"
+      - "docs/roadmap/security-grant-scope-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc09-grant-scope.yml"
+  pull_request:
+    paths:
+      - "kiana-policy/src/grant_scope.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/sc09_grant_scope.rs"
+      - "kiana-domain/src/scope.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/tests/sc09_grant_scope_guard.rs"
+      - "docs/roadmap/security-grant-scope-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc09-grant-scope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grant-scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-09 grant fixture
+        run: cargo test -p kiana-policy --test sc09_grant_scope --locked -- --test-threads=1
+      - name: Run SC-09 source guard
+        run: cargo test -p kiana-core --test sc09_grant_scope_guard --locked -- --test-threads=1
+      - name: Compile SC-09 targets
+        run: cargo check --workspace --tests --locked

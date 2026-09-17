@@ -2490,6 +2490,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-08 monotonic epoch/session/policy/config fence and no-resurrection reconciliation; no runtime test reviewer
 ```
 
+### SC-09 GrantScope intersection evidence (2026-09-17)
+
+```text
+source_snapshot: 049aabc + SC-09 working-tree slice; kiana-policy/src/{grant_scope,lib}.rs; kiana-policy/tests/sc09_grant_scope.rs; kiana-domain/src/{scope,contracts,lib}.rs; kiana-core/tests/sc09_grant_scope_guard.rs; .github/workflows/sc09-grant-scope.yml; docs/roadmap/security-grant-scope-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: SC-09 strict GrantScope, ScopeSet multi-dimensional intersection/subset, capability/secret/external/delegation/expiry/epoch narrowing, legacy grant adapter, CI fixtures/source guard and roadmap/status overlays are scoped to this step; no Broker/handler/approval execution, second authorization path or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-policy/src/grant_scope.rs kiana-policy/src/lib.rs kiana-policy/tests/sc09_grant_scope.rs kiana-domain/src/scope.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/tests/sc09_grant_scope_guard.rs .github/workflows/sc09-grant-scope.yml docs/roadmap/security-grant-scope-baseline.md docs/roadmap/security-compliance.md docs/roadmap/README.md docs/roadmap.md CURRENT_STATUS.md
+  rg -n 'GrantScope|intersect_all|capability_intersection_empty|principal_mismatch|project_mismatch|allow_secret|allow_external|delegation_allowed|ScopeSet::intersect|is_subset_of|grant_scope_.*(invalid|mismatch|empty)' kiana-policy/src kiana-policy/tests kiana-domain/src kiana-core/tests docs/roadmap/security-grant-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; policy/core test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-policy/tests/sc09_grant_scope.rs parent/child intersection, no-union/cross-scope, capability/secret/external mixing, request path/risk/expiry and legacy adapter fixtures; kiana-core/tests/sc09_grant_scope_guard.rs source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-09 job is queued by the push and is not awaited
+status_change: SC-09 source slice is implemented. GrantScope now derives child permissions only by intersection of ScopeSet dimensions and explicit capability/secret/external/delegation/expiry/epoch values, rejects cross-principal/project/epoch and empty/mixed grants, proves subset containment, and adapts legacy CapabilityGrant without widening. Policy exports the contract and no Broker/handler/second authorization loop was added.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; GrantScope is not yet the durable Cell/Grant/Approval authority, existing MemoryCellRegistry and permits retain compatibility paths, parent/template/department/project/packet/approval layers are not atomically persisted, effect-time TOCTOU/egress/SecretStore/revocation/recovery and external/live/physical proof remain SC-10+
+reviewer: Codex root implementation review plus SC-09 intersection/no-union/capability-boundary reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

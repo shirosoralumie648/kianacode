@@ -25,6 +25,8 @@ use kiana_domain::{
 
 mod security;
 pub use security::*;
+mod grant_scope;
+pub use grant_scope::*;
 
 /// 对单个能力请求作出纯策略决定的接口。
 ///
