@@ -3450,6 +3450,25 @@ limitations: MemoryCellRegistry remains process-local; durable Cell/Grant/Budget
 reviewer: Codex root implementation review plus P1-C-02 reserve/commit/terminal/retire and owned-resource-release invariants; no runtime test reviewer
 ```
 
+### P1-E-02 Symposium decision replay evidence (2026-09-18)
+
+```text
+source_snapshot: 0d41775 + P1-E-02 evidence slice; kiana-domain/src/symposiums.rs; kiana-core/src/{collaboration,events}.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/p1_e02_symposium.rs; .github/workflows/p1-e02-symposium.yml; docs/roadmap/p1-e02-symposium-baseline.md
+worktree_status: Symposium validates department/chair/attendee/round boundaries, runs bounded private speaker sessions or explicit anti-meeting, preserves blackboard alternatives and typed DecisionRecord, writes department artifact and appends durable symposium.closed under the EventLog request stream; existing core regressions remain selected in CI; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p1_e02_symposium.rs decision close/replay and chair/alternative source guards; existing control_plane multi-round/private-session and department anti-meeting runtime fixtures; GitHub Actions P1-E-02 workflow runs guards and selected serialized regressions
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-E-02 is triggered by the eventual push and is not awaited
+status_change: P1-E-02 source slice is implemented/reconciled. Symposium/DecisionRecord and durable close event are now explicitly tracked with bounded speaker and anti-meeting paths.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: cross-process decision projector, department memory/RAG admission, external human decision authn and full durable replay/recovery remain P4-E-03/PD/ER/SC work
+reviewer: Codex root implementation review plus P1-E-02 Symposium contract, chair/attendee fences, DecisionRecord preservation and durable event handoff; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

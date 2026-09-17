@@ -1,0 +1,52 @@
+name: P1-E-02 symposium
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/symposiums.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p1_e02_symposium.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-e02-symposium-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-e02-symposium.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/symposiums.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p1_e02_symposium.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p1-e02-symposium-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p1-e02-symposium.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  symposium:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P1-E-02 source guard
+        run: cargo test -p kiana-core --test p1_e02_symposium --locked -- --test-threads=1
+      - name: Run P1-E-02 speaker regression
+        run: cargo test -p kiana-core --test control_plane convene_two_rounds_uses_private_speaker_sessions --locked -- --test-threads=1
+      - name: Run P1-E-02 artifact regression
+        run: cargo test -p kiana-core --test control_plane each_department_anti_meeting_writes_its_own_artifact --locked -- --test-threads=1
+      - name: Compile P1-E-02 targets
+        run: cargo check --workspace --tests --locked

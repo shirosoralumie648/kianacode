@@ -84,7 +84,7 @@
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ✅ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ✅ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ✅ |
-| `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
+| `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ✅ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ✅ |
 | `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ✅ |
@@ -712,7 +712,7 @@
 | 538 | W7 | 专项 | [`CO-39`](roadmap/companyos.md#step-co-39) | CompanyOS · 统一 Human Inbox 与有后续动作的决定卡 | `CO-05`、`CO-23`、`CO-28`、`CO-34`、`CO-38` | ⏳ | [专项卡](roadmap/companyos.md#step-co-39) |
 | 539 | W7 | 专项 | [`CO-40`](roadmap/companyos.md#step-co-40) | CompanyOS · CLI 与 Workbench 的 Company 用户流程 | `CO-38`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-40) |
 | 540 | W7 | 专项 | [`CO-41`](roadmap/companyos.md#step-co-41) | CompanyOS · Web 与 Desktop 复用同一 Company 状态 | `CO-38`、`CO-39`、`CO-40` | ⏳ | [专项卡](roadmap/companyos.md#step-co-41) |
-| 541 | W7 | 基础 | [`P1-E-02`](#step-p1-e-02) | P1 基础 · Symposium 会议对象契约化 | `P1-E-01` | ⏳ | [基础卡](#step-p1-e-02) |
+| 541 | W7 | 基础 | [`P1-E-02`](#step-p1-e-02) | P1 基础 · Symposium 会议对象契约化 | `P1-E-01` | ✅ | [基础卡](#step-p1-e-02) |
 | 542 | W7 | 基础 | [`P2-J5-01`](#step-p2-j5-01) | P2 基础 · Workflow definition 与重放 | `P0-G-04` | ⏳ | [基础卡](#step-p2-j5-01) |
 | 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ⏳ | [基础卡](#step-p3-i-03) |
 | 544 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ⏳ | [基础卡](#step-p3-i-04) |
@@ -1135,6 +1135,7 @@
 | 当前 179 | `P0-J1-04` cancel race | existing daemon held-stream race keeps cancel intent before signal, emits no late delta/completion and requires exactly one terminal fact;新增 daemon CI guard/workflow 与 cancel-race baseline | `feature_status=implemented`（daemon/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-J1-04 已触发且未等待；cross-process/power-loss races、provider effect reconciliation and physical proof 留待 CP/PD/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 180 | `P0-M1-01` Workbench | Workbench/TTY、CLI stream renderer、Web ledger/SSE 与 Desktop web shell 消费同一 run-scoped Terminal/ExecutionStatus；Cancelled/ResultUnknown 保持可见，Desktop 不创建第二循环；新增 entrypoints CI guard/workflow 与 Workbench baseline | `feature_status=implemented`（entrypoints/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P0-M1-01 已触发且未等待；UiSnapshot/action/reconnect durability、accessibility and physical packaging 留待 UI-01+/P2-M2/P2-M5/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 181 | `P1-C-02` Cell lifecycle | MemoryCellRegistry reserve/commit/terminal/retire validates all scoped resources; retirement releases only its own budget/path locks once and records grant/supervision IDs, with active-capability fence;新增 core CI guard/workflow 与 Cell lifecycle baseline | `feature_status=implemented`（core/domain source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-C-02 已触发且未等待；durable Cell/Grant/Budget/Lease projection、restart recovery、scheduler/Swarm and cross-process fencing 留待 AUT/SW/ER/PD/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 182 | `P1-E-02` Symposium | Symposium validates department/chair/attendee/round contracts, runs bounded private speaker sessions or explicit anti-meeting, writes typed DecisionRecord/artifact and durable `symposium.closed`; existing core regressions cover replay inputs and department artifacts;新增 core CI guard/workflow 与 Symposium baseline | `feature_status=implemented`（domain/core/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P1-E-02 已触发且未等待；durable cross-process decision projector、department RAG admission and external human decisions 留待 P4-E-03/PD/ER/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1365,6 +1366,7 @@
 | 2026-09-18 | `P0-J1-04` cancel race：复用 daemon held-stream 竞态回归，取消后无 late delta/completion 且 terminal fact 恰好一次；新增 cancel-race source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P0-M1-01` Workbench：CLI/TTY、CLI stream、Web ledger/SSE 与 Desktop web shell 统一消费 RunStream Terminal/ExecutionStatus，Cancelled/ResultUnknown 可见且 UI 不生成事实；新增 entrypoints/daemon source guard、workflow 与 Workbench baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P1-C-02` Cell lifecycle：MemoryCellRegistry reserve/commit/terminal/retire 统一校验模板/grant/budget/supervision/path，active capability 未结束不可 retire，release_resources 只释放本 Cell 的 budget/path 并幂等记录 retirement；新增 core guard、workflow 与 Cell lifecycle baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P1-E-02` Symposium：补现有会议对象/投票/黑板/DecisionRecord 的验收追踪；chair/attendee/round 边界 fail-closed，speaker 使用隔离 Harness session，`symposium.closed` 与部门 Decision artifact 作为 durable replay source；新增 core guard、workflow 与多轮/反会议回归；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1893,10 +1895,12 @@
 
 <a id="step-p1-e-02"></a>
 
-### P1-E-02 Symposium 会议对象契约化　⏳
+### P1-E-02 Symposium 会议对象契约化　✅
 
-- **现状**：`Symposium`/投票/黑板/`DecisionRecord` 已实现（`kiana-domain/src/symposiums.rs`），`convene_symposium` 有 chair 必须为 PM、`can_convene` 与 workspace-write 校验（`kiana-core/src/collaboration.rs:955-1044`）——对应 `COMPANY.md` §5.4 的 v0.3/v0.4，但从未进验收追踪。
-- **做什么**：给现有会议路径补验收测试（chair 校验、投票、决议产出）；会议决定事件 durable 可重放。
+当前 source slice 与 CI-only 证据见 [`p1-e02-symposium-baseline.md`](roadmap/p1-e02-symposium-baseline.md)。
+
+- **现状**：`Symposium`/投票/黑板/`DecisionRecord` 已实现（`kiana-domain/src/symposiums.rs`），`convene_symposium` 有 chair 必须为 PM、`can_convene` 与 workspace-write 校验（`kiana-core/src/collaboration.rs:955-1044`）；此前缺少独立验收追踪。
+- **做什么**：给现有会议路径补验收测试（chair 校验、投票、决议产出），并固定 `symposium.closed` 决定事件为 durable replay source。
 - **风险**：会议代码已存在却不在 §1 表里，回归不可见；决定事件若不 durable，重启后决议丢失。
 - **验收**：`symposium_decision_is_durable_and_replayable`
 - **依赖 / 边界**：依赖 `P1-E-01`；不改会议参会边界（Builder 不进规划/监控会，冻结项）。
