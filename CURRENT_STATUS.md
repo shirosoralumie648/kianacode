@@ -2823,6 +2823,25 @@ limitations: CI-only fixtures have not been executed locally; external/provider 
 reviewer: Codex root implementation review plus ER-09 attempt identity/digest, terminal precedence, Unknown/fence and no-execution projection boundary; no runtime test reviewer
 ```
 
+### ER-10 approval/budget/lease/cell recovery projection evidence (2026-09-17)
+
+```text
+source_snapshot: 6bc30f3 + ER-10 working-tree slice; kiana-domain/src/{recovery_resources,budget_contracts,resource_leases,states,contracts,lib}.rs; kiana-core/src/{resource_projection,recovery,cell_registry,lib}.rs; kiana-daemon/src/journal_approvals.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er10_recovery_resources.rs; kiana-core/tests/er10_resource_projection.rs; .github/workflows/er10-recovery-resources.yml; docs/roadmap/event-receipt-resource-projection-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict RecoveryResourceSnapshot binds source cursor/event IDs and bounded pending approval, reserved budget, active/fenced lease and Cell IDs; project_recovery_resources folds only committed EventLog facts with approval state transitions, typed BudgetReservation/Settlement linkage, lease lifecycle and Cell lifecycle, skips duplicate event IDs, distinguishes empty/unsupported sources, and never consumes authority or executes work; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er10_recovery_resources.rs snapshot strict/tamper fixtures; kiana-core/tests/er10_resource_projection.rs pending approval, budget settlement/orphan, lease/cell lifecycle, duplicate/empty source and read-only/cache-miss guards; GitHub Actions ER-10 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-10 is triggered by the eventual push and is not awaited
+status_change: ER-10 source slice is implemented. Restart-facing pending/resource state is derived from facts rather than memory maps; staged/expired/settled/released entries are not exposed as executable pending state, orphan settlement and malformed transitions fail closed, and unknown source support is never treated as an empty ledger.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; the reducer is a read-only source projection and does not persist projector checkpoints, rebuild OS locks, replace durable Cell/Lease stores, perform atomic multi-resource release/consume, or prove cross-process/power-loss/external/live/physical behavior; those remain ER-11+ / CP/PD/DEP work
+reviewer: Codex root implementation review plus ER-10 pending approval, budget linkage, lease/cell lifecycle, duplicate/empty source and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

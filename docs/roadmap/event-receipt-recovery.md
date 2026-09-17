@@ -328,7 +328,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-10 — Approval、Budget、Lease 和 pending projection　⏳
+##### ER-10 — Approval、Budget、Lease 和 pending projection　✅
 
 - **落点：** `kiana-core/approvals.rs`、`cell_registry.rs`、`sessions.rs`、`kiana-daemon/journal_approvals.rs`；关联 `P0-F-01..03`、`P1-C/D/K5`。
 - **动作：** 从事件重建 pending approval、reserved budget、path/resource lease、Cell 状态；把 cache miss 与真实不存在区分；所有消费、释放、fence 都有版本条件。

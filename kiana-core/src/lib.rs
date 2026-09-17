@@ -45,6 +45,7 @@ mod recovery;
 mod redaction;
 mod replay_diagnostics;
 mod resource_leases;
+mod resource_projection;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -97,6 +98,7 @@ pub use performance::{
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use projection_checkpoint::ReplayProjection;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
+pub use resource_projection::project_recovery_resources;
 pub use security_authority::{
     SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
     SECURITY_AUTHORITY_SNAPSHOT_VERSION,
