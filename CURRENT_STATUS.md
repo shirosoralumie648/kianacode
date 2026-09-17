@@ -2322,6 +2322,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-04 storage port layering/no-fallback/no-execution source-boundary review; no runtime test reviewer
 ```
 
+### SC-01 threat register evidence (2026-09-17)
+
+```text
+source_snapshot: 7d1579f + SC-01 working-tree slice; docs/roadmap/security-threat-register.md; docs/roadmap/security-compliance-baseline.md; docs/roadmap/security-compliance.md; docs/company-os-security-constitution.md; kiana-core/tests/sc01_threat_register.rs; .github/workflows/sc01-threat-register.yml; docs/roadmap.md
+worktree_status: SC-01 docs-only T01-T12 threat/asset/control/evidence register and CI-only security fixture catalog are scoped to this step; no runtime authorization/security implementation or second execution path was added, and current code/status evidence remains bounded by its snapshot; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum docs/roadmap/security-threat-register.md docs/roadmap/security-compliance-baseline.md docs/roadmap/security-compliance.md docs/company-os-security-constitution.md kiana-core/tests/sc01_threat_register.rs .github/workflows/sc01-threat-register.yml docs/roadmap.md
+  rg -n 'T(0[1-9]|1[0-2])|CI-only security fixture catalog|EventLog facts are authoritative|model/UI|external/physical|source snapshot|limitations|SC-01' docs/roadmap/security-threat-register.md docs/roadmap/security-compliance-baseline.md docs/roadmap/security-compliance.md kiana-core/tests/sc01_threat_register.rs
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; SC-01 docs/source-guard test target compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-core/tests/sc01_threat_register.rs source-only threat/constitution/baseline/roadmap assertions; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-01 job is queued by the next push and is not awaited
+status_change: SC-01 source slice is implemented. T01-T12 threats, assets, controls, proof ceilings, follow-up owners and deny-first security fixture names are now explicitly registered against the constitution and current-state baseline.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; a threat register is not enforcement or certification, historical source/local evidence remains scoped, and SC-02+ must implement/verify security IDs, reason codes, context, identity, policy, secret, effect, audit, supply-chain, incident and release controls.
+reviewer: Codex root implementation review plus SC-01 threat/asset/evidence catalog and non-inflation source review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

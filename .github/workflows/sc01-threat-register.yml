@@ -1,0 +1,42 @@
+name: SC-01 threat register
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/security-threat-register.md"
+      - "docs/roadmap/security-compliance-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/company-os-security-constitution.md"
+      - "kiana-core/tests/sc01_threat_register.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc01-threat-register.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/security-threat-register.md"
+      - "docs/roadmap/security-compliance-baseline.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/company-os-security-constitution.md"
+      - "kiana-core/tests/sc01_threat_register.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc01-threat-register.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  threat-register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-01 source fixture
+        run: cargo test -p kiana-core --test sc01_threat_register --locked -- --test-threads=1
+      - name: Compile source guard target
+        run: cargo check -p kiana-core --test sc01_threat_register --locked
