@@ -2709,6 +2709,25 @@ limitations: receipt digest is not provider/external effect confirmation, budget
 reviewer: Codex root implementation review plus CP-14 result dimensions, redaction, unknown and delivery-order reconciliation; no runtime test reviewer
 ```
 
+### CP-15 cancellation state and stop barrier evidence (2026-09-17)
+
+```text
+source_snapshot: 640bc15 + CP-15 working-tree slice; kiana-domain/src/{cancellation,states,event_contracts,contracts,lib}.rs; kiana-core/src/{lifecycle,events,approvals,dispatch,sessions}.rs; kiana-runner-protocol/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp15_cancellation.rs; kiana-core/tests/cp15_cancellation_guard.rs; .github/workflows/cp15-cancellation.yml; docs/roadmap/control-plane-cancellation-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict RunCancellationFact now separates durable cancellation intent from the existing in-process watch signal, binds a run.cancel command digest and canonical Run/Invocation targets, and requires stop confirmation for Cancelled while retaining ResultUnknown for unconfirmed stop; cancel_run persists run.cancelling through the same EventLog transition/CAS boundary before signal/Runner Cancel, closes pending approvals with not_executed synthetic results, and terminal events rebuild/validate the nested cancellation fact; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp15_cancellation.rs stopping/cancelled/unknown/target-order/digest/strict-field fixtures; kiana-core/tests/cp15_cancellation_guard.rs persist-before-signal, command conflict, terminal guard, approval/queue and no-second-loop source guard; GitHub Actions CP-15 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-15 is triggered by the eventual push and is not awaited
+status_change: CP-15 source slice is implemented. Cancellation intent is durable before process signalling; replayed same command/digest is accepted, changed cancellation payload conflicts, queued approvals receive explicit not-executed results, and only confirmed stop may reach run.cancelled; unconfirmed/inconsistent stop remains run.result_unknown.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: the existing bounded watch is not typed handler StopReport or physical stop evidence; Shell/Patch/MCP descendant/file/remote effect boundaries, physical lock release, cross-process recovery, revocation propagation and Unknown reconciliation remain CP-16/17/19/20 and ER/PD/SC work, and Secret/egress/external/live/physical proof is absent
+reviewer: Codex root implementation review plus CP-15 cancellation state, command/CAS barrier, queue/approval terminalization and result-unknown reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

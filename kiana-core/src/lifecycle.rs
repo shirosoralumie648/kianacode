@@ -576,6 +576,125 @@ impl ControlPlane {
             .await
     }
 
+    async fn record_cancel_requested(
+        &self,
+        context: &RequestContext,
+        run_id: RunId,
+        reason: &str,
+        target_invocation_ids: &[RequestId],
+        sequence: &mut u64,
+    ) -> Result<bool, CoreError> {
+        let command_id = kiana_domain::derived_request_id("run.cancel", &run_id.to_string());
+        let reason = redact_event_text(reason);
+        let mut canonical_targets = target_invocation_ids.to_vec();
+        canonical_targets.sort();
+        canonical_targets.dedup();
+        let command_digest = kiana_domain::json_digest(&json!({
+            "command":"run.cancel",
+            "run_id":run_id,
+            "reason":reason,
+            "actor_id":context.actor_id,
+            "targets":canonical_targets,
+        }));
+        for _ in 0..8 {
+            if let Some(receipt) = self.events.read_command(&command_id).await? {
+                if receipt.command_digest != command_digest.trim_start_matches("sha256:") {
+                    return Err(
+                        PortError::Conflict("run_cancel_command_conflict".to_owned()).into(),
+                    );
+                }
+                *sequence = sequence.saturating_add(1);
+                return Ok(true);
+            }
+            let prior = self.events.read_stream("run", &run_id.to_string()).await?;
+            let turn = prior
+                .iter()
+                .rposition(|event| event.kind == "run.prompt")
+                .unwrap_or(0);
+            if prior[turn..].iter().any(|event| {
+                matches!(
+                    event.kind.as_str(),
+                    "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
+                )
+            }) {
+                return Ok(false);
+            }
+            if let Some(existing) = prior.iter().find(|event| event.kind == "run.cancelling") {
+                let fact = kiana_domain::RunCancellationFact::from_json(
+                    &existing.data["cancellation_fact"],
+                )
+                .map_err(PortError::Failed)?;
+                if fact.run_id != run_id
+                    || fact.reason_digest != kiana_domain::json_digest(&json!({"reason":reason}))
+                    || fact.actor_id != context.actor_id
+                    || fact.target_invocation_ids != canonical_targets
+                {
+                    return Err(
+                        PortError::Conflict("run_cancel_command_conflict".to_owned()).into(),
+                    );
+                }
+                *sequence = sequence.saturating_add(1);
+                return Ok(true);
+            }
+            let version = prior
+                .iter()
+                .filter_map(|event| event.stream_version)
+                .max()
+                .unwrap_or(0);
+            let at_unix_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+                .map_err(|_| PortError::Failed("cancel_clock_untrusted".to_owned()))?;
+            let fact = kiana_domain::RunCancellationFact::new(
+                run_id,
+                command_id,
+                kiana_domain::RunCancellationState::Stopping,
+                &reason,
+                context.actor_id.clone(),
+                canonical_targets.clone(),
+                version,
+                true,
+                None,
+                at_unix_ms,
+            )
+            .map_err(PortError::Failed)?;
+            let data = redact_event_value(&json!({
+                "run_id": run_id,
+                "reason": reason,
+                "cancellation_state": "stopping",
+                "cancellation_reason": reason,
+                "cancel_actor_id": context.actor_id,
+                "cancellation_targets": canonical_targets,
+                "cancellation_at_unix_ms": at_unix_ms,
+                "cancellation_fact": fact,
+            }));
+            let event = RuntimeEvent::new(context.request_id, *sequence, "run.cancelling", data)
+                .map_err(|error| PortError::Failed(error.to_string()))?
+                .with_stream_metadata("run", run_id.to_string(), version + 1)
+                .with_idempotency_key(format!("run:{run_id}:cancel"));
+            let batch = kiana_domain::TransitionBatch {
+                command_id,
+                command_digest: command_digest.clone(),
+                expected_versions: vec![kiana_domain::AggregateVersion::new(
+                    "run",
+                    run_id.to_string(),
+                    version,
+                )],
+                events: vec![event],
+            };
+            match super::dispatch::commit_confirmed(self.events.as_ref(), batch).await {
+                Ok(_) => {
+                    *sequence = sequence.saturating_add(1);
+                    self.invalidate_invocation_projection(run_id);
+                    return Ok(true);
+                }
+                Err(PortError::Conflict(_)) => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(PortError::Conflict("run_cancel_contention".to_owned()).into())
+    }
+
     pub async fn cancel_run(
         &self,
         context: RequestContext,
@@ -652,6 +771,10 @@ impl ControlPlane {
                 (pending.run_id == run_id).then_some((*approval_id, pending.clone()))
             })
             .collect();
+        let cancellation_targets = pending_approvals
+            .iter()
+            .map(|(_, pending)| pending.request_id)
+            .collect::<Vec<_>>();
         for (approval_id, pending) in pending_approvals {
             if let Err(error) = self
                 .approvals
@@ -688,15 +811,35 @@ impl ControlPlane {
                 .remove(&approval_id);
         }
 
-        self.record_event(
-            request_id,
-            &mut sequence,
-            "run.cancelling",
-            json!({
-                "run_id":run_id,"reason":reason,"cancellation_state":"stopping",
-            }),
-        )
-        .await?;
+        let cancellation_committed = self
+            .record_cancel_requested(
+                &context,
+                run_id,
+                &reason,
+                &cancellation_targets,
+                &mut sequence,
+            )
+            .await?;
+        if !cancellation_committed {
+            let state = self.run_state(run_id).await?;
+            let Some(outcome) = state.outcome else {
+                return Err(
+                    PortError::Conflict("run_cancel_terminal_state_missing".to_owned()).into(),
+                );
+            };
+            let status = match outcome {
+                RunOutcome::Completed => ExecutionStatus::Completed,
+                RunOutcome::Failed => ExecutionStatus::Failed,
+                RunOutcome::Cancelled => ExecutionStatus::Cancelled,
+                RunOutcome::ResultUnknown => ExecutionStatus::ResultUnknown,
+            };
+            return Ok(CoreResponse {
+                request_id,
+                status,
+                output: json!({"run_id":run_id,"session_id":context.session_id,"already_terminal":true}),
+                error: state.error,
+            });
+        }
         self.signal_cancel(run_id);
         let events = match self
             .runner
@@ -715,7 +858,15 @@ impl ControlPlane {
                     &mut sequence,
                     run_id,
                     "run.result_unknown",
-                    json!({ "run_id": run_id, "error": &error }),
+                    json!({
+                        "run_id": run_id,
+                        "error": &error,
+                        "cancellation_state": "result_unknown",
+                        "cancellation_reason": &error,
+                        "cancel_actor_id": context.actor_id,
+                        "cancellation_targets": &cancellation_targets,
+                        "stop_confirmed": false,
+                    }),
                 )
                 .await?;
                 return Ok(CoreResponse {
@@ -751,7 +902,15 @@ impl ControlPlane {
                 &mut sequence,
                 run_id,
                 "run.result_unknown",
-                json!({"run_id":run_id,"error":error}),
+                json!({
+                    "run_id":run_id,
+                    "error":error,
+                    "cancellation_state":"result_unknown",
+                    "cancellation_reason":error,
+                    "cancel_actor_id":context.actor_id,
+                    "cancellation_targets":&cancellation_targets,
+                    "stop_confirmed":false,
+                }),
             )
             .await?;
             return Ok(CoreResponse {
@@ -804,7 +963,15 @@ impl ControlPlane {
                 &mut sequence,
                 run_id,
                 "run.cancelled",
-                json!({ "run_id": run_id, "error": &cancelled }),
+                json!({
+                    "run_id": run_id,
+                    "error": &cancelled,
+                    "cancellation_state": "cancelled",
+                    "cancellation_reason": &cancelled,
+                    "cancel_actor_id": context.actor_id,
+                    "cancellation_targets": &cancellation_targets,
+                    "stop_confirmed": true,
+                }),
             )
             .await?;
             self.settle_resumed_cell(
@@ -838,7 +1005,15 @@ impl ControlPlane {
             &mut sequence,
             run_id,
             "run.result_unknown",
-            json!({ "run_id": run_id, "error": &error }),
+            json!({
+                "run_id": run_id,
+                "error": &error,
+                "cancellation_state": "result_unknown",
+                "cancellation_reason": &error,
+                "cancel_actor_id": context.actor_id,
+                "cancellation_targets": &cancellation_targets,
+                "stop_confirmed": false,
+            }),
         )
         .await?;
         Ok(CoreResponse {

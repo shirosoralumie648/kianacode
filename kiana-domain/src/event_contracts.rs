@@ -70,6 +70,13 @@ const RUN_FIELDS: &[&str] = &[
     "capability_grant_id",
     "budget_lease_id",
     "execution_scope",
+    "cancellation_state",
+    "cancellation_reason",
+    "cancellation_targets",
+    "cancellation_at_unix_ms",
+    "stop_confirmed",
+    "cancellation_fact",
+    "cancel_actor_id",
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",

@@ -34,6 +34,69 @@ fn result_unknown_value(value: &Value) -> bool {
         })
 }
 
+fn cancellation_fact_for(
+    kind: &str,
+    data: &Value,
+    run_id: RunId,
+    command_id: kiana_domain::RequestId,
+    expected_version: u64,
+) -> Result<Option<kiana_domain::RunCancellationFact>, CoreError> {
+    if data.get("cancellation_state").is_none() {
+        return Ok(None);
+    }
+    let state = serde_json::from_value(
+        data.get("cancellation_state")
+            .cloned()
+            .unwrap_or(Value::Null),
+    )
+    .map_err(|_| PortError::Failed("run_cancellation_fact_state_invalid".to_owned()))?;
+    let targets = serde_json::from_value(
+        data.get("cancellation_targets")
+            .cloned()
+            .unwrap_or_else(|| json!([])),
+    )
+    .map_err(|_| PortError::Failed("run_cancellation_fact_targets_invalid".to_owned()))?;
+    let reason = data
+        .get("cancellation_reason")
+        .and_then(Value::as_str)
+        .or_else(|| data.get("error").and_then(Value::as_str))
+        .unwrap_or("user");
+    let actor_id = data
+        .get("cancel_actor_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let stop_confirmed = data.get("stop_confirmed").and_then(Value::as_bool);
+    let at_unix_ms = data
+        .get("cancellation_at_unix_ms")
+        .and_then(Value::as_u64)
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+                .unwrap_or(0)
+        });
+    let fact = kiana_domain::RunCancellationFact::new(
+        run_id,
+        command_id,
+        state,
+        &redact_event_text(reason),
+        actor_id,
+        targets,
+        expected_version,
+        true,
+        stop_confirmed,
+        at_unix_ms,
+    )
+    .map_err(PortError::Failed)?;
+    if (kind == "run.cancelled") != (fact.state == kiana_domain::RunCancellationState::Cancelled)
+        || (kind == "run.result_unknown")
+            != (fact.state == kiana_domain::RunCancellationState::ResultUnknown)
+    {
+        return Err(PortError::Failed("run_cancellation_fact_state_mismatch".to_owned()).into());
+    }
+    Ok(Some(fact))
+}
+
 fn stamp_event_links(
     event: RuntimeEvent,
     request_id: RequestId,
@@ -255,8 +318,16 @@ impl ControlPlane {
                 .filter_map(|event| event.stream_version)
                 .max()
                 .unwrap_or(0);
+            let command_id =
+                kiana_domain::derived_request_id("run.terminal", &format!("{run_id}:{turn}"));
             let (redacted_data, redaction_profile, data_epoch, artifact_refs) =
                 prepare_event_payload(&data)?;
+            let mut redacted_data = redacted_data;
+            if let Some(fact) = cancellation_fact_for(kind, &data, run_id, command_id, version)? {
+                redacted_data["cancellation_fact"] = serde_json::to_value(fact).map_err(|_| {
+                    PortError::Failed("run_cancellation_fact_encode_failed".to_owned())
+                })?;
+            }
             let event = stamp_event_links(
                 RuntimeEvent::new(request_id, *sequence, kind, redacted_data.clone())?
                     .with_stream_metadata("run", run_id.to_string(), version + 1)
@@ -300,11 +371,11 @@ impl ControlPlane {
                         .with_stream_metadata("resource_quarantine",key,version+1));
                 }
             }
-            let command_id =
-                kiana_domain::derived_request_id("run.terminal", &format!("{run_id}:{turn}"));
             let batch = kiana_domain::TransitionBatch {
                 command_id,
-                command_digest: kiana_domain::json_digest(&json!({"kind":kind,"data":data})),
+                command_digest: kiana_domain::json_digest(
+                    &json!({"kind":kind,"data":redacted_data}),
+                ),
                 expected_versions,
                 events: terminal_events,
             };
