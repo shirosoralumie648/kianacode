@@ -580,6 +580,34 @@ impl DaemonHost {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
+    pub async fn flush_event_store(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.core
+            .flush_event_store()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn event_store_health(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.core
+            .event_store_health()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn last_durable_cursor(&self) -> Result<kiana_domain::EventCursor, PortError> {
+        self.core
+            .last_durable_cursor()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn close_event_store(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.core
+            .close_event_store()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
     /// Enqueue a redacted observation without blocking the ControlPlane or EventStore commit.
     pub fn try_enqueue_observability(
         &self,

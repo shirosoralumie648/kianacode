@@ -1054,6 +1054,36 @@ pub trait EventStorePort: Send + Sync {
         kiana_domain::EventStoreCapabilities::default()
     }
 
+    /// Flush all accepted facts through the adapter's durable boundary. A successful response
+    /// is an adapter acknowledgement only; it never upgrades the proof level of an external
+    /// effect. Older adapters fail closed instead of pretending that an in-memory flush is
+    /// durable.
+    async fn flush(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_flush_unsupported".to_owned(),
+        ))
+    }
+
+    /// Return a bounded health snapshot whose cursor is the last durable logical event.
+    async fn health(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_health_unsupported".to_owned(),
+        ))
+    }
+
+    /// Convenience cursor read for recovery and shutdown acknowledgements.
+    async fn last_durable_cursor(&self) -> Result<kiana_domain::EventCursor, PortError> {
+        Ok(self.health().await?.last_durable_cursor)
+    }
+
+    /// Stop accepting new writes after flushing the durable boundary. A close acknowledgement
+    /// is distinct from a successful command commit and is never inferred from task drop.
+    async fn close(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_close_unsupported".to_owned(),
+        ))
+    }
+
     /// Atomically checks every read dependency and commits all events or none. Unknown outcomes
     /// must be confirmed with read_command; they never permit execution.
     async fn commit_transition(

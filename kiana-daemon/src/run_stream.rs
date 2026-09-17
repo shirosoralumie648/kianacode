@@ -318,6 +318,22 @@ impl EventStorePort for StreamEventStore {
     fn capabilities(&self) -> kiana_domain::EventStoreCapabilities {
         self.inner.capabilities()
     }
+
+    async fn flush(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.inner.flush().await
+    }
+
+    async fn health(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.inner.health().await
+    }
+
+    async fn last_durable_cursor(&self) -> Result<kiana_domain::EventCursor, PortError> {
+        self.inner.last_durable_cursor().await
+    }
+
+    async fn close(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        self.inner.close().await
+    }
     async fn commit_transition(
         &self,
         batch: kiana_domain::TransitionBatch,

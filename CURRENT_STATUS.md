@@ -2747,6 +2747,25 @@ limitations: CI-only fixtures have not been executed locally; power-loss, NFS/cr
 reviewer: Codex root implementation review plus ER-05 frame integrity, writer upgrade, lock/no-follow, sync/identity and corruption classification; no runtime test reviewer
 ```
 
+### ER-06 async writer, backpressure and shutdown acknowledgement evidence (2026-09-17)
+
+```text
+source_snapshot: ee54b33 + ER-06 working-tree slice; kiana-domain/src/{journal,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/{jsonl,stream}.rs; kiana-core/src/receipts.rs; kiana-daemon/src/{lib,run_stream}.rs; kiana-eventlog/tests/er06_async_lifecycle.rs; .github/workflows/er06-async-lifecycle.yml; docs/roadmap/event-receipt-async-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: EventStorePort now exposes explicit flush/health/last_durable_cursor/close acknowledgements and strict EventStoreHealth; JsonlEventLog keeps bounded spawn_blocking admission, rejects queue/worker/closed calls, serializes close-in-progress state, and confirms file/parent sync before returning a cursor/close ack; ControlPlane/DaemonHost and stream wrappers delegate the same contract without adding authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-eventlog/tests/er06_async_lifecycle.rs flush/health/cursor/close acknowledgement and closed rejection fixtures plus bounded worker/lifecycle source guard; GitHub Actions ER-06 workflow runs integration fixture and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-06 is triggered by the eventual push and is not awaited
+status_change: ER-06 source slice is implemented. Async file work remains bounded by a finite worker semaphore, lifecycle acknowledgements are structured/digest-bound, durable cursor is reported only after the adapter sync boundary, and close rejects subsequent work instead of treating task cancellation as success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; slow-disk/worker-panic/terminal-shutdown integration, cross-host/power-loss durability, projector/checkpoint, backup/retention and external/live/physical effect proof remain ER-07+ / PD/DEP/SC work
+reviewer: Codex root implementation review plus ER-06 bounded worker, health digest, durable cursor, close state and daemon delegation reconciliation; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

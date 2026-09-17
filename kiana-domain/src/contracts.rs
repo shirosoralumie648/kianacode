@@ -1951,6 +1951,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.event-store-health.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.transition-frame.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::RuntimeEvent,

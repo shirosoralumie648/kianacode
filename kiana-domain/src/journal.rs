@@ -1,11 +1,13 @@
 //! Atomic local authority-journal contracts. A committed receipt is not a dispatch receipt.
-use crate::{EventId, RequestId, RuntimeEvent};
+use crate::{json_digest, EventId, RequestId, RuntimeEvent, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashSet};
 
 pub const JOURNAL_HEADER_SCHEMA: &str = "kiana.journal-header.v2";
 pub const JOURNAL_FRAME_SCHEMA: &str = "kiana.transition-frame.v1";
+pub const EVENT_STORE_HEALTH_SCHEMA: &str = "kiana.event-store-health.v1";
+pub const EVENT_STORE_HEALTH_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const COMMAND_RECEIPT_SCHEMA: &str = "kiana.command-receipt.v1";
 pub const JOURNAL_WRITER_VERSION: u32 = 2;
 pub const MAX_JOURNAL_FRAME_BYTES: usize = 4 * 1024 * 1024;
@@ -232,6 +234,65 @@ pub struct JournalPage {
     pub events: Vec<RuntimeEvent>,
     pub cursor: EventCursor,
     pub has_more: bool,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventStoreHealth {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub writer_version: u32,
+    pub healthy: bool,
+    pub durable: bool,
+    pub last_durable_cursor: EventCursor,
+    pub closed: bool,
+    pub health_digest: String,
+}
+impl EventStoreHealth {
+    pub fn new(
+        writer_version: u32,
+        healthy: bool,
+        durable: bool,
+        last_durable_cursor: EventCursor,
+        closed: bool,
+    ) -> Self {
+        let mut health = Self {
+            schema: EVENT_STORE_HEALTH_SCHEMA.to_owned(),
+            version: EVENT_STORE_HEALTH_VERSION,
+            writer_version,
+            healthy,
+            durable,
+            last_durable_cursor,
+            closed,
+            health_digest: String::new(),
+        };
+        health.health_digest = health.digest();
+        health
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVENT_STORE_HEALTH_SCHEMA
+            || !self.version.is_compatible_with(&EVENT_STORE_HEALTH_VERSION)
+            || !valid_journal_digest(&self.health_digest)
+        {
+            return Err("event_store_health_header_invalid".to_owned());
+        }
+        if self.health_digest != self.digest() {
+            return Err("event_store_health_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "writer_version": self.writer_version,
+            "healthy": self.healthy,
+            "durable": self.durable,
+            "last_durable_cursor": self.last_durable_cursor,
+            "closed": self.closed,
+        }))
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

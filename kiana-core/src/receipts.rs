@@ -253,6 +253,25 @@ impl ControlPlane {
     pub async fn persisted_events(&self) -> Result<Option<Vec<RuntimeEvent>>, CoreError> {
         self.read_all_events().await
     }
+
+    /// Flush the EventStore's durable boundary without changing authorization or run state.
+    pub async fn flush_event_store(&self) -> Result<kiana_domain::EventStoreHealth, CoreError> {
+        self.events.flush().await.map_err(Into::into)
+    }
+
+    /// Read a bounded EventStore health snapshot for daemon readiness/shutdown reporting.
+    pub async fn event_store_health(&self) -> Result<kiana_domain::EventStoreHealth, CoreError> {
+        self.events.health().await.map_err(Into::into)
+    }
+
+    pub async fn last_durable_cursor(&self) -> Result<kiana_domain::EventCursor, CoreError> {
+        self.events.last_durable_cursor().await.map_err(Into::into)
+    }
+
+    /// Close the EventStore only after its own durable flush acknowledgement.
+    pub async fn close_event_store(&self) -> Result<kiana_domain::EventStoreHealth, CoreError> {
+        self.events.close().await.map_err(Into::into)
+    }
 }
 
 pub(crate) fn receipt_from_events(

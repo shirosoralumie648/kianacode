@@ -282,7 +282,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-06 — 异步写入、背压与 shutdown ack　⏳
+##### ER-06 — 异步写入、背压与 shutdown ack　✅
 
 - **落点：** `kiana-eventlog` async adapter、`kiana-daemon` lifecycle；关联 `CP-27`、`H33`。
 - **动作：** blocking file I/O 使用 bounded `spawn_blocking`/worker queue；提供 `flush`, `close`, `health`, `last_durable_cursor`；队列满、worker panic、shutdown 超时都返回结构化错误。

@@ -15,6 +15,7 @@ use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio::sync::Semaphore;
@@ -200,6 +201,7 @@ struct DiskCache {
 struct Inner {
     files: JournalFiles,
     cache: Mutex<DiskCache>,
+    lifecycle: AtomicU8,
 }
 #[derive(Debug)]
 pub struct JsonlEventLog {
@@ -231,6 +233,7 @@ impl JsonlEventLog {
             inner: Arc::new(Inner {
                 files,
                 cache: Mutex::new(cache),
+                lifecycle: AtomicU8::new(0),
             }),
             workers: Arc::new(Semaphore::new(MAX_STORAGE_WORKERS)),
         })
@@ -251,6 +254,17 @@ impl JsonlEventLog {
         &self,
         f: impl FnOnce(&JournalFiles, &mut DiskCache) -> Result<T, PortError> + Send + 'static,
     ) -> Result<T, PortError> {
+        self.with_store_state(f, false).await
+    }
+    async fn with_store_state<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&JournalFiles, &mut DiskCache) -> Result<T, PortError> + Send + 'static,
+        allow_closing: bool,
+    ) -> Result<T, PortError> {
+        let lifecycle = self.inner.lifecycle.load(Ordering::Acquire);
+        if lifecycle != 0 && !(allow_closing && lifecycle == 1) {
+            return Err(failed("eventlog_closed"));
+        }
         let permit = self
             .workers
             .clone()
@@ -259,6 +273,10 @@ impl JsonlEventLog {
         let inner = self.inner.clone();
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
+            let lifecycle = inner.lifecycle.load(Ordering::Acquire);
+            if lifecycle != 0 && !(allow_closing && lifecycle == 1) {
+                return Err(failed("eventlog_closed"));
+            }
             let _lock = inner.files.lock()?;
             let mut cache = inner
                 .cache
@@ -274,6 +292,20 @@ impl JsonlEventLog {
         .await
         .map_err(|_| PortError::Unavailable("eventlog_worker_failed".into()))?
     }
+
+    async fn flush_health(&self) -> Result<EventStoreHealth, PortError> {
+        self.with_store(|files, cache| {
+            flush_store(files, cache)?;
+            Ok(EventStoreHealth::new(
+                cache.writer_version,
+                true,
+                true,
+                cache.journal.events.len() as EventCursor,
+                false,
+            ))
+        })
+        .await
+    }
 }
 #[async_trait]
 impl EventStorePort for JsonlEventLog {
@@ -283,6 +315,53 @@ impl EventStorePort for JsonlEventLog {
     fn capabilities(&self) -> EventStoreCapabilities {
         let mut result = capabilities(cfg!(unix));
         result.atomic_transitions = cfg!(unix);
+        result
+    }
+    async fn flush(&self) -> Result<EventStoreHealth, PortError> {
+        self.flush_health().await
+    }
+    async fn health(&self) -> Result<EventStoreHealth, PortError> {
+        self.with_store(|_, cache| {
+            Ok(EventStoreHealth::new(
+                cache.writer_version,
+                true,
+                true,
+                cache.journal.events.len() as EventCursor,
+                false,
+            ))
+        })
+        .await
+    }
+    async fn last_durable_cursor(&self) -> Result<EventCursor, PortError> {
+        Ok(self.flush_health().await?.last_durable_cursor)
+    }
+    async fn close(&self) -> Result<EventStoreHealth, PortError> {
+        self.inner
+            .lifecycle
+            .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|state| {
+                if state == 1 {
+                    failed("eventlog_close_in_progress")
+                } else {
+                    failed("eventlog_closed")
+                }
+            })?;
+        let result = self
+            .with_store_state(
+                |files, cache| {
+                    flush_store(files, cache)?;
+                    Ok(EventStoreHealth::new(
+                        cache.writer_version,
+                        true,
+                        true,
+                        cache.journal.events.len() as EventCursor,
+                        true,
+                    ))
+                },
+                true,
+            )
+            .await;
+        self.inner.lifecycle.store(2, Ordering::Release);
         result
     }
     async fn commit_transition(&self, batch: TransitionBatch) -> Result<CommitOutcome, PortError> {
@@ -536,6 +615,13 @@ fn confirm_sync(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError
         .map_err(|e| io_error("eventlog_confirm_sync_failed", e))?;
     files.sync_directory()?;
     files.verify_named_file(&files.path, &file)
+}
+fn flush_store(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError> {
+    if cache.identity.is_some() {
+        confirm_sync(files, cache)
+    } else {
+        files.sync_directory()
+    }
 }
 fn remember_file(file: &File, cache: &mut DiskCache) -> Result<(), PortError> {
     let metadata = file
