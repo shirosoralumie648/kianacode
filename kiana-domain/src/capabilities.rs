@@ -1,9 +1,9 @@
 use crate::{
-    allow_list_covers, json_digest, normalize_role_path, ApprovalId, BudgetLeaseId,
-    CapabilityEffectState, CapabilityErrorCode, CapabilityExecutionState, CapabilityGrantId,
-    CapabilityStopState, CellId, DomainError, ExecutionId, ExecutionScope, InvocationId,
-    RequestContext, RequestId, RunId, SchemaVersion, SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA,
-    SUPERVISION_LEASE_SCHEMA,
+    allow_list_covers, json_digest, normalize_role_path, ApprovalId, ApprovalPlanPreview,
+    BudgetLeaseId, CapabilityEffectState, CapabilityErrorCode, CapabilityExecutionState,
+    CapabilityGrantId, CapabilityStopState, CellId, DomainError, ExecutionId, ExecutionScope,
+    InvocationId, RequestContext, RequestId, RunId, SchemaVersion, SupervisionLeaseId,
+    CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -569,6 +569,9 @@ pub struct ApprovalView {
     /// adapter rather than having the assertion silently ignored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_version: Option<u64>,
+    /// Redacted final plan projection; this is display-only and never executable material.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_preview: Option<ApprovalPlanPreview>,
 }
 
 /// A quiescent runner checkpoint. The control plane alone persists/restores it.

@@ -1,0 +1,60 @@
+name: CAP-06 approval final-plan binding
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/approval_preview.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cap06_approval_preview.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/tests/cap06_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/capability-approval-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap06-approval.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/approval_preview.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cap06_approval_preview.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/tests/cap06_approval_guard.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/capability-approval-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap06-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CAP-06 approval fixtures
+        run: cargo test -p kiana-domain --test cap06_approval_preview --locked -- --test-threads=1
+      - name: Run CAP-06 approval source guard
+        run: cargo test -p kiana-core --test cap06_approval_guard --locked -- --test-threads=1
+      - name: Compile CAP-06 targets
+        run: cargo check --workspace --tests --locked

@@ -432,7 +432,9 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-06 — 审批看见并绑定将被执行的最终计划
+#### CAP-06 — 审批看见并绑定将被执行的最终计划　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-approval-baseline.md`](capability-approval-baseline.md)。
 
 - **落点：** core/approvals、daemon/approval_store、protocol，CLI/Workbench/Web 审批投影。
 - **步骤：** preview 显示最终 argv/patch diff/MCP server+tool、可读可写 scope、网络目标、期限与版本摘要；批准后重新检查权限、资源身份、版本、deadline、cancel epoch。一次批准只能消费绑定的 attempt；等待审批不占用运行进程配额，执行前重新预留。

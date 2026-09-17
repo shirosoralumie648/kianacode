@@ -2975,6 +2975,25 @@ limitations: fixture uses in-memory EventStore and does not prove JSONL power-lo
 reviewer: Codex root implementation review plus CAP-05 permit identity, authority read-set epoch recheck, single-consume CAS and no-handler-before-commit boundary; no runtime test reviewer
 ```
 
+### CAP-06 approval final-plan binding evidence (2026-09-17)
+
+```text
+source_snapshot: 2ad919a + CAP-06 working-tree slice; kiana-domain/src/{approval_preview,capabilities,contracts,lib}.rs; kiana-core/src/{recovery,approvals}.rs; kiana-daemon/src/journal_approvals.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cap06_approval_preview.rs; kiana-core/tests/cap06_approval_guard.rs; .github/workflows/cap06-approval.yml; docs/roadmap/capability-approval-baseline.md; docs/roadmap/capability.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: strict ApprovalPlanPreview binds approval/request/capability/operation/risk, redacted preview, payload/preview/scope/environment digests, expiry and payload availability; pending views derive it from server-owned scope, while approve/consume paths reload protected material and re-run action/policy/gate/permission/authority/expiry/cancel/version checks before dispatch; preview cannot grant authority or become execution material; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cap06_approval_preview.rs strict/redaction/digest/unknown/payload-availability fixtures; kiana-core/tests/cap06_approval_guard.rs pending preview, protected material, action/policy/gate/expiry/version revalidation and no-preview-execution source guard; GitHub Actions CAP-06 workflow runs fixtures and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-06 is triggered by the eventual push and is not awaited
+status_change: CAP-06 source slice is implemented. Human-facing approval projection now describes the exact prepared plan without exposing raw material, and the execution path revalidates the protected subject before one-time permit consumption.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: ApprovalPlanPreview is a redacted projection; in-memory/JSONL material and local Human Inbox do not prove cross-process approval persistence, external authenticator, OS/provider effect or live/physical outcomes; CAP-07+ / CP/ER/PD/INT remain responsible for those boundaries
+reviewer: Codex root implementation review plus CAP-06 preview redaction, material/action/scope revalidation and no-authority boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

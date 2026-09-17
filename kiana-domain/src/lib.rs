@@ -11,6 +11,7 @@
 
 mod adapter_result;
 mod approval_journal;
+mod approval_preview;
 mod artifact_contracts;
 mod assignment;
 mod audit;
@@ -83,6 +84,7 @@ mod work_packets;
 
 pub use adapter_result::*;
 pub use approval_journal::*;
+pub use approval_preview::*;
 pub use artifact_contracts::*;
 pub use assignment::*;
 pub use audit::*;

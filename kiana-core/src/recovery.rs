@@ -174,19 +174,19 @@ impl ControlPlane {
         }
         let mut approvals = Vec::new();
         for pending in self.approvals.list_pending(context).await? {
-            let expected_version = match self
+            let (expected_version, payload_available) = match self
                 .approvals
                 .read_decision(context, pending.challenge.approval_id)
                 .await
             {
-                Ok(record) => Some(record.version),
+                Ok(record) => (Some(record.version), record.payload_available),
                 Err(PortError::Unavailable(reason))
                     if reason == "approval_decision_read_unsupported" =>
                 {
-                    None
+                    (None, false)
                 }
                 Err(PortError::Failed(reason)) if reason == "approval_payload_unrecoverable" => {
-                    None
+                    (None, false)
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -194,6 +194,12 @@ impl ControlPlane {
                 .approvals
                 .context_for_pending(context, pending.challenge.approval_id)
                 .await?;
+            let plan_preview = kiana_domain::ApprovalPlanPreview::from_pending(
+                &pending,
+                &scope,
+                payload_available,
+            )
+            .map_err(PortError::Failed)?;
             approvals.push(ApprovalView {
                 permission_profile: Some(scope.permission_profile),
                 challenge: pending.challenge,
@@ -201,6 +207,7 @@ impl ControlPlane {
                 arguments: redact_event_value(&pending.request.arguments),
                 available_decisions: vec![ApprovalDecision::Approve, ApprovalDecision::Deny],
                 expected_version,
+                plan_preview: Some(plan_preview),
             });
         }
         Ok(CoreResponse::completed(
