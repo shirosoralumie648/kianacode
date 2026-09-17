@@ -3906,6 +3906,25 @@ limitations: no browser/screen-reader/device automation, OS accessibility/notifi
 reviewer: Codex root implementation review plus status-without-color, keyboard/focus, ARIA/live, narrow/high-contrast/reduced-motion and Desktop reuse boundary review; no runtime test reviewer
 ```
 
+### P3-I-02 company command and event freeze evidence (2026-09-18)
+
+```text
+source_snapshot: a9b69edb + P3-I-02 evidence slice; kiana-domain/src/{company.rs,company_replay.rs,company_policy.rs}; kiana-domain/tests/co08_replay.rs; kiana-protocol/src/lib.rs; kiana-core/src/company.rs; kiana-core/tests/{p3_i02_company_commands,co08_replay_guard}.rs; .github/workflows/p3-i02-company-commands.yml; docs/roadmap/p3-i02-company-commands-baseline.md; docs/roadmap.md
+worktree_status: nine foundational Company command/event pairs are fixed under versioned COMPANY_COMMAND_SCHEMA/COMPANY_EVENT_SCHEMA: Objective, Project, Milestone, Packet, Run reservation/observation, Acceptance request/decision, Project close and Outcome. Strict CompanyCommandRequest/CompanyEvent, CompanyCommandPolicy, aggregate stream metadata, revision/idempotency CAS and CompanyReplayReducer validate migration, gaps, duplicates, conflicts and role authority before state transition; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p3_i02_company_commands.rs nine-pair/schema/replay source guard; existing kiana-domain/tests/co08_replay.rs deterministic reducer/legacy v0 migration/unknown schema fixtures; kiana-core/tests/co08_replay_guard.rs reducer wiring; GitHub Actions P3-I-02 workflow runs all guards/regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-02 is triggered by the eventual push and is not awaited
+status_change: P3-I-02 source slice is implemented/reconciled. The foundational Company command/event vocabulary is versioned and frozen; start_run remains a two-phase reservation→observed-start fact rather than an unverified success claim.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Company aggregate/replay remains local EventLog projection; full Objective→Project→Packet→Run→Acceptance→Delivery rebuild, cross-process durable index/power-loss recovery, migration beyond explicit v0 adapter, external business outcome and live/physical proof remain P3-I-03+ / CO/ER/PD/DEP work
+reviewer: Codex root implementation review plus nine-pair vocabulary, strict schema/unknown-field, aggregate/revision/idempotency, replay/migration/gap/duplicate and start-run reservation-vs-observation boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
