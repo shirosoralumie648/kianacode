@@ -317,7 +317,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-09 — Invocation/Execution/Attempt 投影　⏳
+##### ER-09 — Invocation/Execution/Attempt 投影　✅
 
 - **落点：** `kiana-core/invocation_projection.rs`、`dispatch.rs`、`capabilities.rs`；关联 `CP-13/14/20`、`CAP-24`。
 - **动作：** 为每个 Invocation 折叠所有 execution/attempt，保存 action digest、permit、executor、started、effect_known、stop_confirmed、result/artifact refs；明确 terminal precedence。

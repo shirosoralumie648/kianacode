@@ -1,0 +1,48 @@
+name: ER-09 invocation execution attempt projection
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/observability.rs"
+      - "docs/roadmap/event-receipt-invocation-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er09-invocation-projection.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/observability.rs"
+      - "docs/roadmap/event-receipt-invocation-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/README.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er09-invocation-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invocation-projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-09 invocation projection fixtures
+        run: cargo test -p kiana-core --test er09_invocation_projection --locked -- --test-threads=1
+      - name: Compile ER-09 targets
+        run: cargo check --workspace --tests --locked

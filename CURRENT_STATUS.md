@@ -2804,6 +2804,25 @@ limitations: CI-only fixtures have not been executed locally; durable projector 
 reviewer: Codex root implementation review plus ER-08 phase ordering, terminal conflict/idempotence, late-event suppression and no-authority boundary; no runtime test reviewer
 ```
 
+### ER-09 Invocation/Execution/Attempt projection evidence (2026-09-17)
+
+```text
+source_snapshot: d79d59c + ER-09 working-tree slice; kiana-core/src/{invocation_projection,capability_attempt_projection}.rs; kiana-domain/src/{states,observability}.rs; kiana-core/tests/er09_invocation_projection.rs; .github/workflows/er09-invocation-projection.yml; docs/roadmap/event-receipt-invocation-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md; docs/roadmap/README.md
+worktree_status: InvocationProjection and CapabilityAttemptRecord reducers fold committed request/approval/permit/dispatch/executing/result/cancel facts with typed request/turn/invocation/execution/attempt identity, action digest, effect_known, stop_confirmed, fenced, source IDs and terminal signatures; dispatch without a result remains Unknown, foreign/digest/multiple terminal conflicts fail closed, duplicate event IDs do not reapply, and retry attempts remain separate; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/er09_invocation_projection.rs dispatch-without-result, terminal/digest conflict, unknown stop/fencing and retry-attempt fixtures; source guard fixes reducer markers and no Broker/Runner/retry boundary; GitHub Actions ER-09 workflow runs fixture and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-09 is triggered by the eventual push and is not awaited
+status_change: ER-09 source slice is implemented. Replayed or incomplete execution facts cannot become success, attempt identity drift is visible as conflict, unknown effect stays fenced, and terminal results are never merged across different signatures.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI-only fixtures have not been executed locally; external/provider receipts and handler stop/effect observation, durable projection persistence/checkpoints, restart/recovery and controlled Unknown retry remain ER-10+/ER-14/CP-20/PD work, with no external/live/physical proof
+reviewer: Codex root implementation review plus ER-09 attempt identity/digest, terminal precedence, Unknown/fence and no-execution projection boundary; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
