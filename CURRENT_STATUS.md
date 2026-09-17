@@ -2007,6 +2007,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-03 typed state/replay and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+### NM-01 notification/messaging contracts evidence (2026-09-17)
+
+```text
+source_snapshot: 12e15ae + NM-01 working-tree slice; kiana-domain/src/{ids,contracts,notifications,lib}.rs; kiana-protocol/src/lib.rs; kiana-ports/src/lib.rs; kiana-core/src/communication.rs; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs; .github/workflows/nm01-contracts.yml; docs/roadmap/notifications-contracts-baseline.md; docs/roadmap.md
+worktree_status: NM-01 six strict Message/Notification/Subscription/DeliveryAttempt/ActionRef/DeliveryReceipt contracts and stable IDs are scoped to this step; no NotificationStore, outbox, DeliveryWorker or second message bus was added, and action references remain non-authoritative until ControlPlane rechecks them; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/notifications.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-ports/src/lib.rs kiana-core/src/communication.rs kiana-domain/tests/nm01_contracts.rs kiana-core/tests/nm01_contracts_guard.rs .github/workflows/nm01-contracts.yml docs/roadmap/notifications-contracts-baseline.md docs/roadmap.md
+  rg -n 'Message(Id|Kind)?|Notification(Id|Channel|Status)?|Subscription(Id|Status)?|DeliveryAttempt(Id|Status)?|ActionRef(Id)?|DeliveryReceipt(Id|Status)?|upcast_message|canonical_notification_bytes|scope_exceeds_subscription|secret_detected|MESSAGE_SCHEMA|NOTIFICATION_SCHEMA' kiana-domain/src kiana-protocol/src kiana-core/src kiana-domain/tests/nm01_contracts.rs kiana-core/tests/nm01_contracts_guard.rs docs/roadmap/notifications-contracts-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; NM-01 fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/nm01_contracts.rs strict round-trip, scope subset, status/TTL, bounded body/secret, v0 upcast/unknown major-field and canonical digest fixtures; kiana-core/tests/nm01_contracts_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-01 job is queued by the next push and is not awaited
+status_change: NM-01 source slice is implemented. Domain now owns versioned message/notification/subscription/delivery/action contracts with deny-unknown fields, stable IDs, bounded secret-safe values, scope intersection, monotonic status helpers, canonical digests and explicit compatibility upcast; no delivery side effect is implied.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; recipient resolution, committed-only materialization, durable subscriptions/read state, outbox/lease/fence, external channels, CAS and unmarked secret detection remain NM-02+ / ER / PD / SC work.
+reviewer: Codex root implementation review plus NM-01 strict contract/scope/secret/upcast and no-second-bus source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

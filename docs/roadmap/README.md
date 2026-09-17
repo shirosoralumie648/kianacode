@@ -18,7 +18,7 @@
 | 可观测性 / 审计 | OA-00–OA-28（29） | [roadmap §31](../roadmap.md#observability-audit-plan) |
 | 调度 / Workflow / Trigger | AUT-01–AUT-24（24） | [roadmap §32](../roadmap.md#scheduling-workflow-trigger-plan) |
 | 持久化 / 数据层 | PD-00–PD-35（36） | [PD-00 基线](persistence-data-layer-baseline.md) · [独立设计](persistence-data-layer.md) · [roadmap §33](../roadmap.md#persistence-data-layer-plan) |
-| 通知 / 消息 | NM-00–NM-22（23） | [NM-00 基线](notifications-baseline.md) · [roadmap §34](../roadmap.md#notification-messaging-design) |
+| 通知 / 消息 | NM-00–NM-22（23） | [NM-00 基线](notifications-baseline.md) · [NM-01 contracts](notifications-contracts-baseline.md) · [roadmap §34](../roadmap.md#notification-messaging-design) |
 | 集成 / 连接器 | INT-00–INT-33（34） | [INT-00 基线](integrations-baseline.md) · [独立设计](integrations-connectors.md) · [roadmap §34-A](../roadmap.md#integrations-connectors-plan) |
 | 评测 / 质量 | EQ-00–EQ-51（52） | [EQ-00 基线](evaluation-baseline.md) · [roadmap §34-B](../roadmap.md#quality-evaluation-design) |
 | 计费 / 配额 / 成本 | BQ-00–BQ-30（31） | [roadmap §35](../roadmap.md#billing-quota-cost-plan) |
