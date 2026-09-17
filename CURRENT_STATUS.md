@@ -6865,3 +6865,20 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: ScriptedModel is a deterministic offline fixture, not a live provider; Company aggregate/EventLog/Artifact storage remain the current local composition; rejection/Unknown/cancel/failure paths are source-guarded but not executed locally; external recipient confirmation, semantic KPI outcome, cross-process power-loss recovery, four-entry Company UX and live/physical business proof remain CO-35..48/EQ/ER/PD/DEP/SC work
 reviewer: Codex root implementation review plus Objective/Project/PM packet/Builder spawn/Reviewer criteria/Acceptance/Delivery/Closer receipt linkage, evidence ownership, CAS/idempotency, Unknown/replay and no-second-loop boundary review; no runtime test reviewer
 ```
+### P4-E-03 department symposium memory evidence (2026-09-18)
+
+```text
+source_snapshot: 5a3101c0 + P4-E-03 working-tree slice; kiana-domain/src/{roles.rs,symposiums.rs,memory_proposals.rs}; kiana-core/src/{collaboration.rs,memory_proposals.rs,memory_distillation.rs}; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/p4_e03_department_memory.rs; kiana-core/tests/p4_e03_department_memory.rs; .github/workflows/p4-e03-department-memory.yml; docs/roadmap/p4-e03-department-memory-baseline.md; docs/roadmap.md
+worktree_status: all five built-in departments now have a shared bounded Symposium/DecisionRecord path; public symposium.closed facts feed the existing decision distillation queue and produce department-scoped Candidate proposals with source evidence, while memory.review remains the explicit ACL/approval promotion boundary; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check -p kiana-domain --test p4_e03_department_memory -p kiana-core --test p4_e03_department_memory --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_e03_department_memory.rs validates initiating/planning/executing/monitoring/closing meeting contracts and kind=decision department Candidate evidence; kiana-core/tests/p4_e03_department_memory.rs guards derive/queue/memory.review, ACL, bounded citations, automatic_execution=false and no direct memory write; GitHub Actions P4-E-03 workflow runs fixtures, Symposium/memory regressions and workspace compile
+exit_code: 0 for format, focused test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-E-03 is triggered by the eventual push and is not awaited
+status_change: P4-E-03 source slice is implemented. Five departments can produce explicit DecisionRecord facts, and each published resolution is routed to a department:<id> Candidate path without silently granting memory or execution authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: Candidate proposals are not Active/Qualified memory and are not automatically persisted through memory.write; Builder persistent write permissions remain unchanged; cross-tenant department ACL, durable projector/recovery, production index/vector search, external notifications and live/physical business outcomes remain CM/PD/SC/NM/ER work
+reviewer: Codex root implementation review plus five-department catalog, chair/attendee/round, public-decision-only evidence, Candidate/admission, ACL/promotion and no-second-loop boundary review; no runtime test reviewer
+```

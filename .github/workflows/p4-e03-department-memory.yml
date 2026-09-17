@@ -1,0 +1,62 @@
+name: P4-E-03 department symposium decisions
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/symposiums.rs"
+      - "kiana-domain/src/memory_proposals.rs"
+      - "kiana-domain/tests/p4_e03_department_memory.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/memory_proposals.rs"
+      - "kiana-core/src/memory_distillation.rs"
+      - "kiana-core/tests/p4_e03_department_memory.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-core/tests/p1_e02_symposium.rs"
+      - "kiana-domain/tests/p1_j3_03_memory_proposal.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-e03-department-memory-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-e03-department-memory.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/symposiums.rs"
+      - "kiana-domain/src/memory_proposals.rs"
+      - "kiana-domain/tests/p4_e03_department_memory.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/memory_proposals.rs"
+      - "kiana-core/src/memory_distillation.rs"
+      - "kiana-core/tests/p4_e03_department_memory.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-core/tests/p1_e02_symposium.rs"
+      - "kiana-domain/tests/p1_j3_03_memory_proposal.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p4-e03-department-memory-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-e03-department-memory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  department-memory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run five-department proposal fixture
+        run: cargo test -p kiana-domain --test p4_e03_department_memory --locked -- --test-threads=1
+      - name: Run department-memory source guard
+        run: cargo test -p kiana-core --test p4_e03_department_memory --locked -- --test-threads=1
+      - name: Run symposium and proposal regressions
+        run: |
+          cargo test -p kiana-core --test p1_e02_symposium --locked -- --test-threads=1
+          cargo test -p kiana-domain --test p1_j3_03_memory_proposal --locked -- --test-threads=1
+      - name: Compile P4-E-03 targets
+        run: cargo check --workspace --tests --locked

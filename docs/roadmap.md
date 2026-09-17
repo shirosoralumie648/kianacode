@@ -119,7 +119,7 @@
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ✅ |
 | `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ✅ |
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ✅ |
-| `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | 五部门可各自开会；决议写入部门记忆层 | ⏳ |
+| `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | 五部门可各自开会；决议写入部门记忆层 | ✅ |
 | `P4-J3-05` | P4 | J3 Memory | `P1-J3-03` | run 蒸馏产出 lesson candidate 入部门层 | ⏳ |
 | `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ⏳ |
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ⏳ |
@@ -717,7 +717,7 @@
 | 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ✅ | [基础卡](#step-p3-i-03) |
 | 544 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ✅ | [基础卡](#step-p3-i-04) |
 | 545 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ✅ | [基础卡](#step-p3-i-05) |
-| 546 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ⏳ | [基础卡](#step-p4-e-03) |
+| 546 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ✅ | [基础卡](#step-p4-e-03) |
 | 547 | W7 | 专项 | [`SW-05`](#step-sw-05) | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | `SW-04`、`CO-19`、`CO-20` | ⏳ | [专项卡](#step-sw-05) |
 | 548 | W7 | 专项 | [`SW-06`](#step-sw-06) | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | `SW-05`、`P1-D-01`、`P1-D-02`、`P1-D-03` | ⏳ | [专项卡](#step-sw-06) |
 | 549 | W7 | 专项 | [`SW-07`](#step-sw-07) | fresh child Cell/Session/Run/Attempt 和 DelegationPacket；daemon/core/runner | `SW-06`、`CO-21`、`CO-23` | ⏳ | [专项卡](#step-sw-07) |
@@ -1164,6 +1164,7 @@
 | 当前 208 | `P3-I-04` acceptance snapshot/review | RequestAcceptance 从 project/milestone/packet versions 与 criteria 生成 immutable `CriteriaSnapshot`，绑定 Builder run/session/evidence；RecordReview/DecideAcceptance 强制不同 reviewer session、snapshot/criterion key/evidence/role identity，CompanyState 只读校验并拒绝改写 Builder facts；business review adapter 与 Company governance 同样 fail-closed；新增 core acceptance source guard、workflow 与 baseline | `feature_status=implemented`（domain/core/company-business source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-04 已触发且未等待；跨进程 durable acceptance store、真实语义 evaluator、外部 review/delivery、power-loss/live/physical proof 留 CO/EQ/ER/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 209 | `P3-I-05` closeout/outcome | CloseProject/Business closeout 强制 Acceptance+independent Review+Confirmed Delivery+handoff receipt+resolved incidents+ClosingReceipt/waiver；Delivery Unknown 进 reconcile，RecordOutcome/AssessOutcome 绑定 objective snapshot、owner、measurement window、finite evidence、minimum samples，Runtime Completed/Receipt/model text 不能直接 Achieve；新增 core source guard、workflow 与 closeout-outcome baseline | `feature_status=implemented`（domain/core/company-closeout/governance source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-05 已触发且未等待；外部 delivery/provider receipt、durable closeout store、semantic KPI validity、power-loss/live/physical business outcome proof 留 CO/EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 210 | `P3-I-06` fake-model coding golden loop | 通过真实 `DaemonHost::handle` 协议入口，以 `ScriptedModel` 驱动 Objective→Project→PM Milestone/Packet→Builder `spawn_from_packet`→Reviewer/Acceptance→Delivery→Closer；断言实际 `OUTPUT.txt`、EventLog evidence、revision/idempotency 与完整 `CompanyClosingReceipt`，并以 source guard 固定 reject/rework/pause/cancel/failure/Unknown/replay 边界；新增 daemon 端到端 fixture、core source guard、workflow 与 fake-model baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon/protocol source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-06 已触发但未等待；受控 ScriptedModel 不代表 live provider，Company aggregate/Artifact/EventLog 仍是本地组合，外部 recipient、真实 KPI、跨进程 power-loss、四入口 Company UX、live/physical 业务结果留 CO-35..48/EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 211 | `P4-E-03` department symposium memory | 五个 DepartmentSpec 均可用同一 Symposium/DecisionRecord 合同开有界会议；公开 `symposium.closed` 决议统一进入 `derive_memory_proposal(..., "decision")` 与 `MemoryDistillationJob`，生成带 department collection/evidence 的 Candidate，必须经过 `memory.review` ACL/审批才可晋升；新增 domain 五部门 proposal fixture、core source guard、workflow 与 baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P4-E-03 已触发但未等待；Candidate 不等于 Active/Qualified，Builder 持久写权限未扩大，跨租户 ACL、durable memory projector、向量索引、外部通知和 live/physical 结果留 CM/PD/SC/NM；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1423,6 +1424,7 @@
 | 2026-09-18 | `P3-I-04` acceptance snapshot/review：RequestAcceptance 冻结 project/milestone/packet criteria snapshot 与 Builder run/session/evidence；RecordReview/DecideAcceptance 强制独立 reviewer session、criteria key/evidence/assignment identity，CompanyState/Business review/Company governance 拒绝 Reviewer 改写 Builder facts；新增 core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P3-I-05` closeout/outcome：CloseProject/Business closeout 强制 Acceptance、independent Review、Confirmed Delivery/handoff receipt、resolved incidents 和 ClosingReceipt/waiver；Delivery Unknown 进入 reconcile；RecordOutcome/AssessOutcome 绑定 objective/measurement window/owner/finite evidence/minimum samples，Runtime Completed/Receipt/model text 不得直接 Achieve；新增 core source guard、workflow 与 closeout-outcome baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P3-I-06` fake-model coding 黄金闭环：新增真实 `DaemonHost::handle` Company 命令链 fixture，ScriptedModel 在冻结 packet scope 写入 `OUTPUT.txt`，经 Objective→Project→PM→Builder→Reviewer→Acceptance→Delivery→Closer 生成完整 `CompanyClosingReceipt`；断言实际文件、EventLog evidence、CAS/revision/idempotency，并以 core source guard 固定拒绝/返工/暂停/取消/失败/Unknown/replay 边界；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P4-E-03` 五部门会议与决议入部门 RAG：确认 initiating/planning/executing/monitoring/closing 都使用同一有界 Symposium/DecisionRecord 合同；公开 `symposium.closed` 通过 `derive_memory_proposal`/`queue_memory_distillation` 生成 `kind=decision` 的 department Candidate，必须由 `memory.review` 显式晋升；新增五部门 domain fixture、core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2615,9 +2617,9 @@
 
 <a id="step-p4-e-03"></a>
 
-### P4-E-03 五部门开会与决议入部门 RAG　⏳
+### P4-E-03 五部门开会与决议入部门 RAG　✅
 
-- **现状**：只有规划部（v0.3）与监控部（v0.4）会议路径；五部门开会与「决议进部门 RAG」（`COMPANY.md` §5.4 v0.5）未实现。
+- **现状**：五个 `DepartmentSpec` 均复用有界 `Symposium`/`DecisionRecord`，公开决议进入 Candidate distillation queue；domain fixture、core source guard、CI workflow 与基线已登记。
 - **做什么**：五部门可各自开会；决议写入部门记忆层，受 `P1-J3-02` 的密级约束。
 - **风险**：跨部门联席必须仍是显式对象；决议入库走 `memory.write` 晋升规则，不得自动写入。
 - **验收**：`department_resolutions_enter_the_department_memory_layer`
