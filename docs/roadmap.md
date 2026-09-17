@@ -117,7 +117,7 @@
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ✅ |
 | `P3-I-03` | P3 | I Company 生命周期 | `P3-I-02`、`P0-G-04` | 新进程可从事件与 Artifact 引用重建全链 | ✅ |
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ✅ |
-| `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ⏳ |
+| `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ✅ |
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ⏳ |
 | `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | 五部门可各自开会；决议写入部门记忆层 | ⏳ |
 | `P4-J3-05` | P4 | J3 Memory | `P1-J3-03` | run 蒸馏产出 lesson candidate 入部门层 | ⏳ |
@@ -716,7 +716,7 @@
 | 542 | W7 | 基础 | [`P2-J5-01`](#step-p2-j5-01) | P2 基础 · Workflow definition 与重放 | `P0-G-04` | ✅ | [基础卡](#step-p2-j5-01) |
 | 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ✅ | [基础卡](#step-p3-i-03) |
 | 544 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ✅ | [基础卡](#step-p3-i-04) |
-| 545 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ⏳ | [基础卡](#step-p3-i-05) |
+| 545 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ✅ | [基础卡](#step-p3-i-05) |
 | 546 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ⏳ | [基础卡](#step-p4-e-03) |
 | 547 | W7 | 专项 | [`SW-05`](#step-sw-05) | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | `SW-04`、`CO-19`、`CO-20` | ⏳ | [专项卡](#step-sw-05) |
 | 548 | W7 | 专项 | [`SW-06`](#step-sw-06) | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | `SW-05`、`P1-D-01`、`P1-D-02`、`P1-D-03` | ⏳ | [专项卡](#step-sw-06) |
@@ -1162,6 +1162,7 @@
 | 当前 206 | `P3-I-02` company command/event freeze | 冻结九个基础 Company command/event 对并版本化：propose_objective→ObjectiveProposed、approve_project→ProjectApproved、create_milestone→MilestoneCreated、approve_packet→PacketApproved、start_run→RunStartRequested→RunStarted observation、request_acceptance→AcceptanceRequested、decide_acceptance→AcceptanceDecided、close_project→ProjectClosed、record_outcome→OutcomeRecorded；strict CompanyCommandRequest/CompanyEvent、stream/revision/idempotency、CompanyReplayReducer migration/gap/duplicate/conflict 和 CompanyCommandPolicy 均沿 ControlPlane；新增 core source guard、workflow 与 company-commands baseline | `feature_status=implemented`（domain/protocol/core source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-02 已触发且未等待；全链重建、durable aggregate index、业务闭环和 power-loss/live/physical proof 留 P3-I-03+、CO/ER/PD/DEP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 207 | `P3-I-03` company chain replay | ControlPlane::load_company 只读 company aggregate stream，经 CompanyReplayReducer 校验 schema/migration/aggregate/owner/revision/idempotency/event identity/state transition，company_snapshot/view 与 receipt 从同一 facts 重建 Objective→Project→Packet→Run→Acceptance→Delivery/ClosingReceipt；artifact/evidence refs 复核 hash/ownership/revocation，未批准/过期/冲突/Unknown fail-closed；新增 core chain source guard、workflow 与 company-chain baseline | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-03 已触发且未等待；跨进程 durable aggregate index/snapshot、完整全链 runtime fixture、power-loss/upcast、外部/live/physical outcome proof 留 P3-I-04+、CO/ER/PD/DEP/INT/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 208 | `P3-I-04` acceptance snapshot/review | RequestAcceptance 从 project/milestone/packet versions 与 criteria 生成 immutable `CriteriaSnapshot`，绑定 Builder run/session/evidence；RecordReview/DecideAcceptance 强制不同 reviewer session、snapshot/criterion key/evidence/role identity，CompanyState 只读校验并拒绝改写 Builder facts；business review adapter 与 Company governance 同样 fail-closed；新增 core acceptance source guard、workflow 与 baseline | `feature_status=implemented`（domain/core/company-business source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-04 已触发且未等待；跨进程 durable acceptance store、真实语义 evaluator、外部 review/delivery、power-loss/live/physical proof 留 CO/EQ/ER/PD/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 209 | `P3-I-05` closeout/outcome | CloseProject/Business closeout 强制 Acceptance+independent Review+Confirmed Delivery+handoff receipt+resolved incidents+ClosingReceipt/waiver；Delivery Unknown 进 reconcile，RecordOutcome/AssessOutcome 绑定 objective snapshot、owner、measurement window、finite evidence、minimum samples，Runtime Completed/Receipt/model text 不能直接 Achieve；新增 core source guard、workflow 与 closeout-outcome baseline | `feature_status=implemented`（domain/core/company-closeout/governance source + remote fixture wiring）、`proof_level=source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions P3-I-05 已触发且未等待；外部 delivery/provider receipt、durable closeout store、semantic KPI validity、power-loss/live/physical business outcome proof 留 P3-I-06、CO/EQ/ER/PD/DEP/SC；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1419,6 +1420,7 @@
 | 2026-09-18 | `P3-I-02` company command/event freeze：固定九个基础 Company command/event 对与 schema v1；start_run 明确为 RunStartRequested reservation→RunStarted observation；CompanyCommandRequest/CompanyEvent strict DTO、stream/revision/idempotency、CompanyReplayReducer migration/gap/duplicate/conflict 和 policy authority 均纳入 CI source/replay 回归；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P3-I-03` company chain replay：ControlPlane::load_company 只读 aggregate stream，经 CompanyReplayReducer 校验 schema/migration/owner/revision/idempotency/event identity/state transition；snapshot/view 与 receipt 从同一 facts 重建 Objective→Project→Packet→Run→Acceptance→Delivery/ClosingReceipt，artifact/evidence refs 校验 hash/ownership/revocation，未批准/过期/冲突/Unknown fail-closed；新增 core chain source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `P3-I-04` acceptance snapshot/review：RequestAcceptance 冻结 project/milestone/packet criteria snapshot 与 Builder run/session/evidence；RecordReview/DecideAcceptance 强制独立 reviewer session、criteria key/evidence/assignment identity，CompanyState/Business review/Company governance 拒绝 Reviewer 改写 Builder facts；新增 core source guard、workflow 与 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `P3-I-05` closeout/outcome：CloseProject/Business closeout 强制 Acceptance、independent Review、Confirmed Delivery/handoff receipt、resolved incidents 和 ClosingReceipt/waiver；Delivery Unknown 进入 reconcile；RecordOutcome/AssessOutcome 绑定 objective/measurement window/owner/finite evidence/minimum samples，Runtime Completed/Receipt/model text 不得直接 Achieve；新增 core source guard、workflow 与 closeout-outcome baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2571,13 +2573,15 @@
 
 <a id="step-p3-i-05"></a>
 
-### P3-I-05 Delivery / ClosingReceipt / Outcome　⏳
+### P3-I-05 Delivery / ClosingReceipt / Outcome　✅
 
-- **现状**：没有 Delivery、ClosingReceipt 与 Outcome 测量。
-- **做什么**：Project 关闭必须有 Acceptance、Delivery、ClosingReceipt，或有明确的失败关闭/人工豁免；Outcome 需要测量窗口与观测证据。
-- **风险**：Objective `Achieved` 不能由 Receipt 或模型文本直接宣称。
+当前 source slice 与 CI-only 证据见 [`p3-i05-closeout-outcome-baseline.md`](roadmap/p3-i05-closeout-outcome-baseline.md)。
+
+- **现状**：CompanyState 与 Business closeout 已实现 Delivery 状态链、ClosingReceipt/失败豁免和 Outcome/measurement plan/observation/assessment；外部 receipt、durable store 与 semantic KPI 仍留后续。
+- **做什么**：Project 关闭强制 Acceptance+独立 Review+Confirmed Delivery/handoff receipt+resolved incidents+ClosingReceipt 或命名 waiver；Outcome 绑定 objective snapshot、owner、measurement window、finite evidence/minimum samples，只有 Realized 才能 Achieve。
+- **风险**：Objective `Achieved` 不能由 Receipt、Runtime Completed 或模型文本直接宣称；Unknown、缺失/迟到/重复测量和未确认交付保持 blocked/Unknown。
 - **验收**：`outcome_cannot_be_claimed_without_measurement`
-- **依赖 / 边界**：依赖 `P3-I-03`；`result_unknown` 必须关联 Incident/Reconciliation。
+- **依赖 / 边界**：依赖 `P3-I-03`；`result_unknown`/DeliveryUnknown 必须关联 Incident/Reconciliation，不新增第二事实源。
 - **依据**：`company-os-implementation-outline.md` §Slice I
 
 

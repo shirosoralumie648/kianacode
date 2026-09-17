@@ -3963,6 +3963,25 @@ limitations: acceptance/review facts remain local Company EventLog projection; n
 reviewer: Codex root implementation review plus criteria snapshot/version maps, author/reviewer session separation, criterion/evidence completeness, role/assignment/decision recheck, immutable Builder facts and no-second-authority boundary review; no runtime test reviewer
 ```
 
+### P3-I-05 closeout and outcome evidence (2026-09-18)
+
+```text
+source_snapshot: a0503f3e + P3-I-05 evidence slice; kiana-domain/src/{company.rs,company_closeout.rs}; kiana-core/src/{company.rs,company_governance.rs}; kiana-core/tests/p3_i05_closeout_outcome.rs; kiana-domain/tests/p3_i01_company_objects.rs; kiana-core/tests/oa27_company_governance.rs; .github/workflows/p3-i05-closeout-outcome.yml; docs/roadmap/p3-i05-closeout-outcome-baseline.md; docs/roadmap.md
+worktree_status: Company CloseProject requires accepted project/Acceptance, independent review, same-project confirmed Delivery with handoff receipt, resolved incidents and unique ClosingReceipt; business closeout requires human actor, stopped/known effects, acceptance/delivery obligations and named waiver where applicable. DeliveryUnknown/Reconcile preserves Incident/evidence. RecordOutcome and business measurement plan/observation/assessment bind objective snapshot, owner, window, finite values, evidence and minimum samples; only Realized outcome can Achieve, never runtime Completed/Receipt/model text; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; test targets compiled only and no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p3_i05_closeout_outcome.rs closeout/outcome source guard; existing kiana-domain/tests/p3_i01_company_objects.rs object/measurement fixtures and kiana-core/tests/oa27_company_governance.rs runtime-vs-business/closed-chain regressions; GitHub Actions P3-I-05 workflow runs guard, object and governance regressions and workspace compile
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-05 is triggered by the eventual push and is not awaited
+status_change: P3-I-05 source slice is implemented/reconciled. Delivery, ClosingReceipt and measured Outcome gates are enforced by CompanyState/Business closeout; runtime success remains separate from business outcome.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: closeout/outcome facts are local Company EventLog projections; no external recipient/provider receipt, durable cross-process store, semantic KPI validity, power-loss recovery, external business confirmation or live/physical outcome proof is claimed
+reviewer: Codex root implementation review plus acceptance/delivery/incident/closing prerequisites, waiver/Unknown, measurement window/owner/evidence/minimum sample, Realized-only achievement and no-runtime-success-as-outcome boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

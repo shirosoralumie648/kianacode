@@ -1,0 +1,52 @@
+name: P3-I-05 closeout and outcome measurement
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-core/tests/p3_i05_closeout_outcome.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p3-i05-closeout-outcome-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p3-i05-closeout-outcome.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-core/tests/p3_i05_closeout_outcome.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/p3-i05-closeout-outcome-baseline.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p3-i05-closeout-outcome.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  closeout-outcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run closeout/outcome source guard
+        run: cargo test -p kiana-core --test p3_i05_closeout_outcome --locked -- --test-threads=1
+      - name: Run Company object/outcome regression
+        run: cargo test -p kiana-domain --test p3_i01_company_objects --locked -- --test-threads=1
+      - name: Run Company governance closeout regression
+        run: cargo test -p kiana-core --test oa27_company_governance --locked -- --test-threads=1
+      - name: Compile P3-I-05 targets
+        run: cargo check --workspace --tests --locked
