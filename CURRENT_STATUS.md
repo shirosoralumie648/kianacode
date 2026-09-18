@@ -8259,3 +8259,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process supervisor durability, power-loss stop acknowledgement, physical process termination and external effect reconciliation remain open
 reviewer: Codex root implementation review plus durable cancel-before-signal ordering, queue/approval drain, process/MCP stop evidence, result delivery fence, Unknown on unconfirmed/mismatched stop and no-success/no-retry bypass review; no runtime test reviewer
 ```
+
+### ER-23 Unknown incident / RecoveryPlan evidence (2026-09-18)
+
+```text
+source_snapshot: 83c4dbaa + ER-23 working-tree slice; kiana-domain/src/platform.rs; kiana-core/src/{platform,commands}.rs; kiana-daemon/src/lib.rs; kiana-core/tests/er23_unknown_incident_guard.rs; .github/workflows/er23-unknown-incident.yml; docs/roadmap/er23-unknown-incident-baseline.md; docs/roadmap.md
+worktree_status: FailureIncident recovery projection now carries a typed Proposed→Approved→Executing→Verified/Failed/Abandoned RecoveryPlan; safe/forbidden actions only grow and evidence refs are accumulated; failure.recovery transitions use the existing human platform stream with actor/source-event evidence, expected revision and idempotency key, independent reviewer/sponsor approval and source-actor self-approval denial; Unknown runtime effects remain reconciliation-bound and original outcomes are unchanged; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only incident/recovery/Human Inbox fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: P2-K6-01 reliability domain/core guards; CP-20 Unknown reconciliation guard; P2-K3 Human Inbox; OA-19 incident projection; er23_unknown_incident_guard; GitHub Actions ER-23 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-23 is triggered by the eventual push and is not awaited
+status_change: ER-23 source slice is implemented. Unknown incidents, typed recovery state transitions, evidence/approval/idempotency fences and Human Inbox actions now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; external incident service, cross-process recovery queue, provider reconciliation and physical proof remain open
+reviewer: Codex root implementation review plus conservative failure classification, state-machine transition table, monotonic safe/forbidden actions, source-event evidence, independent approval/self-approval denial, revision/idempotency replay and no-retry/no-outcome-rewrite boundary review; no runtime test reviewer
+```

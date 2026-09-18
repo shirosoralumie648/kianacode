@@ -223,6 +223,7 @@ impl ControlPlane {
                 | "human.resolve"
                 | "failure.incidents"
                 | "failure.reconcile"
+                | "failure.recovery"
                 | "failure.release"
                 | "feedback.list"
                 | "feedback.submit"

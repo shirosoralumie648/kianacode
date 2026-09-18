@@ -45,11 +45,77 @@ pub enum FailureClass {
     ProviderUnknown,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryPlanState {
+    Proposed,
+    Approved,
+    Executing,
+    Verified,
+    Failed,
+    Abandoned,
+}
+
+impl Default for RecoveryPlanState {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl RecoveryPlanState {
+    pub fn transition(self, next: Self) -> Result<Self, &'static str> {
+        let allowed = matches!(
+            (self, next),
+            (Self::Proposed, Self::Approved | Self::Abandoned)
+                | (Self::Approved, Self::Executing | Self::Abandoned)
+                | (
+                    Self::Executing,
+                    Self::Verified | Self::Failed | Self::Abandoned
+                )
+        );
+        if allowed {
+            Ok(next)
+        } else {
+            Err("recovery_plan_state_transition_invalid")
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Verified | Self::Failed | Self::Abandoned)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecoveryPlan {
     pub steps: Vec<String>,
     pub requires_reconciliation: bool,
     pub automatic_retry_allowed: bool,
+    #[serde(default)]
+    pub state: RecoveryPlanState,
+    #[serde(default)]
+    pub safe_actions: Vec<String>,
+    #[serde(default)]
+    pub forbidden_actions: Vec<String>,
+    #[serde(default)]
+    pub evidence_refs: Vec<String>,
+}
+
+impl RecoveryPlan {
+    pub fn transition_with_evidence(
+        &mut self,
+        next: RecoveryPlanState,
+        evidence_refs: impl IntoIterator<Item = String>,
+    ) -> Result<(), &'static str> {
+        self.state.transition(next)?;
+        for evidence in evidence_refs {
+            if !evidence.trim().is_empty() && !self.evidence_refs.contains(&evidence) {
+                self.evidence_refs.push(evidence);
+            }
+        }
+        self.evidence_refs.sort();
+        self.state = next;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -92,10 +158,19 @@ impl FailureClass {
                 "Resolve uncertain side effects with independent evidence",
             ],
         };
+        let steps = steps.into_iter().map(str::to_owned).collect::<Vec<_>>();
         RecoveryPlan {
-            steps: steps.into_iter().map(str::to_owned).collect(),
+            steps: steps.clone(),
             requires_reconciliation: unknown,
             automatic_retry_allowed: false,
+            state: RecoveryPlanState::Proposed,
+            safe_actions: steps,
+            forbidden_actions: vec![
+                "automatic_retry".to_owned(),
+                "self_approve".to_owned(),
+                "close_unknown".to_owned(),
+            ],
+            evidence_refs: Vec::new(),
         }
     }
 }

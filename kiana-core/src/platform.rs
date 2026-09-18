@@ -3,7 +3,7 @@ use super::*;
 use kiana_domain::{
     json_digest, AcceptanceStatus, CapabilityErrorCode, CompanyCommand, CompanyCommandRequest,
     CompanyState, FailureClass, FailureIncident, FeedbackCandidate, HumanAction, HumanInboxItem,
-    HumanInboxKind, IncidentStatus, COMPANY_COMMAND_SCHEMA,
+    HumanInboxKind, IncidentStatus, RecoveryPlan, RecoveryPlanState, COMPANY_COMMAND_SCHEMA,
 };
 
 const PLATFORM_STREAM: &str = "human_operations";
@@ -52,6 +52,7 @@ impl ControlPlane {
                 ))
             }
             "failure.reconcile" => self.reconcile_failure(&context, arguments).await,
+            "failure.recovery" => self.advance_recovery_plan(&context, arguments).await,
             "failure.release" => {
                 self.release_quarantined_resources(&context, arguments)
                     .await
@@ -312,13 +313,14 @@ impl ControlPlane {
                         && record.data["record"]["incident_id"] == id
                 })
                 .map(|event| event.data["record"].clone());
+            let recovery = Self::project_recovery_plan(&history, &id, class.recovery(unknown))?;
             incidents.push(FailureIncident {
                 incident_id: id,
                 source_event_id: event.event_id,
                 run_id: event.data["run_id"].as_str().and_then(RunId::parse_str),
                 class,
                 summary,
-                recovery: class.recovery(unknown),
+                recovery,
                 reconciliation,
             });
         }
@@ -352,10 +354,160 @@ impl ControlPlane {
                     event.kind == "failure.reconciled" && event.data["record"]["incident_id"] == id
                 })
                 .map(|event| event.data["record"].clone());
-            incidents.push(FailureIncident{incident_id:id,source_event_id:identity.event_id,run_id:Some(run_id),class:FailureClass::Crash,
-                summary:"run_continuation_unavailable_in_this_host: terminal result and process stop are unconfirmed".to_owned(),recovery:FailureClass::Crash.recovery(true),reconciliation});
+            let recovery =
+                Self::project_recovery_plan(&history, &id, FailureClass::Crash.recovery(true))?;
+            incidents.push(FailureIncident {
+                incident_id: id,
+                source_event_id: identity.event_id,
+                run_id: Some(run_id),
+                class: FailureClass::Crash,
+                summary: "run_continuation_unavailable_in_this_host: terminal result and process stop are unconfirmed".to_owned(),
+                recovery,
+                reconciliation,
+            });
         }
         Ok(incidents)
+    }
+
+    fn project_recovery_plan(
+        history: &[RuntimeEvent],
+        incident_id: &str,
+        mut plan: RecoveryPlan,
+    ) -> Result<RecoveryPlan, CoreError> {
+        for event in history.iter().filter(|event| {
+            event.kind == "failure.recovery.transition"
+                && event.data["record"]["incident_id"] == incident_id
+        }) {
+            let record = &event.data["record"];
+            let next: RecoveryPlanState = serde_json::from_value(record["state"].clone())
+                .map_err(|_| platform_error("recovery_plan_history_state_invalid"))?;
+            let evidence_refs: Vec<String> = serde_json::from_value(
+                record
+                    .get("evidence_refs")
+                    .cloned()
+                    .unwrap_or_else(|| json!([])),
+            )
+            .map_err(|_| platform_error("recovery_plan_history_evidence_invalid"))?;
+            plan.transition_with_evidence(next, evidence_refs)
+                .map_err(platform_error)?;
+            for field in ["safe_actions", "forbidden_actions"] {
+                let actions: Vec<String> =
+                    serde_json::from_value(record.get(field).cloned().unwrap_or_else(|| json!([])))
+                        .map_err(|_| platform_error("recovery_plan_history_actions_invalid"))?;
+                let target = if field == "safe_actions" {
+                    &mut plan.safe_actions
+                } else {
+                    &mut plan.forbidden_actions
+                };
+                for action in actions {
+                    if !action.trim().is_empty() && !target.contains(&action) {
+                        target.push(action);
+                    }
+                }
+                target.sort();
+            }
+        }
+        Ok(plan)
+    }
+
+    async fn advance_recovery_plan(
+        &self,
+        context: &RequestContext,
+        arguments: Value,
+    ) -> Result<CoreResponse, CoreError> {
+        let history = self.platform_history(context).await?;
+        if let Some(response) =
+            platform_replay(context, &history, "failure.recovery.transition", &arguments)
+        {
+            return Ok(response);
+        }
+        let Some(incident_id) = bounded_text(&arguments, "incident_id", 256) else {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_incident_required",
+            ));
+        };
+        let requested: RecoveryPlanState = match serde_json::from_value(arguments["state"].clone())
+        {
+            Ok(state) => state,
+            Err(_) => {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "recovery_plan_state_invalid",
+                ))
+            }
+        };
+        let Some(incident) = self
+            .failure_incidents(context, &history)
+            .await?
+            .into_iter()
+            .find(|incident| incident.incident_id == incident_id)
+        else {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "failure_incident_not_found",
+            ));
+        };
+        if incident.recovery.state.transition(requested).is_err() {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_state_transition_invalid",
+            ));
+        }
+        if requested == RecoveryPlanState::Approved
+            && !matches!(context.role_id.as_str(), "reviewer" | "sponsor")
+        {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_cannot_self_approve",
+            ));
+        }
+        let all_events = self.events.read_all().await?;
+        let source_actor = all_events
+            .iter()
+            .find(|event| event.event_id == incident.source_event_id)
+            .and_then(|event| event.data["actor_id"].as_str());
+        if requested == RecoveryPlanState::Approved && source_actor == context.actor_id.as_deref() {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_cannot_self_approve",
+            ));
+        }
+        let Some(evidence_refs) = arguments["evidence_refs"].as_array() else {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_evidence_required",
+            ));
+        };
+        let source_ref = format!("event:{}", incident.source_event_id);
+        if !evidence_refs
+            .iter()
+            .any(|reference| reference.as_str() == Some(source_ref.as_str()))
+            || !self.evidence_exists(context, &arguments).await?
+        {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "recovery_plan_evidence_required",
+            ));
+        }
+        self.commit_platform(
+            context,
+            &history,
+            "failure.recovery.transition",
+            &arguments,
+            json!({
+                "incident_id": incident.incident_id,
+                "source_event_id": incident.source_event_id,
+                "from": incident.recovery.state,
+                "state": requested,
+                "actor_id": context.actor_id,
+                "evidence_refs": evidence_refs,
+                "safe_actions": incident.recovery.safe_actions,
+                "forbidden_actions": incident.recovery.forbidden_actions,
+                "automatic_retry_allowed": false,
+            }),
+        )
+        .await
     }
 
     async fn release_quarantined_resources(
@@ -809,8 +961,37 @@ impl ControlPlane {
             .failure_incidents(context, &history)
             .await?
             .into_iter()
-            .filter(|incident| incident.reconciliation.is_none())
+            .filter(|incident| {
+                incident.reconciliation.is_none() || !incident.recovery.state.is_terminal()
+            })
         {
+            let mut actions = vec![action(
+                "reconcile",
+                "提交对账证据",
+                "failure.reconcile",
+                json!({"incident_id":incident.incident_id,"expected_revision":revision}),
+                &["resolution", "evidence_refs"],
+            )];
+            for (state, label) in [
+                (RecoveryPlanState::Approved, "批准恢复计划"),
+                (RecoveryPlanState::Executing, "开始恢复计划"),
+                (RecoveryPlanState::Verified, "确认恢复完成"),
+                (RecoveryPlanState::Failed, "标记恢复失败"),
+                (RecoveryPlanState::Abandoned, "放弃恢复计划"),
+            ] {
+                if incident.recovery.state.transition(state).is_ok()
+                    && (state != RecoveryPlanState::Approved
+                        || matches!(context.role_id.as_str(), "reviewer" | "sponsor"))
+                {
+                    actions.push(action(
+                        &format!("recovery_{label}"),
+                        label,
+                        "failure.recovery",
+                        json!({"incident_id":incident.incident_id,"state":state,"expected_revision":revision}),
+                        &["evidence_refs"],
+                    ));
+                }
+            }
             items.push(HumanInboxItem {
                 item_id: incident.incident_id.clone(),
                 kind: if incident.recovery.requires_reconciliation {
@@ -822,13 +1003,7 @@ impl ControlPlane {
                 source_ref: format!("event:{}", incident.source_event_id),
                 run_id: incident.run_id,
                 detail: json!(incident),
-                actions: vec![action(
-                    "reconcile",
-                    "提交对账证据",
-                    "failure.reconcile",
-                    json!({"incident_id":incident.incident_id,"expected_revision":revision}),
-                    &["resolution", "evidence_refs"],
-                )],
+                actions,
             });
         }
         for candidate in feedback_candidates(&history)?
@@ -957,10 +1132,12 @@ impl ControlPlane {
                 };
                 self.handle_company_command(context, json!(request)).await
             }
-            "failure.reconcile" | "feedback.review" => {
+            "failure.reconcile" | "failure.recovery" | "feedback.review" => {
                 resolved["idempotency_key"] = arguments["idempotency_key"].clone();
                 if action.command == "failure.reconcile" {
                     self.reconcile_failure(&context, resolved).await
+                } else if action.command == "failure.recovery" {
+                    self.advance_recovery_plan(&context, resolved).await
                 } else {
                     self.record_feedback(&context, "feedback.review", resolved)
                         .await

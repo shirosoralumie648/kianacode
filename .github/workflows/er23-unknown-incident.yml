@@ -1,0 +1,64 @@
+name: ER-23 unknown incident and recovery plan
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-domain/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/oa19_incident_projection.rs"
+      - "kiana-core/tests/er23_unknown_incident_guard.rs"
+      - "docs/roadmap/p2-k6-01-reliability-baseline.md"
+      - "docs/roadmap/er23-unknown-incident-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er23-unknown-incident.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-domain/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/oa19_incident_projection.rs"
+      - "kiana-core/tests/er23_unknown_incident_guard.rs"
+      - "docs/roadmap/p2-k6-01-reliability-baseline.md"
+      - "docs/roadmap/er23-unknown-incident-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er23-unknown-incident.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unknown-incident:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run reliability and recovery fixtures
+        run: cargo test -p kiana-domain --test p2_k6_01_reliability --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k6_01_reliability --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k3_01_human_inbox --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa19_incident_projection --locked -- --test-threads=1
+      - name: Run ER-23 source guard
+        run: cargo test -p kiana-core --test er23_unknown_incident_guard --locked -- --test-threads=1
+      - name: Compile ER-23 targets
+        run: cargo check --workspace --tests --locked
