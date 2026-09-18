@@ -1,0 +1,49 @@
+name: AUT-04 trigger definition admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut04_trigger_definition.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut04_trigger_guard.rs"
+      - "docs/roadmap/automation-trigger-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut04-trigger.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut04_trigger_definition.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut04_trigger_guard.rs"
+      - "docs/roadmap/automation-trigger-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut04-trigger.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run trigger definition fixtures
+        run: cargo test -p kiana-workflow --test aut04_trigger_definition --locked -- --test-threads=1
+      - name: Run trigger source guard
+        run: cargo test -p kiana-core --test aut04_trigger_guard --locked -- --test-threads=1
+      - name: Compile AUT-04 targets
+        run: cargo check --workspace --tests --locked
+

@@ -7242,3 +7242,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: digest is computed at admission but not yet stored as a separate field on every historical instance/event projection; trigger source/occurrence/authority binding and durable CAS/cursor query remain AUT-04/05, and no scheduler or external/live/physical effect proof is claimed
 reviewer: Codex root implementation review plus canonical digest/version identity, unknown-field/role/project/key bounds, DAG and artifact dependency no-panic checks, subdefinition immutability, planner purity and ControlPlane-only effect routing review; no runtime test reviewer
 ```
+
+### AUT-04 Trigger definition/source admission evidence (2026-09-18)
+
+```text
+source_snapshot: 69e0db17 + AUT-04 working-tree slice; kiana-domain/src/{automation.rs,contracts.rs}; kiana-workflow/src/durable.rs; kiana-workflow/tests/aut04_trigger_definition.rs; kiana-core/src/automation.rs; kiana-core/tests/aut04_trigger_guard.rs; .github/workflows/aut04-trigger.yml; docs/roadmap/automation-trigger-baseline.md; docs/roadmap.md
+worktree_status: `TriggerDefinition` now has schema-registered shape/digest validation for owner/role/approval references, bounded input JSON, expiry/firing budget, source kind and interval arithmetic. The pure planner invokes it before registering a trigger, then checks owner role, owned approval evidence, definition role/input coverage and existing Manual/Event/Interval source proof; firing keys, duplicate occurrences, concurrency, quota and interval catch-up remain deny-first. Static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-workflow --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  cargo check -p kiana-domain --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-workflow/tests/aut04_trigger_definition.rs covers Manual/Event/Interval shape, digest, malformed source/input/expiry/approval and unknown fields; kiana-core/tests/aut04_trigger_guard.rs guards owner/approval/source evidence, occurrence key, quota/concurrency and pure/no-second-loop boundary; GitHub Actions AUT-04 workflow runs workflow/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-04 is triggered by the eventual push and is not awaited
+status_change: AUT-04 source slice is implemented. Trigger registration and firing now have a bounded, digestable domain shape and source/approval/owner deny-first checks before instance creation.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: project/authority/policy revisions remain authenticated ControlPlane context and approval evidence rather than dedicated TriggerOccurrence fields; durable occurrence/event envelope, CAS/cursor query and multi-scheduler dedup remain AUT-05, with no scheduler or external/live/physical proof claimed
+reviewer: Codex root implementation review plus trigger schema/digest and input bound, expiry/interval overflow, source kind/event_ref exactness, owner/role/approval evidence, duplicate firing/concurrency/quota and planner purity/no-second-loop review; no runtime test reviewer
+```

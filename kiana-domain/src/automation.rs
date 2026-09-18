@@ -9,6 +9,7 @@ pub const AUTOMATION_SNAPSHOT: &str = "workflow.snapshot.v1";
 pub const AUTOMATION_SCHEMA: &str = "kiana.workflow-command.v1";
 pub const AUTOMATION_EVENT_SCHEMA: &str = "kiana.workflow-event.v1";
 pub const WORKFLOW_DEFINITION_SCHEMA: &str = "kiana.workflow-definition.v1";
+pub const TRIGGER_DEFINITION_SCHEMA: &str = "kiana.trigger-definition.v1";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -221,6 +222,73 @@ pub struct TriggerDefinition {
     pub missed_schedule: MissedSchedulePolicy,
     pub schedule: TriggerSchedule,
     pub approval_ref: String,
+}
+
+impl TriggerDefinition {
+    /// Validate trigger shape independently from a definition/project store.  The planner adds
+    /// owner, approval, role and definition checks; keeping this part in domain prevents a wire
+    /// adapter from creating an unbounded or ambiguous occurrence.
+    pub fn validate_shape(&self, now_ms: u64) -> Result<(), String> {
+        fn bounded(value: &str, max: usize) -> bool {
+            !value.trim().is_empty() && value.len() <= max && !value.contains(['\0', '\r', '\n'])
+        }
+        if !bounded(&self.trigger_id, 128)
+            || !bounded(&self.definition_id, 128)
+            || self.definition_version == 0
+            || !bounded(&self.owner_id, 256)
+            || !bounded(&self.role_id, 128)
+            || !bounded(&self.approval_ref, 512)
+            || !self.approval_ref.starts_with("event:")
+            || now_ms == 0
+            || self.expires_at <= now_ms
+            || self.expires_at - now_ms > 31_536_000_000
+            || !(1..=1_024).contains(&self.max_firings)
+            || self.inputs.len() > 256
+            || serde_json::to_vec(&self.inputs).map_or(true, |bytes| bytes.len() > 64 * 1024)
+        {
+            return Err("trigger_definition_shape_invalid".to_owned());
+        }
+        for key in self.inputs.keys() {
+            if !bounded(key, 128) {
+                return Err("trigger_input_key_invalid".to_owned());
+            }
+        }
+        match &self.schedule {
+            TriggerSchedule::Manual => {}
+            TriggerSchedule::Event { kind } => {
+                if !bounded(kind, 128) {
+                    return Err("trigger_event_kind_invalid".to_owned());
+                }
+            }
+            TriggerSchedule::Interval { every_ms, first_at } => {
+                if *every_ms < 1_000 || *first_at == 0 {
+                    return Err("trigger_schedule_invalid".to_owned());
+                }
+                self.expires_at
+                    .checked_add(*every_ms)
+                    .ok_or_else(|| "trigger_schedule_overflow".to_owned())?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": TRIGGER_DEFINITION_SCHEMA,
+            "trigger_id": self.trigger_id,
+            "definition_id": self.definition_id,
+            "definition_version": self.definition_version,
+            "inputs": self.inputs,
+            "owner_id": self.owner_id,
+            "role_id": self.role_id,
+            "expires_at": self.expires_at,
+            "max_firings": self.max_firings,
+            "concurrency": self.concurrency,
+            "missed_schedule": self.missed_schedule,
+            "schedule": self.schedule,
+            "approval_ref": self.approval_ref,
+        }))
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DurableTrigger {

@@ -806,6 +806,9 @@ pub fn plan_command(
             compensation.status = WorkflowInstanceStatus::Compensating;
         }
         AutomationCommand::RegisterTrigger { trigger } => {
+            trigger
+                .validate_shape(a.now_ms)
+                .map_err(|_| "trigger_definition_shape_invalid")?;
             require(
                 matches!(a.context.role_id.as_str(), "sponsor" | "pm")
                     && trigger.owner_id == a.context.actor_id.clone().unwrap_or_default(),
@@ -938,6 +941,10 @@ fn fire_trigger(
         } => {
             require(
                 !firing_key.is_empty() && firing_key.len() <= 256,
+                "trigger_firing_key_invalid",
+            )?;
+            require(
+                !firing_key.contains(['\0', '\r', '\n']),
                 "trigger_firing_key_invalid",
             )?;
             match &t.definition.schedule {
