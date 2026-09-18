@@ -1,0 +1,44 @@
+name: EQ-15 evaluation fault plan
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq15_fault_plan.rs"
+      - "kiana-core/tests/eq15_fault_plan_guard.rs"
+      - "docs/roadmap/evaluation-fault-plan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq15-fault-plan.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq15_fault_plan.rs"
+      - "kiana-core/tests/eq15_fault_plan_guard.rs"
+      - "docs/roadmap/evaluation-fault-plan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq15-fault-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fault-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run fault plan fixtures
+        run: cargo test -p kiana-daemon --test eq15_fault_plan --locked -- --test-threads=1
+      - name: Run fault plan source guard
+        run: cargo test -p kiana-core --test eq15_fault_plan_guard --locked -- --test-threads=1
+      - name: Compile EQ-15 targets
+        run: cargo check --workspace --tests --locked

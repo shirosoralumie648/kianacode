@@ -572,6 +572,190 @@ impl EvalEvidenceCapture {
     }
 }
 
+pub const EVAL_FAULT_PLAN_SCHEMA: &str = "kiana.eval-fault-plan.v1";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalFaultKind {
+    ApprovalDenied,
+    ApprovalExpired,
+    CancelRace,
+    CrashAfterEffect,
+    Restart,
+    StaleLease,
+    ResultUnknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalFaultDisposition {
+    Denied,
+    CancelledNotStarted,
+    UnknownReconcile,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalFaultPlan {
+    pub schema: String,
+    pub kind: EvalFaultKind,
+    pub effect_started: bool,
+    pub stop_confirmed: bool,
+    pub lease_epoch: u64,
+    pub observed_lease_epoch: u64,
+    pub restart_generation: u64,
+    pub plan_digest: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalFaultEvidence {
+    pub schema: String,
+    pub plan_digest: String,
+    pub kind: EvalFaultKind,
+    pub disposition: EvalFaultDisposition,
+    pub effect_started: bool,
+    pub effect_known: bool,
+    pub stop_confirmed: bool,
+    pub requires_reconciliation: bool,
+    pub terminal_code: String,
+    pub evidence_digest: String,
+}
+
+impl EvalFaultPlan {
+    pub fn new(kind: EvalFaultKind) -> Self {
+        let mut plan = Self {
+            schema: EVAL_FAULT_PLAN_SCHEMA.to_owned(),
+            kind,
+            effect_started: false,
+            stop_confirmed: true,
+            lease_epoch: 1,
+            observed_lease_epoch: 1,
+            restart_generation: 1,
+            plan_digest: String::new(),
+        };
+        plan.plan_digest = plan.digest();
+        plan
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "kind": self.kind,
+            "effect_started": self.effect_started,
+            "stop_confirmed": self.stop_confirmed,
+            "lease_epoch": self.lease_epoch,
+            "observed_lease_epoch": self.observed_lease_epoch,
+            "restart_generation": self.restart_generation,
+        }))
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_FAULT_PLAN_SCHEMA
+            || self.lease_epoch == 0
+            || self.observed_lease_epoch == 0
+            || self.restart_generation == 0
+            || self.plan_digest != self.digest()
+            || !self.plan_digest.starts_with("sha256:")
+        {
+            return Err("eval_fault_plan_header_invalid".to_owned());
+        }
+        match self.kind {
+            EvalFaultKind::ApprovalDenied | EvalFaultKind::ApprovalExpired => {
+                if self.effect_started {
+                    return Err("eval_fault_approval_effect_started".to_owned());
+                }
+            }
+            EvalFaultKind::CrashAfterEffect => {
+                if !self.effect_started {
+                    return Err("eval_fault_crash_effect_missing".to_owned());
+                }
+            }
+            EvalFaultKind::StaleLease => {
+                if self.lease_epoch == self.observed_lease_epoch || self.effect_started {
+                    return Err("eval_fault_lease_not_stale".to_owned());
+                }
+            }
+            EvalFaultKind::CancelRace | EvalFaultKind::Restart | EvalFaultKind::ResultUnknown => {}
+        }
+        Ok(())
+    }
+
+    pub fn apply(&self) -> Result<EvalFaultEvidence, String> {
+        self.validate()?;
+        let (disposition, effect_known, requires_reconciliation, terminal_code) = match self.kind {
+            EvalFaultKind::ApprovalDenied => {
+                (EvalFaultDisposition::Denied, true, false, "approval_denied")
+            }
+            EvalFaultKind::ApprovalExpired => (
+                EvalFaultDisposition::Denied,
+                true,
+                false,
+                "approval_expired",
+            ),
+            EvalFaultKind::StaleLease => (EvalFaultDisposition::Denied, true, false, "stale_lease"),
+            EvalFaultKind::CancelRace if !self.effect_started && self.stop_confirmed => (
+                EvalFaultDisposition::CancelledNotStarted,
+                true,
+                false,
+                "cancelled_not_started",
+            ),
+            EvalFaultKind::CancelRace => (
+                EvalFaultDisposition::UnknownReconcile,
+                false,
+                true,
+                "cancel_race_unknown",
+            ),
+            EvalFaultKind::CrashAfterEffect => (
+                EvalFaultDisposition::UnknownReconcile,
+                false,
+                true,
+                "crash_after_effect_unknown",
+            ),
+            EvalFaultKind::Restart => (
+                EvalFaultDisposition::UnknownReconcile,
+                false,
+                true,
+                "restart_reconcile_required",
+            ),
+            EvalFaultKind::ResultUnknown => (
+                EvalFaultDisposition::UnknownReconcile,
+                false,
+                true,
+                "result_unknown",
+            ),
+        };
+        let mut evidence = EvalFaultEvidence {
+            schema: EVAL_FAULT_PLAN_SCHEMA.to_owned(),
+            plan_digest: self.plan_digest.clone(),
+            kind: self.kind,
+            disposition,
+            effect_started: self.effect_started,
+            effect_known,
+            stop_confirmed: self.stop_confirmed,
+            requires_reconciliation,
+            terminal_code: terminal_code.to_owned(),
+            evidence_digest: String::new(),
+        };
+        evidence.evidence_digest = json_digest(&evidence_without_digest(&evidence));
+        Ok(evidence)
+    }
+}
+
+fn evidence_without_digest(evidence: &EvalFaultEvidence) -> Value {
+    json!({
+        "schema": evidence.schema,
+        "plan_digest": evidence.plan_digest,
+        "kind": evidence.kind,
+        "disposition": evidence.disposition,
+        "effect_started": evidence.effect_started,
+        "effect_known": evidence.effect_known,
+        "stop_confirmed": evidence.stop_confirmed,
+        "requires_reconciliation": evidence.requires_reconciliation,
+        "terminal_code": evidence.terminal_code,
+    })
+}
+
 /// Evaluation target wrapper that delegates every protocol request to the existing DaemonHost.
 /// It owns no runner loop, policy decision or capability dispatch path of its own.
 pub struct EvalTarget {

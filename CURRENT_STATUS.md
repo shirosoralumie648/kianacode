@@ -7404,3 +7404,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: capture is not yet attached to a live DaemonHost/EventStore observer or durable artifact/receipt store; EQ-15 fault/restart/lease/Unknown plans and quality result persistence remain
 reviewer: Codex root implementation review plus event/reference bounds, redaction/duplicate/sequence checks, typed command receipt identity, close-after-finish and infra/Unknown flush semantics; no runtime test reviewer
 ```
+
+### EQ-15 Evaluation fault plan evidence (2026-09-18)
+
+```text
+source_snapshot: 0f492414 + EQ-15 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq15_fault_plan.rs; kiana-core/tests/eq15_fault_plan_guard.rs; .github/workflows/eq15-fault-plan.yml; docs/roadmap/evaluation-fault-plan-baseline.md; docs/roadmap.md
+worktree_status: strict digest-bound `EvalFaultPlan`/`EvalFaultEvidence` now model approval deny/expire, cancel race, crash-after-effect, restart, stale lease and result_unknown. Started effects with unconfirmed stop and recovery faults become `UnknownReconcile` (`effect_known=false`, `requires_reconciliation=true`); pre-effect confirmed cancel is `CancelledNotStarted`; unsafe combinations and tampered plans fail closed; no process/timer/Broker/EventStore path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq15_fault_plan.rs covers all seven fault classes, stable terminal codes, stop/Unknown/reconciliation evidence and tamper/unsafe-combination denial; kiana-core/tests/eq15_fault_plan_guard.rs guards pure reducer/no process/no network/no second-loop boundary; GitHub Actions EQ-15 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-15 is triggered by the eventual push and is not awaited
+status_change: EQ-15 source slice is implemented. Fault scenarios now preserve explicit stop evidence and never reinterpret an unconfirmed or post-effect interruption as success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: reducer is not yet attached to real DaemonHost cancellation/restart/lease workers or process/file/network evidence; EQ-16 capture and durable recovery remain
+reviewer: Codex root implementation review plus fault-class coverage, digest/unsafe-combination validation, Unknown/reconciliation precedence and stop evidence semantics; no runtime test reviewer
+```
