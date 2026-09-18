@@ -5,13 +5,16 @@
 //! not start a runner, scheduler, provider or capability loop.  Callers must still route any
 //! target through the normal DaemonHost/ControlPlane composition.
 
+use super::DaemonHost;
 use async_trait::async_trait;
+use kiana_core::ControlPlane;
 use kiana_domain::ClockObservation;
 use kiana_domain::{
     AuthorizedCapabilityRequest, CapabilityErrorCode, CapabilityKind, CapabilityResult, ModelDelta,
     ModelOutput, ModelRequest, ModelToolCall, ModelUsage,
 };
 use kiana_ports::{CapabilityBrokerPort, ModelClient, PortError};
+use kiana_protocol::{RequestEnvelope, ResponseEnvelope};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -19,11 +22,12 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 pub const EVAL_RUNTIME_SCHEMA: &str = "kiana.eval-runtime.v1";
 pub const EVAL_RUNTIME_ENV_KIANA_HOME: &str = "KIANA_HOME";
 pub const EVAL_RUNTIME_ENV_HOME: &str = "HOME";
+pub const EVAL_TARGET_SPINE_SCHEMA: &str = "kiana.eval-target-spine.v1";
 
 static PROCESS_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -175,6 +179,35 @@ impl Drop for EvalRuntimeSandbox {
         // Exact, self-created temp root only; failure is intentionally not turned into a fake
         // evaluation result because cleanup is an infrastructure concern recorded by the caller.
         let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+/// Evaluation target wrapper that delegates every protocol request to the existing DaemonHost.
+/// It owns no runner loop, policy decision or capability dispatch path of its own.
+pub struct EvalTarget {
+    host: DaemonHost,
+    sandbox: EvalRuntimeSandbox,
+}
+
+impl EvalTarget {
+    pub fn new(host: DaemonHost, sandbox: EvalRuntimeSandbox) -> Self {
+        Self { host, sandbox }
+    }
+
+    pub fn from_control_plane(core: Arc<ControlPlane>, sandbox: EvalRuntimeSandbox) -> Self {
+        Self::new(DaemonHost::new(core), sandbox)
+    }
+
+    pub fn host(&self) -> &DaemonHost {
+        &self.host
+    }
+
+    pub fn sandbox(&self) -> &EvalRuntimeSandbox {
+        &self.sandbox
+    }
+
+    pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {
+        self.host.handle(request).await
     }
 }
 

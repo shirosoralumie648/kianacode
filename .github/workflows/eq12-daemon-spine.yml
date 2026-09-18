@@ -1,0 +1,44 @@
+name: EQ-12 evaluation DaemonHost spine
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "kiana-core/tests/eq12_daemon_spine_guard.rs"
+      - "docs/roadmap/evaluation-daemon-spine-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq12-daemon-spine.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "kiana-core/tests/eq12_daemon_spine_guard.rs"
+      - "docs/roadmap/evaluation-daemon-spine-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq12-daemon-spine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  daemon-spine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DaemonHost spine fixtures
+        run: cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
+      - name: Run DaemonHost spine source guard
+        run: cargo test -p kiana-core --test eq12_daemon_spine_guard --locked -- --test-threads=1
+      - name: Compile EQ-12 targets
+        run: cargo check --workspace --tests --locked

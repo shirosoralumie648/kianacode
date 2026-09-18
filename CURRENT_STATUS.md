@@ -7344,3 +7344,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: adapter is not yet composed into a DaemonHost/ControlPlane target; fixture store, EventLog/Receipt capture, fault/restart recovery, real external network/secret/MCP/payment/publish/desktop effects and live/physical proof remain EQ-12+
 reviewer: Codex root implementation review plus stable category mapping, default-deny unknown operation, cancellation no-dispatch, request ID/result binding and no-real-executor/no-network/no-secret boundary review; no runtime test reviewer
 ```
+
+### EQ-12 Evaluation DaemonHost/ControlPlane spine evidence (2026-09-18)
+
+```text
+source_snapshot: 813adca3 + EQ-12 working-tree slice; kiana-daemon/src/{eval_runtime.rs,lib.rs}; kiana-daemon/tests/eq12_daemon_spine.rs; kiana-core/tests/eq12_daemon_spine_guard.rs; .github/workflows/eq12-daemon-spine.yml; docs/roadmap/evaluation-daemon-spine-baseline.md; docs/roadmap.md
+worktree_status: `EvalTarget` now owns a caller-composed `DaemonHost`, offers an explicit `from_control_plane` constructor using `DaemonHost::new`, carries the isolated EQ-09 sandbox, and delegates protocol requests directly to `DaemonHost::handle`; no quality-side runner loop, policy/gate decision, capability registry or second authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq12_daemon_spine.rs pins the public `EvalTarget::new` constructor and delegated host handle shape; kiana-core/tests/eq12_daemon_spine_guard.rs rejects KianaHarness/RunnerPort/CapabilityBroker/policy/network/second-loop markers in the evaluation adapter; GitHub Actions EQ-12 workflow runs source fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-12 is triggered by the eventual push and is not awaited
+status_change: EQ-12 source slice is implemented. Evaluation target requests now use the existing DaemonHost→ControlPlane composition spine rather than creating a quality-specific runner or authority path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: target construction still depends on a caller-composed DaemonHost/ControlPlane; initial state/policy/role snapshots, fixture store, EventLog/Receipt capture, fault/restart recovery and quality result persistence remain EQ-13+
+reviewer: Codex root implementation review plus host ownership/delegation, ControlPlane constructor reuse, no quality-side runner/policy/capability path and async direct handle boundary review; no runtime test reviewer
+```
