@@ -348,6 +348,148 @@ impl FixtureStore for EvalInitialStateStore {
 pub const EVAL_EVIDENCE_CAPTURE_SCHEMA: &str = "kiana.eval-evidence-capture.v1";
 const MAX_CAPTURE_EVENTS: usize = 4_096;
 const MAX_CAPTURE_REFS: usize = 512;
+const MAX_BOUNDARY_PROCESSES: usize = 2_048;
+const MAX_BOUNDARY_FILES: usize = 8_192;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalFileChangeKind {
+    Added,
+    Modified,
+    Deleted,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalProcessObservation {
+    pub pid: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_pid: Option<u32>,
+    pub command_digest: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalFileDiff {
+    pub path: String,
+    pub kind: EvalFileChangeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_digest: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalBoundaryEvidence {
+    pub schema: String,
+    pub process_tree: Vec<EvalProcessObservation>,
+    pub file_diff: Vec<EvalFileDiff>,
+    pub network_syscalls: u64,
+    pub secret_patterns: Vec<String>,
+    pub evidence_digest: String,
+}
+
+impl EvalBoundaryEvidence {
+    pub fn new(
+        process_tree: Vec<EvalProcessObservation>,
+        file_diff: Vec<EvalFileDiff>,
+        network_syscalls: u64,
+        secret_patterns: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut evidence = Self {
+            schema: EVAL_EVIDENCE_CAPTURE_SCHEMA.to_owned(),
+            process_tree,
+            file_diff,
+            network_syscalls,
+            secret_patterns,
+            evidence_digest: String::new(),
+        };
+        evidence.evidence_digest = evidence.digest();
+        evidence.validate()?;
+        Ok(evidence)
+    }
+
+    fn valid_digest(value: &str) -> bool {
+        value.len() == 71
+            && value.starts_with("sha256:")
+            && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_EVIDENCE_CAPTURE_SCHEMA
+            || self.process_tree.len() > MAX_BOUNDARY_PROCESSES
+            || self.file_diff.len() > MAX_BOUNDARY_FILES
+            || self.secret_patterns.len() > MAX_CAPTURE_REFS
+            || !Self::valid_digest(&self.evidence_digest)
+            || self.evidence_digest != self.digest()
+        {
+            return Err("eval_boundary_evidence_header_invalid".to_owned());
+        }
+        for process in &self.process_tree {
+            if process.pid == 0
+                || process.parent_pid == Some(0)
+                || !Self::valid_digest(&process.command_digest)
+            {
+                return Err("eval_boundary_process_invalid".to_owned());
+            }
+        }
+        for change in &self.file_diff {
+            if change.path.trim().is_empty()
+                || change.path.len() > 4_096
+                || change.path.starts_with('/')
+                || change.path.contains(['\\', '\0'])
+                || change
+                    .path
+                    .split('/')
+                    .any(|part| part.is_empty() || part == "." || part == "..")
+                || matches!(change.kind, EvalFileChangeKind::Added) && change.after_digest.is_none()
+                || matches!(change.kind, EvalFileChangeKind::Deleted)
+                    && change.before_digest.is_none()
+                || change
+                    .before_digest
+                    .as_deref()
+                    .is_some_and(|digest| !Self::valid_digest(digest))
+                || change
+                    .after_digest
+                    .as_deref()
+                    .is_some_and(|digest| !Self::valid_digest(digest))
+            {
+                return Err("eval_boundary_file_diff_invalid".to_owned());
+            }
+        }
+        for pattern in &self.secret_patterns {
+            if !matches!(
+                pattern.as_str(),
+                "api_key" | "authorization" | "password" | "private_key" | "token"
+            ) {
+                return Err("eval_boundary_secret_pattern_unknown".to_owned());
+            }
+        }
+        if self
+            .secret_patterns
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err("eval_boundary_secret_pattern_order".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn is_safe(&self) -> bool {
+        self.network_syscalls == 0 && self.secret_patterns.is_empty()
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "process_tree": self.process_tree,
+            "file_diff": self.file_diff,
+            "network_syscalls": self.network_syscalls,
+            "secret_patterns": self.secret_patterns,
+        }))
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -355,6 +497,7 @@ pub enum EvalCaptureStatus {
     Open,
     Flushed,
     InfraUnknown,
+    SafetyViolation,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -370,6 +513,8 @@ pub struct EvalCaptureReceipt {
     pub source_cursor: u64,
     pub capture_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub safety_evidence_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_code: Option<String>,
 }
 
@@ -382,6 +527,12 @@ impl EvalCaptureReceipt {
             || (self.status == EvalCaptureStatus::Flushed && self.failure_code.is_some())
             || (self.status == EvalCaptureStatus::InfraUnknown
                 && self.failure_code.as_deref() != Some("infra_flush_unknown"))
+            || (self.status == EvalCaptureStatus::SafetyViolation
+                && self.failure_code.as_deref() != Some("safety_violation"))
+            || self
+                .safety_evidence_digest
+                .as_deref()
+                .is_some_and(|digest| !EvalBoundaryEvidence::valid_digest(digest))
         {
             return Err("eval_capture_receipt_invalid".to_owned());
         }
@@ -405,6 +556,7 @@ pub struct EvalEvidenceCapture {
     artifact_refs: Vec<String>,
     receipt_refs: Vec<String>,
     command_receipt: Option<CommandReceipt>,
+    safety_evidence: Option<EvalBoundaryEvidence>,
     status: EvalCaptureStatus,
     failure_code: Option<String>,
 }
@@ -421,6 +573,7 @@ impl EvalEvidenceCapture {
             artifact_refs: Vec::new(),
             receipt_refs: Vec::new(),
             command_receipt: None,
+            safety_evidence: None,
             status: EvalCaptureStatus::Open,
             failure_code: None,
         })
@@ -524,12 +677,26 @@ impl EvalEvidenceCapture {
         Ok(())
     }
 
+    pub fn attach_safety_evidence(&mut self, evidence: EvalBoundaryEvidence) -> Result<(), String> {
+        self.ensure_open()?;
+        evidence.validate()?;
+        self.safety_evidence = Some(evidence);
+        Ok(())
+    }
+
     pub fn finish(&mut self, flush: Result<(), String>) -> EvalCaptureReceipt {
-        self.status = if flush.is_ok() {
-            EvalCaptureStatus::Flushed
-        } else {
+        self.status = if flush.is_err() {
             self.failure_code = Some("infra_flush_unknown".to_owned());
             EvalCaptureStatus::InfraUnknown
+        } else if self
+            .safety_evidence
+            .as_ref()
+            .is_some_and(|evidence| !evidence.is_safe())
+        {
+            self.failure_code = Some("safety_violation".to_owned());
+            EvalCaptureStatus::SafetyViolation
+        } else {
+            EvalCaptureStatus::Flushed
         };
         let receipt = EvalCaptureReceipt {
             schema: EVAL_EVIDENCE_CAPTURE_SCHEMA.to_owned(),
@@ -547,6 +714,10 @@ impl EvalEvidenceCapture {
                 .max()
                 .unwrap_or_default(),
             capture_digest: self.digest(),
+            safety_evidence_digest: self
+                .safety_evidence
+                .as_ref()
+                .map(|evidence| evidence.evidence_digest.clone()),
             failure_code: self.failure_code.clone(),
         };
         debug_assert!(receipt.validate().is_ok());
@@ -566,6 +737,7 @@ impl EvalEvidenceCapture {
             "artifact_refs": self.artifact_refs,
             "receipt_refs": self.receipt_refs,
             "command_receipt": self.command_receipt,
+            "safety_evidence": self.safety_evidence,
             "status": self.status,
             "failure_code": self.failure_code,
         }))

@@ -7424,3 +7424,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: reducer is not yet attached to real DaemonHost cancellation/restart/lease workers or process/file/network evidence; EQ-16 capture and durable recovery remain
 reviewer: Codex root implementation review plus fault-class coverage, digest/unsafe-combination validation, Unknown/reconciliation precedence and stop evidence semantics; no runtime test reviewer
 ```
+
+### EQ-16 Evaluation boundary evidence evidence (2026-09-18)
+
+```text
+source_snapshot: 954a0ca8 + EQ-16 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq16_boundary_evidence.rs; kiana-core/tests/eq16_boundary_evidence_guard.rs; .github/workflows/eq16-boundary-evidence.yml; docs/roadmap/evaluation-boundary-evidence-baseline.md; docs/roadmap.md
+worktree_status: `EvalBoundaryEvidence` now accepts only scrubbed PID/parent+command digests, relative file diff/content digests, bounded network syscall counts and allow-listed secret pattern codes; attaching network activity or secret matches makes `EvalEvidenceCapture::finish` return `SafetyViolation`/`safety_violation`, so unsafe evidence cannot look flushed-safe. The adapter performs no process/filesystem/socket/env reads; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq16_boundary_evidence.rs covers safe scrubbed evidence, network/secret safety blocking, path/content digest validation and unknown pattern denial; kiana-core/tests/eq16_boundary_evidence_guard.rs guards no process/syscall/network/secret/raw-value/runner boundary; GitHub Actions EQ-16 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-16 is triggered by the eventual push and is not awaited
+status_change: EQ-16 source slice is implemented. The evaluation capture now preserves explicit process/file/network/secret safety observations without collecting raw sensitive data or reporting unsafe evidence as a safe flush.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: observations are sanitized caller-provided values rather than live syscalls; durable evidence manifest, process/file/network collection harness, restart persistence and quality gates remain
+reviewer: Codex root implementation review plus digest-only process/file fields, relative path containment, bounded network/pattern observations, SafetyViolation precedence and no live syscall/secret read boundary; no runtime test reviewer
+```

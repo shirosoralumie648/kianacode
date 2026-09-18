@@ -1,0 +1,44 @@
+name: EQ-16 evaluation boundary evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq16_boundary_evidence.rs"
+      - "kiana-core/tests/eq16_boundary_evidence_guard.rs"
+      - "docs/roadmap/evaluation-boundary-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq16-boundary-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq16_boundary_evidence.rs"
+      - "kiana-core/tests/eq16_boundary_evidence_guard.rs"
+      - "docs/roadmap/evaluation-boundary-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq16-boundary-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boundary-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run boundary evidence fixtures
+        run: cargo test -p kiana-daemon --test eq16_boundary_evidence --locked -- --test-threads=1
+      - name: Run boundary evidence source guard
+        run: cargo test -p kiana-core --test eq16_boundary_evidence_guard --locked -- --test-threads=1
+      - name: Compile EQ-16 targets
+        run: cargo check --workspace --tests --locked
