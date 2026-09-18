@@ -1,0 +1,86 @@
+name: ER-22 cancel recovery and stop confirmation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/p0_j1_01_cancellation_guard.rs"
+      - "kiana-core/tests/p0_j1_02_cancellation_guard.rs"
+      - "kiana-core/tests/cp15_cancellation_guard.rs"
+      - "kiana-core/tests/sc15_cancel_unknown_guard.rs"
+      - "kiana-core/tests/sc15_cancel_unknown.rs"
+      - "kiana-core/tests/h02_lifecycle.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-core/tests/er22_cancel_recovery_guard.rs"
+      - "docs/roadmap/er22-cancel-recovery-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er22-cancel-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/p0_j1_01_cancellation_guard.rs"
+      - "kiana-core/tests/p0_j1_02_cancellation_guard.rs"
+      - "kiana-core/tests/cp15_cancellation_guard.rs"
+      - "kiana-core/tests/sc15_cancel_unknown_guard.rs"
+      - "kiana-core/tests/sc15_cancel_unknown.rs"
+      - "kiana-core/tests/h02_lifecycle.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-core/tests/er22_cancel_recovery_guard.rs"
+      - "docs/roadmap/er22-cancel-recovery-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er22-cancel-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancel-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run cancellation and fencing fixtures
+        run: cargo test -p kiana-core --test p0_j1_01_cancellation_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p0_j1_02_cancellation_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp15_cancellation_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test sc15_cancel_unknown_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test sc15_cancel_unknown --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test h02_lifecycle --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+      - name: Run ER-22 source guard
+        run: cargo test -p kiana-core --test er22_cancel_recovery_guard --locked -- --test-threads=1
+      - name: Compile ER-22 targets
+        run: cargo check --workspace --tests --locked

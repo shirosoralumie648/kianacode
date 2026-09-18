@@ -8240,3 +8240,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process duplicate recovery, power-loss CAS recovery, runner restore fault injection and external effect reconciliation remain open
 reviewer: Codex root implementation review plus exact snapshot/scope/authority/data/sandbox fences, CAS claim-before-restore, stable sequential/concurrent duplicate conflict and single DaemonHost→ControlPlane routing review; no runtime test reviewer
 ```
+
+### ER-22 cancel recovery / stop confirmation evidence (2026-09-18)
+
+```text
+source_snapshot: 60dcbfca + ER-22 working-tree slice; kiana-domain/src/{cancellation,states}.rs; kiana-core/src/{lifecycle,approvals,dispatch,events,projection,sessions}.rs; kiana-runner/src/{harness,state_driver}.rs; kiana-daemon/src/{harness_capabilities,harness_mcp}.rs; kiana-ports/src/lib.rs; kiana-core/tests/er22_cancel_recovery_guard.rs; .github/workflows/er22-cancel-recovery.yml; docs/roadmap/er22-cancel-recovery-baseline.md; docs/roadmap.md
+worktree_status: durable cancellation intent carries command/expected stream version/target invocation identities and stop request/ack state; queued and approval-pending work is explicitly not_executed/replay_safe; model, shell process-group, MCP and port boundaries consume the shared cancellation signal; dispatch/result delivery fence cancelling runs and unconfirmed/mismatched/late outcomes remain result_unknown; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only cancellation/stop/effect fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: P0-J1-01/02 cancellation guards; CP-15 cancellation guard; SC-15 cancel/unknown guard and fixture; H08 cancellation fence; H02 late-result fixture; er22_cancel_recovery_guard; GitHub Actions ER-22 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-22 is triggered by the eventual push and is not awaited
+status_change: ER-22 source slice is implemented. Cancellation intent, queued/pending/started coverage, stop confirmation and late-result fencing now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process supervisor durability, power-loss stop acknowledgement, physical process termination and external effect reconciliation remain open
+reviewer: Codex root implementation review plus durable cancel-before-signal ordering, queue/approval drain, process/MCP stop evidence, result delivery fence, Unknown on unconfirmed/mismatched stop and no-success/no-retry bypass review; no runtime test reviewer
+```
