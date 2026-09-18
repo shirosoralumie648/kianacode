@@ -7860,3 +7860,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; external provider reconciliation, cross-process crash recovery and live/physical stop evidence remain SC-16+ / PD / ER work
 reviewer: Codex root implementation review plus cancellation fact digest/state transition, cancellation token/retry/stream fence, stop confirmation/result-unknown split, unknown receipt fencing, resource quarantine and evidence-gated reconciliation review; no runtime test reviewer
 ```
+
+### SC-16 quota / bounded channel / backpressure evidence (2026-09-18)
+
+```text
+source_snapshot: 8960a3aa + SC-16 working-tree slice; kiana-domain/src/{billing_budgets,billing_quota,billing_reservation,budget_contracts}.rs; kiana-ports/src/{lib,observability_queue}.rs; kiana-core/src/{cell_registry,capabilities,model_budget,metrics}.rs; kiana-runner/src/budget.rs; kiana-core/tests/sc16_quota_backpressure.rs; kiana-core/tests/sc16_quota_backpressure_guard.rs; .github/workflows/sc16-quota-backpressure.yml; docs/roadmap/sc16-quota-backpressure-baseline.md; docs/roadmap.md
+worktree_status: source guard and pure fixtures pin runtime/lease/project/provider budget intersection, UTC quota window headroom, digest/CAS/fence reservation, CellRegistry active capability slots and release, Runner attempt/token reservation with unknown usage retention, and critical-vs-best-effort queue backpressure; no unbounded queue, retry bypass or second authority path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only quota/queue fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/sc16_quota_backpressure.rs covers quota request/token/concurrency overage denial and critical observability preservation under best-effort eviction; kiana-core/tests/sc16_quota_backpressure_guard.rs checks budget/quota/reservation/CellRegistry/Runner/model/queue/metric markers and no unbounded/retry bypass; GitHub Actions SC-16 workflow runs fixtures, source guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-16 is triggered by the eventual push and is not awaited
+status_change: SC-16 source slice is implemented. Bounded admission and backpressure controls now have a roadmap-linked cross-layer evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable cross-process quota settlement, provider-specific live capacity, physical queue durability and external/live effect proof remain SC-17+ / BQ / PD / ER work
+reviewer: Codex root implementation review plus budget intersection, quota window, reservation CAS/fence, CellRegistry active-capability limit/release, Runner/model usage reservation, critical queue eviction/rejection and bounded metric overflow review; no runtime test reviewer
+```
