@@ -356,6 +356,12 @@ impl BudgetLease {
         }
     }
 
+    /// Exposes the normalized reservation ceiling to pure budget-intersection contracts without
+    /// granting callers mutation or bypassing the existing lease validation.
+    pub fn reservation_limit_for_intersection(&self) -> u64 {
+        self.reservation_limit()
+    }
+
     pub fn model_call_limit(&self) -> u64 {
         if self.max_model_calls == 0 {
             self.max_tool_calls

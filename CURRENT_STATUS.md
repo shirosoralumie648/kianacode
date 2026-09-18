@@ -7565,3 +7565,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: in-memory store is fixture-only; no durable rate-card projector, provider discovery/invoice import, currency conversion, reservation admission or financial billing authority exists
 reviewer: Codex root implementation review plus timestamped provider/model resolution, overlap/duplicate fence, explicit unknown/expiry errors, cache/audio/tool/effect mapping and pinned estimate-version review; no runtime test reviewer
 ```
+
+### BQ-06 Budget intersection evidence (2026-09-18)
+
+```text
+source_snapshot: af57c142 + BQ-06 working-tree slice; kiana-domain/src/{billing_budgets.rs,work_packets.rs,usage.rs,lib.rs}; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs; .github/workflows/bq06-budget-intersection.yml; docs/roadmap/billing-budget-intersection-baseline.md; docs/roadmap.md
+worktree_status: pure `ProviderBudget`/`EffectiveBudget` intersection now takes the conservative minimum across RuntimeBudget, ProjectBudget, Quota, BudgetLease and provider limits; child lease derivation rejects widening/usage reset, invalid quota/provider/empty intersections fail closed, and FinancialBudget is absent from execution limits; no reservation/dispatch/CAS path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq06_budget_intersection.rs covers five-scope min, child widening/usage reset, invalid provider/quota and empty intersection; kiana-core/tests/bq06_budget_intersection_guard.rs guards no financial/provider/runner/I/O authority boundary; GitHub Actions BQ-06 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-06 is triggered by the eventual push and is not awaited
+status_change: BQ-06 source slice is implemented. Budget limits now have a deterministic intersection contract that cannot be widened by child requests or financial labels.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: ProviderBudget/EffectiveBudget are in-memory pure contracts; quota windows, UTC clock, durable reservation/CAS/fence, queue/capacity and financial billing authority remain BQ-07+
+reviewer: Codex root implementation review plus five-scope min semantics, child widening/usage reset rejection, invalid/empty limit handling, provider cap propagation and FinancialBudget exclusion review; no runtime test reviewer
+```

@@ -1,0 +1,48 @@
+name: BQ-06 budget intersection
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_budgets.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/usage.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq06_budget_intersection.rs"
+      - "kiana-core/tests/bq06_budget_intersection_guard.rs"
+      - "docs/roadmap/billing-budget-intersection-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq06-budget-intersection.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_budgets.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/usage.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq06_budget_intersection.rs"
+      - "kiana-core/tests/bq06_budget_intersection_guard.rs"
+      - "docs/roadmap/billing-budget-intersection-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq06-budget-intersection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  budget-intersection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run budget intersection fixtures
+        run: cargo test -p kiana-domain --test bq06_budget_intersection --locked -- --test-threads=1
+      - name: Run budget intersection source guard
+        run: cargo test -p kiana-core --test bq06_budget_intersection_guard --locked -- --test-threads=1
+      - name: Compile BQ-06 targets
+        run: cargo check --workspace --tests --locked
