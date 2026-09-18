@@ -8050,3 +8050,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; handler-specific external verification, compensation adapters, durable multi-host reconcile claims and live/physical proof remain ER/connector/provider work
 reviewer: Codex root implementation review plus stable error retryability/reconciliation, incident/quarantine/evidence gate, connector receipt idempotency/account binding, effect observation Unknown and new-attempt/permit boundary review; no runtime test reviewer
 ```
+
+### CP-21 projection / Receipt / read-query evidence (2026-09-18)
+
+```text
+source_snapshot: 75d74839 + CP-21 working-tree slice; kiana-core/src/{projection,projection_checkpoint,invocation_projection,capability_attempt_projection,history,receipts,recovery}.rs; kiana-domain/src/receipt_contracts.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-core/tests/{er08_projection_guard,er09_invocation_projection,er11_receipt_guard,pd09_projection_driver,cp21_projection_query_guard}.rs; .github/workflows/cp21-projection-query.yml; docs/roadmap/cp21-projection-query-baseline.md; docs/roadmap.md
+worktree_status: source guard pins one committed EventLog reducer/cursor contract, paused/rebuild-required projection checkpoints, run/invocation/attempt conflict and Unknown handling, owner/project-scoped pending/history/UI/Receipt reads, typed decision-attempt-effect-verification/source Receipt fields and redaction; query paths do not append facts, issue permits or call handlers; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only projection/Receipt/query fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: er08 Run projection guard; er09 invocation/attempt projection fixture; er11 typed Receipt guard; pd09 projection driver fixture; cp21_projection_query_guard cross-layer source guard; GitHub Actions CP-21 runs the selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-21 is triggered by the eventual push and is not awaited
+status_change: CP-21 source slice is implemented. Projection, Receipt and read-only query contracts now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable projection adapters, cross-host query consistency, pagination/rebuild crash matrices and wire/action-card parity remain PD/ER/CP-22 work
+reviewer: Codex root implementation review plus reducer/cursor/cache invalidation, owner/project disclosure filters, pending approval read-only path, typed Receipt source/effect/redaction fields and no permit/handler mutation review; no runtime test reviewer
+```

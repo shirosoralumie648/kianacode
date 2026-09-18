@@ -1,0 +1,74 @@
+name: CP-21 projection Receipt and read-query boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/history.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/er08_projection_guard.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-core/tests/pd09_projection_driver.rs"
+      - "kiana-core/tests/cp21_projection_query_guard.rs"
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/cp21-projection-query-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp21-projection-query.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/history.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/er08_projection_guard.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-core/tests/pd09_projection_driver.rs"
+      - "kiana-core/tests/cp21_projection_query_guard.rs"
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/cp21-projection-query-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp21-projection-query.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  projection-query:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run projection guard fixture
+        run: cargo test -p kiana-core --test er08_projection_guard --locked -- --test-threads=1
+      - name: Run invocation projection fixture
+        run: cargo test -p kiana-core --test er09_invocation_projection --locked -- --test-threads=1
+      - name: Run Receipt contract fixture
+        run: cargo test -p kiana-core --test er11_receipt_guard --locked -- --test-threads=1
+      - name: Run projection driver fixture
+        run: cargo test -p kiana-core --test pd09_projection_driver --locked -- --test-threads=1
+      - name: Run CP-21 source guard
+        run: cargo test -p kiana-core --test cp21_projection_query_guard --locked -- --test-threads=1
+      - name: Compile CP-21 targets
+        run: cargo check --workspace --tests --locked
