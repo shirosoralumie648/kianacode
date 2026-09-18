@@ -7936,3 +7936,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon-wide durable revocation propagation, crash/restore key hygiene, HSM/OS keyring guarantees and external/live/physical proof remain SC-20+ / ER work
 reviewer: Codex root implementation review plus OAuth metadata/generation CAS/revoke, provider single-flight and cooldown, SecretStore credential revision/lease consume, resource lease authority/session fencing, protected ingress and no-raw-token boundary review; no runtime test reviewer
 ```
+
+### SC-20 redaction / secret egress evidence (2026-09-18)
+
+```text
+source_snapshot: c9b0d7fa + SC-20 working-tree slice; kiana-domain/src/redaction.rs; kiana-domain/tests/er03_redaction.rs; kiana-core/src/{events,redaction,receipts}.rs; kiana-core/tests/{er03_redaction_guard,sc20_redaction_boundary_guard}.rs; kiana-runner/src/{harness,stream_normalizer}.rs; kiana-provider/src/{response,transport}.rs; kiana-daemon/src/{harness_capabilities,mcp_stdio,harness_sandbox}.rs; .github/workflows/sc20-redaction.yml; docs/roadmap/sc20-redaction-baseline.md; docs/roadmap.md
+worktree_status: source guard pins recursive/profile/streaming redaction, bounded depth/bytes, sentinel failure, EventLog/Receipt stable redaction and payload recoverability, Runner model/delta redaction, provider safe errors, shell/MCP bounded stdout/stderr digest and sandbox env clearing; no raw header/response/secret field or second redaction authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only redaction fixtures/source guards; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/er03_redaction.rs covers nested/bearer/API-key/sentinel, metadata, size/depth and artifact references; kiana-core/tests/er03_redaction_guard.rs and kiana-core/tests/sc20_redaction_boundary_guard.rs check EventLog/Receipt/Runner/Provider/daemon egress markers and reject raw-secret fields; GitHub Actions SC-20 runs fixtures, guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-20 is triggered by the eventual push and is not awaited
+status_change: SC-20 source slice is implemented. Recursive and streaming redaction is now guarded across durable facts, model/provider outputs, process diagnostics and sandbox environment.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; complete OS/kernel/provider memory erasure, external sink verification and live/physical proof remain SC-21+ / OA / ER work
+reviewer: Codex root implementation review plus recursive/profile/streaming redaction, sentinel/depth/size guards, EventLog/Receipt stability/recoverability, Runner/Provider safe text, shell/MCP bounded diagnostics and sandbox env secret filtering review; no runtime test reviewer
+```

@@ -1,0 +1,64 @@
+name: SC-20 redaction and secret egress boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/redaction.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/sc20_redaction_boundary_guard.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/stream_normalizer.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "docs/roadmap/sc20-redaction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc20-redaction.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/redaction.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/sc20_redaction_boundary_guard.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/stream_normalizer.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "docs/roadmap/sc20-redaction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc20-redaction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  redaction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run domain redaction fixtures
+        run: cargo test -p kiana-domain --test er03_redaction --locked -- --test-threads=1
+      - name: Run existing redaction source guard
+        run: cargo test -p kiana-core --test er03_redaction_guard --locked -- --test-threads=1
+      - name: Run SC-20 cross-boundary guard
+        run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --locked -- --test-threads=1
+      - name: Compile SC-20 targets
+        run: cargo check --workspace --tests --locked
