@@ -1,0 +1,44 @@
+name: BQ-02 usage vector
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_usage.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq02_usage_vector.rs"
+      - "kiana-core/tests/bq02_usage_vector_guard.rs"
+      - "docs/roadmap/billing-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq02-usage-vector.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_usage.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq02_usage_vector.rs"
+      - "kiana-core/tests/bq02_usage_vector_guard.rs"
+      - "docs/roadmap/billing-contract-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq02-usage-vector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  usage-vector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run usage vector fixtures
+        run: cargo test -p kiana-domain --test bq02_usage_vector --locked -- --test-threads=1
+      - name: Run usage vector source guard
+        run: cargo test -p kiana-core --test bq02_usage_vector_guard --locked -- --test-threads=1
+      - name: Compile BQ-02 targets
+        run: cargo check --workspace --tests --locked

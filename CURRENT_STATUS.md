@@ -7485,3 +7485,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: contracts do not yet define normalized usage dimensions, snapshot/delta accumulation, Money/rate-card arithmetic, provider receipts, quota reservation/CAS or durable projection; BQ-02+ remains
 reviewer: Codex root implementation review plus stable UUID/schema-major/unknown-reason/state transition/error-code semantics, secret-free receipt reference and domain dependency boundary review; no runtime test reviewer
 ```
+
+### BQ-02 Usage vector evidence (2026-09-18)
+
+```text
+source_snapshot: 111d3f55 + BQ-02 working-tree slice; kiana-domain/src/{billing_usage.rs,lib.rs}; kiana-domain/tests/bq02_usage_vector.rs; kiana-core/tests/bq02_usage_vector_guard.rs; .github/workflows/bq02-usage-vector.yml; docs/roadmap/billing-usage-vector-baseline.md; docs/roadmap.md
+worktree_status: strict `UsageVector`/`NormalizedUsage` now preserve absent (`None`) versus explicit zero (`Some(0)`), expose known/partial/unknown confidence with `BillingUnknownReason`, and bind provider/local/derived source, basis, snapshot/delta/final observation, optional sequence, raw digest and stable usage/attempt/run identity; no accumulator/provider/rate-card/authorization path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq02_usage_vector.rs covers absent/zero/present, source/basis/sequence, partial/unknown reason and digest drift; kiana-core/tests/bq02_usage_vector_guard.rs guards strict usage fields and no provider/network/I/O/RateCardStore boundary; GitHub Actions BQ-02 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-02 is triggered by the eventual push and is not awaited
+status_change: BQ-02 source slice is implemented. A single provider-neutral normalized usage observation now carries explicit unknown/zero/provenance semantics for the later stream accumulator.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: sequence monotonicity/dedup and snapshot/delta/final accumulation remain BQ-03; no rate card, cost arithmetic, quota reservation, provider invoice or durable usage projection exists
+reviewer: Codex root implementation review plus optional-field presence semantics, confidence/reason consistency, source/basis/sequence binding, digest tamper fence and pure domain dependency review; no runtime test reviewer
+```
