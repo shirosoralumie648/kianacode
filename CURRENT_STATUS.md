@@ -7783,3 +7783,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no durable assignment/subscription authority store, dedup/OCC, inbox/outbox, delivery worker or external notification proof; NM-06+ remains
 reviewer: Codex root implementation review plus trusted project/actor gate, exact project/recipient binding, subscription expiry/status, scope/channel subset and no-dispatch boundary review; no runtime test reviewer
 ```
+
+### SC-12 PendingInvocation/Permit/CAS evidence (2026-09-18)
+
+```text
+source_snapshot: 06677a6a + SC-12 working-tree slice; kiana-domain/src/{capabilities.rs,dispatch.rs}; kiana-core/src/{dispatch.rs,recovery.rs}; kiana-core/tests/sc12_permit_guard.rs; .github/workflows/sc12-permit.yml; docs/roadmap/sc12-permit-baseline.md; docs/roadmap.md
+worktree_status: source guard pins existing strict PendingInvocation continuation/event-sequence binding and DispatchPermit action/request/project/context/authority-version/approval/expiry/digest contract; Core permit consumption uses committed EventStore CAS and rejects reuse/stale epoch before execution facts; no second permit verifier or execution loop added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only source guard; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/sc12_permit_guard.rs checks PendingInvocation/DispatchPermit/CAS/idempotency/stale-epoch markers and no second execution path; GitHub Actions SC-12 workflow runs guard and workspace compile
+exit_code: 0 for format, focused source-guard static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-12 is triggered by the eventual push and is not awaited
+status_change: SC-12 source slice is implemented. Existing permit/pending-invocation contracts and CAS/idempotency boundary now have a roadmap-linked CI guard.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: full cross-process durable permit projector, TOCTOU/path/egress/secret fences and external/live/physical effect proof remain SC-13+ and PD/ER work
+reviewer: Codex root implementation review plus pending invocation sequence/context, permit action/project/authority/expiry/digest, CAS/reuse/stale epoch and no-second-loop boundary review; no runtime test reviewer
+```

@@ -1,0 +1,44 @@
+name: SC-12 permit and pending invocation boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/dispatch.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/sc12_permit_guard.rs"
+      - "docs/roadmap/sc12-permit-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc12-permit.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/dispatch.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/sc12_permit_guard.rs"
+      - "docs/roadmap/sc12-permit-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc12-permit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  permit-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-12 source guard
+        run: cargo test -p kiana-core --test sc12_permit_guard --locked -- --test-threads=1
+      - name: Compile SC-12 targets
+        run: cargo check --workspace --tests --locked
