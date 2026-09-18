@@ -1,0 +1,45 @@
+name: EQ-09 isolated evaluation runtime
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq09_eval_runtime.rs"
+      - "kiana-core/tests/eq09_eval_runtime_guard.rs"
+      - "docs/roadmap/evaluation-runtime-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq09-eval-runtime.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq09_eval_runtime.rs"
+      - "kiana-core/tests/eq09_eval_runtime_guard.rs"
+      - "docs/roadmap/evaluation-runtime-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq09-eval-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run isolated eval runtime fixtures
+        run: cargo test -p kiana-daemon --test eq09_eval_runtime --locked -- --test-threads=1
+      - name: Run eval runtime source guard
+        run: cargo test -p kiana-core --test eq09_eval_runtime_guard --locked -- --test-threads=1
+      - name: Compile EQ-09 targets
+        run: cargo check --workspace --tests --locked
+

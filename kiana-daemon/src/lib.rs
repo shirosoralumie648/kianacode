@@ -7,6 +7,7 @@ mod authn;
 mod connectors;
 mod context_query;
 mod data_governance;
+pub mod eval_runtime;
 mod execution_control;
 mod execution_workspace;
 mod extensions;

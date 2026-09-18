@@ -7284,3 +7284,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: legacy facts without envelopes remain compatibility-readable, read_stream_after defaults to bounded filtering for adapters without indexed queries, and durable indexed projector/torn-tail/multi-scheduler recovery remain PD/ER/AUT-08+; no scheduler or external/live/physical effect proof is claimed
 reviewer: Codex root implementation review plus strict envelope schema/unknown-field/digest binding, stream cursor/idempotency/request payload consistency, stamping-before-CAS and replay checks, bounded read-only cursor query and legacy migration boundary review; no runtime test reviewer
 ```
+
+### EQ-09 Isolated evaluation runtime evidence (2026-09-18)
+
+```text
+source_snapshot: 2b30cbda + EQ-09 working-tree slice; kiana-daemon/src/{eval_runtime.rs,lib.rs}; kiana-daemon/tests/eq09_eval_runtime.rs; kiana-core/tests/eq09_eval_runtime_guard.rs; .github/workflows/eq09-eval-runtime.yml; docs/roadmap/evaluation-runtime-baseline.md; docs/roadmap.md
+worktree_status: `EvalRuntimeSandbox` now creates an exact owned temp root with separate workspace and KIANA_HOME, exposes explicit HOME/KIANA_HOME values, captures a fixed digest-bound ClockObservation, derives deterministic fixture bytes from a supplied seed, and serializes process-environment redirection/restoration. Cleanup targets only the self-created root; the adapter never starts a runner/provider/Broker or reads operator home; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq09_eval_runtime.rs covers root/workspace/home isolation, fixed wall/monotonic clock, deterministic bytes and env restoration; kiana-core/tests/eq09_eval_runtime_guard.rs guards no KianaHarness/Broker/network/tokio second loop; GitHub Actions EQ-09 workflow runs daemon/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-09 is triggered by the eventual push and is not awaited
+status_change: EQ-09 source slice is implemented. Evaluation fixtures now have an explicit isolated runtime boundary with deterministic clock/seed inputs and no implicit operator-home access.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: target execution is not yet launched through DaemonHost/ControlPlane, and no fake provider, deny broker, fixture store, event/receipt capture, fault/restart recovery or external/live/physical effect exists; these remain EQ-10+
+reviewer: Codex root implementation review plus temp-root ownership/containment, explicit HOME/KIANA_HOME allow-list, env lock/restore, fixed ClockObservation and deterministic non-security seed, cleanup scope and no-runner/no-network boundary review; no runtime test reviewer
+```
