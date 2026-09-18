@@ -1,0 +1,76 @@
+name: ER-26 cursor snapshot and slow consumers
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/stream.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-core/tests/oa17_query_cursor.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "kiana-entrypoints/tests/cli_stream_json.rs"
+      - "kiana-core/tests/er26_cursor_snapshot_guard.rs"
+      - "docs/roadmap/er26-cursor-snapshot-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er26-cursor-snapshot.yml"
+  pull_request:
+    paths:
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/stream.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-core/tests/oa17_query_cursor.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "kiana-entrypoints/tests/cli_stream_json.rs"
+      - "kiana-core/tests/er26_cursor_snapshot_guard.rs"
+      - "docs/roadmap/er26-cursor-snapshot-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er26-cursor-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cursor-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run cursor and sequence fixtures
+        run: cargo test -p kiana-protocol --test p4_j7_02_sequence --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa17_query_cursor --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test cli_stream_json --locked -- --test-threads=1
+      - name: Run ER-26 source guard
+        run: cargo test -p kiana-core --test er26_cursor_snapshot_guard --locked -- --test-threads=1
+      - name: Compile ER-26 targets
+        run: cargo check --workspace --tests --locked

@@ -8316,3 +8316,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; provider-specific live backoff, cross-process retry durability and external effect reconciliation remain open
 reviewer: Codex root implementation review plus retry-class/effect-state classification, new attempt identity, budget reserve/settle ordering, deadline/backoff/exhaustion, authority re-admission and no Unknown/denied/cancel/no-idempotency retry bypass review; no runtime test reviewer
 ```
+
+### ER-26 cursor / snapshot / slow-consumer evidence (2026-09-18)
+
+```text
+source_snapshot: 432745e7 + ER-26 working-tree slice; kiana-eventlog/src/{journal_core,stream}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/{lib,ui_contracts}.rs; kiana-daemon/src/{run_stream,lib}.rs; kiana-entrypoints/src/{web,web_page.html,workbench_chat,cli}.rs; kiana-core/tests/er26_cursor_snapshot_guard.rs; .github/workflows/er26-cursor-snapshot.yml; docs/roadmap/er26-cursor-snapshot-baseline.md; docs/roadmap.md
+worktree_status: EventLog pages remain committed-transaction-boundary and cursor reads fail closed; protocol/UI/run-stream cursors carry epoch+logical sequence/source cursor/projection version, detect gaps/epoch changes and require snapshot hydration; bounded RunStream terminal replay and lag gaps never block EventLog commit; Web SSE, Workbench and CLI reconnect through read-only snapshot/receipt paths without creating runs or treating deltas/UI events as authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only cursor/sequence/UI/SSE fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: P4-J7-02 sequence; OA-17 query cursor; P2-M2 UI projection; P2-M5 web sync; CLI stream-json; er26_cursor_snapshot_guard; GitHub Actions ER-26 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-26 is triggered by the eventual push and is not awaited
+status_change: ER-26 source slice is implemented. Cursor epoch/gap handling, snapshot hydration, terminal replay, bounded slow-consumer behavior and read-only entrypoint reconnect now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process live-stream durability, external replay storage and physical delivery remain open
+reviewer: Codex root implementation review plus transaction-boundary cursor, epoch/sequence mismatch, projection/source cursor, terminal/Unknown receipt authority, bounded broadcast/gap signaling, no-block commit and no-entrypoint-execution boundary review; no runtime test reviewer
+```
