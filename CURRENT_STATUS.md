@@ -7917,3 +7917,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon lease rotation/revocation, crash recovery, full secret egress audit and external/live/physical proof remain SC-19+ / OA / ER work
 reviewer: Codex root implementation review plus opaque SecretRef/ProviderAccount/config snapshot, CredentialLease one-shot/expiry/purpose/audience/endpoint, CredentialResolver/SecretStore no-raw boundary, Broker consumption and recursive redaction/sentinel review; no runtime test reviewer
 ```
+
+### SC-19 secret rotation / revocation evidence (2026-09-18)
+
+```text
+source_snapshot: 14655a3b + SC-19 working-tree slice; kiana-domain/src/oauth.rs; kiana-domain/tests/ci09_oauth_contracts.rs; kiana-provider/src/{credentials,transport,oauth,lib}.rs; kiana-ports/src/lib.rs; kiana-core/src/resource_leases.rs; kiana-daemon/src/lib.rs; kiana-core/tests/{ci09_oauth_guard,sc19_secret_rotation_guard}.rs; .github/workflows/sc19-secret-rotation.yml; docs/roadmap/sc19-secret-rotation-baseline.md; docs/roadmap.md
+worktree_status: source guard and OAuth fixtures pin opaque token metadata, generation-CAS rotate/revoke, stale refresh conflict, status fence, provider single-flight/cooldown, credential revision and one-shot lease consumption, resource lease authority/session fence and protected daemon ingress; raw access/refresh token fields remain absent from domain metadata; no second secret store or raw-token event path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only OAuth/rotation fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/ci09_oauth_contracts.rs covers generation CAS/expiry/status/revoke and secret-free OAuth metadata; kiana-core/tests/sc19_secret_rotation_guard.rs checks provider/ports/resource lease/daemon generation and no-raw-token markers; GitHub Actions SC-19 runs fixture, source guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-19 is triggered by the eventual push and is not awaited
+status_change: SC-19 source slice is implemented. Secret rotation/revocation and stale-generation fencing now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon-wide durable revocation propagation, crash/restore key hygiene, HSM/OS keyring guarantees and external/live/physical proof remain SC-20+ / ER work
+reviewer: Codex root implementation review plus OAuth metadata/generation CAS/revoke, provider single-flight and cooldown, SecretStore credential revision/lease consume, resource lease authority/session fencing, protected ingress and no-raw-token boundary review; no runtime test reviewer
+```
