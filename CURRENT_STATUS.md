@@ -7879,3 +7879,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable cross-process quota settlement, provider-specific live capacity, physical queue durability and external/live effect proof remain SC-17+ / BQ / PD / ER work
 reviewer: Codex root implementation review plus budget intersection, quota window, reservation CAS/fence, CellRegistry active-capability limit/release, Runner/model usage reservation, critical queue eviction/rejection and bounded metric overflow review; no runtime test reviewer
 ```
+
+### SC-17 connector / MCP ingress evidence (2026-09-18)
+
+```text
+source_snapshot: c7a32e43 + SC-17 working-tree slice; kiana-domain/src/{connectors,effect_observation}.rs; kiana-domain/tests/p4_k8_01_connector.rs; kiana-core/src/connectors.rs; kiana-core/tests/sc17_connector_ingress_guard.rs; kiana-daemon/src/{connectors,harness_mcp,mcp_stdio}.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-services/src/{mcp,network_policy}.rs; .github/workflows/sc17-connector-ingress.yml; docs/roadmap/sc17-connector-ingress-baseline.md; docs/roadmap.md
+worktree_status: source guard and existing fixtures pin ProjectTrust/operator admission, typed ConnectorDefinition/AccountBinding/operation scopes, binding/account/project snapshot equality, approval and idempotency/rate limits, account/audience-bound ProviderReceipt/EffectObservation, Unknown reconciliation, MCP stdio-only config pin/schema/health/process-stop fences and explicit unsupported transports; no token passthrough or second network ingress was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only connector/MCP fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/p4_k8_01_connector.rs covers typed connector binding/operation scope/local transport/unknown fields; kiana-daemon/tests/p1_j4_01_mcp.rs covers MCP schema/health/config/stdio/reconciliation markers; kiana-core/tests/sc17_connector_ingress_guard.rs checks domain/core/daemon/services trust/account/idempotency/receipt/stop/unsupported-transport boundaries; GitHub Actions SC-17 runs both fixtures, source guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-17 is triggered by the eventual push and is not awaited
+status_change: SC-17 source slice is implemented. Connector and MCP ingress now have a roadmap-linked cross-layer evidence gate with explicit unsupported external transport boundaries.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; signed external webhook verification, live connector transport, downstream token issuance and external/live/physical effect proof remain SC-18+ / INT / provider work
+reviewer: Codex root implementation review plus ProjectTrust/operator gate, binding/account/project/scope, approval/idempotency/rate limit, receipt audience/unknown/reconciliation, MCP config/schema/health/stdio stop and unsupported HTTP/SSE/WS transport review; no runtime test reviewer
+```

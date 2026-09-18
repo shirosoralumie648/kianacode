@@ -1,0 +1,60 @@
+name: SC-17 connector and MCP ingress boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/tests/p4_k8_01_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/sc17_connector_ingress_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-services/src/mcp.rs"
+      - "kiana-services/src/network_policy.rs"
+      - "docs/roadmap/sc17-connector-ingress-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc17-connector-ingress.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/tests/p4_k8_01_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/sc17_connector_ingress_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-services/src/mcp.rs"
+      - "kiana-services/src/network_policy.rs"
+      - "docs/roadmap/sc17-connector-ingress-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc17-connector-ingress.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-ingress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run connector contract fixtures
+        run: cargo test -p kiana-domain --test p4_k8_01_connector --locked -- --test-threads=1
+      - name: Run MCP contract fixture
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run SC-17 source guard
+        run: cargo test -p kiana-core --test sc17_connector_ingress_guard --locked -- --test-threads=1
+      - name: Compile SC-17 targets
+        run: cargo check --workspace --tests --locked
