@@ -1,0 +1,81 @@
+name: ER-20 restart projector and default pause
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/integrity.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/resource_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/pd06_jsonl_guard.rs"
+      - "kiana-core/tests/pd09_projector_guard.rs"
+      - "kiana-core/tests/pd09_projection_driver.rs"
+      - "kiana-core/tests/er10_resource_projection.rs"
+      - "kiana-core/tests/oa15_audit_projection.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-core/tests/er20_restart_projector_guard.rs"
+      - "docs/roadmap/er20-restart-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er20-restart-projector.yml"
+  pull_request:
+    paths:
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/integrity.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/resource_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/pd06_jsonl_guard.rs"
+      - "kiana-core/tests/pd09_projector_guard.rs"
+      - "kiana-core/tests/pd09_projection_driver.rs"
+      - "kiana-core/tests/er10_resource_projection.rs"
+      - "kiana-core/tests/oa15_audit_projection.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-core/tests/er20_restart_projector_guard.rs"
+      - "docs/roadmap/er20-restart-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er20-restart-projector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restart-projector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EventLog and projector guards
+        run: cargo test -p kiana-core --test pd06_jsonl_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd09_projector_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd09_projection_driver --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test er10_resource_projection --locked -- --test-threads=1
+      - name: Run audit health and UI projections
+        run: cargo test -p kiana-core --test oa15_audit_projection --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa11_health_probes --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - name: Run ER-20 source guard
+        run: cargo test -p kiana-core --test er20_restart_projector_guard --locked -- --test-threads=1
+      - name: Compile ER-20 targets
+        run: cargo check --workspace --tests --locked

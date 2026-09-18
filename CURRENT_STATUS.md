@@ -8202,3 +8202,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; container/Windows supervisor, power-loss and multi-host process fencing remain platform/DEP/live work
 reviewer: Codex root implementation review plus immutable handle/owner/scope/authority/expiry identity, fence successor/path lease, leader-reap/stop/capture evidence, Unknown on escape/record failure and no lease-expiry release boundary review; no runtime test reviewer
 ```
+
+### ER-20 restart projector / default pause evidence (2026-09-18)
+
+```text
+source_snapshot: 335c76de + ER-20 working-tree slice; kiana-eventlog/src/{jsonl,integrity}.rs; kiana-core/src/{recovery,projection,resource_projection,capability_attempt_projection,audit_projection,health}.rs; kiana-daemon/src/lib.rs; kiana-runner/src/harness.rs; kiana-ports/src/lib.rs; kiana-core/tests/er20_restart_projector_guard.rs; .github/workflows/er20-restart-projector.yml; docs/roadmap/er20-restart-projector-baseline.md; docs/roadmap.md
+worktree_status: source guard pins journal integrity/corrupt/torn-tail handling, Run/Invocation/Attempt/resource/audit rebuild, pending/Unknown recovery and readiness degradation; restart/display paths remain read-only/default paused, no auto-resume, permit or Broker path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only restart/projector/integrity/health fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: PD-06 JSONL; PD-09 projector; ER-10 resource projection; OA-11 health; OA-15 audit projection; daemon UI projection; er20_restart_projector_guard; GitHub Actions ER-20 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-20 is triggered by the eventual push and is not awaited
+status_change: ER-20 source slice is implemented. Restart projection and default-paused recovery now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process projector durability, power-loss recovery, physical journal repair and ER-21/ER-22 proof remain open
+reviewer: Codex root implementation review plus integrity scan/corrupt-vs-empty distinction, projection/resource/pending/Unknown rebuild, readiness degradation and no-auto-resume/no-permit/no-Broker restart boundary review; no runtime test reviewer
+```
