@@ -1,0 +1,61 @@
+name: ER-24 reconciliation commands and evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/er24_reconciliation_evidence_guard.rs"
+      - "docs/roadmap/p2-k6-01-reliability-baseline.md"
+      - "docs/roadmap/er24-reconciliation-evidence-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er24-reconciliation-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/er24_reconciliation_evidence_guard.rs"
+      - "docs/roadmap/p2-k6-01-reliability-baseline.md"
+      - "docs/roadmap/er24-reconciliation-evidence-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er24-reconciliation-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconciliation-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run Unknown and reliability fixtures
+        run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k6_01_reliability --locked -- --test-threads=1
+      - name: Run ER-24 source guard
+        run: cargo test -p kiana-core --test er24_reconciliation_evidence_guard --locked -- --test-threads=1
+      - name: Compile ER-24 targets
+        run: cargo check --workspace --tests --locked

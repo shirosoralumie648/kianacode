@@ -229,6 +229,94 @@ impl ControlPlane {
         }))
     }
 
+    async fn reconciliation_evidence_exists(
+        &self,
+        context: &RequestContext,
+        arguments: &Value,
+        incident: &FailureIncident,
+    ) -> Result<bool, CoreError> {
+        let Some(refs) = arguments["evidence_refs"]
+            .as_array()
+            .filter(|refs| !refs.is_empty() && refs.len() <= 64)
+        else {
+            return Ok(false);
+        };
+        let source_ref = format!("event:{}", incident.source_event_id);
+        let owned_events = self.platform_owned_events(context).await?;
+        let mut source_seen = false;
+        let mut independent_seen = false;
+        for value in refs {
+            let Some(reference) = value
+                .as_str()
+                .filter(|reference| !reference.trim().is_empty() && reference.len() <= 512)
+            else {
+                return Ok(false);
+            };
+            if reference == source_ref {
+                source_seen = true;
+                continue;
+            }
+            if let Some(event_id) = reference.strip_prefix("event:") {
+                let Some(event) = owned_events
+                    .iter()
+                    .find(|event| event.event_id.to_string() == event_id)
+                else {
+                    return Ok(false);
+                };
+                if incident.run_id.is_some()
+                    && event.data["run_id"].as_str().and_then(RunId::parse_str) != incident.run_id
+                {
+                    return Ok(false);
+                }
+                independent_seen = true;
+                continue;
+            }
+            let typed_external = ["provider:", "os:", "file:", "human:"]
+                .iter()
+                .any(|prefix| reference.starts_with(prefix));
+            if !typed_external || !reference.contains(&incident.incident_id) {
+                return Ok(false);
+            }
+            independent_seen = true;
+        }
+        Ok(source_seen && independent_seen)
+    }
+
+    async fn reconciliation_epoch_current(
+        &self,
+        context: &RequestContext,
+        incident: &FailureIncident,
+    ) -> Result<bool, CoreError> {
+        let events = self.events.read_all().await?;
+        let Some(source_index) = events
+            .iter()
+            .position(|event| event.event_id == incident.source_event_id)
+        else {
+            return Ok(false);
+        };
+        let source = &events[source_index];
+        let source_authority = source.data["authority_revision"].as_str();
+        let current_authority = self.authority_revision(&context.project_root).await?;
+        if source_authority.is_some() && source_authority != current_authority.as_deref() {
+            return Ok(false);
+        }
+        let root = source.data["project_root"]
+            .as_str()
+            .map(Self::canonical_project_root)
+            .unwrap_or_else(|| Self::canonical_project_root(&context.project_root));
+        if events[source_index + 1..].iter().any(|event| {
+            matches!(
+                event.kind.as_str(),
+                "data.revocation_requested" | "workspace.restore_requested" | "workspace.restored"
+            ) && event.data["project_root"]
+                .as_str()
+                .is_some_and(|other| Self::canonical_project_root(other) == root)
+        }) {
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
     async fn failure_incidents(
         &self,
         context: &RequestContext,
@@ -643,23 +731,31 @@ impl ControlPlane {
                 "failure_already_reconciled",
             ));
         }
+        let authority_revision = self.authority_revision(&context.project_root).await?;
+        let data_epoch = self.data_epoch(&context.project_root).await?;
         if !matches!(
             arguments["resolution"].as_str(),
             Some("observed_succeeded" | "observed_failed" | "no_effect")
-        ) || !self.evidence_exists(context, &arguments).await?
-            || arguments["evidence_refs"].as_array().is_none_or(|refs| {
-                refs.iter().all(|reference| {
-                    reference.as_str()
-                        == Some(format!("event:{}", incident.source_event_id).as_str())
-                })
-            })
+        ) || !self
+            .reconciliation_evidence_exists(context, &arguments, &incident)
+            .await?
         {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "failure_reconciliation_evidence_required",
             ));
         }
-        self.commit_platform(context,&history,"failure.reconciled",&arguments,json!({"incident_id":incident.incident_id,"resolution":arguments["resolution"],"evidence_refs":arguments["evidence_refs"],
+        if !self
+            .reconciliation_epoch_current(context, &incident)
+            .await?
+        {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "failure_reconciliation_evidence_or_epoch_invalid",
+            ));
+        }
+        self.commit_platform(context,&history,"failure.reconciled",&arguments,json!({"incident_id":incident.incident_id,"source_event_id":incident.source_event_id,"resolution":arguments["resolution"],"evidence_refs":arguments["evidence_refs"],
+            "authority_revision":authority_revision,"data_epoch":data_epoch,"evidence_scope":"incident_bound",
             "runtime_outcome_unchanged":true,"automatic_retry_allowed":false})).await
     }
 

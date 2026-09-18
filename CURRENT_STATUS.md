@@ -8278,3 +8278,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; external incident service, cross-process recovery queue, provider reconciliation and physical proof remain open
 reviewer: Codex root implementation review plus conservative failure classification, state-machine transition table, monotonic safe/forbidden actions, source-event evidence, independent approval/self-approval denial, revision/idempotency replay and no-retry/no-outcome-rewrite boundary review; no runtime test reviewer
 ```
+
+### ER-24 reconciliation commands / evidence evidence (2026-09-18)
+
+```text
+source_snapshot: 29d5246f + ER-24 working-tree slice; kiana-core/src/platform.rs; kiana-core/src/{dispatch,capabilities}.rs; kiana-domain/src/{platform,effect_observation,connectors}.rs; kiana-daemon/src/connectors.rs; kiana-core/tests/er24_reconciliation_evidence_guard.rs; .github/workflows/er24-reconciliation-evidence.yml; docs/roadmap/er24-reconciliation-evidence-baseline.md; docs/roadmap.md
+worktree_status: failure.reconcile accepts only observed_succeeded/observed_failed/no_effect, requires the original source event plus incident-bound provider/OS/file/human evidence, rejects cross-incident/empty refs, rechecks authority revision and source-following data revocation/workspace restore, and commits failure.reconciled with source/authority/data epoch/evidence scope through protected revision/idempotency replay; original runtime outcome remains unchanged and reconciliation never retries; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only reconciliation/evidence/Unknown fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: CP-20 Unknown reconciliation guard; P2-K6-01 reliability guard; er24_reconciliation_evidence_guard; GitHub Actions ER-24 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-24 is triggered by the eventual push and is not awaited
+status_change: ER-24 source slice is implemented. Explicit reconciliation outcomes, incident-bound evidence, authority/data epoch fences and idempotent protected receipts now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; external provider/OS evidence verification, cross-process durability and live/physical reconciliation remain open
+reviewer: Codex root implementation review plus outcome enum, source/independent evidence scope, cross-incident denial, authority/data epoch/revocation fence, protected revision/idempotency replay and no-retry/no-outcome-rewrite boundary review; no runtime test reviewer
+```
