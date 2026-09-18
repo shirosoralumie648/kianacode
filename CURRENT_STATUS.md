@@ -7802,3 +7802,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: full cross-process durable permit projector, TOCTOU/path/egress/secret fences and external/live/physical effect proof remain SC-13+ and PD/ER work
 reviewer: Codex root implementation review plus pending invocation sequence/context, permit action/project/authority/expiry/digest, CAS/reuse/stale epoch and no-second-loop boundary review; no runtime test reviewer
 ```
+
+### SC-13 path / TOCTOU boundary evidence (2026-09-18)
+
+```text
+source_snapshot: 08576113 + SC-13 working-tree slice; kiana-capability-broker/src/lib.rs; kiana-daemon/src/{apply_patch,execution_workspace,harness_sandbox}.rs; kiana-core/src/{sessions,security_fence}.rs; kiana-core/tests/sc13_path_toctou_guard.rs; .github/workflows/sc13-path-toctou.yml; docs/roadmap/sc13-path-toctou-baseline.md; docs/roadmap.md
+worktree_status: source guard pins existing root-relative patch/workspace confinement, symlink/hardlink rejection, inode/content preconditions, descriptor-relative openat/renameat and rollback, sandbox symlink denial, durable overlapping path locks, authority generation fence and broker action/permit rechecks; no second filesystem executor, authorization path or free-message bus was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only source guard; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/sc13_path_toctou_guard.rs checks root-relative/symlink/hardlink/rename/inode/precondition/path-lock/fence/broker markers and no free-message bypass; GitHub Actions SC-13 workflow runs guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-13 is triggered by the eventual push and is not awaited
+status_change: SC-13 source slice is implemented. Existing daemon path mutation and sandbox boundaries now have a roadmap-linked cross-layer CI guard.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process crash/recovery, physical filesystem durability, endpoint/secret fences and external/live effect proof remain SC-14+ / PD / ER work
+reviewer: Codex root implementation review plus root-relative containment, symlink/hardlink/rename replacement, inode/content precondition, durable path lock, authority fence, broker recheck and zero-bypass source-boundary review; no runtime test reviewer
+```

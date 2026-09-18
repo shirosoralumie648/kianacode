@@ -373,7 +373,7 @@
 | 204 | W2 | 专项 | [`NM-04`](#step-nm-04) | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | `PD-05`、`PD-06`、`PD-07`、`PD-08`、`PD-09`、`NM-03` | ✅ | [专项卡](#step-nm-04) |
 | 205 | W2 | 专项 | [`NM-05`](#step-nm-05) | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | `CI-05`、`NM-01`、`NM-04` | ✅ | [专项卡](#step-nm-05) |
 | 206 | W2 | 专项 | [`SC-12`](roadmap/security-compliance.md#step-sc-12) | kiana-core PendingInvocation/Permit、CAS、idempotency | `SC-08`、`SC-09`、`SC-10` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-12) |
-| 207 | W2 | 专项 | [`SC-13`](roadmap/security-compliance.md#step-sc-13) | kiana-capability-broker、kiana-daemon path/TOCTOU | `SC-12` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-13) |
+| 207 | W2 | 专项 | [`SC-13`](roadmap/security-compliance.md#step-sc-13) | kiana-capability-broker、kiana-daemon path/TOCTOU | `SC-12` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-13) |
 | 208 | W2 | 专项 | [`SC-14`](roadmap/security-compliance.md#step-sc-14) | Broker sandbox/network profile、endpoint resolver | `SC-12`、`SC-13` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-14) |
 | 209 | W2 | 专项 | [`SC-15`](roadmap/security-compliance.md#step-sc-15) | kiana-runner/kiana-core cancel fencing、Unknown | `SC-12`、`SC-14` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-15) |
 | 210 | W2 | 专项 | [`SC-16`](roadmap/security-compliance.md#step-sc-16) | kiana-core/Broker quotas、bounded channels、backpressure | `SC-09`、`SC-12` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-16) |
@@ -1521,6 +1521,7 @@
 | 2026-09-18 | `NM-04` NotificationProjector：新增 committed-only notification projection，复用 ReplayProjection/source cursor checkpoint，registered EventLog source、payload validation、replay idempotency 与 cursor-gap/no-mutation fixture；不接 recipient resolver/delivery/outbox，新增 workflow 与 nm04 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `NM-05` notification resolver：新增 server-context recipient/project/subscription resolver，trusted project/actor、exact project/recipient、expiry/status/scope/channel subset deny-first；新增 core fixtures、CI workflow 与 nm05 baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `SC-12` permit/pending invocation：补 strict PendingInvocation/DispatchPermit/CAS/idempotency source guard，固定 action/project/context/authority versions、expiry/digest、permit reuse/stale epoch deny-first；新增 core CI workflow 与 sc12 baseline，不新增执行路径；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `SC-13` path/TOCTOU boundary：补跨层 source guard，固定 root-relative canonicalization、symlink/hardlink 拒绝、inode/content preconditions、descriptor-relative `openat`/`renameat`、durable path lock、authority fence 与 broker recheck；新增 core CI workflow 与 sc13 baseline，不新增执行路径；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

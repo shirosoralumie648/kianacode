@@ -1,0 +1,48 @@
+name: SC-13 path TOCTOU boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/tests/sc13_path_toctou_guard.rs"
+      - "docs/roadmap/sc13-path-toctou-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc13-path-toctou.yml"
+  pull_request:
+    paths:
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/tests/sc13_path_toctou_guard.rs"
+      - "docs/roadmap/sc13-path-toctou-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc13-path-toctou.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  path-toctou:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-13 source guard
+        run: cargo test -p kiana-core --test sc13_path_toctou_guard --locked -- --test-threads=1
+      - name: Compile SC-13 targets
+        run: cargo check --workspace --tests --locked
