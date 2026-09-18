@@ -1,0 +1,50 @@
+name: BQ-08 quota reservation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_reservation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/bq08_quota_reservation.rs"
+      - "kiana-ports/tests/bq08_quota_reservation_store.rs"
+      - "kiana-core/tests/bq08_quota_reservation_guard.rs"
+      - "docs/roadmap/billing-quota-reservation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq08-quota-reservation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_reservation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/bq08_quota_reservation.rs"
+      - "kiana-ports/tests/bq08_quota_reservation_store.rs"
+      - "kiana-core/tests/bq08_quota_reservation_guard.rs"
+      - "docs/roadmap/billing-quota-reservation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq08-quota-reservation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quota-reservation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run reservation domain fixtures
+        run: cargo test -p kiana-domain --test bq08_quota_reservation --locked -- --test-threads=1
+      - name: Run reservation store fixtures
+        run: cargo test -p kiana-ports --test bq08_quota_reservation_store --locked -- --test-threads=1
+      - name: Run reservation source guard
+        run: cargo test -p kiana-core --test bq08_quota_reservation_guard --locked -- --test-threads=1
+      - name: Compile BQ-08 targets
+        run: cargo check --workspace --tests --locked

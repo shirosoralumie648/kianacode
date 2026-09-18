@@ -27,11 +27,11 @@ use kiana_domain::{
     CorrelationContext, CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
     EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
     MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
-    ProjectIdentity, QualityArtifact, QualityArtifactId, RateCard, RateCardId, RequestContext,
-    RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent,
-    SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass,
-    StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SwarmLineage,
-    SwarmPlanId, TraceSummary, WorkFingerprint,
+    ProjectIdentity, QualityArtifact, QualityArtifactId, QuotaReservation, QuotaReservationId,
+    QuotaReservationState, RateCard, RateCardId, RequestContext, RequestId, ResolvedAssignment,
+    RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
+    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth, StorageSchemaRegistry,
+    StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -262,6 +262,110 @@ impl RateCardStore for InMemoryRateCardStore {
             .iter()
             .find(|card| card.rate_card_id == rate_card_id)
             .cloned())
+    }
+}
+
+/// Reservation/CAS boundary. Implementations must preserve idempotent replay and recheck the
+/// authority/config fence before transitioning an already reserved quota.
+#[async_trait]
+pub trait QuotaReservationPort: Send + Sync {
+    async fn reserve_quota(
+        &self,
+        reservation: QuotaReservation,
+        expected_revision: Option<u64>,
+    ) -> Result<QuotaReservation, PortError>;
+
+    async fn read_quota_reservation(
+        &self,
+        reservation_id: QuotaReservationId,
+    ) -> Result<Option<QuotaReservation>, PortError>;
+
+    async fn transition_quota(
+        &self,
+        reservation_id: QuotaReservationId,
+        expected_revision: u64,
+        authority_epoch: u64,
+        config_revision: &str,
+        next: QuotaReservationState,
+    ) -> Result<QuotaReservation, PortError>;
+}
+
+/// In-memory CAS/dedup adapter used by fixtures. It is intentionally not a durable EventLog
+/// implementation; BQ-08 proof remains source/static until a durable adapter is wired.
+#[derive(Clone, Debug, Default)]
+pub struct InMemoryQuotaReservationStore {
+    reservations: Arc<tokio::sync::RwLock<BTreeMap<QuotaReservationId, QuotaReservation>>>,
+}
+
+impl InMemoryQuotaReservationStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[async_trait]
+impl QuotaReservationPort for InMemoryQuotaReservationStore {
+    async fn reserve_quota(
+        &self,
+        reservation: QuotaReservation,
+        expected_revision: Option<u64>,
+    ) -> Result<QuotaReservation, PortError> {
+        reservation
+            .validate()
+            .map_err(|error| PortError::Failed(format!("quota_reservation_invalid:{error}")))?;
+        let mut reservations = self.reservations.write().await;
+        if let Some(existing) = reservations.get(&reservation.reservation_id) {
+            if existing.reservation_digest == reservation.reservation_digest
+                && expected_revision.is_none_or(|revision| revision == existing.revision)
+            {
+                return Ok(existing.clone());
+            }
+            return Err(PortError::Conflict(
+                "quota_reservation_digest_or_revision_conflict".to_owned(),
+            ));
+        }
+        if expected_revision.is_some() {
+            return Err(PortError::Conflict(
+                "quota_reservation_expected_missing".to_owned(),
+            ));
+        }
+        reservations.insert(reservation.reservation_id, reservation.clone());
+        Ok(reservation)
+    }
+
+    async fn read_quota_reservation(
+        &self,
+        reservation_id: QuotaReservationId,
+    ) -> Result<Option<QuotaReservation>, PortError> {
+        Ok(self.reservations.read().await.get(&reservation_id).cloned())
+    }
+
+    async fn transition_quota(
+        &self,
+        reservation_id: QuotaReservationId,
+        expected_revision: u64,
+        authority_epoch: u64,
+        config_revision: &str,
+        next: QuotaReservationState,
+    ) -> Result<QuotaReservation, PortError> {
+        let mut reservations = self.reservations.write().await;
+        let reservation = reservations
+            .get_mut(&reservation_id)
+            .ok_or_else(|| PortError::Unavailable("quota_reservation_not_found".to_owned()))?;
+        if reservation.revision != expected_revision {
+            return Err(PortError::Conflict(
+                "quota_reservation_revision_stale".to_owned(),
+            ));
+        }
+        if reservation.authority_epoch != authority_epoch
+            || reservation.config_revision != config_revision
+        {
+            return Err(PortError::Conflict(
+                "quota_reservation_fence_stale".to_owned(),
+            ));
+        }
+        reservation.transition(next).map_err(PortError::Failed)?;
+        Ok(reservation.clone())
     }
 }
 

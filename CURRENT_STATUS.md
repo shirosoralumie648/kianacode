@@ -7605,3 +7605,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: window/group/budget are in-memory domain values; no durable reservation/CAS/fence, cross-process clock store, fair queue, capacity backend or provider dispatch integration exists
 reviewer: Codex root implementation review plus trusted clock/rollback gate, UTC boundary/retry-after, alias/credential/model canonicalization, empty/overlimit checks and no-side-effect boundary review; no runtime test reviewer
 ```
+
+### BQ-08 Quota reservation/CAS evidence (2026-09-18)
+
+```text
+source_snapshot: 146f8353 + BQ-08 working-tree slice; kiana-domain/src/{billing_reservation.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-domain/tests/bq08_quota_reservation.rs; kiana-ports/tests/bq08_quota_reservation_store.rs; kiana-core/tests/bq08_quota_reservation_guard.rs; .github/workflows/bq08-quota-reservation.yml; docs/roadmap/billing-quota-reservation-baseline.md; docs/roadmap.md
+worktree_status: strict `QuotaReservation` now binds group/window, run/attempt owner, authority epoch, config revision, idempotency key, revision, requested dimensions and explicit state; `QuotaReservationPort` in-memory fixture supports idempotent replay, digest/CAS conflict and authority/config fence denial before state transition. This is explicitly non-durable and not a second EventLog; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: domain fixture covers digest/state/expiry/revision; ports fixture covers replay, digest conflict, stale revision and authority/config fence; core guard protects contract/port/no-provider boundary; GitHub Actions BQ-08 workflow runs all fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-08 is triggered by the eventual push and is not awaited
+status_change: BQ-08 source slice is implemented as a partial contract/fixture boundary. Durable EventLog/CAS integration remains explicitly open rather than being overstated.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: in-memory adapter is not durable or cross-process; no atomic EventLog reservation, two-writer race proof, permit/dispatch, queue/capacity or external billing effect exists
+reviewer: Codex root implementation review plus reservation digest/idempotency/revision/state, unknown reconciliation transitions, authority/config fence and explicit non-durable proof boundary review; no runtime test reviewer
+```
