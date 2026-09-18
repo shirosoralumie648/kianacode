@@ -8031,3 +8031,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; two-host durable lease recovery, full crash matrix and Unknown reconciliation/retry/compensation remain CP-20+ / ER / PD work
 reviewer: Codex root implementation review plus committed-fact scan/projection rebuild, snapshot/owner/authority/data epoch/stale validation, CAS resume claim, Runner restore/drive_run reuse and no execution during startup scan review; no runtime test reviewer
 ```
+
+### CP-20 Unknown reconciliation / retry evidence (2026-09-18)
+
+```text
+source_snapshot: cb5ba329 + CP-20 working-tree slice; kiana-domain/src/{errors,platform,connectors,effect_observation}.rs; kiana-domain/tests/p4_k8_01_connector.rs; kiana-ports/src/model.rs; kiana-core/src/{platform,dispatch,capabilities}.rs; kiana-core/tests/{p2_k6_01_reliability,cp20_unknown_reconcile_guard}.rs; kiana-daemon/src/connectors.rs; .github/workflows/cp20-unknown-reconcile.yml; docs/roadmap/cp20-unknown-reconcile-baseline.md; docs/roadmap.md
+worktree_status: source guard pins ResultUnknown/CompensationRequired non-retry policy, FailureIncident/RecoveryPlan evidence owner/quarantine, failure.reconciled original-outcome preservation, connector idempotency/payload/account reconciliation, effect observation Unknown and new-attempt/permit boundaries; no automatic unknown retry, history rewrite or direct compensation path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only Unknown/reconciliation fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: p2_k6 reliability incident/recovery/reconciliation guard; p4_k8 connector typed Unknown/reconciliation fixture; cp20_unknown_reconcile_guard cross-layer error/platform/dispatch/capability/effect guard; GitHub Actions CP-20 runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-20 is triggered by the eventual push and is not awaited
+status_change: CP-20 source slice is implemented. Unknown reconciliation and retry/compensation boundaries now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; handler-specific external verification, compensation adapters, durable multi-host reconcile claims and live/physical proof remain ER/connector/provider work
+reviewer: Codex root implementation review plus stable error retryability/reconciliation, incident/quarantine/evidence gate, connector receipt idempotency/account binding, effect observation Unknown and new-attempt/permit boundary review; no runtime test reviewer
+```
