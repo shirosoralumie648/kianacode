@@ -1,0 +1,44 @@
+name: EQ-11 evaluation deny broker
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq11_deny_broker.rs"
+      - "kiana-core/tests/eq11_deny_broker_guard.rs"
+      - "docs/roadmap/evaluation-deny-broker-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq11-deny-broker.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq11_deny_broker.rs"
+      - "kiana-core/tests/eq11_deny_broker_guard.rs"
+      - "docs/roadmap/evaluation-deny-broker-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq11-deny-broker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deny-broker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run deny broker fixtures
+        run: cargo test -p kiana-daemon --test eq11_deny_broker --locked -- --test-threads=1
+      - name: Run deny broker source guard
+        run: cargo test -p kiana-core --test eq11_deny_broker_guard --locked -- --test-threads=1
+      - name: Compile EQ-11 targets
+        run: cargo check --workspace --tests --locked

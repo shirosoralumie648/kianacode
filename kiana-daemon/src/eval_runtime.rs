@@ -7,8 +7,11 @@
 
 use async_trait::async_trait;
 use kiana_domain::ClockObservation;
-use kiana_domain::{ModelDelta, ModelOutput, ModelRequest, ModelToolCall, ModelUsage};
-use kiana_ports::ModelClient;
+use kiana_domain::{
+    AuthorizedCapabilityRequest, CapabilityErrorCode, CapabilityKind, CapabilityResult, ModelDelta,
+    ModelOutput, ModelRequest, ModelToolCall, ModelUsage,
+};
+use kiana_ports::{CapabilityBrokerPort, ModelClient, PortError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -344,5 +347,92 @@ impl ModelClient for FakeProviderAdapter {
             })?;
         }
         Ok(output)
+    }
+}
+
+pub const EVAL_DENY_BROKER_SCHEMA: &str = "kiana.eval-deny-broker.v1";
+
+/// Evaluation-only broker boundary. It accepts the same authorized request shape as the
+/// production broker but never registers or invokes an executor; every capability is a known,
+/// not-executed permission denial with a stable effect category.
+pub struct DenyByDefaultEvalBroker {
+    denied_calls: AtomicUsize,
+}
+
+impl Default for DenyByDefaultEvalBroker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DenyByDefaultEvalBroker {
+    pub fn new() -> Self {
+        Self {
+            denied_calls: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn denied_calls(&self) -> usize {
+        self.denied_calls.load(Ordering::SeqCst)
+    }
+
+    fn effect_category(request: &AuthorizedCapabilityRequest) -> &'static str {
+        let operation = request.request.operation.as_str();
+        let normalized = operation.to_ascii_lowercase();
+        if normalized.starts_with("mcp.") {
+            "mcp"
+        } else if normalized.contains("payment")
+            || normalized.contains("charge")
+            || normalized.contains("billing")
+        {
+            "payment"
+        } else if normalized.contains("publish")
+            || normalized.contains("release")
+            || normalized.contains("deploy")
+        {
+            "publish"
+        } else {
+            match &request.request.capability {
+                CapabilityKind::Network => "network",
+                CapabilityKind::Secret => "secret",
+                CapabilityKind::Computer => "desktop",
+                _ => "unknown",
+            }
+        }
+    }
+
+    fn denied_result(&self, request: &AuthorizedCapabilityRequest) -> CapabilityResult {
+        self.denied_calls.fetch_add(1, Ordering::SeqCst);
+        let category = Self::effect_category(request);
+        let mut result = CapabilityResult::failure_with_code(
+            request.request.request_id,
+            CapabilityErrorCode::PermissionDenied,
+            Some(&format!("eval_effect_denied:{category}")),
+        );
+        result.output["not_executed"] = serde_json::json!(true);
+        result.output["effect_started"] = serde_json::json!(false);
+        result.output["effect_known"] = serde_json::json!(true);
+        result.output["stop_confirmed"] = serde_json::json!(true);
+        result
+    }
+}
+
+#[async_trait]
+impl CapabilityBrokerPort for DenyByDefaultEvalBroker {
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        Ok(self.denied_result(&request))
+    }
+
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        _cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        // A deny-only adapter has no in-flight effect to stop; cancellation cannot turn a deny
+        // into an Unknown result or accidentally delegate to a real executor.
+        Ok(self.denied_result(&request))
     }
 }

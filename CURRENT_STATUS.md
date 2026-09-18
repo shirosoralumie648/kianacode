@@ -7324,3 +7324,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: adapter is not yet connected to a DaemonHost target or deny-by-default Broker; fixture store, event/receipt capture, fault/restart recovery, real network/secret/MCP/payment/publish/desktop effects and live/physical provider proof remain EQ-11+
 reviewer: Codex root implementation review plus strict scenario/tag/size bounds, typed delta aggregation, tool-call non-execution, call-count/no-retry assertion, explicit malformed/error mapping and no-network/no-credential/no-runner boundary review; no runtime test reviewer
 ```
+
+### EQ-11 Evaluation deny-by-default broker evidence (2026-09-18)
+
+```text
+source_snapshot: bbbce3f4 + EQ-11 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq11_deny_broker.rs; kiana-core/tests/eq11_deny_broker_guard.rs; .github/workflows/eq11-deny-broker.yml; docs/roadmap/evaluation-deny-broker-baseline.md; docs/roadmap.md
+worktree_status: `DenyByDefaultEvalBroker` implements the existing `CapabilityBrokerPort` but has no handler registry or executor; every authorized request returns a structured stable `permission_denied:eval_effect_denied:<category>` result, with explicit network/secret/MCP/payment/publish/desktop categories and unknown-effect default denial. Cancellation remains a deny because no effect is in flight; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq11_deny_broker.rs covers forbidden effect categories, stable reason strings, unknown-effect denial, cancellation and exact denied-call count; kiana-core/tests/eq11_deny_broker_guard.rs guards the port-only/no-network/no-secret/no-process/no-runner boundary; GitHub Actions EQ-11 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-11 is triggered by the eventual push and is not awaited
+status_change: EQ-11 source slice is implemented. Evaluation capabilities now fail closed before any real executor, including network/secret/MCP/payment/publish/desktop-shaped requests, while preserving the existing authorized broker port.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: adapter is not yet composed into a DaemonHost/ControlPlane target; fixture store, EventLog/Receipt capture, fault/restart recovery, real external network/secret/MCP/payment/publish/desktop effects and live/physical proof remain EQ-12+
+reviewer: Codex root implementation review plus stable category mapping, default-deny unknown operation, cancellation no-dispatch, request ID/result binding and no-real-executor/no-network/no-secret boundary review; no runtime test reviewer
+```
