@@ -7525,3 +7525,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: accumulator is in-memory and attempt-local; provider normalization, durable attempt projector, quota reservation/settlement and cross-process recovery remain BQ-08+
 reviewer: Codex root implementation review plus sequence identity/digest replay, monotonic regression, optional-base unknown, component containment, checked arithmetic and final-state fence review; no runtime test reviewer
 ```
+
+### BQ-04 Money / RateCard pricing evidence (2026-09-18)
+
+```text
+source_snapshot: 1015375a + BQ-04 working-tree slice; kiana-domain/src/{billing_pricing.rs,lib.rs}; kiana-domain/tests/bq04_pricing.rs; kiana-core/tests/bq04_pricing_guard.rs; .github/workflows/bq04-pricing.yml; docs/roadmap/billing-pricing-baseline.md; docs/roadmap.md
+worktree_status: domain now provides integer-micros `Money` with checked add/multiply, versioned/effective/digest-bound `RateCard`, and `CostEstimate`; currency mismatch/overflow, missing unit price and missing usage remain explicit error/unknown paths; no provider invoice, store or execution authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq04_pricing.rs covers integer micros/checked arithmetic, currency/time/digest validation and partial/rate-card-missing estimates; kiana-core/tests/bq04_pricing_guard.rs guards no-float/no-provider/no-I/O/no-invoice boundary; GitHub Actions BQ-04 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-04 is triggered by the eventual push and is not awaited
+status_change: BQ-04 source slice is implemented. Versioned pricing arithmetic can produce a bounded estimate without turning unknown price/usage into zero or measured bill.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no RateCardStore/model-provider mapping, currency conversion, provider invoice/receipt, reservation admission or durable cost ledger; BQ-05+ remains
+reviewer: Codex root implementation review plus integer micros/currency validation, checked multiplication/addition, effective window/version/digest, explicit unknown estimate and no-provider boundary review; no runtime test reviewer
+```

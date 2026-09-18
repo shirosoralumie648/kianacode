@@ -1,0 +1,44 @@
+name: BQ-04 pricing contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_pricing.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq04_pricing.rs"
+      - "kiana-core/tests/bq04_pricing_guard.rs"
+      - "docs/roadmap/billing-pricing-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq04-pricing.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_pricing.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq04_pricing.rs"
+      - "kiana-core/tests/bq04_pricing_guard.rs"
+      - "docs/roadmap/billing-pricing-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq04-pricing.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pricing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run pricing fixtures
+        run: cargo test -p kiana-domain --test bq04_pricing --locked -- --test-threads=1
+      - name: Run pricing source guard
+        run: cargo test -p kiana-core --test bq04_pricing_guard --locked -- --test-threads=1
+      - name: Compile BQ-04 targets
+        run: cargo check --workspace --tests --locked
