@@ -7444,3 +7444,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: observations are sanitized caller-provided values rather than live syscalls; durable evidence manifest, process/file/network collection harness, restart persistence and quality gates remain
 reviewer: Codex root implementation review plus digest-only process/file fields, relative path containment, bounded network/pattern observations, SafetyViolation precedence and no live syscall/secret read boundary; no runtime test reviewer
 ```
+
+### BQ-00 Billing / quota / cost baseline evidence (2026-09-18)
+
+```text
+source_snapshot: 6904f0c54c9ff1b03fc01b7cc1cec100a43881c6; sha256 files recorded in docs/roadmap/billing-quota-cost-baseline.md; kiana-domain/src/{usage.rs,budget_contracts.rs}; kiana-core/src/{model_budget.rs,receipts.rs,cell_registry.rs}; kiana-core/tests/bq00_cost_capacity_guard.rs; .github/workflows/bq00-cost-capacity.yml; docs/roadmap/billing-quota-cost-baseline.md; docs/roadmap.md
+worktree_status: BQ-00 is a source-only inventory. It records the current UsageRecord/CostLedger optional-usage boundary, JournalModelBudget/EventLog reservation-settlement path, receipt projection, provider ModelUsage, in-process CellRegistry reservations, existing unknown facts, WIP/RED limits, field migration table and stable BQ fixture names; no target billing type, provider invoice, rate card or second ledger was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  git rev-parse HEAD
+  sha256sum kiana-domain/src/usage.rs kiana-core/src/model_budget.rs kiana-core/src/receipts.rs kiana-provider/src/lib.rs kiana-core/src/cell_registry.rs kiana-domain/src/budget_contracts.rs kiana-domain/tests/p1_k5_01_cost_capacity.rs kiana-core/tests/p1_k5_01_cost_capacity_guard.rs
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only source guard; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/bq00_cost_capacity_guard.rs inventories current source markers and requires UsageVector/NormalizedUsage/RateCard/QuotaReservation/CostCorrection migration handoff plus `cost_micros: None`; GitHub Actions BQ-00 workflow runs the source guard and workspace compile
+exit_code: 0 for source inventory, format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-00 is triggered by the eventual push and is not awaited
+status_change: BQ-00 source baseline is implemented. The billing/quota/cost roadmap now has an auditable snapshot and explicit conflict/migration boundary before BQ-01 contract work.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: existing CostLedger/UsageRecord/model budget/receipt/CellRegistry behavior remains unchanged; missing usage remains unknown, no RateCard/provider invoice/currency/correction/durable quota projector/capacity queue exists, and BQ-01+ must implement target contracts without a second ledger or authority path
+reviewer: Codex root implementation review plus source hash inventory, CostLedger optional/unknown semantics, model reservation/settlement/EventLog path, receipt projection, CellRegistry in-memory boundary and migration conflict review; no runtime test reviewer
+```
