@@ -7726,3 +7726,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no automatic quarantine move, full middle-frame repair, projector health integration, kill-9 recovery or physical durability proof; PD-09+/PD-30 remains
 reviewer: Codex root implementation review plus Empty/Ready/Corrupt/Unknown taxonomy, quarantine/reconcile action, non-destructive health gate and single JSONL parser boundary review; no runtime test reviewer
 ```
+
+### PD-09 Projector driver/checkpoint evidence (2026-09-18)
+
+```text
+source_snapshot: af45d82b + PD-09 working-tree slice; kiana-core/src/{projection_checkpoint.rs,lib.rs}; kiana-core/tests/pd09_projection_driver.rs; kiana-core/tests/pd09_projector_guard.rs; .github/workflows/pd09-projector.yml; docs/roadmap/pd09-projector-baseline.md; docs/roadmap.md
+worktree_status: pure `ProjectionDriver` now wraps ReplayProjection with checkpoint-first tail apply, fold failure pause, explicit retry counter and rebuild-from-zero; checkpoint is digest-bound optimization only and no EventStore/Broker/Runner or second authority path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/pd09_projection_driver.rs covers checkpoint/tail/rebuild and fold error pause/retry; kiana-core/tests/pd09_projector_guard.rs guards replay-only/checkpoint-first/no authority boundary; GitHub Actions PD-09 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-09 is triggered by the eventual push and is not awaited
+status_change: PD-09 source slice is implemented. Projector failures now pause explicitly and require retry/rebuild rather than advancing a cursor after a failed fold.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: checkpoint persistence/atomic apply, projector lease/concurrency, process restart and cross-process rebuild remain PD-10+
+reviewer: Codex root implementation review plus checkpoint-first apply, fold failure pause, explicit retry, rebuild-from-zero and no EventStore/Broker/Runner boundary review; no runtime test reviewer
+```

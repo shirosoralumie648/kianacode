@@ -9,6 +9,118 @@ use kiana_domain::{
 use serde_json::Value;
 use std::collections::BTreeSet;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectionDriverStatus {
+    Ready,
+    Paused,
+    RebuildRequired,
+}
+
+/// Pure projector driver state. It only folds caller-supplied committed events; persistence of
+/// the checkpoint is a separate ProjectionStorePort concern.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectionDriver {
+    projector: String,
+    checkpoint: Option<ProjectionCheckpoint>,
+    status: ProjectionDriverStatus,
+    retry_count: u32,
+    last_error: Option<String>,
+}
+
+impl ProjectionDriver {
+    pub fn new(projector: impl Into<String>) -> Result<Self, String> {
+        let projector = projector.into();
+        if projector.trim().is_empty() || projector.len() > 256 {
+            return Err("projection_driver_projector_invalid".to_owned());
+        }
+        Ok(Self {
+            projector,
+            checkpoint: None,
+            status: ProjectionDriverStatus::Ready,
+            retry_count: 0,
+            last_error: None,
+        })
+    }
+
+    pub fn apply<F>(
+        &mut self,
+        initial_state: Value,
+        events: &[RuntimeEvent],
+        source_cursor: EventCursor,
+        fold: F,
+    ) -> Result<(), String>
+    where
+        F: FnMut(Value, &RuntimeEvent) -> Result<Value, String>,
+    {
+        if self.status == ProjectionDriverStatus::Paused {
+            return Err("projection_driver_paused".to_owned());
+        }
+        let result = match self.checkpoint.as_ref() {
+            Some(checkpoint) => ReplayProjection::from_checkpoint(
+                &self.projector,
+                checkpoint,
+                events,
+                source_cursor,
+                fold,
+            ),
+            None => ReplayProjection::from_zero(
+                &self.projector,
+                initial_state,
+                events,
+                source_cursor,
+                fold,
+            ),
+        };
+        match result {
+            Ok(projection) => {
+                self.checkpoint = Some(projection.checkpoint()?);
+                self.status = ProjectionDriverStatus::Ready;
+                self.last_error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.status = ProjectionDriverStatus::Paused;
+                self.last_error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
+
+    pub fn retry(&mut self) -> Result<(), String> {
+        if self.status != ProjectionDriverStatus::Paused {
+            return Err("projection_driver_not_paused".to_owned());
+        }
+        self.retry_count = self
+            .retry_count
+            .checked_add(1)
+            .ok_or_else(|| "projection_driver_retry_overflow".to_owned())?;
+        self.status = ProjectionDriverStatus::Ready;
+        Ok(())
+    }
+
+    pub fn rebuild(&mut self) {
+        self.checkpoint = None;
+        self.status = ProjectionDriverStatus::RebuildRequired;
+        self.last_error = None;
+    }
+
+    pub fn checkpoint(&self) -> Option<&ProjectionCheckpoint> {
+        self.checkpoint.as_ref()
+    }
+
+    pub fn status(&self) -> ProjectionDriverStatus {
+        self.status
+    }
+
+    pub fn retry_count(&self) -> u32 {
+        self.retry_count
+    }
+
+    pub fn last_error(&self) -> Option<&str> {
+        self.last_error.as_deref()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReplayProjection {
     projector: String,

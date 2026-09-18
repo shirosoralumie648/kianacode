@@ -97,7 +97,7 @@ pub use performance::{
     build_performance_baseline, percentile_micros, summarize_benchmark, PerformanceError,
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
-pub use projection_checkpoint::ReplayProjection;
+pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
 pub use receipts::aggregate_receipt_facts;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;
