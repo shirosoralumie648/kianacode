@@ -7993,3 +7993,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable crash-reentrant cleanup work items, cross-process lease recovery, external compensation and live/physical proof remain CP-18+ / ER / SW work
 reviewer: Codex root implementation review plus revoke-before-dispatch, parent/descendant fence, stop/release/settle/retire sequencing, idempotent resource ownership, unknown quarantine and evidence-gated reconciliation review; no runtime test reviewer
 ```
+
+### CP-18 RunSnapshot / safe checkpoint evidence (2026-09-18)
+
+```text
+source_snapshot: fb409304 + CP-18 working-tree slice; kiana-domain/src/{capabilities,invocation_resume}.rs; kiana-domain/tests/h14_invocation_resume.rs; kiana-core/src/{recovery,workspace_checkpoints,dispatch}.rs; kiana-core/tests/{p2_k4_01_checkpoint,p0_g03_resume_guard,cp18_run_snapshot_guard}.rs; kiana-daemon/src/{workspace_checkpoints,apply_patch}.rs; kiana-ports/src/lib.rs; .github/workflows/cp18-run-snapshot.yml; docs/roadmap/cp18-run-snapshot-baseline.md; docs/roadmap.md
+worktree_status: source guard pins RunSnapshot context/authority/data epoch/runner digest/pending invocation, InvocationResumeBinding owner/parameter/catalog/sandbox digest, quiescent checkpoint/restore, redaction non-resumable, stale/changed scope denial, workspace file identity/data epoch/path fences and no-execution restore; no second recovery loop or direct handler path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only snapshot/checkpoint fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: p2_k4 workspace checkpoint capture/restore/invalidation guard; h14 invocation resume binding digest/owner/parameter fixture; p0_g03 shared drive path guard; cp18_run_snapshot_guard cross-layer source guard; GitHub Actions CP-18 runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-18 is triggered by the eventual push and is not awaited
+status_change: CP-18 source slice is implemented. Run snapshots and safe workspace checkpoints now have a roadmap-linked digest/scope/data-epoch evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable cross-process snapshot blob guarantees, physical backup retention, full crash-resume matrix and external/live/physical proof remain CP-19+ / ER / PD work
+reviewer: Codex root implementation review plus RunSnapshot/pending invocation digest, authority/trust/data epoch, quiescent runner checkpoint, redaction non-resumable, workspace file identity/revocation and no-execution restore boundary review; no runtime test reviewer
+```

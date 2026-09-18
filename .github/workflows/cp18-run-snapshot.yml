@@ -1,0 +1,62 @@
+name: CP-18 run snapshot and checkpoint boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp18_run_snapshot_guard.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "docs/roadmap/cp18-run-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp18-run-snapshot.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp18_run_snapshot_guard.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "docs/roadmap/cp18-run-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp18-run-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run workspace checkpoint fixture
+        run: cargo test -p kiana-core --test p2_k4_01_checkpoint --locked -- --test-threads=1
+      - name: Run invocation resume contract fixture
+        run: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+      - name: Run CP-18 source guard
+        run: cargo test -p kiana-core --test cp18_run_snapshot_guard --locked -- --test-threads=1
+      - name: Compile CP-18 targets
+        run: cargo check --workspace --tests --locked
