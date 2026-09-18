@@ -1,0 +1,44 @@
+name: NM-05 notification resolver
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/notification_resolver.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm05_notification_resolver.rs"
+      - "kiana-core/tests/nm05_notification_resolver_guard.rs"
+      - "docs/roadmap/nm05-notification-resolver-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm05-notification-resolver.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/notification_resolver.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm05_notification_resolver.rs"
+      - "kiana-core/tests/nm05_notification_resolver_guard.rs"
+      - "docs/roadmap/nm05-notification-resolver-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm05-notification-resolver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-resolver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run resolver fixtures
+        run: cargo test -p kiana-core --test nm05_notification_resolver --locked -- --test-threads=1
+      - name: Run resolver source guard
+        run: cargo test -p kiana-core --test nm05_notification_resolver_guard --locked -- --test-threads=1
+      - name: Compile NM-05 targets
+        run: cargo check --workspace --tests --locked

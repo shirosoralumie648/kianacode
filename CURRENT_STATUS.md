@@ -7764,3 +7764,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no durable NotificationStore, recipient/scope/subscription resolver, dedup/OCC, outbox, delivery worker or external notification proof; NM-05+ remains
 reviewer: Codex root implementation review plus registered source validation, payload/digest validation, cursor/checkpoint/idempotency and no delivery/authority boundary review; no runtime test reviewer
 ```
+
+### NM-05 Notification resolver evidence (2026-09-18)
+
+```text
+source_snapshot: c20ca848 + NM-05 working-tree slice; kiana-core/src/{notification_resolver.rs,lib.rs}; kiana-core/tests/nm05_notification_resolver.rs; kiana-core/tests/nm05_notification_resolver_guard.rs; .github/workflows/nm05-notification-resolver.yml; docs/roadmap/nm05-notification-resolver-baseline.md; docs/roadmap.md
+worktree_status: server-context `resolve_notification_subscriptions` now requires trusted project/actor, exact server project and recipient binding, active/unexpired subscription, and notification scope/channel subset; client-supplied owner/project/recipient values are not authority inputs; no delivery/Broker/Provider path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/nm05_notification_resolver.rs covers trusted success, untrusted project, recipient mismatch and server project/scope binding; kiana-core/tests/nm05_notification_resolver_guard.rs guards server-context/no-dispatch/no-provider boundary; GitHub Actions NM-05 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-05 is triggered by the eventual push and is not awaited
+status_change: NM-05 source slice is implemented. Notification targets are now resolved from server context and subscription snapshots rather than client recipient/project claims.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no durable assignment/subscription authority store, dedup/OCC, inbox/outbox, delivery worker or external notification proof; NM-06+ remains
+reviewer: Codex root implementation review plus trusted project/actor gate, exact project/recipient binding, subscription expiry/status, scope/channel subset and no-dispatch boundary review; no runtime test reviewer
+```
