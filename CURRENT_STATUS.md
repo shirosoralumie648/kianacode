@@ -8145,3 +8145,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; production upgrade/downgrade rehearsal, cross-version multi-writer race, physical backup/restore and removal of all compatibility crates remain PD/ER/DEP work
 reviewer: Codex root implementation review plus named schema/event/storage upcaster, legacy authority reauthorization, old-writer fence, migration capability denial, DaemonHost constructor and dependency/legacy-edge/no-direct-runner boundary review; no runtime test reviewer
 ```
+
+### ER-17 serializable RunSnapshot / pending writes evidence (2026-09-18)
+
+```text
+source_snapshot: a9889bb1 + ER-17 working-tree slice; kiana-domain/src/{capabilities,invocation_resume,states}.rs; kiana-core/src/{recovery,redaction,projection,lifecycle}.rs; kiana-runner/src/harness.rs; kiana-ports/src/lib.rs; kiana-core/tests/er17_run_snapshot_guard.rs; .github/workflows/er17-run-snapshot.yml; docs/roadmap/er17-run-snapshot-baseline.md; docs/roadmap.md
+worktree_status: source guard pins RunSnapshot schema/context/sandbox/role prompt/runner digest/pending invocation/Cell state/resumable, InvocationResumeBinding parameter/catalog/owner/authority/project/sandbox/pending-batch digests, Runner checkpoint pending writes and restore identity, EventLog snapshot redaction and recovery CAS/stale/authority/data/scope gates; redacted snapshots become non-resumable and terminal/stale snapshots cannot restore; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only snapshot/resume/checkpoint fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: H13 invocation ledger; H14 approval resume; P0-F-03 resume material; P0-G-03 explicit resume; P2-K4 checkpoint; CP-18 RunSnapshot guard; er17_run_snapshot_guard; GitHub Actions ER-17 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-17 is triggered by the eventual push and is not awaited
+status_change: ER-17 source slice is implemented. Serializable RunSnapshot and pending writes now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; power-loss/cross-process snapshot durability, physical backup, live provider effects and ER-18 workspace transaction proof remain open
+reviewer: Codex root implementation review plus snapshot schema/digest/scope/authority/data epoch, redaction non-resumable, pending invocation/batch binding, runner checkpoint/restore identity and terminal/stale/no-auto-resume boundary review; no runtime test reviewer
+```
