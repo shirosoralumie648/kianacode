@@ -1,0 +1,64 @@
+name: CP-17 revocation cleanup and cell retirement
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/data_governance.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/resource_projection.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/p2_k7_01_data_governance.rs"
+      - "kiana-core/tests/p4_j6_01_bounded_swarm.rs"
+      - "kiana-core/tests/cp17_revoke_cleanup_guard.rs"
+      - "docs/roadmap/cp17-revoke-cleanup-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp17-revoke-cleanup.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/data_governance.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/resource_projection.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "kiana-core/tests/p2_k7_01_data_governance.rs"
+      - "kiana-core/tests/p4_j6_01_bounded_swarm.rs"
+      - "kiana-core/tests/cp17_revoke_cleanup_guard.rs"
+      - "docs/roadmap/cp17-revoke-cleanup-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp17-revoke-cleanup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  revoke-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run cell lifecycle fixture
+        run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --locked -- --test-threads=1
+      - name: Run reliability fixture
+        run: cargo test -p kiana-core --test p2_k6_01_reliability --locked -- --test-threads=1
+      - name: Run CP-17 source guard
+        run: cargo test -p kiana-core --test cp17_revoke_cleanup_guard --locked -- --test-threads=1
+      - name: Compile CP-17 targets
+        run: cargo check --workspace --tests --locked

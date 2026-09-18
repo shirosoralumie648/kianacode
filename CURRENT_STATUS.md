@@ -7974,3 +7974,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; OS-specific kill guarantees, physical filesystem durability, remote effect revocation and external/live/physical proof remain CP-17+ / ER / CAP work
 reviewer: Codex root implementation review plus process-group/reap/drain, patch precondition/rename/rollback, MCP stdio stop/unknown/reconciliation, Broker cancellation/permit ordering and sandbox isolation review; no runtime test reviewer
 ```
+
+### CP-17 revocation / cleanup / retirement evidence (2026-09-18)
+
+```text
+source_snapshot: c41a61fb + CP-17 working-tree slice; kiana-core/src/{cell_registry,collaboration,lifecycle,data_governance,dispatch,resource_projection,platform}.rs; kiana-domain/src/platform.rs; kiana-core/tests/{p1_c02_cell_lifecycle,p2_k6_01_reliability,p2_k7_01_data_governance,p4_j6_01_bounded_swarm,cp17_revoke_cleanup_guard}.rs; .github/workflows/cp17-revoke-cleanup.yml; docs/roadmap/cp17-revoke-cleanup-baseline.md; docs/roadmap.md
+worktree_status: source guard pins revoke-before-dispatch, parent/descendant cancellation, stop/release/settle/retire separation, own-resource idempotent release, active-capability refusal, resource quarantine projection, human reconciliation evidence and no automatic retry; no second cleanup authority or history rewrite was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only cleanup/retirement fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: p1_c02 cell lifecycle own-resource/idempotent release guard; p2_k6 reliability incident/quarantine/reconciliation guard; p2_k7 data revocation propagation guard; p4_j6 bounded swarm descendant/cancel/retire guard; cp17_revoke_cleanup_guard cross-layer source guard; GitHub Actions CP-17 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-17 is triggered by the eventual push and is not awaited
+status_change: CP-17 source slice is implemented. Revocation, cleanup and Cell retirement now have a roadmap-linked evidence gate with explicit Unknown quarantine.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable crash-reentrant cleanup work items, cross-process lease recovery, external compensation and live/physical proof remain CP-18+ / ER / SW work
+reviewer: Codex root implementation review plus revoke-before-dispatch, parent/descendant fence, stop/release/settle/retire sequencing, idempotent resource ownership, unknown quarantine and evidence-gated reconciliation review; no runtime test reviewer
+```

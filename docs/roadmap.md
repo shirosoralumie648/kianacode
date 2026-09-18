@@ -384,7 +384,7 @@
 | **W3** | **实际执行、取消与恢复** |  |  |  |  |  |  |
 | 215 | W3 | 专项 | [`CP-15`](roadmap/control-plane.md#step-cp-15) | ControlPlane · 统一取消状态，覆盖审批与排队竞态 | `CP-02`、`CP-07`、`CP-13`、`CP-14` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-15) |
 | 216 | W3 | 专项 | [`CP-16`](roadmap/control-plane.md#step-cp-16) | ControlPlane · Handler 真正停止与文件提交证据 | `CP-12`、`CP-13`、`CP-15` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-16) |
-| 217 | W3 | 专项 | [`CP-17`](roadmap/control-plane.md#step-cp-17) | ControlPlane · 撤销、失败清理与 Cell 退休 | `CP-08`、`CP-11`、`CP-12`、`CP-15`、`CP-16` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-17) |
+| 217 | W3 | 专项 | [`CP-17`](roadmap/control-plane.md#step-cp-17) | ControlPlane · 撤销、失败清理与 Cell 退休 | `CP-08`、`CP-11`、`CP-12`、`CP-15`、`CP-16` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-17) |
 | 218 | W3 | 专项 | [`CP-18`](roadmap/control-plane.md#step-cp-18) | ControlPlane · RunSnapshot 与安全 checkpoint | `CP-07`、`CP-09`、`CP-14`、`CP-17` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-18) |
 | 219 | W3 | 专项 | [`CP-19`](roadmap/control-plane.md#step-cp-19) | ControlPlane · 显式 Resume 与新进程重建 | `CP-10`、`CP-14`、`CP-17`、`CP-18` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-19) |
 | 220 | W3 | 专项 | [`CP-20`](roadmap/control-plane.md#step-cp-20) | ControlPlane · Unknown 对账、重试与补偿 | `CP-14`、`CP-17`、`CP-19` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-20) |
@@ -1530,6 +1530,7 @@
 | 2026-09-18 | `SC-19` secret rotation/revocation boundary：补跨 OAuth metadata/SecretStore/transport/ports/resource lease/daemon ingress source guard 与 ci09 fixture，固定 generation CAS、single-flight refresh、revocation fence、credential revision、one-shot lease、opaque token metadata 与 no-raw-token boundary；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `SC-20` redaction/secret egress boundary：补跨 domain/Core/Runner/Provider/daemon source guard 与 ER-03 redaction fixture，固定 recursive/streaming redaction、profile/depth/bytes/sentinel、EventLog/Receipt stability、stdout/stderr/MCP digest、sandbox env clear 与 no-raw-secret fields；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-18 | `CP-16` handler stop/file commit boundary：补跨 shell process-group/reap、patch precondition/descriptor-relative commit/rollback、MCP stdio stop/unknown/reconciliation、Broker cancellation and sandbox source guard；复用 P0-J1-03/04 fixtures；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-18 | `CP-17` revocation/cleanup/retirement boundary：补跨 CellRegistry/collaboration/lifecycle/data-governance/dispatch/resource-projection/platform source guard，固定 stop→release→settle→retire、descendant revoke、resource quarantine、idempotent own-resource release、reconciliation evidence 与 no auto-retry；复用 cell/reliability/data/swarm fixtures；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
