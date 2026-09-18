@@ -7221,3 +7221,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: existing `kiana-core::automation` still uses its compatibility process-local `SystemTime` helper until a later composition change injects ClockPort; no durable observation store, timer worker, trigger occurrence, lease/approval integration, cross-restart scheduler or live/physical proof is claimed
 reviewer: Codex root implementation review plus wall/monotonic zero/overflow and rollback trust semantics, revision/digest/persisted observation checks, ClockPort object-safe adapter and deadline hard-deny boundary, compatibility trait isolation and no-second-loop review; no runtime test reviewer
 ```
+
+### AUT-03 Workflow definition admission evidence (2026-09-18)
+
+```text
+source_snapshot: fa9a0c02 + AUT-03 working-tree slice; kiana-domain/src/{automation.rs,contracts.rs}; kiana-workflow/src/durable.rs; kiana-workflow/tests/aut03_definition.rs; kiana-core/src/automation.rs; kiana-core/tests/aut03_definition_guard.rs; .github/workflows/aut03-definition.yml; docs/roadmap/automation-definition-baseline.md; docs/roadmap.md
+worktree_status: `WorkflowDefinition` now has a canonical `kiana.workflow-definition.v1` digest/validate_digest contract while retaining the historical wire shape; pure planner admission rejects malformed identity/keys/projects, noncanonical schemas, unknown role, invalid node budget/timeout, dependency cycle/missing refs, recursive/missing subdefinitions and artifact dependency gaps. Existing `(definition_id, version)` insertion remains immutable and all effects still return to ControlPlane after commit; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-workflow --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  cargo check -p kiana-domain --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-workflow/tests/aut03_definition.rs covers stable/tampered digest, cycle, missing artifact dependency, malformed project and immutable version/unknown fields; kiana-core/tests/aut03_definition_guard.rs guards domain digest, planner fail-closed markers and pure/no-I/O/no-second-loop boundary; GitHub Actions AUT-03 workflow runs workflow/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-03 is triggered by the eventual push and is not awaited
+status_change: AUT-03 source slice is implemented. Workflow definitions now have a stable versioned identity and fail-closed structural admission before a workflow fact or effect intent is accepted.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: digest is computed at admission but not yet stored as a separate field on every historical instance/event projection; trigger source/occurrence/authority binding and durable CAS/cursor query remain AUT-04/05, and no scheduler or external/live/physical effect proof is claimed
+reviewer: Codex root implementation review plus canonical digest/version identity, unknown-field/role/project/key bounds, DAG and artifact dependency no-panic checks, subdefinition immutability, planner purity and ControlPlane-only effect routing review; no runtime test reviewer
+```

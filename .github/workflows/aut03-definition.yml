@@ -1,0 +1,49 @@
+name: AUT-03 workflow definition admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut03_definition.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut03_definition_guard.rs"
+      - "docs/roadmap/automation-definition-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut03-definition.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut03_definition.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut03_definition_guard.rs"
+      - "docs/roadmap/automation-definition-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut03-definition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  definition:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run definition admission fixtures
+        run: cargo test -p kiana-workflow --test aut03_definition --locked -- --test-threads=1
+      - name: Run workflow definition source guard
+        run: cargo test -p kiana-core --test aut03_definition_guard --locked -- --test-threads=1
+      - name: Compile AUT-03 targets
+        run: cargo check --workspace --tests --locked
+

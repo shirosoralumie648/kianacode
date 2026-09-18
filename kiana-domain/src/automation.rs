@@ -1,5 +1,5 @@
 //! Versioned durable workflow and trigger contracts. No type here grants execution authority.
-use crate::{CapabilityRequest, CoreResponse, RequestContext, RequestId, SessionId};
+use crate::{json_digest, CapabilityRequest, CoreResponse, RequestContext, RequestId, SessionId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -8,6 +8,7 @@ pub const AUTOMATION_COMMAND: &str = "workflow.command.v1";
 pub const AUTOMATION_SNAPSHOT: &str = "workflow.snapshot.v1";
 pub const AUTOMATION_SCHEMA: &str = "kiana.workflow-command.v1";
 pub const AUTOMATION_EVENT_SCHEMA: &str = "kiana.workflow-event.v1";
+pub const WORKFLOW_DEFINITION_SCHEMA: &str = "kiana.workflow-definition.v1";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -22,6 +23,33 @@ pub struct WorkflowDefinition {
     pub nodes: BTreeMap<String, WorkflowNode>,
     #[serde(default)]
     pub artifacts: BTreeMap<String, WorkflowArtifact>,
+}
+
+impl WorkflowDefinition {
+    /// Canonical, version-bound identity used by events and migration checks.  The wire DTO keeps
+    /// the historical shape for compatibility; callers must compute this digest before admitting
+    /// or dispatching an instance and must never replace an existing `(id, version)` in place.
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": WORKFLOW_DEFINITION_SCHEMA,
+            "definition_id": self.definition_id,
+            "version": self.version,
+            "input_keys": self.input_keys,
+            "output_keys": self.output_keys,
+            "allowed_roles": self.allowed_roles,
+            "max_duration_ms": self.max_duration_ms,
+            "max_steps": self.max_steps,
+            "nodes": self.nodes,
+            "artifacts": self.artifacts,
+        }))
+    }
+
+    pub fn validate_digest(&self, expected: &str) -> Result<(), String> {
+        if expected != self.digest() {
+            return Err("workflow_definition_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

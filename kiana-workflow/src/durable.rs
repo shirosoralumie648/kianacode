@@ -45,7 +45,10 @@ pub fn definition_key(id: &str, version: u64) -> String {
 
 pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
     require(
-        !d.definition_id.trim().is_empty() && d.definition_id.len() <= 128 && d.version > 0,
+        !d.definition_id.trim().is_empty()
+            && d.definition_id.len() <= 128
+            && !d.definition_id.contains(['\0', '\r', '\n'])
+            && d.version > 0,
         "workflow_definition_identity_invalid",
     )?;
     require(
@@ -68,8 +71,19 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
             && d.output_keys.iter().all(|k| !k.trim().is_empty()),
         "workflow_schema_key_invalid",
     )?;
+    require(
+        d.input_keys.len() <= 256
+            && d.output_keys.len() <= 256
+            && d.input_keys.windows(2).all(|pair| pair[0] < pair[1])
+            && d.output_keys.windows(2).all(|pair| pair[0] < pair[1]),
+        "workflow_schema_key_noncanonical",
+    )?;
     let mut graph = BTreeMap::new();
     for (id, node) in &d.nodes {
+        require(
+            !id.trim().is_empty() && id.len() <= 128 && !id.contains(['\0', '\r', '\n']),
+            "workflow_node_id_invalid",
+        )?;
         require(
             node.timeout_ms > 0 && node.timeout_ms <= d.max_duration_ms && node.retry_limit <= 3,
             "workflow_node_policy_invalid",
@@ -88,7 +102,12 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
                 packet_id,
                 ..
             } => require(
-                !project_id.trim().is_empty() && !packet_id.trim().is_empty(),
+                !project_id.trim().is_empty()
+                    && project_id.len() <= 256
+                    && !project_id.contains(['\0', '\r', '\n'])
+                    && !packet_id.trim().is_empty()
+                    && packet_id.len() <= 256
+                    && !packet_id.contains(['\0', '\r', '\n']),
                 "workflow_packet_required",
             )?,
             WorkflowNodeKind::Capability { request } => require(
@@ -109,7 +128,11 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
                 definition_id,
                 version,
             } => require(
-                definition_id != &d.definition_id && *version > 0,
+                definition_id != &d.definition_id
+                    && !definition_id.trim().is_empty()
+                    && definition_id.len() <= 128
+                    && !definition_id.contains(['\0', '\r', '\n'])
+                    && *version > 0,
                 "workflow_subworkflow_recursive",
             )?,
             _ => {}
@@ -122,17 +145,26 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
     let mut artifacts = BTreeMap::new();
     for (id, artifact) in &d.artifacts {
         require(
-            d.nodes.contains_key(&artifact.generated_by) && !artifact.output_key.is_empty(),
+            !id.trim().is_empty()
+                && id.len() <= 128
+                && !id.contains(['\0', '\r', '\n'])
+                && d.nodes.contains_key(&artifact.generated_by)
+                && !artifact.output_key.is_empty()
+                && artifact.output_key.len() <= 256
+                && !artifact.output_key.contains(['\0', '\r', '\n']),
             "workflow_artifact_generator_invalid",
         )?;
         let mut packet = WorkPacket::builder_task(id, id);
         packet.dependencies = artifact.requires.clone();
         artifacts.insert(id.clone(), packet);
     }
-    validate_dependency_dag(&artifacts).map_err(|_| "workflow_artifact_graph_invalid")?;
     for artifact in d.artifacts.values() {
         for input in &artifact.requires {
-            let source = &d.artifacts[input].generated_by;
+            let source_artifact = d
+                .artifacts
+                .get(input)
+                .ok_or("workflow_artifact_dependency_missing")?;
+            let source = &source_artifact.generated_by;
             let mut ancestors = BTreeSet::new();
             let mut pending = d.nodes[&artifact.generated_by].dependencies.clone();
             while let Some(next) = pending.pop() {
@@ -146,6 +178,7 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
             )?;
         }
     }
+    validate_dependency_dag(&artifacts).map_err(|_| "workflow_artifact_graph_invalid")?;
     Ok(())
 }
 fn create_instance(
