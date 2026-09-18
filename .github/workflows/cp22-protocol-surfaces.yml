@@ -1,0 +1,102 @@
+name: CP-22 protocol and surface parity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/client_methods.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/tests/p0_f01_approval_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "kiana-entrypoints/tests/cli_workbench.rs"
+      - "kiana-entrypoints/tests/cli_resume.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/worker.js"
+      - "docs/roadmap/cp22-protocol-surfaces-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp22-protocol-surfaces.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-protocol/tests/p4_j7_02_sequence.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/client_methods.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/tests/p2_m2_01_ui_projection.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/tests/p0_f01_approval_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "kiana-entrypoints/tests/cli_workbench.rs"
+      - "kiana-entrypoints/tests/cli_resume.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/worker.js"
+      - "docs/roadmap/cp22-protocol-surfaces-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp22-protocol-surfaces.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-surfaces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run protocol DTO fixture
+        run: cargo test -p kiana-protocol --test ui01_dto --locked -- --test-threads=1
+      - name: Run stream cursor fixture
+        run: cargo test -p kiana-protocol --test p4_j7_02_sequence --locked -- --test-threads=1
+      - name: Run client request fixture
+        run: cargo test -p kiana-client --test client_methods --locked -- --test-threads=1
+      - name: Run daemon UI projection fixture
+        run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - name: Run approval surface fixture
+        run: cargo test -p kiana-entrypoints --test p0_f01_approval_surfaces --locked -- --test-threads=1
+      - name: Run Web sync fixture
+        run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - name: Run CLI Workbench fixture
+        run: cargo test -p kiana-entrypoints --test cli_workbench --locked -- --test-threads=1
+      - name: Run CLI resume fixture
+        run: cargo test -p kiana-entrypoints --test cli_resume --locked -- --test-threads=1
+      - name: Run CP-22 source guard
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - name: Compile CP-22 targets
+        run: cargo check --workspace --tests --locked
+      - name: Check desktop surface fixtures
+        run: node --test contrib/desktop/tests/*.js

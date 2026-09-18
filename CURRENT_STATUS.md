@@ -8069,3 +8069,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable projection adapters, cross-host query consistency, pagination/rebuild crash matrices and wire/action-card parity remain PD/ER/CP-22 work
 reviewer: Codex root implementation review plus reducer/cursor/cache invalidation, owner/project disclosure filters, pending approval read-only path, typed Receipt source/effect/redaction fields and no permit/handler mutation review; no runtime test reviewer
 ```
+
+### CP-22 protocol / action-card / surface parity evidence (2026-09-18)
+
+```text
+source_snapshot: 33bfbb8a + CP-22 working-tree slice; kiana-protocol/src/{lib,ui_contracts}.rs; kiana-client/src/lib.rs; kiana-daemon/src/{lib,run_stream}.rs; kiana-entrypoints/src/{harness_run,workbench,workbench_chat,stream_render,web,web_page,product_command,command_dispatch,cli}.rs/html; contrib/desktop/{main.js,lib/worker.js}; kiana-entrypoints/tests/{p0_f01_approval_surfaces,p2_m5_01_web_sync,cp22_protocol_surfaces}.rs; kiana-protocol/tests/{ui01_dto,p4_j7_02_sequence}.rs; kiana-daemon/tests/p2_m2_01_ui_projection.rs; .github/workflows/cp22-protocol-surfaces.yml; docs/roadmap/cp22-protocol-surfaces-baseline.md; docs/roadmap.md
+worktree_status: source guard pins versioned RequestEnvelope/ResponseEnvelope and UiSnapshot/ActionCard proof/version contracts, shared DaemonHost pending/approve/deny/cancel/resume/receipt route, noninteractive AwaitingApproval/manual status mapping, Desktop→Web delegation, and snapshot/stream epoch/cursor gap/late-terminal replay; reconnect/display code cannot call model/Broker/execute; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only protocol/UI/CLI/Web/Desktop fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: ui01 DTO/action-card proof and unknown-field fixture; p4_j7_02 stream epoch/sequence fixture; daemon p2_m2 UI projection; entrypoint p0_f01 shared approval surfaces; p2_m5 Web sync; client/CLI/Workbench/resume fixtures; cp22_protocol_surfaces cross-surface source guard; GitHub Actions CP-22 runs selected fixtures, desktop node fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-22 is triggered by the eventual push and is not awaited
+status_change: CP-22 source slice is implemented. Protocol, action cards and all product surfaces now have a roadmap-linked same-fact/reconnect evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; remote authentication/device delivery, durable stream retention, full HTTP status/exit-code matrix and physical desktop packaging remain later UI/ER/PD work
+reviewer: Codex root implementation review plus shared envelope/action proof/version, explicit pending decision, noninteractive denial, stream epoch/cursor/gap/terminal replay, receipt-authoritative reconnect and no-second-loop/no-provider boundary review; no runtime test reviewer
+```
