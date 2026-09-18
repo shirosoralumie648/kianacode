@@ -8126,3 +8126,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; capacity values are not production benchmarks, cross-host fairness is not proven, and physical disk/provider latency/recovery remain PD/ER/DEP work
 reviewer: Codex root implementation review plus blocking-I/O worker isolation, cancellation/deadline propagation, queue/capacity structured denial, clock rollback/monotonic expiry and no authority extension/resource leak boundary review; no runtime test reviewer
 ```
+
+### CP-28 migration / compatibility / bypass boundary evidence (2026-09-18)
+
+```text
+source_snapshot: eb7f46a8 + CP-28 working-tree slice; kiana-domain/src/{contracts,event_contracts,storage_schema,identity_contracts}.rs; kiana-eventlog/src/{jsonl,journal_core,memory}.rs; kiana-ports/src/lib.rs; kiana-core/src/recovery.rs; kiana-daemon/src/{lib,journal_approvals}.rs; kiana-entrypoints/src/{harness_run,cli}.rs; kiana-entrypoints/tests/cli_architecture.rs; kiana-client/src/lib.rs; kiana-daemon/tests/eq12_daemon_spine.rs; kiana-core/tests/cp28_migration_boundary_guard.rs; .github/workflows/cp28-migration-boundary.yml; docs/roadmap/cp28-migration-boundary-baseline.md; docs/roadmap.md
+worktree_status: source guard pins versioned event/storage registries, explicit named upcasters and unknown-major/field denial, legacy approval/identity/Continue/resume query-only plus reauthorization, JSONL writer-version/atomic/CAS/upgrade fences, MigrationRunnerPort explicit capability errors and one DaemonHost→ControlPlane→Broker→Harness constructor path; product surfaces cannot invoke legacy runner/Broker directly and legacy dependency debt only decreases; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only schema/migration/JSONL/resume/dependency/architecture fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: p0_a01b schema; er01 event contract; pd02 storage schema; ci04 identity migration; p0_a01b/pd02/pd06/p0_g03/p0_g04/dependency core guards; EventLog package fixtures; daemon eq12 spine; entrypoint CLI architecture; cp28_migration_boundary_guard; GitHub Actions CP-28 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-28 is triggered by the eventual push and is not awaited
+status_change: CP-28 source slice is implemented. Migration, compatibility adapters and legacy bypass closure now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; production upgrade/downgrade rehearsal, cross-version multi-writer race, physical backup/restore and removal of all compatibility crates remain PD/ER/DEP work
+reviewer: Codex root implementation review plus named schema/event/storage upcaster, legacy authority reauthorization, old-writer fence, migration capability denial, DaemonHost constructor and dependency/legacy-edge/no-direct-runner boundary review; no runtime test reviewer
+```
