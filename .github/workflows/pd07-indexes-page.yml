@@ -1,0 +1,42 @@
+name: PD-07 EventStore indexes and page boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-eventlog/tests/pd07_indexes_page.rs"
+      - "kiana-core/tests/pd07_indexes_guard.rs"
+      - "docs/roadmap/pd07-indexes-page-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd07-indexes-page.yml"
+  pull_request:
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-eventlog/tests/pd07_indexes_page.rs"
+      - "kiana-core/tests/pd07_indexes_guard.rs"
+      - "docs/roadmap/pd07-indexes-page-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd07-indexes-page.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  indexes-page:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run index/page fixtures
+        run: cargo test -p kiana-eventlog --test pd07_indexes_page --locked -- --test-threads=1
+      - name: Run index/page source guard
+        run: cargo test -p kiana-core --test pd07_indexes_guard --locked -- --test-threads=1
+      - name: Compile PD-07 targets
+        run: cargo check --workspace --tests --locked

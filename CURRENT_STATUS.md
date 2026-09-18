@@ -7686,3 +7686,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no new physical/kill-9/multi-host durability proof; PD-07 indexes/page boundaries and PD-08 integrity/recovery gates remain
 reviewer: Codex root implementation review plus checksum/malformed/torn-tail semantics, sync and directory flush, process/file identity locks, bounded repair and explicit no-physical-overclaim review; no runtime test reviewer
 ```
+
+### PD-07 EventStore indexes/page evidence (2026-09-18)
+
+```text
+source_snapshot: 5cade069 + PD-07 working-tree slice; kiana-eventlog/src/{journal_core.rs,memory.rs,jsonl.rs}; kiana-eventlog/tests/pd07_indexes_page.rs; kiana-core/tests/pd07_indexes_guard.rs; .github/workflows/pd07-indexes-page.yml; docs/roadmap/pd07-indexes-page-baseline.md; docs/roadmap.md
+worktree_status: CI-only fixture verifies command/request/aggregate stream indexes and committed cursor pages across Memory/JSONL, rejects a cursor inside a TransitionBatch, keeps page limits from splitting a transaction, and checks JSONL reopen parity; no second index authority or implementation path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-eventlog --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-eventlog/tests/pd07_indexes_page.rs covers multi-event page boundary, mid-transaction cursor denial, command/request/stream lookup and JSONL reopen; kiana-core/tests/pd07_indexes_guard.rs guards source cursor/index-only boundary; GitHub Actions PD-07 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-07 is triggered by the eventual push and is not awaited
+status_change: PD-07 source slice is implemented. EventStore read indexes and page-boundary semantics now have explicit CI conformance before integrity/projector work.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: indexes are rebuildable adapter state; no cross-process integrity/quarantine, projector checkpoint or power-loss proof is claimed; PD-08+ remains
+reviewer: Codex root implementation review plus command/request/stream index parity, cursor boundary, transaction non-splitting and reopen parity review; no runtime test reviewer
+```
