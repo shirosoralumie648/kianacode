@@ -1,0 +1,44 @@
+name: EQ-10 fake provider adapter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq10_fake_provider.rs"
+      - "kiana-core/tests/eq10_fake_provider_guard.rs"
+      - "docs/roadmap/evaluation-provider-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq10-fake-provider.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq10_fake_provider.rs"
+      - "kiana-core/tests/eq10_fake_provider_guard.rs"
+      - "docs/roadmap/evaluation-provider-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq10-fake-provider.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fake-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run fake provider fixtures
+        run: cargo test -p kiana-daemon --test eq10_fake_provider --locked -- --test-threads=1
+      - name: Run fake provider source guard
+        run: cargo test -p kiana-core --test eq10_fake_provider_guard --locked -- --test-threads=1
+      - name: Compile EQ-10 targets
+        run: cargo check --workspace --tests --locked

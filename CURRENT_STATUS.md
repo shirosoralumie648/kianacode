@@ -7304,3 +7304,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: target execution is not yet launched through DaemonHost/ControlPlane, and no fake provider, deny broker, fixture store, event/receipt capture, fault/restart recovery or external/live/physical effect exists; these remain EQ-10+
 reviewer: Codex root implementation review plus temp-root ownership/containment, explicit HOME/KIANA_HOME allow-list, env lock/restore, fixed ClockObservation and deterministic non-security seed, cleanup scope and no-runner/no-network boundary review; no runtime test reviewer
 ```
+
+### EQ-10 Offline fake provider adapter evidence (2026-09-18)
+
+```text
+source_snapshot: 96e2b422 + EQ-10 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq10_fake_provider.rs; kiana-core/tests/eq10_fake_provider_guard.rs; .github/workflows/eq10-fake-provider.yml; docs/roadmap/evaluation-provider-baseline.md; docs/roadmap.md
+worktree_status: `FakeProviderScenario` is a strict tagged cassette with bounded complete/stream/tool/error fields; `FakeProviderAdapter` implements the existing `ModelClient` port, returns normalized complete output, emits typed text/tool deltas, records exact call count, and surfaces malformed/provider errors without endpoint, credential, environment, runner, Broker or background-task access; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq10_fake_provider.rs covers complete reply, bounded chunk stream aggregation, tool-call declaration without execution, malformed/provider error, call-count replay and strict unknown/bound checks; kiana-core/tests/eq10_fake_provider_guard.rs guards ModelClient/ModelDelta-only offline boundary and rejects network, credentials, runner, Broker and second-loop markers; GitHub Actions EQ-10 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-10 is triggered by the eventual push and is not awaited
+status_change: EQ-10 source slice is implemented.  Evaluation now has a deterministic fake provider cassette for complete, streamed, tool-call and explicit failure responses while preserving the existing provider port and leaving tool authorization to later ControlPlane/Broker work.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: adapter is not yet connected to a DaemonHost target or deny-by-default Broker; fixture store, event/receipt capture, fault/restart recovery, real network/secret/MCP/payment/publish/desktop effects and live/physical provider proof remain EQ-11+
+reviewer: Codex root implementation review plus strict scenario/tag/size bounds, typed delta aggregation, tool-call non-execution, call-count/no-retry assertion, explicit malformed/error mapping and no-network/no-credential/no-runner boundary review; no runtime test reviewer
+```

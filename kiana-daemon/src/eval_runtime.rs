@@ -5,11 +5,17 @@
 //! not start a runner, scheduler, provider or capability loop.  Callers must still route any
 //! target through the normal DaemonHost/ControlPlane composition.
 
+use async_trait::async_trait;
 use kiana_domain::ClockObservation;
+use kiana_domain::{ModelDelta, ModelOutput, ModelRequest, ModelToolCall, ModelUsage};
+use kiana_ports::ModelClient;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 pub const EVAL_RUNTIME_SCHEMA: &str = "kiana.eval-runtime.v1";
@@ -173,4 +179,170 @@ fn fnv1a(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(0x1000_0000_01b3)
     })
+}
+
+/// Deterministic provider cassette scenarios used by EQ-10+.  They are local values only; no
+/// endpoint, credential or network field exists in this adapter.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum FakeProviderScenario {
+    Complete {
+        text: String,
+    },
+    Stream {
+        chunks: Vec<String>,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        arguments: Value,
+    },
+    Malformed {
+        reason: String,
+    },
+    Error {
+        code: String,
+    },
+}
+
+impl FakeProviderScenario {
+    pub fn validate(&self) -> Result<(), String> {
+        fn bounded(value: &str, max: usize) -> bool {
+            !value.trim().is_empty() && value.len() <= max && !value.contains(['\0', '\r', '\n'])
+        }
+        match self {
+            Self::Complete { text } => {
+                if text.len() > 64 * 1024 {
+                    return Err("fake_provider_text_too_large".to_owned());
+                }
+            }
+            Self::Stream { chunks } => {
+                if chunks.is_empty()
+                    || chunks.len() > 256
+                    || chunks.iter().any(|chunk| chunk.len() > 16 * 1024)
+                {
+                    return Err("fake_provider_stream_invalid".to_owned());
+                }
+            }
+            Self::ToolCall {
+                id,
+                name,
+                arguments,
+            } => {
+                if !bounded(id, 128)
+                    || !bounded(name, 128)
+                    || !arguments.is_object()
+                    || serde_json::to_vec(arguments).map_or(true, |bytes| bytes.len() > 64 * 1024)
+                {
+                    return Err("fake_provider_tool_call_invalid".to_owned());
+                }
+            }
+            Self::Malformed { reason } => {
+                if !bounded(reason, 256) {
+                    return Err("fake_provider_malformed_invalid".to_owned());
+                }
+            }
+            Self::Error { code } => {
+                if !bounded(code, 128) {
+                    return Err("fake_provider_error_invalid".to_owned());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A provider-port fake that is deterministic and explicitly offline.  It records call count so
+/// CI can assert replay/stream fixtures do not make hidden retries or network calls.
+pub struct FakeProviderAdapter {
+    scenario: FakeProviderScenario,
+    calls: AtomicUsize,
+}
+
+impl FakeProviderAdapter {
+    pub fn new(scenario: FakeProviderScenario) -> Result<Self, String> {
+        scenario.validate()?;
+        Ok(Self {
+            scenario,
+            calls: AtomicUsize::new(0),
+        })
+    }
+
+    pub fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
+    }
+
+    fn output(&self) -> Result<ModelOutput, String> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        match &self.scenario {
+            FakeProviderScenario::Complete { text } => Ok(ModelOutput {
+                text: text.clone(),
+                stop_reason: Some("end_turn".to_owned()),
+                usage: Some(ModelUsage {
+                    input_tokens: 1,
+                    output_tokens: text.len() as u64,
+                }),
+                ..ModelOutput::default()
+            }),
+            FakeProviderScenario::Stream { chunks } => Ok(ModelOutput {
+                text: chunks.concat(),
+                stop_reason: Some("end_turn".to_owned()),
+                ..ModelOutput::default()
+            }),
+            FakeProviderScenario::ToolCall {
+                id,
+                name,
+                arguments,
+            } => Ok(ModelOutput {
+                tool_calls: vec![ModelToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    arguments: arguments.clone(),
+                }],
+                stop_reason: Some("tool_use".to_owned()),
+                ..ModelOutput::default()
+            }),
+            FakeProviderScenario::Malformed { reason } => {
+                Err(format!("fake_provider_malformed:{reason}"))
+            }
+            FakeProviderScenario::Error { code } => Err(format!("fake_provider_error:{code}")),
+        }
+    }
+}
+
+#[async_trait]
+impl ModelClient for FakeProviderAdapter {
+    async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        self.output()
+    }
+
+    async fn complete_streaming(
+        &self,
+        _request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        let output = self.output()?;
+        if let FakeProviderScenario::Stream { chunks } = &self.scenario {
+            for chunk in chunks {
+                on_delta(ModelDelta::Text {
+                    text: chunk.clone(),
+                })?;
+            }
+        }
+        if let FakeProviderScenario::ToolCall {
+            id,
+            name,
+            arguments,
+        } = &self.scenario
+        {
+            on_delta(ModelDelta::ToolArguments {
+                index: 0,
+                id: id.clone(),
+                name: name.clone(),
+                partial_json: serde_json::to_string(arguments)
+                    .map_err(|_| "fake_provider_tool_arguments_encode".to_owned())?,
+            })?;
+        }
+        Ok(output)
+    }
 }
