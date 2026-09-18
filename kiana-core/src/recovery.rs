@@ -444,6 +444,19 @@ impl ControlPlane {
                 "run_snapshot_stale",
             ));
         }
+        // A snapshot may be claimed at most once.  A second resume request must not
+        // restore the runner or re-open a pending capability from the same committed
+        // pause material.  Return a stable conflict before any new authority/effect
+        // boundary is installed; a concurrent caller is handled again after the CAS.
+        if events[index + 1..].iter().any(|claim_event| {
+            claim_event.kind == "run.resume_prepared"
+                && claim_event.data.get("snapshot_event_id") == Some(&json!(event.event_id))
+        }) {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "run_resume_claim_conflict",
+            ));
+        }
         let mut pending_invocation = match self
             .rebuild_pending_invocation(
                 &context,
@@ -527,9 +540,32 @@ impl ControlPlane {
             }),
         )?
         .with_stream_metadata("run", run_id.to_string(), last_version + 1);
-        self.events
-            .append_expected(claim, Some(last_version))
-            .await?;
+        match self.events.append_expected(claim, Some(last_version)).await {
+            Ok(()) => {}
+            Err(PortError::Conflict(reason)) => {
+                // Another resume can win the same snapshot claim between the read and
+                // this CAS.  Re-read the stream before surfacing a generic conflict so
+                // callers get the same stable response as a sequential duplicate.
+                let claimed = self
+                    .events
+                    .read_stream("run", &run_id.to_string())
+                    .await?
+                    .iter()
+                    .any(|claim_event| {
+                        claim_event.kind == "run.resume_prepared"
+                            && claim_event.data.get("snapshot_event_id")
+                                == Some(&json!(event.event_id))
+                    });
+                if claimed {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "run_resume_claim_conflict",
+                    ));
+                }
+                return Err(PortError::Conflict(reason).into());
+            }
+            Err(error) => return Err(error.into()),
+        }
         if snapshot.authority_revision != self.authority_revision(&context.project_root).await? {
             return Ok(CoreResponse::blocked(
                 context.request_id,

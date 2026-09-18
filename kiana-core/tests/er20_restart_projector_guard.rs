@@ -53,7 +53,11 @@ fn restart_never_auto_resumes_pending_run() {
     );
     require(
         runner,
-        &["async fn checkpoint", "async fn restore", "runner_checkpoint_invalid"],
+        &[
+            "async fn checkpoint",
+            "async fn restore",
+            "runner_checkpoint_invalid",
+        ],
         "Runner checkpoint boundary",
     );
     for source in [recovery, projection, daemon] {
@@ -105,12 +109,20 @@ fn corrupt_journal_does_not_boot_empty() {
     );
     require(
         projection,
-        &["run_projection_unsupported", "TerminalConflict", "run_terminal_conflict"],
+        &[
+            "run_projection_unsupported",
+            "TerminalConflict",
+            "run_terminal_conflict",
+        ],
         "projection fail closed",
     );
     require(
         fixture,
-        &["eventlog_legacy_writer_after_upgrade", "eventlog_file_replaced", "CapabilityBroker"],
+        &[
+            "eventlog_legacy_writer_after_upgrade",
+            "eventlog_file_replaced",
+            "CapabilityBroker",
+        ],
         "corruption fixture",
     );
 }
@@ -125,32 +137,63 @@ fn rebuild_does_not_issue_permit() {
 
     require(
         resources,
-        &["project_recovery_resources", "recovery_resource_source_empty", "Read-only"],
+        &[
+            "project_recovery_resources",
+            "recovery_resource_source_empty",
+            "Read-only",
+        ],
         "resource projection",
     );
     require(
         attempts,
-        &["project_capability_attempts", "CapabilityEffectState::Unknown", "fenced", "source_cursor"],
+        &[
+            "project_capability_attempts",
+            "CapabilityEffectState::Unknown",
+            "fenced",
+            "source_cursor",
+        ],
         "attempt projection",
     );
     require(
         audit,
-        &["rebuild_audit_projection", "read_all_events", "AuditProjection", "checkpoint"],
+        &[
+            "rebuild_audit_projection",
+            "read_all_events",
+            "AuditProjection",
+            "checkpoint",
+        ],
         "audit projection",
     );
     require(
         recovery,
-        &["recovery_resources", "read_all_events", "project_recovery_resources"],
+        &[
+            "recovery_resources",
+            "read_all_events",
+            "project_recovery_resources",
+        ],
         "recovery projection",
     );
     require(
         ports,
-        &["ProjectionStorePort", "read_projection", "checkpoint", "projection_store_unsupported"],
+        &[
+            "ProjectionStorePort",
+            "read_projection",
+            "checkpoint",
+            "projection_store_unsupported",
+        ],
         "projection port",
     );
     for source in [resources, attempts, audit, recovery] {
-        for forbidden in ["issue_permit(", "consume_approval(", "execute_authorized_request(", "CapabilityBroker"] {
-            assert!(!source.contains(forbidden), "restart rebuild widened authority: {forbidden}");
+        for forbidden in [
+            "issue_permit(",
+            "consume_approval(",
+            "execute_authorized_request(",
+            "CapabilityBroker",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "restart rebuild widened authority: {forbidden}"
+            );
         }
     }
 }

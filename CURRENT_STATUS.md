@@ -8221,3 +8221,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process projector durability, power-loss recovery, physical journal repair and ER-21/ER-22 proof remain open
 reviewer: Codex root implementation review plus integrity scan/corrupt-vs-empty distinction, projection/resource/pending/Unknown rebuild, readiness degradation and no-auto-resume/no-permit/no-Broker restart boundary review; no runtime test reviewer
 ```
+
+### ER-21 explicit resume preflight / claim evidence (2026-09-18)
+
+```text
+source_snapshot: 6f367bc3 + ER-21 working-tree slice; kiana-core/src/recovery.rs; kiana-core/src/{invocation_projection,lifecycle}.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-runner/src/harness.rs; kiana-ports/src/lib.rs; kiana-entrypoints/src/{harness_run,workbench_chat,web,web_page.html,product_command,cli}.rs; kiana-core/tests/er21_resume_claim_guard.rs; .github/workflows/er21-resume-claim.yml; docs/roadmap/er21-resume-claim-baseline.md; docs/roadmap.md
+worktree_status: resume now rebuilds the exact snapshot/pending facts, rechecks owner/role/sandbox/path/authority/data epoch and stale scope, claims run.resume_prepared with stream CAS before runner restore, and rejects sequential or concurrent duplicate snapshot claims with stable run_resume_claim_conflict; protocol, DaemonHost, harness, Workbench, Web and product/CLI remain one shared ResumeRequest path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only resume/preflight/entrypoint fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: P0-G-03 resume guard; CP-19 explicit resume guard; H14 invocation resume binding; CP-22 protocol surfaces; CLI resume fixture; er21_resume_claim_guard; GitHub Actions ER-21 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-21 is triggered by the eventual push and is not awaited
+status_change: ER-21 source slice is implemented. Explicit resume preflight, single-use snapshot claim and shared protocol/entrypoint routing now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process duplicate recovery, power-loss CAS recovery, runner restore fault injection and external effect reconciliation remain open
+reviewer: Codex root implementation review plus exact snapshot/scope/authority/data/sandbox fences, CAS claim-before-restore, stable sequential/concurrent duplicate conflict and single DaemonHost→ControlPlane routing review; no runtime test reviewer
+```

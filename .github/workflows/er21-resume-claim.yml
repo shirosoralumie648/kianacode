@@ -1,0 +1,84 @@
+name: ER-21 explicit resume preflight and claim
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp19_explicit_resume_guard.rs"
+      - "kiana-core/tests/h14_approval_resume.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-entrypoints/tests/cli_resume.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-core/tests/er21_resume_claim_guard.rs"
+      - "docs/roadmap/er21-resume-claim-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er21-resume-claim.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp19_explicit_resume_guard.rs"
+      - "kiana-core/tests/h14_approval_resume.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-entrypoints/tests/cli_resume.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-core/tests/er21_resume_claim_guard.rs"
+      - "docs/roadmap/er21-resume-claim-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er21-resume-claim.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resume-claim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run recovery and protocol fixtures
+        run: cargo test -p kiana-core --test p0_g03_resume_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp19_explicit_resume_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test h14_approval_resume --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+      - name: Run shared entrypoint fixtures
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test cli_resume --locked -- --test-threads=1
+      - name: Run ER-21 source guard
+        run: cargo test -p kiana-core --test er21_resume_claim_guard --locked -- --test-threads=1
+      - name: Compile ER-21 targets
+        run: cargo check --workspace --tests --locked
