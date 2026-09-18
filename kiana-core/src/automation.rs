@@ -163,6 +163,7 @@ impl ControlPlane {
             request: request.clone(),
             authority: a,
             proof,
+            envelope: None,
         };
         let committed = match self.commit_workflow(&context, event).await {
             Ok(e) => e,
@@ -312,6 +313,26 @@ impl ControlPlane {
             {
                 return Err(automation_error("workflow_replay_conflict"));
             }
+            if let Some(envelope) = &e.envelope {
+                let command_digest = json_digest(
+                    &serde_json::to_value(&e.request)
+                        .map_err(|_| automation_error("workflow_event_invalid"))?,
+                );
+                let payload_digest = json_digest(&json!({
+                    "authority": &e.authority,
+                    "proof": &e.proof,
+                }));
+                envelope
+                    .validate_against(
+                        &aggregate_id(context),
+                        event.stream_version.unwrap_or_default(),
+                        e.authority.context.request_id,
+                        &e.request.idempotency_key,
+                        &command_digest,
+                        &payload_digest,
+                    )
+                    .map_err(|_| automation_error("workflow_event_envelope_mismatch"))?;
+            }
             state = plan_command(&state, &e.request.command, &e.authority, &e.proof)
                 .map_err(automation_error)?
                 .0;
@@ -322,9 +343,30 @@ impl ControlPlane {
     async fn commit_workflow(
         &self,
         context: &RequestContext,
-        event: AutomationEvent,
+        mut event: AutomationEvent,
     ) -> Result<RuntimeEvent, CoreError> {
         let expected = event.request.expected_revision;
+        let command_digest = json_digest(
+            &serde_json::to_value(&event.request)
+                .map_err(|_| automation_error("workflow_event_encode_failed"))?,
+        );
+        let payload_digest = json_digest(&json!({
+            "authority": &event.authority,
+            "proof": &event.proof,
+        }));
+        event.envelope = Some(
+            AutomationEventEnvelope::new(
+                aggregate_id(context),
+                expected
+                    .checked_add(1)
+                    .ok_or_else(|| automation_error("workflow_revision_exhausted"))?,
+                event.authority.context.request_id,
+                event.request.idempotency_key.clone(),
+                command_digest,
+                payload_digest,
+            )
+            .map_err(|_| automation_error("workflow_event_envelope_invalid"))?,
+        );
         let data = serde_json::to_value(&event)
             .map_err(|_| automation_error("workflow_event_encode_failed"))?;
         if super::redaction::redact_event_value(&data) != data {
@@ -370,6 +412,7 @@ impl ControlPlane {
                 },
                 authority: a,
                 proof: proof.clone(),
+                envelope: None,
             };
             let mut observation = context.clone();
             observation.request_id = RequestId::new();

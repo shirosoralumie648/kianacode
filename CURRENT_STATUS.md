@@ -7263,3 +7263,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: project/authority/policy revisions remain authenticated ControlPlane context and approval evidence rather than dedicated TriggerOccurrence fields; durable occurrence/event envelope, CAS/cursor query and multi-scheduler dedup remain AUT-05, with no scheduler or external/live/physical proof claimed
 reviewer: Codex root implementation review plus trigger schema/digest and input bound, expiry/interval overflow, source kind/event_ref exactness, owner/role/approval evidence, duplicate firing/concurrency/quota and planner purity/no-second-loop review; no runtime test reviewer
 ```
+
+### AUT-05 Automation event envelope/CAS evidence (2026-09-18)
+
+```text
+source_snapshot: c30b35ae + AUT-05 working-tree slice; kiana-domain/src/{automation.rs,contracts.rs}; kiana-ports/src/lib.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut05_event_envelope.rs; kiana-core/tests/aut05_event_guard.rs; .github/workflows/aut05-event-envelope.yml; docs/roadmap/automation-event-baseline.md; docs/roadmap.md
+worktree_status: workflow command facts now receive additive strict `AutomationEventEnvelope` metadata immediately before protected EventStore CAS: workflow aggregate/id, stream version/cursor, request/idempotency key, command/payload digests and envelope digest. Replay validates the envelope against the RuntimeEvent stream cursor and reconstructed request/proof; legacy envelope-less facts remain migration-readable. `EventStorePort::read_stream_after` provides bounded committed cursor reads without granting claim/authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/aut05_event_envelope.rs covers envelope round-trip, digest binding, cursor/payload drift and unknown fields; kiana-core/tests/aut05_event_guard.rs guards envelope stamping/replay validation, aggregate CAS/idempotency and bounded cursor port; GitHub Actions AUT-05 workflow runs domain/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-05 is triggered by the eventual push and is not awaited
+status_change: AUT-05 source slice is implemented. Automation events now expose an inspectable aggregate/CAS/idempotency/cursor envelope while preserving the single ControlPlane→EventStore execution spine.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: legacy facts without envelopes remain compatibility-readable, read_stream_after defaults to bounded filtering for adapters without indexed queries, and durable indexed projector/torn-tail/multi-scheduler recovery remain PD/ER/AUT-08+; no scheduler or external/live/physical effect proof is claimed
+reviewer: Codex root implementation review plus strict envelope schema/unknown-field/digest binding, stream cursor/idempotency/request payload consistency, stamping-before-CAS and replay checks, bounded read-only cursor query and legacy migration boundary review; no runtime test reviewer
+```

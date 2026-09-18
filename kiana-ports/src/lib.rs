@@ -1253,6 +1253,36 @@ pub trait EventStorePort: Send + Sync {
             })
             .collect())
     }
+
+    /// Read one aggregate stream after a bounded logical cursor.  This helper preserves the
+    /// store's committed order and fails closed on unsupported reads; an empty page is not a
+    /// successful claim or an authority decision.
+    async fn read_stream_after(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+        after_version: u64,
+        limit: usize,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        if limit == 0 || limit > 4_096 {
+            return Err(PortError::Failed(
+                "event_stream_page_limit_invalid".to_owned(),
+            ));
+        }
+        let mut events = self.read_stream(aggregate_type, aggregate_id).await?;
+        events.sort_by_key(|event| event.stream_version.unwrap_or(0));
+        let mut page = Vec::new();
+        for event in events {
+            let version = event.stream_version.unwrap_or(0);
+            if version > after_version {
+                page.push(event);
+                if page.len() >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(page)
+    }
 }
 
 #[async_trait]

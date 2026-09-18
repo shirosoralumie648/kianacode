@@ -10,6 +10,7 @@ pub const AUTOMATION_SCHEMA: &str = "kiana.workflow-command.v1";
 pub const AUTOMATION_EVENT_SCHEMA: &str = "kiana.workflow-event.v1";
 pub const WORKFLOW_DEFINITION_SCHEMA: &str = "kiana.workflow-definition.v1";
 pub const TRIGGER_DEFINITION_SCHEMA: &str = "kiana.trigger-definition.v1";
+pub const AUTOMATION_EVENT_ENVELOPE_SCHEMA: &str = "kiana.workflow-event-envelope.v1";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -413,12 +414,119 @@ pub struct AutomationProof {
     pub evidence_refs: Vec<String>,
     pub event_kind: Option<String>,
 }
+
+/// Canonical envelope for a committed workflow command fact.  RuntimeEvent remains the source of
+/// truth; this envelope makes aggregate/CAS/idempotency/cursor joins explicit and replayable.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutomationEventEnvelope {
+    pub schema: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub stream_version: u64,
+    pub source_cursor: u64,
+    pub request_id: RequestId,
+    pub idempotency_key: String,
+    pub command_digest: String,
+    pub payload_digest: String,
+    pub envelope_digest: String,
+}
+
+impl AutomationEventEnvelope {
+    pub fn new(
+        aggregate_id: impl Into<String>,
+        stream_version: u64,
+        request_id: RequestId,
+        idempotency_key: impl Into<String>,
+        command_digest: impl Into<String>,
+        payload_digest: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut envelope = Self {
+            schema: AUTOMATION_EVENT_ENVELOPE_SCHEMA.to_owned(),
+            aggregate_type: "workflow".to_owned(),
+            aggregate_id: aggregate_id.into(),
+            stream_version,
+            source_cursor: stream_version,
+            request_id,
+            idempotency_key: idempotency_key.into(),
+            command_digest: command_digest.into(),
+            payload_digest: payload_digest.into(),
+            envelope_digest: String::new(),
+        };
+        envelope.envelope_digest = envelope.digest();
+        envelope.validate()?;
+        Ok(envelope)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        fn digest(value: &str) -> bool {
+            value
+                .strip_prefix("sha256:")
+                .is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+        }
+        if self.schema != AUTOMATION_EVENT_ENVELOPE_SCHEMA
+            || self.aggregate_type != "workflow"
+            || self.aggregate_id.trim().is_empty()
+            || self.aggregate_id.len() > 512
+            || self.stream_version == 0
+            || self.source_cursor != self.stream_version
+            || self.request_id.as_uuid().is_nil()
+            || self.idempotency_key.trim().is_empty()
+            || self.idempotency_key.len() > 256
+            || !digest(&self.command_digest)
+            || !digest(&self.payload_digest)
+            || !digest(&self.envelope_digest)
+            || self.envelope_digest != self.digest()
+        {
+            return Err("automation_event_envelope_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn validate_against(
+        &self,
+        aggregate_id: &str,
+        stream_version: u64,
+        request_id: RequestId,
+        idempotency_key: &str,
+        command_digest: &str,
+        payload_digest: &str,
+    ) -> Result<(), String> {
+        self.validate()?;
+        if self.aggregate_id != aggregate_id
+            || self.stream_version != stream_version
+            || self.request_id != request_id
+            || self.idempotency_key != idempotency_key
+            || self.command_digest != command_digest
+            || self.payload_digest != payload_digest
+        {
+            return Err("automation_event_envelope_binding_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "aggregate_type": self.aggregate_type,
+            "aggregate_id": self.aggregate_id,
+            "stream_version": self.stream_version,
+            "source_cursor": self.source_cursor,
+            "request_id": self.request_id,
+            "idempotency_key": self.idempotency_key,
+            "command_digest": self.command_digest,
+            "payload_digest": self.payload_digest,
+        }))
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AutomationEvent {
     pub schema: String,
     pub request: AutomationCommandRequest,
     pub authority: AutomationAuthority,
     pub proof: AutomationProof,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub envelope: Option<AutomationEventEnvelope>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum WorkflowEffect {
