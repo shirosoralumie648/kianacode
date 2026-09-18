@@ -7898,3 +7898,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; signed external webhook verification, live connector transport, downstream token issuance and external/live/physical effect proof remain SC-18+ / INT / provider work
 reviewer: Codex root implementation review plus ProjectTrust/operator gate, binding/account/project/scope, approval/idempotency/rate limit, receipt audience/unknown/reconciliation, MCP config/schema/health/stdio stop and unsupported HTTP/SSE/WS transport review; no runtime test reviewer
 ```
+
+### SC-18 SecretRef / SecretStore evidence (2026-09-18)
+
+```text
+source_snapshot: f6f69f25 + SC-18 working-tree slice; kiana-domain/src/{identity_contracts,credentials,redaction}.rs; kiana-domain/tests/ci07_credential_lease.rs; kiana-ports/src/lib.rs; kiana-provider/src/{credentials,config,transport}.rs; kiana-provider/tests/ci07_secret_store.rs; kiana-capability-broker/src/lib.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/{ci07_secret_store,sc18_secret_ref_guard}.rs; .github/workflows/sc18-secret-ref.yml; docs/roadmap/sc18-secret-ref-baseline.md; docs/roadmap.md
+worktree_status: source guard pins opaque SecretRef/ProviderAccount/ConfigSnapshot, one-shot CredentialLease purpose/audience/account/endpoint/expiry/digest fences, CredentialResolver no-raw contract, provider SecretStore effect boundary/drop, Broker lease consumption and recursive redaction/sentinel denial; no raw secret field, token passthrough or second secret authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only credential fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/ci07_credential_lease.rs covers one-shot/expiry/provider-purpose-audience-endpoint binding and secret-free JSON; kiana-provider/tests/ci07_secret_store.rs covers opaque config/catalog and missing resolution; kiana-core/tests/sc18_secret_ref_guard.rs checks opaque/store/provider/Broker/redaction markers and rejects raw secret/passthrough fields; GitHub Actions SC-18 runs fixtures, source guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-18 is triggered by the eventual push and is not awaited
+status_change: SC-18 source slice is implemented. Secret references and final effect-time lease consumption now have a roadmap-linked opaque-credential evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon lease rotation/revocation, crash recovery, full secret egress audit and external/live/physical proof remain SC-19+ / OA / ER work
+reviewer: Codex root implementation review plus opaque SecretRef/ProviderAccount/config snapshot, CredentialLease one-shot/expiry/purpose/audience/endpoint, CredentialResolver/SecretStore no-raw boundary, Broker consumption and recursive redaction/sentinel review; no runtime test reviewer
+```
