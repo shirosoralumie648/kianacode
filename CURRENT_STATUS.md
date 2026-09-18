@@ -7585,3 +7585,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: ProviderBudget/EffectiveBudget are in-memory pure contracts; quota windows, UTC clock, durable reservation/CAS/fence, queue/capacity and financial billing authority remain BQ-07+
 reviewer: Codex root implementation review plus five-scope min semantics, child widening/usage reset rejection, invalid/empty limit handling, provider cap propagation and FinancialBudget exclusion review; no runtime test reviewer
 ```
+
+### BQ-07 Quota window/group evidence (2026-09-18)
+
+```text
+source_snapshot: 2f028e89 + BQ-07 working-tree slice; kiana-domain/src/{billing_quota.rs,lib.rs,clock.rs}; kiana-domain/tests/bq07_quota_window.rs; kiana-core/tests/bq07_quota_window_guard.rs; .github/workflows/bq07-quota-window.yml; docs/roadmap/billing-quota-window-baseline.md; docs/roadmap.md
+worktree_status: trusted-clock UTC `QuotaWindow` now derives deterministic start/end/retry-after, rejects rollback/untrusted samples, `QuotaGroupKey` canonicalizes provider/credential/model/alias into one digest-bound identity, and `QuotaWindowBudget` rejects empty/over-limit dimensions; no durable reservation/fence/provider capacity path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq07_quota_window.rs covers UTC floor/retry-after, rollback denial, alias canonicalization, empty groups and over-limit budget; kiana-core/tests/bq07_quota_window_guard.rs guards trusted-clock/no-provider/no-I/O/financial boundary; GitHub Actions BQ-07 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-07 is triggered by the eventual push and is not awaited
+status_change: BQ-07 source slice is implemented. Quota dimensions and fixed UTC windows now have deterministic fail-closed contracts before durable reservation.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: window/group/budget are in-memory domain values; no durable reservation/CAS/fence, cross-process clock store, fair queue, capacity backend or provider dispatch integration exists
+reviewer: Codex root implementation review plus trusted clock/rollback gate, UTC boundary/retry-after, alias/credential/model canonicalization, empty/overlimit checks and no-side-effect boundary review; no runtime test reviewer
+```
