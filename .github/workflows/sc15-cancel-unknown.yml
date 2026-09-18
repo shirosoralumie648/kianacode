@@ -1,0 +1,60 @@
+name: SC-15 cancellation fencing and unknown reconciliation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/sc15_cancel_unknown.rs"
+      - "kiana-core/tests/sc15_cancel_unknown_guard.rs"
+      - "docs/roadmap/sc15-cancel-unknown-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc15-cancel-unknown.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/cancellation.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/sc15_cancel_unknown.rs"
+      - "kiana-core/tests/sc15_cancel_unknown_guard.rs"
+      - "docs/roadmap/sc15-cancel-unknown-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc15-cancel-unknown.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancel-unknown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-15 cancellation facts
+        run: cargo test -p kiana-core --test sc15_cancel_unknown --locked -- --test-threads=1
+      - name: Run SC-15 source guard
+        run: cargo test -p kiana-core --test sc15_cancel_unknown_guard --locked -- --test-threads=1
+      - name: Compile SC-15 targets
+        run: cargo check --workspace --tests --locked

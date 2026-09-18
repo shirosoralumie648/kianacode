@@ -7841,3 +7841,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; DNS resolver ownership, per-connection egress enforcement, credential/secret delivery, crash recovery and external/live network proof remain SC-15+ / SC-17 / SC-18+ work
 reviewer: Codex root implementation review plus HTTPS/allowlist/policy-digest, resolved-address/local-metadata, Broker scope recheck, bubblewrap isolation and no-hidden-network-I/O boundary review; no runtime test reviewer
 ```
+
+### SC-15 cancellation / unknown reconciliation evidence (2026-09-18)
+
+```text
+source_snapshot: 3c391e3e + SC-15 working-tree slice; kiana-domain/src/{cancellation,states,platform}.rs; kiana-runner/src/{state_driver,harness}.rs; kiana-runner/tests/h08_cancellation_guard.rs; kiana-core/src/{lifecycle,dispatch,sessions,platform,recovery}.rs; kiana-core/tests/sc15_cancel_unknown.rs; kiana-core/tests/sc15_cancel_unknown_guard.rs; .github/workflows/sc15-cancel-unknown.yml; docs/roadmap/sc15-cancel-unknown-baseline.md; docs/roadmap.md
+worktree_status: source guard and pure fixtures pin durable cancellation intent, one-way Cancelled/ResultUnknown transitions, runner cancellation/retry/stream fences, Core run.cancelling CAS and stop confirmation, dispatch effect-known/fenced receipts, quarantine and human reconciliation evidence; no unknown-to-success or automatic retry path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only cancellation facts/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/sc15_cancel_unknown.rs covers confirmed stop versus unknown fact validation and terminal transition monotonicity; kiana-core/tests/sc15_cancel_unknown_guard.rs checks Runner/Core/dispatch/quarantine/reconciliation markers and forbidden false-success/retry bypass strings; GitHub Actions SC-15 workflow runs both fixtures, source guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-15 is triggered by the eventual push and is not awaited
+status_change: SC-15 source slice is implemented. Cancellation now has an explicit roadmap-linked evidence gate from Runner request through Core durable fact, effect receipt, quarantine and human reconciliation.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; external provider reconciliation, cross-process crash recovery and live/physical stop evidence remain SC-16+ / PD / ER work
+reviewer: Codex root implementation review plus cancellation fact digest/state transition, cancellation token/retry/stream fence, stop confirmation/result-unknown split, unknown receipt fencing, resource quarantine and evidence-gated reconciliation review; no runtime test reviewer
+```
