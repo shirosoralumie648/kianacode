@@ -212,6 +212,7 @@ impl CapabilityBroker {
         scope
             .validate_for_request(&request.request)
             .map_err(PortError::Failed)?;
+        validate_network_observation(&request.request, scope)?;
         Ok(())
     }
     async fn admit_extensions(
@@ -324,6 +325,52 @@ impl CapabilityBroker {
             }),
         )
     }
+}
+
+fn validate_network_observation(
+    request: &kiana_domain::CapabilityRequest,
+    scope: &kiana_domain::ExecutionScope,
+) -> Result<(), PortError> {
+    let Some(endpoint) = request
+        .arguments
+        .get("endpoint")
+        .and_then(|value| value.as_str())
+    else {
+        return Ok(());
+    };
+    if request.capability != CapabilityKind::Network {
+        return Err(PortError::Failed(
+            "network_endpoint_on_non_network_action".to_owned(),
+        ));
+    }
+    let addresses = request
+        .arguments
+        .get("resolved_addresses")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| PortError::Failed("network_resolution_observation_required".to_owned()))?
+        .iter()
+        .map(|value| {
+            value.as_str().map(str::to_owned).ok_or_else(|| {
+                PortError::Failed("network_resolution_observation_invalid".to_owned())
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let policy = kiana_domain::NetworkPolicy::from_scope_hosts(&scope.network_policy)
+        .map_err(PortError::Failed)?;
+    let observation = policy
+        .observe(endpoint, &addresses)
+        .map_err(PortError::Failed)?;
+    let expected = request
+        .arguments
+        .get("network_policy_digest")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| PortError::Failed("network_policy_digest_required".to_owned()))?;
+    if expected != observation.policy_digest {
+        return Err(PortError::Failed(
+            "network_policy_digest_mismatch".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn insert_handler(

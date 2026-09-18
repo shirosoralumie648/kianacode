@@ -7821,3 +7821,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process crash/recovery, physical filesystem durability, endpoint/secret fences and external/live effect proof remain SC-14+ / PD / ER work
 reviewer: Codex root implementation review plus root-relative containment, symlink/hardlink/rename replacement, inode/content precondition, durable path lock, authority fence, broker recheck and zero-bypass source-boundary review; no runtime test reviewer
 ```
+
+### SC-14 network policy / sandbox boundary evidence (2026-09-18)
+
+```text
+source_snapshot: c67b9a35 + SC-14 working-tree slice; kiana-domain/src/{network_policy,lib}.rs; kiana-domain/tests/sc14_network_policy.rs; kiana-capability-broker/src/lib.rs; kiana-daemon/src/harness_sandbox.rs; kiana-services/src/network_policy.rs; kiana-core/tests/sc14_network_policy_guard.rs; .github/workflows/sc14-network-policy.yml; docs/roadmap/sc14-network-policy-baseline.md; docs/roadmap.md; Cargo.lock
+worktree_status: domain now owns server-derived NetworkPolicy and bounded NetworkEndpointObservation; adapters provide resolved addresses but do not grant policy; Broker checks endpoint observations against ExecutionScope.network_policy and policy digest, while existing bubblewrap/HTTP guards remain deny-first; no DNS/network I/O or second execution path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo check --workspace --tests --offline
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache after lockfile refresh; CI-only domain fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/sc14_network_policy.rs covers allowlisted HTTPS observation plus local/metadata/unallowlisted/unsafe URL/empty scope denial; kiana-core/tests/sc14_network_policy_guard.rs pins domain/Broker/sandbox/network-policy markers and rejects hidden network I/O; GitHub Actions SC-14 workflow runs both fixtures, source guard and workspace compile
+exit_code: 0 for format, offline workspace test-target static compilation, locked workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-14 is triggered by the eventual push and is not awaited
+status_change: SC-14 source slice is implemented. Endpoint allowlist, resolved-address and sandbox policy boundaries now have versioned source contracts and Broker recheck wiring.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; DNS resolver ownership, per-connection egress enforcement, credential/secret delivery, crash recovery and external/live network proof remain SC-15+ / SC-17 / SC-18+ work
+reviewer: Codex root implementation review plus HTTPS/allowlist/policy-digest, resolved-address/local-metadata, Broker scope recheck, bubblewrap isolation and no-hidden-network-I/O boundary review; no runtime test reviewer
+```
