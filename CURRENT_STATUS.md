@@ -8088,3 +8088,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; remote authentication/device delivery, durable stream retention, full HTTP status/exit-code matrix and physical desktop packaging remain later UI/ER/PD work
 reviewer: Codex root implementation review plus shared envelope/action proof/version, explicit pending decision, noninteractive denial, stream epoch/cursor/gap/terminal replay, receipt-authoritative reconnect and no-second-loop/no-provider boundary review; no runtime test reviewer
 ```
+
+### CP-26 decision trace / audit / evidence boundary (2026-09-18)
+
+```text
+source_snapshot: 50074b62 + CP-26 working-tree slice; kiana-domain/src/{audit,observability,correlation,security_reasons}.rs; kiana-core/src/{events,redaction,audit,audit_projection,audit_export,security_context,security_fence,approval_binding,dispatch,receipts}.rs; kiana-daemon/src/execution_control.rs; kiana-entrypoints/src/provider_diagnostics.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-core/tests/{oa04_audit_reducer,oa15_audit_projection,oa18_audit_export,oa14_trace_export,er03_redaction_guard,er11_receipt_guard,sc03_security_reason_guard,sc20_redaction_boundary_guard,cp26_decision_trace_guard}.rs; kiana-domain/tests/{oa04_audit_taxonomy,sc03_security_reason,er03_redaction}.rs; .github/workflows/cp26-decision-trace.yml; docs/roadmap/cp26-decision-trace-baseline.md; docs/roadmap.md
+worktree_status: source guard pins server-derived AuditRecord/reducer and append-only projection, CorrelationContext request/command/causation/attempt/actor/epoch links, SecurityContext/AuthorityFence/ApprovalBinding snapshots, EventLog redaction/stable identity links, dispatch commit/effect/result evidence, typed Receipt verification and scoped audit query/export; SecurityReason/explain carries digests/references only and query/export never consumes grant/approval or calls Broker; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only decision/audit/redaction/Receipt fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: OA-04 audit taxonomy/reducer; OA-14 trace export; OA-15 audit projection; OA-18 audit export; ER-03 redaction; ER-11 Receipt; SC-03 SecurityReason; SC-20 redaction boundary; cp26_decision_trace_guard cross-layer source guard; GitHub Actions CP-26 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-26 is triggered by the eventual push and is not awaited
+status_change: CP-26 source slice is implemented. Decision explanation, audit correlation and evidence redaction now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; remote SIEM delivery, live provider effect correctness, durable cross-host explain latency and physical secret-store proof remain later telemetry/migration/product gates
+reviewer: Codex root implementation review plus authority/policy/data epoch and request/command/correlation/causation/attempt links, approval subject binding, commit/effect/verification Receipt chain, digest-only SecurityReason, stable EventLog redaction and read-only explain/no-consume boundary review; no runtime test reviewer
+```

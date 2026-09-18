@@ -1,0 +1,118 @@
+name: CP-26 decision trace and evidence boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/audit.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-domain/src/correlation.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-domain/tests/oa04_audit_taxonomy.rs"
+      - "kiana-domain/tests/sc03_security_reason.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/audit.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - "kiana-core/src/security_context.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/oa04_audit_reducer.rs"
+      - "kiana-core/tests/oa15_audit_projection.rs"
+      - "kiana-core/tests/oa18_audit_export.rs"
+      - "kiana-core/tests/oa14_trace_export.rs"
+      - "kiana-core/tests/er03_redaction_guard.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-core/tests/sc03_security_reason_guard.rs"
+      - "kiana-core/tests/sc20_redaction_boundary_guard.rs"
+      - "kiana-core/tests/cp26_decision_trace_guard.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/cp26-decision-trace-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp26-decision-trace.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/audit.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-domain/src/correlation.rs"
+      - "kiana-domain/src/security_reasons.rs"
+      - "kiana-domain/tests/oa04_audit_taxonomy.rs"
+      - "kiana-domain/tests/sc03_security_reason.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/audit.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - "kiana-core/src/security_context.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/src/approval_binding.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/tests/oa04_audit_reducer.rs"
+      - "kiana-core/tests/oa15_audit_projection.rs"
+      - "kiana-core/tests/oa18_audit_export.rs"
+      - "kiana-core/tests/oa14_trace_export.rs"
+      - "kiana-core/tests/er03_redaction_guard.rs"
+      - "kiana-core/tests/er11_receipt_guard.rs"
+      - "kiana-core/tests/sc03_security_reason_guard.rs"
+      - "kiana-core/tests/sc20_redaction_boundary_guard.rs"
+      - "kiana-core/tests/cp26_decision_trace_guard.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/cp26-decision-trace-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp26-decision-trace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decision-trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run domain audit taxonomy
+        run: cargo test -p kiana-domain --test oa04_audit_taxonomy --locked -- --test-threads=1
+      - name: Run security reason fixture
+        run: cargo test -p kiana-domain --test sc03_security_reason --locked -- --test-threads=1
+      - name: Run domain redaction fixture
+        run: cargo test -p kiana-domain --test er03_redaction --locked -- --test-threads=1
+      - name: Run audit reducer fixture
+        run: cargo test -p kiana-core --test oa04_audit_reducer --locked -- --test-threads=1
+      - name: Run audit projection fixture
+        run: cargo test -p kiana-core --test oa15_audit_projection --locked -- --test-threads=1
+      - name: Run audit export fixture
+        run: cargo test -p kiana-core --test oa18_audit_export --locked -- --test-threads=1
+      - name: Run trace export fixture
+        run: cargo test -p kiana-core --test oa14_trace_export --locked -- --test-threads=1
+      - name: Run EventLog redaction guard
+        run: cargo test -p kiana-core --test er03_redaction_guard --locked -- --test-threads=1
+      - name: Run Receipt guard
+        run: cargo test -p kiana-core --test er11_receipt_guard --locked -- --test-threads=1
+      - name: Run security reason guard
+        run: cargo test -p kiana-core --test sc03_security_reason_guard --locked -- --test-threads=1
+      - name: Run redaction boundary guard
+        run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --locked -- --test-threads=1
+      - name: Run CP-26 source guard
+        run: cargo test -p kiana-core --test cp26_decision_trace_guard --locked -- --test-threads=1
+      - name: Compile CP-26 targets
+        run: cargo check --workspace --tests --locked
