@@ -7465,3 +7465,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: existing CostLedger/UsageRecord/model budget/receipt/CellRegistry behavior remains unchanged; missing usage remains unknown, no RateCard/provider invoice/currency/correction/durable quota projector/capacity queue exists, and BQ-01+ must implement target contracts without a second ledger or authority path
 reviewer: Codex root implementation review plus source hash inventory, CostLedger optional/unknown semantics, model reservation/settlement/EventLog path, receipt projection, CellRegistry in-memory boundary and migration conflict review; no runtime test reviewer
 ```
+
+### BQ-01 Billing stable contract evidence (2026-09-18)
+
+```text
+source_snapshot: 25214442 + BQ-01 working-tree slice; kiana-domain/src/{ids.rs,billing_contracts.rs,lib.rs}; kiana-domain/tests/bq01_billing_contracts.rs; kiana-core/tests/bq01_billing_contract_guard.rs; .github/workflows/bq01-billing-contracts.yml; docs/roadmap/billing-contract-baseline.md; docs/roadmap.md
+worktree_status: domain now exports stable UUID identities for usage/reservation/ledger/rate-card/correction/quota reservation, strict major-versioned `BillingContractHeader`, explicit `BillingUnknownReason`, `BillingState` transitions, `BillingErrorCode` parsing and bounded secret-free `ProviderReceiptRef`; contracts are inert and do not authorize/provider-dispatch or create a second ledger; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq01_billing_contracts.rs covers identity uniqueness, schema-major/unknown-reason rejection, state transitions, error parse fallback and receipt-ref secret/path bounds; kiana-core/tests/bq01_billing_contract_guard.rs guards domain-only markers and no network/Tokio/filesystem/provider path; GitHub Actions BQ-01 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-01 is triggered by the eventual push and is not awaited
+status_change: BQ-01 source slice is implemented. Stable billing identity and state/error contracts are now available for UsageVector/RateCard/reservation steps without changing existing runtime behavior.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: contracts do not yet define normalized usage dimensions, snapshot/delta accumulation, Money/rate-card arithmetic, provider receipts, quota reservation/CAS or durable projection; BQ-02+ remains
+reviewer: Codex root implementation review plus stable UUID/schema-major/unknown-reason/state transition/error-code semantics, secret-free receipt reference and domain dependency boundary review; no runtime test reviewer
+```
