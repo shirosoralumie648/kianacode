@@ -1,0 +1,77 @@
+name: ER-25 retry policy and new attempt
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/budget.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-runner/tests/h05_stop_guard.rs"
+      - "kiana-runner/tests/h07_budget_guard.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-runner/tests/h11_tool_observation_guard.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/er14_effect_observation_guard.rs"
+      - "kiana-core/tests/er25_retry_policy_guard.rs"
+      - "docs/roadmap/er25-retry-policy-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er25-retry-policy.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/budget.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-runner/tests/h05_stop_guard.rs"
+      - "kiana-runner/tests/h07_budget_guard.rs"
+      - "kiana-runner/tests/h08_cancellation_guard.rs"
+      - "kiana-runner/tests/h11_tool_observation_guard.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-core/tests/er14_effect_observation_guard.rs"
+      - "kiana-core/tests/er25_retry_policy_guard.rs"
+      - "docs/roadmap/er25-retry-policy-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er25-retry-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retry-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run retry, budget and cancellation fixtures
+        run: cargo test -p kiana-runner --test h05_stop_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test h07_budget_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test h11_tool_observation_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test er14_effect_observation_guard --locked -- --test-threads=1
+      - name: Run ER-25 source guard
+        run: cargo test -p kiana-core --test er25_retry_policy_guard --locked -- --test-threads=1
+      - name: Compile ER-25 targets
+        run: cargo check --workspace --tests --locked

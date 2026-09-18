@@ -8297,3 +8297,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; external provider/OS evidence verification, cross-process durability and live/physical reconciliation remain open
 reviewer: Codex root implementation review plus outcome enum, source/independent evidence scope, cross-incident denial, authority/data epoch/revocation fence, protected revision/idempotency replay and no-retry/no-outcome-rewrite boundary review; no runtime test reviewer
 ```
+
+### ER-25 retry policy / new attempt evidence (2026-09-18)
+
+```text
+source_snapshot: a89ab662 + ER-25 working-tree slice; kiana-domain/src/{model,errors,execution_identity}.rs; kiana-core/src/{capabilities,dispatch,model_attempt_projection}.rs; kiana-runner/src/{harness,budget}.rs; kiana-ports/src/{model,lib}.rs; kiana-core/tests/er25_retry_policy_guard.rs; .github/workflows/er25-retry-policy.yml; docs/roadmap/er25-retry-policy-baseline.md; docs/roadmap.md
+worktree_status: retry policy is bounded by ModelRetryClass and side-effect state; every retry allocates a fresh attempt/model identity, prepares/admit-checks again, reserves/settles shared budget, records retry-after/deadline/attempt projection, and stops at attempt/deadline exhaustion; Unknown/denied/cancel/no-idempotency paths do not auto-retry; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only retry/budget/cancellation/effect fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: H05 stop/retry; H07 budget; H08 cancellation; H11 tool observation; CP-20 Unknown; ER-14 effect observation; er25_retry_policy_guard; GitHub Actions ER-25 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-25 is triggered by the eventual push and is not awaited
+status_change: ER-25 source slice is implemented. Bounded retry policy, fresh attempt identity, admission/budget/deadline fences and no-automatic-retry Unknown boundary now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; provider-specific live backoff, cross-process retry durability and external effect reconciliation remain open
+reviewer: Codex root implementation review plus retry-class/effect-state classification, new attempt identity, budget reserve/settle ordering, deadline/backoff/exhaustion, authority re-admission and no Unknown/denied/cancel/no-idempotency retry bypass review; no runtime test reviewer
+```
