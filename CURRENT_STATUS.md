@@ -7505,3 +7505,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: sequence monotonicity/dedup and snapshot/delta/final accumulation remain BQ-03; no rate card, cost arithmetic, quota reservation, provider invoice or durable usage projection exists
 reviewer: Codex root implementation review plus optional-field presence semantics, confidence/reason consistency, source/basis/sequence binding, digest tamper fence and pure domain dependency review; no runtime test reviewer
 ```
+
+### BQ-03 Usage accumulator evidence (2026-09-18)
+
+```text
+source_snapshot: 0de24146 + BQ-03 working-tree slice; kiana-domain/src/{billing_usage_accumulator.rs,lib.rs,billing_usage.rs}; kiana-domain/tests/bq03_usage_accumulator.rs; kiana-core/tests/bq03_usage_accumulator_guard.rs; .github/workflows/bq03-usage-accumulator.yml; docs/roadmap/billing-usage-accumulator-baseline.md; docs/roadmap.md
+worktree_status: pure attempt-local `UsageAccumulator` now deduplicates equal sequence/digest, rejects same-sequence conflict/regression, requires a known snapshot before delta, applies checked optional/scalar additions, enforces component-wise snapshot/final containment and closes after final; no EventLog/provider/quota/settlement path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq03_usage_accumulator.rs covers snapshot/delta/final success, duplicate replay, sequence conflict/regression, containment, unknown base, overflow and post-final denial; kiana-core/tests/bq03_usage_accumulator_guard.rs guards no provider/network/I/O/authority path; GitHub Actions BQ-03 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-03 is triggered by the eventual push and is not awaited
+status_change: BQ-03 source slice is implemented. Usage stream accumulation now has deterministic sequence/dedup/containment/overflow semantics before any future durable settlement integration.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: accumulator is in-memory and attempt-local; provider normalization, durable attempt projector, quota reservation/settlement and cross-process recovery remain BQ-08+
+reviewer: Codex root implementation review plus sequence identity/digest replay, monotonic regression, optional-base unknown, component containment, checked arithmetic and final-state fence review; no runtime test reviewer
+```
