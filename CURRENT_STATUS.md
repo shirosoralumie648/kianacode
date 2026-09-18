@@ -8164,3 +8164,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; power-loss/cross-process snapshot durability, physical backup, live provider effects and ER-18 workspace transaction proof remain open
 reviewer: Codex root implementation review plus snapshot schema/digest/scope/authority/data epoch, redaction non-resumable, pending invocation/batch binding, runner checkpoint/restore identity and terminal/stale/no-auto-resume boundary review; no runtime test reviewer
 ```
+
+### ER-18 workspace checkpoint transaction / restore evidence (2026-09-18)
+
+```text
+source_snapshot: 3614c595 + ER-18 working-tree slice; kiana-domain/src/platform.rs; kiana-core/src/workspace_checkpoints.rs; kiana-daemon/src/{workspace_checkpoints,apply_patch}.rs; kiana-ports/src/lib.rs; kiana-core/tests/{p2_k4_01_checkpoint,cp18_run_snapshot_guard,er18_workspace_checkpoint_guard}.rs; .github/workflows/er18-workspace-checkpoint.yml; docs/roadmap/er18-workspace-checkpoint-baseline.md; docs/roadmap.md
+worktree_status: source guard pins WorkspaceCheckpoint/FileSnapshot path/data-epoch/company-scope contracts, no-follow/symlink/hardlink/file mode/content/revision capture, read-only checkpoint port, brokered prepare/finish restore with approval/context invalidation, descriptor-relative patch transactions and guarded rollback/pending reconciliation; revision drift and rollback failure remain deny/Unknown; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only workspace checkpoint/patch transaction/source guard; no local test or smoke binary executed
+fixture or cassette: p2_k4_01 checkpoint fixture; CP-18 snapshot/checkpoint guard; er18_workspace_checkpoint_guard; GitHub Actions ER-18 runs selected fixture, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-18 is triggered by the eventual push and is not awaited
+status_change: ER-18 source slice is implemented. Workspace checkpoint transactions and restore evidence now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; power-loss atomicity, cross-host filesystem locking, external artifact durability and ER-19 process fencing remain open
+reviewer: Codex root implementation review plus no-follow/path scope, file identity/mode/content/revision/data epoch, approval/context invalidation, descriptor-relative transaction/rollback and explicit Unknown result boundary review; no runtime test reviewer
+```

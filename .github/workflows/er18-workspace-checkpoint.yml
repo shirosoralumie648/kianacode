@@ -1,0 +1,54 @@
+name: ER-18 workspace checkpoint transaction
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-core/tests/cp18_run_snapshot_guard.rs"
+      - "kiana-core/tests/er18_workspace_checkpoint_guard.rs"
+      - "docs/roadmap/er18-workspace-checkpoint-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er18-workspace-checkpoint.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/p2_k4_01_checkpoint.rs"
+      - "kiana-core/tests/cp18_run_snapshot_guard.rs"
+      - "kiana-core/tests/er18_workspace_checkpoint_guard.rs"
+      - "docs/roadmap/er18-workspace-checkpoint-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er18-workspace-checkpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run checkpoint fixture
+        run: cargo test -p kiana-core --test p2_k4_01_checkpoint --locked -- --test-threads=1
+      - name: Run CP-18 snapshot guard
+        run: cargo test -p kiana-core --test cp18_run_snapshot_guard --locked -- --test-threads=1
+      - name: Run ER-18 source guard
+        run: cargo test -p kiana-core --test er18_workspace_checkpoint_guard --locked -- --test-threads=1
+      - name: Compile ER-18 targets
+        run: cargo check --workspace --tests --locked
