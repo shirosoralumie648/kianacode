@@ -8183,3 +8183,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; power-loss atomicity, cross-host filesystem locking, external artifact durability and ER-19 process fencing remain open
 reviewer: Codex root implementation review plus no-follow/path scope, file identity/mode/content/revision/data epoch, approval/context invalidation, descriptor-relative transaction/rollback and explicit Unknown result boundary review; no runtime test reviewer
 ```
+
+### ER-19 process/job handle / fencing evidence (2026-09-18)
+
+```text
+source_snapshot: 90da24e3 + ER-19 working-tree slice; kiana-domain/src/{job_handle,resource_leases,capabilities}.rs; kiana-core/src/{sessions,lifecycle,receipts}.rs; kiana-daemon/src/{execution_control,harness_capabilities}.rs; kiana-ports/src/lib.rs; kiana-core/tests/er19_process_handle_guard.rs; .github/workflows/er19-process-handle.yml; docs/roadmap/er19-process-handle-baseline.md; docs/roadmap.md
+worktree_status: source guard pins immutable JobHandle start/request/invocation/Run/Turn/owner/session/project/authority/process-group/expiry/digest identity, continuation owner/scope/handle validation, ResourceLease successor/fence/path ownership, process-group leader reap/stop/capture evidence, output drain limits and Unknown/fenced Receipt; lease expiry/authority revocation never proves a live process stopped or releases its resources silently; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only process/resource/output fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: CP-12 resource fencing guard; H15 output/process fixture; er19_process_handle_guard; GitHub Actions ER-19 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-19 is triggered by the eventual push and is not awaited
+status_change: ER-19 source slice is implemented. Process/job handles, fencing and stop evidence now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; container/Windows supervisor, power-loss and multi-host process fencing remain platform/DEP/live work
+reviewer: Codex root implementation review plus immutable handle/owner/scope/authority/expiry identity, fence successor/path lease, leader-reap/stop/capture evidence, Unknown on escape/record failure and no lease-expiry release boundary review; no runtime test reviewer
+```

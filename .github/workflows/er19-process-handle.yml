@@ -1,0 +1,62 @@
+name: ER-19 process handle and fencing
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/resource_leases.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cp12_resource_guard.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-core/tests/er19_process_handle_guard.rs"
+      - "docs/roadmap/er19-process-handle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er19-process-handle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/resource_leases.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cp12_resource_guard.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-core/tests/er19_process_handle_guard.rs"
+      - "docs/roadmap/er19-process-handle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er19-process-handle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-handle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run resource fence fixture
+        run: cargo test -p kiana-core --test cp12_resource_guard --locked -- --test-threads=1
+      - name: Run process/output fixture
+        run: cargo test -p kiana-daemon --test h15_output_limits --locked -- --test-threads=1
+      - name: Run ER-19 source guard
+        run: cargo test -p kiana-core --test er19_process_handle_guard --locked -- --test-threads=1
+      - name: Compile ER-19 targets
+        run: cargo check --workspace --tests --locked
