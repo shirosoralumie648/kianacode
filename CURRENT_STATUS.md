@@ -7626,3 +7626,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: in-memory adapter is not durable or cross-process; no atomic EventLog reservation, two-writer race proof, permit/dispatch, queue/capacity or external billing effect exists
 reviewer: Codex root implementation review plus reservation digest/idempotency/revision/state, unknown reconciliation transitions, authority/config fence and explicit non-durable proof boundary review; no runtime test reviewer
 ```
+
+### BQ-09 Admission estimator evidence (2026-09-18)
+
+```text
+source_snapshot: 95aee812 + BQ-09 working-tree slice; kiana-domain/src/{billing_admission.rs,lib.rs}; kiana-domain/tests/bq09_admission_estimator.rs; kiana-core/tests/bq09_admission_guard.rs; .github/workflows/bq09-admission-estimator.yml; docs/roadmap/billing-admission-estimator-baseline.md; docs/roadmap.md
+worktree_status: strict admission input/estimate now binds final wire request digest, output cap, retry allowance, tool/effect/storage upper bounds and token basis; bytes upper bound is marked inexact, unknown tokenizer/price cannot satisfy hard cost, and available estimates carry pinned RateCard ID/version; no reservation/provider/Broker path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/bq09_admission_estimator.rs covers retry/output/tool/effect/storage bounds, exact/bytes/unknown token basis, hard-cost missing-price denial and malformed input; kiana-core/tests/bq09_admission_guard.rs guards no provider/network/financial authority; GitHub Actions BQ-09 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-09 is triggered by the eventual push and is not awaited
+status_change: BQ-09 source slice is implemented. Admission now has an explicit conservative upper-bound contract before future durable reservation/dispatch integration.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no durable reservation/permit/dispatch, actual tokenizer/provider response or invoice evidence; estimate remains non-authorizing and BQ-10+ owns provider usage adapters
+reviewer: Codex root implementation review plus final wire digest/output/retry/tool/effect/storage bounds, exact-vs-upper token semantics, hard-cost unknown fence and rate-card version binding; no runtime test reviewer
+```

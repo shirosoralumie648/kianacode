@@ -342,6 +342,7 @@ fn add_dimension(
                     .ok_or_else(|| "pricing_arithmetic_overflow".to_owned())?,
             )?)
             .map_err(|_| "pricing_arithmetic_overflow".to_owned()),
+        (Some(units), None) if units == 0 => Ok(total),
         (Some(_), None) => {
             *unknown = Some(BillingUnknownReason::RateCardMissing);
             Ok(total)
