@@ -1,0 +1,55 @@
+name: AUT-02 trusted clock contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/clock.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/aut02_clock_observation.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/aut02_clock_port.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut02_clock_guard.rs"
+      - "docs/roadmap/automation-clock-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut02-clock.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/clock.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/aut02_clock_observation.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/aut02_clock_port.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut02_clock_guard.rs"
+      - "docs/roadmap/automation-clock-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut02-clock.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run clock observation fixtures
+        run: cargo test -p kiana-domain --test aut02_clock_observation --locked -- --test-threads=1
+      - name: Run ClockPort fixtures
+        run: cargo test -p kiana-ports --test aut02_clock_port --locked -- --test-threads=1
+      - name: Run automation clock guard
+        run: cargo test -p kiana-core --test aut02_clock_guard --locked -- --test-threads=1
+      - name: Compile AUT-02 targets
+        run: cargo check --workspace --tests --locked
+

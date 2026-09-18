@@ -23,14 +23,15 @@ use kiana_domain::{
     AssignmentDirectory, AssignmentId, AuditActionKind, AuditDecision, AuditRecord,
     AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
     BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
-    CellLifecycle, CellSpec, CommunicationMessage, ConfigSnapshot, CorrelationContext,
-    CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite,
-    EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint,
-    ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity,
-    QualityArtifact, QualityArtifactId, RequestContext, RequestId, ResolvedAssignment,
-    RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
-    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth, StorageSchemaRegistry,
-    StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
+    CellLifecycle, CellSpec, ClockObservation, CommunicationMessage, ConfigSnapshot,
+    CorrelationContext, CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
+    EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
+    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
+    ProjectIdentity, QualityArtifact, QualityArtifactId, RequestContext, RequestId,
+    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef,
+    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass,
+    StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SwarmLineage,
+    SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -279,6 +280,49 @@ pub trait MetricsSink: Send + Sync {
 /// Deterministic clock boundary for evaluation and expiry checks; it has no sleep or I/O effect.
 pub trait Clock: Send + Sync {
     fn now_unix_ms(&self) -> u64;
+}
+
+/// Wall/monotonic clock boundary used by expiry, trigger and lease admission.
+///
+/// Implementations may wrap the OS clock or a deterministic fake, but must return a versioned
+/// observation rather than allowing callers to compare raw wall-clock values across restarts.
+/// `ClockObservation::require_trusted` is the fail-closed gate for deadlines.
+pub trait ClockPort: Send + Sync {
+    fn source(&self) -> &str {
+        "clock"
+    }
+
+    fn wall_now_unix_ms(&self) -> Result<u64, PortError>;
+
+    fn monotonic_now_ms(&self) -> Result<u64, PortError>;
+
+    fn observe(&self, previous: Option<&ClockObservation>) -> Result<ClockObservation, PortError> {
+        let revision = previous
+            .map(|observation| observation.revision.saturating_add(1))
+            .unwrap_or(1);
+        ClockObservation::observe(
+            self.source(),
+            u128::from(self.wall_now_unix_ms()?),
+            u128::from(self.monotonic_now_ms()?),
+            previous,
+            revision,
+        )
+        .map_err(PortError::Failed)
+    }
+}
+
+/// Shared expiry gate: an untrusted/rollback clock cannot extend any lease, approval or trigger.
+pub fn require_trusted_deadline(
+    clock: &dyn ClockPort,
+    previous: Option<&ClockObservation>,
+    expires_at_unix_ms: u64,
+) -> Result<ClockObservation, PortError> {
+    let observation = clock.observe(previous)?;
+    observation
+        .allows_before(expires_at_unix_ms)
+        .map_err(PortError::Failed)?
+        .then_some(observation)
+        .ok_or_else(|| PortError::Conflict("clock_deadline_expired".to_owned()))
 }
 
 /// Apply/read a projection using a committed source cursor. Implementations must not advance a

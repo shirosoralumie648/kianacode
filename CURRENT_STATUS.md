@@ -7200,3 +7200,24 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: principal/project values remain local opaque compatibility IDs, SharingGrant and durable authority projector are not yet consumed by this pure derivation, DispatchIntent/QueueEntry atomic reservation and cross-process recovery remain SW-05+, and child fresh Session/Run/Attempt materialization remains SW-07; no external/live/physical effect proof is claimed
 reviewer: Codex root implementation review plus six-layer GrantScope intersection, capability/operation/secret/external conversion fence, owner/authority epoch check, packet project/path validation, parent grant/budget subset and snapshot restore recheck, controller no-model boundary and no-second-loop review; no runtime test reviewer
 ```
+
+### AUT-02 Trusted ClockPort evidence (2026-09-18)
+
+```text
+source_snapshot: 0c6654f7 + AUT-02 working-tree slice; kiana-domain/src/{clock.rs,contracts.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut02_clock_observation.rs; kiana-ports/tests/aut02_clock_port.rs; kiana-core/tests/aut02_clock_guard.rs; .github/workflows/aut02-clock.yml; docs/roadmap/automation-clock-baseline.md; docs/roadmap.md
+worktree_status: strict `ClockObservation`/`ClockTrust` now records bounded wall and monotonic samples, source, previous values, revision and digest; zero/overflow samples, revision regressions, trusted rollback mismatch and tamper fail closed.  `ClockPort` samples the observation and shared `require_trusted_deadline` refuses untrusted/expired deadlines, while the old evaluation-only `Clock` trait remains compatibility-only; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-domain/tests/aut02_clock_observation.rs covers trusted/rollback observations, zero/overflow/revision/digest rejection; kiana-ports/tests/aut02_clock_port.rs covers deterministic fake sampling, persisted round-trip and untrusted deadline denial; kiana-core/tests/aut02_clock_guard.rs guards the automation boundary and no second scheduler loop; GitHub Actions AUT-02 workflow runs all fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-02 is triggered by the eventual push and is not awaited
+status_change: AUT-02 source slice is implemented.  Automation now has a versioned wall/monotonic clock contract and a reusable fail-closed deadline gate before scheduler/trigger/lease wiring.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: existing `kiana-core::automation` still uses its compatibility process-local `SystemTime` helper until a later composition change injects ClockPort; no durable observation store, timer worker, trigger occurrence, lease/approval integration, cross-restart scheduler or live/physical proof is claimed
+reviewer: Codex root implementation review plus wall/monotonic zero/overflow and rollback trust semantics, revision/digest/persisted observation checks, ClockPort object-safe adapter and deadline hard-deny boundary, compatibility trait isolation and no-second-loop review; no runtime test reviewer
+```
