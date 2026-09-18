@@ -1,0 +1,44 @@
+name: EQ-14 evaluation evidence capture
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq14_evidence_capture.rs"
+      - "kiana-core/tests/eq14_evidence_capture_guard.rs"
+      - "docs/roadmap/evaluation-evidence-capture-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq14-evidence-capture.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/eq14_evidence_capture.rs"
+      - "kiana-core/tests/eq14_evidence_capture_guard.rs"
+      - "docs/roadmap/evaluation-evidence-capture-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq14-evidence-capture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run evidence capture fixtures
+        run: cargo test -p kiana-daemon --test eq14_evidence_capture --locked -- --test-threads=1
+      - name: Run evidence capture source guard
+        run: cargo test -p kiana-core --test eq14_evidence_capture_guard --locked -- --test-threads=1
+      - name: Compile EQ-14 targets
+        run: cargo check --workspace --tests --locked

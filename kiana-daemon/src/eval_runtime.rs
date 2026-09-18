@@ -10,9 +10,9 @@ use async_trait::async_trait;
 use kiana_core::ControlPlane;
 use kiana_domain::ClockObservation;
 use kiana_domain::{
-    canonical_journal_bytes, json_digest, redact_value, AuthorizedCapabilityRequest,
-    CapabilityErrorCode, CapabilityKind, CapabilityResult, ModelDelta, ModelOutput, ModelRequest,
-    ModelToolCall, ModelUsage,
+    canonical_journal_bytes, json_digest, redact_text, redact_value, AuthorizedCapabilityRequest,
+    CapabilityErrorCode, CapabilityKind, CapabilityResult, CommandReceipt, ModelDelta, ModelOutput,
+    ModelRequest, ModelToolCall, ModelUsage, RunId, RuntimeEvent,
 };
 use kiana_ports::{CapabilityBrokerPort, FixtureStore, ModelClient, PortError};
 use kiana_protocol::{RequestEnvelope, ResponseEnvelope};
@@ -342,6 +342,233 @@ impl FixtureStore for EvalInitialStateStore {
             .get(fixture_ref)
             .cloned()
             .ok_or_else(|| PortError::Unavailable("eval_fixture_not_found".to_owned()))
+    }
+}
+
+pub const EVAL_EVIDENCE_CAPTURE_SCHEMA: &str = "kiana.eval-evidence-capture.v1";
+const MAX_CAPTURE_EVENTS: usize = 4_096;
+const MAX_CAPTURE_REFS: usize = 512;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalCaptureStatus {
+    Open,
+    Flushed,
+    InfraUnknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalCaptureReceipt {
+    pub schema: String,
+    pub run_id: RunId,
+    pub status: EvalCaptureStatus,
+    pub event_count: usize,
+    pub invocation_ref_count: usize,
+    pub artifact_ref_count: usize,
+    pub receipt_ref_count: usize,
+    pub source_cursor: u64,
+    pub capture_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_code: Option<String>,
+}
+
+impl EvalCaptureReceipt {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_EVIDENCE_CAPTURE_SCHEMA
+            || self.run_id.as_uuid().is_nil()
+            || self.capture_digest.len() != 71
+            || !self.capture_digest.starts_with("sha256:")
+            || (self.status == EvalCaptureStatus::Flushed && self.failure_code.is_some())
+            || (self.status == EvalCaptureStatus::InfraUnknown
+                && self.failure_code.as_deref() != Some("infra_flush_unknown"))
+        {
+            return Err("eval_capture_receipt_invalid".to_owned());
+        }
+        if self.event_count > MAX_CAPTURE_EVENTS
+            || self.invocation_ref_count > MAX_CAPTURE_REFS
+            || self.artifact_ref_count > MAX_CAPTURE_REFS
+            || self.receipt_ref_count > MAX_CAPTURE_REFS
+        {
+            return Err("eval_capture_receipt_limit".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Bounded evidence collector for one evaluation target. It stores committed event values and
+/// opaque references only; it never becomes a second EventLog or receipt authority.
+pub struct EvalEvidenceCapture {
+    run_id: RunId,
+    events: Vec<RuntimeEvent>,
+    invocation_refs: Vec<String>,
+    artifact_refs: Vec<String>,
+    receipt_refs: Vec<String>,
+    command_receipt: Option<CommandReceipt>,
+    status: EvalCaptureStatus,
+    failure_code: Option<String>,
+}
+
+impl EvalEvidenceCapture {
+    pub fn new(run_id: RunId) -> Result<Self, String> {
+        if run_id.as_uuid().is_nil() {
+            return Err("eval_capture_run_id_invalid".to_owned());
+        }
+        Ok(Self {
+            run_id,
+            events: Vec::new(),
+            invocation_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            receipt_refs: Vec::new(),
+            command_receipt: None,
+            status: EvalCaptureStatus::Open,
+            failure_code: None,
+        })
+    }
+
+    fn ensure_open(&self) -> Result<(), String> {
+        if self.status != EvalCaptureStatus::Open {
+            Err("eval_capture_not_open".to_owned())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_reference(reference: &str, field: &str) -> Result<(), String> {
+        if reference.trim().is_empty()
+            || reference.len() > 4_096
+            || reference.contains('\0')
+            || redact_text(reference) != reference
+        {
+            return Err(format!("eval_capture_{field}_invalid"));
+        }
+        Ok(())
+    }
+
+    fn insert_reference(
+        references: &mut Vec<String>,
+        reference: impl Into<String>,
+        field: &str,
+    ) -> Result<(), String> {
+        let reference = reference.into();
+        Self::check_reference(&reference, field)?;
+        if references.len() >= MAX_CAPTURE_REFS {
+            return Err(format!("eval_capture_{field}_limit"));
+        }
+        if !references.contains(&reference) {
+            references.push(reference);
+        }
+        Ok(())
+    }
+
+    pub fn record_event(&mut self, event: RuntimeEvent) -> Result<(), String> {
+        self.ensure_open()?;
+        if self.events.len() >= MAX_CAPTURE_EVENTS
+            || self
+                .events
+                .iter()
+                .any(|prior| prior.event_id == event.event_id)
+            || event.sequence == 0
+            || event.kind.trim().is_empty()
+            || redact_value(&event.data) != event.data
+        {
+            return Err("eval_capture_event_invalid".to_owned());
+        }
+        if canonical_journal_bytes(&event)
+            .map_err(|_| "eval_capture_event_encode_invalid".to_owned())?
+            .len()
+            > 256 * 1024
+        {
+            return Err("eval_capture_event_too_large".to_owned());
+        }
+        for reference in &event.artifact_refs {
+            Self::insert_reference(&mut self.artifact_refs, reference.clone(), "artifact_ref")?;
+        }
+        self.events.push(event);
+        Ok(())
+    }
+
+    pub fn record_invocation_ref(&mut self, reference: impl Into<String>) -> Result<(), String> {
+        self.ensure_open()?;
+        Self::insert_reference(&mut self.invocation_refs, reference, "invocation_ref")
+    }
+
+    pub fn record_artifact_ref(&mut self, reference: impl Into<String>) -> Result<(), String> {
+        self.ensure_open()?;
+        Self::insert_reference(&mut self.artifact_refs, reference, "artifact_ref")
+    }
+
+    pub fn record_receipt_ref(&mut self, reference: impl Into<String>) -> Result<(), String> {
+        self.ensure_open()?;
+        Self::insert_reference(&mut self.receipt_refs, reference, "receipt_ref")
+    }
+
+    pub fn record_command_receipt(&mut self, receipt: CommandReceipt) -> Result<(), String> {
+        self.ensure_open()?;
+        if receipt.first_cursor == 0
+            || receipt.cursor < receipt.first_cursor
+            || receipt.event_ids.is_empty()
+            || receipt.command_digest.len() != 64
+            || !receipt
+                .command_digest
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || canonical_journal_bytes(&receipt)
+                .map_err(|_| "eval_capture_receipt_encode_invalid".to_owned())?
+                .len()
+                > 128 * 1024
+        {
+            return Err("eval_capture_command_receipt_invalid".to_owned());
+        }
+        self.command_receipt = Some(receipt);
+        Ok(())
+    }
+
+    pub fn finish(&mut self, flush: Result<(), String>) -> EvalCaptureReceipt {
+        self.status = if flush.is_ok() {
+            EvalCaptureStatus::Flushed
+        } else {
+            self.failure_code = Some("infra_flush_unknown".to_owned());
+            EvalCaptureStatus::InfraUnknown
+        };
+        let receipt = EvalCaptureReceipt {
+            schema: EVAL_EVIDENCE_CAPTURE_SCHEMA.to_owned(),
+            run_id: self.run_id,
+            status: self.status,
+            event_count: self.events.len(),
+            invocation_ref_count: self.invocation_refs.len(),
+            artifact_ref_count: self.artifact_refs.len(),
+            receipt_ref_count: self.receipt_refs.len()
+                + usize::from(self.command_receipt.is_some()),
+            source_cursor: self
+                .events
+                .iter()
+                .map(|event| event.sequence)
+                .max()
+                .unwrap_or_default(),
+            capture_digest: self.digest(),
+            failure_code: self.failure_code.clone(),
+        };
+        debug_assert!(receipt.validate().is_ok());
+        receipt
+    }
+
+    pub fn status(&self) -> EvalCaptureStatus {
+        self.status
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": EVAL_EVIDENCE_CAPTURE_SCHEMA,
+            "run_id": self.run_id,
+            "events": self.events,
+            "invocation_refs": self.invocation_refs,
+            "artifact_refs": self.artifact_refs,
+            "receipt_refs": self.receipt_refs,
+            "command_receipt": self.command_receipt,
+            "status": self.status,
+            "failure_code": self.failure_code,
+        }))
     }
 }
 

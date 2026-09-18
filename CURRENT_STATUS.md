@@ -7384,3 +7384,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: store remains in-memory and is not a durable EvalStore or authenticated ProjectTrust/role authority; EventLog/Receipt capture, target launch/fault/restart and quality result persistence remain EQ-14+
 reviewer: Codex root implementation review plus strict schema/object/size/secret validation, canonical digest binding, exact scope/name/path checks and no-filesystem/no-network/no-authority boundary review; no runtime test reviewer
 ```
+
+### EQ-14 Evaluation evidence capture/flush evidence (2026-09-18)
+
+```text
+source_snapshot: ed117ad8 + EQ-14 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq14_evidence_capture.rs; kiana-core/tests/eq14_evidence_capture_guard.rs; .github/workflows/eq14-evidence-capture.yml; docs/roadmap/evaluation-evidence-capture-baseline.md; docs/roadmap.md
+worktree_status: `EvalEvidenceCapture` records bounded redaction-safe RuntimeEvent values, invocation/artifact/receipt references and typed CommandReceipt in an in-memory projection only; a successful finish emits a validated `Flushed` receipt, while any flush error emits `infra_flush_unknown`/`InfraUnknown` and closes late writes; no EventStore append or second fact authority was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq14_evidence_capture.rs covers event/reference/command-receipt capture, secret rejection, closed state and flush-failure Unknown; kiana-core/tests/eq14_evidence_capture_guard.rs guards reference-only/no-second-fact-source/no-network boundary; GitHub Actions EQ-14 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-14 is triggered by the eventual push and is not awaited
+status_change: EQ-14 source slice is implemented. Evaluation evidence now has an explicit bounded collector and cannot report a pass when its flush boundary is unknown.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: capture is not yet attached to a live DaemonHost/EventStore observer or durable artifact/receipt store; EQ-15 fault/restart/lease/Unknown plans and quality result persistence remain
+reviewer: Codex root implementation review plus event/reference bounds, redaction/duplicate/sequence checks, typed command receipt identity, close-after-finish and infra/Unknown flush semantics; no runtime test reviewer
+```
