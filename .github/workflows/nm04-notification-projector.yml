@@ -1,0 +1,46 @@
+name: NM-04 notification projector
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/notification_projector.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm04_notification_projector.rs"
+      - "kiana-core/tests/nm04_notification_guard.rs"
+      - "docs/roadmap/nm04-notification-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm04-notification-projector.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/notification_projector.rs"
+      - "kiana-core/src/projection_checkpoint.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm04_notification_projector.rs"
+      - "kiana-core/tests/nm04_notification_guard.rs"
+      - "docs/roadmap/nm04-notification-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm04-notification-projector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-projector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run notification projector fixtures
+        run: cargo test -p kiana-core --test nm04_notification_projector --locked -- --test-threads=1
+      - name: Run notification projector source guard
+        run: cargo test -p kiana-core --test nm04_notification_guard --locked -- --test-threads=1
+      - name: Compile NM-04 targets
+        run: cargo check --workspace --tests --locked

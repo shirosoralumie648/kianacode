@@ -7745,3 +7745,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: checkpoint persistence/atomic apply, projector lease/concurrency, process restart and cross-process rebuild remain PD-10+
 reviewer: Codex root implementation review plus checkpoint-first apply, fold failure pause, explicit retry, rebuild-from-zero and no EventStore/Broker/Runner boundary review; no runtime test reviewer
 ```
+
+### NM-04 NotificationProjector evidence (2026-09-18)
+
+```text
+source_snapshot: 0dbd93e2 + NM-04 working-tree slice; kiana-core/src/{notification_projector.rs,projection_checkpoint.rs,lib.rs}; kiana-core/tests/nm04_notification_projector.rs; kiana-core/tests/nm04_notification_guard.rs; .github/workflows/nm04-notification-projector.yml; docs/roadmap/nm04-notification-projector-baseline.md; docs/roadmap.md
+worktree_status: committed-only `NotificationProjection` now validates registered EventLog notification facts, materializes typed Notification payloads, stores source cursor/event IDs via ReplayProjection checkpoint and folds duplicate events idempotently; untrusted source/cursor/payload errors leave prior state unchanged; no recipient resolver, delivery/outbox or second message bus was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-core/tests/nm04_notification_projector.rs covers committed event materialization, checkpoint/replay idempotency, untrusted source denial, cursor gap and no mutation; kiana-core/tests/nm04_notification_guard.rs guards EventLog-only/checkpoint/no-delivery boundary; GitHub Actions NM-04 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-04 is triggered by the eventual push and is not awaited
+status_change: NM-04 source slice is implemented. Notification projection now consumes only committed registered facts and remains rebuildable from source cursor/checkpoint.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no durable NotificationStore, recipient/scope/subscription resolver, dedup/OCC, outbox, delivery worker or external notification proof; NM-05+ remains
+reviewer: Codex root implementation review plus registered source validation, payload/digest validation, cursor/checkpoint/idempotency and no delivery/authority boundary review; no runtime test reviewer
+```
