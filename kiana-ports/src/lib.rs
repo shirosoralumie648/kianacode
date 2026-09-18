@@ -147,6 +147,63 @@ pub trait EnvironmentPort: Send + Sync {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathOperation {
+    Read,
+    Replace,
+    Create,
+    Delete,
+    RenameSource,
+    RenameDestination,
+}
+
+/// File identity captured by the shared resolver before an adapter opens or mutates a path.
+/// Missing targets are represented explicitly so a non-existent suffix is not normalized away.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathIdentity {
+    pub root_digest: String,
+    pub parent_digest: String,
+    pub relative_path: String,
+    pub operation: PathOperation,
+    #[serde(default)]
+    pub target_digest: Option<String>,
+    pub exists: bool,
+    pub regular_file: bool,
+    pub symlink: bool,
+    pub hardlink: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathResolution {
+    pub identity: PathIdentity,
+    pub resolution_digest: String,
+    pub parent_handle_bound: bool,
+}
+
+/// Shared path/identity boundary consumed by shell mount, patch and storage adapters.  The
+/// default is unsupported: callers cannot turn a lexical path helper into a TOCTOU proof.
+#[async_trait]
+pub trait PathResolverPort: Send + Sync {
+    async fn resolve(
+        &self,
+        root: &str,
+        relative: &str,
+        operation: PathOperation,
+    ) -> Result<PathResolution, PortError> {
+        let _ = (root, relative, operation);
+        Err(PortError::Unavailable(
+            "path_resolver_unsupported".to_owned(),
+        ))
+    }
+
+    async fn revalidate(&self, _resolution: &PathResolution) -> Result<PathResolution, PortError> {
+        Err(PortError::Unavailable(
+            "path_resolver_revalidate_unsupported".to_owned(),
+        ))
+    }
+}
+
 mod observability_queue;
 pub use observability_queue::{
     ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats,

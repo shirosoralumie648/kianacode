@@ -8373,3 +8373,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel/userns enforcement, non-Linux adapters, cross-host isolation and physical sandbox guarantees remain open
 reviewer: Codex root implementation review plus phase separation, backend identity/path probe, deterministic scope/plan, required-dimension enforcement, private/env/network restrictions, no fallback and behavior_verified=false boundary review; no runtime test reviewer
 ```
+
+### CAP-08 shared PathResolver / file identity evidence (2026-09-18)
+
+```text
+source_snapshot: a3eec36b + CAP-08 working-tree slice; kiana-ports/src/lib.rs; kiana-daemon/src/{apply_patch,execution_workspace,harness_sandbox,harness_memory}.rs; kiana-domain/src/execution_scope.rs; kiana-core/tests/cap08_path_resolver_guard.rs; .github/workflows/cap08-path-resolver.yml; docs/roadmap/cap08-path-resolver-baseline.md; docs/roadmap.md
+worktree_status: PathResolverPort now carries operation/root-parent-target identity, missing-target semantics, resolution digest, parent-handle binding and revalidation fail-closed phases; patch/workspace/sandbox/memory consumers expose descriptor-relative openat/renameat, symlink/hardlink/private-path rejection, identity/containment/TOCTOU checks and bounded traversal; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only path/TOCTOU/sandbox/scope fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: SC-13 path TOCTOU guard; CAP-07 environment backend guard; cap08_path_resolver_guard; GitHub Actions CAP-08 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-08 is triggered by the eventual push and is not awaited
+status_change: CAP-08 source slice is implemented. Shared path identity contract and consistent patch/workspace/sandbox/memory consumer fences now have a roadmap-linked gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel-specific openat2, non-Linux handles, cross-process races and physical filesystem guarantees remain open
+reviewer: Codex root implementation review plus operation-specific read/replace/create/delete/rename semantics, root/parent/target identity, missing suffix, symlink/hardlink/private path, descriptor-relative mutation and path-swap rejection boundary review; no runtime test reviewer
+```

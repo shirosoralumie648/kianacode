@@ -1,0 +1,57 @@
+name: CAP-08 shared path resolver and file identity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/src/execution_scope.rs"
+      - "kiana-core/tests/sc13_path_toctou_guard.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-core/tests/cap08_path_resolver_guard.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap08-path-resolver-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap08-path-resolver.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/src/execution_scope.rs"
+      - "kiana-core/tests/sc13_path_toctou_guard.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-core/tests/cap08_path_resolver_guard.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap08-path-resolver-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap08-path-resolver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  path-resolver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run path, sandbox and scope fixtures
+        run: cargo test -p kiana-core --test sc13_path_toctou_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap07_environment_backend_guard --locked -- --test-threads=1
+      - name: Run CAP-08 source guard
+        run: cargo test -p kiana-core --test cap08_path_resolver_guard --locked -- --test-threads=1
+      - name: Compile CAP-08 targets
+        run: cargo check --workspace --tests --locked
