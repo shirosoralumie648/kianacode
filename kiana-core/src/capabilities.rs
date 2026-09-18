@@ -1,6 +1,203 @@
 use super::events::*;
 use super::redaction::*;
 use super::*;
+use kiana_policy::GrantScope;
+
+const SWARM_CHILD_OPERATION: &str = "builder.packet";
+
+fn grant_paths_dimension(
+    paths: &[String],
+    field: &str,
+) -> Result<kiana_domain::ScopeDimension, String> {
+    if paths.is_empty() {
+        return Ok(kiana_domain::ScopeDimension::NotApplicable);
+    }
+    let mut normalized = paths
+        .iter()
+        .map(|path| {
+            kiana_domain::normalize_role_path(path).ok_or_else(|| format!("{field}_path_invalid"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    normalized.sort();
+    normalized.dedup();
+    if normalized.is_empty() {
+        return Err(format!("{field}_path_empty"));
+    }
+    Ok(kiana_domain::ScopeDimension::Restricted(normalized))
+}
+
+fn grant_scope_layer(
+    principal_id: kiana_domain::PrincipalId,
+    project_id: kiana_domain::ProjectId,
+    authority_epoch: u64,
+    paths: &[String],
+    data_scope: &[String],
+    expires_at_unix_ms: u64,
+    delegation_allowed: bool,
+) -> Result<GrantScope, String> {
+    let namespaces = if data_scope.is_empty() {
+        kiana_domain::ScopeDimension::NotApplicable
+    } else {
+        kiana_domain::ScopeDimension::Restricted(data_scope.to_vec())
+    };
+    let scope = kiana_domain::ScopeSet::new(
+        kiana_domain::ScopeDimension::Restricted(vec![SWARM_CHILD_OPERATION.to_owned()]),
+        grant_paths_dimension(paths, "grant_scope")?,
+        namespaces,
+        kiana_domain::ScopeDimension::NotApplicable,
+        kiana_domain::ScopeLimit::NotApplicable,
+        kiana_domain::ScopeLimit::NotApplicable,
+    )?;
+    GrantScope::new(
+        kiana_domain::GrantId::new(),
+        None,
+        principal_id,
+        project_id,
+        scope,
+        vec![kiana_domain::CapabilityKind::Other("coding".to_owned())],
+        false,
+        false,
+        delegation_allowed,
+        authority_epoch,
+        expires_at_unix_ms,
+    )
+}
+
+/// Derive the non-controller child grant from the server-owned intersection of all authority
+/// layers.  This function is deliberately pure: it creates no Cell, Broker permit or model
+/// session. The caller must still reserve the returned grant atomically in `MemoryCellRegistry`.
+pub fn derive_swarm_child_grant(
+    parent: &kiana_domain::CapabilityGrant,
+    template: &kiana_domain::AgentTemplate,
+    role: &kiana_domain::RoleSpec,
+    project_paths: &[String],
+    packet: &kiana_domain::WorkPacket,
+    principal_id: kiana_domain::PrincipalId,
+    project_id: kiana_domain::ProjectId,
+    authority_epoch: u64,
+    approval_id: Option<kiana_domain::ApprovalId>,
+    now_unix_ms: u64,
+) -> Result<kiana_domain::CapabilityGrant, String> {
+    if authority_epoch == 0 {
+        return Err("swarm_authority_epoch_missing".to_owned());
+    }
+    parent.validate().map_err(|error| error.to_owned())?;
+    template.validate().map_err(|error| error.to_owned())?;
+    role.validate()?;
+    if role.role_id != kiana_domain::ROLE_BUILDER
+        || role.department_id != kiana_domain::DEPARTMENT_EXECUTING
+        || template.role_id != role.role_id
+        || template.version != kiana_domain::SWARM_CHILD_TEMPLATE
+        || !parent.delegation_allowed
+        || parent.operation != SWARM_CHILD_OPERATION
+        || parent.capability != kiana_domain::CapabilityKind::Other("coding".to_owned())
+    {
+        return Err("swarm_controller_delegation_invalid".to_owned());
+    }
+    let mut expected_tools = role.tools.clone();
+    let mut template_tools = template.default_capabilities.clone();
+    expected_tools.sort();
+    template_tools.sort();
+    if expected_tools != template_tools {
+        return Err("swarm_template_role_capability_drift".to_owned());
+    }
+    if packet
+        .path_allow
+        .iter()
+        .any(|path| kiana_domain::normalize_role_path(path).is_none())
+    {
+        return Err("swarm_packet_path_invalid".to_owned());
+    }
+    if packet
+        .project_id
+        .is_some_and(|packet_project| packet_project != project_id)
+    {
+        return Err("swarm_packet_project_mismatch".to_owned());
+    }
+    let packet_expiry = packet
+        .deadline_unix_ms
+        .unwrap_or(parent.expires_at_unix_ms)
+        .min(parent.expires_at_unix_ms);
+    if packet_expiry <= now_unix_ms {
+        return Err("swarm_packet_authority_expired".to_owned());
+    }
+
+    let parent_scope =
+        GrantScope::from_capability_grant(parent, principal_id, project_id, authority_epoch)?;
+    // Template and department layers are separate even when they currently share RoleSpec data;
+    // keeping both explicit prevents a future template edit from silently becoming a department
+    // policy grant.
+    let template_scope = grant_scope_layer(
+        principal_id,
+        project_id,
+        authority_epoch,
+        &role.path_allow,
+        &[],
+        packet_expiry.min(now_unix_ms.saturating_add(template.ttl_seconds.saturating_mul(1_000))),
+        false,
+    )?;
+    let department_scope = grant_scope_layer(
+        principal_id,
+        project_id,
+        authority_epoch,
+        &role.path_allow,
+        &[],
+        packet_expiry,
+        false,
+    )?;
+    let project_scope = grant_scope_layer(
+        principal_id,
+        project_id,
+        authority_epoch,
+        project_paths,
+        &[],
+        packet_expiry,
+        false,
+    )?;
+    let packet_scope = grant_scope_layer(
+        principal_id,
+        project_id,
+        authority_epoch,
+        &packet.path_allow,
+        &packet.data_scope,
+        packet_expiry,
+        false,
+    )?;
+    // Approval is a separate narrowing layer. Its identity is carried on the resulting grant;
+    // the approval command/ref itself is never accepted from model or packet text as authority.
+    let approval_scope = grant_scope_layer(
+        principal_id,
+        project_id,
+        authority_epoch,
+        &packet.path_allow,
+        &packet.data_scope,
+        packet_expiry,
+        false,
+    )?;
+    let derived = GrantScope::intersect_all(&[
+        parent_scope,
+        template_scope,
+        department_scope,
+        project_scope,
+        packet_scope,
+        approval_scope,
+    ])?;
+    let resources = if parent.resources.is_empty() {
+        vec!["workspace".to_owned()]
+    } else {
+        parent.resources.clone()
+    };
+    let child = derived.to_capability_grant(
+        kiana_domain::CapabilityKind::Other("coding".to_owned()),
+        SWARM_CHILD_OPERATION,
+        resources,
+        approval_id.or(parent.approval_id),
+    )?;
+    if !parent.contains(&child) {
+        return Err("swarm_child_grant_not_contained".to_owned());
+    }
+    Ok(child)
+}
 
 fn effective_action_scope(
     context: &RequestContext,

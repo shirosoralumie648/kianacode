@@ -1,4 +1,5 @@
 use super::artifacts::*;
+use super::capabilities::derive_swarm_child_grant;
 use super::events::*;
 use super::lifecycle::*;
 use super::receipts::*;
@@ -436,7 +437,37 @@ impl ControlPlane {
         let deadline = deadline.min(now.saturating_add(runtime.max_wall_time_ms));
         let budget = swarm_parent
             .as_ref()
-            .map(|parent| parent.budget.clone())
+            .map(|parent| {
+                let mut child = BudgetLease::new(
+                    parent
+                        .budget
+                        .max_tool_calls
+                        .min(runtime.max_model_calls)
+                        .min(template.estimated_cost.max(1)),
+                    parent
+                        .budget
+                        .max_tokens
+                        .min(runtime.max_tokens)
+                        .min(template.estimated_cost.max(1).saturating_mul(4096)),
+                    parent
+                        .budget
+                        .max_wall_clock_ms
+                        .min(runtime.max_wall_time_ms)
+                        .min(template.ttl_seconds.saturating_mul(1_000)),
+                    parent.budget.max_concurrency.min(1),
+                    parent.budget.max_effects.min(
+                        runtime
+                            .max_model_calls
+                            .min(template.estimated_cost.max(1))
+                            .min(u64::from(u32::MAX)) as u32,
+                    ),
+                );
+                child.max_reserved_budget = parent
+                    .budget
+                    .max_reserved_budget
+                    .min(child.max_reserved_budget);
+                child
+            })
             .unwrap_or_else(|| {
                 BudgetLease::new(
                     runtime.max_model_calls.min(template.estimated_cost.max(1)),
@@ -461,16 +492,32 @@ impl ControlPlane {
             retry_limit: 0,
             retries_used: 0,
         };
-        let grant = CapabilityGrant {
-            schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
-            grant_id: CapabilityGrantId::new(),
-            capability: CapabilityKind::Other("coding".to_owned()),
-            operation: "builder.packet".to_owned(),
-            resources: vec!["workspace".to_owned()],
-            paths: grant_paths,
-            expires_at_unix_ms: deadline,
-            approval_id: None,
-            delegation_allowed: false,
+        let grant = if let Some(parent) = swarm_parent.as_ref() {
+            derive_swarm_child_grant(
+                &parent.grant,
+                &template,
+                &RoleSpec::builder(),
+                &context.path_allow,
+                packet,
+                parent.principal_id,
+                parent.project_id,
+                parent.authority_epoch,
+                None,
+                now,
+            )
+            .map_err(|reason| CoreError::Port(PortError::Failed(reason)))?
+        } else {
+            CapabilityGrant {
+                schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
+                grant_id: CapabilityGrantId::new(),
+                capability: CapabilityKind::Other("coding".to_owned()),
+                operation: "builder.packet".to_owned(),
+                resources: vec!["workspace".to_owned()],
+                paths: grant_paths,
+                expires_at_unix_ms: deadline,
+                approval_id: None,
+                delegation_allowed: false,
+            }
         };
         let plan = SpawnPlan {
             schema: SPAWN_PLAN_SCHEMA.to_owned(),

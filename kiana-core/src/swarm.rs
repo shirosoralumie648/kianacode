@@ -450,6 +450,16 @@ impl ControlPlane {
         plan: &SwarmPlan,
         packets: &std::collections::BTreeMap<String, WorkPacket>,
     ) -> Result<SwarmController, CoreError> {
+        let authority_epoch = self.authority_epoch(&c.project_root).await?.unwrap_or(1);
+        if authority_epoch == 0 {
+            return Err(error("swarm_authority_epoch_missing"));
+        }
+        // Local compatibility principals/projects are not UUID-shaped yet.  The typed IDs are
+        // still server-owned opaque binders: all layers in this derivation share the same values,
+        // while the Company packet/project string and owner checks below prevent transfer.
+        let principal_id = PrincipalId::parse_str(c.actor_id.as_deref().unwrap_or_default())
+            .unwrap_or_else(PrincipalId::new);
+        let project_id = ProjectId::parse_str(&plan.project_id).unwrap_or_else(ProjectId::new);
         let template = self
             .cell_registry
             .resolve_template(ROLE_BUILDER, SWARM_CONTROLLER_TEMPLATE)
@@ -540,6 +550,9 @@ impl ControlPlane {
             grant,
             supervision,
             fingerprint,
+            authority_epoch,
+            principal_id,
+            project_id,
         })
     }
     async fn ensure_swarm_controller(&self, s: &SwarmController) -> Result<(), CoreError> {
@@ -590,6 +603,13 @@ impl ControlPlane {
         else {
             return Ok(None);
         };
+        let current_authority_epoch = self.authority_epoch(&c.project_root).await?.unwrap_or(1);
+        if swarm.owner_id != c.actor_id.clone().unwrap_or_default() {
+            return Err(error("swarm_controller_owner_mismatch"));
+        }
+        if swarm.controller.authority_epoch != current_authority_epoch {
+            return Err(error("swarm_authority_epoch_stale"));
+        }
         if matches!(
             swarm.status,
             SwarmStatus::Completed

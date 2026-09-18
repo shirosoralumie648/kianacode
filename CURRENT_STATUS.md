@@ -7180,3 +7180,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: policy bundles are not yet loaded from a durable per-project store and ProviderGateway admission does not consume this bundle; probe DTOs are not wired to live IdP/provider health calls; compatibility auth command still owns provider-local credential handling behind the sanitizer; CI-11 remains responsible for durable audit/redaction/rotation/recovery projection; no external/live/physical effect proof is claimed
 reviewer: Codex root implementation review plus default-deny/precedence and invalid-policy fail-closed semantics, distinct credential status reasons, SecretRef/digest-only wire DTOs, strict scope/unknown-field checks, CLI/TUI/HTTP presence-only projection and no-second-loop/no-secret boundary review; no runtime test reviewer
 ```
+
+### SW-04 Child grant admission evidence (2026-09-18)
+
+```text
+source_snapshot: 5635a9b1 + SW-04 working-tree slice; kiana-policy/src/grant_scope.rs; kiana-policy/tests/sw04_grant_scope_materialization.rs; kiana-domain/src/swarm.rs; kiana-core/src/{capabilities.rs,cell_registry.rs,collaboration.rs,swarm.rs,lib.rs}; kiana-core/tests/sw04_child_grant.rs; kiana-core/tests/sw04_child_grant_guard.rs; .github/workflows/sw04-child-grant.yml; docs/roadmap/sw04-child-grant-baseline.md; docs/roadmap.md
+worktree_status: `derive_swarm_child_grant` now intersects explicit parent/template/department/project/packet/approval GrantScope layers and materializes only a bounded non-delegable `coding`/`builder.packet` CapabilityGrant.  It rejects invalid/stale authority, role/template drift, cross-project packets, path supersets, secret/provider capability substitution and expired packet scope before CellRegistry admission.  SwarmController stores server-generated authority epoch and opaque principal/project IDs; current owner/epoch are rechecked before child lookup.  CellRegistry repeats grant containment and budget subset checks for live reservation and snapshot restore; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-policy --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-policy/tests/sw04_grant_scope_materialization.rs covers path intersection, non-delegation, coding-only materialization and secret substitution denial; kiana-core/tests/sw04_child_grant.rs covers narrow partition grant, superset path, cross-project packet and stale epoch; kiana-core/tests/sw04_child_grant_guard.rs guards all six layers, controller fencing and CellRegistry budget/grant rechecks; GitHub Actions SW-04 workflow runs policy/core fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SW-04 is triggered by the eventual push and is not awaited
+status_change: SW-04 source slice is implemented.  Child capability grants are now formed from an explicit authority intersection and cannot widen parent paths, budgets, roles, projects, providers or secret access; the controller remains an admission/supervision-only Cell.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: principal/project values remain local opaque compatibility IDs, SharingGrant and durable authority projector are not yet consumed by this pure derivation, DispatchIntent/QueueEntry atomic reservation and cross-process recovery remain SW-05+, and child fresh Session/Run/Attempt materialization remains SW-07; no external/live/physical effect proof is claimed
+reviewer: Codex root implementation review plus six-layer GrantScope intersection, capability/operation/secret/external conversion fence, owner/authority epoch check, packet project/path validation, parent grant/budget subset and snapshot restore recheck, controller no-model boundary and no-second-loop review; no runtime test reviewer
+```

@@ -7,6 +7,10 @@ pub const SWARM_SNAPSHOT: &str = "swarm.snapshot.v1";
 pub const SWARM_SCHEMA: &str = "kiana.swarm-command.v1";
 pub const SWARM_CONTROLLER_TEMPLATE: &str = "swarm-controller.v1";
 pub const SWARM_CHILD_TEMPLATE: &str = "swarm-child.v1";
+
+fn default_authority_epoch() -> u64 {
+    1
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SwarmPlan {
@@ -35,6 +39,14 @@ pub struct SwarmController {
     pub grant: CapabilityGrant,
     pub supervision: SupervisionLease,
     pub fingerprint: WorkFingerprint,
+    /// Server-derived identity snapshot used to fence child grant derivation. Legacy swarm
+    /// events upcast to epoch one; a live authority stream newer than that must reject them.
+    #[serde(default = "default_authority_epoch")]
+    pub authority_epoch: u64,
+    #[serde(default)]
+    pub principal_id: PrincipalId,
+    #[serde(default)]
+    pub project_id: ProjectId,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -271,6 +283,9 @@ impl SwarmState {
                     || controller.cell.spawn_quota != plan.max_concurrency
                     || controller.template.version != SWARM_CONTROLLER_TEMPLATE
                     || !controller.grant.delegation_allowed
+                    || controller.authority_epoch == 0
+                    || controller.principal_id.as_uuid().is_nil()
+                    || controller.project_id.as_uuid().is_nil()
                 {
                     return Err("swarm_controller_invalid");
                 }

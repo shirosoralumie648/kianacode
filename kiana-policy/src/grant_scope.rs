@@ -5,8 +5,8 @@
 //! independent so a broad read scope cannot accidentally become a write/network/secret grant.
 
 use kiana_domain::{
-    json_digest, CapabilityGrant, CapabilityKind, CapabilityRequest, GrantId, PrincipalId,
-    ProjectId, RiskLevel, SchemaVersion, ScopeDimension, ScopeLimit, ScopeSet,
+    json_digest, CapabilityGrant, CapabilityGrantId, CapabilityKind, CapabilityRequest, GrantId,
+    PrincipalId, ProjectId, RiskLevel, SchemaVersion, ScopeDimension, ScopeLimit, ScopeSet,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -206,6 +206,50 @@ impl GrantScope {
             }
         }
         Ok(true)
+    }
+
+    /// Materialize one legacy `CapabilityGrant` from this already-intersected scope.  The
+    /// operation and capability are checked against the scope before any ID is minted, so a
+    /// caller cannot turn a broad parent scope into a secret/network/provider grant by choosing a
+    /// different operation at the conversion boundary.
+    pub fn to_capability_grant(
+        &self,
+        capability: CapabilityKind,
+        operation: impl Into<String>,
+        resources: Vec<String>,
+        approval_id: Option<kiana_domain::ApprovalId>,
+    ) -> Result<CapabilityGrant, String> {
+        self.validate()?;
+        let operation = operation.into();
+        if !self.capabilities.contains(&capability)
+            || !self.scope.allows_operation(&operation)
+            || (capability == CapabilityKind::Secret && !self.allow_secret)
+            || (capability == CapabilityKind::Network && !self.allow_external)
+        {
+            return Err("grant_scope_capability_materialization_denied".to_owned());
+        }
+        let paths = match &self.scope.paths {
+            ScopeDimension::NotApplicable => vec![".".to_owned()],
+            ScopeDimension::Restricted(paths) if paths.is_empty() => {
+                return Err("grant_scope_path_intersection_empty".to_owned())
+            }
+            ScopeDimension::Restricted(paths) => paths.clone(),
+        };
+        let grant = CapabilityGrant {
+            schema: kiana_domain::CAPABILITY_GRANT_SCHEMA.to_owned(),
+            grant_id: CapabilityGrantId::new(),
+            capability,
+            operation,
+            resources,
+            paths,
+            expires_at_unix_ms: self.expires_at_unix_ms,
+            approval_id,
+            delegation_allowed: self.delegation_allowed,
+        };
+        grant
+            .validate()
+            .map_err(|error| error.to_owned())
+            .map(|_| grant)
     }
 
     pub fn validate(&self) -> Result<(), String> {

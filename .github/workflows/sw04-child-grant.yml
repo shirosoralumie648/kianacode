@@ -1,0 +1,61 @@
+name: SW-04 child grant admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/swarm.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-policy/src/grant_scope.rs"
+      - "kiana-policy/tests/sw04_grant_scope_materialization.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sw04_child_grant.rs"
+      - "kiana-core/tests/sw04_child_grant_guard.rs"
+      - "docs/roadmap/sw04-child-grant-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw04-child-grant.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/swarm.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-policy/src/grant_scope.rs"
+      - "kiana-policy/tests/sw04_grant_scope_materialization.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sw04_child_grant.rs"
+      - "kiana-core/tests/sw04_child_grant_guard.rs"
+      - "docs/roadmap/sw04-child-grant-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw04-child-grant.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  child-grant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run GrantScope materialization fixtures
+        run: cargo test -p kiana-policy --test sw04_grant_scope_materialization --locked -- --test-threads=1
+      - name: Run child grant admission fixtures
+        run: cargo test -p kiana-core --test sw04_child_grant --locked -- --test-threads=1
+      - name: Run child grant source guard
+        run: cargo test -p kiana-core --test sw04_child_grant_guard --locked -- --test-threads=1
+      - name: Compile SW-04 targets
+        run: cargo check --workspace --tests --locked
+

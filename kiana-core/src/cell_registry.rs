@@ -147,6 +147,16 @@ impl MemoryCellRegistry {
             && left.max_reserved_budget == right.max_reserved_budget
     }
 
+    fn budget_is_subset(child: &BudgetLease, parent: &BudgetLease) -> bool {
+        child.max_tool_calls <= parent.max_tool_calls
+            && child.model_call_limit() <= parent.model_call_limit()
+            && child.max_tokens <= parent.max_tokens
+            && child.max_wall_clock_ms <= parent.max_wall_clock_ms
+            && child.max_concurrency <= parent.max_concurrency
+            && child.max_effects <= parent.max_effects
+            && child.max_reserved_budget <= parent.max_reserved_budget
+    }
+
     fn release_resources(
         state: &mut RegistryState,
         record: &mut CellRecord,
@@ -358,6 +368,7 @@ impl CellRegistryPort for MemoryCellRegistry {
                     || !parent.reservation.template.delegation_allowed
                     || !parent.reservation.grant.delegation_allowed
                     || !parent.reservation.grant.contains(grant)
+                    || !Self::budget_is_subset(budget, &parent.reservation.budget)
                     || cell.depth != parent.reservation.cell.depth.saturating_add(1)
                     || Self::active_children(&next, parent_id) >= MAX_CHILDREN_PER_PARENT
                     || Self::active_children(&next, parent_id)
@@ -633,6 +644,9 @@ impl CellRegistryPort for MemoryCellRegistry {
             }
             if !parent.reservation.grant.contains(&grant) {
                 return Err(PortError::Failed("spawn_grant_not_contained".to_owned()));
+            }
+            if !Self::budget_is_subset(&budget, &parent.reservation.budget) {
+                return Err(PortError::Failed("spawn_budget_not_contained".to_owned()));
             }
         }
 
