@@ -7364,3 +7364,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: target construction still depends on a caller-composed DaemonHost/ControlPlane; initial state/policy/role snapshots, fixture store, EventLog/Receipt capture, fault/restart recovery and quality result persistence remain EQ-13+
 reviewer: Codex root implementation review plus host ownership/delegation, ControlPlane constructor reuse, no quality-side runner/policy/capability path and async direct handle boundary review; no runtime test reviewer
 ```
+
+### EQ-13 Evaluation initial-state/store evidence (2026-09-18)
+
+```text
+source_snapshot: ca0f7558 + EQ-13 working-tree slice; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq13_initial_state.rs; kiana-core/tests/eq13_initial_state_guard.rs; .github/workflows/eq13-initial-state.yml; docs/roadmap/evaluation-initial-state-baseline.md; docs/roadmap.md
+worktree_status: strict `EvalInitialStateBundle` now groups policy snapshot, role assignment, memory/workflow/artifact fixtures under `kiana.eval-initial-state.v1`, rejects non-object/oversized/raw-secret values, and binds every field to one canonical `initial_state_digest`; `EvalInitialStateStore` implements `FixtureStore` with exact digest scope and opaque allow-listed fixture names, without filesystem/operator-home/network access; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime tests; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/eq13_initial_state.rs covers canonical digest binding, six fixture reads, wrong-scope/path denial, tamper detection, raw-secret rejection and object shape; kiana-core/tests/eq13_initial_state_guard.rs guards canonical bytes/redaction/FixtureStore use and no filesystem/env/network/runner/secret-store boundary; GitHub Actions EQ-13 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-13 is triggered by the eventual push and is not awaited
+status_change: EQ-13 source slice is implemented. Evaluation inputs are now loaded through a digest-bound controlled fixture port rather than caller paths or an implicit operator workspace.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: store remains in-memory and is not a durable EvalStore or authenticated ProjectTrust/role authority; EventLog/Receipt capture, target launch/fault/restart and quality result persistence remain EQ-14+
+reviewer: Codex root implementation review plus strict schema/object/size/secret validation, canonical digest binding, exact scope/name/path checks and no-filesystem/no-network/no-authority boundary review; no runtime test reviewer
+```

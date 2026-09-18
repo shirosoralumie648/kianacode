@@ -10,13 +10,14 @@ use async_trait::async_trait;
 use kiana_core::ControlPlane;
 use kiana_domain::ClockObservation;
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityErrorCode, CapabilityKind, CapabilityResult, ModelDelta,
-    ModelOutput, ModelRequest, ModelToolCall, ModelUsage,
+    canonical_journal_bytes, json_digest, redact_value, AuthorizedCapabilityRequest,
+    CapabilityErrorCode, CapabilityKind, CapabilityResult, ModelDelta, ModelOutput, ModelRequest,
+    ModelToolCall, ModelUsage,
 };
-use kiana_ports::{CapabilityBrokerPort, ModelClient, PortError};
+use kiana_ports::{CapabilityBrokerPort, FixtureStore, ModelClient, PortError};
 use kiana_protocol::{RequestEnvelope, ResponseEnvelope};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -179,6 +180,168 @@ impl Drop for EvalRuntimeSandbox {
         // Exact, self-created temp root only; failure is intentionally not turned into a fake
         // evaluation result because cleanup is an infrastructure concern recorded by the caller.
         let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+pub const EVAL_INITIAL_STATE_SCHEMA: &str = "kiana.eval-initial-state.v1";
+const MAX_INITIAL_STATE_FIXTURE_BYTES: usize = 128 * 1024;
+
+/// A strict, digest-bound collection of evaluation inputs. Values are snapshots only; they are
+/// not policy authority, role grants or durable EventLog facts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalInitialStateBundle {
+    pub schema: String,
+    pub experiment_id: String,
+    pub policy_snapshot: Value,
+    pub role_assignment: Value,
+    pub memory_fixture: Value,
+    pub workflow_fixture: Value,
+    pub artifact_fixture: Value,
+    pub initial_state_digest: String,
+}
+
+impl EvalInitialStateBundle {
+    pub fn new(
+        experiment_id: impl Into<String>,
+        policy_snapshot: Value,
+        role_assignment: Value,
+        memory_fixture: Value,
+        workflow_fixture: Value,
+        artifact_fixture: Value,
+    ) -> Result<Self, String> {
+        let mut bundle = Self {
+            schema: EVAL_INITIAL_STATE_SCHEMA.to_owned(),
+            experiment_id: experiment_id.into(),
+            policy_snapshot,
+            role_assignment,
+            memory_fixture,
+            workflow_fixture,
+            artifact_fixture,
+            initial_state_digest: String::new(),
+        };
+        bundle.initial_state_digest = bundle.digest();
+        bundle.validate()?;
+        Ok(bundle)
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "experiment_id": self.experiment_id,
+            "policy_snapshot": self.policy_snapshot,
+            "role_assignment": self.role_assignment,
+            "memory_fixture": self.memory_fixture,
+            "workflow_fixture": self.workflow_fixture,
+            "artifact_fixture": self.artifact_fixture,
+        }))
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_INITIAL_STATE_SCHEMA || !bounded_label(&self.experiment_id) {
+            return Err("eval_initial_state_header_invalid".to_owned());
+        }
+        for (field, value) in [
+            ("policy_snapshot", &self.policy_snapshot),
+            ("role_assignment", &self.role_assignment),
+            ("memory_fixture", &self.memory_fixture),
+            ("workflow_fixture", &self.workflow_fixture),
+            ("artifact_fixture", &self.artifact_fixture),
+        ] {
+            let encoded = canonical_journal_bytes(value)
+                .map_err(|_| format!("eval_initial_state_{field}_encoding_invalid"))?;
+            if !value.is_object() {
+                return Err(format!("eval_initial_state_{field}_must_be_object"));
+            }
+            if encoded.len() > MAX_INITIAL_STATE_FIXTURE_BYTES {
+                return Err(format!("eval_initial_state_{field}_too_large"));
+            }
+            if redact_value(value) != *value {
+                return Err(format!("eval_initial_state_{field}_secret_detected"));
+            }
+        }
+        if self.initial_state_digest != self.digest()
+            || !self.initial_state_digest.starts_with("sha256:")
+        {
+            return Err("eval_initial_state_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    fn fixture_values(&self) -> [(String, Value); 6] {
+        [
+            (
+                "initial_state".to_owned(),
+                json!({
+                    "schema": self.schema,
+                    "experiment_id": self.experiment_id,
+                    "policy_snapshot": self.policy_snapshot,
+                    "role_assignment": self.role_assignment,
+                    "memory_fixture": self.memory_fixture,
+                    "workflow_fixture": self.workflow_fixture,
+                    "artifact_fixture": self.artifact_fixture,
+                    "initial_state_digest": self.initial_state_digest,
+                }),
+            ),
+            ("policy_snapshot".to_owned(), self.policy_snapshot.clone()),
+            ("role_assignment".to_owned(), self.role_assignment.clone()),
+            ("memory_fixture".to_owned(), self.memory_fixture.clone()),
+            ("workflow_fixture".to_owned(), self.workflow_fixture.clone()),
+            ("artifact_fixture".to_owned(), self.artifact_fixture.clone()),
+        ]
+    }
+}
+
+/// In-memory controlled fixture store for one experiment scope. It exposes only opaque fixture
+/// names and digest-bound bytes; it never opens paths or mutates canonical project state.
+pub struct EvalInitialStateStore {
+    scope_digest: String,
+    fixtures: BTreeMap<String, Vec<u8>>,
+}
+
+impl EvalInitialStateStore {
+    pub fn from_bundle(bundle: &EvalInitialStateBundle) -> Result<Self, String> {
+        bundle.validate()?;
+        let mut fixtures = BTreeMap::new();
+        for (name, value) in bundle.fixture_values() {
+            let bytes = canonical_journal_bytes(&value)?;
+            fixtures.insert(name, bytes);
+        }
+        Ok(Self {
+            scope_digest: bundle.initial_state_digest.clone(),
+            fixtures,
+        })
+    }
+
+    pub fn scope_digest(&self) -> &str {
+        &self.scope_digest
+    }
+
+    pub fn fixture_names(&self) -> Vec<String> {
+        self.fixtures.keys().cloned().collect()
+    }
+}
+
+#[async_trait]
+impl FixtureStore for EvalInitialStateStore {
+    async fn read_fixture(
+        &self,
+        fixture_ref: &str,
+        scope_digest: &str,
+    ) -> Result<Vec<u8>, PortError> {
+        if fixture_ref.trim().is_empty()
+            || fixture_ref.len() > 64
+            || fixture_ref.contains(['/', '\\', '\0'])
+        {
+            return Err(PortError::Failed("eval_fixture_ref_invalid".to_owned()));
+        }
+        if scope_digest != self.scope_digest {
+            return Err(PortError::Failed("eval_fixture_scope_mismatch".to_owned()));
+        }
+        self.fixtures
+            .get(fixture_ref)
+            .cloned()
+            .ok_or_else(|| PortError::Unavailable("eval_fixture_not_found".to_owned()))
     }
 }
 
