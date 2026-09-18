@@ -1,0 +1,133 @@
+name: CP-27 nonblocking storage clock and limits
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/clock.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/storage_health.rs"
+      - "kiana-domain/tests/aut02_clock_observation.rs"
+      - "kiana-domain/tests/pd01_storage.rs"
+      - "kiana-domain/tests/pd03_health.rs"
+      - "kiana-domain/tests/p1_k5_01_cost_capacity.rs"
+      - "kiana-domain/tests/cp12_resource_lease.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/stream.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-core/tests/aut02_clock_guard.rs"
+      - "kiana-core/tests/bq00_cost_capacity_guard.rs"
+      - "kiana-core/tests/p1_k5_01_cost_capacity_guard.rs"
+      - "kiana-core/tests/cp12_resource_guard.rs"
+      - "kiana-core/tests/pd01_storage_guard.rs"
+      - "kiana-core/tests/pd03_health_guard.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-core/tests/cp27_nonblocking_limits_guard.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-daemon/tests/pd01_storage.rs"
+      - "kiana-runner/src/budget.rs"
+      - "docs/roadmap/cp27-nonblocking-limits-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp27-nonblocking-limits.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/clock.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/storage_health.rs"
+      - "kiana-domain/tests/aut02_clock_observation.rs"
+      - "kiana-domain/tests/pd01_storage.rs"
+      - "kiana-domain/tests/pd03_health.rs"
+      - "kiana-domain/tests/p1_k5_01_cost_capacity.rs"
+      - "kiana-domain/tests/cp12_resource_lease.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/stream.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/security_fence.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/model_budget.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-core/tests/aut02_clock_guard.rs"
+      - "kiana-core/tests/bq00_cost_capacity_guard.rs"
+      - "kiana-core/tests/p1_k5_01_cost_capacity_guard.rs"
+      - "kiana-core/tests/cp12_resource_guard.rs"
+      - "kiana-core/tests/pd01_storage_guard.rs"
+      - "kiana-core/tests/pd03_health_guard.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-core/tests/cp27_nonblocking_limits_guard.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/workspace_checkpoints.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "kiana-daemon/tests/pd01_storage.rs"
+      - "kiana-runner/src/budget.rs"
+      - "docs/roadmap/cp27-nonblocking-limits-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp27-nonblocking-limits.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nonblocking-limits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run clock fixtures
+        run: cargo test -p kiana-domain --test aut02_clock_observation --locked -- --test-threads=1
+      - name: Run domain storage and health fixtures
+        run: cargo test -p kiana-domain --test pd01_storage --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test pd03_health --locked -- --test-threads=1
+      - name: Run core clock and capacity guards
+        run: cargo test -p kiana-core --test aut02_clock_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test bq00_cost_capacity_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p1_k5_01_cost_capacity_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp12_resource_guard --locked -- --test-threads=1
+      - name: Run storage and health guards
+        run: cargo test -p kiana-core --test pd01_storage_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd03_health_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa11_health_probes --locked -- --test-threads=1
+      - name: Run EventLog package fixtures
+        run: cargo test -p kiana-eventlog --locked -- --test-threads=1
+      - name: Run daemon output/storage fixtures
+        run: cargo test -p kiana-daemon --test h15_output_limits --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test pd01_storage --locked -- --test-threads=1
+      - name: Run CP-27 source guard
+        run: cargo test -p kiana-core --test cp27_nonblocking_limits_guard --locked -- --test-threads=1
+      - name: Compile CP-27 targets
+        run: cargo check --workspace --tests --locked

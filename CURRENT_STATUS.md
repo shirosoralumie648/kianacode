@@ -8107,3 +8107,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; remote SIEM delivery, live provider effect correctness, durable cross-host explain latency and physical secret-store proof remain later telemetry/migration/product gates
 reviewer: Codex root implementation review plus authority/policy/data epoch and request/command/correlation/causation/attempt links, approval subject binding, commit/effect/verification Receipt chain, digest-only SecurityReason, stable EventLog redaction and read-only explain/no-consume boundary review; no runtime test reviewer
 ```
+
+### CP-27 nonblocking storage / clock / limits evidence (2026-09-18)
+
+```text
+source_snapshot: dbc34ac9 + CP-27 working-tree slice; kiana-domain/src/{clock,journal,storage_health}.rs; kiana-ports/src/{lib,observability_queue}.rs; kiana-eventlog/src/{jsonl,journal_core,stream,lib}.rs; kiana-core/src/{events,security_fence,approvals,company_business,cell_registry,model_budget,health}.rs; kiana-daemon/src/{harness_capabilities,execution_control,mcp_stdio,workspace_checkpoints,harness_memory,journal_approvals,apply_patch}.rs; kiana-runner/src/budget.rs; kiana-core/tests/cp27_nonblocking_limits_guard.rs; .github/workflows/cp27-nonblocking-limits.yml; docs/roadmap/cp27-nonblocking-limits-baseline.md; docs/roadmap.md
+worktree_status: source guard pins bounded EventLog worker/semaphore and queue-full denial, spawn_blocking isolation for filesystem/context/memory/MCP/process/checkpoint paths, cancellation/timeout propagation, ClockObservation rollback/monotonic trust and authority/approval/company/cell expiry fences, and hard limits for event/journal/payload/approval/patch/output/process/telemetry/model/Runner/health; limit failures retain committed facts and do not silently refund/extend authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only clock/storage/health/capacity/output fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: AUT-02 clock observation; PD-01 storage; PD-03 health; P1-K5/BQ cost-capacity; CP-12 resource lease; H15 output limits; daemon PD-01; EventLog package fixtures; cp27_nonblocking_limits_guard cross-layer source guard; GitHub Actions CP-27 runs selected fixtures, EventLog tests, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-27 is triggered by the eventual push and is not awaited
+status_change: CP-27 source slice is implemented. Nonblocking storage, trusted-clock rollback fencing and bounded-load contracts now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; capacity values are not production benchmarks, cross-host fairness is not proven, and physical disk/provider latency/recovery remain PD/ER/DEP work
+reviewer: Codex root implementation review plus blocking-I/O worker isolation, cancellation/deadline propagation, queue/capacity structured denial, clock rollback/monotonic expiry and no authority extension/resource leak boundary review; no runtime test reviewer
+```
