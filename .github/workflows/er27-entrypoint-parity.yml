@@ -1,0 +1,71 @@
+name: ER-27 entrypoint receipt and recovery parity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m7_01_accessibility.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/p2_m3_01_action_cards.rs"
+      - "kiana-core/tests/er27_entrypoint_parity_guard.rs"
+      - "docs/roadmap/er27-entrypoint-parity-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er27-entrypoint-parity.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/product_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m7_01_accessibility.rs"
+      - "kiana-core/tests/p2_k3_01_human_inbox.rs"
+      - "kiana-core/tests/p2_m3_01_action_cards.rs"
+      - "kiana-core/tests/er27_entrypoint_parity_guard.rs"
+      - "docs/roadmap/er27-entrypoint-parity-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er27-entrypoint-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  entrypoint-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run shared surface fixtures
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test p2_m7_01_accessibility --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k3_01_human_inbox --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_m3_01_action_cards --locked -- --test-threads=1
+      - name: Run ER-27 source guard
+        run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --locked -- --test-threads=1
+      - name: Compile ER-27 targets
+        run: cargo check --workspace --tests --locked

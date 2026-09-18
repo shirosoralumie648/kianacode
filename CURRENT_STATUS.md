@@ -8335,3 +8335,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process live-stream durability, external replay storage and physical delivery remain open
 reviewer: Codex root implementation review plus transaction-boundary cursor, epoch/sequence mismatch, projection/source cursor, terminal/Unknown receipt authority, bounded broadcast/gap signaling, no-block commit and no-entrypoint-execution boundary review; no runtime test reviewer
 ```
+
+### ER-27 four-entry receipt / recovery parity evidence (2026-09-18)
+
+```text
+source_snapshot: 9a2270a0 + ER-27 working-tree slice; kiana-client/src/lib.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{harness_run,workbench_chat,web,web_page.html,product_command,cli}.rs; contrib/desktop/main.js; kiana-core/tests/er27_entrypoint_parity_guard.rs; .github/workflows/er27-entrypoint-parity.yml; docs/roadmap/er27-entrypoint-parity-baseline.md; docs/roadmap.md
+worktree_status: CLI/Workbench/Web/Desktop use the shared Client/RequestEnvelope/DaemonHost→ControlPlane spine for receipt, pending, resume, cancel, reconcile, restore and incident/action-card paths; display/cursor DTOs are read-only, gaps hydrate snapshots, and no entrypoint parses/mutates EventLog, supplies owner/scope, starts execution from a query or auto-approves; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only four-surface/protocol/action-card/accessibility fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: CP-22 protocol surfaces; P2-M3 action cards; P2-K3 Human Inbox; P2-M7 accessibility; er27_entrypoint_parity_guard; GitHub Actions ER-27 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-27 is triggered by the eventual push and is not awaited
+status_change: ER-27 source slice is implemented. Four-entry shared protocol/DaemonHost routing, read-only receipt/recovery display, action-card fencing and no-entrypoint-authority boundary now have a roadmap-linked evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; Desktop external process delivery, transport authentication and live/physical guarantees remain open
+reviewer: Codex root implementation review plus shared Client/RequestEnvelope/DaemonHost route, receipt/pending/status parity, cursor/action-card preconditions, no EventLog mutation/owner injection/query execution/auto-approval and no second Broker/Model loop boundary review; no runtime test reviewer
+```
