@@ -1,0 +1,60 @@
+name: CP-16 handler stop and file commit evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/tests/p0_j1_03_process_group.rs"
+      - "kiana-daemon/tests/p0_j1_04_cancel_race.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cp16_handler_stop_guard.rs"
+      - "docs/roadmap/cp16-handler-stop-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp16-handler-stop.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/tests/p0_j1_03_process_group.rs"
+      - "kiana-daemon/tests/p0_j1_04_cancel_race.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cp16_handler_stop_guard.rs"
+      - "docs/roadmap/cp16-handler-stop-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp16-handler-stop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  handler-stop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run process-group stop fixture
+        run: cargo test -p kiana-daemon --test p0_j1_03_process_group --locked -- --test-threads=1
+      - name: Run cancel race fixture
+        run: cargo test -p kiana-daemon --test p0_j1_04_cancel_race --locked -- --test-threads=1
+      - name: Run CP-16 source guard
+        run: cargo test -p kiana-core --test cp16_handler_stop_guard --locked -- --test-threads=1
+      - name: Compile CP-16 targets
+        run: cargo check --workspace --tests --locked

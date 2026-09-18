@@ -7955,3 +7955,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; complete OS/kernel/provider memory erasure, external sink verification and live/physical proof remain SC-21+ / OA / ER work
 reviewer: Codex root implementation review plus recursive/profile/streaming redaction, sentinel/depth/size guards, EventLog/Receipt stability/recoverability, Runner/Provider safe text, shell/MCP bounded diagnostics and sandbox env secret filtering review; no runtime test reviewer
 ```
+
+### CP-16 handler stop / file commit evidence (2026-09-18)
+
+```text
+source_snapshot: 09ca4b25 + CP-16 working-tree slice; kiana-daemon/src/{harness_capabilities,execution_control,apply_patch,harness_mcp,mcp_stdio,harness_sandbox}.rs; kiana-daemon/tests/{p0_j1_03_process_group,p0_j1_04_cancel_race}.rs; kiana-capability-broker/src/lib.rs; kiana-ports/src/lib.rs; kiana-core/tests/cp16_handler_stop_guard.rs; .github/workflows/cp16-handler-stop.yml; docs/roadmap/cp16-handler-stop-baseline.md; docs/roadmap.md
+worktree_status: source guard pins shell process-group creation/termination/wait/reap/pipe drain, patch precondition/inode/path fence and descriptor-relative commit/rollback, MCP stdio stop/stderr digest/reconciliation, Broker cancellation/permit ordering and sandbox isolation; existing P0-J1-03/04 fixtures are wired for GitHub CI; no second handler executor or false-success stop path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only handler stop/file commit fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: kiana-daemon/tests/p0_j1_03_process_group.rs process-group/descendant stop and unknown fixture; kiana-daemon/tests/p0_j1_04_cancel_race.rs no-late-delta/no-wrong-terminal fixture; kiana-core/tests/cp16_handler_stop_guard.rs cross-layer source guard; GitHub Actions CP-16 runs fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-16 is triggered by the eventual push and is not awaited
+status_change: CP-16 source slice is implemented. Handler stop confirmation and file publication evidence now have a roadmap-linked cross-layer gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; OS-specific kill guarantees, physical filesystem durability, remote effect revocation and external/live/physical proof remain CP-17+ / ER / CAP work
+reviewer: Codex root implementation review plus process-group/reap/drain, patch precondition/rename/rollback, MCP stdio stop/unknown/reconciliation, Broker cancellation/permit ordering and sandbox isolation review; no runtime test reviewer
+```
