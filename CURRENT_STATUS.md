@@ -7666,3 +7666,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: conformance does not add fsync/checksum/torn-tail/kill-reopen/cross-process guarantees; JSONL/Memory capabilities remain as previously declared and PD-06+ remains
 reviewer: Codex root implementation review plus same-batch adapter parity, atomic unsupported denial, receipt/cursor/stream replay and no durable-overclaim boundary review; no runtime test reviewer
 ```
+
+### PD-06 JSONL v2 durability/recovery evidence (2026-09-18)
+
+```text
+source_snapshot: c4acae09 + PD-06 working-tree slice; kiana-eventlog/src/jsonl.rs; kiana-eventlog/tests/pd06_jsonl_recovery.rs; kiana-core/tests/pd06_jsonl_guard.rs; .github/workflows/pd06-jsonl-recovery.yml; docs/roadmap/pd06-jsonl-recovery-baseline.md; docs/roadmap.md
+worktree_status: CI-only fixture covers existing JSONL v2 checksum/malformed-frame rejection and torn final-line repair; source guard pins JournalFrame/Header, O_APPEND/O_NOFOLLOW, flock lock, fsync/file+directory sync, identity verification, bounded log/tail repair and uncertain-write handling; no implementation path or proof ceiling was silently widened; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-eventlog --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-eventlog/tests/pd06_jsonl_recovery.rs covers torn-tail-only repair and checksum corruption; kiana-core/tests/pd06_jsonl_guard.rs guards sync/lock/identity/bounded recovery markers; GitHub Actions PD-06 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-06 is triggered by the eventual push and is not awaited
+status_change: PD-06 source slice is implemented. JSONL v2 frame/checksum/lock/sync/tail recovery boundaries now have explicit CI conformance evidence.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: no new physical/kill-9/multi-host durability proof; PD-07 indexes/page boundaries and PD-08 integrity/recovery gates remain
+reviewer: Codex root implementation review plus checksum/malformed/torn-tail semantics, sync and directory flush, process/file identity locks, bounded repair and explicit no-physical-overclaim review; no runtime test reviewer
+```
