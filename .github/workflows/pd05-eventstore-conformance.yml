@@ -1,0 +1,44 @@
+name: PD-05 EventStore adapter conformance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/tests/pd05_adapter_conformance.rs"
+      - "kiana-core/tests/pd05_eventstore_guard.rs"
+      - "docs/roadmap/pd05-eventstore-conformance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd05-eventstore-conformance.yml"
+  pull_request:
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/tests/pd05_adapter_conformance.rs"
+      - "kiana-core/tests/pd05_eventstore_guard.rs"
+      - "docs/roadmap/pd05-eventstore-conformance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd05-eventstore-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eventstore-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run adapter conformance fixtures
+        run: cargo test -p kiana-eventlog --test pd05_adapter_conformance --locked -- --test-threads=1
+      - name: Run EventStore source guard
+        run: cargo test -p kiana-core --test pd05_eventstore_guard --locked -- --test-threads=1
+      - name: Compile PD-05 targets
+        run: cargo check --workspace --tests --locked

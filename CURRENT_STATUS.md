@@ -7646,3 +7646,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no durable reservation/permit/dispatch, actual tokenizer/provider response or invoice evidence; estimate remains non-authorizing and BQ-10+ owns provider usage adapters
 reviewer: Codex root implementation review plus final wire digest/output/retry/tool/effect/storage bounds, exact-vs-upper token semantics, hard-cost unknown fence and rate-card version binding; no runtime test reviewer
 ```
+
+### PD-05 EventStore adapter conformance evidence (2026-09-18)
+
+```text
+source_snapshot: b4fc89a2 + PD-05 working-tree slice; kiana-eventlog/src/{memory.rs,jsonl.rs}; kiana-ports/src/lib.rs; kiana-eventlog/tests/pd05_adapter_conformance.rs; kiana-core/tests/pd05_eventstore_guard.rs; .github/workflows/pd05-eventstore-conformance.yml; docs/roadmap/pd05-eventstore-conformance-baseline.md; docs/roadmap.md
+worktree_status: CI-only conformance applies the same TransitionBatch to Memory and JSONL adapters and checks Committed/Replayed/Conflict, CommandReceipt, bounded cursor page and stream parity; a non-atomic adapter receives explicit `event_store_atomic_transitions_unsupported` before transition; no adapter implementation or durable proof claim was widened; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-eventlog --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-eventlog/tests/pd05_adapter_conformance.rs covers Memory/JSONL conformance and non-atomic rejection; kiana-core/tests/pd05_eventstore_guard.rs guards EventStorePort atomic/cursor/Unknown markers; GitHub Actions PD-05 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-05 is triggered by the eventual push and is not awaited
+status_change: PD-05 source slice is implemented. Adapter conformance now fixes shared Committed/Replayed/Conflict/cursor semantics before PD-06 durability hardening.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: conformance does not add fsync/checksum/torn-tail/kill-reopen/cross-process guarantees; JSONL/Memory capabilities remain as previously declared and PD-06+ remains
+reviewer: Codex root implementation review plus same-batch adapter parity, atomic unsupported denial, receipt/cursor/stream replay and no durable-overclaim boundary review; no runtime test reviewer
+```
