@@ -1,0 +1,58 @@
+name: CP-19 explicit resume and fact rebuild
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp19_explicit_resume_guard.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap/cp19-explicit-resume-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp19-explicit-resume.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_g03_resume_guard.rs"
+      - "kiana-core/tests/cp19_explicit_resume_guard.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap/cp19-explicit-resume-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp19-explicit-resume.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explicit-resume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run existing resume guard
+        run: cargo test -p kiana-core --test p0_g03_resume_guard --locked -- --test-threads=1
+      - name: Run invocation resume contract fixture
+        run: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+      - name: Run CP-19 source guard
+        run: cargo test -p kiana-core --test cp19_explicit_resume_guard --locked -- --test-threads=1
+      - name: Compile CP-19 targets
+        run: cargo check --workspace --tests --locked

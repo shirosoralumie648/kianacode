@@ -8012,3 +8012,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; durable cross-process snapshot blob guarantees, physical backup retention, full crash-resume matrix and external/live/physical proof remain CP-19+ / ER / PD work
 reviewer: Codex root implementation review plus RunSnapshot/pending invocation digest, authority/trust/data epoch, quiescent runner checkpoint, redaction non-resumable, workspace file identity/revocation and no-execution restore boundary review; no runtime test reviewer
 ```
+
+### CP-19 explicit resume / fact rebuild evidence (2026-09-18)
+
+```text
+source_snapshot: 351dbd57 + CP-19 working-tree slice; kiana-core/src/{recovery,invocation_projection,lifecycle}.rs; kiana-core/tests/{p0_g03_resume_guard,cp19_explicit_resume_guard}.rs; kiana-domain/tests/h14_invocation_resume.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-runner/src/harness.rs; .github/workflows/cp19-explicit-resume.yml; docs/roadmap/cp19-explicit-resume-baseline.md; docs/roadmap.md
+worktree_status: source guard pins committed EventLog fact scan, invocation projection/pending rebuild, RunSnapshot owner/authority/data epoch/scope/stale validation, CAS resume claim, Runner restore and re-entry to the existing drive_run path; no startup execution, second model loop or direct Broker call was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only explicit resume fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: p0_g03 resume guard checks protocol/DaemonHost/core shared drive path; h14 invocation resume fixture checks binding digest/owner/parameter/catalog/sandbox; cp19_explicit_resume_guard checks recovery/projection/ports/daemon markers and no-second-loop boundary; GitHub Actions CP-19 runs fixtures, guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-19 is triggered by the eventual push and is not awaited
+status_change: CP-19 source slice is implemented. Explicit resume now has a roadmap-linked fact-rebuild/CAS/restore evidence gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; two-host durable lease recovery, full crash matrix and Unknown reconciliation/retry/compensation remain CP-20+ / ER / PD work
+reviewer: Codex root implementation review plus committed-fact scan/projection rebuild, snapshot/owner/authority/data epoch/stale validation, CAS resume claim, Runner restore/drive_run reuse and no execution during startup scan review; no runtime test reviewer
+```
