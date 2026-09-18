@@ -8392,3 +8392,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel-specific openat2, non-Linux handles, cross-process races and physical filesystem guarantees remain open
 reviewer: Codex root implementation review plus operation-specific read/replace/create/delete/rename semantics, root/parent/target identity, missing suffix, symlink/hardlink/private path, descriptor-relative mutation and path-swap rejection boundary review; no runtime test reviewer
 ```
+
+### CAP-09 Linux minimal file view / write-set evidence (2026-09-18)
+
+```text
+source_snapshot: f68de7f8 + CAP-09 working-tree slice; kiana-daemon/src/{harness_sandbox,execution_workspace,harness_capabilities,execution_control}.rs; kiana-core/tests/cap09_linux_file_view_guard.rs; .github/workflows/cap09-linux-file-view.yml; docs/roadmap/cap09-linux-file-view-baseline.md; docs/roadmap.md
+worktree_status: Linux bwrap view exposes only explicit system/toolchain/project/tmpfs sources with descriptor-pinned ro/bind mounts, unshare/proc/dev/cap-drop/clearenv/network/env restrictions and private credential/socket masking; read-only cannot write host workspace, workspace-write stages a private baseline-scoped workspace and publishes only through the existing commit boundary; path/private/mount-source violations fail closed; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only file-view/write-set/output fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: harness runtime; H15 output limits; CAP-07 environment backend guard; CAP-08 path resolver guard; cap09_linux_file_view_guard; GitHub Actions CAP-09 runs selected fixtures, guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-09 is triggered by the eventual push and is not awaited
+status_change: CAP-09 source slice is implemented. Linux minimal file view, private path/socket/credential masking, read-only/write-set distinction and staged publication now have a roadmap-linked gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel mount/userns/network enforcement, real host secret/socket probes and physical isolation remain open
+reviewer: Codex root implementation review plus explicit mount-source inventory, fd identity, private-component mask, read-only no-write, workspace-write exact path_allow, staged baseline/publish, output/resource bounds and no host-root/socket/credential fallback review; no runtime test reviewer
+```

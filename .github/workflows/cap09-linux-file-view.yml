@@ -1,0 +1,59 @@
+name: CAP-09 Linux minimal file view
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-core/tests/cap08_path_resolver_guard.rs"
+      - "kiana-core/tests/cap09_linux_file_view_guard.rs"
+      - "kiana-daemon/tests/harness_runtime.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap09-linux-file-view-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap09-linux-file-view.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/execution_workspace.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-core/tests/cap08_path_resolver_guard.rs"
+      - "kiana-core/tests/cap09_linux_file_view_guard.rs"
+      - "kiana-daemon/tests/harness_runtime.rs"
+      - "kiana-daemon/tests/h15_output_limits.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap09-linux-file-view-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap09-linux-file-view.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-file-view:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run staged workspace and output fixtures
+        run: cargo test -p kiana-daemon --test harness_runtime --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test h15_output_limits --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap07_environment_backend_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap08_path_resolver_guard --locked -- --test-threads=1
+      - name: Run CAP-09 source guard
+        run: cargo test -p kiana-core --test cap09_linux_file_view_guard --locked -- --test-threads=1
+      - name: Compile CAP-09 targets
+        run: cargo check --workspace --tests --locked
