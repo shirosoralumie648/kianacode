@@ -1,0 +1,42 @@
+name: PD-08 EventStore integrity scan
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-eventlog/tests/pd08_integrity_scan.rs"
+      - "kiana-core/tests/pd08_integrity_guard.rs"
+      - "docs/roadmap/pd08-integrity-scan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd08-integrity-scan.yml"
+  pull_request:
+    paths:
+      - "kiana-eventlog/src/**"
+      - "kiana-eventlog/tests/pd08_integrity_scan.rs"
+      - "kiana-core/tests/pd08_integrity_guard.rs"
+      - "docs/roadmap/pd08-integrity-scan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd08-integrity-scan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integrity-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run integrity scan fixtures
+        run: cargo test -p kiana-eventlog --test pd08_integrity_scan --locked -- --test-threads=1
+      - name: Run integrity source guard
+        run: cargo test -p kiana-core --test pd08_integrity_guard --locked -- --test-threads=1
+      - name: Compile PD-08 targets
+        run: cargo check --workspace --tests --locked

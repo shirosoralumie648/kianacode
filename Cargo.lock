@@ -2555,6 +2555,7 @@ dependencies = [
  "kiana-domain",
  "kiana-ports",
  "libc",
+ "serde",
  "serde_json",
  "tokio",
 ]

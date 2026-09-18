@@ -17,4 +17,5 @@ kiana-ports.workspace = true
 async-trait.workspace = true
 libc.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 tokio.workspace = true
