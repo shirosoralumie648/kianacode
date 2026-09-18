@@ -27,9 +27,9 @@ use kiana_domain::{
     CorrelationContext, CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
     EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
     MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
-    ProjectIdentity, QualityArtifact, QualityArtifactId, RequestContext, RequestId,
-    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef,
-    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass,
+    ProjectIdentity, QualityArtifact, QualityArtifactId, RateCard, RateCardId, RequestContext,
+    RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent,
+    SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass,
     StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SwarmLineage,
     SwarmPlanId, TraceSummary, WorkFingerprint,
 };
@@ -155,6 +155,114 @@ pub trait ConfigSnapshotStore: Send + Sync {
         snapshot: ConfigSnapshot,
         expected_revision: Option<&str>,
     ) -> Result<ConfigSnapshot, PortError>;
+}
+
+/// Read-only rate-card lookup boundary. A resolved card is pinned by its ID/version and remains
+/// an estimate input; it does not authorize a provider call or prove an external invoice.
+#[async_trait]
+pub trait RateCardStore: Send + Sync {
+    async fn resolve_rate_card(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        at_unix_ms: u64,
+    ) -> Result<RateCard, PortError>;
+
+    async fn read_rate_card(&self, rate_card_id: RateCardId)
+        -> Result<Option<RateCard>, PortError>;
+}
+
+/// Bounded in-memory rate-card adapter for fixtures and local composition. It rejects overlapping
+/// effective windows for one provider/model key so a lookup cannot silently choose a price.
+#[derive(Clone, Debug, Default)]
+pub struct InMemoryRateCardStore {
+    cards: Arc<tokio::sync::RwLock<Vec<RateCard>>>,
+}
+
+impl InMemoryRateCardStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn insert(&self, card: RateCard) -> Result<(), PortError> {
+        card.validate()
+            .map_err(|error| PortError::Failed(format!("rate_card_invalid:{error}")))?;
+        let mut cards = self.cards.write().await;
+        if cards.iter().any(|existing| {
+            existing.rate_card_id == card.rate_card_id
+                || (existing.provider_id == card.provider_id
+                    && existing.model_selector == card.model_selector
+                    && existing.card_version == card.card_version)
+        }) {
+            return Err(PortError::Conflict(
+                "rate_card_duplicate_version".to_owned(),
+            ));
+        }
+        if cards.iter().any(|existing| {
+            existing.provider_id == card.provider_id
+                && existing.model_selector == card.model_selector
+                && windows_overlap(existing, &card)
+        }) {
+            return Err(PortError::Conflict(
+                "rate_card_effective_overlap".to_owned(),
+            ));
+        }
+        cards.push(card);
+        Ok(())
+    }
+}
+
+fn windows_overlap(left: &RateCard, right: &RateCard) -> bool {
+    let left_end = left.effective_to_unix_ms.unwrap_or(u64::MAX);
+    let right_end = right.effective_to_unix_ms.unwrap_or(u64::MAX);
+    left.effective_from_unix_ms < right_end && right.effective_from_unix_ms < left_end
+}
+
+#[async_trait]
+impl RateCardStore for InMemoryRateCardStore {
+    async fn resolve_rate_card(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+        at_unix_ms: u64,
+    ) -> Result<RateCard, PortError> {
+        if provider_id.trim().is_empty()
+            || model_id.trim().is_empty()
+            || provider_id.len() > 256
+            || model_id.len() > 256
+        {
+            return Err(PortError::Failed("rate_card_lookup_invalid".to_owned()));
+        }
+        let cards = self.cards.read().await;
+        let matching = cards
+            .iter()
+            .filter(|card| card.provider_id == provider_id && card.model_selector == model_id)
+            .collect::<Vec<_>>();
+        if let Some(card) = matching
+            .iter()
+            .find(|card| card.is_effective_at(at_unix_ms))
+        {
+            return Ok((*card).clone());
+        }
+        if matching.is_empty() {
+            Err(PortError::Unavailable("rate_card_unknown_model".to_owned()))
+        } else {
+            Err(PortError::Conflict("rate_card_expired".to_owned()))
+        }
+    }
+
+    async fn read_rate_card(
+        &self,
+        rate_card_id: RateCardId,
+    ) -> Result<Option<RateCard>, PortError> {
+        Ok(self
+            .cards
+            .read()
+            .await
+            .iter()
+            .find(|card| card.rate_card_id == rate_card_id)
+            .cloned())
+    }
 }
 
 /// Rotate or revoke a SecretRef using compare-and-swap generation semantics. Returned values are

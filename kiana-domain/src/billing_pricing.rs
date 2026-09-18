@@ -11,6 +11,21 @@ pub const RATE_CARD_SCHEMA: &str = "kiana.rate-card.v1";
 pub const COST_ESTIMATE_SCHEMA: &str = "kiana.cost-estimate.v1";
 pub const PRICING_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BillingPriceDimension {
+    InputTokens,
+    OutputTokens,
+    CacheReadTokens,
+    CacheWriteTokens,
+    ReasoningTokens,
+    AudioInputTokens,
+    AudioOutputTokens,
+    Requests,
+    ToolCalls,
+    Effects,
+}
+
 fn currency_valid(currency: &str) -> bool {
     currency.len() == 3 && currency.bytes().all(|byte| byte.is_ascii_uppercase())
 }
@@ -80,8 +95,11 @@ pub struct RateCard {
     pub cache_read_price_per_unit: Option<u64>,
     pub cache_write_price_per_unit: Option<u64>,
     pub reasoning_price_per_unit: Option<u64>,
+    pub audio_input_price_per_unit: Option<u64>,
+    pub audio_output_price_per_unit: Option<u64>,
     pub request_price: Option<u64>,
     pub tool_price: Option<u64>,
+    pub effect_price: Option<u64>,
     pub effective_from_unix_ms: u64,
     pub effective_to_unix_ms: Option<u64>,
     pub card_version: u64,
@@ -115,8 +133,11 @@ impl RateCard {
             cache_read_price_per_unit: None,
             cache_write_price_per_unit: None,
             reasoning_price_per_unit: None,
+            audio_input_price_per_unit: None,
+            audio_output_price_per_unit: None,
             request_price: None,
             tool_price: None,
+            effect_price: None,
             effective_from_unix_ms,
             effective_to_unix_ms,
             card_version,
@@ -150,8 +171,11 @@ impl RateCard {
                 self.cache_read_price_per_unit,
                 self.cache_write_price_per_unit,
                 self.reasoning_price_per_unit,
+                self.audio_input_price_per_unit,
+                self.audio_output_price_per_unit,
                 self.request_price,
                 self.tool_price,
+                self.effect_price,
             ]
             .iter()
             .all(Option::is_none)
@@ -166,6 +190,21 @@ impl RateCard {
     pub fn is_effective_at(&self, now_unix_ms: u64) -> bool {
         now_unix_ms >= self.effective_from_unix_ms
             && self.effective_to_unix_ms.is_none_or(|to| now_unix_ms < to)
+    }
+
+    pub fn price_for(&self, dimension: BillingPriceDimension) -> Option<u64> {
+        match dimension {
+            BillingPriceDimension::InputTokens => self.input_price_per_unit,
+            BillingPriceDimension::OutputTokens => self.output_price_per_unit,
+            BillingPriceDimension::CacheReadTokens => self.cache_read_price_per_unit,
+            BillingPriceDimension::CacheWriteTokens => self.cache_write_price_per_unit,
+            BillingPriceDimension::ReasoningTokens => self.reasoning_price_per_unit,
+            BillingPriceDimension::AudioInputTokens => self.audio_input_price_per_unit,
+            BillingPriceDimension::AudioOutputTokens => self.audio_output_price_per_unit,
+            BillingPriceDimension::Requests => self.request_price,
+            BillingPriceDimension::ToolCalls => self.tool_price,
+            BillingPriceDimension::Effects => self.effect_price,
+        }
     }
 
     pub fn estimate(
@@ -183,6 +222,22 @@ impl RateCard {
             self.input_price_per_unit,
             &self.currency,
             "input_tokens",
+            &mut unknown,
+        )?;
+        total = add_dimension(
+            total,
+            usage.audio_input_tokens,
+            self.audio_input_price_per_unit,
+            &self.currency,
+            "audio_input_tokens",
+            &mut unknown,
+        )?;
+        total = add_dimension(
+            total,
+            usage.audio_output_tokens,
+            self.audio_output_price_per_unit,
+            &self.currency,
+            "audio_output_tokens",
             &mut unknown,
         )?;
         total = add_dimension(
@@ -233,7 +288,15 @@ impl RateCard {
             "tool_calls",
             &mut unknown,
         )?;
-        CostEstimate::new(self.rate_card_id, total, unknown)
+        total = add_dimension(
+            total,
+            Some(usage.effect_count),
+            self.effect_price,
+            &self.currency,
+            "effects",
+            &mut unknown,
+        )?;
+        CostEstimate::new(self.rate_card_id, self.card_version, total, unknown)
     }
 
     pub fn digest(&self) -> String {
@@ -249,8 +312,11 @@ impl RateCard {
             "cache_read_price_per_unit": self.cache_read_price_per_unit,
             "cache_write_price_per_unit": self.cache_write_price_per_unit,
             "reasoning_price_per_unit": self.reasoning_price_per_unit,
+            "audio_input_price_per_unit": self.audio_input_price_per_unit,
+            "audio_output_price_per_unit": self.audio_output_price_per_unit,
             "request_price": self.request_price,
             "tool_price": self.tool_price,
+            "effect_price": self.effect_price,
             "effective_from_unix_ms": self.effective_from_unix_ms,
             "effective_to_unix_ms": self.effective_to_unix_ms,
             "card_version": self.card_version,
@@ -299,6 +365,7 @@ fn valid_digest(value: &str) -> bool {
 pub struct CostEstimate {
     pub schema: String,
     pub rate_card_id: RateCardId,
+    pub rate_card_version: u64,
     pub amount: Option<Money>,
     pub unknown_reason: Option<BillingUnknownReason>,
     pub estimate_digest: String,
@@ -307,12 +374,14 @@ pub struct CostEstimate {
 impl CostEstimate {
     fn new(
         rate_card_id: RateCardId,
+        rate_card_version: u64,
         amount: Money,
         unknown_reason: Option<BillingUnknownReason>,
     ) -> Result<Self, String> {
         let mut estimate = Self {
             schema: COST_ESTIMATE_SCHEMA.to_owned(),
             rate_card_id,
+            rate_card_version,
             amount: unknown_reason.is_none().then_some(amount),
             unknown_reason,
             estimate_digest: String::new(),
@@ -324,6 +393,7 @@ impl CostEstimate {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != COST_ESTIMATE_SCHEMA
             || self.rate_card_id.as_uuid().is_nil()
+            || self.rate_card_version == 0
             || (self.amount.is_some() && self.unknown_reason.is_some())
             || (self.amount.is_none() && self.unknown_reason.is_none())
             || !valid_digest(&self.estimate_digest)
@@ -341,6 +411,7 @@ impl CostEstimate {
         json_digest(&serde_json::json!({
             "schema": self.schema,
             "rate_card_id": self.rate_card_id,
+            "rate_card_version": self.rate_card_version,
             "amount": self.amount,
             "unknown_reason": self.unknown_reason,
         }))

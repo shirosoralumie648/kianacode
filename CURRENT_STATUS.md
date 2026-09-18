@@ -7545,3 +7545,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: no RateCardStore/model-provider mapping, currency conversion, provider invoice/receipt, reservation admission or durable cost ledger; BQ-05+ remains
 reviewer: Codex root implementation review plus integer micros/currency validation, checked multiplication/addition, effective window/version/digest, explicit unknown estimate and no-provider boundary review; no runtime test reviewer
 ```
+
+### BQ-05 RateCardStore evidence (2026-09-18)
+
+```text
+source_snapshot: 03bbbb53 + BQ-05 working-tree slice; kiana-domain/src/billing_pricing.rs; kiana-ports/src/lib.rs; kiana-ports/tests/bq05_rate_card_store.rs; kiana-core/tests/bq05_rate_card_guard.rs; .github/workflows/bq05-rate-card-store.yml; docs/roadmap/billing-rate-card-store-baseline.md; docs/roadmap.md
+worktree_status: `RateCardStore` now resolves provider/model cards at an explicit timestamp, with `InMemoryRateCardStore` rejecting overlap, duplicate version, unknown model and expiry; RateCard exposes cache/reasoning/audio/request/tool/effect price dimensions and CostEstimate carries pinned card version; adapter is fixture-only and has no provider/invoice/financial authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only runtime fixtures; no local test or smoke binary executed
+fixture or cassette: kiana-ports/tests/bq05_rate_card_store.rs covers pinned lookup, dimension mapping (cache/audio/effect/tool), overlap/duplicate/unknown/expiry denial and card-version estimate binding; kiana-core/tests/bq05_rate_card_guard.rs guards port-only/no-provider/no-financial-authority boundary; GitHub Actions BQ-05 workflow runs fixtures and workspace compile
+exit_code: 0 for format, focused test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions BQ-05 is triggered by the eventual push and is not awaited
+status_change: BQ-05 source slice is implemented. Rate-card lookup and unit-dimension mapping now have an explicit pinned port boundary before future admission/settlement work.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: in-memory store is fixture-only; no durable rate-card projector, provider discovery/invoice import, currency conversion, reservation admission or financial billing authority exists
+reviewer: Codex root implementation review plus timestamped provider/model resolution, overlap/duplicate fence, explicit unknown/expiry errors, cache/audio/tool/effect mapping and pinned estimate-version review; no runtime test reviewer
+```
