@@ -1,0 +1,58 @@
+name: CAP-07 environment backend probe and plan
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-domain/src/execution_scope.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-daemon/tests/eq09_eval_runtime.rs"
+      - "kiana-core/tests/eq09_eval_runtime_guard.rs"
+      - "kiana-domain/tests/cap03_execution_scope.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap07-environment-backend-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap07-environment-backend.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-domain/src/execution_scope.rs"
+      - "kiana-core/tests/cap07_environment_backend_guard.rs"
+      - "kiana-daemon/tests/eq09_eval_runtime.rs"
+      - "kiana-core/tests/eq09_eval_runtime_guard.rs"
+      - "kiana-domain/tests/cap03_execution_scope.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap07-environment-backend-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap07-environment-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run environment and scope fixtures
+        run: cargo test -p kiana-daemon --test eq09_eval_runtime --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test eq09_eval_runtime_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test cap03_execution_scope --locked -- --test-threads=1
+      - name: Run CAP-07 source guard
+        run: cargo test -p kiana-core --test cap07_environment_backend_guard --locked -- --test-threads=1
+      - name: Compile CAP-07 targets
+        run: cargo check --workspace --tests --locked

@@ -8354,3 +8354,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; Desktop external process delivery, transport authentication and live/physical guarantees remain open
 reviewer: Codex root implementation review plus shared Client/RequestEnvelope/DaemonHost route, receipt/pending/status parity, cursor/action-card preconditions, no EventLog mutation/owner injection/query execution/auto-approval and no second Broker/Model loop boundary review; no runtime test reviewer
 ```
+
+### CAP-07 EnvironmentPort / backend probe evidence (2026-09-18)
+
+```text
+source_snapshot: 84382a5f + CAP-07 working-tree slice; kiana-ports/src/lib.rs; kiana-daemon/src/{harness_sandbox,execution_control,harness_capabilities}.rs; kiana-domain/src/execution_scope.rs; kiana-core/tests/cap07_environment_backend_guard.rs; .github/workflows/cap07-environment-backend.yml; docs/roadmap/cap07-environment-backend-baseline.md; docs/roadmap.md
+worktree_status: EnvironmentPort now has fail-closed probe/plan/prepare/execute/quiesce/dispose phases with owner/scope/backend/version/plan digest and explicit unsupported errors; bwrap plan verifies executable identity, workspace/path/symlink/private scope, unshare/proc/dev/tmpfs/cap-drop/clearenv/network/env constraints, and no host fallback; execution inspect reports backend/limits with behavior_verified=false; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only sandbox/backend/scope fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: EQ-09 eval runtime/environment guard; CAP-03 execution scope fixture; cap07_environment_backend_guard; GitHub Actions CAP-07 runs selected fixtures, guard and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-07 is triggered by the eventual push and is not awaited
+status_change: CAP-07 source slice is implemented. EnvironmentPort phase contract, verifiable bwrap backend selection and fail-closed no-host-fallback evidence now have a roadmap-linked gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel/userns enforcement, non-Linux adapters, cross-host isolation and physical sandbox guarantees remain open
+reviewer: Codex root implementation review plus phase separation, backend identity/path probe, deterministic scope/plan, required-dimension enforcement, private/env/network restrictions, no fallback and behavior_verified=false boundary review; no runtime test reviewer
+```

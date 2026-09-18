@@ -34,8 +34,118 @@ use kiana_domain::{
     StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
+
+/// Server-owned scope used by an execution environment adapter.  It is a plan input only;
+/// the adapter must not widen any field or treat the caller's strings as authority.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EnvironmentScope {
+    pub owner_id: String,
+    pub scope_digest: String,
+    pub project_root: String,
+    pub sandbox: String,
+    #[serde(default)]
+    pub path_allow: Vec<String>,
+}
+
+/// Bounded backend probe. `enforced` is a server/adapter claim that must be derived from actual
+/// preparation support; a backend cannot report an unavailable required dimension as supported.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EnvironmentProbe {
+    pub backend: String,
+    pub backend_version: String,
+    pub capabilities: BTreeMap<String, bool>,
+    pub enforced: BTreeMap<String, bool>,
+    #[serde(default)]
+    pub failure_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EnvironmentPlan {
+    pub owner_id: String,
+    pub scope_digest: String,
+    pub backend: String,
+    pub backend_version: String,
+    pub plan_digest: String,
+    pub required_dimensions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PreparedEnvironment {
+    pub plan_digest: String,
+    pub backend: String,
+    pub backend_version: String,
+    pub enforced_dimensions: Vec<String>,
+    #[serde(default)]
+    pub environment_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EnvironmentEffectReceipt {
+    pub plan_digest: String,
+    pub phase: String,
+    pub effect_known: bool,
+    pub stop_confirmed: bool,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// Six-phase environment boundary.  Default methods fail closed so a missing backend never
+/// silently falls back to the host environment or claims an unenforced dimension.
+#[async_trait]
+pub trait EnvironmentPort: Send + Sync {
+    async fn probe(&self, _scope: &EnvironmentScope) -> Result<EnvironmentProbe, PortError> {
+        Err(PortError::Unavailable(
+            "environment_probe_unsupported".to_owned(),
+        ))
+    }
+
+    async fn plan(
+        &self,
+        _scope: &EnvironmentScope,
+        _probe: &EnvironmentProbe,
+    ) -> Result<EnvironmentPlan, PortError> {
+        Err(PortError::Unavailable(
+            "environment_plan_unsupported".to_owned(),
+        ))
+    }
+
+    async fn prepare(&self, _plan: &EnvironmentPlan) -> Result<PreparedEnvironment, PortError> {
+        Err(PortError::Unavailable(
+            "environment_prepare_unsupported".to_owned(),
+        ))
+    }
+
+    async fn execute(
+        &self,
+        _prepared: &PreparedEnvironment,
+        _operation: &str,
+    ) -> Result<EnvironmentEffectReceipt, PortError> {
+        Err(PortError::Unavailable(
+            "environment_execute_unsupported".to_owned(),
+        ))
+    }
+
+    async fn quiesce(
+        &self,
+        _prepared: &PreparedEnvironment,
+    ) -> Result<EnvironmentEffectReceipt, PortError> {
+        Err(PortError::Unavailable(
+            "environment_quiesce_unsupported".to_owned(),
+        ))
+    }
+
+    async fn dispose(
+        &self,
+        _prepared: PreparedEnvironment,
+    ) -> Result<EnvironmentEffectReceipt, PortError> {
+        Err(PortError::Unavailable(
+            "environment_dispose_unsupported".to_owned(),
+        ))
+    }
+}
 
 mod observability_queue;
 pub use observability_queue::{
