@@ -8697,6 +8697,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus event-sourced invocation reconstruction, terminal conflict detection, owner/scope/epoch snapshot claim, redaction boundary, bounded retry/new attempt identity and evidence-only reconciliation review; no runtime test reviewer
 ```
 
+### CAP-25 receipt / four-entry parity evidence (2026-09-19)
+
+```text
+source_snapshot: 396b3ba2 + CAP-25 working-tree slice; kiana-core/src/{receipts,parity,redaction,capability_attempt_projection}.rs; kiana-domain/src/{receipt_contracts,receipt_aggregation}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/run_stream.rs; kiana-runner/src/harness.rs; kiana-core/tests/cap25_receipt_entrypoint_guard.rs; .github/workflows/cap25-receipt-entrypoint.yml; docs/roadmap/cap25-receipt-entrypoint-baseline.md; docs/roadmap.md
+worktree_status: typed RunReceipt/ExecutionReceipt/ReceiptAggregation and bounded source refs are projected from committed facts with owner/data-epoch/redaction/effect fences; CLI, Workbench, Web and Desktop share protocol/DaemonHost/ControlPlane parity snapshots; RunStream retains terminal replay while progress remains disposable; invalid or foreign adapter results cannot render success
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only receipt, parity, protocol, Web sync and RunStream fixtures/source guards; no local test or smoke binary executed
+fixture or cassette: CP-14 result receipt; ER-11/ER-12 receipt contracts and aggregation; OA-24 entrypoint parity; CP-22 protocol surfaces; P2-M5-01 Web sync; daemon RunStream unit fixtures; ER-27 parity guard; cap25_receipt_entrypoint_guard; GitHub Actions CAP-25 runs these fixtures, source guards and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-25 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-25 source slice is implemented/reconciled. Receipts bind source facts and limitations, all four entrypoints consume the same read model, terminal replay is cursor/epoch bounded and non-executing, and Unknown/foreign/invalid results remain fenced
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; progress delivery is intentionally disposable, external artifact stores and live SSE durability remain out of scope, and physical external-effect correctness still requires provider evidence
+reviewer: Codex root implementation review plus typed receipt fields, owner/data revocation, source cursor/event identity, redaction, result request-ID pairing, four-entry digest parity, bounded terminal replay and no-execution reconnect review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

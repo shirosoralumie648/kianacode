@@ -1,0 +1,83 @@
+name: CAP-25 receipt and entrypoint parity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-domain/src/receipt_aggregation.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/tests/cap25_receipt_entrypoint_guard.rs"
+      - "kiana-core/tests/er27_entrypoint_parity_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-domain/tests/cp14_result_receipt.rs"
+      - "kiana-domain/tests/er11_receipt_contracts.rs"
+      - "kiana-domain/tests/er12_receipt_aggregation.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "docs/roadmap/cap25-receipt-entrypoint-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap25-receipt-entrypoint.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-domain/src/receipt_contracts.rs"
+      - "kiana-domain/src/receipt_aggregation.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/tests/cap25_receipt_entrypoint_guard.rs"
+      - "kiana-core/tests/er27_entrypoint_parity_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-domain/tests/cp14_result_receipt.rs"
+      - "kiana-domain/tests/er11_receipt_contracts.rs"
+      - "kiana-domain/tests/er12_receipt_aggregation.rs"
+      - "kiana-entrypoints/tests/cp22_protocol_surfaces.rs"
+      - "kiana-entrypoints/tests/p2_m5_01_web_sync.rs"
+      - "docs/roadmap/cap25-receipt-entrypoint-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap25-receipt-entrypoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-entrypoint-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run receipt contract fixtures
+        run: cargo test -p kiana-domain --test cp14_result_receipt --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test er11_receipt_contracts --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test er12_receipt_aggregation --locked -- --test-threads=1
+      - name: Run parity and stream fixtures
+        run: cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --lib run_stream::tests --locked -- --test-threads=1
+      - name: Run existing parity guard
+        run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --locked -- --test-threads=1
+      - name: Run CAP-25 source guard
+        run: cargo test -p kiana-core --test cap25_receipt_entrypoint_guard --locked -- --test-threads=1
+      - name: Compile CAP-25 targets
+        run: cargo check --workspace --tests --locked
