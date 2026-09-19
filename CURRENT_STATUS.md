@@ -10100,3 +10100,19 @@ status_change: CP-25 source slice is implemented and roadmap row 306 is ✅. Ski
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: this is a cross-layer source guard over existing adapters, not live provider/secret-store execution; physical secret protection, all-entrypoint parity, cross-process recovery, external MCP outcomes and production hook semantics remain later CP/SC/CAP work
 reviewer: Codex root implementation review plus trust-before-load, extension/allowed-tools non-authority, hook sandbox/bounds/decision facts, MCP snapshot/schema/CAS/approval drift, server memory scope/data revoke and opaque secret purpose/audience/endpoint/generation boundary review; no runtime test reviewer
+
+### H20 immutable StepContext / explainable ContextPlan evidence (2026-09-19)
+
+source_snapshot: b0684230 + H20 working-tree slice; kiana-domain/src/context_plan.rs; kiana-domain/src/{prompts.rs,context_scope.rs,model.rs}; kiana-domain/tests/h20_context_plan.rs; kiana-runner/src/{harness.rs,model.rs}; kiana-runner/tests/h20_context_guard.rs; .github/workflows/h20-context-plan.yml; docs/roadmap/h20-context-plan-baseline.md; docs/roadmap.md
+worktree_status: ContextPlan compiles Product/Context material deterministically with source/permission/revision/priority/estimate/inclusion/omission; workspace/Memory/tool candidates cannot claim Product authority; ResolvedStepContext binds one StepIdentity to plan/prompt/route/catalog/workspace/data epoch/rendered prompt digest and TokenBudget, with drift recheck before send; runner source guard covers existing PromptBundle decode, StepIdentity and ModelRequest path; no second context compiler or provider loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: h20_context_plan Product-vs-Context, untrusted source, budget explanation, route/workspace/data binding and same-digest fixtures; runner H20 source guard; GitHub Actions H20 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H20 source slice is implemented and roadmap row 307 is ✅. Context compilation and provider-bound step identity are now represented by one explainable immutable contract
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: retrieval adapters still supply candidates, render/token estimate is a bounded UTF-8 proxy rather than provider tokenizer truth, provider wire/live fake assertions and cross-process context recovery remain later H/CM/CP work
+reviewer: Codex root implementation review plus Product/Context separation, source provenance, budget/omission explanation, StepIdentity/route/catalog/workspace/data epoch binding, request digest and no-second-compiler/no-provider boundary review; no runtime test reviewer
