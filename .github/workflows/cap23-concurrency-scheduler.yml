@@ -1,0 +1,58 @@
+name: CAP-23 concurrency and scheduler
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/capability_scheduler.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/cap23_concurrency_scheduler_guard.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-core/tests/sc16_quota_backpressure_guard.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap23-concurrency-scheduler-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap23-concurrency-scheduler.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/capability_scheduler.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/cap23_concurrency_scheduler_guard.rs"
+      - "kiana-core/tests/p1_c02_cell_lifecycle.rs"
+      - "kiana-core/tests/sc16_quota_backpressure_guard.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-runner/src/harness.rs"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap/cap23-concurrency-scheduler-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap23-concurrency-scheduler.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  concurrency-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run Cell lifecycle fixtures
+        run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --locked -- --test-threads=1
+      - name: Run quota backpressure source guard
+        run: cargo test -p kiana-core --test sc16_quota_backpressure_guard --locked -- --test-threads=1
+      - name: Run CAP-23 source guard
+        run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --locked -- --test-threads=1
+      - name: Compile CAP-23 targets
+        run: cargo check --workspace --tests --locked

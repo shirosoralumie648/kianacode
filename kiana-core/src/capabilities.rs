@@ -1,3 +1,4 @@
+use super::capability_scheduler::{AdmissionLease, AdmissionOutcome};
 use super::events::*;
 use super::redaction::*;
 use super::*;
@@ -851,6 +852,7 @@ impl ControlPlane {
         sequence: &mut u64,
     ) -> Result<FinalizedCapabilityAction, CoreError> {
         let mut lease = None;
+        let mut admission_lease: Option<AdmissionLease> = None;
         let execution = if *cancellation.borrow() {
             let mut result =
                 CapabilityResult::failure(request.request_id, "cancelled:before_dispatch");
@@ -864,7 +866,26 @@ impl ControlPlane {
                 }
                 let authorized =
                     AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
-                lease = self.begin_cell_capability_from_request(request).await?;
+                let scheduler_lease = self
+                    .admission_scheduler
+                    .acquire(request, cancellation.clone())
+                    .await?;
+                if *cancellation.borrow() {
+                    self.admission_scheduler
+                        .release(scheduler_lease, AdmissionOutcome::Known);
+                    return Err(action_error("cancelled:before_dispatch"));
+                }
+                match self.begin_cell_capability_from_request(request).await {
+                    Ok(cell_lease) => {
+                        lease = cell_lease;
+                        admission_lease = Some(scheduler_lease);
+                    }
+                    Err(error) => {
+                        self.admission_scheduler
+                            .release(scheduler_lease, AdmissionOutcome::Known);
+                        return Err(error);
+                    }
+                }
                 Ok::<_, CoreError>(authorized)
             }
             .await;
@@ -888,6 +909,7 @@ impl ControlPlane {
             request,
             execution,
             lease,
+            admission_lease,
             &cancellation,
             event_request_id,
             sequence,
@@ -902,6 +924,7 @@ impl ControlPlane {
         request: &CapabilityRequest,
         execution: Result<CapabilityResult, PortError>,
         lease: Option<CapabilityLease>,
+        admission_lease: Option<AdmissionLease>,
         cancellation: &watch::Receiver<bool>,
         event_request_id: RequestId,
         sequence: &mut u64,
@@ -1010,6 +1033,14 @@ impl ControlPlane {
                     "cell_capability_settlement_failed",
                 );
             }
+        }
+        if let Some(admission_lease) = admission_lease {
+            let outcome = if finalized.status == ExecutionStatus::ResultUnknown {
+                AdmissionOutcome::Unknown
+            } else {
+                AdmissionOutcome::Known
+            };
+            self.admission_scheduler.release(admission_lease, outcome);
         }
         Ok(finalized)
     }

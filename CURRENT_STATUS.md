@@ -8659,6 +8659,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus config/catalog/list_changed drift, exact tool schemas, result/error/structured content validation, Unknown/no-retry after sent call, approval invalidation, resource-link no-fetch and per-invocation isolation review; no runtime test reviewer
 ```
 
+### CAP-23 concurrency / fair admission evidence (2026-09-19)
+
+```text
+source_snapshot: 2b6bea0c + CAP-23 working-tree slice; kiana-core/src/capability_scheduler.rs; kiana-core/src/{capabilities,cell_registry,sessions}.rs; kiana-daemon/src/execution_control.rs; kiana-runner/src/harness.rs; kiana-core/tests/cap23_concurrency_scheduler_guard.rs; .github/workflows/cap23-concurrency-scheduler.yml; docs/roadmap/cap23-concurrency-scheduler-baseline.md; docs/roadmap.md
+worktree_status: ControlPlane now places an explicit bounded admission gate after authorization and before Broker dispatch; FIFO conflict-aware scheduling separates read/read from overlapping write and unknown footprints, uses server-derived write_roots for shell/process writes, removes cancelled queued calls before dispatch, and quarantines Unknown footprints; CellRegistry remains the atomic authority for budget/concurrency/path ownership and durable OS locks remain the cross-process boundary
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only scheduler, Cell lifecycle, quota and cancellation fixtures; no local test or smoke binary executed
+fixture or cassette: P1-C-02 Cell lifecycle fixture; SC-16 quota/backpressure source guard; cap23_concurrency_scheduler_guard; GitHub Actions CAP-23 runs these fixtures, the source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-23 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-23 source slice is implemented/reconciled. Authorized requests now queue fairly at one ControlPlane admission gate; overlapping write scopes, read/write conflicts and unknown effects cannot run concurrently, parent/cell budget checks remain atomic, and cancelled queued calls cannot reach Broker dispatch
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; scheduler state is process-local, Unknown quarantine release requires later reconciliation/retirement, per-tenant fairness and durable queue recovery remain later CAP-24/automation work, and external provider effect reconciliation is not claimed
+reviewer: Codex root implementation review plus FIFO admission, read/write/unknown footprint conservatism, authorized write scope, queue cancellation, CellRegistry budget/path ownership, cross-process lock, Unknown quarantine and no-second-execution-loop review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

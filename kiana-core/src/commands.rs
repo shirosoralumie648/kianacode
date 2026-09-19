@@ -107,6 +107,7 @@ impl ControlPlane {
             active_terminal_scopes: Mutex::new(HashMap::new()),
             path_locks: Mutex::new(HashMap::new()),
             durable_path_locks: Mutex::new(HashMap::new()),
+            admission_scheduler: Arc::new(CapabilityAdmissionScheduler::default()),
         }
     }
 

@@ -8,6 +8,7 @@ mod audit_export;
 mod audit_projection;
 mod authority;
 mod capabilities;
+mod capability_scheduler;
 mod cell_registry;
 mod collaboration;
 mod commands;
@@ -116,6 +117,7 @@ pub use trace_export::{
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
 };
 
+use capability_scheduler::CapabilityAdmissionScheduler;
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
     path_locks_conflict, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, BudgetLease,
@@ -266,6 +268,9 @@ pub struct ControlPlane {
     active_terminal_scopes: Mutex<HashMap<RunId, Arc<RunTerminalScope>>>,
     path_locks: Mutex<HashMap<String, String>>,
     durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,
+    /// Process-local admission only. It never executes a capability; the Broker remains the
+    /// single effect boundary and CellRegistry remains the budget/path authority.
+    pub(crate) admission_scheduler: Arc<CapabilityAdmissionScheduler>,
 }
 
 #[derive(Debug, thiserror::Error)]
