@@ -10740,3 +10740,19 @@ status change: CM-29 source slice is implemented and roadmap row 340 is ✅. Pro
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: cross-process projector persistence, physical crash/power-loss recovery, index rebuild performance, UI hydration and live provider effects remain open; no durable production or live claim is made
 reviewer: Codex root implementation review plus absent/lagging cursor visibility, generation/data epoch binding, read gate, original mutation-key reconciliation and no blind retry review; no runtime test reviewer
+
+### CM-30 golden context retrieval evidence (2026-09-20)
+
+source_snapshot: cc1915ac + CM-30 working-tree slice; kiana-domain/src/{golden_context.rs,context_plan.rs,unified_retrieval.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm30_golden_context.rs; kiana-core/tests/cm30_golden_context_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm30-golden-context.yml; docs/roadmap/cm30-golden-context-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: GoldenContextFixture/Case bind source snapshot, policy/data epoch, index generation, algorithm/embedding and ContextPlan/retrieval digests; coverage tags require English/Chinese/CJK/identifier/path/time/ACL, canonical bytes are stable and pinned unified retrieval IDs/digests are checked
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-30 byte-stable ContextPlan and reproducible unified retrieval fixtures plus Core source guard; GitHub Actions CM-30 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-30 source slice is implemented and roadmap row 635 is ✅. Golden snapshot and retrieval rank determinism are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: fixture determinism does not prove semantic retrieval quality, real embedding quality, freshness, production latency, live provider behavior or business outcomes; CM-31 owns quality/safety evaluation
+reviewer: Codex root implementation review plus snapshot/epoch/generation/digest binding, multilingual/identifier/path/time/ACL coverage, byte stability and rank replay review; no runtime test reviewer

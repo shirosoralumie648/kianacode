@@ -570,7 +570,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-30 · Golden ContextPlan / retrieval fixture　⏳
+##### CM-30 · Golden ContextPlan / retrieval fixture　✅
+
+当前 source slice 与 CI-only 证据见 [`cm30-golden-context-baseline.md`](cm30-golden-context-baseline.md)。
 
 固定 source snapshot、policy/data epoch、index generation、算法/embedding digest，覆盖中英/CJK、identifier、路径、时间和 ACL。验收：`golden_context_plan_is_byte_stable`、`golden_retrieval_has_reproducible_ranks`。
 
