@@ -1,0 +1,79 @@
+name: h26-clarification
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/clarification.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-domain/tests/h26_clarification.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h26_clarification.rs"
+      - "kiana-runner-protocol/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/tests/h26_clarification.rs"
+      - "kiana-core/src/clarification.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/h26_clarification_guard.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap/h26-clarification-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h26-clarification.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/clarification.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/platform.rs"
+      - "kiana-domain/tests/h26_clarification.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h26_clarification.rs"
+      - "kiana-runner-protocol/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/tests/h26_clarification.rs"
+      - "kiana-core/src/clarification.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/h26_clarification_guard.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap/h26-clarification-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h26-clarification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clarification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H26 domain fixtures
+        run: cargo test -p kiana-domain --test h26_clarification --locked -- --test-threads=1
+      - name: Run H26 protocol fixtures
+        run: cargo test -p kiana-protocol --test h26_clarification --locked -- --test-threads=1
+      - name: Run H26 runner fixtures
+        run: cargo test -p kiana-runner --test h26_clarification --locked -- --test-threads=1
+      - name: Run H26 core source guard
+        run: cargo test -p kiana-core --test h26_clarification_guard --locked -- --test-threads=1

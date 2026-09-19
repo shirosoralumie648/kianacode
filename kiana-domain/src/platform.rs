@@ -6,6 +6,7 @@ use serde_json::Value;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HumanInboxKind {
+    Question,
     Approval,
     Review,
     Acceptance,

@@ -540,7 +540,9 @@ sequenceDiagram
 
 <a id="step-h26"></a>
 
-#### H26 — 澄清请求与权限审批分离　⏳
+#### H26 — 澄清请求与权限审批分离　✅
+
+当前 source slice 与 CI-only 证据见 [`h26-clarification-baseline.md`](h26-clarification-baseline.md)。
 
 **关联原单元**：`P0-F-01`、`P2-K3-01`、`P2-M3-01`。**依赖**：H09、H14、H18、H19、H24。
 

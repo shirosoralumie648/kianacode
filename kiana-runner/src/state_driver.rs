@@ -4,7 +4,7 @@
 //! filesystem. External IDs, time and effect observations arrive as `DriverInput`; callers then
 //! perform the existing I/O and persist the resulting RunnerEvent facts through ControlPlane.
 
-use kiana_domain::{RunId, StepId, TurnId};
+use kiana_domain::{InteractionId, RunId, StepId, TurnId};
 use serde::{Deserialize, Serialize};
 
 pub const RUN_FRAME_SCHEMA: &str = "kiana.harness-run-frame.v1";
@@ -56,6 +56,9 @@ pub struct RunFrame {
     pub step_id: Option<StepId>,
     pub step: u32,
     pub pending_tools: u32,
+    /// A pending question is bound to one interaction and is never an approval handle.
+    #[serde(default)]
+    pub pending_interaction_id: Option<InteractionId>,
     pub driver_owner: Option<String>,
     pub mailbox_capacity: u32,
     pub accepted_inputs: u64,
@@ -73,6 +76,8 @@ pub enum DriverInput {
     ModelOutput { tool_count: u32, complete: bool },
     ToolResult { effect_known: bool },
     AwaitApproval,
+    AwaitClarification { interaction_id: InteractionId },
+    AnswerClarification { interaction_id: InteractionId },
     RequestCancel,
     StopConfirmed,
     RecoverUnknown,
@@ -87,6 +92,7 @@ pub enum DriverIntent {
     DispatchTools,
     WaitForToolResult,
     WaitForApproval,
+    WaitForInput,
     CancelPendingTools,
     Reconcile,
     EmitTerminal,
@@ -109,6 +115,10 @@ pub enum DriverError {
     TerminalConflict,
     #[error("harness_driver_step_invalid")]
     StepInvalid,
+    #[error("harness_driver_clarification_identity_mismatch")]
+    ClarificationIdentityMismatch,
+    #[error("harness_driver_clarification_not_pending")]
+    ClarificationNotPending,
     #[error("harness_driver_frame_invalid")]
     InvalidFrame,
 }
@@ -142,6 +152,7 @@ impl RunDriver {
                 step_id: None,
                 step: 0,
                 pending_tools: 0,
+                pending_interaction_id: None,
                 driver_owner: None,
                 mailbox_capacity: DEFAULT_MAILBOX_CAPACITY,
                 accepted_inputs: 0,
@@ -162,6 +173,10 @@ impl RunDriver {
             || self.frame.run_id != self.frame.turn.run_id
             || self.frame.step == 0 && self.frame.step_id.is_some()
             || self.frame.pending_tools > self.frame.mailbox_capacity
+            || (self.frame.phase == HarnessPhase::AwaitingInput)
+                != self.frame.pending_interaction_id.is_some()
+            || (self.frame.phase != HarnessPhase::AwaitingInput
+                && self.frame.pending_interaction_id.is_some())
         {
             return Err(DriverError::InvalidFrame);
         }
@@ -191,6 +206,22 @@ impl RunDriver {
 
     pub fn tool_result(&mut self, effect_known: bool) -> Result<(), DriverError> {
         self.transition(DriverInput::ToolResult { effect_known })
+            .map(|_| ())
+    }
+
+    pub fn await_clarification(
+        &mut self,
+        interaction_id: InteractionId,
+    ) -> Result<(), DriverError> {
+        self.transition(DriverInput::AwaitClarification { interaction_id })
+            .map(|_| ())
+    }
+
+    pub fn answer_clarification(
+        &mut self,
+        interaction_id: InteractionId,
+    ) -> Result<(), DriverError> {
+        self.transition(DriverInput::AnswerClarification { interaction_id })
             .map(|_| ())
     }
 
@@ -234,8 +265,11 @@ fn move_phase(
             | (HarnessPhase::ModelPending, HarnessPhase::TurnFinished)
             | (HarnessPhase::ToolPending, HarnessPhase::ModelPending)
             | (HarnessPhase::ToolPending, HarnessPhase::AwaitingApproval)
+            | (HarnessPhase::ModelPending, HarnessPhase::AwaitingInput)
             | (HarnessPhase::AwaitingApproval, HarnessPhase::ModelPending)
+            | (HarnessPhase::AwaitingInput, HarnessPhase::ModelPending)
             | (HarnessPhase::AwaitingApproval, HarnessPhase::Cancelling)
+            | (HarnessPhase::AwaitingInput, HarnessPhase::Cancelling)
             | (HarnessPhase::ModelPending, HarnessPhase::Cancelling)
             | (HarnessPhase::ToolPending, HarnessPhase::Cancelling)
             | (HarnessPhase::Cancelling, HarnessPhase::TurnFinished)
@@ -258,6 +292,7 @@ fn move_phase(
         HarnessPhase::ModelPending => DriverIntent::StartModel,
         HarnessPhase::ToolPending => DriverIntent::DispatchTools,
         HarnessPhase::AwaitingApproval => DriverIntent::WaitForApproval,
+        HarnessPhase::AwaitingInput => DriverIntent::WaitForInput,
         HarnessPhase::Cancelling => DriverIntent::CancelPendingTools,
         HarnessPhase::RecoveryRequired => DriverIntent::Reconcile,
         HarnessPhase::TurnFinished => DriverIntent::EmitTerminal,
@@ -285,6 +320,7 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
             next.accepted_inputs = 0;
             next.pending_tools = 0;
             next.step_id = None;
+            next.pending_interaction_id = None;
             next.terminal = None;
             next.turn.terminal = None;
             move_phase(&mut next, HarnessPhase::Preparing, &mut intents)?;
@@ -348,7 +384,27 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
         DriverInput::AwaitApproval => {
             move_phase(&mut next, HarnessPhase::AwaitingApproval, &mut intents)?;
         }
+        DriverInput::AwaitClarification { interaction_id } => {
+            if interaction_id.as_uuid().is_nil()
+                || next.pending_interaction_id.is_some()
+                || !matches!(next.phase, HarnessPhase::ModelPending)
+            {
+                return Err(DriverError::ClarificationIdentityMismatch);
+            }
+            next.pending_interaction_id = Some(interaction_id);
+            move_phase(&mut next, HarnessPhase::AwaitingInput, &mut intents)?;
+        }
+        DriverInput::AnswerClarification { interaction_id } => {
+            if next.phase != HarnessPhase::AwaitingInput
+                || next.pending_interaction_id != Some(interaction_id)
+            {
+                return Err(DriverError::ClarificationNotPending);
+            }
+            next.pending_interaction_id = None;
+            move_phase(&mut next, HarnessPhase::ModelPending, &mut intents)?;
+        }
         DriverInput::RequestCancel => {
+            next.pending_interaction_id = None;
             move_phase(&mut next, HarnessPhase::Cancelling, &mut intents)?;
         }
         DriverInput::StopConfirmed => {
@@ -360,6 +416,7 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
             }
             next.terminal = Some(DriverTerminal::Cancelled);
             next.turn.terminal = next.terminal;
+            next.pending_interaction_id = None;
             move_phase(&mut next, HarnessPhase::TurnFinished, &mut intents)?;
         }
         DriverInput::RecoverUnknown => {
@@ -371,6 +428,7 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
             }
             next.terminal = Some(outcome);
             next.turn.terminal = Some(outcome);
+            next.pending_interaction_id = None;
             if next.phase != HarnessPhase::TurnFinished {
                 next.phase = HarnessPhase::TurnFinished;
                 next.turn.phase = HarnessPhase::TurnFinished;

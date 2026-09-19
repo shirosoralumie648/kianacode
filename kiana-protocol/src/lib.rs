@@ -18,7 +18,11 @@ pub use kiana_domain::{
     BudgetSettlementFact, CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState,
     CapabilityGrant, CapabilityGrantId, CapabilityProcessState, CapabilityResultDimensions,
     CapabilityResultReceipt, CatalogCandidate, CatalogEntry, CatalogEntryKind, CellId,
-    CellLifecycle, CellSpec, ChildCellId, ClosingReceipt, CommunicationLifecycleEvent,
+    CellLifecycle, CellSpec, ChildCellId, ClarificationAnswer, ClarificationCancelPolicy,
+    ClarificationOption, ClarificationRequest, ClarificationResolution, ClarificationSource,
+    ClarificationStatus, ClarificationWaitView, ClosingReceipt, CommunicationLifecycleEvent,
+    CLARIFICATION_ANSWER_SCHEMA, CLARIFICATION_REQUEST_SCHEMA, CLARIFICATION_RESOLUTION_SCHEMA,
+    CLARIFICATION_VERSION, CLARIFICATION_WAIT_SCHEMA, CLARIFICATION_WAITING_STATUS,
     CommunicationLifecycleStatus, CommunicationMessage, CommunicationMessageKind,
     CompanyCommandReceipt, CompanyReceiptStatus, CompanyScope, CompanyScopeRegistry, ComponentId,
     ConfigSnapshot, CredentialDisplayStatus, Criterion, CriterionId, DataBoundary, DataBoundaryId,
@@ -35,8 +39,8 @@ pub use kiana_domain::{
     ExtensionSnapshot, ExtensionSnapshotState, ExtensionType, FenceTokenId, Freshness, GoldenTrace,
     GoldenTraceId, GrantId, HookDecision, HookDecisionKind, HookDescriptor, HookOrderCandidate,
     HookPhase, HookRunId, HumanDecision, HumanTask, HumanTaskStatus, IdentityMigration,
-    InvocationId, InvocationIdentity, Membership, MembershipId, MembershipStatus, MemoryScope,
-    MergeDecisionId, MergeReceipt, Message, MessageId, MessageKind, ModelAttemptId,
+    InteractionId, InvocationId, InvocationIdentity, Membership, MembershipId, MembershipStatus,
+    MemoryScope, MergeDecisionId, MergeReceipt, Message, MessageId, MessageKind, ModelAttemptId,
     ModelAttemptIdentity, ModelContent, ModelOutcome, ModelSideEffectState, ModelStopReason,
     Notification, NotificationChannel, NotificationEventClass, NotificationEventSource,
     NotificationEventSpec, NotificationId, NotificationStatus, OperationId, OrganizationBinding,
@@ -150,6 +154,7 @@ pub const QUALITY_EVENT_KINDS: &[&str] = &[
     "quality.promote",
     "quality.rollback",
 ];
+pub const CLARIFICATION_ANSWER_COMMAND: &str = "run.clarification.answer";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -430,6 +435,19 @@ impl RequestEnvelope {
                 expected_version,
             }),
         }
+    }
+
+    /// Construct the regular-input clarification answer command. Core must validate and persist
+    /// the answer before resuming the original turn; this helper carries no approval material.
+    pub fn answer_clarification(
+        metadata: RequestMetadata,
+        answer: ClarificationAnswer,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self::command(
+            metadata,
+            CLARIFICATION_ANSWER_COMMAND,
+            serde_json::to_value(answer)?,
+        ))
     }
 
     /// 构造没有显式历史的 run envelope。

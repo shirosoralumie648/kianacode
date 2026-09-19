@@ -15,6 +15,7 @@ const REQUEST_IDS: &[&str] = &["request_id"];
 const RUN_IDS: &[&str] = &["run_id"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const INPUT_IDS: &[&str] = &["run_id", "input_id"];
+const CLARIFICATION_IDS: &[&str] = &["run_id", "interaction_id", "turn_id"];
 const APPROVAL_IDS: &[&str] = &["approval_id"];
 const ACTION_IDS: &[&str] = &["request_id", "action_digest"];
 const COMMUNICATION_IDS: &[&str] = &["message"];
@@ -87,6 +88,22 @@ const RUN_FIELDS: &[&str] = &[
     "target_turn_id",
     "received_sequence",
     "disposition",
+    "interaction_id",
+    "question",
+    "options",
+    "required",
+    "expires_at_unix_ms",
+    "cancel_policy",
+    "created_by_role",
+    "responder_roles",
+    "status",
+    "request",
+    "wait",
+    "answer",
+    "answer_id",
+    "request_digest",
+    "answer_digest",
+    "waiting_for_input",
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
@@ -605,6 +622,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.input.claimed",
         "run",
         INPUT_IDS,
+        RUN_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "run.clarification.requested",
+        "run",
+        CLARIFICATION_IDS,
         RUN_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")

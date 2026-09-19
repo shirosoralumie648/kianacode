@@ -6,7 +6,8 @@
 //! runner 自行授予权限的依据。
 
 use kiana_domain::{
-    CapabilityRequest, CapabilityResult, ConversationMessage, InputId, RequestId, RunId, TurnId,
+    CapabilityRequest, CapabilityResult, ClarificationRequest, ConversationMessage, InputId,
+    RequestId, RunId, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -250,6 +251,12 @@ pub enum RunnerEvent {
         /// 待审批/执行的能力请求。
         request: CapabilityRequest,
     },
+    /// The model requested a bounded human clarification. Core must persist and project the
+    /// question before any answer is accepted; this event is not an approval request.
+    ClarificationRequested {
+        run_id: RunId,
+        request: ClarificationRequest,
+    },
     /// runner 认为 run 已完成；仍需由 daemon 形成最终 receipt。
     Completed {
         /// 对应 run ID。
@@ -286,6 +293,7 @@ impl RunnerEvent {
             | Self::ModelTurn { run_id, .. }
             | Self::Delta { run_id, .. }
             | Self::CapabilityRequested { run_id, .. }
+            | Self::ClarificationRequested { run_id, .. }
             | Self::Completed { run_id, .. }
             | Self::Failed { run_id, .. }
             | Self::Compacted { run_id, .. } => *run_id,

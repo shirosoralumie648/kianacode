@@ -43,6 +43,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "InteractionId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "interaction_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "RunId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "run_id",
@@ -942,6 +948,38 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
     },
     SchemaContract {
         name: "kiana.input-receipt.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.clarification-request.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.clarification-answer.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.clarification-resolution.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.clarification-wait.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,
         owner_crate: "kiana-domain",
@@ -2619,6 +2657,8 @@ mod tests {
 
     impl_uuid_samples!(
         RequestId,
+        InputId,
+        InteractionId,
         RunId,
         TurnId,
         StepId,
@@ -2781,6 +2821,8 @@ mod tests {
 
     register_round_trip_tests!(
         RequestId,
+        InputId,
+        InteractionId,
         RunId,
         TurnId,
         StepId,
