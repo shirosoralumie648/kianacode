@@ -19,6 +19,7 @@ pub mod index;
 pub mod index_generation;
 pub mod index_invalidation;
 pub mod repo_map;
+pub mod repo_map_task;
 pub mod stop_hooks;
 pub mod token_budget;
 pub mod transitions;
@@ -47,6 +48,7 @@ pub use index::{
 pub use index_generation::{manifest_path, read_index_manifest, write_index_manifest_atomic};
 pub use index_invalidation::plan_index_invalidation;
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
+pub use repo_map_task::select_repo_map_for_task;
 pub use stop_hooks::{
     handle_stop_hooks, run_post_tool_use_hooks, run_pre_tool_use_hooks, run_session_start_hooks,
     run_user_prompt_submit_hooks, stop_hook_error_notification, HookInfo, PostToolUseHookContext,

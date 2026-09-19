@@ -1,0 +1,61 @@
+name: cm13-repo-map-task
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/repo_map_task.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm13_repo_map_task.rs"
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/repo_map_task.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm13_repo_map_task.rs"
+      - "kiana-core/tests/cm13_repo_map_task_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm13-repo-map-task-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm13-repo-map-task.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/repo_map_task.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm13_repo_map_task.rs"
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/repo_map_task.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm13_repo_map_task.rs"
+      - "kiana-core/tests/cm13_repo_map_task_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm13-repo-map-task-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm13-repo-map-task.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repo-map-task:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-13 domain repo-map fixtures
+        run: cargo test -p kiana-domain --test cm13_repo_map_task --locked -- --test-threads=1
+      - name: Run CM-13 query task-lens fixtures
+        run: cargo test -p kiana-query --test cm13_repo_map_task --locked -- --test-threads=1
+      - name: Run CM-13 source guard
+        run: cargo test -p kiana-core --test cm13_repo_map_task_guard --locked -- --test-threads=1

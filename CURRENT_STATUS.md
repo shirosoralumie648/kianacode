@@ -10468,3 +10468,19 @@ status_change: CM-12 source slice is implemented and roadmap row 323 is ✅. One
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: legacy daemon rank_records and CLI memory search are not fully migrated at every call site, external embedding/model quality and durable index integration remain open, and no live retrieval proof is claimed
 reviewer: Codex root implementation review plus ACL-before-ranking, scope binding, exact/BM25/dense/RRF/MMR/stable tie-break, degraded evidence and shared RetrievalPort boundary review; no runtime test reviewer
+
+### CM-13 RepoMap task-lens and dependency evidence (2026-09-20)
+
+source_snapshot: f2c796e4 + CM-13 working-tree slice; kiana-domain/src/{repo_map_task.rs,contracts.rs,lib.rs}; kiana-query/src/{repo_map.rs,repo_map_task.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm13_repo_map_task.rs; kiana-query/tests/cm13_repo_map_task.rs; kiana-core/tests/cm13_repo_map_task_guard.rs; .github/workflows/cm13-repo-map-task.yml; docs/roadmap/cm13-repo-map-task-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: RepoMapTaskCandidate binds content digest, task score, token estimate, heuristic/declared symbol and dependency evidence; RepoMapTaskSelection deterministically ranks score/path/digest, enforces token budget and records omitted paths/selection digest; query adapter reuses existing read-only RepoMap scanner and never labels heuristic symbols as compiler facts
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-13 domain budget/evidence fixtures, query task-lens fixture and Core source guard; GitHub Actions CM-13 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-13 source slice is implemented and roadmap row 324 is ✅. Task-related repo-map selection and non-compiler evidence are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: optional parser/tree-sitter/compiler dependency graph, incremental/durable integration and production task relevance remain open; heuristic evidence cannot prove compiler semantics
+reviewer: Codex root implementation review plus deterministic task score/path/digest ordering, budget/omitted accounting, heuristic-vs-compiler boundary and reuse of read-only RepoMap scanner review; no runtime test reviewer
