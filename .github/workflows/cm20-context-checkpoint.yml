@@ -1,0 +1,55 @@
+name: cm20-context-checkpoint
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/context_checkpoint.rs"
+      - "kiana-domain/src/compaction_commit.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h23_compaction_commit.rs"
+      - "kiana-domain/tests/cm20_context_checkpoint.rs"
+      - "kiana-core/tests/cm20_context_checkpoint_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm20-context-checkpoint-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm20-context-checkpoint.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/context_checkpoint.rs"
+      - "kiana-domain/src/compaction_commit.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h23_compaction_commit.rs"
+      - "kiana-domain/tests/cm20_context_checkpoint.rs"
+      - "kiana-core/tests/cm20_context_checkpoint_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm20-context-checkpoint-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm20-context-checkpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  context-checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-20 context-checkpoint fixtures
+        run: cargo test -p kiana-domain --test cm20_context_checkpoint --locked -- --test-threads=1
+      - name: Run CM-20 source guard
+        run: cargo test -p kiana-core --test cm20_context_checkpoint_guard --locked -- --test-threads=1
