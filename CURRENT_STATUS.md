@@ -10324,3 +10324,19 @@ status_change: H33 source slice is implemented and roadmap row 588 is ✅. Resou
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: real panic/process/shutdown stress and external stop receipts are not newly proven, cross-process cleanup projector remains open, and host drop never implies confirmed stop
 reviewer: Codex root implementation review plus owner/resource/status, stop/effect evidence, Unknown isolation, retention bounds, supervisor shutdown and Core release boundary review; no runtime test reviewer
+
+### H34 legacy compatibility evidence (2026-09-19)
+
+source_snapshot: 45d4ee9b + H34 working-tree slice; kiana-domain/src/{legacy_compat.rs,contracts.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-runner/src/harness.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/command_dispatch.rs; kiana-core/tests/h34_legacy_compat_guard.rs; kiana-domain/tests/h34_legacy_compat.rs; kiana-protocol/tests/h34_legacy_compat.rs; .github/workflows/h34-legacy-compat.yml; docs/roadmap/h34-legacy-compat-baseline.md; docs/roadmap.md
+worktree_status: LegacyCompatibilityDecision and LegacyCheckpointDecision make known v1/complete-ID checkpoint material explicitly resumable; unknown schema/version/incomplete identity only receives read-only or not-supported disposition; existing Continue/DaemonHost/ControlPlane/Runner/cassette boundaries are source-guarded; no random identity or second loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H34 domain unknown-checkpoint/legacy-Continue fixtures, protocol wire fixture, and Core route/source guard; GitHub Actions H34 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H34 source slice is implemented and roadmap row 589 is ✅. Unknown legacy checkpoint material cannot auto-resume or invent IDs; legacy Continue remains on one DaemonHost route
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full historical cassette corpus, all legacy resident/Desktop entrypoints, cross-process migration and live provider compatibility remain H35/H36/PD/provider work
+reviewer: Codex root implementation review plus additive schema, known checkpoint identity, unknown-version refusal, same DaemonHost route, no random IDs and no second loop review; no runtime test reviewer

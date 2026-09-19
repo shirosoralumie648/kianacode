@@ -660,7 +660,9 @@ sequenceDiagram
 
 <a id="step-h34"></a>
 
-#### H34 — 旧协议、cassette 与入口迁移　⏳
+#### H34 — 旧协议、cassette 与入口迁移　✅
+
+当前 source slice 与 CI-only 证据见 [`h34-legacy-compat-baseline.md`](h34-legacy-compat-baseline.md)。
 
 **关联原单元**：`P0-A-01b`、`P0-G-03`、`P0-M1-01`、§10 旧 runner 路径。**依赖**：H02、H04、H19、H24、H27、H32、H33。
 

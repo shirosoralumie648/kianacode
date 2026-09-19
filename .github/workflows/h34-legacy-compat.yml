@@ -1,0 +1,61 @@
+name: h34-legacy-compat
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/legacy_compat.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h34_legacy_compat.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h34_legacy_compat.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-core/tests/h34_legacy_compat_guard.rs"
+      - "docs/roadmap/h34-legacy-compat-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h34-legacy-compat.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/legacy_compat.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h34_legacy_compat.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h34_legacy_compat.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/command_dispatch.rs"
+      - "kiana-core/tests/h34_legacy_compat_guard.rs"
+      - "docs/roadmap/h34-legacy-compat-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h34-legacy-compat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H34 domain fixtures
+        run: cargo test -p kiana-domain --test h34_legacy_compat --locked -- --test-threads=1
+      - name: Run H34 protocol fixtures
+        run: cargo test -p kiana-protocol --test h34_legacy_compat --locked -- --test-threads=1
+      - name: Run H34 core source guard
+        run: cargo test -p kiana-core --test h34_legacy_compat_guard --locked -- --test-threads=1
