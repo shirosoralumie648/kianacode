@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### CAP-34 capability conformance matrix evidence (partial, 2026-09-19)
+
+source_snapshot: 8dbbf634 + CAP-34 working-tree slice; kiana-domain/src/capability_conformance.rs; kiana-domain/src/lib.rs; kiana-domain/tests/cap34_conformance.rs; kiana-core/tests/cap34_conformance_guard.rs; .github/workflows/cap34-conformance.yml; docs/roadmap/cap34-conformance-baseline.md; docs/roadmap.md
+worktree_status: domain now exposes a bounded backend/profile/tool/scenario matrix with explicit Verified/NotApplicable/NotImplemented/Blocked rows; non-verified rows require reasons, epoch snapshots are mandatory, grant drift and effect/resume fence bypass are rejected, and the report counts skips separately from verified cases
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only cap34_conformance domain fixtures; cap34_conformance_guard; GitHub Actions CAP-34 runs partial/blocked/duplicate/fence matrix fixtures and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-34 is triggered by the eventual push and is not awaited
+status_change: CAP-34 source matrix/closeout contract advanced from no typed combined evidence shape; roadmap remains ⏳ because CAP-30–33 rows still contain missing implementations and no cross-backend runtime/live/performance/cleanup receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: matrix rows are supplied evidence classifications, not runtime execution; no actual macOS/Windows/container matrix ran, NotApplicable/NotImplemented remain open, and cross-entry parity/performance thresholds are not measured
+reviewer: Codex root implementation review plus explicit non-skip status semantics, epoch binding, grant drift, effect/resume fencing, duplicate case and partial status boundary review; no runtime test reviewer
+
 ### ER-36 physical/live boundary and handoff evidence (partial, 2026-09-19)
 
 source_snapshot: c258275d + ER-36 working-tree slice; kiana-domain/src/live_handoff.rs; kiana-domain/tests/oa28_live_handoff.rs; kiana-core/tests/er36_physical_live_guard.rs; scripts/oa28-live-handoff-preflight.sh; docs/roadmap/oa28-live-handoff.md; docs/roadmap/er36-physical-live-handoff-baseline.md; .github/workflows/er36-physical-live-handoff.yml; docs/roadmap.md
