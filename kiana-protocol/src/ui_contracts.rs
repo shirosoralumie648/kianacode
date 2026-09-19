@@ -21,6 +21,8 @@ pub const UI_HANDSHAKE_REQUEST_SCHEMA: &str = "kiana.ui-handshake-request.v1";
 pub const UI_HANDSHAKE_RESPONSE_SCHEMA: &str = "kiana.ui-handshake-response.v1";
 pub const UI_HEALTH_SCHEMA: &str = "kiana.ui-health.v1";
 pub const UI_INSTANCE_RECORD_SCHEMA: &str = "kiana.ui-instance-record.v1";
+pub const UI_HOST_CAPABILITY_SCHEMA: &str = "kiana.ui-host-capability.v1";
+pub const UI_LIVE_HOST_EVIDENCE_SCHEMA: &str = "kiana.ui-live-host-evidence.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -166,6 +168,257 @@ impl UiCapability {
             return Err("ui_capability_reason_invalid".to_owned());
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiHostCapabilityDisposition {
+    Advertised,
+    Disabled,
+    NotSupported,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHostCapability {
+    pub schema: String,
+    pub capability_id: String,
+    pub actions: Vec<String>,
+    pub scope_digest: String,
+    pub disposition: UiHostCapabilityDisposition,
+    /// Host/editor/terminal APIs never become a Kiana side-effect authority.
+    pub direct_effect: bool,
+    /// Advertised host capabilities must route actions back through the Kiana protocol.
+    pub delegated_to_kiana: bool,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+impl UiHostCapability {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HOST_CAPABILITY_SCHEMA {
+            return Err("ui_host_capability_schema_invalid".to_owned());
+        }
+        required(&self.capability_id, "ui_host_capability_id", 128)?;
+        digest(&self.scope_digest, "ui_host_capability_scope_digest")?;
+        if self.actions.len() > 64
+            || self.actions.iter().any(|action| {
+                action.trim().is_empty() || action.len() > 128 || action.contains('\0')
+            })
+        {
+            return Err("ui_host_capability_actions_invalid".to_owned());
+        }
+        if self.direct_effect {
+            return Err("ui_host_capability_direct_effect_forbidden".to_owned());
+        }
+        if self.disposition == UiHostCapabilityDisposition::Advertised && !self.delegated_to_kiana {
+            return Err("ui_host_capability_delegation_required".to_owned());
+        }
+        if self.disposition != UiHostCapabilityDisposition::Advertised
+            && self
+                .reason
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err("ui_host_capability_reason_required".to_owned());
+        }
+        if self
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.len() > 1_024 || reason.contains('\0'))
+        {
+            return Err("ui_host_capability_reason_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiLiveHostStatus {
+    NotSupported,
+    OptedIn,
+    Verified,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiLiveHostEvidence {
+    pub schema: String,
+    pub protocol_version: String,
+    pub surface: UiSurface,
+    pub host_id: String,
+    pub host_version: String,
+    pub environment_digest: String,
+    pub workspace_digest: String,
+    #[serde(default)]
+    pub session_ref: Option<String>,
+    pub status: UiLiveHostStatus,
+    #[serde(default)]
+    pub operator_approval_ref: Option<String>,
+    pub host_capabilities: Vec<UiHostCapability>,
+    pub handshake_verified: bool,
+    pub session_verified: bool,
+    pub prompt_routed: bool,
+    pub update_observed: bool,
+    pub permission_routed: bool,
+    pub cancel_fence_verified: bool,
+    pub reconnect_verified: bool,
+    #[serde(default)]
+    pub receipt_digest: Option<String>,
+    #[serde(default)]
+    pub limitations: Vec<EvidenceLimitation>,
+    pub evidence_digest: String,
+}
+
+impl UiLiveHostEvidence {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        protocol_version: impl Into<String>,
+        surface: UiSurface,
+        host_id: impl Into<String>,
+        host_version: impl Into<String>,
+        environment_digest: impl Into<String>,
+        workspace_digest: impl Into<String>,
+        session_ref: Option<String>,
+        status: UiLiveHostStatus,
+        operator_approval_ref: Option<String>,
+        host_capabilities: Vec<UiHostCapability>,
+        handshake_verified: bool,
+        session_verified: bool,
+        prompt_routed: bool,
+        update_observed: bool,
+        permission_routed: bool,
+        cancel_fence_verified: bool,
+        reconnect_verified: bool,
+        receipt_digest: Option<String>,
+        limitations: Vec<EvidenceLimitation>,
+    ) -> Result<Self, String> {
+        let mut evidence = Self {
+            schema: UI_LIVE_HOST_EVIDENCE_SCHEMA.to_owned(),
+            protocol_version: protocol_version.into(),
+            surface,
+            host_id: host_id.into(),
+            host_version: host_version.into(),
+            environment_digest: environment_digest.into(),
+            workspace_digest: workspace_digest.into(),
+            session_ref,
+            status,
+            operator_approval_ref,
+            host_capabilities,
+            handshake_verified,
+            session_verified,
+            prompt_routed,
+            update_observed,
+            permission_routed,
+            cancel_fence_verified,
+            reconnect_verified,
+            receipt_digest,
+            limitations,
+            evidence_digest: String::new(),
+        };
+        evidence.evidence_digest = evidence.digest();
+        evidence.validate()?;
+        Ok(evidence)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_LIVE_HOST_EVIDENCE_SCHEMA {
+            return Err("ui_live_host_evidence_schema_invalid".to_owned());
+        }
+        required(&self.protocol_version, "ui_live_protocol_version", 64)?;
+        required(&self.host_id, "ui_live_host_id", 256)?;
+        required(&self.host_version, "ui_live_host_version", 128)?;
+        digest(&self.environment_digest, "ui_live_environment_digest")?;
+        digest(&self.workspace_digest, "ui_live_workspace_digest")?;
+        if self
+            .session_ref
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty() || value.len() > 256)
+        {
+            return Err("ui_live_session_ref_invalid".to_owned());
+        }
+        if let Some(value) = &self.operator_approval_ref {
+            required(value, "ui_live_operator_approval_ref", 256)?;
+        }
+        if self.host_capabilities.len() > 128 {
+            return Err("ui_live_host_capability_limit".to_owned());
+        }
+        let mut capability_ids = BTreeSet::new();
+        for capability in &self.host_capabilities {
+            capability.validate()?;
+            if !capability_ids.insert(capability.capability_id.clone()) {
+                return Err("ui_live_host_capability_duplicate".to_owned());
+            }
+        }
+        if let Some(receipt) = &self.receipt_digest {
+            digest(receipt, "ui_live_host_receipt_digest")?;
+        }
+        if self.limitations.len() > 128 {
+            return Err("ui_live_host_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            limitation.validate()?;
+        }
+        match self.status {
+            UiLiveHostStatus::NotSupported | UiLiveHostStatus::Unknown => {
+                if self.limitations.is_empty() {
+                    return Err("ui_live_host_limitation_required".to_owned());
+                }
+            }
+            UiLiveHostStatus::OptedIn => {
+                if self.operator_approval_ref.is_none() || self.limitations.is_empty() {
+                    return Err("ui_live_host_opt_in_evidence_incomplete".to_owned());
+                }
+            }
+            UiLiveHostStatus::Verified => {
+                if self.operator_approval_ref.is_none()
+                    || self.session_ref.is_none()
+                    || self.receipt_digest.is_none()
+                    || self.host_capabilities.is_empty()
+                    || !self.handshake_verified
+                    || !self.session_verified
+                    || !self.prompt_routed
+                    || !self.update_observed
+                    || !self.permission_routed
+                    || !self.cancel_fence_verified
+                    || !self.reconnect_verified
+                {
+                    return Err("ui_live_host_verified_evidence_incomplete".to_owned());
+                }
+            }
+        }
+        if self.evidence_digest != self.digest() {
+            return Err("ui_live_host_evidence_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "protocol_version": self.protocol_version,
+            "surface": self.surface,
+            "host_id": self.host_id,
+            "host_version": self.host_version,
+            "environment_digest": self.environment_digest,
+            "workspace_digest": self.workspace_digest,
+            "session_ref": self.session_ref,
+            "status": self.status,
+            "operator_approval_ref": self.operator_approval_ref,
+            "host_capabilities": self.host_capabilities,
+            "handshake_verified": self.handshake_verified,
+            "session_verified": self.session_verified,
+            "prompt_routed": self.prompt_routed,
+            "update_observed": self.update_observed,
+            "permission_routed": self.permission_routed,
+            "cancel_fence_verified": self.cancel_fence_verified,
+            "reconnect_verified": self.reconnect_verified,
+            "receipt_digest": self.receipt_digest,
+            "limitations": self.limitations,
+        }))
     }
 }
 

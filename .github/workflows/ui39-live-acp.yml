@@ -5,6 +5,8 @@ on:
     branches: [main, master]
     paths:
       - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui39_live_acp.rs"
       - "kiana-client/src/lib.rs"
       - "kiana-daemon/src/lib.rs"
       - "kiana-entrypoints/src/web.rs"
@@ -20,6 +22,8 @@ on:
   pull_request:
     paths:
       - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui39_live_acp.rs"
       - "kiana-client/src/lib.rs"
       - "kiana-daemon/src/lib.rs"
       - "kiana-entrypoints/src/web.rs"
@@ -46,5 +50,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
+      - name: Run UI-39 protocol evidence fixture
+        run: cargo test -p kiana-protocol --test ui39_live_acp --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

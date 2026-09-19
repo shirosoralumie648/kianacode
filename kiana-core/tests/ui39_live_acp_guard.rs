@@ -3,6 +3,7 @@
 #[test]
 fn live_acp_ide_is_opt_in_and_host_capabilities_stay_server_owned() {
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
+    let ui_contracts = include_str!("../../kiana-protocol/src/ui_contracts.rs");
     let client = include_str!("../../kiana-client/src/lib.rs");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
     let entrypoints = include_str!("../../kiana-entrypoints/src/web.rs");
@@ -22,13 +23,19 @@ fn live_acp_ide_is_opt_in_and_host_capabilities_stay_server_owned() {
         "cancel",
         "epoch",
         "cursor",
+        "UiLiveHostEvidence",
+        "UiHostCapability",
+        "ui_host_capability_direct_effect_forbidden",
+        "ui_live_host_verified_evidence_incomplete",
+        "UI_LIVE_HOST_EVIDENCE_SCHEMA",
     ] {
         assert!(
             protocol.contains(marker)
                 || client.contains(marker)
                 || daemon.contains(marker)
                 || entrypoints.contains(marker)
-                || workbench.contains(marker),
+                || workbench.contains(marker)
+                || ui_contracts.contains(marker),
             "UI-39 shared marker missing: {marker}"
         );
     }

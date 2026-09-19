@@ -9106,20 +9106,20 @@ reviewer: Codex root implementation review plus deny/recovery/parity/performance
 
 ### UI-39 live ACP/IDE boundary evidence (partial, 2026-09-19)
 
-source_snapshot: 81d28141 + UI-39 working-tree slice; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{web,workbench_chat}.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-core/tests/ui39_live_acp_guard.rs; .github/workflows/ui39-live-acp.yml; docs/roadmap/ui39-live-acp-baseline.md; docs/roadmap.md
-worktree_status: UI-39 source gate indexes versioned UI handshake/snapshot/action/cursor/epoch contracts and common DaemonHost/ControlPlane routes across Workbench/Web/Desktop; host editor/terminal is not authority, and live ACP/IDE remains explicit opt-in/not_supported
+source_snapshot: d6bee118 + UI-39 host evidence slice; kiana-protocol/src/{lib,ui_contracts}.rs; kiana-protocol/tests/ui39_live_acp.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{web,workbench_chat}.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-core/tests/ui39_live_acp_guard.rs; .github/workflows/ui39-live-acp.yml; docs/roadmap/ui39-live-acp-baseline.md; docs/roadmap.md
+worktree_status: UI-39 source gate indexes versioned UI handshake/snapshot/action/cursor/epoch contracts and common DaemonHost/ControlPlane routes across Workbench/Web/Desktop; UiLiveHostEvidence now binds host/protocol/environment/workspace/session and initialize/prompt/update/permission/cancel/reconnect/approval/receipt evidence, while UiHostCapability rejects direct host effects and requires delegation back to Kiana; host editor/terminal is not authority, and live ACP/IDE remains explicit opt-in/not_supported
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or live IDE/ACP interaction executed
-fixture or cassette: CI-only ui39_live_acp_guard; GitHub Actions UI-39 source guard and workspace compilation; no external host or credential
+fixture or cassette: CI-only ui39_live_acp and ui39_live_acp_guard; GitHub Actions UI-39 protocol fixture, source guard and workspace compilation; no external host or credential
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-39 is triggered by the eventual push and is not awaited
 status_change: UI-39 source/default-deny boundary advanced from roadmap-only to a linked guard; roadmap remains ⏳ because no ACP/IDE adapter, external host session or live receipt exists
 proof-level_change: source plus static compile evidence only; no local_behavior, live, durable or physical promotion
-limitations: no live ACP/IDE protocol peer, permission timeout/cancel/reconnect/restart evidence, host version/environment or editor capability bridge was executed; unsupported remains explicit
-reviewer: Codex root implementation review plus versioned UI contract, common DaemonHost spine, host capability non-authority, opt-in/approval and no-live-proof boundary review; no runtime/live reviewer
+limitations: no live ACP/IDE protocol peer, permission timeout/cancel/reconnect/restart evidence, host version/environment or editor capability bridge was executed; the new evidence contract is source-only and unsupported remains explicit
+reviewer: Codex root implementation review plus versioned UI contract, typed host/session evidence, direct-effect rejection, common DaemonHost spine, host capability non-authority, opt-in/approval and no-live-proof boundary review; no runtime/live reviewer
 
 ### CM-39 context/memory documentation and handoff evidence (partial, 2026-09-19)
 
