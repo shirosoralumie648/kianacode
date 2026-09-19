@@ -10724,3 +10724,19 @@ status change: CM-28 source slice is implemented and roadmap row 339 is ✅. Epo
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: physical JSONL/body erasure, durable index generation rebuild, cross-process projector/recovery, UI refresh, retention GC and provider exposure revocation remain open; EventLog history is retained by design
 reviewer: Codex root implementation review plus target-set completeness, monotonic epoch/tombstone binding, invalidation of derived context, historical receipt retention and reinjection denial review; no runtime test reviewer
+
+### CM-29 projection lag recovery result-unknown evidence (2026-09-20)
+
+source_snapshot: 2865e28e + CM-29 working-tree slice; kiana-domain/src/{projection_recovery.rs,projection_contracts.rs,memory_journal.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm29_projection_recovery.rs; kiana-core/src/{receipts.rs,projection_checkpoint.rs}; kiana-core/tests/cm29_projection_recovery_guard.rs; kiana-eventlog/src/stream.rs; kiana-protocol/src/lib.rs; .github/workflows/cm29-projection-recovery.yml; docs/roadmap/cm29-projection-recovery-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ProjectionLagView exposes source/projection cursor, generation, data epoch, pending/unknown status and read-consistency gate; UnknownMutationReconciliation binds result_unknown to original mutation ID/request digest and rejects new-ID blind retry; run receipts include explicit projection view
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-29 lag/unknown-cursor and original-key reconciliation fixtures plus Core source guard; GitHub Actions CM-29 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-29 source slice is implemented and roadmap row 340 is ✅. Projection lag and Unknown retry fences are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: cross-process projector persistence, physical crash/power-loss recovery, index rebuild performance, UI hydration and live provider effects remain open; no durable production or live claim is made
+reviewer: Codex root implementation review plus absent/lagging cursor visibility, generation/data epoch binding, read gate, original mutation-key reconciliation and no blind retry review; no runtime test reviewer
