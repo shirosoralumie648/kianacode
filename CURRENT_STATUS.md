@@ -10404,3 +10404,19 @@ status_change: CM-08 source slice is implemented and roadmap row 319 is ✅. Chu
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: syntax-lite boundaries are not compiler facts, Unicode/secret normalization remains CM-09, index generation/atomic switch remains CM-10, rename/delete invalidation remains CM-11, and no durable index proof is claimed
 reviewer: Codex root implementation review plus lossless reconstruction, UTF-8 boundary, byte/line offset, parent adjacency, parser/chunker version and gap/overlap rejection review; no runtime test reviewer
+
+### CM-09 text normalization and sensitive-data evidence (2026-09-20)
+
+source_snapshot: b2a582fd + CM-09 working-tree slice; kiana-domain/src/{text_normalization.rs,redaction.rs,memory.rs,contracts.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm09_text_normalization.rs; kiana-core/tests/cm09_text_normalization_guard.rs; .github/workflows/cm09-text-normalization.yml; docs/roadmap/cm09-text-normalization-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: TextNormalizationProfile pins bounded BOM/LF/fullwidth/identifier/CJK policies and size/token limits; NormalizedText applies explicit Reject/Redact/ReferenceOnly handling for secret markers and simple email/phone PII; ReferenceOnly retains no text/tokens; EmbeddingMetadata and LlmTextMetadata are separate strict digest-bound records and both require secret_free
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-09 deterministic Unicode/CJK, sensitive reject/redact/reference and metadata separation fixtures plus Core source guard; GitHub Actions CM-09 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-09 source slice is implemented and roadmap row 320 is ✅. Normalization and sensitive-data policy are explicit before index/embedding/LLM metadata
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: normalization is an explicit limited policy rather than full Unicode NFKC/locale classifier, PII detection is bounded marker/shape coverage, provider tokenizer/billing and durable index enforcement remain open CM-10/CM-11/provider/PD work
+reviewer: Codex root implementation review plus BOM/newline/fullwidth determinism, identifier/CJK tokenization, secret/PII reject-redact-reference-only semantics and embedding-vs-LLM metadata separation review; no runtime test reviewer
