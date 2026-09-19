@@ -10,3 +10,7 @@ but no real Provider/account/target receipt was supplied or executed. Full short
 repair/steer/cancel/approval/compaction/restart matrix, Desktop state receipt, latency/stream
 evidence and per-provider live verification remain open. Unsupported providers stay independent
 and are not promoted by a single configured model path.
+
+The new CI-only HarnessIntegrationMatrix makes those eight scenarios explicit across CLI,
+Workbench, Web and Desktop, requiring reasoned non-verified rows and receipt/fence/stream/Desktop
+state evidence for Verified rows. It is a coverage contract, not runtime execution or live proof.

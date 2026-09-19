@@ -9175,15 +9175,15 @@ reviewer: Codex root implementation review plus required-vs-skip semantics, non-
 
 ### H36 Harness integration and evidence closeout (partial, 2026-09-19)
 
-source_snapshot: efb77773 + H36 working-tree slice; kiana-entrypoints/src/{cli,workbench_chat,web}.rs; kiana-daemon/src/lib.rs; kiana-core/src/lib.rs; kiana-runner/src/harness.rs; kiana-provider/src/lib.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-core/tests/h36_harness_integration_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/h36-harness-integration.yml; docs/roadmap/h36-harness-integration-baseline.md; docs/roadmap.md
-worktree_status: H36 now has a CI-only source gate that indexes CLI, TTY Workbench, loopback Web and Desktop on the same DaemonHost/ControlPlane/Harness/Provider spine and reuses parity/daemon-spine fixtures; cancel/result_unknown/live handoff and no-second-Broker-loop boundaries are explicit
+source_snapshot: 85bc2746 + H36 working-tree slice; kiana-domain/src/harness_integration.rs; kiana-entrypoints/src/{cli,workbench_chat,web}.rs; kiana-daemon/src/lib.rs; kiana-core/src/lib.rs; kiana-runner/src/harness.rs; kiana-provider/src/lib.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-domain/tests/h36_harness_integration.rs; kiana-core/tests/h36_harness_integration_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/h36-harness-integration.yml; docs/roadmap/h36-harness-integration-baseline.md; docs/roadmap.md
+worktree_status: H36 now has a CI-only source gate plus HarnessIntegrationMatrix covering CLI, TTY Workbench, loopback Web and Desktop across short-task/tool-call/repair/steer/cancel/approval/compaction/restart; nonverified reasons and receipt/fence/stream/Desktop state requirements are explicit on the same DaemonHost/ControlPlane/Harness/Provider spine
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only oa24_entrypoint_parity, eq12_daemon_spine and h36_harness_integration_guard; GitHub Actions H36 runs existing parity/spine fixtures, source guard and workspace compilation
+fixture or cassette: CI-only h36_harness_integration matrix, oa24_entrypoint_parity, eq12_daemon_spine and h36_harness_integration_guard; GitHub Actions H36 runs the matrix, parity/spine fixtures, source guard and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H36 is triggered by the eventual push and is not awaited
 status_change: H36 source/CI integration gate advanced from H35 evaluation evidence; roadmap remains ⏳ because real Provider/account receipts, full three-entry scenario matrix, Desktop state evidence and live/performance validation are absent
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
