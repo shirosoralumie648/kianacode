@@ -6,6 +6,8 @@ on:
     paths:
       - "docs/roadmap/pd35-persistence-closeout.md"
       - "docs/roadmap/persistence-data-layer.md"
+      - "kiana-domain/src/persistence_uat_evidence.rs"
+      - "kiana-domain/src/persistence_capacity_evidence.rs"
       - "docs/roadmap/dep41-operator-runbook.md"
       - "docs/roadmap/dep41-capability-proof-matrix.md"
       - "scripts/validate-pd35-persistence-closeout.sh"
@@ -17,6 +19,8 @@ on:
     paths:
       - "docs/roadmap/pd35-persistence-closeout.md"
       - "docs/roadmap/persistence-data-layer.md"
+      - "kiana-domain/src/persistence_uat_evidence.rs"
+      - "kiana-domain/src/persistence_capacity_evidence.rs"
       - "docs/roadmap/dep41-operator-runbook.md"
       - "docs/roadmap/dep41-capability-proof-matrix.md"
       - "scripts/validate-pd35-persistence-closeout.sh"

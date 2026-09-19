@@ -9021,20 +9021,20 @@ reviewer: Codex root implementation review plus typed capacity evidence, perform
 
 ### PD-35 persistence closeout and migration handoff evidence (partial, 2026-09-19)
 
-source_snapshot: a3481243 + PD-35 working-tree slice; docs/roadmap/pd35-persistence-closeout.md; docs/roadmap/persistence-data-layer.md; docs/roadmap/dep41-operator-runbook.md; docs/roadmap/dep41-capability-proof-matrix.md; scripts/validate-pd35-persistence-closeout.sh; kiana-core/tests/pd35_persistence_closeout_guard.rs; .github/workflows/pd35-persistence-closeout.yml; CURRENT_STATUS.md; docs/roadmap.md
-worktree_status: PD-35 now indexes PD-00..PD-34 feature_status/proof_level, adds backup/migration/retention/delete operator handoff and reuses DEP-41 runbook/matrix; source/static limitations, result_unknown/reconcile, legal-hold and no-documentation-as-durable boundaries are explicit
+source_snapshot: a2cf13f2 + PD-35 evidence-index slice; docs/roadmap/pd35-persistence-closeout.md; docs/roadmap/persistence-data-layer.md; docs/roadmap/dep41-operator-runbook.md; docs/roadmap/dep41-capability-proof-matrix.md; kiana-domain/src/{persistence_uat_evidence,persistence_capacity_evidence}.rs; scripts/validate-pd35-persistence-closeout.sh; kiana-core/tests/pd35_persistence_closeout_guard.rs; .github/workflows/pd35-persistence-closeout.yml; CURRENT_STATUS.md; docs/roadmap.md
+worktree_status: PD-35 indexes PD-00..PD-34 feature_status/proof_level, adds backup/migration/retention/delete operator handoff, reuses DEP-41 runbook/matrix and now names PersistenceUatEvidence/PersistenceCapacityEvidence; source/static limitations, result_unknown/reconcile, legal-hold and no-documentation-as-durable boundaries are explicit
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, closeout script, migration, backup, restore or delete operation executed
-fixture or cassette: CI-only pd35_persistence_closeout_guard plus scripts/validate-pd35-persistence-closeout.sh; GitHub Actions PD-35 validates PD-00..34 identifiers, runbook/matrix references, evidence fields, diff check and workspace static compilation
+fixture or cassette: CI-only pd35_persistence_closeout_guard plus scripts/validate-pd35-persistence-closeout.sh; GitHub Actions PD-35 validates PD-00..34 identifiers, runbook/matrix references, PD-33/34 evidence index, evidence fields, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and persistence operations deliberately not run per user instruction; GitHub Actions PD-35 is triggered by the eventual push and is not awaited
 status_change: PD-35 persistence documentation/release gate advanced from roadmap-only to a linked closeout handoff; roadmap remains ⏳ because underlying storage, backup, migration, retention, capacity, platform and durable/live/physical proof remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: the closeout gate validates document structure and identifier coverage, not bytes, crash recovery, cross-process leases, provider effects, platform filesystem behavior, deletion cleanup or production latency; PD-00..34 remain individually governed by their evidence blocks
-reviewer: Codex root implementation review plus PD identifier coverage, feature/proof separation, migration/backup/delete runbook, result_unknown/reconcile, retention/legal-hold and no-documents-as-durable boundary review; no storage/release operator reviewer
+limitations: the closeout gate validates document structure and identifier coverage, not bytes, crash recovery, cross-process leases, provider effects, platform filesystem behavior, deletion cleanup or production latency; typed PD-33/34 evidence index presence is not a runtime receipt; PD-00..34 remain individually governed by their evidence blocks
+reviewer: Codex root implementation review plus PD identifier coverage, typed PD-33/34 evidence linkage, feature/proof separation, migration/backup/delete runbook, result_unknown/reconcile, retention/legal-hold and no-documents-as-durable boundary review; no storage/release operator reviewer
 
 ### SC-41 security and release gate evidence (partial, 2026-09-19)
 

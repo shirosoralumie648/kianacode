@@ -23,6 +23,11 @@ Covered identifiers: `PD-00`, `PD-01`, `PD-02`, `PD-03`, `PD-04`, `PD-05`, `PD-0
 | PD-34 capacity budget | partial | source | supplied P95/P99 and pressure facts; no production stress measurement |
 | PD-35 closeout | partial | source | this handoff gate validates documentation structure only |
 
+The closeout evidence index includes `PersistenceUatEvidence` for PD-33 and
+`PersistenceCapacityEvidence` for PD-34. These manifests bind matrix/report/source digests to
+receipts and explicit proof ceilings; their CI fixtures remain source evidence and do not alter
+the underlying PD-33/PD-34 status.
+
 No row is promoted to `durable`, `live` or `physical` by this table. Unknown, stale, corrupt,
 unverified or unsupported states remain visible and block authorization.
 

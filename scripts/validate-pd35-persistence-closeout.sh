@@ -47,6 +47,9 @@ if "result_unknown" not in runbook or "proof_level" not in matrix:
     raise SystemExit("DEP-41 handoff references are incomplete")
 if "PD-35 closeout | implemented | durable" in closeout:
     raise SystemExit("PD-35 documentation must not claim durable completion")
+for marker in ["PersistenceUatEvidence", "PersistenceCapacityEvidence"]:
+    if marker not in closeout:
+        raise SystemExit(f"PD-35 evidence index missing {marker}")
 
 print("PD-35 persistence closeout and migration handoff are structurally complete")
 PY
