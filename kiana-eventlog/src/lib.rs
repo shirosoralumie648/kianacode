@@ -6,11 +6,13 @@ mod journal_core;
 mod jsonl;
 mod memory;
 mod stream;
+mod workflow_queue;
 
 pub use integrity::{scan_jsonl, IntegrityScanReport, IntegrityScanStatus};
 pub use jsonl::JsonlEventLog;
 pub use memory::MemoryEventLog;
 pub use stream::{CommitObservedEventStore, StreamEventStore};
+pub use workflow_queue::MemoryWorkflowQueueStore;
 
 use kiana_ports::PortError;
 use std::path::PathBuf;

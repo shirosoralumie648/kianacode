@@ -56,6 +56,7 @@ mod sessions;
 mod span_projection;
 mod trace_export;
 mod versioning;
+mod workflow_queue;
 mod workspace_checkpoints;
 
 pub use approval_binding::{
@@ -116,6 +117,7 @@ pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
 };
+pub use workflow_queue::{validate_workflow_queue_dispatch, workflow_queue_requires_recovery};
 
 use capability_scheduler::CapabilityAdmissionScheduler;
 use cell_registry::MemoryCellRegistry;

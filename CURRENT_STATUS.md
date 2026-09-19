@@ -9121,6 +9121,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the contract does not persist claims, arbitrate cross-process workers or dispatch effects; caller-supplied digests are not queue receipts and AUT-08 remains open
 reviewer: Codex root implementation review plus parent scope/budget intersection, path lock, dependency/cycle, parallel/duplicate/expiry deny paths and no-queue/no-scheduler boundary review; no runtime queue reviewer
 
+### AUT-08 workflow queue store lease evidence (partial, 2026-09-19)
+
+source_snapshot: 66ff865a + AUT-08 workflow queue lease/store slice; kiana-domain/src/{workflow_queue_claim,workflow_queue_lease}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/workflow_queue.rs; kiana-core/src/workflow_queue.rs; kiana-domain/tests/aut08_workflow_queue_lease.rs; kiana-eventlog/tests/aut08_workflow_queue_store.rs; kiana-core/tests/aut08_workflow_queue_guard.rs; .github/workflows/aut08-workflow-queue-store.yml; docs/roadmap/aut08-workflow-queue-store-baseline.md; docs/roadmap.md
+worktree_status: WorkflowQueueLease and WorkflowQueueStore bind claim, heartbeat, effect, fence and reclaim transitions; MemoryWorkflowQueueStore serializes state and blocks stale owner/fence, active contention, in-flight reclaim and result_unknown reclaim; ControlPlane exposes only a dispatch validation helper and no Broker call; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke command executed
+fixture or cassette: CI-only aut08_workflow_queue_lease, aut08_workflow_queue_store and aut08_workflow_queue_guard; GitHub Actions AUT-08 runs lease/reclaim/Unknown fixtures, source guard and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-08 source and CI semantic queue-store slice added. Claim, heartbeat, effect recording, fence and safe reclaim now have one typed contract and in-process adapter; roadmap row remains ⏳ because durable EventLog-backed queue, cross-process lease/fence, scheduler integration and physical recovery are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: MemoryWorkflowQueueStore is process-local and does not fsync, replay, coordinate cross-process workers, detect worker death, persist queue history or reconcile external effects; result_unknown remains recovery-required and cannot be reclaimed; no scheduler or capability dispatch was added
+reviewer: Codex root implementation review plus lease owner/fence/expiry, effect Unknown, concurrent claim and no-Broker-boundary review; no runtime queue reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

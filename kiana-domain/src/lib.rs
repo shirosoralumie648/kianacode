@@ -133,6 +133,7 @@ mod usage;
 mod versioning;
 mod work_packets;
 mod workflow_queue_claim;
+mod workflow_queue_lease;
 
 pub use adapter_result::*;
 pub use approval_journal::*;
@@ -256,6 +257,7 @@ pub use usage::*;
 pub use versioning::*;
 pub use work_packets::*;
 pub use workflow_queue_claim::*;
+pub use workflow_queue_lease::*;
 
 pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
 pub const ROLE_BUILDER: &str = "builder";

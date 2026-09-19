@@ -1,0 +1,40 @@
+name: aut08-workflow-queue-store
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/workflow_queue_lease.rs"
+      - "kiana-domain/tests/aut08_workflow_queue_lease.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/workflow_queue.rs"
+      - "kiana-eventlog/tests/aut08_workflow_queue_store.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/tests/aut08_workflow_queue_guard.rs"
+      - ".github/workflows/aut08-workflow-queue-store.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/workflow_queue_lease.rs"
+      - "kiana-domain/tests/aut08_workflow_queue_lease.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/workflow_queue.rs"
+      - "kiana-eventlog/tests/aut08_workflow_queue_store.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/tests/aut08_workflow_queue_guard.rs"
+      - ".github/workflows/aut08-workflow-queue-store.yml"
+
+jobs:
+  queue-lease:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Domain lease contract
+        run: cargo test -p kiana-domain --test aut08_workflow_queue_lease --locked
+      - name: Queue store semantics
+        run: cargo test -p kiana-eventlog --test aut08_workflow_queue_store --locked
+      - name: Control-plane source guard
+        run: cargo test -p kiana-core --test aut08_workflow_queue_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked

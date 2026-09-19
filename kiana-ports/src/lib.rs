@@ -1452,6 +1452,70 @@ pub trait EventStoreCommitObserver: Send + Sync {
 /// Compatibility spelling for callers that use the shorter observer name.
 pub use EventStoreCommitObserver as CommitObserver;
 
+/// Queue lease boundary used by workflow scheduling.
+///
+/// Implementations must make claim, heartbeat, effect fencing and reclaim atomic with respect to
+/// their own queue state.  The trait does not authorize a capability or dispatch a handler; the
+/// ControlPlane still owns admission and the Broker remains the only effect boundary.  An
+/// in-memory implementation is useful for CI semantics, but must not be described as durable or
+/// cross-process recovery evidence.
+#[async_trait]
+pub trait WorkflowQueueStore: Send + Sync {
+    async fn claim(
+        &self,
+        _request: kiana_domain::WorkflowQueueClaimRequest,
+    ) -> Result<kiana_domain::WorkflowQueueLease, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_claim_unsupported".to_owned(),
+        ))
+    }
+
+    async fn heartbeat(
+        &self,
+        _request: kiana_domain::WorkflowQueueHeartbeatRequest,
+    ) -> Result<kiana_domain::WorkflowQueueLease, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_heartbeat_unsupported".to_owned(),
+        ))
+    }
+
+    async fn record_effect(
+        &self,
+        _request: kiana_domain::WorkflowQueueEffectRequest,
+    ) -> Result<kiana_domain::WorkflowQueueLease, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_effect_unsupported".to_owned(),
+        ))
+    }
+
+    async fn fence(
+        &self,
+        _request: kiana_domain::WorkflowQueueFenceRequest,
+    ) -> Result<kiana_domain::WorkflowQueueLease, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_fence_unsupported".to_owned(),
+        ))
+    }
+
+    async fn reclaim(
+        &self,
+        _request: kiana_domain::WorkflowQueueReclaimRequest,
+    ) -> Result<kiana_domain::WorkflowQueueLease, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_reclaim_unsupported".to_owned(),
+        ))
+    }
+
+    async fn ready(
+        &self,
+        _limit: usize,
+    ) -> Result<Vec<kiana_domain::WorkflowQueueClaimContract>, PortError> {
+        Err(PortError::Unavailable(
+            "workflow_queue_ready_unsupported".to_owned(),
+        ))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitObserverFailure {
     pub command_id: kiana_domain::RequestId,
