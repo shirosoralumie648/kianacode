@@ -9274,6 +9274,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: WorkflowEventVerifier is process-local for dedupe, stores no EventLog fact and does not call ControlPlane; signature keys are constructor inputs for the adapter, no SecretStore/rotation or external webhook transport was executed, and payload validation is not an input-schema mapping proof
 reviewer: Codex root implementation review plus source/project/key allowlist, HMAC digest binding, skew/filter/dedupe, event-to-occurrence-to-Fire and no-payload-to-capability boundary review; no runtime ingress operator reviewer
 
+### AUT-11 signed workflow event ingress completion slice (2026-09-19)
+
+source_snapshot: 47d4dfb9 + AUT-11 completion evidence; kiana-domain/src/workflow_event_ingress.rs; kiana-daemon/src/workflow_ingress.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut11_workflow_event_ingress.rs; kiana-daemon/tests/aut11_workflow_ingress.rs; kiana-core/tests/aut11_workflow_ingress_guard.rs; .github/workflows/aut11-workflow-event-ingress.yml; docs/roadmap/aut11-workflow-event-ingress-baseline.md; docs/roadmap.md
+worktree_status: bounded ingress/source policy/occurrence contracts and daemon verifier are unchanged from the reviewed slice; accepted events require source/project/key/kind allowlist, HMAC/digest/skew/filter/dedupe and produce only event evidence plus Fire command material; no EventLog/HTTP/capability path was added; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check, HTTP/Webhook or credential operation executed
+fixture or cassette: GitHub Actions only: domain ingress/filter/occurrence fixtures, daemon HMAC/source/project/key/skew/dedupe fixtures and core no-payload/no-second-loop guard; workflow is triggered by the push and is not awaited
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-11 workflow is triggered by the push and is not awaited
+status_change: AUT-11 is complete at source/local-fixture scope. Untrusted event payloads cannot become capability requests; only a verified, allowlisted, deduplicated occurrence can produce event-referenced Fire material for the existing ControlPlane route.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: verifier dedupe is process-local, accepted ingress is not newly appended to EventLog, no HTTP/Webhook listener or durable restart replay receipt is claimed, and source keys remain constructor inputs without live SecretStore rotation
+reviewer: Codex root implementation review plus source/project/key allowlist, HMAC/digest/skew/filter/dedupe, event-to-occurrence-to-Fire and no-payload/no-Broker boundary review; no runtime ingress operator reviewer
+
 ### AUT-12 trigger concurrency and pending digest evidence (partial, 2026-09-19)
 
 source_snapshot: 7c3eff5b + AUT-12 trigger concurrency slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut12_trigger_state.rs; kiana-workflow/tests/aut12_pending_policy.rs; kiana-core/tests/aut12_pending_policy_guard.rs; .github/workflows/aut12-trigger-concurrency.yml; docs/roadmap/aut12-trigger-concurrency-baseline.md; docs/roadmap.md
