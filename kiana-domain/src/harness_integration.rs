@@ -108,6 +108,9 @@ impl HarnessIntegrationCase {
             return Err("harness_integration_live_approval_missing".to_owned());
         }
         if self.status == HarnessCaseStatus::Verified {
+            if self.result_unknown {
+                return Err("harness_integration_verified_unknown_conflict".to_owned());
+            }
             if self.receipt_digest.is_none() || !self.stream_evidence {
                 return Err("harness_integration_verified_evidence_missing".to_owned());
             }
@@ -228,6 +231,58 @@ impl HarnessIntegrationMatrix {
             "spine_digest": self.spine_digest,
             "cases": self.cases,
         }))
+    }
+
+    /// Return the missing evidence needed before H36 may claim a live closeout.
+    ///
+    /// This is deliberately a read-only classification. It does not opt into a provider,
+    /// execute a request or turn a synthetic receipt into live evidence.
+    pub fn live_closeout_blockers(&self) -> Vec<String> {
+        let mut blockers = BTreeSet::new();
+        if self.validate().is_err() {
+            blockers.insert("matrix_invalid".to_owned());
+            return blockers.into_iter().collect();
+        }
+        let live_surfaces = self
+            .cases
+            .iter()
+            .filter(|case| {
+                case.status == HarnessCaseStatus::Verified
+                    && case.provider_mode == "live_opt_in"
+                    && case.operator_approved
+                    && case.receipt_digest.is_some()
+                    && case.stream_evidence
+                    && !case.result_unknown
+            })
+            .map(|case| case.surface)
+            .collect::<BTreeSet<_>>();
+        for surface in [
+            HarnessSurface::Cli,
+            HarnessSurface::Workbench,
+            HarnessSurface::Web,
+            HarnessSurface::Desktop,
+        ] {
+            if !live_surfaces.contains(&surface) {
+                blockers.insert(format!("live_evidence_missing:{}", surface_name(surface)));
+            }
+        }
+        if self.cases.iter().any(|case| case.result_unknown) {
+            blockers.insert("result_unknown_requires_reconcile".to_owned());
+        }
+        blockers.into_iter().collect()
+    }
+
+    pub fn live_closeout_ready(&self) -> bool {
+        self.live_closeout_blockers().is_empty()
+    }
+}
+
+fn surface_name(surface: HarnessSurface) -> &'static str {
+    match surface {
+        HarnessSurface::Cli => "cli",
+        HarnessSurface::Workbench => "workbench",
+        HarnessSurface::Web => "web",
+        HarnessSurface::Desktop => "desktop",
     }
 }
 

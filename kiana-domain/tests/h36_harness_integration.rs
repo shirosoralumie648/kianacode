@@ -71,6 +71,11 @@ fn matrix_covers_all_surfaces_and_harness_scenarios() {
     let matrix = matrix();
     assert_eq!(matrix.cases.len(), 32);
     assert!(matrix.validate().is_ok());
+    assert!(!matrix.live_closeout_ready());
+    assert!(matrix
+        .live_closeout_blockers()
+        .iter()
+        .any(|blocker| blocker == "live_evidence_missing:desktop"));
 }
 
 #[test]
@@ -111,5 +116,24 @@ fn verified_and_desktop_receipts_are_required() {
     assert_eq!(
         desktop.unwrap_err(),
         "harness_integration_desktop_receipt_missing"
+    );
+
+    let verified_unknown = HarnessIntegrationCase::new(
+        HarnessSurface::Cli,
+        HarnessScenario::ShortTask,
+        HarnessCaseStatus::Verified,
+        "unknown result",
+        SPINE,
+        "live_opt_in",
+        true,
+        Some(RECEIPT.to_owned()),
+        false,
+        true,
+        false,
+        true,
+    );
+    assert_eq!(
+        verified_unknown.unwrap_err(),
+        "harness_integration_verified_unknown_conflict"
     );
 }
