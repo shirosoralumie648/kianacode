@@ -9240,6 +9240,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: plan_interval_due is a pure calculation and does not observe or persist time; ControlPlane still supplies the current authority timestamp, no durable schedule cursor or timer service was added, and no real external trigger effect was executed
 reviewer: Codex root implementation review plus Skip/FireOnce/CatchUp semantics, exact occurrence key, bounded backlog, overflow and existing ControlPlane route review; no runtime timer reviewer
 
+### AUT-10 interval cursor completion slice (2026-09-19)
+
+source_snapshot: 27218693 + AUT-10 completion evidence; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut10_interval_cursor.rs; kiana-workflow/tests/aut10_interval_cursor.rs; kiana-core/tests/aut10_interval_guard.rs; .github/workflows/aut10-interval-cursor.yml; docs/roadmap/aut10-interval-cursor-baseline.md; docs/roadmap.md
+worktree_status: pure `plan_interval_due` and workflow Tick route are unchanged from the reviewed slice; completion backfill records the deterministic Skip/FireOnce/CatchUp/overflow contract and remote-only fixtures; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or timer/trigger operation executed
+fixture or cassette: GitHub Actions only: domain arithmetic fixtures cover not-due, skip/fire-once cursor advancement, bounded catch-up/backlog and overflow/invalid clock; workflow source guard proves Tick delegates to `plan_interval_due`; core guard proves no second loop/Broker route
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-10 workflow is triggered by the push and is not awaited
+status_change: AUT-10 is complete at source/local-fixture scope. The pure interval planner emits stable occurrence keys, bounded catch-up, skipped/backlog counts and the next cursor; durable workflow Tick consumes the same helper so replay cannot reuse an already advanced scheduled timestamp.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: no trusted ClockPort/monotonic observation, durable cursor checkpoint, timer worker, restart replay or external trigger effect is claimed; these remain AUT-02/AUT-09/AUT-11+ scope
+reviewer: Codex root implementation review plus interval not-due/Skip/FireOnce/CatchUp/backlog/overflow, stable occurrence key, cursor handoff and no-second-loop route review; no runtime timer reviewer
+
 ### AUT-11 signed workflow event ingress evidence (partial, 2026-09-19)
 
 source_snapshot: ca0a4d1d + AUT-11 workflow event ingress slice; kiana-domain/src/workflow_event_ingress.rs; kiana-daemon/src/workflow_ingress.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut11_workflow_event_ingress.rs; kiana-daemon/tests/aut11_workflow_ingress.rs; kiana-core/tests/aut11_workflow_ingress_guard.rs; .github/workflows/aut11-workflow-event-ingress.yml; docs/roadmap/aut11-workflow-event-ingress-baseline.md; docs/roadmap.md
