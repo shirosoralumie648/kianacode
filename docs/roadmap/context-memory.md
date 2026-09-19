@@ -456,7 +456,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-19 · CompactSummary 结构化生成与校验　⏳
+##### CM-19 · CompactSummary 结构化生成与校验　✅
+
+当前 source slice 与 CI-only 证据见 [`cm19-compact-summary-baseline.md`](cm19-compact-summary-baseline.md)。
 
 替换固定占位摘要；以 tools 为空的受控 ModelClient 生成目标、约束、决定、完成动作、验证、pending/next/source cursor。校验所有引用存在、不能伪造状态，保留 system/role、最新目标和完整近期 call/result 组。验收：`summary_cannot_forge_completed_tool_or_approval`、`compaction_keeps_latest_goal_and_pending_pairs`。
 
