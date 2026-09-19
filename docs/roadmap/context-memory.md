@@ -476,7 +476,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-21 · Resume、cache 和删除失效　⏳
+##### CM-21 · Resume、cache 和删除失效　✅
+
+当前 source slice 与 CI-only 证据见 [`cm21-resume-cache-baseline.md`](cm21-resume-cache-baseline.md)。
 
 重启从 Event + checkpoint + 当前 policy/data epoch 重建；provider cache 只复用同一 prepared request。源撤销让摘要/selection/cache 失效并重新编译。验收：`compacted_context_rebuilds_to_same_view_after_restart`、`revoked_source_invalidates_summary_and_cache`。
 
