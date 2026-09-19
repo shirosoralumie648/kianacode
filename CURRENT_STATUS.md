@@ -8583,6 +8583,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus trust-before-open, snapshot digest/command bounds, no-direct-spawn/broker, read-only path scope, shared ProcessSupervisor cancellation, decision reauthorization and explicit updatedInput denial review; no runtime test reviewer
 ```
 
+### CAP-19 memory scope / reliable commit evidence (2026-09-19)
+
+```text
+source_snapshot: 02d3fc7b + CAP-19 working-tree slice; kiana-daemon/src/{harness_memory,memory_retrieval,data_governance}.rs; kiana-domain/src/context_scope.rs; kiana-core/src/capabilities.rs; kiana-core/tests/cap19_memory_scope_commit_guard.rs; .github/workflows/cap19-memory-scope-commit.yml; docs/roadmap/cap19-memory-scope-commit-baseline.md; docs/roadmap.md
+worktree_status: existing memory adapter is now indexed as a CAP-19 gate: server-derived DomainMemoryScope and captured storage root reject model widening/snapshot drift/symlink/governance violations; memory facts commit through EventStore idempotent/CAS before JSONL projection, lag/unjournaled reads fail closed, candidate/review/data epoch/revision fences remain visible; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only memory scope/mutation/retrieval/eventstore/source fixtures; no local test or smoke binary executed
+fixture or cassette: CM-03 scope guard, CM-05 memory EventStore guard, P1-J3-02 retrieval fixture, cap19_memory_scope_commit_guard; GitHub Actions CAP-19 runs selected fixtures, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-19 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-19 source slice is implemented/reconciled. Memory scope is server-owned and narrowing, store root/symlink/data epoch/revision checks are explicit, writes are journal-before-projection with idempotency, and cancellation/lag/unjournaled boundaries do not claim success
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process writer leases, power-loss recovery, full deletion propagation and physical storage isolation remain later persistence/governance evidence
+reviewer: Codex root implementation review plus server scope derivation, collection narrowing, trusted home snapshot, path/symlink/data governance, EventStore CAS/idempotency, projection lag/unjournaled refusal, candidate/review and no direct store authority review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

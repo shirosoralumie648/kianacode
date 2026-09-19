@@ -1,0 +1,54 @@
+name: CAP-19 memory scope and reliable commit
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/src/data_governance.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/tests/cap19_memory_scope_commit_guard.rs"
+      - "kiana-core/tests/cm03_scope_guard.rs"
+      - "kiana-core/tests/cm05_memory_eventstore.rs"
+      - "docs/roadmap/cap19-memory-scope-commit-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap19-memory-scope-commit.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-daemon/src/data_governance.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/tests/cap19_memory_scope_commit_guard.rs"
+      - "kiana-core/tests/cm03_scope_guard.rs"
+      - "kiana-core/tests/cm05_memory_eventstore.rs"
+      - "docs/roadmap/cap19-memory-scope-commit-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap19-memory-scope-commit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-scope-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run memory scope and mutation fixtures
+        run: cargo test -p kiana-core --test cm03_scope_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cm05_memory_eventstore --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test p1_j3_02_memory --locked -- --test-threads=1
+      - name: Run CAP-19 source guard
+        run: cargo test -p kiana-core --test cap19_memory_scope_commit_guard --locked -- --test-threads=1
+      - name: Compile CAP-19 targets
+        run: cargo check --workspace --tests --locked
