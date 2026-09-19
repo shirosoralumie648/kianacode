@@ -10692,3 +10692,19 @@ status change: CM-26 source slice is implemented and roadmap row 337 is ✅. Dis
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: real provider extraction quality, cross-process queue/projector, human review UI, retrieval/citation receipt, retention/deletion propagation and business outcome verification remain open; `verified=false` is explicit
 reviewer: Codex root implementation review plus unified source envelope, published-decision gate, internal-run recursion fence, unknown/result_unknown fail-closed and no-second-execution-path review; no runtime test reviewer
+
+### CM-27 retrieval selection citation receipt evidence (2026-09-20)
+
+source_snapshot: a0611436 + CM-27 working-tree slice; kiana-domain/src/{retrieval_receipt.rs,retrieval_context.rs,context_scope.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm27_retrieval_receipt.rs; kiana-core/src/receipts.rs; kiana-core/tests/cm27_retrieval_receipt_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm27-retrieval-receipt.yml; docs/roadmap/cm27-retrieval-receipt-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: RetrievalReceipt preserves query/scope/algorithm/source generation, per-stage provenance/revision, degraded reasons and omissions; selected/sent/cited require their predecessor stages; ReviewerCitation binds receipt/source/evidence/quote digests and rejects unverifiable provenance; run receipts project memory hits as retrieved only
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-27 retrieved-vs-sent and unverifiable-citation fixtures plus Core receipt source guard; GitHub Actions CM-27 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-27 source slice is implemented and roadmap row 338 is ✅. Retrieval stages and provenance-bound citation are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: producer events for actual selection/send/citation, provider delivery evidence, UI inspector, cross-process receipt projection and deletion/expiry invalidation remain open; no semantic citation-quality or live provider claim is made
+reviewer: Codex root implementation review plus stage-order enforcement, query/scope/algorithm retention, source revision binding, degraded/omission preservation and unverifiable citation rejection; no runtime test reviewer
