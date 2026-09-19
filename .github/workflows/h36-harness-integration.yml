@@ -1,0 +1,61 @@
+name: H36 harness integration and evidence gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-provider/src/lib.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/h36_harness_integration_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "docs/roadmap/h36-harness-integration-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h36-harness-integration.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-provider/src/lib.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/h36_harness_integration_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "docs/roadmap/h36-harness-integration-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h36-harness-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run existing entrypoint parity fixture
+        run: cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
+      - name: Run existing daemon spine fixture
+        run: cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
+      - name: Run H36 source guard
+        run: cargo test -p kiana-core --test h36_harness_integration_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
