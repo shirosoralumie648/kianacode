@@ -1,0 +1,67 @@
+name: h30-retrieval-context
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/retrieval_context.rs"
+      - "kiana-domain/src/context_plan.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h30_retrieval_context.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/h30_retrieval_context.rs"
+      - "kiana-core/src/context_query.rs"
+      - "kiana-core/tests/h30_retrieval_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/h30-retrieval-context-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h30-retrieval-context.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/retrieval_context.rs"
+      - "kiana-domain/src/context_plan.rs"
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h30_retrieval_context.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-query/src/repo_map.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/h30_retrieval_context.rs"
+      - "kiana-core/src/context_query.rs"
+      - "kiana-core/tests/h30_retrieval_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/h30-retrieval-context-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h30-retrieval-context.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrieval-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H30 domain fixtures
+        run: cargo test -p kiana-domain --test h30_retrieval_context --locked -- --test-threads=1
+      - name: Run H30 query adapter fixtures
+        run: cargo test -p kiana-query --test h30_retrieval_context --locked -- --test-threads=1
+      - name: Run H30 core source guard
+        run: cargo test -p kiana-core --test h30_retrieval_guard --locked -- --test-threads=1

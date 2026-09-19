@@ -600,7 +600,9 @@ sequenceDiagram
 
 <a id="step-h30"></a>
 
-#### H30 — 检索、Memory 与代码索引进入同一 ContextPlan　⏳
+#### H30 — 检索、Memory 与代码索引进入同一 ContextPlan　✅
+
+当前 source slice 与 CI-only 证据见 [`h30-retrieval-context-baseline.md`](h30-retrieval-context-baseline.md)。
 
 **关联原单元**：`P1-J3-01/02/03/04`、`P1-L4-01`、`P2-K7-01`。**依赖**：H15、H20、H21、H23、H29。
 

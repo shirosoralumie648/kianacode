@@ -10260,3 +10260,19 @@ status_change: H29 source slice is implemented and roadmap row 316 is ✅. Hook/
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: multi-point live scheduler is not yet wired across every Harness phase, provider/extension runtime semantics and cross-process snapshot projector remain open, and actual hook performance calibration is not claimed
 reviewer: Codex root implementation review plus lifecycle ordering, snapshot/source binding, Observer/Transformer allowlist, tool-argument revalidation, trust-before-load, confined cancellation/deadline and Skill Context-only boundary review; no runtime test reviewer
+
+### H30 retrieval / ContextPlan evidence (2026-09-19)
+
+source_snapshot: c0959d07 + H30 working-tree slice; kiana-domain/src/{retrieval_context.rs,context_plan.rs,context_scope.rs,contracts.rs,lib.rs}; kiana-query/src/{context_inputs.rs,repo_map.rs,lib.rs}; kiana-core/src/context_query.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/h30_retrieval_context.rs; kiana-query/tests/h30_retrieval_context.rs; kiana-core/tests/h30_retrieval_guard.rs; .github/workflows/h30-retrieval-context.yml; docs/roadmap/h30-retrieval-context-baseline.md; docs/roadmap.md
+worktree_status: RetrievalCandidate/Pack normalize Memory/RepoMap/CodeSearch/Artifact through SourceSnapshot freshness/evidence, permission scope, ACL digest, relevance and data epoch/query digest; candidate conversion is Context-only, lesson evidence is required, stale state remains visible, duplicates/foreign source kinds/tampered ACL fail closed, and the pack calls existing ContextPlan::compile rather than creating another selection authority
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H30 domain provenance/ACL/freshness/lesson/duplicate fixtures, Query repo-map normalization fixture, Core source guard for single ContextPlan and no-second-authority boundary; GitHub Actions H30 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H30 source slice is implemented and roadmap row 317 is ✅. Retrieval inputs now share one bounded ContextPlan contract without self-promoting memory or search results
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: actual retrieval quality/provider semantics, incremental index generation, rename/delete invalidation, durable cache/projector and external freshness proof remain CM/PD/provider work
+reviewer: Codex root implementation review plus source snapshot/freshness/evidence, ACL/data epoch/query digest, lesson non-promotion, source-kind/duplicate/tamper rejection and single ContextPlan compiler boundary review; no runtime test reviewer
