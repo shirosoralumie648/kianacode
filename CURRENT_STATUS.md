@@ -9860,3 +9860,19 @@ status_change: EQ-25 source slice is implemented and roadmap row 291 is ✅. Cat
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: catalog inputs are caller-provided and no fixture discovery, execution, golden capture, evaluator, authorization or durable catalog store exists; catalog digest is source metadata, not a quality pass
 reviewer: Codex root implementation review plus tier/opt-in visibility, no-golden fail-open prevention, dedupe/stable ordering, bounded catalog and no-I/O/no-runner boundary review; no runtime test reviewer
+
+### EQ-26 provider-independent core fixture matrix evidence (2026-09-19)
+
+source_snapshot: 47ca4751 + EQ-26 working-tree slice; kiana-quality/src/{lib.rs,fixtures.rs}; kiana-quality/tests/eq26_fixtures.rs; kiana-quality/tests/eq26_fixtures_guard.rs; .github/workflows/eq26-fixtures.yml; docs/roadmap/evaluation-fixture-matrix-baseline.md; docs/roadmap.md
+worktree_status: exact Runtime/Approval/Hook/Memory/Workflow/Swarm fixture families now have blocked normalized traces, stable IDs/digests, sorted forbidden-effect codes, provider_calls=0 and side_effects=false; matrix validation rejects missing/duplicate family coverage; no provider, Broker, workspace, EventLog or runner path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq26_fixtures.rs covers complete family matrix, missing/duplicate rejection, digest and forbidden-effect metadata; eq26_fixtures_guard protects provider-independent/no-effect boundaries; GitHub Actions EQ-26 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-26 source slice is implemented and roadmap row 292 is ✅. All six provider-independent negative fixture families are present and matrix-validated
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: fixture traces are synthetic caller-provided values, not actual Runtime/Approval/Hook/Memory/Workflow/Swarm execution or live provider safety evidence; EventLog capture, evaluator aggregation and durable quality storage remain open
+reviewer: Codex root implementation review plus six-family completeness, blocked/no-effect metadata, digest binding, sorted forbidden codes and no-provider/no-Broker/no-runner boundary review; no runtime test reviewer

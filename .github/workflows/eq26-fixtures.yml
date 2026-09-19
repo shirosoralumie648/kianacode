@@ -1,0 +1,38 @@
+name: EQ-26 provider-independent fixture matrix
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-fixture-matrix-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq26-fixtures.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-fixture-matrix-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq26-fixtures.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run fixture matrix
+        run: cargo test -p kiana-quality --test eq26_fixtures --locked -- --test-threads=1
+      - name: Run fixture source guard
+        run: cargo test -p kiana-quality --test eq26_fixtures_guard --locked -- --test-threads=1
+      - name: Compile EQ-26 targets
+        run: cargo check --workspace --tests --locked
