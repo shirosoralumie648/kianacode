@@ -6,6 +6,7 @@ fn provider_live_smoke_requires_real_config_and_does_not_accept_synthetic_claims
     let provider = include_str!("../../kiana-provider/src/lib.rs");
     let request = include_str!("../../kiana-provider/src/request.rs");
     let response = include_str!("../../kiana-provider/src/response.rs");
+    let live = include_str!("../../kiana-domain/src/provider_live.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-31-provider-live-baseline.md");
     for marker in [
         "--required",
@@ -19,12 +20,17 @@ fn provider_live_smoke_requires_real_config_and_does_not_accept_synthetic_claims
         "model",
         "usage",
         "credential_revision",
+        "ProviderLiveConnectionEvidence",
+        "ProviderLiveConnectionMetadata",
+        "provider_live_synthetic_evidence",
+        "live_connection_metadata",
     ] {
         assert!(
             smoke.contains(marker)
                 || provider.contains(marker)
                 || request.contains(marker)
-                || response.contains(marker),
+                || response.contains(marker)
+                || live.contains(marker),
             "P4-J7-31 provider marker missing: {marker}"
         );
     }

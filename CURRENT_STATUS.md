@@ -9157,8 +9157,8 @@ reviewer: Codex root implementation review plus fake provider no-network, memory
 
 ### P4-J7-31 provider live boundary evidence (partial, 2026-09-19)
 
-source_snapshot: 57082aed + P4-J7-31 working-tree slice; scripts/provider-live-smoke.sh; kiana-provider/src/{lib,request,response}.rs; kiana-core/tests/p4_j7_31_provider_live_guard.rs; .github/workflows/p4-j7-31-provider-live.yml; docs/roadmap/p4-j7-31-provider-live-baseline.md; docs/roadmap.md
-worktree_status: provider live smoke now has a roadmap-linked source/default-deny gate: required mode rejects missing selected connection, skip-if-unconfigured emits explicit skipped, live catalog/tools require a non-fake provider, and model/usage/credential-revision fields remain visible at the ProviderGateway boundary
+source_snapshot: 5455f6dc + P4-J7-31 per-connection evidence slice; scripts/provider-live-smoke.sh; kiana-domain/src/provider_live.rs; kiana-domain/tests/p4_j7_31_live_evidence.rs; kiana-provider/src/{lib,request,response}.rs; kiana-core/tests/p4_j7_31_provider_live_guard.rs; .github/workflows/p4-j7-31-provider-live.yml; docs/roadmap/p4-j7-31-provider-live-baseline.md; docs/roadmap.md; docs/module-map.md
+worktree_status: provider live smoke has a roadmap-linked source/default-deny gate: required mode rejects missing selected connection, skip-if-unconfigured emits explicit skipped, live catalog/tools require a non-fake provider, and the ProviderGateway now exposes secret-free ProviderLiveConnectionMetadata; ProviderLiveConnectionEvidence binds per-connection protocol/model/credential and configuration revisions, budget, usage/Unknown, text/tools/delta/cancel, approval and Receipt/artifact evidence, while synthetic evidence cannot be Verified
 command_argv:
   bash -n scripts/provider-live-smoke.sh
   cargo fmt --all
@@ -9166,12 +9166,12 @@ command_argv:
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, smoke or live provider request executed
-fixture or cassette: CI-only p4_j7_31_provider_live_guard; default skip-if-unconfigured shell check; GitHub Actions P4-J7-31 does not provide credentials or make external requests
+fixture or cassette: CI-only p4_j7_31_provider_live_guard and p4_j7_31_live_evidence; default skip-if-unconfigured shell check; GitHub Actions P4-J7-31 does not provide credentials or make external requests
 exit_code: 0 for shell syntax, format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-31 is triggered by the eventual push and is not awaited
 status_change: P4-J7-31 source/live boundary advanced from an unindexed smoke script to an explicit per-connection gate; roadmap remains ⏳ because no authorized live connection was executed
 proof-level_change: source plus static compile evidence only; no local_behavior, live, durable or physical promotion
-limitations: no provider account/credential/model/profile, real text/tools/delta/cancel round trip, Receipt/artifact hash, cleanup or usage observation was supplied; skip is not pass and one configured provider cannot cover all connections
-reviewer: Codex root implementation review plus required-vs-skip semantics, non-fake live result, Gateway credential/usage/model boundary and no-external-request CI contract review; no live reviewer
+limitations: no provider account/credential/model/profile, real text/tools/delta/cancel round trip, Receipt/artifact hash, cleanup or usage observation was supplied; the new metadata/evidence contracts remain source-only; skip is not pass and one configured provider cannot cover all connections
+reviewer: Codex root implementation review plus required-vs-skip semantics, non-fake live result, typed per-connection evidence, Gateway credential/usage/model boundary and no-external-request CI contract review; no live reviewer
 
 ### H36 Harness integration and evidence closeout (partial, 2026-09-19)
 

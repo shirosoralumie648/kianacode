@@ -48,6 +48,26 @@ impl ProviderGateway {
         Ok(self.configuration.clone())
     }
 
+    /// Return only the secret-free identity that a per-connection live evidence record may bind.
+    /// This does not execute a request or turn metadata into provider proof.
+    pub fn live_connection_metadata(
+        &self,
+        profile: &str,
+    ) -> Result<ProviderLiveConnectionMetadata, ModelError> {
+        let connection = self
+            .connections
+            .get(profile)
+            .ok_or_else(|| ModelError::invalid("model_profile_unconfigured"))?;
+        ProviderLiveConnectionMetadata::new(
+            connection.route.clone(),
+            connection.capabilities.clone(),
+            self.configuration.snapshot_digest.clone(),
+            connection.credential_revision.clone(),
+            connection.provider_account.clone(),
+        )
+        .map_err(ModelError::invalid)
+    }
+
     pub fn model_catalog(&self) -> Result<ModelCatalog, ModelError> {
         let entries = self
             .connections
