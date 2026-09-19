@@ -352,7 +352,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-09 · 文本规范化、语言和敏感数据边界　⏳
+##### CM-09 · 文本规范化、语言和敏感数据边界　✅
+
+当前 source slice 与 CI-only 证据见 [`cm09-text-normalization-baseline.md`](cm09-text-normalization-baseline.md)。
 
 固定 Unicode/CJK/identifier tokenization、BOM/换行策略；扫描密钥/PII 后按策略拒绝、脱敏或只保存引用，embedding metadata 与 LLM metadata 分开。验收：`normalization_is_deterministic_for_unicode_and_cjk`、`secret_never_enters_index_or_embedding`。
 

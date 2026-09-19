@@ -144,6 +144,7 @@ mod swarm_reducer;
 mod symposiums;
 #[cfg(test)]
 mod tests;
+mod text_normalization;
 mod tool_scheduling;
 mod trust_snapshots;
 mod turn_outcome;
@@ -288,6 +289,7 @@ pub use swarm_graph::*;
 pub use swarm_identity::*;
 pub use swarm_reducer::*;
 pub use symposiums::*;
+pub use text_normalization::*;
 pub use tool_scheduling::*;
 pub use trust_snapshots::*;
 pub use turn_outcome::*;
