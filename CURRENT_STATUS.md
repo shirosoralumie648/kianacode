@@ -8868,20 +8868,20 @@ reviewer: Codex root implementation review plus status/proof/source snapshot, ty
 
 ### CO-48 CompanyOS real-model closeout and handoff evidence (partial, 2026-09-19)
 
-source_snapshot: 44c10373 + CO-48 working-tree slice; kiana-domain/src/{company,company_business,company_closeout}.rs; kiana-core/src/company_governance.rs; kiana-daemon/tests/p3_i06_company_golden.rs; kiana-core/tests/co48_company_closeout_guard.rs; .github/workflows/co48-company-closeout.yml; docs/roadmap/co48-company-closeout-baseline.md; docs/roadmap.md
-worktree_status: CO-48 now has a CI-only source/handoff guard indexing the fake-model Company golden path, CompanyState replay, Review/Acceptance/Delivery/ClosingReceipt and governance projection; result_unknown/reconcile plus independent evidence/owner boundaries remain explicit, and no real-model completion is claimed
+source_snapshot: 1bef3e36 + CO-48 live evidence-contract slice; kiana-domain/src/{company,company_business,company_closeout,company_live_evidence}.rs; kiana-domain/tests/co48_company_live_evidence.rs; kiana-core/src/company_governance.rs; kiana-daemon/tests/p3_i06_company_golden.rs; kiana-core/tests/co48_company_closeout_guard.rs; .github/workflows/co48-company-closeout.yml; docs/roadmap/co48-company-closeout-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: CO-48 has a CI-only source/handoff guard indexing the fake-model Company golden path, CompanyState replay, Review/Acceptance/Delivery/ClosingReceipt and governance projection; CompanyLiveCloseoutEvidence now binds provider/model/configuration/budget revisions, four role routes and receipts, artifact/usage/outcome evidence, independent review, local delivery and result_unknown, while FakeCassette cannot verify live and LiveOptIn requires approval/provider evidence; no real-model completion is claimed
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only co48_company_closeout_guard plus existing p3_i06_company_golden; GitHub Actions CO-48 runs fake-model golden fixture, source guard, diff check and workspace static compilation
+fixture or cassette: CI-only p3_i06_company_golden, co48_company_live_evidence and co48_company_closeout_guard; GitHub Actions CO-48 runs fake Company and typed evidence fixtures, source guard, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-48 is triggered by the eventual push and is not awaited
 status_change: CO-48 closeout/handoff evidence advanced from roadmap-only to a linked source and CI boundary; roadmap remains ⏳ because real model/account/credential, external delivery confirmation, outcome measurement, cross-process projection and physical/live handoff remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: fake-model success is not a real model, live provider, business delivery or outcome receipt; no external account/credential/request was used; CI source indexing cannot prove cross-process recovery, scale, live handoff or physical effects
-reviewer: Codex root implementation review plus CompanyOS fake-vs-real-model, result_unknown/reconcile, evidence/owner and handoff proof-ceiling review; no runtime/live reviewer
+limitations: fake-model success is not a real model, live provider, business delivery or outcome receipt; no external account/credential/request was used; the new manifest is source-only and CI source indexing cannot prove cross-process recovery, scale, live handoff or physical effects
+reviewer: Codex root implementation review plus typed live closeout evidence, CompanyOS fake-vs-real-model, result_unknown/reconcile, evidence/owner and handoff proof-ceiling review; no runtime/live reviewer
 
 ### DEP-36 container adapter lifecycle evidence (partial, 2026-09-19)
 

@@ -7,6 +7,8 @@ on:
       - "kiana-domain/src/company.rs"
       - "kiana-domain/src/company_business.rs"
       - "kiana-domain/src/company_closeout.rs"
+      - "kiana-domain/src/company_live_evidence.rs"
+      - "kiana-domain/tests/co48_company_live_evidence.rs"
       - "kiana-core/src/company_governance.rs"
       - "kiana-daemon/tests/p3_i06_company_golden.rs"
       - "kiana-core/tests/co48_company_closeout_guard.rs"
@@ -19,6 +21,8 @@ on:
       - "kiana-domain/src/company.rs"
       - "kiana-domain/src/company_business.rs"
       - "kiana-domain/src/company_closeout.rs"
+      - "kiana-domain/src/company_live_evidence.rs"
+      - "kiana-domain/tests/co48_company_live_evidence.rs"
       - "kiana-core/src/company_governance.rs"
       - "kiana-daemon/tests/p3_i06_company_golden.rs"
       - "kiana-core/tests/co48_company_closeout_guard.rs"
@@ -42,6 +46,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run fake Company golden fixture
         run: cargo test -p kiana-daemon --test p3_i06_company_golden --locked -- --test-threads=1
+      - name: Run Company live evidence contract fixture
+        run: cargo test -p kiana-domain --test co48_company_live_evidence --locked -- --test-threads=1
       - name: Run CO-48 source guard
         run: cargo test -p kiana-core --test co48_company_closeout_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked
