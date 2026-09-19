@@ -8411,3 +8411,22 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel mount/userns/network enforcement, real host secret/socket probes and physical isolation remain open
 reviewer: Codex root implementation review plus explicit mount-source inventory, fd identity, private-component mask, read-only no-write, workspace-write exact path_allow, staged baseline/publish, output/resource bounds and no host-root/socket/credential fallback review; no runtime test reviewer
 ```
+
+### CAP-10 isolated write layer / controlled publication evidence (2026-09-18)
+
+```text
+source_snapshot: 53dee7a5 + CAP-10 working-tree slice; kiana-daemon/src/{execution_workspace,apply_patch,execution_control,harness_capabilities}.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/tests/cap10_isolated_write_publish_guard.rs; .github/workflows/cap10-isolated-write-publish.yml; docs/roadmap/cap10-isolated-write-publish-baseline.md; docs/roadmap.md
+worktree_status: ExecutionWorkspace stages baseline-scoped changes and emits bounded PublishedFile/host_effect evidence; apply_patch uses PathSnapshot/preconditions, confined new-file parents, descriptor-relative commit journal, rollback/recovery and pending transaction reconciliation; publication rechecks scope/revision/identity and never publishes out-of-scope, concurrent or unknown changes; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only staged workspace/patch/output/checkpoint fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: daemon harness runtime; H15 output limits; CAP-07/08/09 guards; cap10_isolated_write_publish_guard; GitHub Actions CAP-10 runs selected fixtures, guards and workspace compile
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-10 is triggered by the eventual push and is not awaited
+status_change: CAP-10 source slice is implemented. Isolated write layer, exact new-file/write scope, controlled publish, rollback/reconciliation and concurrent-edit fences now have a roadmap-linked gate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; disk-full/power-loss and physical filesystem race guarantees remain open
+reviewer: Codex root implementation review plus staged baseline/changeset, new-file parent confinement, source identity/revision, descriptor-relative commit, rollback Unknown, no-clean/reset and bounded host-effect publication boundary; no runtime test reviewer
+```
