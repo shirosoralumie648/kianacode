@@ -1,0 +1,46 @@
+name: DEP-32 migration rollback
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/migration_rollback.rs"
+      - "kiana-domain/src/migration_registry.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep32_migration_rollback.rs"
+      - "kiana-core/tests/dep32_migration_rollback_guard.rs"
+      - "docs/roadmap/dep32-migration-rollback-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep32-migration-rollback.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/migration_rollback.rs"
+      - "kiana-domain/src/migration_registry.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep32_migration_rollback.rs"
+      - "kiana-core/tests/dep32_migration_rollback_guard.rs"
+      - "docs/roadmap/dep32-migration-rollback-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep32-migration-rollback.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-32 domain fixtures
+        run: cargo test -p kiana-domain --test dep32_migration_rollback --locked -- --test-threads=1
+      - name: Run DEP-32 source guard
+        run: cargo test -p kiana-core --test dep32_migration_rollback_guard --locked -- --test-threads=1
+      - name: Compile DEP-32 targets
+        run: cargo check --workspace --tests --locked

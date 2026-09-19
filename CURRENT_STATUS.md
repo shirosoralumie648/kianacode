@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-32 migration rollback gate evidence (partial, 2026-09-19)
+
+source_snapshot: 2eaaf022 + DEP-32 working-tree slice; kiana-domain/src/migration_rollback.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep32_migration_rollback.rs; kiana-core/tests/dep32_migration_rollback_guard.rs; .github/workflows/dep32-migration-rollback.yml; docs/roadmap/dep32-migration-rollback-baseline.md; docs/roadmap.md
+worktree_status: pure domain rollback receipt now separates binary/data/effect-reconciliation decisions, binds registry/fact digests, requires old-root retention, verified backup, no active writers/Unknown effects and a fenced new revision, and adds kind-specific compatibility/restore/external-reconciliation gates; Deny carries stable remediation
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep32_migration_rollback domain fixtures; dep32_migration_rollback_guard; GitHub Actions DEP-32 runs allowed/blocked binary/data/effect decision fixtures and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-32 is triggered by the eventual push and is not awaited
+status_change: DEP-32 source contract advanced from rebuild invariants to a read-only rollback decision gate; roadmap remains ⏳ because no restore, old-revision start, writer fencing, external idempotency lookup or durable receipt is wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: receipts are decisions rather than effects, old root is not deleted or restored, external Unknown remains evidence-gated, and the gate does not itself stop writers or activate a rollback target
+reviewer: Codex root implementation review plus retained-root/backup/writer/fence/Unknown gates, binary compatibility, restore verification, external effect reconciliation and no-execution/no-fake-success receipt boundary review; no runtime test reviewer
+
 ### DEP-31 post-migration rebuild evidence (partial, 2026-09-19)
 
 source_snapshot: 0f4e3779 + DEP-31 working-tree slice; kiana-domain/src/migration_rebuild.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep31_migration_rebuild.rs; kiana-core/tests/dep31_migration_rebuild_guard.rs; .github/workflows/dep31-migration-rebuild.yml; docs/roadmap/dep31-migration-rebuild-baseline.md; docs/roadmap.md
