@@ -9972,3 +9972,19 @@ status_change: PD-15 source slice is implemented and roadmap row 298 is ✅. Wor
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: checkpoint/artifact bytes remain adapter-dependent, no power-loss/cross-process recovery or physical filesystem undo proof is claimed, and restore still requires normal ControlPlane/Broker admission
 reviewer: Codex root implementation review plus checkpoint/revision/TOCTOU/data epoch/company/approval fences, immutable ArtifactRef hash/scope and no-transcript/no-direct-undo boundary review; no runtime test reviewer
+
+### PD-16 receipt recompute / evidence graph boundary evidence (2026-09-19)
+
+source_snapshot: 561bb5a6 + PD-16 working-tree slice; kiana-core/src/{receipts.rs,artifacts.rs,company.rs,company_business.rs}; kiana-core/tests/pd16_receipt_evidence_guard.rs; .github/workflows/pd16-receipt-evidence.yml; docs/roadmap/pd16-receipt-evidence-baseline.md; docs/roadmap.md
+worktree_status: existing receipt aggregation recomputes from owner-scoped committed facts and retains source cursor/event IDs, usage/effect verification, evidence/provider receipt digests and Partial/Unknown; Company delivery/closing paths collect server-owned artifact/evidence refs and revalidate immutable content/scope before controlled closing artifact write; no transcript/model-self-report/effect bypass was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-core/tests/pd16_receipt_evidence_guard.rs checks aggregate receipt source/evidence refs, artifact validation, delivery/closing refs and no-model/no-Broker authority; GitHub Actions PD-16 runs source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-16 source slice is implemented and roadmap row 299 is ✅. Receipt/evidence views cannot be elevated from transcript/cache/model self-report or foreign/missing artifact refs
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: evidence graph remains a recomputed projection without dedicated durable graph/index, artifact bytes/delivery reconciliation and external business outcome receipt; controlled closing write remains adapter/environment dependent
+reviewer: Codex root implementation review plus fact-only receipt aggregation, source cursor/event binding, Unknown/verification preservation, immutable artifact/evidence ref validation and no-self-report/no-Broker boundary review; no runtime test reviewer

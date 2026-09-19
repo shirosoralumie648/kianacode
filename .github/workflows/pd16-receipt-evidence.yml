@@ -1,0 +1,44 @@
+name: PD-16 receipt evidence graph
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/tests/pd16_receipt_evidence_guard.rs"
+      - "docs/roadmap/pd16-receipt-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd16-receipt-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/company_business.rs"
+      - "kiana-core/tests/pd16_receipt_evidence_guard.rs"
+      - "docs/roadmap/pd16-receipt-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd16-receipt-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run receipt evidence source guard
+        run: cargo test -p kiana-core --test pd16_receipt_evidence_guard --locked -- --test-threads=1
+      - name: Compile PD-16 targets
+        run: cargo check --workspace --tests --locked
