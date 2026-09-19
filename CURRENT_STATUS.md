@@ -10420,3 +10420,19 @@ status_change: CM-09 source slice is implemented and roadmap row 320 is ✅. Nor
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: normalization is an explicit limited policy rather than full Unicode NFKC/locale classifier, PII detection is bounded marker/shape coverage, provider tokenizer/billing and durable index enforcement remain open CM-10/CM-11/provider/PD work
 reviewer: Codex root implementation review plus BOM/newline/fullwidth determinism, identifier/CJK tokenization, secret/PII reject-redact-reference-only semantics and embedding-vs-LLM metadata separation review; no runtime test reviewer
+
+### CM-10 index generation and atomic publication evidence (2026-09-20)
+
+source_snapshot: ba4c8352 + CM-10 working-tree slice; kiana-domain/src/{index_generation.rs,contracts.rs,lib.rs}; kiana-query/src/{index_generation.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm10_index_generation.rs; kiana-query/tests/cm10_index_generation.rs; kiana-core/tests/cm10_index_generation_guard.rs; .github/workflows/cm10-index-generation.yml; docs/roadmap/cm10-index-generation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: IndexGenerationState binds repo-map/exact/BM25/dense component digests to one source manifest, admits one Building generation, publishes one Ready generation and preserves the prior Ready reader on failure; query publication validates Ready, writes a create-new temp manifest, syncs file, atomically renames and syncs parent where supported; no component-level reader or second authority was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-10 domain generation/failure fence fixtures, query atomic publication fixtures and Core source guard; GitHub Actions CM-10 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-10 source slice is implemented and roadmap row 321 is ✅. Shared generation and atomic Ready manifest boundaries are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing broad index builders are not fully migrated to the shared state, crash/power-loss and cross-process lock proof remains open, and rename/delete invalidation remains CM-11/PD work
+reviewer: Codex root implementation review plus source-manifest/component binding, single active build, old Ready preservation, Ready-only reader, temp sync/atomic rename/parent sync and no-second-authority boundary review; no runtime test reviewer

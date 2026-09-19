@@ -362,7 +362,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-10 · ContextIndex generation 与原子切换　⏳
+##### CM-10 · ContextIndex generation 与原子切换　✅
+
+当前 source slice 与 CI-only 证据见 [`cm10-index-generation-baseline.md`](cm10-index-generation-baseline.md)。
 
 把 repo map、exact index、BM25、dense index 绑定同一 source manifest/index generation；临时构建、sync、checksum、原子 manifest switch，失败保留旧 generation。验收：`readers_never_mix_index_generations`、`failed_rebuild_keeps_last_ready_generation`。
 
