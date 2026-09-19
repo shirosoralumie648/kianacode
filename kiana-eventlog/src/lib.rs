@@ -1,5 +1,6 @@
 //! Append-only event storage adapters for Kiana.
 
+mod artifact_store;
 mod credential_rotation;
 mod event_store_core;
 mod integrity;
@@ -10,6 +11,7 @@ mod notification_dedup;
 mod stream;
 mod workflow_queue;
 
+pub use artifact_store::MemoryArtifactStore;
 pub use credential_rotation::MemoryCredentialRotationStore;
 pub use integrity::{scan_jsonl, IntegrityScanReport, IntegrityScanStatus};
 pub use jsonl::JsonlEventLog;
