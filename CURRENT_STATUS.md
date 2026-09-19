@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-35 managed-local / embedded-local rollout evidence (partial, 2026-09-19)
+
+source_snapshot: dfa8811a + DEP-35 working-tree slice; kiana-domain/src/local_rollout.rs; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep35_local_rollout.rs; kiana-core/tests/dep35_local_rollout_guard.rs; .github/workflows/dep35-local-rollout.yml; docs/roadmap/dep35-local-rollout-baseline.md; docs/roadmap.md
+worktree_status: pure domain LocalRolloutState now shares managed-local/embedded-local phases plan→preflight→backup→drain→replace→ready→promote; each transition revalidates digest-bound evidence for preflight, verified backup, zero active runs/writers, old fence, replacement start, readiness and old-root retention
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep35_local_rollout domain fixtures; dep35_local_rollout_guard; GitHub Actions DEP-35 runs phase-order, missing-evidence and managed/embedded mode fixtures plus workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-35 is triggered by the eventual push and is not awaited
+status_change: DEP-35 source contract advanced from release preflight to an ordered local rollout gate; roadmap remains ⏳ because no supervisor, backup, replace, readiness probe, lease or promote effect is wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: evidence is supplied by callers, phase transitions do not change binaries/roots/traffic, old writers are not actually stopped, and promote is only a validated state label
+reviewer: Codex root implementation review plus mode/phase ordering, backup/drain/writer/fence/readiness/old-root evidence and no-fake-ready/promote/no-side-effect boundary review; no runtime test reviewer
+
 ### DEP-34 release preflight evidence (partial, 2026-09-19)
 
 source_snapshot: bcd4b5c6 + DEP-34 working-tree slice; kiana-domain/src/release_preflight.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep34_release_preflight.rs; kiana-core/tests/dep34_release_preflight_guard.rs; .github/workflows/dep34-release-preflight.yml; docs/roadmap/dep34-release-preflight-baseline.md; docs/roadmap.md

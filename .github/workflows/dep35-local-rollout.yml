@@ -1,0 +1,46 @@
+name: DEP-35 local rollout
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/local_rollout.rs"
+      - "kiana-domain/src/revision_compatibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep35_local_rollout.rs"
+      - "kiana-core/tests/dep35_local_rollout_guard.rs"
+      - "docs/roadmap/dep35-local-rollout-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep35-local-rollout.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/local_rollout.rs"
+      - "kiana-domain/src/revision_compatibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep35_local_rollout.rs"
+      - "kiana-core/tests/dep35_local_rollout_guard.rs"
+      - "docs/roadmap/dep35-local-rollout-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep35-local-rollout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-rollout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-35 domain fixtures
+        run: cargo test -p kiana-domain --test dep35_local_rollout --locked -- --test-threads=1
+      - name: Run DEP-35 source guard
+        run: cargo test -p kiana-core --test dep35_local_rollout_guard --locked -- --test-threads=1
+      - name: Compile DEP-35 targets
+        run: cargo check --workspace --tests --locked
