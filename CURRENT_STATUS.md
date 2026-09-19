@@ -8951,6 +8951,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the report validates supplied evidence and script boundaries but does not cryptographically sign or publish artifacts; CI fixture signatures are not production signatures, Desktop packaging is not built here, and Dependabot findings remain external repository warnings
 reviewer: Codex root implementation review plus artifact/checksum/signature/SBOM/license/secret/compliance binding, Desktop requirement, CI-only fixture and no-live-release proof-ceiling review; no release/security operator reviewer
 
+### DEP-40 cross-entrypoint release/recovery UAT evidence (partial, 2026-09-19)
+
+source_snapshot: 9b16eb73 + DEP-40 working-tree slice; kiana-domain/src/release_uat.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep40_release_uat.rs; kiana-core/tests/dep40_release_uat_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; kiana-entrypoints/src/{cli,web,workbench_chat}.rs; contrib/desktop/main.js; .github/workflows/dep40-release-uat.yml; docs/roadmap/dep40-release-uat-baseline.md; docs/roadmap.md
+worktree_status: ReleaseUatMatrix now requires deny/success coverage for release/upgrade/rollback/backup/restore/migration/health across CLI/Web/Workbench/Desktop, plus restart/replay/result_unknown evidence; every row binds the same DaemonHost/ControlPlane/KianaHarness digests, fake provider remains distinct from live opt-in, and Unknown retry is forbidden
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, E2E/UAT, release, backup, restore, migration or external health effect executed
+fixture or cassette: CI-only dep40_release_uat domain matrix and source guard; GitHub Actions DEP-40 also runs existing oa24_entrypoint_parity and eq12_daemon_spine fixtures plus workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and UAT deliberately not run per user instruction; GitHub Actions DEP-40 is triggered by the eventual push and is not awaited
+status_change: DEP-40 source/CI UAT evidence advanced from separate parity/spine fixtures to a cross-entrypoint scenario matrix; roadmap remains ⏳ because no durable cross-process E2E, real provider/account receipt, packaged Desktop runtime or physical/live operation exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: matrix rows are supplied fake/source evidence, not executed release or recovery effects; parity cannot prove backup/restore/migration durability, result_unknown reconciliation in production, Desktop packaging, real provider behavior, or external health correctness
+reviewer: Codex root implementation review plus scenario/entrypoint coverage, shared spine digest, deny/success/restart/replay/Unknown semantics, fake-vs-live boundary and no-direct-Broker-loop review; no runtime/E2E/UAT reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
