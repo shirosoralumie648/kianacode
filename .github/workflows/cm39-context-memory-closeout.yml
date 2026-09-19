@@ -1,0 +1,45 @@
+name: CM-39 context memory closeout
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/context-memory.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-domain/src/memory_journal.rs"
+      - "kiana-core/tests/cm39_context_memory_closeout_guard.rs"
+      - "docs/roadmap/cm39-context-memory-closeout-baseline.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/cm39-context-memory-closeout.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/context-memory.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-domain/src/memory_journal.rs"
+      - "kiana-core/tests/cm39_context_memory_closeout_guard.rs"
+      - "docs/roadmap/cm39-context-memory-closeout-baseline.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/cm39-context-memory-closeout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  context-memory-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test cm39_context_memory_closeout_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked

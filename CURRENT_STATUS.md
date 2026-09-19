@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### CM-39 context/memory documentation and handoff evidence (partial, 2026-09-19)
+
+source_snapshot: ba669fae + CM-39 working-tree slice; docs/roadmap/context-memory.md; docs/module-map.md; CURRENT_STATUS.md; kiana-daemon/src/{harness_memory,memory_retrieval}.rs; kiana-domain/src/memory_journal.rs; kiana-core/tests/cm39_context_memory_closeout_guard.rs; .github/workflows/cm39-context-memory-closeout.yml; docs/roadmap/cm39-context-memory-closeout-baseline.md; docs/roadmap.md
+worktree_status: CM-39 now has a CI-only parity guard requiring context/memory docs and handoff to name the canonical memory/retrieval/journal sources, CM-38 fake/live proof ceiling, and provider/cross-process/physical/scale limitations; it does not promote a feature
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only cm39_context_memory_closeout_guard; GitHub Actions CM-39 runs the source/docs guard, diff check and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-39 is triggered by the eventual push and is not awaited
+status_change: CM-39 documentation/handoff guard advanced from an unindexed CM-38 evidence block; roadmap remains ⏳ because CM-33–37, durable memory/index/retention, cross-process and live proof remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: documentation parity cannot prove memory query correctness, candidate approval, projection recovery, retention deletion, provider scope/redaction or physical effects; open limits are intentionally preserved
+reviewer: Codex root implementation review plus docs/source owner parity, proof-ceiling honesty, open limitation and no-promotion boundary review; no runtime test reviewer
+
 ### CM-38 context/memory fake Provider and live opt-in evidence (partial, 2026-09-19)
 
 source_snapshot: 0e9331ab + CM-38 working-tree slice; kiana-daemon/tests/eq10_fake_provider.rs; kiana-daemon/src/{eval_runtime,harness_memory}.rs; kiana-domain/src/{memory_journal,live_handoff}.rs; kiana-core/tests/cm38_context_memory_live_guard.rs; .github/workflows/cm38-context-memory-live.yml; docs/roadmap/cm38-context-memory-live-baseline.md; docs/roadmap.md
