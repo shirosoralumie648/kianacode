@@ -1,0 +1,69 @@
+name: cm12-unified-retrieval
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/unified_retrieval.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm12_unified_retrieval.rs"
+      - "kiana-query/src/unified_retrieval.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/Cargo.toml"
+      - "kiana-query/tests/cm12_unified_retrieval.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cm12_unified_retrieval_guard.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-commands/src/memory.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "Cargo.lock"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm12-unified-retrieval-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm12-unified-retrieval.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/unified_retrieval.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm12_unified_retrieval.rs"
+      - "kiana-query/src/unified_retrieval.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/Cargo.toml"
+      - "kiana-query/tests/cm12_unified_retrieval.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cm12_unified_retrieval_guard.rs"
+      - "kiana-daemon/src/memory_retrieval.rs"
+      - "kiana-commands/src/memory.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "Cargo.lock"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm12-unified-retrieval-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm12-unified-retrieval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unified-retrieval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-12 domain retrieval fixtures
+        run: cargo test -p kiana-domain --test cm12_unified_retrieval --locked -- --test-threads=1
+      - name: Run CM-12 query port fixtures
+        run: cargo test -p kiana-query --test cm12_unified_retrieval --locked -- --test-threads=1
+      - name: Run CM-12 source guard
+        run: cargo test -p kiana-core --test cm12_unified_retrieval_guard --locked -- --test-threads=1

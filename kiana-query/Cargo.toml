@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 kiana-domain = { path = "../kiana-domain", version = "0.1.0" }
+kiana-ports.workspace = true
 kiana-types = { path = "../kiana-types", version = "0.1.0" }
 tokio = { version = "1.42", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

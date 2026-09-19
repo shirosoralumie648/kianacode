@@ -2643,6 +2643,7 @@ dependencies = [
  "anyhow",
  "futures",
  "kiana-domain",
+ "kiana-ports",
  "kiana-types",
  "serde",
  "serde_json",
