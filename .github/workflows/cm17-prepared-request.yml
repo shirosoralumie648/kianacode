@@ -1,0 +1,51 @@
+name: cm17-prepared-request
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/context_plan.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/h20_context_plan.rs"
+      - "kiana-domain/tests/cm17_prepared_request.rs"
+      - "kiana-core/tests/cm17_prepared_request_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm17-prepared-request-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm17-prepared-request.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/context_plan.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/h20_context_plan.rs"
+      - "kiana-domain/tests/cm17_prepared_request.rs"
+      - "kiana-core/tests/cm17_prepared_request_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm17-prepared-request-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm17-prepared-request.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepared-request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-17 prepared-request fixtures
+        run: cargo test -p kiana-domain --test cm17_prepared_request --locked -- --test-threads=1
+      - name: Run CM-17 source guard
+        run: cargo test -p kiana-core --test cm17_prepared_request_guard --locked -- --test-threads=1

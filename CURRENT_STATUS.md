@@ -10532,3 +10532,19 @@ status change: CM-16 source slice is implemented and roadmap row 327 is ✅. Exa
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: provider profile tokenizer artifacts are not live-resolved, provider cache behavior is not observed, and budget/prefix are not yet consumed by one immutable PreparedModelRequest; CM-17 owns that snapshot binding
 reviewer: Codex root implementation review plus final-wire accounting, tokenizer provenance, output reserve, cache-key invalidation and no-second-execution-path review; no runtime test reviewer
+
+### CM-17 PreparedModelRequest single-snapshot evidence (2026-09-20)
+
+source_snapshot: 10aa463c + CM-17 working-tree slice; kiana-domain/src/{context_plan.rs,contracts.rs}; kiana-domain/tests/{h20_context_plan.rs,cm17_prepared_request.rs}; kiana-core/tests/cm17_prepared_request_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm17-prepared-request.yml; docs/roadmap/cm17-prepared-request-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ResolvedStepContext/PreparedModelRequest carries ScopeSet, full ContextPlan, prompt/tool catalog digests, source snapshots, model/route/workspace/data bindings and WireBudget; one request digest covers the immutable snapshot; validate_against and recheck_bindings fence plan, prompt, source, budget, route, scope and epoch drift
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-17 same-snapshot/provenance and route/scope-fence fixtures plus Core source guard; GitHub Actions CM-17 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-17 source slice is implemented and roadmap row 328 is ✅. The prepared context contract is one immutable domain snapshot with explicit pre-send binding rechecks
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: ProviderGateway/ModelClient actual send boundary is not yet migrated to consume the alias, durable cross-process snapshot hydration and receipt replay remain open, and no live provider claim is made
+reviewer: Codex root implementation review plus immutable snapshot completeness, digest coverage, source/budget validation, route/scope fence and no-second-execution-path review; no runtime test reviewer

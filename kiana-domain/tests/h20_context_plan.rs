@@ -1,7 +1,7 @@
 use kiana_domain::{
-    json_digest, ContextCandidate, ContextMaterialType, ContextPlan, EvidenceStatus,
-    PromptAuthority, PromptBundle, ResolvedStepContext, RoleSpec, RunId, SourceKind, SourceRef,
-    StepId, StepIdentity, TurnId,
+    json_digest, ContextCandidate, ContextMaterialType, ContextPlan, EvidenceStatus, Freshness,
+    PromptAuthority, PromptBundle, ResolvedStepContext, RoleSpec, RunId, ScopeSet, SourceKind,
+    SourceRef, SourceSnapshot, StepId, StepIdentity, TokenAccounting, TurnId, WireBudget,
 };
 
 fn source(id: &str, kind: SourceKind, evidence: EvidenceStatus) -> SourceRef {
@@ -82,23 +82,57 @@ fn resolved_context_freezes_step_route_and_epoch_bindings() {
     let step = StepIdentity::new(RunId::new(), TurnId::new(), StepId::new(), 1).unwrap();
     let route = json_digest(&serde_json::json!({"route":"fixture"}));
     let catalog = json_digest(&serde_json::json!({"catalog":"fixture"}));
+    let snapshot = SourceSnapshot::new(
+        source(
+            "README",
+            SourceKind::WorkspaceFile,
+            EvidenceStatus::Attributed,
+        ),
+        Freshness::Current,
+        EvidenceStatus::Attributed,
+        Some(1),
+    )
+    .unwrap();
+    let wire_budget = WireBudget::from_final_wire(
+        plan.rendered_prompt().len() as u64,
+        64,
+        128,
+        100_000,
+        TokenAccounting::ConservativeUtf8 {
+            bytes_per_token: 1,
+            safety_margin_tokens: 1,
+        },
+    )
+    .unwrap();
     let resolved = ResolvedStepContext::new(
         &plan,
+        ScopeSet::unrestricted(),
         step,
         "builder-default",
         route.clone(),
         catalog.clone(),
+        vec![snapshot],
+        wire_budget,
         4,
         2,
     )
     .unwrap();
     resolved.validate_against(&plan).unwrap();
-    resolved.recheck_bindings(&route, &catalog, 4, 2).unwrap();
+    resolved
+        .recheck_bindings(
+            &route,
+            &catalog,
+            &ScopeSet::unrestricted().scope_digest,
+            4,
+            2,
+        )
+        .unwrap();
     assert_eq!(
         resolved
             .recheck_bindings(
                 &json_digest(&serde_json::json!({"route":"new"})),
                 &catalog,
+                &ScopeSet::unrestricted().scope_digest,
                 4,
                 2
             )
