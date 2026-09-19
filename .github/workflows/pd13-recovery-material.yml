@@ -1,0 +1,46 @@
+name: PD-13 recovery material boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-core/tests/pd13_recovery_material_guard.rs"
+      - "docs/roadmap/pd13-recovery-material-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd13-recovery-material.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-core/tests/pd13_recovery_material_guard.rs"
+      - "docs/roadmap/pd13-recovery-material-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd13-recovery-material.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-material:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run recovery material source guard
+        run: cargo test -p kiana-core --test pd13_recovery_material_guard --locked -- --test-threads=1
+      - name: Compile PD-13 targets
+        run: cargo check --workspace --tests --locked
