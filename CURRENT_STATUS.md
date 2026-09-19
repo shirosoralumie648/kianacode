@@ -9038,20 +9038,20 @@ reviewer: Codex root implementation review plus PD identifier coverage, typed PD
 
 ### SC-41 security and release gate evidence (partial, 2026-09-19)
 
-source_snapshot: ecce2d53 + SC-41 working-tree slice; .github/workflows/{sc00-baseline,sc18-secret-ref,sc19-secret-rotation,dep39-supply-chain,dep41-release-gate,sc41-security-gate}.yml; scripts/{compliance-audit,package-release,sign-release-artifacts,verify-commercial-release-artifacts,release-preflight,release-signature-verification-smoke,validate-sc41-security-gate}.sh; kiana-core/tests/{security_baseline,sc41_security_gate_guard}.rs; docs/roadmap/sc41-security-gate-baseline.md; docs/roadmap.md
-worktree_status: SC-41 now structurally links security baseline, SecretRef/rotation, supply-chain, operator handoff and release scripts under a read-only-contents CI gate; fail-closed shell modes, no ignored failures, secret/SBOM/signature/checksum/license/compliance markers and source/static proof ceiling are explicit
+source_snapshot: be1d7f66 + SC-41 release-evidence linkage slice; .github/workflows/{sc00-baseline,sc18-secret-ref,sc19-secret-rotation,dep39-supply-chain,dep41-release-gate,sc41-security-gate}.yml; scripts/{compliance-audit,package-release,sign-release-artifacts,verify-commercial-release-artifacts,release-preflight,release-signature-verification-smoke,validate-sc41-security-gate}.sh; kiana-core/tests/{security_baseline,sc41_security_gate_guard}.rs; docs/roadmap/sc41-security-gate-baseline.md; docs/roadmap.md
+worktree_status: SC-41 structurally links security baseline, SecretRef/rotation, supply-chain, operator handoff and release scripts under a read-only-contents CI gate; it now indexes SupplyChainReleaseEvidence and ReleaseUatEvidence while preserving fail-closed shell modes, no ignored failures, secret/SBOM/signature/checksum/license/compliance markers and source/static proof ceiling
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, scan, signing, release or external operation executed
-fixture or cassette: CI-only security_baseline and sc41_security_gate_guard; GitHub Actions SC-41 validates workflow/script structure, read-only permissions, fail-closed policy, diff check and workspace static compilation
+fixture or cassette: CI-only security_baseline and sc41_security_gate_guard; GitHub Actions SC-41 validates workflow/script structure, release evidence linkage, read-only permissions, fail-closed policy, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and security/release scripts deliberately not run per user instruction; GitHub Actions SC-41 is triggered by the eventual push and is not awaited
 status_change: SC-41 security/release workflow and gate evidence advanced from roadmap-only to a linked structural CI boundary; roadmap remains ⏳ because enforcement, real credentials, signed artifacts, live deployment and downstream SC-42/43 rehearsal/review remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: validator checks workflow/script structure, not actual secret leakage, vulnerability absence, signature validity, authn enforcement, release correctness, regulatory compliance, external effects or recovery/retention behavior; CI green is not live proof
-reviewer: Codex root implementation review plus workflow permission, fail-closed script, ignored-failure, secret/SBOM/signature/license/compliance boundary and no-compliance-certification proof-ceiling review; no security/release operator reviewer
+limitations: validator checks workflow/script structure and evidence linkage, not actual secret leakage, vulnerability absence, signature validity, authn enforcement, release correctness, regulatory compliance, external effects or recovery/retention behavior; CI green is not live proof
+reviewer: Codex root implementation review plus release-evidence linkage, workflow permission, fail-closed script, ignored-failure, secret/SBOM/signature/license/compliance boundary and no-compliance-certification proof-ceiling review; no security/release operator reviewer
 
 ### SC-42 recovery and retention rehearsal evidence (partial, 2026-09-19)
 

@@ -54,6 +54,8 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
         "physical",
         "limitations",
         "reviewer",
+        "SupplyChainReleaseEvidence",
+        "ReleaseUatEvidence",
     ] {
         assert!(
             baseline.contains(marker),

@@ -45,6 +45,8 @@ for marker in [
     "license",
     "continue-on-error",
     "contents: read",
+    "SupplyChainReleaseEvidence",
+    "ReleaseUatEvidence",
 ]:
     if marker not in script and marker != "continue-on-error":
         raise SystemExit(f"SC-41 validator marker missing: {marker}")
