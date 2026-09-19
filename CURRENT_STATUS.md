@@ -9104,6 +9104,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the projection contract does not implement audit replay, redaction scanning, credential refresh or durable re-admission; no secret rotation, restart or external provider effect was executed
 reviewer: Codex root implementation review plus explicit blocker taxonomy, lease/revision/epoch fencing, audit/redaction digest binding, no-auto-resume and explicit re-admission proof-ceiling review; no runtime/credential operator reviewer
 
+### AUT-07 workflow queue claim contract evidence (partial, 2026-09-19)
+
+source_snapshot: af459667 + AUT-07 claim-contract slice; kiana-domain/src/workflow_queue_claim.rs; kiana-domain/tests/aut07_workflow_queue_claim.rs; kiana-core/tests/aut07_workflow_queue_claim_guard.rs; .github/workflows/aut07-workflow-queue-claim.yml; docs/roadmap/aut07-workflow-queue-claim-baseline.md; docs/roadmap.md
+worktree_status: WorkflowQueueClaimContract binds WorkPacket/queue item, parent/item scope and budget digests, path lock, dependency resolution, parallel limit, duplicate claim, owner and expiry; parent scope/budget, cycle, unresolved dependency, scope/budget widening, duplicate claim and expired claims fail closed; AUT-08 durable queue/lease implementation remains separate
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, queue store or scheduler executed
+fixture or cassette: CI-only aut07_workflow_queue_claim and aut07_workflow_queue_claim_guard; GitHub Actions AUT-07 runs claim fixture, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-07 is triggered by the eventual push and is not awaited
+status_change: AUT-07 source contract advanced from planner-only evidence to a shared claim/scope/budget/path-lock admission shape; roadmap remains ⏳ because durable queue store, lease/heartbeat/fence/reclaim and scheduler behavior remain AUT-08+
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the contract does not persist claims, arbitrate cross-process workers or dispatch effects; caller-supplied digests are not queue receipts and AUT-08 remains open
+reviewer: Codex root implementation review plus parent scope/budget intersection, path lock, dependency/cycle, parallel/duplicate/expiry deny paths and no-queue/no-scheduler boundary review; no runtime queue reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
