@@ -334,6 +334,7 @@ pub(crate) fn receipt_from_events(
             "cost_ledger": cost_ledger_from_events(events, run_id),
             "files_changed": files_changed_from_events(events),
             "memory_hits": memory_hits_from_events(events),
+            "retrieval_receipts": retrieval_receipts_from_events(events),
             "memory_proposals": events.iter().filter(|event| event.kind == "memory.proposed").map(|event| event.data.clone()).collect::<Vec<_>>(),
             "invocations":invocations,
             "invocation_projection_error":invocation_error,
@@ -782,6 +783,8 @@ pub(crate) fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
         };
         for item in items {
             let mut hit = item.clone();
+            let source_revision = hit.get("revision").cloned().unwrap_or(Value::Null);
+            let degraded = hit.get("degraded").cloned().unwrap_or(Value::Bool(false));
             if let Some(fields) = hit.as_object_mut() {
                 fields.insert("retrieval_event_id".to_owned(), json!(event.event_id));
                 fields.insert(
@@ -800,11 +803,140 @@ pub(crate) fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
                     "retrieved_by".to_owned(),
                     event.data.get("role_id").cloned().unwrap_or(Value::Null),
                 );
+                fields.insert("stage".to_owned(), json!("retrieved"));
+                fields.insert("source_revision".to_owned(), source_revision);
+                fields.insert("degraded".to_owned(), degraded);
             }
             hits.push(hit);
         }
     }
     hits
+}
+
+pub(crate) fn retrieval_receipts_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .filter(|event| {
+            event.kind == "capability.completed"
+                && event.data.get("schema").and_then(Value::as_str) == Some(MEMORY_SEARCH_SCHEMA)
+        })
+        .map(|event| {
+            let query = event.data["query"].as_str().unwrap_or("unknown");
+            let query_digest = kiana_domain::json_digest(&json!({"query": query}));
+            let permission_scope_digest = kiana_domain::json_digest(&json!({
+                "role_id": event.data.get("role_id"),
+                "department_id": event.data.get("department_id"),
+                "session_id": event.data.get("session_id"),
+            }));
+            let hits = event
+                .data
+                .get("hits")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let algorithm_version = hits
+                .iter()
+                .find_map(|hit| hit.get("retrieval_algorithm").and_then(Value::as_str))
+                .unwrap_or("memory-search-legacy.v1");
+            let source_generation = hits
+                .iter()
+                .find_map(|hit| hit.get("generation").and_then(Value::as_u64))
+                .filter(|generation| *generation > 0)
+                .unwrap_or(1);
+            let mut degraded_reasons = Vec::new();
+            let mut entries = Vec::new();
+            for hit in hits {
+                let Some(candidate_id) = hit.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                let collection = hit
+                    .get("collection")
+                    .and_then(Value::as_str)
+                    .unwrap_or("memory");
+                let revision = hit
+                    .get("revision")
+                    .and_then(Value::as_u64)
+                    .map(|revision| format!("revision:{revision}"))
+                    .or_else(|| {
+                        hit.get("revision")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
+                    .unwrap_or_else(|| "revision:unknown".to_owned());
+                let content_digest = hit
+                    .get("content_hash")
+                    .and_then(Value::as_str)
+                    .filter(|digest| {
+                        digest.strip_prefix("sha256:").is_some_and(|hex| {
+                            hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+                        })
+                    })
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| {
+                        kiana_domain::json_digest(&json!({
+                            "candidate_id": candidate_id,
+                            "text": hit.get("text"),
+                        }))
+                    });
+                let evidence = match hit.get("provenance").and_then(Value::as_str) {
+                    Some("attributed") => kiana_domain::EvidenceStatus::Attributed,
+                    Some("verified") => kiana_domain::EvidenceStatus::Verified,
+                    _ => kiana_domain::EvidenceStatus::Unverifiable,
+                };
+                let degraded = hit
+                    .get("degraded")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                if let Some(reason) = hit.get("degraded_reason").and_then(Value::as_str) {
+                    if !reason.trim().is_empty() && !degraded_reasons.contains(&reason.to_owned()) {
+                        degraded_reasons.push(reason.to_owned());
+                    }
+                }
+                let Ok(snapshot) = kiana_domain::memory_source_snapshot(
+                    candidate_id,
+                    collection,
+                    &revision,
+                    &content_digest,
+                    evidence,
+                ) else {
+                    continue;
+                };
+                let Ok(entry) = kiana_domain::RetrievalReceiptEntry::new(
+                    candidate_id,
+                    kiana_domain::RetrievalReceiptStage::Retrieved,
+                    snapshot,
+                    kiana_domain::json_digest(&hit),
+                    degraded,
+                    None,
+                ) else {
+                    continue;
+                };
+                entries.push(entry);
+            }
+            match kiana_domain::RetrievalReceipt::new(
+                format!("retrieval:{}", event.event_id),
+                query,
+                query_digest,
+                permission_scope_digest,
+                algorithm_version,
+                source_generation,
+                !degraded_reasons.is_empty(),
+                degraded_reasons,
+                entries,
+                Vec::new(),
+            ) {
+                Ok(receipt) => serde_json::to_value(receipt).unwrap_or_else(|_| {
+                    json!({"schema":kiana_domain::RETRIEVAL_RECEIPT_SCHEMA,"status":"unavailable",
+                        "reason":"retrieval_receipt_encode_failed"})
+                }),
+                Err(reason) => json!({
+                    "schema": kiana_domain::RETRIEVAL_RECEIPT_SCHEMA,
+                    "status": "unavailable",
+                    "reason": reason,
+                }),
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn capabilities_from_events(events: &[RuntimeEvent]) -> Vec<Value> {

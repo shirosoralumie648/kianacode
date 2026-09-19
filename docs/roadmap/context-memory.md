@@ -538,7 +538,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-27 · Retrieval/selection/citation receipt　⏳
+##### CM-27 · Retrieval/selection/citation receipt　✅
+
+当前 source slice 与 CI-only 证据见 [`cm27-retrieval-receipt-baseline.md`](cm27-retrieval-receipt-baseline.md)。
 
 扩 receipt 折叠为 retrieved、selected、sent、cited；保留 query、scope、algorithm、source revision、degraded 和 omission。Reviewer 只能引用带可验证 provenance 的来源。验收：`receipt_distinguishes_retrieved_from_sent`、`reviewer_cannot_cite_unverifiable_memory`。
 
