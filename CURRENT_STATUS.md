@@ -9206,6 +9206,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: WorkflowQueueService is not a second execution loop but also does not persist its own acknowledgements, use ClockPort for deterministic timer scheduling, prove cross-process shutdown/worker death, or reconcile external effects; no capability dispatch was added
 reviewer: Codex root implementation review plus bounded channel, singleton start, ordered shutdown, active lease fence and no-second-loop boundary review; no runtime scheduler reviewer
 
+### AUT-09 DaemonHost workflow service completion slice (2026-09-19)
+
+source_snapshot: 7a300f77 + AUT-09 completion fixture; kiana-daemon/src/{lib,workflow_service}.rs; kiana-daemon/tests/aut09_workflow_service.rs; kiana-eventlog/src/workflow_queue.rs; kiana-ports/src/lib.rs; .github/workflows/aut09-workflow-service.yml; docs/roadmap/aut09-workflow-service-baseline.md; docs/roadmap.md
+worktree_status: bounded DaemonHost-owned service now has CI coverage for explicit tick→claim→effect→shutdown with supplied clock values; Running work fences to recovery on shutdown and a restarted service does not re-claim the Unknown item; singleton start, unstarted fail-closed, ordered shutdown and no Broker/model loop remain guarded; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or queue/scheduler operation executed
+fixture or cassette: GitHub Actions only: aut09_workflow_service covers bounded queue operations, explicit clock tick/claim/effect/shutdown and restart no-repeat; aut09_workflow_service_guard covers singleton bounded channel, receiver close, shutdown fence and no CapabilityBroker/KianaHarness loop
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-09 workflow is triggered by the push and is not awaited
+status_change: AUT-09 is complete at source/local-fixture scope. DaemonHost owns one bounded Tokio coordination worker, routes queue operations through WorkflowQueueStore, preserves the ControlPlane/Broker spine, drains accepted commands before fencing active leases, and reports Unknown recovery rather than claiming success.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: no durable queue acknowledgement or EventLog scheduler checkpoint, no ClockPort/timer trigger integration, no cross-process store/worker-death proof, and no external effect reconciliation or capability dispatch are claimed
+reviewer: Codex root implementation review plus bounded channel/singleton, explicit clock fixture, tick/claim/effect ordering, shutdown recovery/no-repeat and no-second-loop/no-Broker boundary review; no runtime scheduler reviewer
+
 ### AUT-10 interval cursor and missed-policy evidence (partial, 2026-09-19)
 
 source_snapshot: 4d4601b1 + AUT-10 interval cursor slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut10_interval_cursor.rs; kiana-workflow/tests/aut10_interval_cursor.rs; kiana-core/tests/aut10_interval_guard.rs; .github/workflows/aut10-interval-cursor.yml; docs/roadmap/aut10-interval-cursor-baseline.md; docs/roadmap.md
