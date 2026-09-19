@@ -402,7 +402,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-14 · 检索结果 provenance、freshness 与 health　⏳
+##### CM-14 · 检索结果 provenance、freshness 与 health　✅
+
+当前 source slice 与 CI-only 证据见 [`cm14-retrieval-health-baseline.md`](cm14-retrieval-health-baseline.md)。
 
 统一 `RetrievalHit` 输出 source ref、revision、rank components、freshness、verified/provenance、degraded/denied/unavailable 状态；空结果和回退必须带原因。验收：`every_hit_has_source_and_generation`、`embedding_failure_is_visible_and_retryable_only_when_safe`。
 
