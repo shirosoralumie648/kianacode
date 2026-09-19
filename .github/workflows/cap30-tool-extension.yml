@@ -1,0 +1,63 @@
+name: CAP-30 tool search and extension admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-core/tests/cap30_tool_extension_guard.rs"
+      - "kiana-core/tests/p1_h01_tool_authority_guard.rs"
+      - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
+      - "kiana-domain/tests/ext04_catalog.rs"
+      - "docs/roadmap/cap30-tool-extension-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap30-tool-extension.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-core/tests/cap30_tool_extension_guard.rs"
+      - "kiana-core/tests/p1_h01_tool_authority_guard.rs"
+      - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
+      - "kiana-domain/tests/ext04_catalog.rs"
+      - "docs/roadmap/cap30-tool-extension-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap30-tool-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tool-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run catalog and extension fixtures
+        run: cargo test -p kiana-domain --test ext04_catalog --locked -- --test-threads=1
+      - name: Run existing authority guards
+        run: cargo test -p kiana-core --test p1_h01_tool_authority_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p4_j7_10_catalog_guard --locked -- --test-threads=1
+      - name: Run CAP-30 source guard
+        run: cargo test -p kiana-core --test cap30_tool_extension_guard --locked -- --test-threads=1
+      - name: Compile CAP-30 targets
+        run: cargo check --workspace --tests --locked

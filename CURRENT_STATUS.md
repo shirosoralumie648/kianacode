@@ -8792,6 +8792,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus HTTP/SSE route selection, endpoint/redirect policy, raw credential rejection, JSON/SSE mock transport, session non-authority, discovery/catalog/schema drift and Unknown/no-retry after send review; no runtime test reviewer
 ```
 
+### CAP-30 tool search / extension admission evidence (partial, 2026-09-19)
+
+```text
+source_snapshot: 1e2143b4 + CAP-30 working-tree slice; kiana-domain/src/{tool_catalog,tool_authority,extensions,roles}.rs; kiana-daemon/src/{extensions,execution_control,harness_skills}.rs; kiana-core/tests/cap30_tool_extension_guard.rs; .github/workflows/cap30-tool-extension.yml; docs/roadmap/cap30-tool-extension-baseline.md; docs/roadmap.md
+worktree_status: existing immutable ToolCatalogSnapshot/ToolAuthority and role-filtered tool.search expose only server-owned descriptors and explicitly do not grant execution; extension admission verifies trusted publisher signature, package/content hash, license/effect/capability/dependency/platform policy, namespace collision, registry CAS version and upgrade/revoke/rollback; skill context is trust/role filtered and execution scopes are bound
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only catalog/extension source guards and fixtures; no local test or smoke binary executed
+fixture or cassette: EXT-04 extension catalog; P1-H01 authority; P4-J7-10 catalog; cap30_tool_extension_guard; GitHub Actions CAP-30 runs these fixtures and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-30 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-30 is partial, not complete. Existing search/extension admission is evidence-indexed, but BM25/tag ranking, extension descriptor index, selected-schema/context token accounting, health/version search filters and read-only/approved side-effect extension runtime fixtures remain open; roadmap status stays ⏳
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; current tool.search is built-in role-filtered substring search and extension admission is not yet a dynamic searchable ToolSnapshot
+reviewer: Codex root implementation review plus tool authority/catalog digest, role/trust filter, signed extension package/license/effect/namespace/CAS lifecycle and explicit missing BM25/tag/runtime fixture review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
