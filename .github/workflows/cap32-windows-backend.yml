@@ -33,6 +33,10 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TARGET_DIR: C:\\kiana-target
+  CARGO_INCREMENTAL: 0
+
 jobs:
   windows-compile-and-guard:
     runs-on: windows-latest

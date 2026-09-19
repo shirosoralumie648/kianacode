@@ -8833,7 +8833,7 @@ reviewer: Codex root implementation review plus shared environment contract, Lin
 ### CAP-32 Windows backend evidence (partial, 2026-09-19)
 
 ```text
-source_snapshot: ea99f15f + CAP-32 working-tree slice; kiana-ports/src/lib.rs; kiana-domain/src/job_handle.rs; kiana-daemon/src/process_supervisor.rs; kiana-core/tests/cap32_windows_backend_guard.rs; .github/workflows/cap32-windows-backend.yml; docs/roadmap/cap32-windows-backend-baseline.md; docs/roadmap.md
+source_snapshot: 58cf7269 + CAP-32 CI path-fix slice; kiana-ports/src/lib.rs; kiana-domain/src/{job_handle,platform_backend}.rs; kiana-daemon/src/process_supervisor.rs; kiana-core/tests/cap32_windows_backend_guard.rs; kiana-domain/tests/cap32_platform_backend.rs; .github/workflows/cap32-windows-backend.yml; docs/roadmap/cap32-windows-backend-baseline.md; docs/roadmap.md
 worktree_status: shared EnvironmentPort/JobHandle/ProcessSupervisor contracts plus typed PlatformBackendReport disposition are indexed for Windows; no Windows handle/ACL/Job Object backend is claimed, and TargetOnly/NotSupported require limitations, behavior_verified=false and no host fallback
 command_argv:
   cargo fmt --all
@@ -8842,8 +8842,8 @@ command_argv:
   git diff --check
 cwd/environment: repository root; Linux x86_64 local static checks; GitHub Actions windows-latest target job is the only target-platform execution; no local test or smoke binary executed
 fixture or cassette: cap32_windows_backend_guard and cap32_platform_backend; Windows target compile workflow; no runtime Windows fixture yet
-exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-32 is triggered by the eventual push and is not awaited; final diff check is pending before commit
-status_change: CAP-32 partial evidence slice recorded; roadmap remains ⏳ until Windows backend/Job Object/ACL/path/lock behavior and target receipts exist
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; the first Windows CI attempt ended at cargo fmt with os error 206 path-too-long before target behavior, and the workflow now shortens CARGO_TARGET_DIR for the next push
+status_change: CAP-32 partial evidence plus Windows CI path-length remediation recorded; roadmap remains ⏳ until Windows backend/Job Object/ACL/path/lock behavior and target receipts exist
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
 limitations: Windows reparse/UNC containment, breakaway prevention, cross-process locking, PowerShell/cmd argument semantics and physical cleanup are not implemented or verified; no fake success is allowed
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
