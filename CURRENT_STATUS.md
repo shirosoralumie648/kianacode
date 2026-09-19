@@ -8900,6 +8900,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the root digest is a plan-bound identity, not a filesystem integrity scan; readiness/liveness argv are caller-supplied observations, not authority; no real OCI/gVisor runtime, cross-process cleanup, health receipt or live traffic handoff was executed
 reviewer: Codex root implementation review plus image/volume identity, env allowlist, explicit SIGTERM, startup/readiness/liveness semantics, Unknown timeout and no-second-loop boundary review; no runtime/container reviewer
 
+### DEP-37 orchestrated rollout contract evidence (partial, 2026-09-19)
+
+source_snapshot: 12109dc4 + DEP-37 working-tree slice; kiana-domain/src/orchestrated_rollout.rs; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep37_orchestrated_rollout.rs; kiana-core/tests/dep37_orchestrated_rollout_guard.rs; .github/workflows/dep37-orchestrated-rollout.yml; docs/roadmap/dep37-orchestrated-rollout-baseline.md; docs/roadmap.md
+worktree_status: pure domain contract now models canary/blue-green/rainbow profiles, worker routes bound to ExecutionRevisionPin, bounded traffic weights, exactly one active writer with fence digest, canary thresholds, progress deadline and explicit pause/resume/promote/rollback decisions; Kubernetes and generic orchestrators are target labels only
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep37_orchestrated_rollout domain fixture and dep37_orchestrated_rollout_guard; GitHub Actions DEP-37 runs profile/routing/canary/deadline fixtures, source guard, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-37 is triggered by the eventual push and is not awaited
+status_change: DEP-37 source contract advanced from roadmap-only to a bounded orchestration decision shape; roadmap remains ⏳ because no durable rollout state, real adapter, traffic drain, process fence, health window or target environment receipt is wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: decisions consume caller-supplied routes and canary facts, do not mutate traffic or workers, and cannot prove a real orchestrator, cross-process writer fencing, operator approval or external health outcome; target backends remain not implemented
+reviewer: Codex root implementation review plus profile routing, revision pin, single-writer/fence, canary failure, deadline, action decision and target-backend proof-ceiling review; no runtime/orchestrator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
