@@ -9053,6 +9053,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: validator checks workflow/script structure, not actual secret leakage, vulnerability absence, signature validity, authn enforcement, release correctness, regulatory compliance, external effects or recovery/retention behavior; CI green is not live proof
 reviewer: Codex root implementation review plus workflow permission, fail-closed script, ignored-failure, secret/SBOM/signature/license/compliance boundary and no-compliance-certification proof-ceiling review; no security/release operator reviewer
 
+### SC-42 recovery and retention rehearsal evidence (partial, 2026-09-19)
+
+source_snapshot: fbe5e6ff + SC-42 working-tree slice; kiana-domain/src/security_rehearsal.rs; kiana-domain/src/lib.rs; kiana-domain/tests/sc42_security_rehearsal.rs; kiana-core/tests/sc42_security_rehearsal_guard.rs; scripts/{package-lifecycle-smoke,oa28-live-handoff-preflight,oa26-durable-observability-gate,validate-sc42-recovery-rehearsal}.sh; .github/workflows/sc42-security-rehearsal.yml; docs/roadmap/sc42-security-rehearsal-baseline.md; docs/roadmap.md
+worktree_status: SC-42 now has a deny-first rehearsal matrix for restart, quarantine restore, replay, Unknown reconcile and retention prune; success binds old-lease fence, no duplicate effect, quarantine/watermark/legal-hold evidence, while Unknown forbids retry; existing smoke/live-handoff/durable-observability scripts are syntax-bound only
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, recovery rehearsal, delete, restore, process kill or external operation executed
+fixture or cassette: CI-only sc42_security_rehearsal domain fixture and source guard; GitHub Actions SC-42 runs script syntax, rehearsal matrix, source guard, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and recovery/retention scripts deliberately not run per user instruction; GitHub Actions SC-42 is triggered by the eventual push and is not awaited
+status_change: SC-42 recovery/retention rehearsal evidence advanced from roadmap-only to a linked fake/source boundary; roadmap remains ⏳ because no local durable rehearsal, crash/power-loss, cross-process lease, real restore/delete or live cleanup receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: rehearsal facts are supplied and do not kill/restart processes, restore bytes, inspect a real quarantine root, query external idempotency, delete governed data or prove legal-hold propagation; existing scripts are not executed locally
+reviewer: Codex root implementation review plus old-lease fencing, quarantine verification, replay duplicate-effect, Unknown/reconcile, retention watermark/legal-hold and no-live-operation boundary review; no recovery/retention operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
