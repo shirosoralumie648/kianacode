@@ -6,14 +6,15 @@
 //! catalog, workspace and data epochs used for both estimation and provider submission.
 
 use crate::{
-    json_digest, EvidenceStatus, PromptAuthority, PromptBundle, SourceKind, SourceRef,
-    StepIdentity, TokenBudget,
+    json_digest, EvidenceStatus, PromptAuthority, PromptBundle, ScopeSet, SourceKind, SourceRef,
+    SourceSnapshot, StepIdentity, TokenBudget, WireBudget,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const CONTEXT_PLAN_SCHEMA: &str = "kiana.context-plan.v1";
 pub const RESOLVED_STEP_CONTEXT_SCHEMA: &str = "kiana.resolved-step-context.v1";
+pub const PREPARED_MODEL_REQUEST_SCHEMA: &str = "kiana.prepared-model-request.v1";
 pub const CONTEXT_PLAN_MAX_ITEMS: usize = 256;
 pub const CONTEXT_PLAN_MAX_TEXT_BYTES: usize = 512 * 1024;
 
@@ -495,30 +496,45 @@ impl ContextPlan {
 pub struct ResolvedStepContext {
     pub schema: String,
     pub step_identity: StepIdentity,
+    pub scope: ScopeSet,
+    pub context_plan: ContextPlan,
     pub plan_digest: String,
+    pub prompt_bundle_digest: String,
     pub model_profile: String,
     pub route_digest: String,
     pub catalog_digest: String,
+    pub tool_catalog_digest: String,
+    pub source_snapshots: Vec<SourceSnapshot>,
     pub workspace_revision: u64,
     pub data_epoch: u64,
     pub rendered_prompt_digest: String,
     pub budget: TokenBudget,
+    pub wire_budget: WireBudget,
     pub request_digest: String,
 }
+
+/// The provider-facing name for the same immutable snapshot. Estimate, send and receipt code
+/// must consume this value rather than compiling a second request from mutable inputs.
+pub type PreparedModelRequest = ResolvedStepContext;
 
 impl ResolvedStepContext {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         plan: &ContextPlan,
+        scope: ScopeSet,
         step_identity: StepIdentity,
         model_profile: impl Into<String>,
         route_digest: impl Into<String>,
         catalog_digest: impl Into<String>,
+        source_snapshots: Vec<SourceSnapshot>,
+        wire_budget: WireBudget,
         workspace_revision: u64,
         data_epoch: u64,
     ) -> Result<Self, String> {
         plan.validate()?;
+        scope.validate()?;
         step_identity.validate()?;
+        wire_budget.validate()?;
         let model_profile = model_profile.into();
         let route_digest = route_digest.into();
         let catalog_digest = catalog_digest.into();
@@ -528,33 +544,47 @@ impl ResolvedStepContext {
         if workspace_revision == 0 || data_epoch == 0 {
             return Err("resolved_context_revision_invalid".to_owned());
         }
+        validate_source_snapshots(&source_snapshots)?;
         let rendered_prompt_digest = json_digest(&serde_json::json!({
             "prompt": plan.rendered_prompt()
         }));
         let budget = TokenBudget::new(plan.rendered_prompt().len(), 0, 0, 0, plan.token_limit);
         budget.validate().map_err(str::to_owned)?;
         let request_digest = json_digest(&serde_json::json!({
+            "schema": PREPARED_MODEL_REQUEST_SCHEMA,
             "step_identity": step_identity,
+            "scope": scope,
+            "context_plan": plan,
             "plan_digest": plan.plan_digest,
+            "prompt_bundle_digest": plan.prompt_bundle_digest,
             "model_profile": model_profile,
             "route_digest": route_digest,
             "catalog_digest": catalog_digest,
+            "tool_catalog_digest": catalog_digest,
+            "source_snapshots": source_snapshots,
             "workspace_revision": workspace_revision,
             "data_epoch": data_epoch,
             "rendered_prompt_digest": rendered_prompt_digest,
             "budget": budget,
+            "wire_budget": wire_budget,
         }));
         let context = Self {
-            schema: RESOLVED_STEP_CONTEXT_SCHEMA.to_owned(),
+            schema: PREPARED_MODEL_REQUEST_SCHEMA.to_owned(),
             step_identity,
+            scope,
+            context_plan: plan.clone(),
             plan_digest: plan.plan_digest.clone(),
+            prompt_bundle_digest: plan.prompt_bundle_digest.clone(),
             model_profile,
             route_digest,
+            tool_catalog_digest: catalog_digest.clone(),
             catalog_digest,
+            source_snapshots,
             workspace_revision,
             data_epoch,
             rendered_prompt_digest,
             budget,
+            wire_budget,
             request_digest,
         };
         context.validate_against(plan)?;
@@ -564,31 +594,54 @@ impl ResolvedStepContext {
     pub fn validate_against(&self, plan: &ContextPlan) -> Result<(), String> {
         plan.validate()?;
         self.step_identity.validate()?;
-        if self.schema != RESOLVED_STEP_CONTEXT_SCHEMA || self.plan_digest != plan.plan_digest {
+        self.scope.validate()?;
+        self.context_plan.validate()?;
+        if (self.schema != RESOLVED_STEP_CONTEXT_SCHEMA
+            && self.schema != PREPARED_MODEL_REQUEST_SCHEMA)
+            || self.plan_digest != plan.plan_digest
+        {
+            return Err("resolved_context_plan_changed".to_owned());
+        }
+        if self.context_plan.plan_digest != plan.plan_digest
+            || self.prompt_bundle_digest != plan.prompt_bundle_digest
+            || self.context_plan.prompt_bundle_digest != self.prompt_bundle_digest
+        {
             return Err("resolved_context_plan_changed".to_owned());
         }
         required(&self.model_profile, "resolved_context_model_profile", 256)?;
         digest(&self.route_digest, "resolved_context_route_digest")?;
         digest(&self.catalog_digest, "resolved_context_catalog_digest")?;
+        if self.tool_catalog_digest != self.catalog_digest {
+            return Err("resolved_context_catalog_changed".to_owned());
+        }
         if self.workspace_revision == 0 || self.data_epoch == 0 {
             return Err("resolved_context_revision_invalid".to_owned());
         }
+        validate_source_snapshots(&self.source_snapshots)?;
         if self.rendered_prompt_digest
             != json_digest(&serde_json::json!({"prompt":plan.rendered_prompt()}))
         {
             return Err("resolved_context_prompt_changed".to_owned());
         }
         self.budget.validate().map_err(str::to_owned)?;
+        self.wire_budget.validate()?;
         let expected = json_digest(&serde_json::json!({
+            "schema": self.schema,
             "step_identity": self.step_identity,
+            "scope": self.scope,
+            "context_plan": self.context_plan,
             "plan_digest": self.plan_digest,
+            "prompt_bundle_digest": self.prompt_bundle_digest,
             "model_profile": self.model_profile,
             "route_digest": self.route_digest,
             "catalog_digest": self.catalog_digest,
+            "tool_catalog_digest": self.tool_catalog_digest,
+            "source_snapshots": self.source_snapshots,
             "workspace_revision": self.workspace_revision,
             "data_epoch": self.data_epoch,
             "rendered_prompt_digest": self.rendered_prompt_digest,
             "budget": self.budget,
+            "wire_budget": self.wire_budget,
         }));
         if self.request_digest != expected {
             return Err("resolved_context_request_digest_mismatch".to_owned());
@@ -600,6 +653,7 @@ impl ResolvedStepContext {
         &self,
         route_digest: &str,
         catalog_digest: &str,
+        scope_digest: &str,
         workspace_revision: u64,
         data_epoch: u64,
     ) -> Result<(), String> {
@@ -609,6 +663,9 @@ impl ResolvedStepContext {
         if self.catalog_digest != catalog_digest {
             return Err("resolved_context_catalog_changed".to_owned());
         }
+        if self.scope.scope_digest != scope_digest {
+            return Err("resolved_context_scope_changed".to_owned());
+        }
         if self.workspace_revision != workspace_revision {
             return Err("resolved_context_workspace_changed".to_owned());
         }
@@ -617,4 +674,22 @@ impl ResolvedStepContext {
         }
         Ok(())
     }
+
+    pub fn rendered_prompt(&self) -> String {
+        self.context_plan.rendered_prompt()
+    }
+}
+
+fn validate_source_snapshots(source_snapshots: &[SourceSnapshot]) -> Result<(), String> {
+    if source_snapshots.len() > CONTEXT_PLAN_MAX_ITEMS {
+        return Err("resolved_context_source_snapshot_limit".to_owned());
+    }
+    let mut digests = BTreeSet::new();
+    for snapshot in source_snapshots {
+        snapshot.validate()?;
+        if !digests.insert(snapshot.snapshot_digest.clone()) {
+            return Err("resolved_context_source_snapshot_duplicate".to_owned());
+        }
+    }
+    Ok(())
 }

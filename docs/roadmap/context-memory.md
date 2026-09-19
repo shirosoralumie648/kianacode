@@ -434,7 +434,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-17 · ResolvedStepContext 单一快照　⏳
+##### CM-17 · ResolvedStepContext 单一快照　✅
+
+当前 source slice 与 CI-only 证据见 [`cm17-prepared-request-baseline.md`](cm17-prepared-request-baseline.md)。
 
 把 scope、prompt bundle/hash、tool catalog、source snapshot、ContextPlan、budget、model profile 编译成不可变 `PreparedModelRequest`；estimate/send/receipt 均消费同一对象。验收：`same_step_snapshot_renders_same_wire_and_provenance`、`route_change_between_prepare_and_send_is_fenced`。
 
