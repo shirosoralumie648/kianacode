@@ -610,7 +610,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-34 · Local embedding package and model rotation　⏳
+##### CM-34 · Local embedding package and model rotation　✅
+
+当前 source slice 与 CI-only 证据见 [`cm34-embedding-rotation-baseline.md`](cm34-embedding-rotation-baseline.md)。
 
 提供离线预置 ONNX/Tokenizer manifest，hash/维度/pooling/device/provider 校验；模型轮换生成新 index generation，旧代仍可只读直到切换，禁止运行期隐式下载。验收：`embedding_manifest_mismatch_fails_closed`、`model_rotation_keeps_generation_consistent`。
 

@@ -10804,3 +10804,19 @@ status change: CM-33 source slice is implemented and roadmap row 638 is ✅. Gra
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: compiler/parser semantic completeness, multi-hop graph retrieval, live index rebuild, external graph persistence and business authority remain open; graph edges do not replace text evidence or ACL
 reviewer: Codex root implementation review plus SourceRef kind, scope binding, temporal state, source deletion targeting and unrelated-edge preservation review; no runtime test reviewer
+
+### CM-34 offline embedding rotation evidence (2026-09-20)
+
+source_snapshot: d7b93d37 + CM-34 working-tree slice; kiana-domain/src/{embedding_manifest.rs,index_generation.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm34_embedding_rotation.rs; kiana-query/src/index.rs; kiana-core/tests/cm34_embedding_rotation_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm34-embedding-rotation.yml; docs/roadmap/cm34-embedding-rotation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: EmbeddingManifest pins package/weights/tokenizer/config hashes, dimensions, pooling, provider/device, normalized and network-denied policy; EmbeddingIndexBinding and EmbeddingRotationPlan bind exact manifest/source/component digests and preserve old generation read-only
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-34 manifest mismatch and generation rotation fixtures plus Core source guard; GitHub Actions CM-34 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-34 source slice is implemented and roadmap row 639 is ✅. Offline embedding package and rotation fences are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: ONNX runtime execution, package signature verification, hardware/device performance, semantic embedding quality and production index rebuild remain open; no runtime download or live provider claim is made
+reviewer: Codex root implementation review plus hash/dimension/pooling/provider/device/network-deny validation, exact generation/manifest binding and old-read-only rotation review; no runtime test reviewer
