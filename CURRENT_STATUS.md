@@ -10340,3 +10340,19 @@ status_change: H34 source slice is implemented and roadmap row 589 is ✅. Unkno
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: full historical cassette corpus, all legacy resident/Desktop entrypoints, cross-process migration and live provider compatibility remain H35/H36/PD/provider work
 reviewer: Codex root implementation review plus additive schema, known checkpoint identity, unknown-version refusal, same DaemonHost route, no random IDs and no second loop review; no runtime test reviewer
+
+### H35 Harness trajectory evaluation and performance evidence (2026-09-19)
+
+source_snapshot: ed219fd4 + H35 working-tree slice; kiana-domain/src/{harness_eval.rs,eval.rs,quality.rs,performance.rs,contracts.rs,lib.rs}; kiana-core/src/{eval.rs,versioning.rs}; kiana-daemon/src/{eval_runtime.rs}; kiana-domain/tests/{h35_harness_eval,eq03_eval_objects}.rs; kiana-core/tests/{h35_harness_eval_guard,p1_l1_01_golden_trace,eval_baseline,eq14_evidence_capture_guard}.rs; .github/workflows/h35-harness-eval.yml; docs/roadmap/h35-harness-eval-baseline.md; docs/roadmap.md
+worktree_status: HarnessTraceBinding now binds GoldenTrace/source snapshot, model/prompt/tool-directory/input/workspace/runtime versions, cursor and Receipt; HarnessReplayReport exposes first difference and makes missing result, extra effect, network/process calls and live-provider replay Fail/Blocked; HarnessEvalMetricSet covers task completion, protocol integrity, duplicate effects, permission denial, compaction semantics, no-progress loop, cancellation latency, peak memory/output, request cost and usage completeness; HarnessEvalComparison covers serial/parallel, old-truncation/new-summary and baseline/extra-verification A/B with safety/result-integrity veto over performance; no evaluator execution loop, Broker call or promotion side effect was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H35 domain binding/replay/metric/A-B fixtures, existing GoldenTrace/eval/evidence/performance fixtures and Core source guard; GitHub Actions H35 runs focused fixtures and workspace test-target compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H35 source slice is implemented and roadmap row 632 is ✅. Fixed evaluation binding, no-effect replay and safety-first A/B comparison are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: real Provider/account performance, RSS/cleanup thresholds, full CLI/TTY/Web/Desktop scenario replay and durable benchmark artifacts remain H36/PD/provider work; no live quality or performance claim is made
+reviewer: Codex root implementation review plus trace binding, first replay difference, side-effect/network/process veto, usage incompleteness, required metric coverage and safety/result-integrity-over-performance A/B review; no runtime test reviewer
