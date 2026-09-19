@@ -10644,3 +10644,19 @@ status change: CM-23 source slice is implemented and roadmap row 334 is ✅. Can
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing daemon/query writes and review/search call sites are not all migrated to MemoryModelWriteGate/MemoryAclDecision, durable session retirement/operator approval remains open, and no live provider/effect claim is made
 reviewer: Codex root implementation review plus server-owned lifecycle derivation, protected-field rejection, session-only scratch, candidate visibility and private-memory operator gate review; no runtime test reviewer
+
+### CM-24 memory temporal/conflict evidence (2026-09-20)
+
+source_snapshot: 4a04ba11 + CM-24 working-tree slice; kiana-domain/src/{memory_temporal.rs,memory_acl.rs,memory.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm24_memory_temporal.rs; kiana-core/tests/cm24_memory_temporal_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm24-memory-temporal.yml; docs/roadmap/cm24-memory-temporal-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: resolve_memory_history reapplies MemoryAclDecision at as_of, excludes future/invalid records, honors explicit supersedes and preserves valid same-collection/kind conflict sets with Current/Historical/Conflict status and deterministic selection digest
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-24 as-of/supersedes/conflict fixtures and Core source guard; GitHub Actions CM-24 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-24 source slice is implemented and roadmap row 335 is ✅. Historical validity and explicit conflict semantics are now a typed projection
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: query/daemon ranking and history call sites are not fully migrated, durable conflict/citation receipts and deletion propagation remain open, and no semantic retrieval/live provider claim is made
+reviewer: Codex root implementation review plus ACL-before-as_of, future/validity filtering, explicit supersedes, conflict preservation and deterministic digest review; no runtime test reviewer
