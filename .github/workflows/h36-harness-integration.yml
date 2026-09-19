@@ -13,9 +13,12 @@ on:
       - "kiana-provider/src/lib.rs"
       - "contrib/desktop/main.js"
       - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/src/provider_live.rs"
       - "kiana-domain/src/harness_integration.rs"
       - "kiana-domain/tests/h36_harness_integration.rs"
+      - "kiana-domain/tests/p4_j7_31_live_evidence.rs"
       - "kiana-core/tests/h36_harness_integration_guard.rs"
+      - "kiana-core/tests/p4_j7_31_provider_live_guard.rs"
       - "kiana-core/tests/oa24_entrypoint_parity.rs"
       - "kiana-daemon/tests/eq12_daemon_spine.rs"
       - "docs/roadmap/h36-harness-integration-baseline.md"
@@ -33,9 +36,12 @@ on:
       - "kiana-provider/src/lib.rs"
       - "contrib/desktop/main.js"
       - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/src/provider_live.rs"
       - "kiana-domain/src/harness_integration.rs"
       - "kiana-domain/tests/h36_harness_integration.rs"
+      - "kiana-domain/tests/p4_j7_31_live_evidence.rs"
       - "kiana-core/tests/h36_harness_integration_guard.rs"
+      - "kiana-core/tests/p4_j7_31_provider_live_guard.rs"
       - "kiana-core/tests/oa24_entrypoint_parity.rs"
       - "kiana-daemon/tests/eq12_daemon_spine.rs"
       - "docs/roadmap/h36-harness-integration-baseline.md"
@@ -64,4 +70,8 @@ jobs:
         run: cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
       - name: Run H36 source guard
         run: cargo test -p kiana-core --test h36_harness_integration_guard --locked -- --test-threads=1
+      - name: Run provider live contract fixture without external credentials
+        run: cargo test -p kiana-domain --test p4_j7_31_live_evidence --locked -- --test-threads=1
+      - name: Run provider live source guard
+        run: cargo test -p kiana-core --test p4_j7_31_provider_live_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

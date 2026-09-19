@@ -10356,3 +10356,19 @@ status_change: H35 source slice is implemented and roadmap row 632 is ✅. Fixed
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: real Provider/account performance, RSS/cleanup thresholds, full CLI/TTY/Web/Desktop scenario replay and durable benchmark artifacts remain H36/PD/provider work; no live quality or performance claim is made
 reviewer: Codex root implementation review plus trace binding, first replay difference, side-effect/network/process veto, usage incompleteness, required metric coverage and safety/result-integrity-over-performance A/B review; no runtime test reviewer
+
+### H36 Harness integration and evidence closeout source gate (2026-09-19)
+
+source_snapshot: 76741d2c + H36 working-tree slice; kiana-domain/src/{harness_integration.rs,provider_live.rs,live_handoff.rs}; kiana-entrypoints/src/{cli.rs,workbench_chat.rs,web.rs}; kiana-daemon/src/lib.rs; kiana-core/src/lib.rs; kiana-runner/src/harness.rs; kiana-provider/src/lib.rs; contrib/desktop/main.js; kiana-domain/tests/{h36_harness_integration,p4_j7_31_live_evidence}.rs; kiana-core/tests/{h36_harness_integration_guard,p4_j7_31_provider_live_guard}.rs; .github/workflows/h36-harness-integration.yml; docs/roadmap/h36-harness-integration-baseline.md; docs/roadmap.md
+worktree_status: HarnessIntegrationMatrix still covers CLI, Workbench/TTY, Web and Desktop across short-task/tool-call/repair/steer/cancel/approval/compaction/restart; live_closeout_blockers/ready requires per-surface live_opt_in evidence, operator approval, Receipt/stream state and no result_unknown; Verified+Unknown is rejected; the Core source guard ties the shared DaemonHost/ControlPlane/KianaHarness/ProviderGateway spine to ProviderLiveConnectionEvidence and LiveHandoffManifest without adding a second loop
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, smoke or live provider command executed per user instruction
+fixture or cassette: GitHub Actions only: H36 matrix/source fixtures plus provider-live contract/source guards; the provider-live fixtures run without external credentials and CI is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H36 source closeout gate is strengthened, but roadmap row 729 remains ⏳ because real Provider/account/model/profile Receipt, Desktop state, restart/steer/approval/compaction and cleanup evidence require an explicitly approved live target
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live request or external effect was executed, synthetic/fake receipts do not satisfy live closeout, one configured model path cannot cover all providers, and no operator approval/budget/credential target was supplied
+reviewer: Codex root implementation review plus per-surface live readiness, result_unknown fence, common DaemonHost/ControlPlane/Harness/Provider spine, provider identity/Receipt and no-auto-live boundary review; no runtime/live reviewer
