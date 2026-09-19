@@ -1,0 +1,50 @@
+name: UI-39 live ACP IDE boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/ui39_live_acp_guard.rs"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui39-live-acp.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "contrib/desktop/main.js"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/ui39_live_acp_guard.rs"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui39-live-acp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-live-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

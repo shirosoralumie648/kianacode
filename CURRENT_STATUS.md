@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### UI-39 live ACP/IDE boundary evidence (partial, 2026-09-19)
+
+source_snapshot: 81d28141 + UI-39 working-tree slice; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{web,workbench_chat}.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-core/tests/ui39_live_acp_guard.rs; .github/workflows/ui39-live-acp.yml; docs/roadmap/ui39-live-acp-baseline.md; docs/roadmap.md
+worktree_status: UI-39 source gate indexes versioned UI handshake/snapshot/action/cursor/epoch contracts and common DaemonHost/ControlPlane routes across Workbench/Web/Desktop; host editor/terminal is not authority, and live ACP/IDE remains explicit opt-in/not_supported
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or live IDE/ACP interaction executed
+fixture or cassette: CI-only ui39_live_acp_guard; GitHub Actions UI-39 source guard and workspace compilation; no external host or credential
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-39 is triggered by the eventual push and is not awaited
+status_change: UI-39 source/default-deny boundary advanced from roadmap-only to a linked guard; roadmap remains ⏳ because no ACP/IDE adapter, external host session or live receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, live, durable or physical promotion
+limitations: no live ACP/IDE protocol peer, permission timeout/cancel/reconnect/restart evidence, host version/environment or editor capability bridge was executed; unsupported remains explicit
+reviewer: Codex root implementation review plus versioned UI contract, common DaemonHost spine, host capability non-authority, opt-in/approval and no-live-proof boundary review; no runtime/live reviewer
+
 ### CM-39 context/memory documentation and handoff evidence (partial, 2026-09-19)
 
 source_snapshot: ba669fae + CM-39 working-tree slice; docs/roadmap/context-memory.md; docs/module-map.md; CURRENT_STATUS.md; kiana-daemon/src/{harness_memory,memory_retrieval}.rs; kiana-domain/src/memory_journal.rs; kiana-core/tests/cm39_context_memory_closeout_guard.rs; .github/workflows/cm39-context-memory-closeout.yml; docs/roadmap/cm39-context-memory-closeout-baseline.md; docs/roadmap.md
