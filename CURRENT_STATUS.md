@@ -10612,3 +10612,19 @@ status change: CM-21 source slice is implemented and roadmap row 332 is ✅. Res
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: EventLog-backed restart hydration, durable provider/cache/index deletion propagation and actual daemon wiring remain PD/ER/DEP work; no live provider or physical effect claim is made
 reviewer: Codex root implementation review plus checkpoint/prepared/data epoch binding, dependency closure target mapping, cache invalidation and deterministic rebuild review; no runtime test reviewer
+
+### CM-22 unified memory ACL evidence (2026-09-20)
+
+source_snapshot: c8c584f1 + CM-22 working-tree slice; kiana-domain/src/{memory_acl.rs,memory.rs,context_scope.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm22_memory_acl.rs; kiana-core/tests/cm22_memory_acl_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm22-memory-acl.yml; docs/roadmap/cm22-memory-acl-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: MemoryAclRequest binds server-derived MemoryScope, access path, sensitivity ceiling, current time and data epoch; MemoryAclDecision applies one per-record filter across search/prefetch/review/citation/proposal-similar/resume and checks collection, project/session, purpose, sensitivity, validity, classification and lifecycle
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-22 six-path ACL, candidate review-only, foreign project/private collection/sensitivity denial fixtures and Core source guard; GitHub Actions CM-22 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-22 source slice is implemented and roadmap row 333 is ✅. One typed record-level ACL decision boundary is explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing daemon/query memory call sites are not all migrated to this helper, policy/Grant durable projections and deletion propagation remain open, and no live provider/effect claim is made
+reviewer: Codex root implementation review plus six-path scope reuse, collection prefilter boundary, project/session/purpose/sensitivity/validity/classification/lifecycle checks and no-second-authority review; no runtime test reviewer
