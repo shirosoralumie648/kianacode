@@ -10484,3 +10484,19 @@ status_change: CM-13 source slice is implemented and roadmap row 324 is ✅. Tas
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: optional parser/tree-sitter/compiler dependency graph, incremental/durable integration and production task relevance remain open; heuristic evidence cannot prove compiler semantics
 reviewer: Codex root implementation review plus deterministic task score/path/digest ordering, budget/omitted accounting, heuristic-vs-compiler boundary and reuse of read-only RepoMap scanner review; no runtime test reviewer
+
+### CM-14 retrieval provenance/freshness/health evidence (2026-09-20)
+
+source_snapshot: 24f09a1f + CM-14 working-tree slice; kiana-domain/src/{retrieval_evidence.rs,retrieval_context.rs,contracts.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm14_retrieval_evidence.rs; kiana-core/tests/cm14_retrieval_health_guard.rs; .github/workflows/cm14-retrieval-health.yml; docs/roadmap/cm14-retrieval-health-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: RetrievalEvidence binds candidate/source ref/revision/source snapshot digest/generation/freshness/evidence/rank components; RetrievalHealth distinguishes Ready/Degraded/Denied/Unavailable, requires non-ready reasons and rejects unsafe retry; RetrievalResponse requires empty reason, matching health result count/generation and contiguous hit ranks
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-14 source/retrieval evidence fixtures and Core health/provenance guard; GitHub Actions CM-14 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-14 source slice is implemented and roadmap row 325 is ✅. Retrieval hits, empty results and health/retry semantics are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: actual freshness probes, durable generation health/recovery, external embedding quality and live availability remain open; no operational SLO claim is made
+reviewer: Codex root implementation review plus source/revision/generation/rank evidence, freshness/evidence status, empty reason, health failure reason and safe-retry enforcement review; no runtime test reviewer

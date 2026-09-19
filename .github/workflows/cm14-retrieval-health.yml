@@ -1,0 +1,53 @@
+name: cm14-retrieval-health
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/retrieval_evidence.rs"
+      - "kiana-domain/src/retrieval_context.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm14_retrieval_evidence.rs"
+      - "kiana-core/tests/cm14_retrieval_health_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm14-retrieval-health-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm14-retrieval-health.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/retrieval_evidence.rs"
+      - "kiana-domain/src/retrieval_context.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm14_retrieval_evidence.rs"
+      - "kiana-core/tests/cm14_retrieval_health_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm14-retrieval-health-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm14-retrieval-health.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrieval-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-14 retrieval evidence fixtures
+        run: cargo test -p kiana-domain --test cm14_retrieval_evidence --locked -- --test-threads=1
+      - name: Run CM-14 source guard
+        run: cargo test -p kiana-core --test cm14_retrieval_health_guard --locked -- --test-threads=1
