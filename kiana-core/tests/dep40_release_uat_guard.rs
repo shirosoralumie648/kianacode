@@ -3,6 +3,7 @@
 #[test]
 fn uat_matrix_and_entrypoints_keep_one_authoritative_spine() {
     let matrix = include_str!("../../kiana-domain/src/release_uat.rs");
+    let evidence = include_str!("../../kiana-domain/src/release_uat_evidence.rs");
     let cli = include_str!("../../kiana-entrypoints/src/cli.rs");
     let web = include_str!("../../kiana-entrypoints/src/web.rs");
     let workbench = include_str!("../../kiana-entrypoints/src/workbench_chat.rs");
@@ -34,9 +35,14 @@ fn uat_matrix_and_entrypoints_keep_one_authoritative_spine() {
         "harness_digest",
         "Fake",
         "LiveOptIn",
+        "ReleaseUatEvidence",
+        "release_uat_fake_cannot_claim_live",
+        "release_uat_verified_evidence_incomplete",
+        "unknown_reconciled",
+        "receipt_digests",
     ] {
         assert!(
-            matrix.contains(marker),
+            matrix.contains(marker) || evidence.contains(marker),
             "DEP-40 matrix marker missing: {marker}"
         );
     }

@@ -8953,20 +8953,20 @@ reviewer: Codex root implementation review plus typed release handoff, artifact/
 
 ### DEP-40 cross-entrypoint release/recovery UAT evidence (partial, 2026-09-19)
 
-source_snapshot: 9b16eb73 + DEP-40 working-tree slice; kiana-domain/src/release_uat.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep40_release_uat.rs; kiana-core/tests/dep40_release_uat_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; kiana-entrypoints/src/{cli,web,workbench_chat}.rs; contrib/desktop/main.js; .github/workflows/dep40-release-uat.yml; docs/roadmap/dep40-release-uat-baseline.md; docs/roadmap.md
-worktree_status: ReleaseUatMatrix now requires deny/success coverage for release/upgrade/rollback/backup/restore/migration/health across CLI/Web/Workbench/Desktop, plus restart/replay/result_unknown evidence; every row binds the same DaemonHost/ControlPlane/KianaHarness digests, fake provider remains distinct from live opt-in, and Unknown retry is forbidden
+source_snapshot: 3d75c716 + DEP-40 UAT evidence-bundle slice; kiana-domain/src/{release_uat,release_uat_evidence}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/{dep40_release_uat,dep40_release_uat_evidence}.rs; kiana-core/tests/dep40_release_uat_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; kiana-entrypoints/src/{cli,web,workbench_chat}.rs; contrib/desktop/main.js; .github/workflows/dep40-release-uat.yml; docs/roadmap/dep40-release-uat-baseline.md; docs/roadmap.md
+worktree_status: ReleaseUatMatrix requires deny/success coverage for release/upgrade/rollback/backup/restore/migration/health across CLI/Web/Workbench/Desktop, plus restart/replay/result_unknown evidence; ReleaseUatEvidence now binds matrix/source/CI refs, provider mode, proof level, receipt refs, reviewer and Unknown reconciliation, while fake provider remains distinct from live opt-in and Unknown retry is forbidden
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, E2E/UAT, release, backup, restore, migration or external health effect executed
-fixture or cassette: CI-only dep40_release_uat domain matrix and source guard; GitHub Actions DEP-40 also runs existing oa24_entrypoint_parity and eq12_daemon_spine fixtures plus workspace static compilation
+fixture or cassette: CI-only dep40_release_uat, dep40_release_uat_evidence and source guard; GitHub Actions DEP-40 also runs existing oa24_entrypoint_parity and eq12_daemon_spine fixtures plus workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and UAT deliberately not run per user instruction; GitHub Actions DEP-40 is triggered by the eventual push and is not awaited
 status_change: DEP-40 source/CI UAT evidence advanced from separate parity/spine fixtures to a cross-entrypoint scenario matrix; roadmap remains ⏳ because no durable cross-process E2E, real provider/account receipt, packaged Desktop runtime or physical/live operation exists
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: matrix rows are supplied fake/source evidence, not executed release or recovery effects; parity cannot prove backup/restore/migration durability, result_unknown reconciliation in production, Desktop packaging, real provider behavior, or external health correctness
-reviewer: Codex root implementation review plus scenario/entrypoint coverage, shared spine digest, deny/success/restart/replay/Unknown semantics, fake-vs-live boundary and no-direct-Broker-loop review; no runtime/E2E/UAT reviewer
+limitations: matrix rows and the new bundle are supplied fake/source evidence, not executed release or recovery effects; parity cannot prove backup/restore/migration durability, result_unknown reconciliation in production, Desktop packaging, real provider behavior, or external health correctness
+reviewer: Codex root implementation review plus typed UAT evidence, scenario/entrypoint coverage, shared spine digest, deny/success/restart/replay/Unknown semantics, fake-vs-live boundary and no-direct-Broker-loop review; no runtime/E2E/UAT reviewer
 
 ### DEP-41 operator handoff, release gate and capability/proof matrix evidence (partial, 2026-09-19)
 

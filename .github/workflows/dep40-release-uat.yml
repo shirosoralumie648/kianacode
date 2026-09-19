@@ -5,6 +5,8 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/release_uat.rs"
+      - "kiana-domain/src/release_uat_evidence.rs"
+      - "kiana-domain/tests/dep40_release_uat_evidence.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/dep40_release_uat.rs"
       - "kiana-core/tests/dep40_release_uat_guard.rs"
@@ -21,6 +23,8 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/release_uat.rs"
+      - "kiana-domain/src/release_uat_evidence.rs"
+      - "kiana-domain/tests/dep40_release_uat_evidence.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/dep40_release_uat.rs"
       - "kiana-core/tests/dep40_release_uat_guard.rs"
@@ -50,6 +54,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run DEP-40 UAT matrix fixture
         run: cargo test -p kiana-domain --test dep40_release_uat --locked -- --test-threads=1
+      - name: Run DEP-40 UAT evidence fixture
+        run: cargo test -p kiana-domain --test dep40_release_uat_evidence --locked -- --test-threads=1
       - name: Run DEP-40 source and spine guard
         run: cargo test -p kiana-core --test dep40_release_uat_guard --locked -- --test-threads=1
       - name: Run existing entrypoint parity fixture
