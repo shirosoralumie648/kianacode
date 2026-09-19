@@ -5,6 +5,8 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/persistence_capacity.rs"
+      - "kiana-domain/src/persistence_capacity_evidence.rs"
+      - "kiana-domain/tests/pd34_persistence_capacity_evidence.rs"
       - "kiana-domain/src/performance.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/pd34_persistence_capacity.rs"
@@ -17,6 +19,8 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/persistence_capacity.rs"
+      - "kiana-domain/src/persistence_capacity_evidence.rs"
+      - "kiana-domain/tests/pd34_persistence_capacity_evidence.rs"
       - "kiana-domain/src/performance.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/pd34_persistence_capacity.rs"
@@ -42,6 +46,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run PD-34 capacity fixture
         run: cargo test -p kiana-domain --test pd34_persistence_capacity --locked -- --test-threads=1
+      - name: Run PD-34 capacity evidence fixture
+        run: cargo test -p kiana-domain --test pd34_persistence_capacity_evidence --locked -- --test-threads=1
       - name: Run PD-34 source guard
         run: cargo test -p kiana-core --test pd34_persistence_capacity_guard --locked -- --test-threads=1
       - name: Run existing performance baseline fixture

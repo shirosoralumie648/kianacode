@@ -3,6 +3,7 @@
 #[test]
 fn persistence_capacity_reuses_performance_contract_and_fails_closed() {
     let source = include_str!("../../kiana-domain/src/persistence_capacity.rs");
+    let evidence = include_str!("../../kiana-domain/src/persistence_capacity_evidence.rs");
     let performance = include_str!("../../kiana-domain/src/performance.rs");
     let baseline = include_str!("../../docs/roadmap/pd34-persistence-capacity-baseline.md");
     for marker in [
@@ -23,9 +24,13 @@ fn persistence_capacity_reuses_performance_contract_and_fails_closed() {
         "persistence_capacity_queue_budget_exceeded",
         "persistence_capacity_rejection_budget_exceeded",
         "persistence_capacity_maintenance_budget_exceeded",
+        "PersistenceCapacityEvidence",
+        "persistence_capacity_verified_evidence_incomplete",
+        "benchmark_receipt_digest",
+        "resource_receipt_digest",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || evidence.contains(marker),
             "PD-34 source marker missing: {marker}"
         );
     }

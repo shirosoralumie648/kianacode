@@ -9004,20 +9004,20 @@ reviewer: Codex root implementation review plus typed persistence evidence, life
 
 ### PD-34 persistence capacity and degradation budget evidence (partial, 2026-09-19)
 
-source_snapshot: 57a18ce1 + PD-34 working-tree slice; kiana-domain/src/{persistence_capacity,performance}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/pd34_persistence_capacity.rs; kiana-core/tests/pd34_persistence_capacity_guard.rs; kiana-core/tests/oa25_capacity_migration.rs; .github/workflows/pd34-persistence-capacity.yml; docs/roadmap/pd34-persistence-capacity-baseline.md; docs/roadmap.md
-worktree_status: persistence capacity report now reuses PerformanceBaseline/CapacityEnvelope and binds append/flush/project/rebuild/query/export budgets to P95/P99, queue depth, rejection rate, maintenance share, degradation reason and facts-preserved evidence; budget overflow blocks while bounded degradation remains explicit
+source_snapshot: 37ce8924 + PD-34 capacity evidence slice; kiana-domain/src/{persistence_capacity,persistence_capacity_evidence,performance}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/{pd34_persistence_capacity,pd34_persistence_capacity_evidence}.rs; kiana-core/tests/pd34_persistence_capacity_guard.rs; kiana-core/tests/oa25_capacity_migration.rs; .github/workflows/pd34-persistence-capacity.yml; docs/roadmap/pd34-persistence-capacity-baseline.md; docs/roadmap.md
+worktree_status: persistence capacity report reuses PerformanceBaseline/CapacityEnvelope and binds append/flush/project/rebuild/query/export budgets to P95/P99, queue depth, rejection rate, maintenance share, degradation reason and facts-preserved evidence; PersistenceCapacityEvidence now binds report/baseline to benchmark/resource receipts, representative workload and degradation acknowledgement, while budget overflow blocks and bounded degradation remains explicit
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, benchmark, stress, queue resize or maintenance operation executed
-fixture or cassette: CI-only pd34_persistence_capacity domain fixture and source guard; GitHub Actions PD-34 also runs existing oa25_capacity_migration percentile/capacity fixture plus workspace static compilation
+fixture or cassette: CI-only pd34_persistence_capacity, pd34_persistence_capacity_evidence and source guard; GitHub Actions PD-34 also runs existing oa25_capacity_migration percentile/capacity fixture plus workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and performance runs deliberately not run per user instruction; GitHub Actions PD-34 is triggered by the eventual push and is not awaited
 status_change: PD-34 capacity/degradation evidence advanced from existing percentile/capacity baseline to explicit persistence pressure budgets; roadmap remains ⏳ because no representative storage/artifact/index/backup/prune pressure run or platform resource receipt exists
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: budgets evaluate caller-supplied summaries and do not measure real throughput, contention, power-loss, disk-full, long readers, platform FS behavior or production P95/P99; degraded rows are not health or admission authority
-reviewer: Codex root implementation review plus performance contract reuse, percentile ordering, queue/rejection/maintenance ceilings, degraded reason, facts-preserved and no-benchmark-as-production boundary review; no performance/storage operator reviewer
+limitations: budgets and the new evidence bundle evaluate caller-supplied summaries and do not measure real throughput, contention, power-loss, disk-full, long readers, platform FS behavior or production P95/P99; degraded rows are not health or admission authority
+reviewer: Codex root implementation review plus typed capacity evidence, performance contract reuse, percentile ordering, queue/rejection/maintenance ceilings, degraded reason, facts-preserved and no-benchmark-as-production boundary review; no performance/storage operator reviewer
 
 ### PD-35 persistence closeout and migration handoff evidence (partial, 2026-09-19)
 
