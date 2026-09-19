@@ -5,6 +5,7 @@ mod apply_patch;
 mod approval_store;
 mod authn;
 mod connectors;
+pub mod container_environment;
 mod context_query;
 mod data_governance;
 pub mod eval_runtime;

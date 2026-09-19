@@ -1,0 +1,48 @@
+name: CAP-33 container backend probe
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/container_environment.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/cap33_container.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cap33_container_guard.rs"
+      - "docs/roadmap/cap33-container-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap33-container.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/container_environment.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/cap33_container.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-core/tests/cap33_container_guard.rs"
+      - "docs/roadmap/cap33-container-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap33-container.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-source-and-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run pure container plan fixtures
+        run: cargo test -p kiana-daemon --test cap33_container --locked -- --test-threads=1
+      - name: Run CAP-33 source guard
+        run: cargo test -p kiana-core --test cap33_container_guard --locked -- --test-threads=1
+      - name: Compile CAP-33 targets
+        run: cargo check --workspace --tests --locked
