@@ -9,6 +9,7 @@ fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
     let memory = include_str!("../../kiana-daemon/src/harness_memory.rs");
     let retrieval = include_str!("../../kiana-daemon/src/memory_retrieval.rs");
     let journal = include_str!("../../kiana-domain/src/memory_journal.rs");
+    let evidence = include_str!("../../kiana-domain/src/context_memory_evidence.rs");
 
     for marker in [
         "CM-38",
@@ -35,9 +36,19 @@ fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
         "review",
         "EventStore",
         "scope",
+        "ContextMemoryGoldenPathEvidence",
+        "scope_digest",
+        "redaction_profile_digest",
+        "FakeCassette",
+        "LiveOptIn",
+        "source-only",
+        "durable",
     ] {
         assert!(
-            memory.contains(marker) || retrieval.contains(marker) || journal.contains(marker),
+            memory.contains(marker)
+                || retrieval.contains(marker)
+                || journal.contains(marker)
+                || evidence.contains(marker),
             "CM-39 source marker missing: {marker}"
         );
     }

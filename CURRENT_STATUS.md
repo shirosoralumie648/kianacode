@@ -9123,20 +9123,20 @@ reviewer: Codex root implementation review plus versioned UI contract, common Da
 
 ### CM-39 context/memory documentation and handoff evidence (partial, 2026-09-19)
 
-source_snapshot: ba669fae + CM-39 working-tree slice; docs/roadmap/context-memory.md; docs/module-map.md; CURRENT_STATUS.md; kiana-daemon/src/{harness_memory,memory_retrieval}.rs; kiana-domain/src/memory_journal.rs; kiana-core/tests/cm39_context_memory_closeout_guard.rs; .github/workflows/cm39-context-memory-closeout.yml; docs/roadmap/cm39-context-memory-closeout-baseline.md; docs/roadmap.md
-worktree_status: CM-39 now has a CI-only parity guard requiring context/memory docs and handoff to name the canonical memory/retrieval/journal sources, CM-38 fake/live proof ceiling, and provider/cross-process/physical/scale limitations; it does not promote a feature
+source_snapshot: 5dd607b9 + CM-39 handoff parity slice; docs/roadmap/context-memory.md; docs/module-map.md; CURRENT_STATUS.md; kiana-daemon/src/{harness_memory,memory_retrieval}.rs; kiana-domain/src/{memory_journal,context_memory_evidence}.rs; kiana-core/tests/cm39_context_memory_closeout_guard.rs; .github/workflows/cm39-context-memory-closeout.yml; docs/roadmap/cm39-context-memory-closeout-baseline.md; docs/roadmap.md
+worktree_status: CM-39 has a CI-only parity guard requiring context/memory docs and handoff to name the canonical memory/retrieval/journal sources, the typed ContextMemoryGoldenPathEvidence stage contract, CM-38 fake/live proof ceiling, and provider/cross-process/physical/scale limitations; module-map now links the evidence and handoff baselines, and no document promotes a feature
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only cm39_context_memory_closeout_guard; GitHub Actions CM-39 runs the source/docs guard, diff check and workspace compilation
+fixture or cassette: CI-only cm39_context_memory_closeout_guard; GitHub Actions CM-39 runs the source/docs guard, diff check and workspace compilation against context_memory_evidence.rs
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-39 is triggered by the eventual push and is not awaited
 status_change: CM-39 documentation/handoff guard advanced from an unindexed CM-38 evidence block; roadmap remains ⏳ because CM-33–37, durable memory/index/retention, cross-process and live proof remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: documentation parity cannot prove memory query correctness, candidate approval, projection recovery, retention deletion, provider scope/redaction or physical effects; open limits are intentionally preserved
-reviewer: Codex root implementation review plus docs/source owner parity, proof-ceiling honesty, open limitation and no-promotion boundary review; no runtime test reviewer
+limitations: documentation parity cannot prove memory query correctness, candidate approval, projection recovery, retention deletion, provider scope/redaction or physical effects; the typed manifest remains source-only and open limits are intentionally preserved
+reviewer: Codex root implementation review plus docs/source owner parity, typed CM-38 stage linkage, proof-ceiling honesty, open limitation and no-promotion boundary review; no runtime test reviewer
 
 ### CM-38 context/memory fake Provider and live opt-in evidence (partial, 2026-09-19)
 
