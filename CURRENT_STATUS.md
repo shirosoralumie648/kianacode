@@ -8602,6 +8602,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus server scope derivation, collection narrowing, trusted home snapshot, path/symlink/data governance, EventStore CAS/idempotency, projection lag/unjournaled refusal, candidate/review and no direct store authority review; no runtime test reviewer
 ```
 
+### CAP-20 MCP trust / discovery snapshot evidence (2026-09-19)
+
+```text
+source_snapshot: 7d344721 + CAP-20 working-tree slice; kiana-daemon/src/{harness_mcp,mcp_stdio,lib}.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap20_mcp_trust_discovery_guard.rs; .github/workflows/cap20-mcp-trust-discovery.yml; docs/roadmap/cap20-mcp-trust-discovery-baseline.md; docs/roadmap.md
+worktree_status: existing MCP registry and stdio path are now under a dedicated CAP-20 gate: server config/transport selection, ProjectTrust, config/binary hash pinning, sealed executable/config mounts, protocol/tool catalog digest and discovery committed fact precede calls; unknown/ambiguous/untrusted/swapped/HTTP paths fail closed and shared supervisor owns cleanup; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only MCP trust/discovery/source fixtures; no local test or smoke binary executed
+fixture or cassette: P1-J4-01 MCP lifecycle/unit fixtures; cap20_mcp_trust_discovery_guard; GitHub Actions CAP-20 runs selected fixtures, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-20 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-20 source slice is implemented/reconciled. Discovery is a separate snapshot/digest boundary, not a trust grant; config/binary drift invalidates the call path, and no implicit host/network authority or HTTP fallback is added
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; server pooling, cross-process registry durability, external package provenance and live MCP interoperability remain CAP-21/22 or later evidence
+reviewer: Codex root implementation review plus config-source snapshot, ProjectTrust-before-start, unknown/ambiguous selection, executable byte/hash sealing, protocol/tool catalog digest, discovery fact ordering, no HTTP/host/network fallback and supervisor cleanup review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
