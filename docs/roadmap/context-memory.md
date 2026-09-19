@@ -392,7 +392,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-13 · Repo map 任务相关排序和依赖证据　⏳
+##### CM-13 · Repo map 任务相关排序和依赖证据　✅
+
+当前 source slice 与 CI-only 证据见 [`cm13-repo-map-task-baseline.md`](cm13-repo-map-task-baseline.md)。
 
 保留 Aider tree-sitter/引用图的可选机制，但未解析符号标 heuristic；以任务词、路径、符号和 dependency edge 做可解释排序，预算内选材。验收：`repo_map_budget_is_stable`、`heuristic_symbol_is_not_reported_as_compiler_fact`。
 
