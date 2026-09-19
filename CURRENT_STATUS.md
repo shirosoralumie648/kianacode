@@ -10068,3 +10068,19 @@ status_change: SC-26 source slice is implemented and roadmap row 304 is ✅. Ext
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: catalog inputs are adapter-supplied and not yet persisted/consumed by every extension lifecycle path, signature key trust/package loading/sandbox/revocation/cross-process recovery and external effect receipts remain SC-27+ / EXT/CAP work
 reviewer: Codex root implementation review plus manifest digest binding, host/Grant/approval intersection, provided/allowed-tools non-authority, ReadOnly write denial, duplicate/widening drift and domain-only boundary review; no runtime test reviewer
+
+### SC-27 extension lifecycle / sandbox evidence (2026-09-19)
+
+source_snapshot: 2f89524d + SC-27 working-tree slice; kiana-domain/src/extension_lifecycle.rs; kiana-daemon/src/{extensions.rs,pre_tool_hooks.rs,harness_sandbox.rs}; kiana-domain/tests/sc27_extension_lifecycle.rs; kiana-daemon/tests/sc27_extension_lifecycle_guard.rs; .github/workflows/sc27-extension-lifecycle.yml; docs/roadmap/sc27-extension-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: domain now binds append-only Inspected/Staged/Enabled/Disabled/Revoked/RolledBack/Uninstalled transitions and enabled-only callback permits to package sha256, manifest digest, operation, effect, sandbox and expiry; ReadOnly write/network callbacks and terminal-state revival fail closed; daemon extension uninstall appends an EventStore lifecycle fact, preserves cache references for audit/cleanup, fold/admission/skill context exclude uninstalled state, and existing hook path remains read-only/cancellable/bounded with bwrap/no-new-privileges/ambient-env fencing and hook.decision facts; no second model loop or direct Broker bypass was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: domain lifecycle transition/callback permit fixtures plus daemon extension/hook/sandbox source guard; GitHub Actions SC-27 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-27 source slice is implemented and roadmap row 305 is ✅. Extension callbacks are phase/package/manifest/sandbox bound, uninstall is an append-only fact, and hook/plugin paths remain permit-only and bounded
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: uninstall retains package/cache references and does not prove physical cleanup, lifecycle recovery across processes, real hook/provider outcomes, signed key rotation or external receipts; sandbox availability remains adapter/host dependent and later EXT/PD/SC work remains
+reviewer: Codex root implementation review plus lifecycle transition graph, enabled-only callback permits, package/manifest/expiry binding, uninstall/revoke retention, EventStore CAS, ExtensionAdmission, hook decision/Unknown and bwrap/no-new-privileges boundary review; no runtime test reviewer
