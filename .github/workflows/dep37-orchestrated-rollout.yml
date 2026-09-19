@@ -5,6 +5,8 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/orchestrated_rollout.rs"
+      - "kiana-domain/src/orchestrated_rollout_evidence.rs"
+      - "kiana-domain/tests/dep37_orchestrated_rollout_evidence.rs"
       - "kiana-domain/src/revision_compatibility.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/dep37_orchestrated_rollout.rs"
@@ -16,6 +18,8 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/orchestrated_rollout.rs"
+      - "kiana-domain/src/orchestrated_rollout_evidence.rs"
+      - "kiana-domain/tests/dep37_orchestrated_rollout_evidence.rs"
       - "kiana-domain/src/revision_compatibility.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/dep37_orchestrated_rollout.rs"
@@ -40,6 +44,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run DEP-37 rollout contract fixture
         run: cargo test -p kiana-domain --test dep37_orchestrated_rollout --locked -- --test-threads=1
+      - name: Run DEP-37 rollout evidence fixture
+        run: cargo test -p kiana-domain --test dep37_orchestrated_rollout_evidence --locked -- --test-threads=1
       - name: Run DEP-37 source guard
         run: cargo test -p kiana-core --test dep37_orchestrated_rollout_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

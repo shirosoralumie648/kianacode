@@ -3,6 +3,7 @@
 #[test]
 fn orchestrated_rollout_is_pinned_deadline_bound_and_target_explicit() {
     let source = include_str!("../../kiana-domain/src/orchestrated_rollout.rs");
+    let evidence = include_str!("../../kiana-domain/src/orchestrated_rollout_evidence.rs");
     let baseline = include_str!("../../docs/roadmap/dep37-orchestrated-rollout-baseline.md");
     for marker in [
         "OrchestratedRolloutProfile",
@@ -25,9 +26,14 @@ fn orchestrated_rollout_is_pinned_deadline_bound_and_target_explicit() {
         "KubernetesTarget",
         "GenericOrchestratorTarget",
         "is_target",
+        "OrchestratedRolloutEvidence",
+        "orchestrated_target_backend_cannot_verify",
+        "orchestrated_unknown_cannot_verify",
+        "traffic_drain_receipt_digest",
+        "operator_approval_ref",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || evidence.contains(marker),
             "DEP-37 source marker missing: {marker}"
         );
     }

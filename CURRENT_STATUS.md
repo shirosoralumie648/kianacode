@@ -8902,20 +8902,20 @@ reviewer: Codex root implementation review plus typed lifecycle evidence, image/
 
 ### DEP-37 orchestrated rollout contract evidence (partial, 2026-09-19)
 
-source_snapshot: 12109dc4 + DEP-37 working-tree slice; kiana-domain/src/orchestrated_rollout.rs; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep37_orchestrated_rollout.rs; kiana-core/tests/dep37_orchestrated_rollout_guard.rs; .github/workflows/dep37-orchestrated-rollout.yml; docs/roadmap/dep37-orchestrated-rollout-baseline.md; docs/roadmap.md
-worktree_status: pure domain contract now models canary/blue-green/rainbow profiles, worker routes bound to ExecutionRevisionPin, bounded traffic weights, exactly one active writer with fence digest, canary thresholds, progress deadline and explicit pause/resume/promote/rollback decisions; Kubernetes and generic orchestrators are target labels only
+source_snapshot: 94d1c16f + DEP-37 rollout evidence-contract slice; kiana-domain/src/{orchestrated_rollout,orchestrated_rollout_evidence,revision_compatibility}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/{dep37_orchestrated_rollout,dep37_orchestrated_rollout_evidence}.rs; kiana-core/tests/dep37_orchestrated_rollout_guard.rs; .github/workflows/dep37-orchestrated-rollout.yml; docs/roadmap/dep37-orchestrated-rollout-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: pure domain contract models canary/blue-green/rainbow profiles, worker routes bound to ExecutionRevisionPin, bounded traffic weights, exactly one active writer with fence digest, canary thresholds, progress deadline and explicit pause/resume/promote/rollback decisions; OrchestratedRolloutEvidence now binds plan/routing/canary/decision and health/drain evidence, rejects target-backend or Unknown verification, and Kubernetes/generic orchestrators remain target labels only
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only dep37_orchestrated_rollout domain fixture and dep37_orchestrated_rollout_guard; GitHub Actions DEP-37 runs profile/routing/canary/deadline fixtures, source guard, diff check and workspace static compilation
+fixture or cassette: CI-only dep37_orchestrated_rollout, dep37_orchestrated_rollout_evidence and dep37_orchestrated_rollout_guard; GitHub Actions DEP-37 runs profile/routing/canary/evidence/deadline fixtures, source guard, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-37 is triggered by the eventual push and is not awaited
 status_change: DEP-37 source contract advanced from roadmap-only to a bounded orchestration decision shape; roadmap remains ⏳ because no durable rollout state, real adapter, traffic drain, process fence, health window or target environment receipt is wired
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: decisions consume caller-supplied routes and canary facts, do not mutate traffic or workers, and cannot prove a real orchestrator, cross-process writer fencing, operator approval or external health outcome; target backends remain not implemented
-reviewer: Codex root implementation review plus profile routing, revision pin, single-writer/fence, canary failure, deadline, action decision and target-backend proof-ceiling review; no runtime/orchestrator reviewer
+limitations: decisions consume caller-supplied routes and canary facts, do not mutate traffic or workers; the new evidence contract is source-only and cannot prove a real orchestrator, cross-process writer fencing, operator approval or external health outcome; target backends remain not implemented
+reviewer: Codex root implementation review plus typed rollout evidence, profile routing, revision pin, single-writer/fence, canary failure, deadline, action decision and target-backend proof-ceiling review; no runtime/orchestrator reviewer
 
 ### DEP-38 rollout lifecycle and verification evidence (partial, 2026-09-19)
 
