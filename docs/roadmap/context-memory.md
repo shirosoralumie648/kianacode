@@ -342,7 +342,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-08 · 稳定 chunker 与 offset provenance　⏳
+##### CM-08 · 稳定 chunker 与 offset provenance　✅
+
+当前 source slice 与 CI-only 证据见 [`cm08-chunker-baseline.md`](cm08-chunker-baseline.md)。
 
 代码按符号/作用域，文档按标题/段落，超大内容按有界窗口；保存父邻接、byte/line 范围、parser/chunker 版本和转换 digest。验收：`chunk_ranges_reconstruct_source`、`overlapping_chunks_do_not_double_count_evidence`。
 

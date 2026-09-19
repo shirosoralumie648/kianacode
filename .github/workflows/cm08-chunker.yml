@@ -1,0 +1,59 @@
+name: cm08-chunker
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/chunk_provenance.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm08_chunk_provenance.rs"
+      - "kiana-query/src/chunker.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm08_chunker.rs"
+      - "kiana-core/tests/cm08_chunker_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm08-chunker-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm08-chunker.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/chunk_provenance.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm08_chunk_provenance.rs"
+      - "kiana-query/src/chunker.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm08_chunker.rs"
+      - "kiana-core/tests/cm08_chunker_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm08-chunker-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm08-chunker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chunker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-08 domain provenance fixtures
+        run: cargo test -p kiana-domain --test cm08_chunk_provenance --locked -- --test-threads=1
+      - name: Run CM-08 query chunker fixtures
+        run: cargo test -p kiana-query --test cm08_chunker --locked -- --test-threads=1
+      - name: Run CM-08 source guard
+        run: cargo test -p kiana-core --test cm08_chunker_guard --locked -- --test-threads=1

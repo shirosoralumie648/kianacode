@@ -10388,3 +10388,19 @@ status_change: CM-07 source slice is implemented and roadmap row 318 is ✅. Wor
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: full ProjectTrust resolver integration, stable chunker/offset provenance, index generation/atomic switch, rename-delete invalidation and cross-process durable snapshot remain CM-08–CM-11/PD work
 reviewer: Codex root implementation review plus canonical-root/symlink-hardlink, trust-before-content, limits, before-after identity fence, metadata-only untrusted material and SourceSnapshot/no-authority boundary review; no runtime test reviewer
+
+### CM-08 stable chunker and offset provenance evidence (2026-09-20)
+
+source_snapshot: d026f709 + CM-08 working-tree slice; kiana-domain/src/{chunk_provenance.rs,contracts.rs,lib.rs}; kiana-query/src/{chunker.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm08_chunk_provenance.rs; kiana-query/tests/cm08_chunker.rs; kiana-core/tests/cm08_chunker_guard.rs; .github/workflows/cm08-chunker.yml; docs/roadmap/cm08-chunker-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: strict ChunkRange/SourceChunk/ChunkSet contracts bind source/content/transformation/parser/chunker digests, parent grouping and byte/line ranges; ChunkSet rejects duplicate IDs, gap/overlap and incomplete reconstruction; query chunker uses deterministic code symbol/document heading boundaries and UTF-8-safe bounded windows, preserving exact source reconstruction without double-counted overlap
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-08 domain range/reconstruction fixtures, query code/document/window fixtures and Core source guard; GitHub Actions CM-08 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-08 source slice is implemented and roadmap row 319 is ✅. Chunk offsets, parent adjacency and transformation provenance are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: syntax-lite boundaries are not compiler facts, Unicode/secret normalization remains CM-09, index generation/atomic switch remains CM-10, rename/delete invalidation remains CM-11, and no durable index proof is claimed
+reviewer: Codex root implementation review plus lossless reconstruction, UTF-8 boundary, byte/line offset, parent adjacency, parser/chunker version and gap/overlap rejection review; no runtime test reviewer
