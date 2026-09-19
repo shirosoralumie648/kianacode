@@ -3,7 +3,7 @@
 //! This is a pure admission shape for AUT-07. It does not persist a queue, acquire a lease or
 //! dispatch a capability; AUT-08 owns the durable queue/heartbeat/fence implementation.
 
-use crate::json_digest;
+use crate::{json_digest, WorkPacket};
 use serde::{Deserialize, Serialize};
 
 pub const WORKFLOW_QUEUE_CLAIM_SCHEMA: &str = "kiana.workflow-queue-claim.v1";
@@ -43,6 +43,60 @@ pub struct WorkflowQueueClaimContract {
 }
 
 impl WorkflowQueueClaimContract {
+    /// Construct a queue claim from the same WorkPacket contract used by the packet readiness
+    /// projector. Scope, budget, path-lock and packet digests are derived server-side; callers can
+    /// only supply the observed queue counters and the bounded expiry.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_work_packet(
+        packet: &WorkPacket,
+        parent: &WorkPacket,
+        dependencies_resolved: bool,
+        dependency_cycle: bool,
+        active_claim_count: u32,
+        max_parallel_claims: u32,
+        duplicate_claim: bool,
+        claim_owner: Option<String>,
+        claim_expires_at_unix_ms: u64,
+        observed_at_unix_ms: u64,
+        status: WorkflowQueueClaimStatus,
+    ) -> Result<Self, String> {
+        packet.validate().map_err(str::to_owned)?;
+        parent.validate().map_err(str::to_owned)?;
+        if packet
+            .parent_packet_id
+            .as_deref()
+            .is_some_and(|id| id != parent.id)
+            || (packet.parent_packet_id.is_none() && packet.id != parent.id)
+        {
+            return Err("workflow_queue_parent_packet_mismatch".to_owned());
+        }
+        Self::new(
+            packet.id.clone(),
+            packet.workflow_queue_packet_digest(),
+            Some(parent.workflow_queue_scope_digest()),
+            packet.workflow_queue_scope_digest(),
+            Some(parent.workflow_queue_budget_digest()),
+            packet.workflow_queue_budget_digest(),
+            packet.workflow_queue_path_lock_digest(),
+            dependencies_resolved,
+            dependency_cycle,
+            packet.workflow_queue_scope_is_subset_of(parent),
+            packet.workflow_queue_budget_is_subset_of(parent),
+            active_claim_count,
+            max_parallel_claims,
+            duplicate_claim,
+            claim_owner,
+            claim_expires_at_unix_ms,
+            observed_at_unix_ms,
+            status,
+        )
+    }
+
+    /// Return whether the packet state is one that can be represented by a ready queue claim.
+    pub fn is_ready_packet(&self) -> bool {
+        self.status == WorkflowQueueClaimStatus::Ready
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         item_id: impl Into<String>,

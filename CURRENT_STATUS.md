@@ -9138,6 +9138,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the contract does not persist claims, arbitrate cross-process workers or dispatch effects; caller-supplied digests are not queue receipts and AUT-08 remains open
 reviewer: Codex root implementation review plus parent scope/budget intersection, path lock, dependency/cycle, parallel/duplicate/expiry deny paths and no-queue/no-scheduler boundary review; no runtime queue reviewer
 
+### AUT-07 workflow queue claim completion slice (2026-09-19)
+
+source_snapshot: ca46e6a1 + AUT-07 completion slice; kiana-domain/src/{work_packets,workflow_queue_claim}.rs; kiana-core/src/workflow_queue.rs; kiana-core/tests/aut07_workflow_queue_ready.rs; .github/workflows/aut07-workflow-queue-claim.yml; docs/roadmap/aut07-workflow-queue-claim-baseline.md; docs/roadmap.md
+worktree_status: WorkPacket now derives immutable queue packet/scope/budget/path-lock digests and lexical parent containment; WorkflowQueueClaimContract derives those bindings from the packet; core ready view reuses `ready_packets`, emits one claim per item, and binds blocked/expired/source digest; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or queue/scheduler operation executed
+fixture or cassette: GitHub Actions only: existing aut07_workflow_queue_claim plus aut07_workflow_queue_ready covers stable ready ordering, one-item-one-claim, dependency blocking, parent scope containment and budget/path widening denial; source guard covers shared WorkPacket/core boundaries
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-07 workflow is triggered by the push and is not awaited
+status_change: AUT-07 is complete at source/local-fixture scope. Queue claims are derived from the shared WorkPacket/readiness contract rather than caller-supplied packet digests; parent-child project/data/path scope and budget lease/deadline subset checks fail closed, and core returns a deterministic claim/blocked/expired view without creating a lease or dispatching an effect.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: budget intersection is intentionally conservative for distinct child subleases, the ready view is process-local/read-only, and AUT-08 still owns durable QueueStore persistence, lease/heartbeat/fence/reclaim, restart recovery and dispatch
+reviewer: Codex root implementation review plus packet digest/containment, budget/deadline, readiness reuse, deterministic ordering, duplicate claim and no-queue/no-dispatch boundary review; no runtime queue reviewer
+
 ### AUT-08 workflow queue store lease evidence (partial, 2026-09-19)
 
 source_snapshot: 66ff865a + AUT-08 workflow queue lease/store slice; kiana-domain/src/{workflow_queue_claim,workflow_queue_lease}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/workflow_queue.rs; kiana-core/src/workflow_queue.rs; kiana-domain/tests/aut08_workflow_queue_lease.rs; kiana-eventlog/tests/aut08_workflow_queue_store.rs; kiana-core/tests/aut08_workflow_queue_guard.rs; .github/workflows/aut08-workflow-queue-store.yml; docs/roadmap/aut08-workflow-queue-store-baseline.md; docs/roadmap.md

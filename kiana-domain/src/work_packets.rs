@@ -1,11 +1,12 @@
 use crate::roles::{default_department_id, default_role_id};
 use crate::{
-    normalize_role_path, BudgetLeaseId, CapabilityGrantId, CellId, CellLifecycle, DelegationId,
-    DomainError, ProjectId, ReceiptId, RoleSpec, RunId, SessionId, SpawnPlanId, SupervisionLeaseId,
-    TemplateId, WorkFingerprint, WorkPacketStatus, AGENT_TEMPLATE_SCHEMA, BUDGET_LEASE_SCHEMA,
-    CELL_SCHEMA, CLOSING_RECEIPT_SCHEMA, DELEGATION_PACKET_SCHEMA, DEPARTMENT_EXECUTING,
-    DEPARTMENT_PLANNING, MERGE_RECEIPT_SCHEMA, RETIREMENT_RECORD_SCHEMA, ROLE_BUILDER,
-    SPAWN_PLAN_SCHEMA, SPAWN_RESULT_SCHEMA, WORK_PACKET_SCHEMA,
+    allow_list_covers, builder_lock_paths, json_digest, normalize_role_path, BudgetLeaseId,
+    CapabilityGrantId, CellId, CellLifecycle, DelegationId, DomainError, ProjectId, ReceiptId,
+    RoleSpec, RunId, SessionId, SpawnPlanId, SupervisionLeaseId, TemplateId, WorkFingerprint,
+    WorkPacketStatus, AGENT_TEMPLATE_SCHEMA, BUDGET_LEASE_SCHEMA, CELL_SCHEMA,
+    CLOSING_RECEIPT_SCHEMA, DELEGATION_PACKET_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING,
+    MERGE_RECEIPT_SCHEMA, RETIREMENT_RECORD_SCHEMA, ROLE_BUILDER, SPAWN_PLAN_SCHEMA,
+    SPAWN_RESULT_SCHEMA, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 
@@ -136,6 +137,86 @@ impl WorkPacket {
     ) -> Self {
         self.dependencies = dependencies.into_iter().map(Into::into).collect();
         self
+    }
+
+    /// Stable digest of the immutable packet inputs used by the workflow queue claim boundary.
+    /// Dynamic status and the legacy packet claim are deliberately excluded so a queue claim does
+    /// not change identity merely because a ControlPlane records a lease.
+    pub fn workflow_queue_packet_digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "id": self.id,
+            "project_id": self.project_id,
+            "parent_packet_id": self.parent_packet_id,
+            "owner_cell_id": self.owner_cell_id,
+            "acceptor_id": self.acceptor_id,
+            "inputs": self.inputs,
+            "dependencies": self.dependencies,
+            "data_scope": self.data_scope,
+            "acceptance_tests": self.acceptance_tests,
+            "deadline_unix_ms": self.deadline_unix_ms,
+            "budget_lease_id": self.budget_lease_id,
+            "from_department": self.from_department,
+            "to_department": self.to_department,
+            "assignee_role": self.assignee_role,
+            "goal": self.goal,
+            "path_allow": self.path_allow,
+            "acceptance": self.acceptance,
+            "forbidden": self.forbidden,
+        }))
+    }
+
+    /// Server-owned scope digest for the packet/queue intersection contract.
+    pub fn workflow_queue_scope_digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "project_id": self.project_id,
+            "data_scope": self.data_scope,
+            "path_allow": self.path_allow,
+        }))
+    }
+
+    /// Server-owned budget digest. A packet without a bound budget is intentionally not queueable.
+    pub fn workflow_queue_budget_digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "budget_lease_id": self.budget_lease_id,
+            "deadline_unix_ms": self.deadline_unix_ms,
+        }))
+    }
+
+    /// Digest of the canonical lock set used by the existing path-lock implementation.
+    pub fn workflow_queue_path_lock_digest(&self) -> String {
+        json_digest(&serde_json::json!(builder_lock_paths(&self.path_allow)))
+    }
+
+    /// Check that this packet's scope is contained by the parent packet's project, data and path
+    /// scope. This is a pure lexical check; filesystem symlink/TOCTOU checks remain at the effect
+    /// boundary.
+    pub fn workflow_queue_scope_is_subset_of(&self, parent: &Self) -> bool {
+        if self.project_id != parent.project_id {
+            return false;
+        }
+        let data_subset = self
+            .data_scope
+            .iter()
+            .all(|scope| parent.data_scope.iter().any(|allowed| allowed == scope));
+        let path_subset = self
+            .path_allow
+            .iter()
+            .all(|path| allow_list_covers(&parent.path_allow, path));
+        data_subset && path_subset
+    }
+
+    /// Check that the child keeps the same server-owned budget lease and no later deadline.
+    /// Different subleases require a future typed budget-intersection contract and fail closed
+    /// here instead of being treated as a subset by digest comparison.
+    pub fn workflow_queue_budget_is_subset_of(&self, parent: &Self) -> bool {
+        self.budget_lease_id.is_some()
+            && self.budget_lease_id == parent.budget_lease_id
+            && match (self.deadline_unix_ms, parent.deadline_unix_ms) {
+                (Some(child), Some(parent)) => child <= parent,
+                (Some(_), None) | (None, None) => true,
+                (None, Some(_)) => false,
+            }
     }
 
     /// 按 WorkPacketStatus 的领域状态机迁移状态。

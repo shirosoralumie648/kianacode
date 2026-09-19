@@ -3,6 +3,8 @@
 #[test]
 fn aut07_claim_contract_keeps_scope_budget_path_and_expiry_gates_explicit() {
     let source = include_str!("../../kiana-domain/src/workflow_queue_claim.rs");
+    let packet = include_str!("../../kiana-domain/src/work_packets.rs");
+    let queue = include_str!("../src/workflow_queue.rs");
     let baseline = include_str!("../../docs/roadmap/aut07-workflow-queue-claim-baseline.md");
     for marker in [
         "WorkflowQueueClaimContract",
@@ -15,9 +17,13 @@ fn aut07_claim_contract_keeps_scope_budget_path_and_expiry_gates_explicit() {
         "workflow_queue_claim_expired",
         "workflow_queue_scope_intersection_invalid",
         "workflow_queue_budget_subset_invalid",
+        "from_work_packet",
+        "workflow_queue_packet_digest",
+        "workflow_queue_scope_is_subset_of",
+        "workflow_queue_budget_is_subset_of",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || packet.contains(marker) || queue.contains(marker),
             "AUT-07 source marker missing: {marker}"
         );
     }

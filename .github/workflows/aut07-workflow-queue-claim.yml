@@ -5,9 +5,12 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/work_packets.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/aut07_workflow_queue_claim.rs"
       - "kiana-core/tests/aut07_workflow_queue_claim_guard.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/tests/aut07_workflow_queue_ready.rs"
       - "docs/roadmap/aut07-workflow-queue-claim-baseline.md"
       - "docs/roadmap.md"
       - "CURRENT_STATUS.md"
@@ -15,9 +18,12 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/work_packets.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/aut07_workflow_queue_claim.rs"
       - "kiana-core/tests/aut07_workflow_queue_claim_guard.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/tests/aut07_workflow_queue_ready.rs"
       - "docs/roadmap/aut07-workflow-queue-claim-baseline.md"
       - "docs/roadmap.md"
       - "CURRENT_STATUS.md"
@@ -40,4 +46,6 @@ jobs:
         run: cargo test -p kiana-domain --test aut07_workflow_queue_claim --locked -- --test-threads=1
       - name: Run AUT-07 source guard
         run: cargo test -p kiana-core --test aut07_workflow_queue_claim_guard --locked -- --test-threads=1
+      - name: Run AUT-07 ready-view fixture
+        run: cargo test -p kiana-core --test aut07_workflow_queue_ready --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

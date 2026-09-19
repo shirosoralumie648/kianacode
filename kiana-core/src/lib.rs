@@ -123,7 +123,10 @@ pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
 };
-pub use workflow_queue::{validate_workflow_queue_dispatch, workflow_queue_requires_recovery};
+pub use workflow_queue::{
+    project_workflow_queue_ready, validate_workflow_queue_dispatch,
+    workflow_queue_requires_recovery, WorkflowQueueReadyView,
+};
 
 use capability_scheduler::CapabilityAdmissionScheduler;
 use cell_registry::MemoryCellRegistry;
