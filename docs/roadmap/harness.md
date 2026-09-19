@@ -585,7 +585,9 @@ sequenceDiagram
 
 <a id="step-h29"></a>
 
-#### H29 — 有序、受约束的 Hooks / Skills 扩展点　⏳
+#### H29 — 有序、受约束的 Hooks / Skills 扩展点　✅
+
+当前 source slice 与 CI-only 证据见 [`h29-hook-lifecycle-baseline.md`](h29-hook-lifecycle-baseline.md)。
 
 **关联原单元**：`P4-L5-01`、`P4-L6-01`、`P1-J2-04`。**依赖**：H09、H20、H27、H28。
 

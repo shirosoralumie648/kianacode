@@ -1,0 +1,57 @@
+name: h29-hook-lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/hook_lifecycle.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h29_hook_lifecycle.rs"
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-daemon/tests/h29_hook_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/h29-hook-lifecycle-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h29-hook-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/hook_lifecycle.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h29_hook_lifecycle.rs"
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-daemon/tests/h29_hook_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/h29-hook-lifecycle-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h29-hook-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H29 domain fixtures
+        run: cargo test -p kiana-domain --test h29_hook_lifecycle --locked -- --test-threads=1
+      - name: Run H29 daemon source guard
+        run: cargo test -p kiana-daemon --test h29_hook_lifecycle_guard --locked -- --test-threads=1

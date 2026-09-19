@@ -10244,3 +10244,19 @@ status_change: H28 source slice is implemented and roadmap row 315 is ✅. Progr
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: the reducer is not yet the live provider/hook scheduler, external heartbeat truth and process projector remain adapter-dependent, cross-process progress durability is limited to existing checkpoint material, and threshold calibration is not production performance evidence
 reviewer: Codex root implementation review plus evidence-only progress fingerprint, cycle/repeated-failure precedence, empty-turn/stop-hook budget, JobHandle cursor/heartbeat and Runner checkpoint/repeated-tool boundary review; no runtime test reviewer
+
+### H29 ordered Hook / Skill lifecycle evidence (2026-09-19)
+
+source_snapshot: 43cd3817 + H29 working-tree slice; kiana-domain/src/{hook_lifecycle.rs,extension_contracts.rs,contracts.rs,lib.rs}; kiana-daemon/src/{pre_tool_hooks.rs,harness_skills.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/h29_hook_lifecycle.rs; kiana-daemon/tests/h29_hook_lifecycle_guard.rs; .github/workflows/h29-hook-lifecycle.yml; docs/roadmap/h29-hook-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: HookLifecycleBinding/Plan/Input/Result define six ordered lifecycle points, Observer/Transformer roles, bounded read/write field sets, timeout/output/feedback budgets, failure policy, snapshot/source/binding digests and tool-argument revalidation; existing daemon hook path remains ProjectTrust/snapshot bound, read-only confined/cancellable/deadline limited and records hook.decision, while skills load through trust and inject Context-only prompt sections; no grant, second loop or direct effect path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H29 domain observer/transformer/order/revalidation/foreign-field fixtures and Daemon source guards for trust/snapshot/sandbox/skill context boundaries; GitHub Actions H29 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H29 source slice is implemented and roadmap row 316 is ✅. Hook/Skill lifecycle changes are ordered, bounded and revalidation-gated rather than an alternate authority path
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: multi-point live scheduler is not yet wired across every Harness phase, provider/extension runtime semantics and cross-process snapshot projector remain open, and actual hook performance calibration is not claimed
+reviewer: Codex root implementation review plus lifecycle ordering, snapshot/source binding, Observer/Transformer allowlist, tool-argument revalidation, trust-before-load, confined cancellation/deadline and Skill Context-only boundary review; no runtime test reviewer
