@@ -10148,3 +10148,19 @@ status_change: H22 source slice is implemented and roadmap row 309 is ✅. Compa
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: summary generation is deterministic local extraction rather than an admitted compaction ModelClient call, no bounded model retry/durable summary event/cross-process recovery is claimed, and provider/business completion remains evidence-dependent
 reviewer: Codex root implementation review plus evidence-only summary schema, no-forged-completion refs, latest complete message group/pending pair preservation, product prefix retention, fallback-on-failure and no-state-mutation boundary review; no runtime test reviewer
+
+### H23 compaction artifact / commit evidence (2026-09-19)
+
+source_snapshot: b9613b23 + H23 working-tree slice; kiana-domain/src/compaction_commit.rs; kiana-domain/src/compact_summary.rs; kiana-runner/src/{compact.rs,harness.rs}; kiana-runner-protocol/src/lib.rs; kiana-domain/tests/h23_compaction_commit.rs; kiana-core/tests/h23_compaction_commit_guard.rs; .github/workflows/h23-compaction-commit.yml; docs/roadmap/h23-compaction-commit-baseline.md; docs/roadmap.md
+worktree_status: CompactionArtifact validates summary/artifact digest, source cursor range and content bytes before view advance; CompactionCommit binds source event IDs/cursor, old/new context revision, prompt/profile/budget/workspace/data epoch and rejects stale source/steering/workspace/revocation at validate_before_commit; existing runner checkpoint/prompt provenance/Compacted event path is source-guarded; no invocation/approval/task state is rewritten
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H23 artifact-first, stale source/workspace/data epoch, duplicate source identity and digest-bound commit fixtures plus runner/core source guard; GitHub Actions H23 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H23 source slice is implemented and roadmap row 310 is ✅. A stale compact summary cannot advance the active context view without the original source/revision/epoch boundary
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no durable artifact store, distributed artifact/view transaction, model-generated retry, GC, external cache invalidation or restart recovery is claimed; these remain later H/PD/SC work
+reviewer: Codex root implementation review plus artifact-before-view ordering, digest/source cursor/event binding, stale steering/workspace/data epoch rejection, duplicate source detection and existing runner checkpoint/Compacted provenance boundary review; no runtime test reviewer

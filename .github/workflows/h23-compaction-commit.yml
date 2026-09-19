@@ -1,0 +1,38 @@
+name: h23-compaction-commit
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/compaction_commit.rs'
+      - 'kiana-domain/src/compact_summary.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/h23_compaction_commit.rs'
+      - 'kiana-core/tests/h23_compaction_commit_guard.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-runner-protocol/src/lib.rs'
+      - '.github/workflows/h23-compaction-commit.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/compaction_commit.rs'
+      - 'kiana-domain/src/compact_summary.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/h23_compaction_commit.rs'
+      - 'kiana-core/tests/h23_compaction_commit_guard.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-runner-protocol/src/lib.rs'
+      - '.github/workflows/h23-compaction-commit.yml'
+
+jobs:
+  compaction-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test h23_compaction_commit --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test h23_compaction_commit_guard --locked -- --test-threads=1
