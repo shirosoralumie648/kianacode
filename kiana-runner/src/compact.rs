@@ -9,6 +9,7 @@
 //! 不依赖其中的源码。
 
 use crate::model::{ModelMessage, ModelRole};
+use kiana_domain::CompactSummary;
 
 /// 压缩摘要使用的固定前缀，用于后续识别并避免把摘要当作真实用户轮次。
 pub const SUMMARY_PREFIX: &str = r#"Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:"#;
@@ -84,10 +85,14 @@ pub fn compact_if_needed(
             tokens_before,
         };
     }
-    let compacted = build_compacted_history(&messages, retain_tokens);
+    let compacted = CompactSummary::from_messages(&messages)
+        .and_then(|summary| {
+            build_compacted_history_with_summary(&messages, retain_tokens, &summary)
+        })
+        .unwrap_or_else(|_| messages.clone());
     let tokens_after = history_tokens(&compacted);
     CompactOutcome {
-        applied: true,
+        applied: compacted != messages,
         tokens_before,
         tokens_after,
         summary_present: compacted
@@ -97,7 +102,7 @@ pub fn compact_if_needed(
     }
 }
 
-/// 只保留最近真实用户消息并在末尾追加固定摘要消息。
+/// 保留 system 前缀、最近完整消息组并追加 evidence-only 摘要消息。
 ///
 /// Assistant、Tool 和已有摘要消息不会被保留；从后往前选择可以优先保住最新上下文，
 /// 最后再恢复时间顺序。最后一条过长用户消息会做中间截断，保留开头和结尾以减少关键
@@ -106,43 +111,102 @@ pub fn build_compacted_history(
     messages: &[ModelMessage],
     max_user_tokens: usize,
 ) -> Vec<ModelMessage> {
-    let user_messages: Vec<&str> = messages
-        .iter()
-        .filter(|message| message.role == ModelRole::User && !is_summary_message(&message.text))
-        .map(|message| message.text.as_str())
-        .collect();
+    CompactSummary::from_messages(messages)
+        .and_then(|summary| {
+            build_compacted_history_with_summary(messages, max_user_tokens, &summary)
+        })
+        .unwrap_or_else(|_| messages.to_vec())
+}
 
-    let mut selected = Vec::new();
-    if max_user_tokens > 0 {
-        let mut remaining = max_user_tokens;
-        // 逆序选择最新消息；预算不足时仅截断当前最靠近末尾的一条。
-        for message in user_messages.iter().rev() {
-            if remaining == 0 {
-                break;
-            }
-            let tokens = approx_token_count(message);
-            if tokens <= remaining {
-                selected.push((*message).to_owned());
-                remaining -= tokens;
-            } else {
-                selected.push(truncate_middle_tokens(message, remaining));
-                break;
-            }
-        }
-        selected.reverse();
-    }
-
-    // Product-owned system instructions are an immutable prefix across compaction.
+/// Compact with a validated summary while preserving the latest complete user/assistant/tool
+/// group. A tool result is never retained without the assistant/tool-call group that introduced
+/// it; if the latest group cannot fit, the caller must keep the original view and pause rather
+/// than continue from a lossy placeholder.
+pub fn build_compacted_history_with_summary(
+    messages: &[ModelMessage],
+    max_user_tokens: usize,
+    summary: &CompactSummary,
+) -> Result<Vec<ModelMessage>, String> {
+    summary.validate()?;
     let mut history: Vec<ModelMessage> = messages
         .iter()
         .filter(|message| message.role == ModelRole::System)
         .cloned()
         .collect();
-    history.extend(selected.into_iter().map(ModelMessage::user));
     history.push(ModelMessage::user(format!(
-        "{SUMMARY_PREFIX}\n(no summary available)"
+        "{SUMMARY_PREFIX}\n{}",
+        summary.render()?
     )));
-    history
+
+    let groups = message_groups(messages);
+    let mut selected = Vec::new();
+    let mut remaining = max_user_tokens;
+    for group in groups.into_iter().rev() {
+        let tokens = history_tokens(&group);
+        if selected.is_empty() {
+            if tokens > remaining && max_user_tokens > 0 {
+                let reduced = truncate_latest_group(group, remaining);
+                if history_tokens(&reduced) > remaining {
+                    return Err("compact_latest_group_exceeds_budget".to_owned());
+                }
+                selected.extend(reduced);
+            } else {
+                selected.extend(group);
+            }
+            remaining = remaining.saturating_sub(history_tokens(&selected));
+        } else if tokens <= remaining {
+            let mut prefix = group;
+            prefix.extend(selected);
+            selected = prefix;
+            remaining = remaining.saturating_sub(tokens);
+        } else {
+            break;
+        }
+    }
+    history.extend(selected);
+    Ok(history)
+}
+
+fn message_groups(messages: &[ModelMessage]) -> Vec<Vec<ModelMessage>> {
+    let mut groups = Vec::new();
+    let mut current = Vec::new();
+    for message in messages {
+        if message.role == ModelRole::System || is_summary_message(&message.text) {
+            continue;
+        }
+        if message.role == ModelRole::User && !current.is_empty() {
+            groups.push(std::mem::take(&mut current));
+        }
+        current.push(message.clone());
+    }
+    if !current.is_empty() {
+        groups.push(current);
+    }
+    groups
+}
+
+fn truncate_latest_group(mut group: Vec<ModelMessage>, max_tokens: usize) -> Vec<ModelMessage> {
+    if max_tokens == 0 {
+        return group
+            .into_iter()
+            .filter(|message| message.role != ModelRole::User)
+            .collect();
+    }
+    let Some(index) = group
+        .iter()
+        .rposition(|message| message.role == ModelRole::User)
+    else {
+        return group;
+    };
+    let available = max_tokens.saturating_sub(
+        group[..index]
+            .iter()
+            .map(|message| history_tokens(std::slice::from_ref(message)))
+            .sum(),
+    );
+    let original = group[index].text.clone();
+    group[index].text = truncate_middle_tokens(&original, available);
+    group
 }
 
 fn truncate_middle_tokens(text: &str, max_tokens: usize) -> String {
