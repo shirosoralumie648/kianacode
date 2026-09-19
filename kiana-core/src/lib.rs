@@ -17,6 +17,7 @@ mod company;
 mod company_governance;
 mod connectors;
 mod context_query;
+mod credential_recovery;
 mod data_governance;
 mod dispatch;
 mod eval;
@@ -75,6 +76,11 @@ pub use capability_attempt_projection::{
 };
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
+pub use credential_recovery::{
+    explicit_re_admit_credential_recovery, project_credential_recovery,
+    CredentialRecoveryProjectionError, CredentialRecoveryReplayRequest,
+    CREDENTIAL_RECOVERY_PROJECTION_VERSION,
+};
 pub use data_governance::{project_data_governance, project_data_governance_snapshot};
 pub use entrypoint_parity::{
     EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,

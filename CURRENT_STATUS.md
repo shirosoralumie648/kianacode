@@ -9104,6 +9104,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the projection contract does not implement audit replay, redaction scanning, credential refresh or durable re-admission; no secret rotation, restart or external provider effect was executed
 reviewer: Codex root implementation review plus explicit blocker taxonomy, lease/revision/epoch fencing, audit/redaction digest binding, no-auto-resume and explicit re-admission proof-ceiling review; no runtime/credential operator reviewer
 
+### CI-11 audit, redaction and credential recovery completion slice (2026-09-19)
+
+source_snapshot: 477ad13b + CI-11 completion slice; kiana-domain/src/{credential_recovery_evidence,event_contracts,contracts}.rs; kiana-core/src/credential_recovery.rs; kiana-eventlog/src/credential_rotation.rs; kiana-daemon/src/lib.rs; focused CI fixtures/workflow
+worktree_status: versioned `recovery.credential` facts now replay through the core projection; DaemonHost exposes the same read-only fold; the opaque in-memory rotation adapter advances SecretRef generation with CAS and never carries raw credential material; unrelated worktree files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or credential/provider operation executed
+fixture or cassette: GitHub Actions only: kiana-core/tests/ci11_credential_recovery_projection.rs covers ready-after-explicit-admission, restart pause, stale epoch, refresh failure, result_unknown and unknown schema; kiana-eventlog/tests/ci11_credential_rotation.rs covers opaque generation CAS, stale-generation no-mutation and revoke fencing; existing domain/source guards remain enabled
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; CI-11 workflow is triggered by the push and is not awaited
+status_change: CI-11 is complete at source/local-fixture scope. Recovery facts are versioned and EventLog-shaped; replay rejects unknown recovery kinds/schema and binding conflicts, turns stale epoch/config/credential/audit/redaction, lease, refresh and result_unknown into non-resumable blockers, and defaults post-restart to `re_admission_required`. Only an explicit server-derived re-admission fact can produce `Ready`; rotation/revoke uses opaque SecretRef generation CAS.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: the rotation adapter is deliberately in-memory, recovery projection has no durable cross-process checkpoint, EventLog query/export and production redaction scan are not newly wired here, and no live provider rotation or external credential receipt is claimed
+reviewer: Codex root implementation review plus CI-11 replay/order/binding/unknown/lease/CAS/no-raw-secret boundary review; no runtime test or credential operator reviewer
+
 ### AUT-07 workflow queue claim contract evidence (partial, 2026-09-19)
 
 source_snapshot: af459667 + AUT-07 claim-contract slice; kiana-domain/src/workflow_queue_claim.rs; kiana-domain/tests/aut07_workflow_queue_claim.rs; kiana-core/tests/aut07_workflow_queue_claim_guard.rs; .github/workflows/aut07-workflow-queue-claim.yml; docs/roadmap/aut07-workflow-queue-claim-baseline.md; docs/roadmap.md

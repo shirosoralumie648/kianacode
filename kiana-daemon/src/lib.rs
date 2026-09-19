@@ -44,9 +44,9 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
-    DepartmentSpec, HealthProbeKind, HealthSnapshot, IdentityMigration, OrganizationId,
-    PermissionProfile, ProjectIdentity, ProjectTrustSnapshot, RequestContext, ResolvedAssignment,
-    RoleSpec, RunId, RuntimeEvent,
+    CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
+    IdentityMigration, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
+    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -597,6 +597,23 @@ impl DaemonHost {
         self.core
             .persisted_events()
             .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    /// Rebuild the credential/config recovery projection from the EventLog.  This is a read-only
+    /// bridge: it never refreshes credentials, consumes a lease or resumes a run.  Callers must
+    /// still commit an explicit re-admission fact before any continuation can be authorized.
+    pub async fn credential_recovery_projection(
+        &self,
+        request: &kiana_core::CredentialRecoveryReplayRequest,
+    ) -> Result<Option<CredentialRecoveryProjection>, PortError> {
+        let Some(events) = self.persisted_events().await? else {
+            return Err(PortError::Unavailable(
+                "credential_recovery_projection_unsupported".to_owned(),
+            ));
+        };
+        kiana_core::project_credential_recovery(&events, request)
+            .map(Some)
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 

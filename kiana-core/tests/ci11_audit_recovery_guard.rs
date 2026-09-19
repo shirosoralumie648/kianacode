@@ -3,6 +3,8 @@
 #[test]
 fn ci11_recovery_projection_requires_explicit_re_admission_and_audit_redaction_binding() {
     let recovery = include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
+    let events = include_str!("../../kiana-domain/src/event_contracts.rs");
+    let replay = include_str!("../src/credential_recovery.rs");
     let audit = include_str!("../src/audit_projection.rs");
     let redaction = include_str!("../src/redaction.rs");
     let baseline = include_str!("../../docs/roadmap/ci11-audit-recovery-baseline.md");
@@ -15,9 +17,16 @@ fn ci11_recovery_projection_requires_explicit_re_admission_and_audit_redaction_b
         "redaction_profile_digest",
         "explicit_re_admission",
         "lease_state",
+        "recovery.credential",
+        "project_credential_recovery",
+        "restart_after_index",
     ] {
         assert!(
-            recovery.contains(marker) || audit.contains(marker) || redaction.contains(marker),
+            recovery.contains(marker)
+                || events.contains(marker)
+                || replay.contains(marker)
+                || audit.contains(marker)
+                || redaction.contains(marker),
             "CI-11 source marker missing: {marker}"
         );
     }
