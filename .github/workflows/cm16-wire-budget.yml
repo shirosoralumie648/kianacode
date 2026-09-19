@@ -1,0 +1,51 @@
+name: cm16-wire-budget
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/request_budget.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/h21_request_budget.rs"
+      - "kiana-domain/tests/cm16_wire_budget.rs"
+      - "kiana-core/tests/cm16_wire_budget_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm16-wire-budget-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm16-wire-budget.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/request_budget.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/h21_request_budget.rs"
+      - "kiana-domain/tests/cm16_wire_budget.rs"
+      - "kiana-core/tests/cm16_wire_budget_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm16-wire-budget-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm16-wire-budget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wire-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-16 wire-budget fixtures
+        run: cargo test -p kiana-domain --test cm16_wire_budget --locked -- --test-threads=1
+      - name: Run CM-16 source guard
+        run: cargo test -p kiana-core --test cm16_wire_budget_guard --locked -- --test-threads=1

@@ -10516,3 +10516,19 @@ status change: CM-15 source slice is implemented and roadmap row 326 is ✅. Nin
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: provider tokenizer/wire accounting, immutable PreparedModelRequest submission and durable/live retrieval behavior remain CM-16/17/provider work; source-kind classification is a domain boundary and does not prove semantic retrieval quality
 reviewer: Codex root implementation review plus material authority/source, deterministic ordering, budget accounting and no-second-execution-path review; no runtime test reviewer
+
+### CM-16 wire budget and stable prefix evidence (2026-09-20)
+
+source_snapshot: 848f8868 + CM-16 working-tree slice; kiana-domain/src/{request_budget.rs,contracts.rs}; kiana-domain/tests/{h21_request_budget.rs,cm16_wire_budget.rs}; kiana-core/tests/cm16_wire_budget_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm16-wire-budget.yml; docs/roadmap/cm16-wire-budget-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: WireBudget accounts the final serialized wire byte total once with output reserve/cap and explicit ExactTokenizer(tokenizer digest) or ConservativeUtf8(margin) accounting; StablePrefix cache identity now binds profile/prompt/tool catalog/configuration revision/authority epoch/data epoch, and cache_hit_allowed rejects revocation/config drift while excluding dynamic suffixes
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-16 final-wire budget and revocation-bound cache fixtures plus Core source guard; GitHub Actions CM-16 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-16 source slice is implemented and roadmap row 327 is ✅. Exact/conservative accounting provenance and revocation-safe stable-prefix cache binding are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: provider profile tokenizer artifacts are not live-resolved, provider cache behavior is not observed, and budget/prefix are not yet consumed by one immutable PreparedModelRequest; CM-17 owns that snapshot binding
+reviewer: Codex root implementation review plus final-wire accounting, tokenizer provenance, output reserve, cache-key invalidation and no-second-execution-path review; no runtime test reviewer

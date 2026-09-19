@@ -495,7 +495,7 @@
 | 324 | W4 | 专项 | [`CM-13`](roadmap/context-memory.md#step-cm-13) | Context / Memory · Repo map 任务相关排序和依赖证据 | `CM-12` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-13) |
 | 325 | W4 | 专项 | [`CM-14`](roadmap/context-memory.md#step-cm-14) | Context / Memory · 检索结果 provenance、freshness 与 health | `CM-13` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-14) |
 | 326 | W4 | 专项 | [`CM-15`](roadmap/context-memory.md#step-cm-15) | Context / Memory · ContextPlan 选材与 omission 解释 | `CM-14` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-15) |
-| 327 | W4 | 专项 | [`CM-16`](roadmap/context-memory.md#step-cm-16) | Context / Memory · 真实 wire budget 与稳定前缀 | `CM-15` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-16) |
+| 327 | W4 | 专项 | [`CM-16`](roadmap/context-memory.md#step-cm-16) | Context / Memory · 真实 wire budget 与稳定前缀 | `CM-15` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-16) |
 | 328 | W4 | 专项 | [`CM-17`](roadmap/context-memory.md#step-cm-17) | Context / Memory · ResolvedStepContext 单一快照 | `CM-16` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-17) |
 | 329 | W4 | 专项 | [`CM-18`](roadmap/context-memory.md#step-cm-18) | Context / Memory · 工具结果有界预览与受控 spill | `CM-17` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-18) |
 | 330 | W4 | 专项 | [`CM-19`](roadmap/context-memory.md#step-cm-19) | Context / Memory · CompactSummary 结构化生成与校验 | `CM-18` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-19) |
@@ -1694,6 +1694,7 @@
 | 2026-09-20 | `CM-13` RepoMap task-lens source slice completed：新增 task score/budget/omitted selection、heuristic/declared symbol 与 dependency evidence、content/selection digest；query 复用现有 read-only RepoMap scanner；不运行本地测试且不等待 CI；compiler fact、tree-sitter/incremental graph、durable index integration 仍为限制 | 待本提交 |
 | 2026-09-20 | `CM-14` retrieval evidence source slice completed：新增 RetrievalEvidence source/revision/snapshot/generation/rank/freshness/evidence、RetrievalHealth Ready/Degraded/Denied/Unavailable、safe retry gate 与 RetrievalResponse empty/generation/rank checks；不运行本地测试且不等待 CI；freshness probes、durable health、provider quality/live availability 仍为限制 | 待本提交 |
 | 2026-09-20 | `CM-15` ContextPlan source slice completed：新增 ProductSystem/Role/Task/Packet/WorkspaceSnapshot/History/Memory/RepoMap/LiveResult material typing，固定选择顺序、来源约束和 per-material source budgets；included/omitted 状态、budget usage 与 omission reason 纳入可验证 plan digest，非 Prompt 文本不能进入 Product；不运行本地测试且不等待 CI；真实 tokenizer/wire budget 与 provider snapshot 接线留 CM-16/17 | 待本提交 |
+| 2026-09-20 | `CM-16` wire budget/prefix source slice completed：ExactTokenizer 计数绑定 tokenizer digest，ConservativeUtf8 保留显式 margin，final serialized wire bytes + output reserve 超限 fail-closed；StablePrefix cache key 纳入 configuration revision 与 authority epoch，revocation/config drift 拒绝 cache hit；不运行本地测试且不等待 CI；live tokenizer/provider cache observability 与 CM-17 immutable request 接线仍为限制 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

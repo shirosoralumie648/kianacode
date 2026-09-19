@@ -424,7 +424,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-16 · 真实 wire budget 与稳定前缀　⏳
+##### CM-16 · 真实 wire budget 与稳定前缀　✅
+
+当前 source slice 与 CI-only 证据见 [`cm16-wire-budget-baseline.md`](cm16-wire-budget-baseline.md)。
 
 沿 Provider profile 使用 tokenizer/精确计数；无 tokenizer 时标出保守估算并留 margin。计算 system、role、history blocks、tools、attachments、framing、output reserve 一次完成；配置/工具/prompt hash 进入 cache key。验收：`provider_request_never_exceeds_declared_budget`、`cache_hit_cannot_bypass_revocation`。
 
