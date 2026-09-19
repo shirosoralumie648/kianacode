@@ -1,0 +1,38 @@
+name: EQ-23 GoldenTrace capture
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-golden-capture-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq23-golden-capture.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-golden-capture-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq23-golden-capture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden-capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run GoldenTrace capture fixtures
+        run: cargo test -p kiana-quality --test eq23_capture --locked -- --test-threads=1
+      - name: Run capture source guard
+        run: cargo test -p kiana-quality --test eq23_capture_guard --locked -- --test-threads=1
+      - name: Compile EQ-23 targets
+        run: cargo check --workspace --tests --locked

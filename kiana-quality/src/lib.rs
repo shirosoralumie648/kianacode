@@ -6,6 +6,7 @@
 
 mod assertions;
 mod canonical;
+mod capture;
 mod diff;
 mod digest;
 mod normalize;
@@ -18,6 +19,11 @@ pub use assertions::{
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,
     CANONICAL_NORMALIZATION_VERSION,
+};
+pub use capture::{
+    capture_golden_trace, CaptureError, CaptureSource, CaptureSourceKind,
+    GoldenTraceCaptureReceipt, GoldenTraceCaptureRequest, CAPTURE_SCHEMA,
+    MAX_DESTINATION_REF_BYTES,
 };
 pub use diff::{TraceDiff, TraceDiffClass, TraceDivergence, TRACE_DIFF_SCHEMA};
 pub use digest::{

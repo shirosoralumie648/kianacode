@@ -9812,3 +9812,19 @@ status_change: EQ-22 source slice is implemented and roadmap row 288 is ✅. Dec
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: assertions are caller-provided value checks and do not establish complete trace capture, evaluator aggregation, baseline/candidate governance, model quality or durable EvalStore evidence
 reviewer: Codex root implementation review plus mode semantics, path bounds, duplicate-preserving multiset, numeric tolerance, regex limits, contains subset behavior, redacted summaries and no-effect boundary review; no runtime test reviewer
+
+### EQ-23 explicit GoldenTrace capture evidence (2026-09-19)
+
+source_snapshot: 8217b8e7 + EQ-23 working-tree slice; kiana-quality/src/{lib.rs,capture.rs}; kiana-quality/tests/eq23_capture.rs; kiana-quality/tests/eq23_capture_guard.rs; .github/workflows/eq23-golden-capture.yml; docs/roadmap/evaluation-golden-capture-baseline.md; docs/roadmap.md
+worktree_status: typed capture now requires an explicit Run or Fixture source with validated digest metadata, creates a fresh domain GoldenTraceId through GoldenTrace::new, returns an opaque logical destination receipt, and rejects occupied destinations before construction; no filesystem/path/store/provider/replay/effect path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq23_capture.rs covers explicit fixture/run capture, fresh typed trace, destination collision and invalid source/destination metadata; eq23_capture_guard protects explicit-source/no-overwrite/no-filesystem boundaries; GitHub Actions EQ-23 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-23 source slice is implemented and roadmap row 289 is ✅. Capture cannot be invoked without a declared source and cannot replace an occupied logical golden destination
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source run events and fixture bytes are caller-provided metadata, no TraceSource/FixtureStore/EvalStore adapter is called, no authorization admission or atomic durable destination reservation exists, and no live capture/replay proof is claimed
+reviewer: Codex root implementation review plus explicit source enum, digest/typed trace validation, fresh ID construction, occupied destination refusal, opaque logical ref and no-filesystem/no-effect boundary review; no runtime test reviewer
