@@ -8,6 +8,7 @@ mod journal_core;
 mod jsonl;
 mod memory;
 mod notification_dedup;
+mod retention_store;
 mod stream;
 mod workflow_queue;
 
@@ -17,6 +18,7 @@ pub use integrity::{scan_jsonl, IntegrityScanReport, IntegrityScanStatus};
 pub use jsonl::JsonlEventLog;
 pub use memory::MemoryEventLog;
 pub use notification_dedup::MemoryNotificationDedupStore;
+pub use retention_store::MemoryRetentionStore;
 pub use stream::{CommitObservedEventStore, StreamEventStore};
 pub use workflow_queue::MemoryWorkflowQueueStore;
 

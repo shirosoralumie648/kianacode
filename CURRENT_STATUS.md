@@ -10004,3 +10004,19 @@ status_change: SC-21 source slice is implemented and roadmap row 300 is ✅. Dat
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: source guard does not prove every runtime entrypoint enforces the contracts, durable retention/delete, external authentication or compliance certification; those remain later SC/PD steps
 reviewer: Codex root implementation review plus strict data class/purpose/retention/source hash, revoke propagation, data/authority epoch, boundary ordering/digest and domain-only boundary review; no runtime test reviewer
+
+### SC-22 RetentionPolicy / legal-hold evidence (2026-09-19)
+
+source_snapshot: 9911e8af + SC-22 working-tree slice; kiana-domain/src/retention.rs; kiana-core/src/retention.rs; kiana-eventlog/src/retention_store.rs; kiana-domain/tests/sc22_retention.rs; kiana-core/tests/{sc22_retention.rs,sc22_retention_guard.rs}; kiana-eventlog/tests/{sc22_retention_store.rs,sc22_retention_guard.rs}; .github/workflows/sc22-retention-legal-hold.yml; docs/roadmap/sc22-retention-legal-hold-baseline.md; docs/roadmap.md
+worktree_status: RetentionPolicy rejects an unbounded/zero default and carries policy revision/data epoch; LegalHold and LegalHoldReceipt bind project, policy revision, source event IDs, source cursor and projection cursor; core scan rejects project/revision/epoch/cursor drift, preserves Unknown, and gives active hold precedence over expiry; MemoryRetentionStore exposes only a validated bounded plan and keeps tombstone/purge explicitly deferred to SC-23; no source EventLog fact is erased and no deletion path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: domain finite-window/hold contract fixtures, core deny-first retention scan fixtures and source guard, eventlog scan/plan boundary fixtures and source guard; GitHub Actions SC-22 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-22 source slice is implemented and roadmap row 301 is ✅. Retention eligibility is now a finite, revision/epoch/cursor-bound plan; active legal hold cannot be silently overridden and unknown source state is not purgeable
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: MemoryRetentionStore is process-local/non-durable; no append-only retention event family, crash/restart recovery, tombstone/delete propagation, physical erase, backup/external replica handling or compliance certification is claimed; those remain SC-23+ / PD/OA work
+reviewer: Codex root implementation review plus finite retention, policy/data epoch, legal-hold precedence, source/projection cursor binding, unknown fail-closed and explicit SC-23 deletion boundary review; no runtime test reviewer

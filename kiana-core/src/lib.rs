@@ -52,6 +52,7 @@ mod redaction;
 mod replay_diagnostics;
 mod resource_leases;
 mod resource_projection;
+mod retention;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -124,6 +125,7 @@ pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, Replay
 pub use receipts::aggregate_receipt_facts;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;
+pub use retention::scan_retention;
 pub use security_authority::{
     SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
     SECURITY_AUTHORITY_SNAPSHOT_VERSION,
