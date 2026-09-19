@@ -10132,3 +10132,19 @@ status_change: H21 source slice is implemented and roadmap row 308 is ✅. One b
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: ConservativeUtf8 remains a bounded fallback, exact provider tokenizer/usage reconciliation and live cache behavior are not claimed; cache persistence, cross-process invalidation and provider billing remain later H/PD/provider work
 reviewer: Codex root implementation review plus full wire-component budget, shared output reserve, explicit accounting mode, stable ordering, dynamic suffix exclusion and profile/prompt/catalog/data epoch cache invalidation review; no runtime test reviewer
+
+### H22 working-state compaction evidence (2026-09-19)
+
+source_snapshot: a571f1d7 + H22 working-tree slice; kiana-domain/src/compact_summary.rs; kiana-runner/src/compact.rs; kiana-runner/src/harness.rs; kiana-domain/tests/h22_compact_summary.rs; kiana-runner/tests/h22_compact_guard.rs; .github/workflows/h22-compaction.yml; docs/roadmap/h22-compaction-baseline.md; docs/roadmap.md
+worktree_status: CompactSummary is versioned/digest-bound and only carries bounded goal/pending/next-action text plus typed evidence refs; forged completed/approval prose is rejected. Runner compaction now preserves product system messages and the newest complete user/assistant/tool group, records pending pair context, and falls back to the original view when summary/latest-group compaction cannot be validated; fixed no-summary placeholder continuation was removed; no invocation/approval state is changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H22 CompactSummary evidence-ref/goal/pending fixtures and runner source guard for complete groups/no-placeholder/fallback; GitHub Actions H22 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H22 source slice is implemented and roadmap row 309 is ✅. Compaction preserves actionable working state and refuses to continue from an invalid/lossy summary placeholder
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: summary generation is deterministic local extraction rather than an admitted compaction ModelClient call, no bounded model retry/durable summary event/cross-process recovery is claimed, and provider/business completion remains evidence-dependent
+reviewer: Codex root implementation review plus evidence-only summary schema, no-forged-completion refs, latest complete message group/pending pair preservation, product prefix retention, fallback-on-failure and no-state-mutation boundary review; no runtime test reviewer
