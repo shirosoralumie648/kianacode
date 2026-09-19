@@ -9876,3 +9876,19 @@ status_change: EQ-26 source slice is implemented and roadmap row 292 is ✅. All
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: fixture traces are synthetic caller-provided values, not actual Runtime/Approval/Hook/Memory/Workflow/Swarm execution or live provider safety evidence; EventLog capture, evaluator aggregation and durable quality storage remain open
 reviewer: Codex root implementation review plus six-family completeness, blocked/no-effect metadata, digest binding, sorted forbidden codes and no-provider/no-Broker/no-runner boundary review; no runtime test reviewer
+
+### PD-10 fact-only Run/Invocation/Receipt read model evidence (2026-09-19)
+
+source_snapshot: d061f33e + PD-10 working-tree slice; kiana-core/src/{lib.rs,persistence_read_model.rs}; kiana-core/tests/pd10_read_model.rs; kiana-core/tests/pd10_read_model_guard.rs; .github/workflows/pd10-read-model.yml; docs/roadmap/pd10-read-model-baseline.md; docs/roadmap.md
+worktree_status: `PersistenceReadModel` now filters requested run facts, reuses `project_run_state` and `project_invocations`, produces the existing redacted receipt projection, and binds source cursor/event IDs plus optional data epoch; foreign/empty/duplicate/conflicting/old-epoch input fails closed and a missing terminal remains unresolved; no EventStore write, checkpoint mutation, Broker, Runner or authorization path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-core/tests/pd10_read_model.rs covers rebuild, source receipt binding, missing/foreign/conflicting/duplicate/old-epoch facts; pd10_read_model_guard protects fact-only/no-execution boundaries; GitHub Actions PD-10 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-10 source slice is implemented and roadmap row 293 is ✅. The read model cannot convert incomplete or untrusted facts into Completed and exposes its source evidence
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: model is an in-process pure composition over caller-provided facts; no durable projection checkpoint/store, process restart, cross-process projector lease or Cell/Grant/Budget/Lease read model is claimed
+reviewer: Codex root implementation review plus foreign-run filtering, terminal/duplicate/epoch rejection, source cursor/event binding, redacted receipt reuse and no-write/no-Broker/no-Runner boundary review; no runtime test reviewer
