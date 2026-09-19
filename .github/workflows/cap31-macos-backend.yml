@@ -7,6 +7,8 @@ on:
       - "kiana-ports/src/lib.rs"
       - "kiana-daemon/src/harness_sandbox.rs"
       - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-domain/src/platform_backend.rs"
+      - "kiana-domain/tests/cap31_platform_backend.rs"
       - "kiana-core/tests/cap31_macos_backend_guard.rs"
       - "docs/roadmap/cap31-macos-backend-baseline.md"
       - "docs/roadmap/capability.md"
@@ -18,6 +20,8 @@ on:
       - "kiana-ports/src/lib.rs"
       - "kiana-daemon/src/harness_sandbox.rs"
       - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-domain/src/platform_backend.rs"
+      - "kiana-domain/tests/cap31_platform_backend.rs"
       - "kiana-core/tests/cap31_macos_backend_guard.rs"
       - "docs/roadmap/cap31-macos-backend-baseline.md"
       - "docs/roadmap/capability.md"
@@ -41,3 +45,5 @@ jobs:
         run: cargo check --workspace --tests --locked
       - name: Run CAP-31 source guard
         run: cargo test -p kiana-core --test cap31_macos_backend_guard --locked -- --test-threads=1
+      - name: Run CAP-31 platform disposition fixture
+        run: cargo test -p kiana-domain --test cap31_platform_backend --locked -- --test-threads=1

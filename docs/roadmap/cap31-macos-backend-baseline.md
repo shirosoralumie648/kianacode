@@ -4,6 +4,10 @@ The shared EnvironmentPort and ProcessSupervisor contracts are present, but the 
 backend is Linux/bwrap (`SANDBOX_BACKEND`) and the repository has no macOS Seatbelt implementation
 or target-machine behavior receipt. Linux cfg compilation is not macOS evidence.
 
+CAP-31 now also exposes a typed platform disposition contract: `TargetOnly` and `NotSupported`
+reports require limitations, `behavior_verified=false`, and no host fallback; only a future
+target-backed implementation may use `Implemented`.
+
 The new GitHub macOS job only compiles the workspace and runs a source guard. It keeps the required
 negative cases explicit: `macos_backend_denies_host_secrets_and_gui_escape`,
 `macos_descendant_escape_or_stop_failure_is_visible`, and
