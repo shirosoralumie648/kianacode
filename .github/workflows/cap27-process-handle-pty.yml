@@ -1,0 +1,62 @@
+name: CAP-27 process handle and PTY
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/resource_leases.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/cap27_process_handle_pty_guard.rs"
+      - "kiana-core/tests/er19_process_handle_guard.rs"
+      - "kiana-domain/tests/h17_job_handle.rs"
+      - "docs/roadmap/cap27-process-handle-pty-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap27-process-handle-pty.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/resource_leases.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/cap27_process_handle_pty_guard.rs"
+      - "kiana-core/tests/er19_process_handle_guard.rs"
+      - "kiana-domain/tests/h17_job_handle.rs"
+      - "docs/roadmap/cap27-process-handle-pty-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap27-process-handle-pty.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-handle-pty:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run opaque handle fixture
+        run: cargo test -p kiana-domain --test h17_job_handle --locked -- --test-threads=1
+      - name: Run process handle source guard
+        run: cargo test -p kiana-core --test er19_process_handle_guard --locked -- --test-threads=1
+      - name: Run CAP-27 source guard
+        run: cargo test -p kiana-core --test cap27_process_handle_pty_guard --locked -- --test-threads=1
+      - name: Compile CAP-27 targets
+        run: cargo check --workspace --tests --locked

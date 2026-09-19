@@ -8735,6 +8735,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus single ControlPlane/Broker route, deny-first adapter coverage, cassette file/receipt projection, trust/sandbox rejection, cancellation/Unknown, Memory/MCP/Hook result boundaries and explicit proof-ceiling review; no runtime test reviewer
 ```
 
+### CAP-27 process handle / PTY evidence (2026-09-19)
+
+```text
+source_snapshot: 9a9fdc60 + CAP-27 working-tree slice; kiana-domain/src/{job_handle,resource_leases,actions}.rs; kiana-daemon/src/{execution_control,process_supervisor,harness_capabilities}.rs; kiana-core/src/{receipts,sessions}.rs; kiana-core/tests/cap27_process_handle_pty_guard.rs; .github/workflows/cap27-process-handle-pty.yml; docs/roadmap/cap27-process-handle-pty-baseline.md; docs/roadmap.md
+worktree_status: JobHandle is an opaque server-owned continuation identity bound to start invocation, Run/Turn, owner/session/project/authority/process-group/expiry; process.poll/stdin/resize/stop validate the handle and scope, query does not extend lease, restart loss is unavailable/result_unknown; ProcessSupervisor owns stop/reap/group observation and PTY validates backend/size/capture boundaries
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only JobHandle/ER-19/source fixtures; no local test or smoke binary executed
+fixture or cassette: H17 JobHandle round trip/tamper fixture; ER-19 process handle/lease/stop guard; cap27_process_handle_pty_guard; GitHub Actions CAP-27 runs these fixtures and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-27 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-27 source slice is implemented/reconciled. Long-running process continuation stays inside the existing capability path; foreign/expired/revoked handles, unsupported PTY, unconfirmed stop and lost process evidence fail closed or remain Unknown/fenced
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; target-machine PTY behavior, cross-daemon durable process recovery and physical descendant containment remain CI/platform evidence boundaries, and Unknown never becomes automatic retry
+reviewer: Codex root implementation review plus opaque handle digest, owner/scope/authority/expiry fencing, process-group stop/reap, capacity/lease retention, PTY resize/capture/OSC and Unknown receipt review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
