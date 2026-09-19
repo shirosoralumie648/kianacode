@@ -1,0 +1,98 @@
+name: DEP-39 supply-chain and compliance gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/supply_chain.rs"
+      - "kiana-domain/src/release_preflight.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep39_supply_chain.rs"
+      - "kiana-core/tests/dep39_supply_chain_guard.rs"
+      - "scripts/compliance-audit.sh"
+      - "scripts/generate-sbom.sh"
+      - "scripts/generate-license-summary.sh"
+      - "scripts/release-signature-verification-smoke.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-commercial-release-artifacts.sh"
+      - "scripts/package-release.sh"
+      - "scripts/package-desktop-deb.sh"
+      - "docs/roadmap/dep39-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep39-supply-chain.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/supply_chain.rs"
+      - "kiana-domain/src/release_preflight.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep39_supply_chain.rs"
+      - "kiana-core/tests/dep39_supply_chain_guard.rs"
+      - "scripts/compliance-audit.sh"
+      - "scripts/generate-sbom.sh"
+      - "scripts/generate-license-summary.sh"
+      - "scripts/release-signature-verification-smoke.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-commercial-release-artifacts.sh"
+      - "scripts/package-release.sh"
+      - "scripts/package-desktop-deb.sh"
+      - "docs/roadmap/dep39-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep39-supply-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-39 gate fixture
+        run: cargo test -p kiana-domain --test dep39_supply_chain --locked -- --test-threads=1
+      - name: Run DEP-39 source guard
+        run: cargo test -p kiana-core --test dep39_supply_chain_guard --locked -- --test-threads=1
+      - name: Check release and compliance script syntax
+        run: |
+          bash -n scripts/compliance-audit.sh
+          bash -n scripts/generate-sbom.sh
+          bash -n scripts/generate-license-summary.sh
+          bash -n scripts/release-signature-verification-smoke.sh
+          bash -n scripts/sign-release-artifacts.sh
+          bash -n scripts/verify-commercial-release-artifacts.sh
+          bash -n scripts/package-release.sh
+          bash -n scripts/package-desktop-deb.sh
+      - name: Run offline compliance and license evidence fixtures
+        env:
+          COMPLIANCE_OUT_DIR: ${{ runner.temp }}/dep39-compliance
+          KIANA_COMPLIANCE_OFFLINE: "1"
+        run: |
+          bash scripts/compliance-audit.sh --local-rc
+          bash scripts/generate-license-summary.sh --json --out "${RUNNER_TEMP}/dep39-license-summary.json"
+          python3 - "${RUNNER_TEMP}/dep39-license-summary.json" "${RUNNER_TEMP}/dep39-compliance/sbom.cdx.json" <<'PY'
+          import json, sys
+          for path in sys.argv[1:]:
+              with open(path, encoding="utf-8") as handle:
+                  document = json.load(handle)
+              assert document.get("schema") or document.get("bomFormat"), path
+          PY
+      - name: Run signature and package boundary fixture
+        run: |
+          bash scripts/release-signature-verification-smoke.sh
+          bash scripts/package-desktop-deb.sh --help >/dev/null
+      - run: cargo check --workspace --tests --locked
+      - name: Upload CI-only compliance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dep39-supply-chain-evidence
+          path: |
+            ${{ runner.temp }}/dep39-compliance
+            ${{ runner.temp }}/dep39-license-summary.json
+          if-no-files-found: ignore

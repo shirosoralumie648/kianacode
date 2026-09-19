@@ -8934,6 +8934,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: transitions only validate caller-supplied facts and do not alter traffic, fence/kill workers, delete roots or collect external health/receipts; deletion eligibility is not deletion, and fake CI is not live proof
 reviewer: Codex root implementation review plus action/phase ordering, old-writer drain, health/receipt verification, retention/deletion boundary and no-side-effect state-machine review; no runtime/orchestrator reviewer
 
+### DEP-39 supply-chain and compliance gate evidence (partial, 2026-09-19)
+
+source_snapshot: 71f6b7ad + DEP-39 working-tree slice; kiana-domain/src/{supply_chain,release_preflight}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep39_supply_chain.rs; kiana-core/tests/dep39_supply_chain_guard.rs; scripts/{compliance-audit,generate-sbom,generate-license-summary,release-signature-verification-smoke,sign-release-artifacts,verify-commercial-release-artifacts,package-release,package-desktop-deb}.sh; .github/workflows/dep39-supply-chain.yml; docs/roadmap/dep39-supply-chain-baseline.md; docs/roadmap.md
+worktree_status: SupplyChainGateReport now binds binary/archive and DesktopPackage evidence to source/Cargo.lock, SBOM, checksum, signature, package manifest, license, secret-scan, signing/compliance policy and reviewer digests; unknown license, dependency/secret findings, missing Desktop evidence or incomplete artifact proof block publish_allowed; existing CI scripts are wired without a new release path
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, release, packaging or compliance script executed
+fixture or cassette: CI-only dep39_supply_chain domain fixture and dep39_supply_chain_guard; GitHub Actions DEP-39 runs source gate, script syntax, offline compliance/SBOM/license fixtures, signature smoke, Desktop help boundary and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and release scripts deliberately not run per user instruction; GitHub Actions DEP-39 is triggered by the eventual push and is not awaited
+status_change: DEP-39 source/CI contract advanced from scattered release scripts and DEP-34 facts to one fail-closed supply-chain/compliance decision; roadmap remains ⏳ because no external signer, production artifact, upload, installation or live policy receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the report validates supplied evidence and script boundaries but does not cryptographically sign or publish artifacts; CI fixture signatures are not production signatures, Desktop packaging is not built here, and Dependabot findings remain external repository warnings
+reviewer: Codex root implementation review plus artifact/checksum/signature/SBOM/license/secret/compliance binding, Desktop requirement, CI-only fixture and no-live-release proof-ceiling review; no release/security operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
