@@ -8987,20 +8987,20 @@ reviewer: Codex root implementation review plus evidence-field completeness, typ
 
 ### PD-33 persistence lifecycle UAT evidence (partial, 2026-09-19)
 
-source_snapshot: cd7997ed + PD-33 working-tree slice; kiana-domain/src/persistence_uat.rs; kiana-domain/src/lib.rs; kiana-domain/tests/pd33_persistence_uat.rs; kiana-core/tests/pd33_persistence_uat_guard.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/tests/er18_workspace_checkpoint_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/pd33-persistence-uat.yml; docs/roadmap/pd33-persistence-uat-baseline.md; docs/roadmap.md
-worktree_status: persistence UAT matrix now covers CLI/Web/Workbench backup, restore, upgrade, restart and governance-delete deny/success rows plus replay/Unknown; success binds StorageRoot/EventStore identity, cursor/projection/Receipt parity, backup/quarantine/auth re-admission, old-root retention, migration/journal and legal-hold/delete gates
+source_snapshot: 1a4978e1 + PD-33 persistence evidence slice; kiana-domain/src/{persistence_uat,persistence_uat_evidence}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/{pd33_persistence_uat,pd33_persistence_uat_evidence}.rs; kiana-core/tests/pd33_persistence_uat_guard.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/tests/er18_workspace_checkpoint_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/pd33-persistence-uat.yml; docs/roadmap/pd33-persistence-uat-baseline.md; docs/roadmap.md
+worktree_status: persistence UAT matrix covers CLI/Web/Workbench backup, restore, upgrade, restart and governance-delete deny/success rows plus replay/Unknown; PersistenceUatEvidence now binds StorageRoot/EventStore matrix/source digests, receipts, backup/restore reconciliation, restart replay, deletion review and proof level, while success still binds cursor/projection/Receipt parity, backup/quarantine/auth re-admission, old-root retention, migration/journal and legal-hold/delete gates
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, UAT, backup, restore, upgrade, restart, delete or external effect executed
-fixture or cassette: CI-only pd33_persistence_uat domain matrix and source guard; GitHub Actions PD-33 also runs existing workspace checkpoint restore, entrypoint parity and DaemonHost spine fixtures plus workspace static compilation
+fixture or cassette: CI-only pd33_persistence_uat, pd33_persistence_uat_evidence and source guard; GitHub Actions PD-33 also runs existing workspace checkpoint restore, entrypoint parity and DaemonHost spine fixtures plus workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and persistence UAT deliberately not run per user instruction; GitHub Actions PD-33 is triggered by the eventual push and is not awaited
 status_change: PD-33 persistence UAT evidence advanced from separate restore/parity/spine contracts to a lifecycle matrix; roadmap remains ⏳ because no durable backup/restore/restart/delete execution, power-loss/SQLite conformance or live external receipt exists
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: matrix facts are caller-supplied and CI-only; it cannot prove backup bytes, crash recovery, cross-process auth re-admission, index/Receipt rebuild, migration effects, legal-hold enforcement or deletion cleanup
-reviewer: Codex root implementation review plus lifecycle coverage, storage identity/cursor parity, restore quarantine/auth re-admission, old-root/legal-hold boundaries, Unknown reconciliation and no-side-effect UAT review; no runtime/storage operator reviewer
+limitations: matrix facts and the new evidence bundle are caller-supplied and CI-only; they cannot prove backup bytes, crash recovery, cross-process auth re-admission, index/Receipt rebuild, migration effects, legal-hold enforcement or deletion cleanup
+reviewer: Codex root implementation review plus typed persistence evidence, lifecycle coverage, storage identity/cursor parity, restore quarantine/auth re-admission, old-root/legal-hold boundaries, Unknown reconciliation and no-side-effect UAT review; no runtime/storage operator reviewer
 
 ### PD-34 persistence capacity and degradation budget evidence (partial, 2026-09-19)
 

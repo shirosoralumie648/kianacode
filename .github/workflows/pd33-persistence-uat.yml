@@ -5,6 +5,8 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/persistence_uat.rs"
+      - "kiana-domain/src/persistence_uat_evidence.rs"
+      - "kiana-domain/tests/pd33_persistence_uat_evidence.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/pd33_persistence_uat.rs"
       - "kiana-core/tests/pd33_persistence_uat_guard.rs"
@@ -19,6 +21,8 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/persistence_uat.rs"
+      - "kiana-domain/src/persistence_uat_evidence.rs"
+      - "kiana-domain/tests/pd33_persistence_uat_evidence.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/pd33_persistence_uat.rs"
       - "kiana-core/tests/pd33_persistence_uat_guard.rs"
@@ -46,6 +50,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run PD-33 persistence UAT matrix fixture
         run: cargo test -p kiana-domain --test pd33_persistence_uat --locked -- --test-threads=1
+      - name: Run PD-33 persistence evidence fixture
+        run: cargo test -p kiana-domain --test pd33_persistence_uat_evidence --locked -- --test-threads=1
       - name: Run PD-33 source guard
         run: cargo test -p kiana-core --test pd33_persistence_uat_guard --locked -- --test-threads=1
       - name: Run existing restore and entrypoint spine guards

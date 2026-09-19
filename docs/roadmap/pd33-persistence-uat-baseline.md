@@ -6,6 +6,11 @@ projection cursors, Receipt evidence, backup manifest verification, quarantine, 
 projection/Receipt parity, old-root retention, migration/journal evidence and legal-hold/delete
 authorization. `result_unknown` rows require reconcile and forbid automatic retry.
 
+`PersistenceUatEvidence` now binds the matrix/source digests to receipt references, backup/restore
+reconciliation, restart replay, deletion review, reviewer and proof level. Fixture/source rows
+cannot be treated as durable proof; verified evidence requires all three recovery/governance
+checks and receipts.
+
 The workflow reuses the existing workspace checkpoint restore guard, entrypoint parity and
 DaemonHost spine fixtures. It does not write a backup, restore a root, apply an upgrade, restart a
 process or delete governed data. Fake/source evidence is not durable proof; cross-process,

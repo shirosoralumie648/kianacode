@@ -3,6 +3,7 @@
 #[test]
 fn persistence_uat_keeps_restore_upgrade_restart_and_delete_gates_explicit() {
     let source = include_str!("../../kiana-domain/src/persistence_uat.rs");
+    let evidence = include_str!("../../kiana-domain/src/persistence_uat_evidence.rs");
     let checkpoint = include_str!("../../kiana-core/src/workspace_checkpoints.rs");
     let baseline = include_str!("../../docs/roadmap/pd33-persistence-uat-baseline.md");
     for marker in [
@@ -28,9 +29,13 @@ fn persistence_uat_keeps_restore_upgrade_restart_and_delete_gates_explicit() {
         "persistence_uat_unknown_retry_forbidden",
         "persistence_uat_restore_gate_failed",
         "persistence_uat_delete_gate_failed",
+        "PersistenceUatEvidence",
+        "persistence_uat_verified_evidence_incomplete",
+        "restart_replayed",
+        "deletion_reviewed",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || evidence.contains(marker),
             "PD-33 source marker missing: {marker}"
         );
     }
