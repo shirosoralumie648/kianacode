@@ -12,6 +12,7 @@
 //! 这里的序列化结构和结果报告是当前实现的本地契约；字段存在不表示所有入口都已经接入，
 //! 也不自动提供 durable、live 或 physical 证明。
 pub mod config;
+pub mod context_inputs;
 pub mod deps;
 pub mod index;
 pub mod repo_map;
@@ -20,6 +21,7 @@ pub mod token_budget;
 pub mod transitions;
 
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
+pub use context_inputs::repo_map_candidate;
 pub use deps::QueryDeps;
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
