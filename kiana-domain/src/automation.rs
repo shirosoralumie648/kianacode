@@ -202,6 +202,97 @@ pub enum MissedSchedulePolicy {
     FireOnce,
     CatchUp,
 }
+
+pub const MAX_INTERVAL_CATCH_UP: u64 = 32;
+
+/// Pure interval cursor result. `next_at` is the first occurrence not consumed by this tick;
+/// for CatchUp it may remain due so a later bounded tick can continue the backlog.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntervalDueBatch {
+    pub occurrence_keys: Vec<String>,
+    pub next_at: u64,
+    pub total_due: u64,
+    pub emitted: u64,
+    pub skipped: u64,
+    pub backlog_remaining: u64,
+    pub catch_up_limited: bool,
+}
+
+/// Calculate one deterministic interval tick without reading time, state or performing I/O.
+/// Every emitted key is tied to its exact scheduled timestamp, and cursor arithmetic fails closed
+/// on overflow instead of wrapping into a duplicate or distant future occurrence.
+pub fn plan_interval_due(
+    next_at: u64,
+    every_ms: u64,
+    now_ms: u64,
+    policy: MissedSchedulePolicy,
+) -> Result<IntervalDueBatch, String> {
+    if next_at == 0 || every_ms < 1_000 || now_ms == 0 {
+        return Err("trigger_interval_cursor_invalid".to_owned());
+    }
+    if now_ms < next_at {
+        return Ok(IntervalDueBatch {
+            occurrence_keys: Vec::new(),
+            next_at,
+            total_due: 0,
+            emitted: 0,
+            skipped: 0,
+            backlog_remaining: 0,
+            catch_up_limited: false,
+        });
+    }
+    let total_due = (now_ms - next_at)
+        .checked_div(every_ms)
+        .and_then(|value| value.checked_add(1))
+        .ok_or_else(|| "trigger_interval_cursor_overflow".to_owned())?;
+    let emitted = match policy {
+        MissedSchedulePolicy::Skip if total_due > 1 => 0,
+        MissedSchedulePolicy::Skip | MissedSchedulePolicy::FireOnce => 1,
+        MissedSchedulePolicy::CatchUp => total_due.min(MAX_INTERVAL_CATCH_UP),
+    };
+    let advance = match policy {
+        MissedSchedulePolicy::CatchUp => emitted,
+        MissedSchedulePolicy::Skip | MissedSchedulePolicy::FireOnce => total_due,
+    };
+    let first_due = next_at;
+    let next_at = next_at
+        .checked_add(
+            every_ms
+                .checked_mul(advance)
+                .ok_or_else(|| "trigger_interval_cursor_overflow".to_owned())?,
+        )
+        .ok_or_else(|| "trigger_interval_cursor_overflow".to_owned())?;
+    let occurrence_keys = (0..emitted)
+        .map(|offset| {
+            let step = every_ms
+                .checked_mul(offset)
+                .ok_or_else(|| "trigger_interval_cursor_overflow".to_owned())?;
+            first_due
+                .checked_add(step)
+                .map(|scheduled_at| format!("schedule:{scheduled_at}"))
+                .ok_or_else(|| "trigger_interval_cursor_overflow".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let skipped = match policy {
+        MissedSchedulePolicy::Skip | MissedSchedulePolicy::FireOnce => total_due - emitted,
+        MissedSchedulePolicy::CatchUp => 0,
+    };
+    let backlog_remaining = match policy {
+        MissedSchedulePolicy::CatchUp => total_due - emitted,
+        MissedSchedulePolicy::Skip | MissedSchedulePolicy::FireOnce => 0,
+    };
+    Ok(IntervalDueBatch {
+        occurrence_keys,
+        next_at,
+        total_due,
+        emitted,
+        skipped,
+        backlog_remaining,
+        catch_up_limited: policy == MissedSchedulePolicy::CatchUp && backlog_remaining > 0,
+    })
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TriggerSchedule {

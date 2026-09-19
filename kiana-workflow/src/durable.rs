@@ -1087,32 +1087,15 @@ fn fire_trigger(
         AutomationCommand::Tick { .. } => {
             keys.extend(t.pending_keys.clone());
             if let TriggerSchedule::Interval { every_ms, .. } = t.definition.schedule {
-                let mut due = t.next_at.ok_or("trigger_schedule_invalid")?;
-                if due <= a.now_ms {
-                    let count = (a.now_ms - due) / every_ms + 1;
-                    let take = match t.definition.missed_schedule {
-                        MissedSchedulePolicy::Skip => {
-                            if count == 1 {
-                                1
-                            } else {
-                                0
-                            }
-                        }
-                        MissedSchedulePolicy::FireOnce => 1,
-                        MissedSchedulePolicy::CatchUp => count.min(32),
-                    };
-                    for _ in 0..take {
-                        keys.push(format!("schedule:{due}"));
-                        due = due.saturating_add(every_ms);
-                    }
-                    next_at = Some(match t.definition.missed_schedule {
-                        MissedSchedulePolicy::CatchUp => due,
-                        _ => t
-                            .next_at
-                            .unwrap()
-                            .saturating_add(count.saturating_mul(every_ms)),
-                    });
-                }
+                let batch = plan_interval_due(
+                    t.next_at.ok_or("trigger_schedule_invalid")?,
+                    every_ms,
+                    a.now_ms,
+                    t.definition.missed_schedule,
+                )
+                .map_err(|_| "trigger_interval_cursor_invalid")?;
+                keys.extend(batch.occurrence_keys);
+                next_at = Some(batch.next_at);
             }
         }
         _ => return Err("trigger_command_invalid"),

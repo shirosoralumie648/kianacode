@@ -9155,6 +9155,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: WorkflowQueueService is not a second execution loop but also does not persist its own acknowledgements, use ClockPort for deterministic timer scheduling, prove cross-process shutdown/worker death, or reconcile external effects; no capability dispatch was added
 reviewer: Codex root implementation review plus bounded channel, singleton start, ordered shutdown, active lease fence and no-second-loop boundary review; no runtime scheduler reviewer
 
+### AUT-10 interval cursor and missed-policy evidence (partial, 2026-09-19)
+
+source_snapshot: 4d4601b1 + AUT-10 interval cursor slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut10_interval_cursor.rs; kiana-workflow/tests/aut10_interval_cursor.rs; kiana-core/tests/aut10_interval_guard.rs; .github/workflows/aut10-interval-cursor.yml; docs/roadmap/aut10-interval-cursor-baseline.md; docs/roadmap.md
+worktree_status: pure plan_interval_due now owns interval Skip/FireOnce/CatchUp cursor arithmetic, bounded catch-up, stable scheduled keys and overflow rejection; durable workflow Tick consumes the helper through the existing ControlPlane planner route; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke command executed
+fixture or cassette: CI-only aut10_interval_cursor domain arithmetic, aut10_interval_cursor workflow source guard and aut10_interval_guard ControlPlane route guard; GitHub Actions AUT-10 runs fixtures and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-10 source planner slice added. Missed interval policy and cursor advancement are centralized and deny overflow/unbounded catch-up; roadmap row remains ⏳ because trusted ClockPort integration, durable cursor checkpoint, timer worker, restart replay and trigger ingress are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: plan_interval_due is a pure calculation and does not observe or persist time; ControlPlane still supplies the current authority timestamp, no durable schedule cursor or timer service was added, and no real external trigger effect was executed
+reviewer: Codex root implementation review plus Skip/FireOnce/CatchUp semantics, exact occurrence key, bounded backlog, overflow and existing ControlPlane route review; no runtime timer reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

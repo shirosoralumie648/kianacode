@@ -1,0 +1,36 @@
+name: aut10-interval-cursor
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/tests/aut10_interval_cursor.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut10_interval_cursor.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut10_interval_guard.rs"
+      - ".github/workflows/aut10-interval-cursor.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/tests/aut10_interval_cursor.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut10_interval_cursor.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut10_interval_guard.rs"
+      - ".github/workflows/aut10-interval-cursor.yml"
+
+jobs:
+  interval-cursor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Domain interval contract
+        run: cargo test -p kiana-domain --test aut10_interval_cursor --locked
+      - name: Workflow planner guard
+        run: cargo test -p kiana-workflow --test aut10_interval_cursor --locked
+      - name: Control-plane route guard
+        run: cargo test -p kiana-core --test aut10_interval_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked
