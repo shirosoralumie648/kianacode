@@ -9308,6 +9308,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: planner state is committed only when the surrounding EventLog transition succeeds; Replace does not assume stop completion, result_unknown remains reconciliation-required, and no background queue/cancellation worker or external effect was executed
 reviewer: Codex root implementation review plus four concurrency branches, digest conflict, pending bound, Replace stop-before-successor and serde legacy compatibility boundary review; no runtime cancellation reviewer
 
+### AUT-12 trigger concurrency completion slice (2026-09-19)
+
+source_snapshot: a8f68778 + AUT-12 completion evidence; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut12_trigger_state.rs; kiana-workflow/tests/aut12_pending_policy.rs; kiana-core/tests/aut12_pending_policy_guard.rs; .github/workflows/aut12-trigger-concurrency.yml; docs/roadmap/aut12-trigger-concurrency-baseline.md; docs/roadmap.md
+worktree_status: DurableTrigger pending/fired occurrence digest maps and planner concurrency branches are unchanged from the reviewed slice; completion backfill records bounded pending, digest conflict and Replace CancelRequested ordering with remote-only fixtures; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or trigger/cancellation operation executed
+fixture or cassette: GitHub Actions only: domain compatibility/state fixture, workflow Reject/Queue/Coalesce/Replace planner guard and core ControlPlane route guard; fixtures cover same-key/different-digest, pending bound, successor ordering and legacy serde defaults
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-12 workflow is triggered by the push and is not awaited
+status_change: AUT-12 is complete at source/local-fixture scope. Concurrency policy branches are explicit and bounded, occurrence identity is digest-bound, and Replace requests cancellation before retaining a successor without claiming that stop completed.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: pending state still commits only through the surrounding EventLog CAS, no background stop/cancellation worker or durable pending index was added, result_unknown remains reconciliation-required, and no physical cancellation receipt is claimed
+reviewer: Codex root implementation review plus Reject/Queue/Coalesce/Replace, same-key digest conflict, bound, CancelRequested ordering, legacy serde and no-stop-completion boundary review; no runtime cancellation reviewer
+
 ### AUT-13 Advance/fan-out/fan-in/sub-workflow planner evidence (partial, 2026-09-19)
 
 source_snapshot: 0f214407 + AUT-13 Advance planner slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-workflow/tests/aut13_advance_planner.rs; kiana-workflow/tests/aut13_advance_guard.rs; kiana-core/tests/aut13_advance_route_guard.rs; .github/workflows/aut13-advance-planner.yml; docs/roadmap/aut13-advance-planner-baseline.md; docs/roadmap.md
