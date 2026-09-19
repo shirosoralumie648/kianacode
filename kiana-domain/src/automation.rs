@@ -11,6 +11,7 @@ pub const AUTOMATION_EVENT_SCHEMA: &str = "kiana.workflow-event.v1";
 pub const WORKFLOW_DEFINITION_SCHEMA: &str = "kiana.workflow-definition.v1";
 pub const TRIGGER_DEFINITION_SCHEMA: &str = "kiana.trigger-definition.v1";
 pub const AUTOMATION_EVENT_ENVELOPE_SCHEMA: &str = "kiana.workflow-event-envelope.v1";
+pub const WORKFLOW_PLAN_INTENT_SCHEMA: &str = "kiana.workflow-plan-intent.v1";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -540,6 +541,73 @@ pub enum WorkflowEffect {
     Cancel {
         instance_id: String,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkflowIntentKind {
+    Dispatch,
+    Reserve,
+    Wait,
+    Terminal,
+    Cancel,
+    Noop,
+}
+
+/// Pure planner output.  It is an intent/projection only; ControlPlane still commits a fact and
+/// owns every dispatch.  The digest binds the input/definition/authority snapshots used to plan.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkflowPlanIntent {
+    pub schema: String,
+    pub kind: WorkflowIntentKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    pub expected_revision: u64,
+    pub next_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_key: Option<String>,
+    pub authority_digest: String,
+    pub intent_digest: String,
+}
+
+impl WorkflowPlanIntent {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != WORKFLOW_PLAN_INTENT_SCHEMA
+            || self.next_revision != self.expected_revision.saturating_add(1)
+            || self.expected_revision == u64::MAX
+            || self.authority_digest.strip_prefix("sha256:").is_none()
+            || self.authority_digest.len() != 71
+            || !self.authority_digest[7..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || self.intent_digest != self.digest()
+        {
+            return Err("workflow_plan_intent_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "kind": self.kind,
+            "instance_id": self.instance_id,
+            "node_id": self.node_id,
+            "expected_revision": self.expected_revision,
+            "next_revision": self.next_revision,
+            "definition_digest": self.definition_digest,
+            "input_digest": self.input_digest,
+            "queue_key": self.queue_key,
+            "authority_digest": self.authority_digest,
+        }))
+    }
 }
 
 pub type WorkflowValue = serde_json::Value;

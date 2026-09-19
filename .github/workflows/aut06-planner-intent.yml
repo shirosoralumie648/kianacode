@@ -1,0 +1,50 @@
+name: AUT-06 pure planner intent
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/Cargo.toml"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut06_plan_intent.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut06_planner_guard.rs"
+      - "docs/roadmap/automation-planner-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut06-planner-intent.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-workflow/Cargo.toml"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut06_plan_intent.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut06_planner_guard.rs"
+      - "docs/roadmap/automation-planner-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut06-planner-intent.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  planner-intent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run pure planner fixtures
+        run: cargo test -p kiana-workflow --test aut06_plan_intent --locked -- --test-threads=1
+      - name: Run planner source guard
+        run: cargo test -p kiana-core --test aut06_planner_guard --locked -- --test-threads=1
+      - name: Compile AUT-06 targets
+        run: cargo check --workspace --tests --locked

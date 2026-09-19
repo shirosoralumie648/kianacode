@@ -181,6 +181,126 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
     validate_dependency_dag(&artifacts).map_err(|_| "workflow_artifact_graph_invalid")?;
     Ok(())
 }
+
+/// Run the pure planner and expose a bounded intent alongside the next state/effect.  The intent
+/// is useful to a queue adapter, but it never authorizes dispatch and contains no I/O or clock
+/// lookup beyond the caller-provided `AutomationAuthority` snapshot.
+pub fn plan_command_intent(
+    state: &AutomationState,
+    command: &AutomationCommand,
+    authority: &AutomationAuthority,
+    proof: &AutomationProof,
+) -> Result<(AutomationState, WorkflowPlanIntent, Option<WorkflowEffect>)> {
+    let (next, effect) = plan_command(state, command, authority, proof)?;
+    let intent = derive_plan_intent(state, &next, command, effect.as_ref(), authority)?;
+    Ok((next, intent, effect))
+}
+
+pub fn derive_plan_intent(
+    state: &AutomationState,
+    next: &AutomationState,
+    command: &AutomationCommand,
+    effect: Option<&WorkflowEffect>,
+    authority: &AutomationAuthority,
+) -> Result<WorkflowPlanIntent> {
+    let (kind, instance_id, node_id) = match effect {
+        Some(WorkflowEffect::Dispatch {
+            instance_id,
+            node_id,
+            ..
+        }) => (
+            WorkflowIntentKind::Dispatch,
+            Some(instance_id.clone()),
+            Some(node_id.clone()),
+        ),
+        Some(WorkflowEffect::Cancel { instance_id }) => {
+            (WorkflowIntentKind::Cancel, Some(instance_id.clone()), None)
+        }
+        None => {
+            let instance_id = command.instance_id().map(str::to_owned);
+            let node_id = instance_id.as_deref().and_then(|instance_id| {
+                let before = state.instances.get(instance_id);
+                let after = next.instances.get(instance_id)?;
+                after
+                    .nodes
+                    .keys()
+                    .find(|node_id| {
+                        before.is_none_or(|before| !before.nodes.contains_key(*node_id))
+                    })
+                    .cloned()
+            });
+            let next_status = instance_id
+                .as_deref()
+                .and_then(|id| next.instances.get(id))
+                .map(|instance| instance.status);
+            let kind = match next_status {
+                Some(status) if status.terminal() => WorkflowIntentKind::Terminal,
+                Some(
+                    WorkflowInstanceStatus::WaitingApproval | WorkflowInstanceStatus::WaitingSignal,
+                ) => WorkflowIntentKind::Wait,
+                Some(WorkflowInstanceStatus::Ready | WorkflowInstanceStatus::Running) => {
+                    if node_id.is_some() {
+                        WorkflowIntentKind::Reserve
+                    } else {
+                        WorkflowIntentKind::Noop
+                    }
+                }
+                _ => WorkflowIntentKind::Noop,
+            };
+            (kind, instance_id, node_id)
+        }
+    };
+    let definition_digest = instance_id.as_deref().and_then(|id| {
+        next.instances.get(id).and_then(|instance| {
+            next.definitions
+                .get(&definition_key(
+                    &instance.definition_id,
+                    instance.definition_version,
+                ))
+                .map(WorkflowDefinition::digest)
+        })
+    });
+    let input_digest = instance_id.as_deref().and_then(|instance_id| {
+        node_id.as_deref().and_then(|node_id| {
+            next.instances
+                .get(instance_id)
+                .and_then(|instance| instance.nodes.get(node_id))
+                .map(|node| node.input_digest.clone())
+        })
+    });
+    let queue_key = instance_id.as_ref().map(|instance_id| {
+        format!(
+            "workflow:{instance_id}:{}:{}",
+            node_id.as_deref().unwrap_or("none"),
+            next.revision
+        )
+    });
+    let authority_digest = json_digest(&serde_json::json!({
+        "actor_id": authority.context.actor_id,
+        "session_id": authority.context.session_id,
+        "role_id": authority.context.role_id,
+        "project_root": authority.context.project_root,
+        "now_ms": authority.now_ms,
+    }));
+    let mut intent = WorkflowPlanIntent {
+        schema: WORKFLOW_PLAN_INTENT_SCHEMA.to_owned(),
+        kind,
+        instance_id,
+        node_id,
+        expected_revision: state.revision,
+        next_revision: next.revision,
+        definition_digest,
+        input_digest,
+        queue_key,
+        authority_digest,
+        intent_digest: String::new(),
+    };
+    intent.intent_digest = intent.digest();
+    intent
+        .validate()
+        .map_err(|_| "workflow_plan_intent_invalid")?;
+    Ok(intent)
+}
 fn create_instance(
     state: &mut AutomationState,
     id: &str,

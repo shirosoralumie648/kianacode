@@ -8430,3 +8430,21 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; disk-full/power-loss and physical filesystem race guarantees remain open
 reviewer: Codex root implementation review plus staged baseline/changeset, new-file parent confinement, source identity/revision, descriptor-relative commit, rollback Unknown, no-clean/reset and bounded host-effect publication boundary; no runtime test reviewer
 ```
+
+### AUT-06 pure planner intent evidence (2026-09-19)
+
+```text
+source_snapshot: c82db802 + AUT-06 working-tree slice; kiana-domain/src/{automation.rs,contracts.rs}; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-workflow/tests/aut06_plan_intent.rs; kiana-core/tests/aut06_planner_guard.rs; .github/workflows/aut06-planner-intent.yml; docs/roadmap/automation-planner-baseline.md; docs/roadmap.md
+worktree_status: AUT-06 adds a strict digest-bound WorkflowPlanIntent projection beside the existing pure planner; ControlPlane invokes it before committing workflow facts and retains sole dispatch authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only planner fixtures/source guard; no local test or smoke binary executed
+fixture or cassette: literal terminal and capability dispatch planner fixtures; aut06_planner_guard; GitHub Actions AUT-06 runs planner fixtures, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-06 is triggered by the eventual push and is not awaited
+status_change: AUT-06 source slice is implemented. Planner output now distinguishes dispatch, reserve, wait, terminal, cancel and noop intents while binding revisions, definition/input digests, queue key and supplied authority digest; no durable queue, claim, fence or scheduler was added
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; reservation durability, queue claim/heartbeat/fence and replay-index integration remain AUT-07/08 and persistence steps
+reviewer: Codex root implementation review plus pure-planner/no-I/O/no-second-loop, digest/schema strictness, terminal-versus-dispatch classification and ControlPlane-only effect routing review; no runtime test reviewer
+```

@@ -1,7 +1,7 @@
 //! Durable deterministic workflows and triggers on the existing EventStore and execution spine.
 use super::*;
 use kiana_domain::*;
-use kiana_workflow::{definition_key, plan_command};
+use kiana_workflow::{definition_key, plan_command, plan_command_intent};
 
 const AGGREGATE: &str = "workflow";
 fn automation_error(reason: &str) -> CoreError {
@@ -154,10 +154,11 @@ impl ControlPlane {
             Err(e) => return Err(e),
         };
         let a = authority(&context);
-        let (next, effect) = match plan_command(&state, &request.command, &a, &proof) {
-            Ok(n) => n,
-            Err(reason) => return self.reject_workflow(&context, reason).await,
-        };
+        let (next, _planner_intent, effect) =
+            match plan_command_intent(&state, &request.command, &a, &proof) {
+                Ok(n) => n,
+                Err(reason) => return self.reject_workflow(&context, reason).await,
+            };
         let event = AutomationEvent {
             schema: AUTOMATION_EVENT_SCHEMA.into(),
             request: request.clone(),
