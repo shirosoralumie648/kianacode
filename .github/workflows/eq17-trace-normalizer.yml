@@ -1,0 +1,42 @@
+name: EQ-17 durable event normalizer
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-trace-normalizer-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq17-trace-normalizer.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-trace-normalizer-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq17-trace-normalizer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trace-normalizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run durable event fixtures
+        run: cargo test -p kiana-quality --test eq17_normalize --locked -- --test-threads=1
+      - name: Run pure quality source guard
+        run: cargo test -p kiana-quality --test eq17_quality_guard --locked -- --test-threads=1
+      - name: Compile EQ-17 targets
+        run: cargo check --workspace --tests --locked
