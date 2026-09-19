@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-31 post-migration rebuild evidence (partial, 2026-09-19)
+
+source_snapshot: 0f4e3779 + DEP-31 working-tree slice; kiana-domain/src/migration_rebuild.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep31_migration_rebuild.rs; kiana-core/tests/dep31_migration_rebuild_guard.rs; .github/workflows/dep31-migration-rebuild.yml; docs/roadmap/dep31-migration-rebuild-baseline.md; docs/roadmap.md
+worktree_status: pure domain MigrationRebuildReport now binds the migration registry and evaluates source/projection cursor parity, projection/index/receipt generations, source replay digest, projection/index digest and receipt source references before ready_gate=true; projection overrun/lag, stale generation, replay divergence, receipt mismatch and registry drift remain blocked
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep31_migration_rebuild domain fixtures; dep31_migration_rebuild_guard; GitHub Actions DEP-31 runs ready/blocked projection, generation, replay and receipt fixtures plus workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-31 is triggered by the eventual push and is not awaited
+status_change: DEP-31 source contract advanced from runner checkpoints to a read-only post-migration consistency gate; roadmap remains ⏳ because no projector/index/replay adapter, receipt projection or ready admission is wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: facts are adapter-supplied, the report does not rebuild data or persist a new generation, source cursor/replay equality is not a runtime receipt, and no recovery/quarantine path is connected
+reviewer: Codex root implementation review plus source/projection cursor monotonicity, generation parity, replay/index/receipt digest binding, overrun/lag/drift denial and no-authority/no-write ready-gate boundary review; no runtime test reviewer
+
 ### DEP-30 migration runner contract evidence (partial, 2026-09-19)
 
 source_snapshot: be505507 + DEP-30 working-tree slice; kiana-domain/src/migration_runner.rs; kiana-domain/src/migration_primitives.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep30_migration_runner.rs; kiana-core/tests/dep30_migration_runner_guard.rs; .github/workflows/dep30-migration-runner.yml; docs/roadmap/dep30-migration-runner-baseline.md; docs/roadmap.md
