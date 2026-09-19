@@ -645,7 +645,9 @@ sequenceDiagram
 
 <a id="step-h33"></a>
 
-#### H33 — 运行资源、关闭和异常退出的完整清理　⏳
+#### H33 — 运行资源、关闭和异常退出的完整清理　✅
+
+当前 source slice 与 CI-only 证据见 [`h33-resource-cleanup-baseline.md`](h33-resource-cleanup-baseline.md)。
 
 **关联原单元**：`P1-C-02`、`P0-J1-03`、`P2-K6-01`、`P4-M6-01`。**依赖**：H08、H17、H24、H31、H32。
 

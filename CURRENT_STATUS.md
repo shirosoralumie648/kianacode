@@ -10308,3 +10308,19 @@ status_change: H32 source slice is implemented and roadmap row 417 is ✅. Displ
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: slow subscriber/browser reconnect and durable feed replay remain adapter/network evidence, Desktop embedding is not newly proven, and external live timing is not claimed
 reviewer: Codex root implementation review plus cursor/epoch duplicate/gap policy, terminal preservation, snapshot hydration and shared CLI/TTY/Web stream path review; no runtime test reviewer
+
+### H33 resource cleanup evidence (2026-09-19)
+
+source_snapshot: 5a3dbcb0 + H33 working-tree slice; kiana-domain/src/{resource_cleanup.rs,contracts.rs,lib.rs}; kiana-runner/src/harness.rs; kiana-daemon/src/{process_supervisor.rs,lib.rs}; kiana-core/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/h33_resource_cleanup.rs; kiana-protocol/tests/h33_resource_cleanup.rs; kiana-core/tests/h33_resource_cleanup_guard.rs; .github/workflows/h33-resource-cleanup.yml; docs/roadmap/h33-resource-cleanup-baseline.md; docs/roadmap.md
+worktree_status: CleanupPlan/Report now bind run owner, resource kind, stop/effect evidence and Released/Pending/IsolatedUnknown status; unconfirmed stop or unknown effect never releases ownership; ResourceRetention bounds retained runs/frames/history; existing Runner cancellation/checkpoint, ProcessSupervisor TERM/KILL/reap/kill-on-drop, daemon shutdown and Core terminal/path-lock release source paths remain guarded; no direct reducer effect or second loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H33 cleanup confirmed/unknown/pending/retention fixtures, protocol wire fixture and Core/daemon/Runner source guard; GitHub Actions H33 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H33 source slice is implemented and roadmap row 588 is ✅. Resource cleanup distinguishes confirmed release from Unknown and pending ownership
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: real panic/process/shutdown stress and external stop receipts are not newly proven, cross-process cleanup projector remains open, and host drop never implies confirmed stop
+reviewer: Codex root implementation review plus owner/resource/status, stop/effect evidence, Unknown isolation, retention bounds, supervisor shutdown and Core release boundary review; no runtime test reviewer
