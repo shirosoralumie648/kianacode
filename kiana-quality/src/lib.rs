@@ -10,6 +10,7 @@ mod capture;
 mod diff;
 mod digest;
 mod normalize;
+mod scenario;
 mod volatile;
 
 pub use assertions::{
@@ -33,6 +34,11 @@ pub use digest::{
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
     TRACE_NORMALIZATION_VERSION,
+};
+pub use scenario::{
+    CleanupReceipt, ScenarioArtifact, ScenarioError, ScenarioOutcome, ScenarioReport,
+    ScenarioRunner, ScenarioSpec, ScopePredicate, ScrubbedEnvironment, CLEANUP_RECEIPT_SCHEMA,
+    SCENARIO_SCHEMA, SCRUBBED_ENVIRONMENT_SCHEMA,
 };
 pub use volatile::{
     normalize_volatile, normalize_volatile_trace, standard_uuid_rule_paths, VolatileError,

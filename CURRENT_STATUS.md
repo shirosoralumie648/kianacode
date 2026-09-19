@@ -9828,3 +9828,19 @@ status_change: EQ-23 source slice is implemented and roadmap row 289 is ✅. Cap
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: source run events and fixture bytes are caller-provided metadata, no TraceSource/FixtureStore/EvalStore adapter is called, no authorization admission or atomic durable destination reservation exists, and no live capture/replay proof is claimed
 reviewer: Codex root implementation review plus explicit source enum, digest/typed trace validation, fresh ID construction, occupied destination refusal, opaque logical ref and no-filesystem/no-effect boundary review; no runtime test reviewer
+
+### EQ-24 scrubbed reference/candidate scenario evidence (2026-09-19)
+
+source_snapshot: 4c185ea1 + EQ-24 working-tree slice; kiana-quality/src/{lib.rs,scenario.rs}; kiana-quality/tests/eq24_scenario.rs; kiana-quality/tests/eq24_scenario_guard.rs; .github/workflows/eq24-scenario.yml; docs/roadmap/evaluation-scenario-baseline.md; docs/roadmap.md
+worktree_status: pure ScenarioRunner now binds reference/candidate artifacts to the same scenario ID and scrubbed environment digest, computes normalized trace digests and TraceDiff, applies explicit field-prefix/allow-all scope predicates, and exposes environment mismatch, cleanup incomplete and out-of-scope outcomes; no workspace/process/fixture/provider/store/runner effect was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq24_scenario.rs covers scrubbed environment, in-scope/out-of-scope, environment mismatch, cleanup-required and unsafe-value rejection; eq24_scenario_guard protects no-filesystem/no-runner boundaries; GitHub Actions EQ-24 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-24 source slice is implemented and roadmap row 290 is ✅. Candidate comparison cannot be considered comparable without matching scrubbed environments and cleanup evidence, and scope classification is explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: scenario artifacts and cleanup receipts are caller-provided, no reference/candidate execution or actual environment cleanup occurs, no scope authorization or durable report store exists, and no live/physical evidence is claimed
+reviewer: Codex root implementation review plus scrubbed environment/path/secret bounds, environment digest matching, TraceDiff use, cleanup receipt semantics, scope predicate and no-I/O/no-runner boundary review; no runtime test reviewer
