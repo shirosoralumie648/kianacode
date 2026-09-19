@@ -9940,3 +9940,19 @@ status_change: PD-13 source slice is implemented and roadmap row 296 is ✅. Rec
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: current guard records existing source contracts but adds no durable checkpoint store or process-death/restart fixture; cross-process resume, runner worker fencing and physical workspace recovery remain open
 reviewer: Codex root implementation review plus snapshot/pending/binding identity, authority/data/sandbox/scope/revision fences, checkpoint restore invalidation and no-auto-resume/no-second-loop boundary review; no runtime test reviewer
+
+### PD-14 immutable ArtifactStore evidence (2026-09-19)
+
+source_snapshot: d0549f40 + PD-14 working-tree slice; kiana-eventlog/src/{lib.rs,artifact_store.rs}; kiana-eventlog/tests/pd14_artifact_store.rs; kiana-eventlog/tests/pd14_artifact_guard.rs; .github/workflows/pd14-artifact-store.yml; docs/roadmap/pd14-artifact-store-baseline.md; docs/roadmap.md
+worktree_status: MemoryArtifactStore now separates stage/commit and only serves committed immutable versions; ArtifactVersion content hash/size/schema/provenance, ArtifactRef scope/manifest identity, duplicate version, expected revision and read/verify hash boundaries are enforced under one mutex; no filesystem path, symlink, workspace, Broker or Runner path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-eventlog/tests/pd14_artifact_store.rs covers stage/commit/read/verify, duplicate overwrite, uncommitted read, hash/scope/manifest and revision drift; pd14_artifact_guard protects no-path/no-effect boundaries; GitHub Actions PD-14 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-14 source slice is implemented and roadmap row 297 is ✅. Artifact references are accepted only after immutable manifest/content verification and explicit commit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: MemoryArtifactStore is process-local and non-durable; no fsync/atomic rename, cross-process lock, restart recovery, backup, retention, physical TOCTOU or production artifact receipt is claimed
+reviewer: Codex root implementation review plus stage/commit separation, content hash/size, scope/manifest identity, duplicate/no-overwrite, revision and no-filesystem/no-effect boundaries; no runtime test reviewer
