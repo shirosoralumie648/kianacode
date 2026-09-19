@@ -8849,6 +8849,24 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### P4-J7-31 provider live boundary evidence (partial, 2026-09-19)
+
+source_snapshot: 57082aed + P4-J7-31 working-tree slice; scripts/provider-live-smoke.sh; kiana-provider/src/{lib,request,response}.rs; kiana-core/tests/p4_j7_31_provider_live_guard.rs; .github/workflows/p4-j7-31-provider-live.yml; docs/roadmap/p4-j7-31-provider-live-baseline.md; docs/roadmap.md
+worktree_status: provider live smoke now has a roadmap-linked source/default-deny gate: required mode rejects missing selected connection, skip-if-unconfigured emits explicit skipped, live catalog/tools require a non-fake provider, and model/usage/credential-revision fields remain visible at the ProviderGateway boundary
+command_argv:
+  bash -n scripts/provider-live-smoke.sh
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, smoke or live provider request executed
+fixture or cassette: CI-only p4_j7_31_provider_live_guard; default skip-if-unconfigured shell check; GitHub Actions P4-J7-31 does not provide credentials or make external requests
+exit_code: 0 for shell syntax, format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-31 is triggered by the eventual push and is not awaited
+status_change: P4-J7-31 source/live boundary advanced from an unindexed smoke script to an explicit per-connection gate; roadmap remains ⏳ because no authorized live connection was executed
+proof-level_change: source plus static compile evidence only; no local_behavior, live, durable or physical promotion
+limitations: no provider account/credential/model/profile, real text/tools/delta/cancel round trip, Receipt/artifact hash, cleanup or usage observation was supplied; skip is not pass and one configured provider cannot cover all connections
+reviewer: Codex root implementation review plus required-vs-skip semantics, non-fake live result, Gateway credential/usage/model boundary and no-external-request CI contract review; no live reviewer
+
 ### H36 Harness integration and evidence closeout (partial, 2026-09-19)
 
 source_snapshot: efb77773 + H36 working-tree slice; kiana-entrypoints/src/{cli,workbench_chat,web}.rs; kiana-daemon/src/lib.rs; kiana-core/src/lib.rs; kiana-runner/src/harness.rs; kiana-provider/src/lib.rs; contrib/desktop/main.js; kiana-domain/src/live_handoff.rs; kiana-core/tests/h36_harness_integration_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/h36-harness-integration.yml; docs/roadmap/h36-harness-integration-baseline.md; docs/roadmap.md
