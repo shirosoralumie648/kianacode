@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-33 revision pin and old-revision drain evidence (partial, 2026-09-19)
+
+source_snapshot: aff4bb50 + DEP-33 working-tree slice; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep33_revision_compatibility.rs; kiana-core/tests/dep33_revision_compatibility_guard.rs; .github/workflows/dep33-revision-compatibility.yml; docs/roadmap/dep33-revision-compatibility-baseline.md; docs/roadmap.md
+worktree_status: pure domain ExecutionRevisionPin now binds build/workflow/provider/extension catalog/project-skill trust/replay schema digests; compatible replay requires exact drift checks, while RevisionDrain models active→draining→retired with replacement readiness, bounded deadline and active run/writer observations
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep33_revision_compatibility domain fixtures; dep33_revision_compatibility_guard; GitHub Actions DEP-33 runs digest-drift/replay/drain/deadline fixtures and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-33 is triggered by the eventual push and is not awaited
+status_change: DEP-33 source contract advanced from rollback gate to a shared revision pin/drain shape; roadmap remains ⏳ because workflow/runner/provider/skills/plugins are not wired to persist/consume it and durable old-revision fencing is absent
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: pin/compatibility facts are not attached to actual runs, replay or provider calls; drain counters are supplied observations, no old revision is stopped/retired, and no upgrade receipt exists
+reviewer: Codex root implementation review plus build/workflow/provider/extension/trust/replay digest pinning, drift denial, bounded drain, writer/run/deadline retirement gate and no-silent-switch boundary review; no runtime test reviewer
+
 ### DEP-32 migration rollback gate evidence (partial, 2026-09-19)
 
 source_snapshot: 2eaaf022 + DEP-32 working-tree slice; kiana-domain/src/migration_rollback.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep32_migration_rollback.rs; kiana-core/tests/dep32_migration_rollback_guard.rs; .github/workflows/dep32-migration-rollback.yml; docs/roadmap/dep32-migration-rollback-baseline.md; docs/roadmap.md

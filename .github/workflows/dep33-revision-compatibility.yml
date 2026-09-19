@@ -1,0 +1,44 @@
+name: DEP-33 revision compatibility
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/revision_compatibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep33_revision_compatibility.rs"
+      - "kiana-core/tests/dep33_revision_compatibility_guard.rs"
+      - "docs/roadmap/dep33-revision-compatibility-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep33-revision-compatibility.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/revision_compatibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep33_revision_compatibility.rs"
+      - "kiana-core/tests/dep33_revision_compatibility_guard.rs"
+      - "docs/roadmap/dep33-revision-compatibility-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep33-revision-compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  revision-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-33 domain fixtures
+        run: cargo test -p kiana-domain --test dep33_revision_compatibility --locked -- --test-threads=1
+      - name: Run DEP-33 source guard
+        run: cargo test -p kiana-core --test dep33_revision_compatibility_guard --locked -- --test-threads=1
+      - name: Compile DEP-33 targets
+        run: cargo check --workspace --tests --locked
