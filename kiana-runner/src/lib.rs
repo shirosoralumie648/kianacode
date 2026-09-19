@@ -14,6 +14,7 @@ mod compact;
 mod harness;
 mod inbox;
 mod model;
+mod progress;
 mod protocol_runner;
 mod state_driver;
 mod stream_normalizer;
@@ -35,6 +36,10 @@ pub use inbox::{
 pub use model::{
     ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRequestContext,
     ModelRole, ModelToolCall, ModelUsage, ScriptedModel, UnavailableModel,
+};
+pub use progress::{
+    failure_digest, ProgressAction, ProgressDecision, ProgressEvidence, ProgressInput,
+    ProgressTracker, DEFAULT_NO_PROGRESS_LIMIT, DEFAULT_PROGRESS_WINDOW,
 };
 pub use protocol_runner::ProtocolRunner;
 pub use state_driver::{
