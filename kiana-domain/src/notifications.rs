@@ -16,6 +16,8 @@ pub const SUBSCRIPTION_SCHEMA: &str = "kiana.notification-subscription.v1";
 pub const DELIVERY_ATTEMPT_SCHEMA: &str = "kiana.notification-delivery-attempt.v1";
 pub const ACTION_REF_SCHEMA: &str = "kiana.notification-action-ref.v1";
 pub const DELIVERY_RECEIPT_SCHEMA: &str = "kiana.notification-delivery-receipt.v1";
+pub const NOTIFICATION_DEDUP_REQUEST_SCHEMA: &str = "kiana.notification-dedup-request.v1";
+pub const NOTIFICATION_DEDUP_RECORD_SCHEMA: &str = "kiana.notification-dedup-record.v1";
 pub const MAX_MESSAGE_BODY_BYTES: usize = 64 * 1024;
 pub const MAX_NOTIFICATION_TEXT_BYTES: usize = 512;
 pub const MAX_NOTIFICATION_SCOPE: usize = 64;
@@ -207,6 +209,171 @@ impl Message {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NotificationDedupRequest {
+    pub schema: String,
+    pub dedup_key: String,
+    pub content_digest: String,
+    pub subscription_revision: u64,
+    pub notification: Notification,
+    #[serde(default)]
+    pub expected_revision: Option<u64>,
+    pub request_digest: String,
+}
+
+impl NotificationDedupRequest {
+    pub fn new(
+        dedup_key: impl Into<String>,
+        notification: Notification,
+        expected_revision: Option<u64>,
+    ) -> Result<Self, String> {
+        notification.validate()?;
+        let mut request = Self {
+            schema: NOTIFICATION_DEDUP_REQUEST_SCHEMA.to_owned(),
+            dedup_key: dedup_key.into(),
+            content_digest: notification.content_digest(),
+            subscription_revision: notification.subscription_revision,
+            notification,
+            expected_revision,
+            request_digest: String::new(),
+        };
+        request.request_digest = request.digest();
+        request.validate()?;
+        Ok(request)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != NOTIFICATION_DEDUP_REQUEST_SCHEMA
+            || self.dedup_key.trim().is_empty()
+            || self.dedup_key.len() > 512
+            || self.dedup_key.contains(['\0', '\n', '\r'])
+            || self.subscription_revision == 0
+            || self.expected_revision.is_some_and(|revision| revision == 0)
+        {
+            return Err("notification_dedup_request_invalid".to_owned());
+        }
+        self.notification.validate()?;
+        validate_digest(&self.content_digest, "notification_dedup_content_digest")?;
+        if self.content_digest != self.notification.content_digest()
+            || self.subscription_revision != self.notification.subscription_revision
+        {
+            return Err("notification_dedup_content_mismatch".to_owned());
+        }
+        validate_digest(&self.request_digest, "notification_dedup_request_digest")?;
+        if self.request_digest != self.digest() {
+            return Err("notification_dedup_request_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "dedup_key": self.dedup_key,
+            "content_digest": self.content_digest,
+            "subscription_revision": self.subscription_revision,
+            "notification": self.notification,
+            "expected_revision": self.expected_revision,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NotificationDedupRecord {
+    pub schema: String,
+    pub dedup_key: String,
+    pub content_digest: String,
+    pub subscription_revision: u64,
+    pub notification: Notification,
+    pub revision: u64,
+    pub record_digest: String,
+}
+
+impl NotificationDedupRecord {
+    pub fn from_request(request: &NotificationDedupRequest, revision: u64) -> Result<Self, String> {
+        request.validate()?;
+        if revision == 0 {
+            return Err("notification_dedup_revision_invalid".to_owned());
+        }
+        let mut record = Self {
+            schema: NOTIFICATION_DEDUP_RECORD_SCHEMA.to_owned(),
+            dedup_key: request.dedup_key.clone(),
+            content_digest: request.content_digest.clone(),
+            subscription_revision: request.subscription_revision,
+            notification: request.notification.clone(),
+            revision,
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != NOTIFICATION_DEDUP_RECORD_SCHEMA
+            || self.dedup_key.trim().is_empty()
+            || self.dedup_key.len() > 512
+            || self.revision == 0
+            || self.subscription_revision == 0
+        {
+            return Err("notification_dedup_record_invalid".to_owned());
+        }
+        self.notification.validate()?;
+        validate_digest(&self.content_digest, "notification_dedup_content_digest")?;
+        if self.content_digest != self.notification.content_digest()
+            || self.subscription_revision != self.notification.subscription_revision
+        {
+            return Err("notification_dedup_record_content_mismatch".to_owned());
+        }
+        validate_digest(&self.record_digest, "notification_dedup_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("notification_dedup_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn advance(
+        &self,
+        expected_revision: u64,
+        notification: Notification,
+    ) -> Result<Self, String> {
+        self.validate()?;
+        if self.revision != expected_revision {
+            return Err("notification_dedup_revision_conflict".to_owned());
+        }
+        if notification.notification_id != self.notification.notification_id {
+            return Err("notification_dedup_notification_identity_conflict".to_owned());
+        }
+        let request = NotificationDedupRequest::new(
+            self.dedup_key.clone(),
+            notification,
+            Some(expected_revision),
+        )?;
+        if request.content_digest != self.content_digest
+            || request.subscription_revision != self.subscription_revision
+        {
+            return Err("notification_dedup_content_conflict".to_owned());
+        }
+        let next_revision = expected_revision
+            .checked_add(1)
+            .ok_or_else(|| "notification_dedup_revision_overflow".to_owned())?;
+        Self::from_request(&request, next_revision)
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "dedup_key": self.dedup_key,
+            "content_digest": self.content_digest,
+            "subscription_revision": self.subscription_revision,
+            "notification": self.notification,
+            "revision": self.revision,
+        }))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NotificationChannel {
@@ -374,6 +541,24 @@ impl Notification {
             "scope": self.scope,
             "channel": self.channel,
             "status": self.status,
+            "created_at_unix_ms": self.created_at_unix_ms,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+            "subscription_revision": self.subscription_revision,
+            "action_ref_id": self.action_ref_id,
+        }))
+    }
+
+    /// Digest of the notification content used for deduplication. It intentionally excludes the
+    /// generated notification ID and mutable delivery status, so retries with a new in-memory DTO
+    /// can still match the original intent.
+    pub fn content_digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "message_id": self.message_id,
+            "recipient_id": self.recipient_id,
+            "project_id": self.project_id,
+            "scope": self.scope,
+            "channel": self.channel,
             "created_at_unix_ms": self.created_at_unix_ms,
             "expires_at_unix_ms": self.expires_at_unix_ms,
             "subscription_revision": self.subscription_revision,

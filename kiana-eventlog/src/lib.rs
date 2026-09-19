@@ -6,6 +6,7 @@ mod integrity;
 mod journal_core;
 mod jsonl;
 mod memory;
+mod notification_dedup;
 mod stream;
 mod workflow_queue;
 
@@ -13,6 +14,7 @@ pub use credential_rotation::MemoryCredentialRotationStore;
 pub use integrity::{scan_jsonl, IntegrityScanReport, IntegrityScanStatus};
 pub use jsonl::JsonlEventLog;
 pub use memory::MemoryEventLog;
+pub use notification_dedup::MemoryNotificationDedupStore;
 pub use stream::{CommitObservedEventStore, StreamEventStore};
 pub use workflow_queue::MemoryWorkflowQueueStore;
 

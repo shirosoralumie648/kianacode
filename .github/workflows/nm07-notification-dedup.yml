@@ -1,0 +1,50 @@
+name: NM-07 notification dedup
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/notifications.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/src/notification_dedup.rs"
+      - "kiana-eventlog/tests/nm07_notification_dedup.rs"
+      - "kiana-core/tests/nm07_notification_dedup_guard.rs"
+      - "docs/roadmap/nm07-notification-dedup-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm07-notification-dedup.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/notifications.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/src/notification_dedup.rs"
+      - "kiana-eventlog/tests/nm07_notification_dedup.rs"
+      - "kiana-core/tests/nm07_notification_dedup_guard.rs"
+      - "docs/roadmap/nm07-notification-dedup-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm07-notification-dedup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-dedup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run notification dedup fixtures
+        run: cargo test -p kiana-eventlog --test nm07_notification_dedup --locked -- --test-threads=1
+      - name: Run notification dedup source guard
+        run: cargo test -p kiana-core --test nm07_notification_dedup_guard --locked -- --test-threads=1
+      - name: Compile NM-07 targets
+        run: cargo check --workspace --tests --locked
