@@ -16,6 +16,7 @@ pub mod config;
 pub mod context_inputs;
 pub mod deps;
 pub mod index;
+pub mod index_generation;
 pub mod repo_map;
 pub mod stop_hooks;
 pub mod token_budget;
@@ -41,6 +42,7 @@ pub use index::{
     ContextPackSnippet, ContextSearchHit, ContextSearchOptions, ContextSearchResults,
     ContextVectorSearchHit, ContextVectorSearchOptions, ContextVectorSearchResults,
 };
+pub use index_generation::{manifest_path, read_index_manifest, write_index_manifest_atomic};
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use stop_hooks::{
     handle_stop_hooks, run_post_tool_use_hooks, run_pre_tool_use_hooks, run_session_start_hooks,

@@ -1,0 +1,59 @@
+name: cm10-index-generation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/index_generation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm10_index_generation.rs"
+      - "kiana-query/src/index_generation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm10_index_generation.rs"
+      - "kiana-core/tests/cm10_index_generation_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm10-index-generation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm10-index-generation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/index_generation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm10_index_generation.rs"
+      - "kiana-query/src/index_generation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm10_index_generation.rs"
+      - "kiana-core/tests/cm10_index_generation_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm10-index-generation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm10-index-generation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  index-generation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-10 domain generation fixtures
+        run: cargo test -p kiana-domain --test cm10_index_generation --locked -- --test-threads=1
+      - name: Run CM-10 query atomic publication fixtures
+        run: cargo test -p kiana-query --test cm10_index_generation --locked -- --test-threads=1
+      - name: Run CM-10 source guard
+        run: cargo test -p kiana-core --test cm10_index_generation_guard --locked -- --test-threads=1
