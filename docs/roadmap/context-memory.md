@@ -590,7 +590,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-32 · Context/Memory Inspector 与用户纠正　⏳
+##### CM-32 · Context/Memory Inspector 与用户纠正　✅
+
+当前 source slice 与 CI-only 证据见 [`cm32-inspector-correction-baseline.md`](cm32-inspector-correction-baseline.md)。
 
 通过 protocol/client 暴露脱敏 manifest、来源、选材/省略、命中、候选审阅、纠正、删除和重建状态；UI 不可改写 EventLog，操作走同一审批与 mutation。验收：`inspector_matches_receipt_without_private_leak`、`user_correction_requires_governed_mutation`。
 

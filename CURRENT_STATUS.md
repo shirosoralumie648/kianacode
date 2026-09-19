@@ -10772,3 +10772,19 @@ status change: CM-31 source slice is implemented and roadmap row 636 is ✅. Qua
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: fixture metrics do not establish semantic embedding quality, production freshness/latency, live provider behavior or business outcomes; later live/durable evidence remains required
 reviewer: Codex root implementation review plus metric bounds, rank formulas, fixture-vs-semantic separation and independent safety zero-hit gate review; no runtime test reviewer
+
+### CM-32 inspector and governed correction evidence (2026-09-20)
+
+source_snapshot: 126b280f + CM-32 working-tree slice; kiana-domain/src/{inspector.rs,memory_mutation.rs,retrieval_receipt.rs,projection_recovery.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm32_inspector_correction.rs; kiana-core/tests/cm32_inspector_correction_guard.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/harness_memory.rs; .github/workflows/cm32-inspector-correction.yml; docs/roadmap/cm32-inspector-correction-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ContextMemoryInspectorSnapshot projects receipt/plan/projection/invalidation/rebuild and redacted source metadata without locator/body; UserMemoryCorrection reuses MemoryMutation with allowed correction operations, current inspector digest, expected revision/evidence/scope/idempotency and operator approval
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-32 redaction/no-private-leak and governed correction fixtures plus Core source guard; GitHub Actions CM-32 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-32 source slice is implemented and roadmap row 637 is ✅. Inspector and correction authority boundaries are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full protocol/client/UI rendering, durable inspector hydration, actual correction command projection, deletion/rebuild controls and live approval UX remain open; no private source body is exposed by the contract
+reviewer: Codex root implementation review plus redacted locator/body boundary, receipt parity, projection/invalidation state, mutation operation restriction and operator approval review; no runtime test reviewer

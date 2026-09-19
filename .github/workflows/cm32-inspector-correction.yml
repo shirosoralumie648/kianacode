@@ -1,0 +1,59 @@
+name: cm32-inspector-correction
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/inspector.rs"
+      - "kiana-domain/src/memory_mutation.rs"
+      - "kiana-domain/src/retrieval_receipt.rs"
+      - "kiana-domain/src/projection_recovery.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm32_inspector_correction.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm32_inspector_correction_guard.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm32-inspector-correction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm32-inspector-correction.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/inspector.rs"
+      - "kiana-domain/src/memory_mutation.rs"
+      - "kiana-domain/src/retrieval_receipt.rs"
+      - "kiana-domain/src/projection_recovery.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm32_inspector_correction.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm32_inspector_correction_guard.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm32-inspector-correction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm32-inspector-correction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspector-correction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-32 inspector fixtures
+        run: cargo test -p kiana-domain --test cm32_inspector_correction --locked -- --test-threads=1
+      - name: Run CM-32 source guard
+        run: cargo test -p kiana-core --test cm32_inspector_correction_guard --locked -- --test-threads=1
