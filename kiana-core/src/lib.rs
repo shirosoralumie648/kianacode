@@ -11,6 +11,7 @@ mod authority_read_model;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
+mod clarification;
 mod collaboration;
 mod commands;
 mod communication;
@@ -82,6 +83,10 @@ pub use authority_read_model::{
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
+};
+pub use clarification::{
+    clarification_human_inbox_item, commit_clarification_answer, ClarificationCommit,
+    CLARIFICATION_CORE_SCHEMA,
 };
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};

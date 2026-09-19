@@ -123,6 +123,8 @@ struct ActiveRun {
     turn_id: Option<TurnId>,
     step_id: Option<StepId>,
     driver: RunDriver,
+    /// The server-owned question remains attached to the same run across checkpoint/restore.
+    pending_clarification: Option<kiana_domain::ClarificationRequest>,
     sandbox: String,
     project_root: String,
     inbox: Inbox,
@@ -180,6 +182,8 @@ struct HarnessCheckpoint {
     step_id: Option<StepId>,
     #[serde(default)]
     driver: Option<RunDriver>,
+    #[serde(default)]
+    pending_clarification: Option<kiana_domain::ClarificationRequest>,
     sandbox: String,
     project_root: String,
     #[serde(default)]
@@ -640,6 +644,7 @@ impl KianaHarness {
             turn_id,
             step_id: None,
             driver: RunDriver::new(run_id, turn_id),
+            pending_clarification: None,
             sandbox: sandbox.to_owned(),
             project_root,
             inbox: Inbox::default(),
@@ -1783,6 +1788,7 @@ impl RunnerPort for KianaHarness {
             turn_id: run.turn_id,
             step_id: run.step_id,
             driver: Some(run.driver.clone()),
+            pending_clarification: run.pending_clarification.clone(),
             sandbox: run.sandbox.clone(),
             project_root: run.project_root.clone(),
             inbox: run.inbox.clone(),
@@ -1902,6 +1908,7 @@ impl RunnerPort for KianaHarness {
                 turn_id: checkpoint.turn_id,
                 step_id: checkpoint.step_id,
                 driver,
+                pending_clarification: checkpoint.pending_clarification,
                 sandbox: checkpoint.sandbox,
                 project_root: checkpoint.project_root,
                 inbox: checkpoint.inbox,

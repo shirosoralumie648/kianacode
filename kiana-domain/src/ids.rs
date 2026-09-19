@@ -49,6 +49,7 @@ macro_rules! uuid_id {
 
 uuid_id!(RequestId);
 uuid_id!(InputId);
+uuid_id!(InteractionId);
 uuid_id!(RunId);
 uuid_id!(TurnId);
 uuid_id!(StepId);

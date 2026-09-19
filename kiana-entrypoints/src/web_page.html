@@ -233,7 +233,7 @@
     async function submitCommand(name, args, requested = sessionId) {
       const data = await api('/api/command', {session_id:requested, name, arguments:args});
       if (requested === sessionId) renderState(data.state);
-      if (!data.response || !['completed','awaiting_approval','running','accepted'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
+      if (!data.response || !['completed','awaiting_approval','waiting_for_input','running','accepted'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
       return data.response;
     }
     async function refreshApprovals() {
@@ -248,7 +248,7 @@
       const box = document.getElementById('approvals'); box.replaceChildren();
       const items = output.items || [];
       if (!items.length) { box.textContent = '没有待处理事项'; return; }
-      const names = {approval:'审批', review:'复核', acceptance:'验收', incident:'异常', reconciliation:'对账', feedback:'改进建议'};
+      const names = {question:'澄清', approval:'审批', review:'复核', acceptance:'验收', incident:'异常', reconciliation:'对账', feedback:'改进建议'};
       items.forEach(item => {
         const card = document.createElement('section'); card.className = 'approval';
         const title = document.createElement('strong'); title.textContent = (names[item.kind] || item.kind) + ' · ' + item.title; card.appendChild(title);
@@ -256,7 +256,7 @@
         (item.actions || []).forEach(action => {
           let fieldsInput = null;
           if ((action.required_fields || []).length) {
-            const label = document.createElement('label'); label.textContent = action.label + '：补充证据与决定（JSON）';
+            const label = document.createElement('label'); label.textContent = item.kind === 'question' ? action.label + '：输入回答（JSON）' : action.label + '：补充证据与决定（JSON）';
             fieldsInput = document.createElement('textarea');
             fieldsInput.setAttribute('aria-label', item.title + ' ' + action.label + ' 补充信息');
             const fields = {};

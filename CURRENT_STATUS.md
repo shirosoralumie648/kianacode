@@ -10196,3 +10196,19 @@ status_change: H25 source slice is implemented and roadmap row 312 is ✅. Repla
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no physical process kill, cross-process executor/job-handle verification, filesystem/provider effect confirmation or live crash replay is claimed; these remain PD/ER/SC rehearsal work
 reviewer: Codex root implementation review plus replay-only/no-effect, deterministic projection divergence, eight fault windows, source event binding, Unknown fencing, terminal conflict and explicit recovery/no-auto-retry boundary review; no runtime test reviewer
+
+### H26 clarification / approval separation evidence (2026-09-19)
+
+source_snapshot: 90fdb6b1 + H26 working-tree slice; kiana-domain/src/{clarification.rs,ids.rs,contracts.rs,event_contracts.rs,platform.rs}; kiana-core/src/{clarification.rs,platform.rs,lifecycle.rs,lib.rs}; kiana-runner/src/{harness.rs,state_driver.rs}; kiana-runner-protocol/src/lib.rs; kiana-protocol/src/lib.rs; kiana-entrypoints/src/web_page.html; kiana-domain/tests/h26_clarification.rs; kiana-protocol/tests/h26_clarification.rs; kiana-runner/tests/h26_clarification.rs; kiana-core/tests/h26_clarification_guard.rs; .github/workflows/h26-clarification.yml; docs/roadmap/h26-clarification-baseline.md; docs/roadmap.md
+worktree_status: InteractionId-bound question/answer/resolution/wait contracts now bind run/turn/step, immutable request digest, responder roles, options, required flag, expiry and cancel policy; Core prepares an original-step continuation without approval/capability material; Runner AwaitingInput stores one pending interaction and rejects foreign/duplicate resume; protocol exposes a regular-input clarification command and Runner event, while shared Human Inbox adds question projection and Web renders it beside existing approval items; checkpoint persists the driver, pending clarification and inbox material, and no second model loop or Broker bypass was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H26 domain answer/expiry/cancel/authority-separation fixtures, protocol regular-input fixture, Runner AwaitingInput identity fixture, Core source guards for approval separation/restart material/shared TTY-Web Human Inbox; GitHub Actions H26 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H26 source slice is implemented and roadmap row 313 is ✅. Clarification answers are distinct from CapabilityApproval and can only resume the original bound turn/step
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: question request/answer EventLog persistence and cross-process hydration are not yet wired, provider/model clarification registration is not live, the global waiting_for_input TurnOutcome is reserved for H27, and current UI command routing still relies on the existing Human Inbox platform adapter
+reviewer: Codex root implementation review plus typed question-vs-approval fields, request/answer digest and expiry/cancel fences, Core no-authority boundary, Runner one-interaction resume, checkpoint material and shared TTY/Web projection review; no runtime test reviewer

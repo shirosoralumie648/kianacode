@@ -1370,6 +1370,42 @@ impl ControlPlane {
                         }
                     }
                 }
+                RunnerEvent::ClarificationRequested { run_id, request } => {
+                    let wait = request.waiting_view().map_err(|error| {
+                        PortError::Failed(format!("clarification_invalid:{error}"))
+                    })?;
+                    self.record_event(
+                        request_id,
+                        sequence,
+                        "run.clarification.requested",
+                        json!({
+                            "run_id": run_id,
+                            "interaction_id": request.interaction_id,
+                            "turn_id": request.turn_id,
+                            "request": &request,
+                            "wait": &wait,
+                            "status": kiana_domain::CLARIFICATION_WAITING_STATUS,
+                        }),
+                    )
+                    .await?;
+                    self.checkpoint_run(context, run_id, sandbox, sequence)
+                        .await?;
+                    return Ok(CoreResponse {
+                        request_id,
+                        status: ExecutionStatus::Accepted,
+                        output: json!({
+                            "run_id": run_id,
+                            "status": kiana_domain::CLARIFICATION_WAITING_STATUS,
+                            "interaction_id": request.interaction_id,
+                            "turn_id": request.turn_id,
+                            "step_id": request.step_id,
+                            "question": request.question,
+                            "required": request.required,
+                            "expires_at_unix_ms": request.expires_at_unix_ms,
+                        }),
+                        error: Some(kiana_domain::CLARIFICATION_WAITING_STATUS.to_owned()),
+                    });
+                }
                 RunnerEvent::Completed {
                     run_id,
                     output: mut harness_output,
