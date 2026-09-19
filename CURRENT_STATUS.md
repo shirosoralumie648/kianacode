@@ -8678,6 +8678,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus FIFO admission, read/write/unknown footprint conservatism, authorized write scope, queue cancellation, CellRegistry budget/path ownership, cross-process lock, Unknown quarantine and no-second-execution-loop review; no runtime test reviewer
 ```
 
+### CAP-24 invocation recovery / reconciliation evidence (2026-09-19)
+
+```text
+source_snapshot: 8f31e8fc + CAP-24 working-tree slice; kiana-core/src/{recovery,invocation_projection,capability_attempt_projection,platform}.rs; kiana-domain/src/{invocation_resume,model,effect_observation,errors,event_contracts}.rs; kiana-runner/src/{harness,budget}.rs; kiana-core/tests/cap24_invocation_recovery_guard.rs; .github/workflows/cap24-invocation-recovery.yml; docs/roadmap/cap24-invocation-recovery-baseline.md; docs/roadmap.md
+worktree_status: Event-derived invocation and attempt projections rebuild request/approval/dispatch/terminal facts, conflicting terminal evidence fails closed, and incomplete dispatch becomes Unknown; resume is a one-time owner/scope/authority/data/catalog/parameter-bound snapshot claim; redacted material is non-resumable; retry is a new bounded attempt and reconciliation appends scoped evidence without changing the original runtime outcome or retrying it
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only replay/resume/retry/reconciliation fixtures and source guards; no local test or smoke binary executed
+fixture or cassette: CO-08 company replay; H14 invocation resume; ER-09 invocation projection; P2-K6-01 reliability; ER-24 reconciliation; ER-25 retry; H13 invocation ledger; CP-20 Unknown reconciliation; cap24_invocation_recovery_guard; GitHub Actions CAP-24 runs these fixtures, source guards and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-24 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-24 source slice is implemented/reconciled. EventLog remains the only recovery authority; completed outcomes are reusable facts, Unknown/ambiguous/redacted continuations are not executable, automatic retry is bounded to safe new attempts, and reconciliation requires explicit scoped evidence
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; provider-specific exactly-once is not claimed, durable cross-process queue recovery remains later automation work, and external effect reconciliation still requires human/provider evidence
+reviewer: Codex root implementation review plus event-sourced invocation reconstruction, terminal conflict detection, owner/scope/epoch snapshot claim, redaction boundary, bounded retry/new attempt identity and evidence-only reconciliation review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

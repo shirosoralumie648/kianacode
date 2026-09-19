@@ -1,0 +1,87 @@
+name: CAP-24 invocation recovery and reconciliation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/budget.rs"
+      - "kiana-core/tests/cap24_invocation_recovery_guard.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-core/tests/er24_reconciliation_evidence_guard.rs"
+      - "kiana-core/tests/er25_retry_policy_guard.rs"
+      - "kiana-core/tests/h13_invocation_ledger_guard.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-domain/tests/co08_replay.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "docs/roadmap/cap24-invocation-recovery-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap24-invocation-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-domain/src/invocation_resume.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/errors.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/budget.rs"
+      - "kiana-core/tests/cap24_invocation_recovery_guard.rs"
+      - "kiana-core/tests/er09_invocation_projection.rs"
+      - "kiana-core/tests/er24_reconciliation_evidence_guard.rs"
+      - "kiana-core/tests/er25_retry_policy_guard.rs"
+      - "kiana-core/tests/h13_invocation_ledger_guard.rs"
+      - "kiana-core/tests/cp20_unknown_reconcile_guard.rs"
+      - "kiana-domain/tests/co08_replay.rs"
+      - "kiana-domain/tests/h14_invocation_resume.rs"
+      - "kiana-core/tests/p2_k6_01_reliability.rs"
+      - "docs/roadmap/cap24-invocation-recovery-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap24-invocation-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invocation-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run replay and resume fixtures
+        run: cargo test -p kiana-domain --test co08_replay --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+      - name: Run invocation and reliability fixtures
+        run: cargo test -p kiana-core --test er09_invocation_projection --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k6_01_reliability --locked -- --test-threads=1
+      - name: Run existing retry and reconciliation guards
+        run: cargo test -p kiana-core --test er24_reconciliation_evidence_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test er25_retry_policy_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test h13_invocation_ledger_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
+      - name: Run CAP-24 source guard
+        run: cargo test -p kiana-core --test cap24_invocation_recovery_guard --locked -- --test-threads=1
+      - name: Compile CAP-24 targets
+        run: cargo check --workspace --tests --locked
