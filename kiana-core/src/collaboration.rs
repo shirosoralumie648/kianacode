@@ -1302,6 +1302,7 @@ impl ControlPlane {
             json!({
                 "symposium_id": meeting.id,
                 "department_id": meeting.department_id,
+                "published": true,
                 "skipped_meeting": anti_meeting,
                 "builder_present": meeting.builder_present(),
                 "decision_id": decision.id,

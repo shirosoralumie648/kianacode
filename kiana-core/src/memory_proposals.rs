@@ -15,7 +15,7 @@ impl ControlPlane {
             .as_str()
             .ok_or_else(|| PortError::Failed("memory_proposal_id_required".to_owned()))?;
         let events = self.events.read_all().await?;
-        let proposal = events
+        let proposal_event = events
             .iter()
             .find(|event| {
                 event.kind == "memory.proposed"
@@ -25,8 +25,21 @@ impl ControlPlane {
                             == Self::canonical_project_root(&context.project_root)
                     })
             })
-            .map(|event| event.data["proposal"].clone())
             .ok_or_else(|| PortError::Failed("memory_proposal_not_found".to_owned()))?;
+        let proposal = proposal_event.data["proposal"].clone();
+        if proposal["origin"] == json!(MemoryOrigin::Model) {
+            let source =
+                proposal_event.data.get("source").cloned().ok_or_else(|| {
+                    PortError::Failed("memory_proposal_source_required".to_owned())
+                })?;
+            let source: MemoryDistillationSource = serde_json::from_value(source)
+                .map_err(|_| PortError::Failed("memory_proposal_source_invalid".to_owned()))?;
+            let proposal_value = serde_json::from_value::<MemoryProposal>(proposal.clone())
+                .map_err(|_| PortError::Failed("memory_proposal_invalid".to_owned()))?;
+            source
+                .validate_proposal_source(&proposal_value)
+                .map_err(PortError::Failed)?;
+        }
         if let Some(facts) = proposal["facts"].as_array() {
             for run_id in facts
                 .iter()

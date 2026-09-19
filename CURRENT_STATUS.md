@@ -10676,3 +10676,19 @@ status change: CM-25 source slice is implemented and roadmap row 336 is ✅. Ter
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: terminal capture/scheduler and durable claim/retry are not newly wired, provider extraction quality and proposal persistence remain CM-26/PD/ER, and no live provider claim is made
 reviewer: Codex root implementation review plus bound evidence size, deterministic idempotency, cursor/scope binding, exact quote matching and no-second-execution-path review; no runtime test reviewer
+
+### CM-26 unified distillation source evidence (2026-09-20)
+
+source_snapshot: 76b7a852 + CM-26 working-tree slice; kiana-domain/src/{memory_distillation.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm26_memory_distillation.rs; kiana-core/src/{lib.rs,memory_distillation.rs,memory_proposals.rs,collaboration.rs}; kiana-core/tests/cm26_memory_distillation_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm26-memory-distillation.yml; docs/roadmap/cm26-memory-distillation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: MemoryDistillationSource binds source type/status/event/run/request/department/digest; run terminal lessons and published symposium decisions share the existing queue lifecycle and Candidate proposal path, while internal sessions are excluded and unknown/untrusted sources cannot reach a model call or qualification path
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-26 confirmed run/decision candidate fixture, unknown-source rejection fixture and Core source guard; GitHub Actions CM-26 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-26 source slice is implemented and roadmap row 337 is ✅. Distillation source authority and unknown-source boundary are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: real provider extraction quality, cross-process queue/projector, human review UI, retrieval/citation receipt, retention/deletion propagation and business outcome verification remain open; `verified=false` is explicit
+reviewer: Codex root implementation review plus unified source envelope, published-decision gate, internal-run recursion fence, unknown/result_unknown fail-closed and no-second-execution-path review; no runtime test reviewer

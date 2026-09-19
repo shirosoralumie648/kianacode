@@ -86,6 +86,7 @@ impl ControlPlane {
         {
             return Ok(());
         }
+        let distillation_source = source_for_event(context, run_id, source, kind, events)?;
         let Some(actor) = context.actor_id.as_deref().filter(|a| !a.trim().is_empty()) else {
             return Ok(());
         };
@@ -190,12 +191,13 @@ impl ControlPlane {
         };
         job.validate().map_err(distill_error)?;
         let event = RuntimeEvent::new(RequestId::new(),1,QUEUED,super::redaction::redact_event_value(&json!({
-            "job":job,"source_run_id":run_id,"source_event_id":source.event_id,"project_root":context.project_root,
+            "job":job,"source":distillation_source,"source_run_id":run_id,"source_event_id":source.event_id,"project_root":context.project_root,
             "automatic_execution":false,
         })))?.with_stream_metadata(MEMORY_DISTILL_STREAM,&job_id,1)
             .with_idempotency_key(format!("memory-distill:{job_id}:queued"));
         // Validate the redacted representation that the consumer will actually read.
         parse_job(&event)?;
+        parse_source(&event)?;
         match self.events.append_expected(event, Some(0)).await {
             Ok(()) => Ok(()),
             Err(PortError::Conflict(reason)) if reason == "event_stream_version_mismatch" => {
@@ -306,6 +308,17 @@ impl ControlPlane {
             e.kind == QUEUED && e.aggregate_type.as_deref() == Some(MEMORY_DISTILL_STREAM)
         }) {
             let job = parse_job(event)?;
+            let source = parse_source(event)?;
+            source
+                .validate_for_job(&job)
+                .or_else(|reason| {
+                    if reason == "memory_distillation_source_unknown" {
+                        Ok(())
+                    } else {
+                        Err(reason)
+                    }
+                })
+                .map_err(|reason| distill_error(&reason))?;
             if !job_matches_context(&job, &context)
                 || args.job_id.as_deref().is_some_and(|id| id != job.job_id)
             {
@@ -323,20 +336,22 @@ impl ControlPlane {
                 .max_by_key(|e| e.stream_version.unwrap_or(e.sequence))
                 .copied()
                 .ok_or_else(|| distill_error("memory_distillation_state_missing"))?;
-            jobs.push((job, latest.clone()));
+            jobs.push((job, latest.clone(), source));
         }
         if args.action == "list" {
-            let output = json!({"schema":"kiana.memory-distillation-status.v1","jobs":jobs.iter().map(|(job,last)|json!({
+            let output = json!({"schema":"kiana.memory-distillation-status.v1","jobs":jobs.iter().map(|(job,last,source)|json!({
                 "job_id":job.job_id,"source_run_id":job.source_run_id,"source_event_id":job.source_event_id,
                 "kind":job.kind,"role_id":job.role_id,"department_id":job.department_id,"state":last.kind,
                 "internal_run_id":last.data.get("internal_run_id"),"result_unknown":matches!(last.kind.as_str(),CLAIMED|STARTED),
+                "source_status":source.source_status,"source_type":source.source_type,
             })).collect::<Vec<_>>()});
             self.append_event(request_id, 2, "command.completed", output.clone())
                 .await?;
             return Ok(CoreResponse::completed(request_id, output));
         }
         if args.action == "finalize" {
-            let Some((job, last)) = jobs.into_iter().next().filter(|_| args.job_id.is_some())
+            let Some((job, last, source)) =
+                jobs.into_iter().next().filter(|_| args.job_id.is_some())
             else {
                 return self
                     .reject_distillation_command(request_id, "memory_distillation_job_required")
@@ -349,15 +364,27 @@ impl ControlPlane {
             }
             // Reconcile an interrupted consumer from the recorded model result; never rerun it.
             return self
-                .finish_memory_distillation(request_id, &job, &last)
+                .finish_memory_distillation(request_id, &job, &last, &source)
                 .await;
         }
-        let Some((job, last)) = jobs.into_iter().find(|(_, last)| last.kind == QUEUED) else {
+        let Some((job, last, source)) = jobs.into_iter().find(|(_, last, _)| last.kind == QUEUED)
+        else {
             let output = json!({"schema":"kiana.memory-distillation-status.v1","consumed":false,"reason":"no_queued_job"});
             self.append_event(request_id, 2, "command.completed", output.clone())
                 .await?;
             return Ok(CoreResponse::completed(request_id, output));
         };
+        if source.source_status != MemoryDistillationSourceStatus::Confirmed {
+            return self
+                .fail_memory_distillation(
+                    request_id,
+                    &job,
+                    &last,
+                    &source,
+                    "memory_distillation_source_unknown",
+                )
+                .await;
+        }
         let internal_run_id = RunId::new();
         let internal_request_id = RequestId::new();
         let internal_session_id =
@@ -365,7 +392,7 @@ impl ControlPlane {
         let claim=self.append_distillation_state(request_id,&job,&last,CLAIMED,json!({
             "internal_run_id":internal_run_id,"internal_request_id":internal_request_id,"internal_session_id":internal_session_id,
             "actor_id":job.actor_id,"role_id":job.role_id,"department_id":job.department_id,"project_root":job.project_root,
-            "max_model_calls":1,"max_steps_per_turn":1,"sandbox":"read-only","tool_policy":"deny_all",
+            "source":source,"max_model_calls":1,"max_steps_per_turn":1,"sandbox":"read-only","tool_policy":"deny_all",
         })).await?;
         let mut internal = context.clone();
         internal.request_id = internal_request_id;
@@ -400,11 +427,12 @@ impl ControlPlane {
                     request_id,
                     &job,
                     latest,
+                    &source,
                     &format!("distillation_run_error:{error}"),
                 )
                 .await;
         }
-        self.finish_memory_distillation(request_id, &job, latest)
+        self.finish_memory_distillation(request_id, &job, latest, &source)
             .await
     }
 
@@ -434,6 +462,10 @@ impl ControlPlane {
             .find(|e| e.kind == QUEUED)
             .ok_or_else(|| distill_error("memory_distillation_claim_required"))?;
         let job = parse_job(queued)?;
+        let source = parse_source(queued)?;
+        source
+            .validate_for_job(&job)
+            .map_err(|reason| distill_error(&reason))?;
         let claim = events
             .iter()
             .max_by_key(|e| e.stream_version.unwrap_or(e.sequence))
@@ -444,6 +476,7 @@ impl ControlPlane {
             || claim.data["internal_request_id"] != json!(context.request_id)
             || claim.data["internal_run_id"] != json!(run_id)
             || claim.data["internal_session_id"] != json!(context.session_id)
+            || claim.data["source"] != serde_json::to_value(&source).unwrap_or(Value::Null)
             || !history_empty
             || context.permission_profile != PermissionProfile::Safe
             || context.cell_id.is_some()
@@ -470,9 +503,15 @@ impl ControlPlane {
         request_id: RequestId,
         job: &MemoryDistillationJob,
         last: &RuntimeEvent,
+        source: &MemoryDistillationSource,
     ) -> Result<CoreResponse, CoreError> {
         if matches!(last.kind.as_str(), "memory.proposed" | COMPLETED) {
             return Ok(CoreResponse::completed(request_id, last.data.clone()));
+        }
+        if let Err(reason) = source.validate_for_job(job) {
+            return self
+                .fail_memory_distillation(request_id, job, last, source, &reason)
+                .await;
         }
         if !matches!(last.kind.as_str(), CLAIMED | STARTED) {
             return Ok(CoreResponse::blocked(
@@ -485,7 +524,13 @@ impl ControlPlane {
             .and_then(RunId::parse_str)
         else {
             return self
-                .fail_memory_distillation(request_id, job, last, "memory_distillation_run_missing")
+                .fail_memory_distillation(
+                    request_id,
+                    job,
+                    last,
+                    source,
+                    "memory_distillation_run_missing",
+                )
                 .await;
         };
         let events = self.events.read_stream("run", &run_id.to_string()).await?;
@@ -507,6 +552,7 @@ impl ControlPlane {
                     request_id,
                     job,
                     last,
+                    source,
                     &format!("memory_distillation_run_terminal:{}", terminal.kind),
                 )
                 .await;
@@ -524,16 +570,17 @@ impl ControlPlane {
                     request_id,
                     job,
                     last,
+                    source,
                     "memory_distillation_model_call_bound",
                 )
                 .await;
         }
         let text = terminal.data["text"].as_str().unwrap_or_default();
-        let (verdict, reason, proposal) = match job.validate_output(text) {
+        let (verdict, reason, proposal) = match job.validate_output_with_source(text, source) {
             Ok(output) => output,
             Err(reason) => {
                 return self
-                    .fail_memory_distillation(request_id, job, last, reason)
+                    .fail_memory_distillation(request_id, job, last, source, reason)
                     .await
             }
         };
@@ -545,6 +592,7 @@ impl ControlPlane {
         let output = json!({"schema":"kiana.memory-distillation-result.v1","job_id":job.job_id,"consumed":true,
             "verdict":verdict,"reason":reason,"proposal":proposal,"project_root":job.project_root,
             "session_id":job.source_session_id,"source_run_id":job.source_run_id,"internal_run_id":run_id,
+            "source":source,"verified":false,
             "distillation":{"schema":kiana_domain::MEMORY_DISTILLATION_SCHEMA,"model_distillation":true,
                 "source_event_id":job.source_event_id,"model_turn_event_id":model_turns[0].event_id,
                 "provider_id":model_turns[0].data["provider_id"],"model_id":model_turns[0].data["model_id"],
@@ -563,11 +611,13 @@ impl ControlPlane {
         request_id: RequestId,
         job: &MemoryDistillationJob,
         last: &RuntimeEvent,
+        source: &MemoryDistillationSource,
         reason: &str,
     ) -> Result<CoreResponse, CoreError> {
         let reason = super::redaction::redact_event_text(reason);
         let output = json!({"schema":"kiana.memory-distillation-result.v1","job_id":job.job_id,"consumed":true,
-            "state":FAILED,"reason":reason,"internal_run_id":last.data["internal_run_id"],"candidate_created":false});
+            "state":FAILED,"reason":reason,"internal_run_id":last.data["internal_run_id"],"candidate_created":false,
+            "source":source,"verified":false});
         self.append_distillation_state(request_id, job, last, FAILED, output.clone())
             .await?;
         self.append_event(request_id, 3, "command.failed", output.clone())
@@ -606,6 +656,7 @@ impl ControlPlane {
         if !matches!(
             (previous.kind.as_str(), kind),
             (QUEUED, CLAIMED)
+                | (QUEUED, FAILED)
                 | (CLAIMED, STARTED)
                 | (CLAIMED | STARTED, "memory.proposed" | COMPLETED | FAILED)
         ) {
@@ -631,6 +682,99 @@ impl ControlPlane {
             .await?;
         Ok(event)
     }
+}
+
+fn source_for_event(
+    context: &RequestContext,
+    run_id: Option<RunId>,
+    source: &RuntimeEvent,
+    kind: &str,
+    events: &[RuntimeEvent],
+) -> Result<MemoryDistillationSource, CoreError> {
+    let source_digest = kiana_domain::json_digest(&json!({
+        "event_id": source.event_id,
+        "request_id": source.request_id,
+        "kind": &source.kind,
+        "data": &source.data,
+    }));
+    match kind {
+        "lesson" => {
+            let run_id = run_id.ok_or_else(|| distill_error("memory_distillation_run_required"))?;
+            let authorized = events
+                .iter()
+                .find(|event| {
+                    event.kind == "run.authorized"
+                        && event.data["run_id"] == json!(run_id)
+                        && event.data["department_id"] == json!(context.department_id)
+                })
+                .ok_or_else(|| distill_error("memory_distillation_source_untrusted"))?;
+            if !matches!(
+                source.kind.as_str(),
+                "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
+            ) {
+                return Err(distill_error("memory_distillation_source_untrusted"));
+            }
+            let status = if source.kind == "run.result_unknown" {
+                MemoryDistillationSourceStatus::Unknown
+            } else {
+                MemoryDistillationSourceStatus::Confirmed
+            };
+            MemoryDistillationSource::run_terminal(
+                status,
+                source.kind.clone(),
+                run_id,
+                source.event_id,
+                source.request_id,
+                authorized.data["department_id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+                source_digest,
+            )
+            .map_err(|reason| distill_error(&reason))
+        }
+        "decision" => {
+            if run_id.is_some()
+                || source.kind != "symposium.closed"
+                || source.data["published"] != true
+                || source.data["department_id"] != json!(context.department_id)
+            {
+                return Err(distill_error("memory_distillation_source_untrusted"));
+            }
+            let decision = &source.data["decision"];
+            let decision_id = decision["id"]
+                .as_str()
+                .filter(|id| !id.trim().is_empty())
+                .ok_or_else(|| distill_error("memory_distillation_decision_unpublished"))?;
+            if decision["summary"]
+                .as_str()
+                .is_none_or(|summary| summary.trim().is_empty())
+            {
+                return Err(distill_error("memory_distillation_decision_unpublished"));
+            }
+            MemoryDistillationSource::published_decision(
+                source.event_id,
+                source.request_id,
+                context.department_id.clone(),
+                decision_id,
+                source_digest,
+            )
+            .map_err(|reason| distill_error(&reason))
+        }
+        _ => Err(distill_error("memory_distillation_kind_invalid")),
+    }
+}
+
+fn parse_source(event: &RuntimeEvent) -> Result<MemoryDistillationSource, CoreError> {
+    let source: MemoryDistillationSource = serde_json::from_value(event.data["source"].clone())
+        .map_err(|_| distill_error("memory_distillation_source_invalid"))?;
+    source.validate().map_err(|reason| distill_error(&reason))?;
+    if event.data["source_event_id"] != json!(source.source_event_id)
+        || event.data["source_run_id"] != json!(source.source_run_id)
+    {
+        return Err(distill_error("memory_distillation_source_binding_invalid"));
+    }
+    Ok(source)
 }
 
 fn distill_error(reason: &str) -> CoreError {
