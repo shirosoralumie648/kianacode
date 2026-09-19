@@ -10564,3 +10564,19 @@ status change: CM-18 source slice is implemented and roadmap row 329 is ✅. Too
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing H15 daemon output-read remains the adapter and is not fully migrated to ToolOutputSpill, ArtifactStore durability/retention/deletion and MCP-wide bounded results remain open; no live provider/effect claim is made
 reviewer: Codex root implementation review plus preview bound, run/turn/capability/scope/TTL binding, content digest, binary/text page, cursor and no-second-execution-path review; no runtime test reviewer
+
+### CM-19 CompactSummary evidence and pending-pair evidence (2026-09-20)
+
+source_snapshot: 3af2aab2 + CM-19 working-tree slice; kiana-domain/src/{compact_summary.rs,contracts.rs}; kiana-domain/tests/{h22_compact_summary.rs,cm19_compact_summary.rs}; kiana-runner/src/compact.rs; kiana-core/tests/cm19_compact_summary_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm19-compact-summary.yml; docs/roadmap/cm19-compact-summary-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CompactSummaryEvidence binds decision/approval/completed-action/verification refs to fact digests and explicit statuses; summary validation rejects missing, pending, denied or unknown evidence for claimed completion/approval/verification and can recheck against an authoritative evidence projection; Runner preserves latest goal and complete assistant/tool pending pair
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-19 forged-summary/evidence-status fixture, Runner latest-goal/pending-pair fixture and Core source guard; GitHub Actions CM-19 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-19 source slice is implemented and roadmap row 330 is ✅. Compact summaries now distinguish disposable prose from confirmed event/receipt evidence
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: actual admitted tools-empty summary model generation is not wired, authoritative evidence still requires EventLog/receipt projection, and artifact/CAS commit, crash recovery and cross-process hydration remain CM-20/21/ER/PD work
+reviewer: Codex root implementation review plus evidence kind/status/fact digest, confirmed-only claims, authoritative recheck, latest pending-group retention and no-second-execution-path review; no runtime test reviewer

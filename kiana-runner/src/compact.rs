@@ -306,4 +306,47 @@ mod tests {
             out.tokens_after
         );
     }
+
+    #[test]
+    fn cm19_compaction_keeps_latest_goal_and_pending_pairs() {
+        let messages = vec![
+            ModelMessage::system("product rules"),
+            ModelMessage::user("old goal"),
+            ModelMessage::assistant_with_tools(
+                "old call",
+                vec![crate::model::ModelToolCall {
+                    id: "old-call".to_owned(),
+                    name: "shell".to_owned(),
+                    arguments: serde_json::json!({"command":"true"}),
+                }],
+            ),
+            ModelMessage::tool("old-call", "old result"),
+            ModelMessage::user("latest goal"),
+            ModelMessage::assistant_with_tools(
+                "pending call",
+                vec![crate::model::ModelToolCall {
+                    id: "pending-call".to_owned(),
+                    name: "shell".to_owned(),
+                    arguments: serde_json::json!({"command":"pending"}),
+                }],
+            ),
+            ModelMessage::tool("pending-call", "pending result"),
+        ];
+        let summary = CompactSummary::from_messages(&messages).unwrap();
+        let compacted = build_compacted_history_with_summary(&messages, 64, &summary).unwrap();
+        assert!(compacted
+            .iter()
+            .any(|message| message.text.contains("latest goal")));
+        assert!(compacted.iter().any(|message| {
+            message.role == ModelRole::Assistant
+                && message
+                    .tool_calls
+                    .iter()
+                    .any(|call| call.id == "pending-call")
+        }));
+        assert!(compacted.iter().any(|message| {
+            message.role == ModelRole::Tool
+                && message.tool_call_id.as_deref() == Some("pending-call")
+        }));
+    }
 }
