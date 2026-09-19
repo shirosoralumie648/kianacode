@@ -1,0 +1,66 @@
+name: SC-41 security and release gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/sc00-baseline.yml"
+      - ".github/workflows/sc18-secret-ref.yml"
+      - ".github/workflows/sc19-secret-rotation.yml"
+      - ".github/workflows/dep39-supply-chain.yml"
+      - ".github/workflows/dep41-release-gate.yml"
+      - ".github/workflows/sc41-security-gate.yml"
+      - "scripts/compliance-audit.sh"
+      - "scripts/package-release.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-commercial-release-artifacts.sh"
+      - "scripts/release-preflight.sh"
+      - "scripts/release-signature-verification-smoke.sh"
+      - "scripts/validate-sc41-security-gate.sh"
+      - "kiana-core/tests/security_baseline.rs"
+      - "kiana-core/tests/sc41_security_gate_guard.rs"
+      - "docs/roadmap/sc41-security-gate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - ".github/workflows/sc00-baseline.yml"
+      - ".github/workflows/sc18-secret-ref.yml"
+      - ".github/workflows/sc19-secret-rotation.yml"
+      - ".github/workflows/dep39-supply-chain.yml"
+      - ".github/workflows/dep41-release-gate.yml"
+      - ".github/workflows/sc41-security-gate.yml"
+      - "scripts/compliance-audit.sh"
+      - "scripts/package-release.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-commercial-release-artifacts.sh"
+      - "scripts/release-preflight.sh"
+      - "scripts/release-signature-verification-smoke.sh"
+      - "scripts/validate-sc41-security-gate.sh"
+      - "kiana-core/tests/security_baseline.rs"
+      - "kiana-core/tests/sc41_security_gate_guard.rs"
+      - "docs/roadmap/sc41-security-gate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Validate security and release boundaries
+        run: bash scripts/validate-sc41-security-gate.sh
+      - name: Run existing security baseline fixture
+        run: cargo test -p kiana-core --test security_baseline --locked -- --test-threads=1
+      - name: Run SC-41 source guard
+        run: cargo test -p kiana-core --test sc41_security_gate_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked
