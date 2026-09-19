@@ -35,7 +35,8 @@ impl ControlPlane {
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::Blocked,
-                output: json!({"run_id":run_id,"data_revoked":true,"retained_event_ids":events.iter().map(|event|event.event_id).collect::<Vec<_>>()}),
+                output: json!({"run_id":run_id,"data_revoked":true,"retained_event_ids":events.iter().map(|event|event.event_id).collect::<Vec<_>>(),
+                    "historical_receipt":{"state":"preserved_invalid","deleted_at":null,"reinjection_allowed":false}}),
                 error: Some("receipt_data_revoked".to_owned()),
             });
         }

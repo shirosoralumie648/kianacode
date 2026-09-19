@@ -221,8 +221,8 @@ fn apply(arguments: &Value) -> Result<Value, PortError> {
         json!({"schema":"kiana.data-governance-result.v1","project_root":root,"revision":policy.revision,"action":action,
         "affected_grants":affected,"erased_sources":erased,"policy":policy,
         "data_epoch":policy.data_epoch,
-        "propagation":{"receipt":propagation_state,"audit":if policy.grants.values().any(|grant| grant.retention.retain_audit_metadata) {"metadata_retained"} else {propagation_state},"artifact":propagation_state,"memory":propagation_state,"index":propagation_state,"cache":propagation_state,"export":propagation_state},
-        "cache_policy":"revoked_sources_excluded","runner_snapshots":"require_fresh_context",
+        "propagation":{"receipt":propagation_state,"audit":if policy.grants.values().any(|grant| grant.retention.retain_audit_metadata) {"metadata_retained"} else {propagation_state},"artifact":propagation_state,"memory":propagation_state,"memory-jsonl":propagation_state,"memory-body":propagation_state,"index":propagation_state,"bm25-index":propagation_state,"dense-index":propagation_state,"repo-index":propagation_state,"cache":propagation_state,"prompt-cache":propagation_state,"context-plan":propagation_state,"summary":propagation_state,"checkpoint":propagation_state,"ui":propagation_state,"export":propagation_state},
+        "historical_receipts":"preserved_invalid","reinjection":"blocked","cache_policy":"revoked_sources_excluded","runner_snapshots":"require_fresh_context",
         "audit_metadata_retained":true}),
     )
 }
