@@ -10548,3 +10548,19 @@ status change: CM-17 source slice is implemented and roadmap row 328 is ✅. The
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: ProviderGateway/ModelClient actual send boundary is not yet migrated to consume the alias, durable cross-process snapshot hydration and receipt replay remain open, and no live provider claim is made
 reviewer: Codex root implementation review plus immutable snapshot completeness, digest coverage, source/budget validation, route/scope fence and no-second-execution-path review; no runtime test reviewer
+
+### CM-18 tool-output spill and verified pages evidence (2026-09-20)
+
+source_snapshot: 8c146189 + CM-18 working-tree slice; kiana-domain/src/{tool_output_spill.rs,execution_output.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm18_tool_output_spill.rs; kiana-core/tests/cm18_tool_output_spill_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm18-tool-output-spill.yml; docs/roadmap/cm18-tool-output-spill-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ToolOutputSpill adds bounded preview/truncation metadata and binds ExecutionOutputRef to turn, capability, source scope and TTL; ToolOutputPage validates complete content digest/size, caller identity, text/binary bounds, UTF-8 boundaries and stable cursor/next-cursor digests; no bytes are stored in the domain reference and no second read/execution path is added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-18 bounded preview, foreign run/scope denial, verified page digest and Core source guard; GitHub Actions CM-18 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-18 source slice is implemented and roadmap row 329 is ✅. Tool output preview/spill/page provenance is explicit at the domain boundary
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing H15 daemon output-read remains the adapter and is not fully migrated to ToolOutputSpill, ArtifactStore durability/retention/deletion and MCP-wide bounded results remain open; no live provider/effect claim is made
+reviewer: Codex root implementation review plus preview bound, run/turn/capability/scope/TTL binding, content digest, binary/text page, cursor and no-second-execution-path review; no runtime test reviewer

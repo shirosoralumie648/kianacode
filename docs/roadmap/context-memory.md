@@ -446,7 +446,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-18 · 工具结果有界预览与受控 spill　⏳
+##### CM-18 · 工具结果有界预览与受控 spill　✅
+
+当前 source slice 与 CI-only 证据见 [`cm18-tool-output-spill-baseline.md`](cm18-tool-output-spill-baseline.md)。
 
 超大/二进制工具结果写 artifact，给模型有界预览、digest、分页引用；引用绑定 run/turn/capability/source scope 和 TTL。验收：`huge_tool_output_is_bounded_before_buffering`、`foreign_run_reference_is_denied`、`verified_page_retrieval_preserves_digest`。
 
