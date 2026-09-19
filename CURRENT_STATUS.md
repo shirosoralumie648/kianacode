@@ -9988,3 +9988,19 @@ status_change: PD-16 source slice is implemented and roadmap row 299 is ✅. Rec
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: evidence graph remains a recomputed projection without dedicated durable graph/index, artifact bytes/delivery reconciliation and external business outcome receipt; controlled closing write remains adapter/environment dependent
 reviewer: Codex root implementation review plus fact-only receipt aggregation, source cursor/event binding, Unknown/verification preservation, immutable artifact/evidence ref validation and no-self-report/no-Broker boundary review; no runtime test reviewer
+
+### SC-21 DataClass / Purpose / DataBoundary evidence (2026-09-19)
+
+source_snapshot: e2fbeeb7 + SC-21 working-tree slice; kiana-domain/src/{governance.rs,authority.rs,contracts.rs}; kiana-domain/tests/sc21_data_boundary_guard.rs; .github/workflows/sc21-data-boundary.yml; docs/roadmap/sc21-data-boundary-baseline.md; docs/roadmap.md
+worktree_status: existing strict DataClass/Purpose/Retention/ProcessingGrant/DataPolicy and DataBoundary contracts are source-guarded for schema/source hash/revoke/data epoch/authority epoch/order/digest constraints; domain remains value-only with no Broker/filesystem execution path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-domain/tests/sc21_data_boundary_guard.rs inventories strict governance/boundary contracts; existing OA-20/P2-K7-01 behavior fixtures remain CI-owned; GitHub Actions SC-21 runs source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-21 source slice is implemented and roadmap row 300 is ✅. Data purpose/class/boundary and retention metadata cannot silently widen or erase governed scope
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source guard does not prove every runtime entrypoint enforces the contracts, durable retention/delete, external authentication or compliance certification; those remain later SC/PD steps
+reviewer: Codex root implementation review plus strict data class/purpose/retention/source hash, revoke propagation, data/authority epoch, boundary ordering/digest and domain-only boundary review; no runtime test reviewer
