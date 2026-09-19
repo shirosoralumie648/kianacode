@@ -4,6 +4,7 @@
 //! The runner never executes these tools.
 
 use crate::apply_patch::apply_codex_patch;
+use crate::process_supervisor::ProcessSupervisor;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
@@ -18,7 +19,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 use tokio::task::JoinHandle;
 
 const SHELL_OPERATION: &str = "shell.exec";
@@ -27,8 +28,6 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const EXEC_TIMEOUT_EXIT_CODE: i32 = 124;
 const EXEC_OUTPUT_MAX_BYTES: usize = 1024 * 1024;
 const IO_DRAIN_TIMEOUT: Duration = Duration::from_millis(2000);
-const PROCESS_GROUP_TERM_GRACE: Duration = Duration::from_millis(100);
-const PROCESS_GROUP_EXIT_GRACE: Duration = Duration::from_millis(250);
 const READ_CHUNK_SIZE: usize = 8192;
 
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
@@ -382,7 +381,6 @@ pub(crate) async fn run_confined_cancellable(
         );
     }
     let mut command = sandboxed_command_scoped(&argv, project_root, workdir, sandbox, scope)?;
-    prepare_process_group(&mut command);
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -391,7 +389,7 @@ pub(crate) async fn run_confined_cancellable(
     let mut child = command
         .spawn()
         .map_err(|error| PortError::Failed(format!("shell_exec_failed:{error}")))?;
-    let mut process_group = ProcessGroupGuard::new(child.id());
+    let mut process_guard = ProcessSupervisor::guard(child.id());
     let stdout = child
         .stdout
         .take()
@@ -405,36 +403,45 @@ pub(crate) async fn run_confined_cancellable(
     // Codex exec.rs consume_output: timeout is an exec outcome (exit 124,
     // timed_out=true), not a capability crash. Kill the child, then drain
     // pipes with IO_DRAIN_TIMEOUT so inherited fds cannot hang the agent.
-    let (exit_code, timed_out, cancelled, stop_confirmed) = tokio::select! {
+    let execution_id = scope
+        .and_then(|value| value["execution_id"].as_str())
+        .unwrap_or("shell.exec");
+    let (exit_code, timed_out, cancelled, stop_report) = tokio::select! {
         biased;
         _ = async {
             if let Some(rx) = cancellation.as_mut() { kiana_ports::wait_for_cancellation(rx).await; }
             else { std::future::pending::<()>().await; }
         } => {
-            let stopped = terminate_process_group(&mut child,process_group.id()).await;
-            if !stopped { return Err(PortError::Failed("shell_result_unknown:cancel_stop_unconfirmed".to_owned())); }
-            (130,false,true,stopped)
+            let process_group = child.id();
+            let report = ProcessSupervisor::stop(execution_id, &mut child, process_group).await;
+            if !report.confirmed { return Err(PortError::Failed("shell_result_unknown:cancel_stop_unconfirmed".to_owned())); }
+            (130,false,true,report)
         }
         status = child.wait() => {
             let status = status
                 .map_err(|error| PortError::Failed(format!("shell_exec_failed:{error}")))?;
-            let stopped = terminate_process_group(&mut child,process_group.id()).await;
-            if !stopped { return Err(PortError::Failed("shell_result_unknown:process_group_not_stopped".to_owned())); }
-            (status.code().unwrap_or(-1), false, false, stopped)
+            let process_group = child.id();
+            let report = ProcessSupervisor::stop(execution_id, &mut child, process_group).await;
+            if !report.confirmed { return Err(PortError::Failed("shell_result_unknown:process_group_not_stopped".to_owned())); }
+            (status.code().unwrap_or(-1), false, false, report)
         }
         _ = tokio::time::sleep(timeout) => {
-            let stop_confirmed = terminate_process_group(&mut child, process_group.id()).await;
-            if !stop_confirmed {
+            let process_group = child.id();
+            let report = ProcessSupervisor::stop(execution_id, &mut child, process_group).await;
+            if !report.confirmed {
                 return Err(PortError::Failed(
                     "shell_result_unknown:process_group_not_stopped".to_owned(),
                 ));
             }
-            (EXEC_TIMEOUT_EXIT_CODE, true, false, stop_confirmed)
+            (EXEC_TIMEOUT_EXIT_CODE, true, false, report)
         }
     };
-    process_group.finish_if_stopped();
+    process_guard.disarm();
     let stdout = drain_capped(&mut stdout_handle).await;
     let stderr = drain_capped(&mut stderr_handle).await;
+    let budget = kiana_domain::ProcessResourceBudget::for_wall_time_ms(
+        timeout.as_millis().min(u128::from(u64::MAX)) as u64,
+    );
     Ok(json!({
         "stdout": render_capped(&stdout.bytes, stdout.truncated),
         "stderr": render_capped(&stderr.bytes, stderr.truncated),
@@ -444,8 +451,10 @@ pub(crate) async fn run_confined_cancellable(
         "effect_started": true,
         "effect_known": true,
         "zero_effect": false,
-        "stop_state": if cancelled { if stop_confirmed { "confirmed" } else { "unconfirmed" } } else { "not_requested" },
-        "stop_confirmed": stop_confirmed,
+        "stop_state": if cancelled { if stop_report.confirmed { "confirmed" } else { "unconfirmed" } } else { "not_requested" },
+        "stop_confirmed": stop_report.confirmed,
+        "stop_report": stop_report,
+        "resource_budget": ProcessSupervisor::resource_receipt(&budget),
         "stdout_metadata":{"captured_bytes":stdout.bytes.len(),"observed_bytes":stdout.observed_bytes,"lines":stdout.lines,"truncated":stdout.truncated,"read_error":stdout.read_error},
         "stderr_metadata":{"captured_bytes":stderr.bytes.len(),"observed_bytes":stderr.observed_bytes,"lines":stderr.lines,"truncated":stderr.truncated,"read_error":stderr.read_error},
         "sandbox": sandbox,
@@ -459,117 +468,6 @@ struct CappedOutput {
     observed_bytes: u64,
     lines: u64,
     read_error: Option<String>,
-}
-
-fn prepare_process_group(command: &mut Command) {
-    #[cfg(unix)]
-    command.process_group(0);
-}
-
-struct ProcessGroupGuard {
-    pid: Option<u32>,
-    active: bool,
-}
-
-impl ProcessGroupGuard {
-    fn new(pid: Option<u32>) -> Self {
-        Self { pid, active: true }
-    }
-
-    fn id(&self) -> Option<u32> {
-        self.pid
-    }
-
-    fn finish_if_stopped(&mut self) {
-        #[cfg(unix)]
-        {
-            if self.pid.is_none_or(|pid| !process_group_exists(pid)) {
-                self.active = false;
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            self.active = false;
-        }
-    }
-}
-
-impl Drop for ProcessGroupGuard {
-    fn drop(&mut self) {
-        if !self.active {
-            return;
-        }
-        #[cfg(unix)]
-        if let Some(pid) = self.pid {
-            signal_process_group(pid, libc::SIGKILL);
-        }
-    }
-}
-
-pub(crate) async fn terminate_process_group(child: &mut Child, pid: Option<u32>) -> bool {
-    let Some(pid) = pid else {
-        if child.start_kill().is_err() {
-            return false;
-        }
-        return child.wait().await.is_ok();
-    };
-
-    #[cfg(unix)]
-    {
-        if !signal_process_group(pid, libc::SIGTERM) {
-            let _ = child.start_kill();
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = child.start_kill();
-    }
-
-    let mut leader_reaped = false;
-    if tokio::time::timeout(PROCESS_GROUP_TERM_GRACE, child.wait())
-        .await
-        .is_ok()
-    {
-        leader_reaped = true;
-    }
-
-    #[cfg(unix)]
-    if process_group_exists(pid) {
-        signal_process_group(pid, libc::SIGKILL);
-    }
-    if !leader_reaped {
-        let _ = child.wait().await;
-    }
-
-    #[cfg(unix)]
-    {
-        let deadline = tokio::time::Instant::now() + PROCESS_GROUP_EXIT_GRACE;
-        while process_group_exists(pid) && tokio::time::Instant::now() < deadline {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        return leader_reaped && !process_group_exists(pid);
-    }
-    #[cfg(not(unix))]
-    {
-        leader_reaped
-    }
-}
-
-#[cfg(unix)]
-fn signal_process_group(pid: u32, signal: libc::c_int) -> bool {
-    let Ok(pgid) = libc::pid_t::try_from(pid) else {
-        return false;
-    };
-    unsafe { libc::kill(-pgid, signal) == 0 }
-}
-
-#[cfg(unix)]
-fn process_group_exists(pid: u32) -> bool {
-    let Ok(pgid) = libc::pid_t::try_from(pid) else {
-        return false;
-    };
-    let result = unsafe { libc::kill(-pgid, 0) };
-    result == 0 || std::io::Error::last_os_error().kind() == std::io::ErrorKind::PermissionDenied
 }
 
 async fn read_capped<R>(mut reader: R, max_bytes: usize) -> std::io::Result<CappedOutput>
@@ -721,33 +619,12 @@ pub(crate) fn sandboxed_command_scoped(
     for (key, value) in crate::harness_sandbox::sandbox_env(std::env::vars(), sandbox) {
         command.env(key, value);
     }
-    enforce_process_limits(&mut command)?;
+    let timeout_ms = scope
+        .and_then(|value| value["timeout_ms"].as_u64())
+        .unwrap_or(COMMAND_TIMEOUT.as_millis() as u64);
+    let budget = kiana_domain::ProcessResourceBudget::for_wall_time_ms(timeout_ms);
+    ProcessSupervisor::prepare_command(&mut command, &budget)?;
     Ok(command)
-}
-
-pub(crate) fn enforce_process_limits(command: &mut Command) -> Result<(), PortError> {
-    #[cfg(unix)]
-    unsafe {
-        command.pre_exec(|| {
-            for (resource, value) in [
-                (libc::RLIMIT_CORE, 0u64),
-                (libc::RLIMIT_NOFILE, 256),
-                (libc::RLIMIT_FSIZE, 64 * 1024 * 1024),
-                (libc::RLIMIT_AS, 2 * 1024 * 1024 * 1024),
-                (libc::RLIMIT_NPROC, 1024),
-            ] {
-                let limit = libc::rlimit {
-                    rlim_cur: value as libc::rlim_t,
-                    rlim_max: value as libc::rlim_t,
-                };
-                if libc::setrlimit(resource, &limit) != 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-            }
-            Ok(())
-        });
-    }
-    Ok(())
 }
 
 fn command_timeout(arguments: &Value) -> Duration {
@@ -1011,11 +888,13 @@ mod tests {
             .parse::<u32>()
             .unwrap();
         let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
-        while process_group_exists(group_pid) && tokio::time::Instant::now() < deadline {
+        while ProcessSupervisor::process_group_exists(group_pid)
+            && tokio::time::Instant::now() < deadline
+        {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         assert!(
-            !process_group_exists(group_pid),
+            !ProcessSupervisor::process_group_exists(group_pid),
             "process group {group_pid} survived"
         );
     }

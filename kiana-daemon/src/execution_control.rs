@@ -1,4 +1,5 @@
 //! Operator continuations for a supervised process; every request still consumes a core permit.
+use crate::process_supervisor::ProcessSupervisor;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
@@ -163,9 +164,6 @@ impl ExecutionControl {
             &sandbox,
             Some(&scope),
         )?;
-        #[cfg(unix)]
-        command.process_group(0);
-        command.kill_on_drop(true);
         let tty = arguments["pty"] == true;
         #[cfg(unix)]
         let terminal = if tty {
@@ -238,6 +236,7 @@ impl ExecutionControl {
             .spawn()
             .map_err(|cause| error(&format!("process_spawn_failed:{cause}")))?;
         let pid = child.id();
+        let mut process_guard = ProcessSupervisor::guard(pid);
         let job_handle = JobHandle::new(
             job_id,
             request.request.request_id,
@@ -311,7 +310,10 @@ impl ExecutionControl {
         };
         if let Err(cause) = self.fact(&id, "process.started", identity.clone()).await {
             entry.cancelled.send_replace(true);
-            let _ = crate::harness_capabilities::terminate_process_group(&mut child, pid).await;
+            let report = ProcessSupervisor::stop(&id, &mut child, pid).await;
+            if report.confirmed {
+                process_guard.disarm();
+            }
             writer.abort();
             stdout.abort();
             if let Some(stderr) = stderr {
@@ -347,8 +349,11 @@ impl ExecutionControl {
                     },
                 }
             }
-            let stopped =
-                crate::harness_capabilities::terminate_process_group(&mut child, pid).await;
+            let stop_report = ProcessSupervisor::stop(&process_id, &mut child, pid).await;
+            let stopped = stop_report.confirmed;
+            if stopped {
+                process_guard.disarm();
+            }
             writer.abort();
             let stdout_result = tokio::time::timeout(Duration::from_secs(2), stdout).await;
             let stderr_result = match stderr {
@@ -376,7 +381,8 @@ impl ExecutionControl {
             let unknown = !stopped || publication.is_err();
             let outcome = json!({"state":if unknown {"result_unknown"}else if successful {"completed"}else if reason=="cancelled"||reason=="authority_revoked" {"cancelled"}else {"failed"},
                 "reason":reason,"exit_code":status.and_then(|status|status.code()),"stop_confirmed":stopped,"capture_complete":captured,
-                "workspace":publication.as_ref().ok(),"error":publication.as_ref().err().map(ToString::to_string)});
+                "stop_report":stop_report,"workspace":publication.as_ref().ok(),"error":publication.as_ref().err().map(ToString::to_string),
+                "resource_budget":ProcessSupervisor::resource_receipt(&kiana_domain::ProcessResourceBudget::for_wall_time_ms(timeout as u64))});
             let fact = control
                 .fact(
                     &process_id,

@@ -1,4 +1,5 @@
 //! Per-invocation stdio MCP transport. All child ownership stays with the invocation.
+use crate::process_supervisor::ProcessSupervisor;
 use kiana_ports::PortError;
 use kiana_services::mcp::McpServerConfig;
 use serde_json::{json, Value};
@@ -126,16 +127,20 @@ impl ConfinedMcpClient {
             .kill_on_drop(true);
         #[cfg(unix)]
         {
-            command.process_group(0);
+            let budget = kiana_domain::ProcessResourceBudget::for_wall_time_ms(
+                CALL_TIMEOUT.as_millis() as u64,
+            );
+            ProcessSupervisor::prepare_command(&mut command, &budget)
+                .map_err(|_| failed("mcp_resource_budget_invalid"))?;
         }
         let mut child = command.spawn().map_err(|_| failed("mcp_spawn_failed"))?;
         let process_group = child.id();
         let (Some(stdin), Some(stdout), Some(mut stderr)) =
             (child.stdin.take(), child.stdout.take(), child.stderr.take())
         else {
-            let stopped =
-                crate::harness_capabilities::terminate_process_group(&mut child, process_group)
-                    .await;
+            let stopped = ProcessSupervisor::stop("mcp.stdio", &mut child, process_group)
+                .await
+                .confirmed;
             return Err(failed(if stopped {
                 "mcp_pipe_unavailable"
             } else {
@@ -339,12 +344,10 @@ impl ConfinedMcpClient {
     }
 
     pub async fn stop(&mut self) -> Result<Value, PortError> {
-        if !crate::harness_capabilities::terminate_process_group(
-            &mut self.child,
-            self.process_group,
-        )
-        .await
-        {
+        let stopped = ProcessSupervisor::stop("mcp.stdio", &mut self.child, self.process_group)
+            .await
+            .confirmed;
+        if !stopped {
             return Err(failed("result_unknown:mcp_stop_unconfirmed"));
         }
         self.process_group = None;

@@ -23,6 +23,7 @@ mod mcp_stdio;
 mod memory_retrieval;
 mod model_client;
 mod pre_tool_hooks;
+mod process_supervisor;
 mod run_stream;
 mod storage;
 mod workspace_checkpoints;

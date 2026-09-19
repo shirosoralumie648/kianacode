@@ -8450,6 +8450,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus explicit environment allow/deny list, synthetic paths, `/run`/`/sys` masking, namespace/default-deny, descriptor-pinned mount retention, CLOEXEC helper boundary, no_new_privs fail-closed and MCP reuse review; no runtime test reviewer
 ```
 
+### CAP-12 ProcessSupervisor / bounded resource evidence (2026-09-19)
+
+```text
+source_snapshot: df69e9f0 + CAP-12 working-tree slice; kiana-domain/src/{process_supervisor.rs,lib.rs,contracts.rs}; kiana-daemon/src/{process_supervisor,harness_capabilities,execution_control,mcp_stdio}.rs; kiana-domain/tests/cap12_process_supervisor.rs; kiana-core/tests/cap12_process_supervisor_guard.rs; .github/workflows/cap12-process-supervisor.yml; docs/roadmap/cap12-process-supervisor-baseline.md; docs/roadmap.md
+worktree_status: one daemon ProcessSupervisor now owns command process-group setup, enforceable rlimits, bounded TERM/KILL/reap and descriptor-observed StopReport for shell, long-running process and stdio MCP adapters; duplicate terminate helper references were removed; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only process-tree/budget/source fixtures; no local test or smoke binary executed
+fixture or cassette: domain ProcessResourceBudget/StopReport contract fixtures; daemon descendant process-group timeout fixture; cap12_process_supervisor_guard; GitHub Actions CAP-12 runs domain and focused daemon fixtures, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-12 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-12 source slice is implemented. Stop confirmation requires leader reaping plus an empty observed process group; waits are bounded and unconfirmed stop remains result_unknown/fenced; resource receipts separate per-process rlimits from observed-only RSS and non-hard aggregate memory/pids
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cgroup/pidfd aggregate enforcement, kernel process-tree race proof, cross-platform supervisors and physical resource guarantees remain open
+reviewer: Codex root implementation review plus single-supervisor routing, bounded stop/reap, leader/group confirmation, rlimit dimension honesty, output/stop report linkage and MCP reuse review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
