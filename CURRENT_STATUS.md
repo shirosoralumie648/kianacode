@@ -8640,6 +8640,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus deadline coverage, bounded frame/bytes/notifications, JSON-RPC ID/result-error correctness, pagination cycle, server-request rejection, schema/content limits, no safe retry after sent call and shared stop supervisor review; no runtime test reviewer
 ```
 
+### CAP-22 MCP drift / invocation isolation evidence (2026-09-19)
+
+```text
+source_snapshot: 59c92caf + CAP-22 working-tree slice; kiana-daemon/src/{harness_mcp,mcp_stdio}.rs; kiana-core/src/approvals.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap22_mcp_drift_isolation_guard.rs; .github/workflows/cap22-mcp-drift-isolation.yml; docs/roadmap/cap22-mcp-drift-isolation-baseline.md; docs/roadmap.md
+worktree_status: MCP result/schema/catalog/config drift is source-indexed as approval invalidation or fail-closed Unknown; result/error/structured content/output schema and resource-link boundaries remain explicit, sent calls are not retried, and per-invocation ProcessSupervisor/workspace ownership prevents cross-scope pooling; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only MCP drift/result/isolation/source fixtures; no local test or smoke binary executed
+fixture or cassette: P1-J4-01 MCP lifecycle fixture; cap22_mcp_drift_isolation_guard; GitHub Actions CAP-22 runs fixture, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-22 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-22 source slice is implemented/reconciled. Drift invalidates the snapshot/pending action, malformed/foreign results fail closed, `isError` remains a business outcome, and no cross-owner/scope pool can reuse an invocation process
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; live schema interoperability, pooled connection implementation, cross-process approval invalidation and external MCP effect reconciliation remain open
+reviewer: Codex root implementation review plus config/catalog/list_changed drift, exact tool schemas, result/error/structured content validation, Unknown/no-retry after sent call, approval invalidation, resource-link no-fetch and per-invocation isolation review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

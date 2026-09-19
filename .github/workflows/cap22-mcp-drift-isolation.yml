@@ -1,0 +1,46 @@
+name: CAP-22 MCP drift and connection isolation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-core/tests/cap22_mcp_drift_isolation_guard.rs"
+      - "docs/roadmap/cap22-mcp-drift-isolation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap22-mcp-drift-isolation.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-core/tests/cap22_mcp_drift_isolation_guard.rs"
+      - "docs/roadmap/cap22-mcp-drift-isolation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap22-mcp-drift-isolation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-drift-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run MCP lifecycle fixtures
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run CAP-22 source guard
+        run: cargo test -p kiana-core --test cap22_mcp_drift_isolation_guard --locked -- --test-threads=1
+      - name: Compile CAP-22 targets
+        run: cargo check --workspace --tests --locked
