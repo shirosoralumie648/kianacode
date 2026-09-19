@@ -5,7 +5,10 @@
 //! this boundary rather than infer eligibility from a projection or current wall-clock state.
 
 use async_trait::async_trait;
-use kiana_domain::{EventCursor, LegalHoldReceipt, RetentionScan, StoreIdentityId};
+use kiana_domain::{
+    DeletionManifest, DeletionTombstone, EventCursor, LegalHoldReceipt, RequestId, RetentionScan,
+    StoreIdentityId,
+};
 use kiana_ports::{PortError, RetentionStorePort};
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -16,6 +19,9 @@ use tokio::sync::Mutex;
 struct RetentionState {
     scans: BTreeMap<(StoreIdentityId, EventCursor), RetentionScan>,
     holds: BTreeMap<(StoreIdentityId, String), LegalHoldReceipt>,
+    tombstones: BTreeMap<(StoreIdentityId, String), DeletionTombstone>,
+    manifests: BTreeMap<(StoreIdentityId, RequestId), DeletionManifest>,
+    deletion_epochs: BTreeMap<StoreIdentityId, u64>,
 }
 
 /// Non-durable retention boundary used by focused CI fixtures and composition tests.
@@ -86,6 +92,80 @@ impl MemoryRetentionStore {
         Ok(())
     }
 
+    pub async fn append_deletion_tombstone(
+        &self,
+        store_id: StoreIdentityId,
+        tombstone: DeletionTombstone,
+    ) -> Result<(), PortError> {
+        tombstone
+            .validate()
+            .map_err(|error| PortError::Failed(format!("deletion_tombstone:{error}")))?;
+        let mut state = self.state.lock().await;
+        let key = (store_id, tombstone.tombstone_id.clone());
+        if let Some(existing) = state.tombstones.get(&key) {
+            if existing.tombstone_digest == tombstone.tombstone_digest {
+                return Ok(());
+            }
+            return Err(PortError::Conflict(
+                "deletion_tombstone_digest_conflict".to_owned(),
+            ));
+        }
+        if state
+            .deletion_epochs
+            .get(&store_id)
+            .is_some_and(|epoch| tombstone.data_epoch < *epoch)
+        {
+            return Err(PortError::Conflict(
+                "deletion_data_epoch_regressed".to_owned(),
+            ));
+        }
+        state
+            .deletion_epochs
+            .entry(store_id)
+            .and_modify(|epoch| *epoch = (*epoch).max(tombstone.data_epoch))
+            .or_insert(tombstone.data_epoch);
+        state.tombstones.insert(key, tombstone);
+        Ok(())
+    }
+
+    pub async fn append_deletion_manifest(
+        &self,
+        store_id: StoreIdentityId,
+        manifest: DeletionManifest,
+    ) -> Result<(), PortError> {
+        manifest
+            .validate()
+            .map_err(|error| PortError::Failed(format!("deletion_manifest:{error}")))?;
+        let mut state = self.state.lock().await;
+        let key = (store_id, manifest.request_id);
+        if let Some(existing) = state.manifests.get(&key) {
+            if existing.manifest_digest == manifest.manifest_digest {
+                return Ok(());
+            }
+            return Err(PortError::Conflict(
+                "deletion_manifest_digest_conflict".to_owned(),
+            ));
+        }
+        for tombstone_id in &manifest.tombstone_ids {
+            let tombstone = state
+                .tombstones
+                .get(&(store_id, tombstone_id.clone()))
+                .ok_or_else(|| PortError::Unavailable("deletion_tombstone_missing".to_owned()))?;
+            if tombstone.request_id != manifest.request_id
+                || tombstone.project_ref != manifest.project_ref
+                || tombstone.policy_revision != manifest.policy_revision
+                || tombstone.data_epoch != manifest.data_epoch
+                || tombstone.source_cursor != manifest.source_cursor
+            {
+                return Err(PortError::Conflict(
+                    "deletion_manifest_tombstone_boundary_mismatch".to_owned(),
+                ));
+            }
+        }
+        state.manifests.insert(key, manifest);
+        Ok(())
+    }
+
     async fn latest_scan(
         &self,
         store_id: StoreIdentityId,
@@ -132,12 +212,12 @@ impl RetentionStorePort for MemoryRetentionStore {
         Ok(json!({
             "schema": "kiana.retention-plan.v1",
             "store_id": store_id,
-            "project_ref": scan.project_ref,
+            "project_ref": scan.project_ref.clone(),
             "policy_revision": scan.policy_revision,
             "data_epoch": scan.data_epoch,
             "source_cursor": scan.source_cursor,
             "projection_cursor": scan.projection_cursor,
-            "scan_digest": scan.scan_digest,
+            "scan_digest": scan.scan_digest.clone(),
             "scan": scan,
         }))
     }
@@ -151,6 +231,22 @@ impl RetentionStorePort for MemoryRetentionStore {
         Err(PortError::Unavailable(
             "retention_tombstone_deferred_to_sc23".to_owned(),
         ))
+    }
+
+    async fn append_deletion_tombstone(
+        &self,
+        store_id: StoreIdentityId,
+        tombstone: DeletionTombstone,
+    ) -> Result<(), PortError> {
+        MemoryRetentionStore::append_deletion_tombstone(self, store_id, tombstone).await
+    }
+
+    async fn append_deletion_manifest(
+        &self,
+        store_id: StoreIdentityId,
+        manifest: DeletionManifest,
+    ) -> Result<(), PortError> {
+        MemoryRetentionStore::append_deletion_manifest(self, store_id, manifest).await
     }
 
     async fn purge_tombstoned(
