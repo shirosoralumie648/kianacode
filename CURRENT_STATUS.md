@@ -8805,9 +8805,9 @@ command_argv:
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only catalog/extension source guards and fixtures; no local test or smoke binary executed
 fixture or cassette: EXT-04 extension catalog; P1-H01 authority; P4-J7-10 catalog; cap30_tool_extension_guard; GitHub Actions CAP-30 runs these fixtures and workspace compilation
 exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-30 is triggered by the eventual push and is not awaited; final diff check is pending before commit
-status_change: CAP-30 is partial, not complete. Existing search/extension admission is evidence-indexed, but BM25/tag ranking, extension descriptor index, selected-schema/context token accounting, health/version search filters and read-only/approved side-effect extension runtime fixtures remain open; roadmap status stays ⏳
+status_change: CAP-30 is partial, not complete. Built-in tool.search now has deterministic exact/prefix/token ranking and result/schema-byte bounds, while extension admission remains evidence-indexed; BM25/tag parity, extension descriptor index, selected-schema/context token accounting, health/version search filters and read-only/approved side-effect extension runtime fixtures remain open; roadmap status stays ⏳
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
-limitations: CI result was intentionally not awaited; no local test or smoke command was run; current tool.search is built-in role-filtered substring search and extension admission is not yet a dynamic searchable ToolSnapshot
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; current tool.search is built-in role-filtered ranked search, extension descriptors are not yet indexed into it, and extension runtime fixture coverage is still absent
 reviewer: Codex root implementation review plus tool authority/catalog digest, role/trust filter, signed extension package/license/effect/namespace/CAS lifecycle and explicit missing BM25/tag/runtime fixture review; no runtime test reviewer
 ```
 

@@ -7,8 +7,9 @@ filters the built-in catalog by server-owned role tools and returns `does_not_gr
 
 Extension manifests and daemon admission already bind publisher signature, package/content hash,
 license, effect, required capabilities, policy/platform/dependency constraints, capability
-namespace, registry CAS version, upgrade/revoke/rollback and extension execution scope. Skill
-context is trust/role filtered and extension activation is an EventLog fact; extensions cannot
+namespace, registry CAS version, upgrade/revoke/rollback and extension execution scope. Tool
+search now uses deterministic exact/prefix/token ranking with result/schema-byte bounds and a
+catalog digest; it remains discovery-only. Skill context is trust/role filtered and extension activation is an EventLog fact; extensions cannot
 self-grant or replace a built-in binding.
 
 Remaining CAP-30 work is explicit rather than silently promoted: BM25/tag ranking, extension

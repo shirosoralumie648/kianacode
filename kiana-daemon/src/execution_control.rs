@@ -627,26 +627,19 @@ impl ExecutionControl {
                     .as_str()
                     .unwrap_or_default()
                     .to_ascii_lowercase();
-                if query.len() > 512 {
-                    return Err(error("tool_query_limit"));
-                }
                 let role = kiana_domain::RoleSpec::lookup(required(arguments, "role_id")?)
                     .ok_or_else(|| error("role_unknown"))?;
-                let tools = kiana_domain::tool_schemas()
-                    .into_iter()
-                    .filter(|tool| {
-                        let name = tool["name"].as_str().unwrap_or_default();
-                        role.tools.iter().any(|allowed| allowed == name)
-                            && (query.is_empty()
-                                || name.contains(&query)
-                                || tool["description"]
-                                    .as_str()
-                                    .unwrap_or_default()
-                                    .to_ascii_lowercase()
-                                    .contains(&query))
-                    })
-                    .collect::<Vec<_>>();
-                json!({"tools":tools,"catalog_digest":kiana_domain::capability_action_catalog_digest(),"does_not_grant_execution":true})
+                let max_results = arguments["max_results"].as_u64().unwrap_or(32) as usize;
+                let max_schema_bytes =
+                    arguments["max_schema_bytes"].as_u64().unwrap_or(128 * 1024) as usize;
+                let tools = kiana_domain::search_tool_schemas(
+                    &query,
+                    &role.tools,
+                    max_results,
+                    max_schema_bytes,
+                )
+                .map_err(|reason| error(&reason))?;
+                json!({"tools":tools,"catalog_digest":kiana_domain::capability_action_catalog_digest(),"search_mode":"ranked_token_bounded","does_not_grant_execution":true})
             }
             _ => self.continuation(&request).await?,
         };

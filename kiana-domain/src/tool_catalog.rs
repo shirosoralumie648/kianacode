@@ -113,6 +113,79 @@ pub fn validate_tool_arguments(name: &str, arguments: &Value) -> Result<(), Stri
         .map_err(|field| format!("invalid_arguments:{name}:{field}"))
 }
 
+/// Deterministic, bounded search over the server-owned built-in tool catalog.
+///
+/// Search is a discovery projection only: it never widens a role's allow-list or grants an
+/// executor. The score intentionally stays simple and inspectable (exact name, prefix, token
+/// overlap, then description overlap) so the result is stable across platforms and replayable
+/// without an external ranking service.
+pub fn search_tool_schemas(
+    query: &str,
+    allowed_tools: &[String],
+    max_results: usize,
+    max_schema_bytes: usize,
+) -> Result<Vec<Value>, String> {
+    if query.len() > 512 || max_results == 0 || max_results > 128 || max_schema_bytes == 0 {
+        return Err("tool_search_limits_invalid".to_owned());
+    }
+    let query = query.trim().to_ascii_lowercase();
+    let terms = query
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|term| !term.is_empty())
+        .collect::<Vec<_>>();
+    let allowed = allowed_tools
+        .iter()
+        .map(|name| name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut ranked = tool_schemas()
+        .into_iter()
+        .filter_map(|schema| {
+            let name = schema["name"].as_str()?;
+            if !allowed.contains(name) {
+                return None;
+            }
+            let description = schema["description"].as_str().unwrap_or_default();
+            let lower_name = name.to_ascii_lowercase();
+            let lower_description = description.to_ascii_lowercase();
+            let mut score = if query.is_empty() {
+                1i32
+            } else if lower_name == query {
+                10_000
+            } else if lower_name.starts_with(&query) {
+                5_000
+            } else {
+                0
+            };
+            for term in &terms {
+                if lower_name.split('.').any(|part| part == *term) {
+                    score += 1_000;
+                }
+                if lower_description.contains(term) {
+                    score += 100;
+                }
+            }
+            (score > 0).then_some((score, name.to_owned(), schema))
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+
+    let mut selected = Vec::new();
+    let mut bytes = 0usize;
+    for (_, _, schema) in ranked.into_iter().take(max_results) {
+        let schema_bytes = serde_json::to_vec(&schema)
+            .map_err(|_| "tool_search_schema_encode_failed".to_owned())?;
+        let next = bytes
+            .checked_add(schema_bytes.len())
+            .ok_or_else(|| "tool_search_schema_limit".to_owned())?;
+        if next > max_schema_bytes {
+            break;
+        }
+        bytes = next;
+        selected.push(schema);
+    }
+    Ok(selected)
+}
+
 pub fn model_tool_name(name: &str) -> Option<&'static str> {
     crate::tool_authority::tool_spec(name).map(|spec| spec.name)
 }

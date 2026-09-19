@@ -77,6 +77,8 @@ fn tool_search_and_extensions_remain_server_owned() {
         execution,
         &[
             "tool.search",
+            "search_tool_schemas",
+            "ranked_token_bounded",
             "catalog_digest",
             "does_not_grant_execution",
             "role.tools",
