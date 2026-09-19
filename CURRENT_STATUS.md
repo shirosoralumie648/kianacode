@@ -8968,6 +8968,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: matrix rows are supplied fake/source evidence, not executed release or recovery effects; parity cannot prove backup/restore/migration durability, result_unknown reconciliation in production, Desktop packaging, real provider behavior, or external health correctness
 reviewer: Codex root implementation review plus scenario/entrypoint coverage, shared spine digest, deny/success/restart/replay/Unknown semantics, fake-vs-live boundary and no-direct-Broker-loop review; no runtime/E2E/UAT reviewer
 
+### DEP-41 operator handoff, release gate and capability/proof matrix evidence (partial, 2026-09-19)
+
+source_snapshot: d7bf043c + DEP-41 working-tree slice; docs/roadmap/dep41-operator-runbook.md; docs/roadmap/dep41-capability-proof-matrix.md; scripts/validate-dep41-release-gate.sh; kiana-core/tests/dep41_release_gate_guard.rs; .github/workflows/dep41-release-gate.yml; CURRENT_STATUS.md; docs/roadmap.md
+worktree_status: DEP-41 now provides an operator decision tree, evidence-block template, capability/proof matrix and structural release gate; it explicitly keeps feature_status separate from proof_level, records source/static ceilings and limitations for CAP-33, DEP-27..40, H36, CM-39, UI-41 and CO-48, and preserves result_unknown/reconcile/live/physical boundaries
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, smoke, release or external operation executed
+fixture or cassette: CI-only dep41_release_gate_guard plus scripts/validate-dep41-release-gate.sh; GitHub Actions DEP-41 validates runbook/matrix/status/roadmap structure, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-41 is triggered by the eventual push and is not awaited
+status_change: DEP-41 documentation and release-gate evidence advanced from roadmap-only to a linked operator handoff; roadmap remains ⏳ because documentation cannot close incomplete code, durable/live/physical proof or downstream PD/SC steps
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the runbook/matrix validator checks structural honesty, not runtime correctness, external receipts, actual release/restore/migration effects, capability enforcement, cross-process recovery or target environment cleanup; dependent slices remain partial/target/not_supported as listed
+reviewer: Codex root implementation review plus evidence-field completeness, feature/proof separation, runbook deny-first decision tree, result_unknown/reconcile, live/physical ceiling and no-documentation-as-completion review; no operator/release reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

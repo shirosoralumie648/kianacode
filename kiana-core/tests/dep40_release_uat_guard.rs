@@ -44,28 +44,32 @@ fn uat_matrix_and_entrypoints_keep_one_authoritative_spine() {
         (
             "CLI",
             cli,
-            ["DaemonHost", "ControlPlaneRequest", "ControlPlaneResponse"],
+            &["DaemonHost", "ControlPlaneRequest", "ControlPlaneResponse"][..],
         ),
-        ("Web", web, ["DaemonHost", "/api/health", "harness_run"]),
+        (
+            "Web",
+            web,
+            &["DaemonHost", "/api/health", "harness_run"][..],
+        ),
         (
             "Workbench",
             workbench,
-            ["DaemonHost", "harness_run", "subscribe_run"],
+            &["DaemonHost", "harness_run", "subscribe_run"][..],
         ),
         (
             "Desktop",
             desktop,
-            ["waitForUrl", "startHarness", "stopWorker"],
+            &["waitForUrl", "startHarness", "stopWorker"][..],
         ),
         (
             "DaemonHost",
             daemon,
-            ["pub struct DaemonHost", "ControlPlane", "KianaHarness"],
+            &["pub struct DaemonHost", "ControlPlane", "KianaHarness"][..],
         ),
         (
             "ControlPlane",
             control,
-            ["pub struct ControlPlane", "CapabilityBroker"],
+            &["pub struct ControlPlane", "CapabilityBroker"][..],
         ),
     ] {
         for marker in markers {

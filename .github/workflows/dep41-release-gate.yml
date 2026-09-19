@@ -1,0 +1,42 @@
+name: DEP-41 operator handoff and release gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/dep41-operator-runbook.md"
+      - "docs/roadmap/dep41-capability-proof-matrix.md"
+      - "scripts/validate-dep41-release-gate.sh"
+      - "kiana-core/tests/dep41_release_gate_guard.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep41-release-gate.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/dep41-operator-runbook.md"
+      - "docs/roadmap/dep41-capability-proof-matrix.md"
+      - "scripts/validate-dep41-release-gate.sh"
+      - "kiana-core/tests/dep41_release_gate_guard.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep41-release-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Validate DEP-41 runbook and matrix
+        run: bash scripts/validate-dep41-release-gate.sh
+      - name: Run DEP-41 source guard
+        run: cargo test -p kiana-core --test dep41_release_gate_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked
