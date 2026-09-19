@@ -9748,3 +9748,19 @@ status_change: EQ-18 source slice is implemented and roadmap row 284 is ✅. Can
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: canonical output remains an in-process pure value; volatile timestamp/UUID/path/actor normalization, event/trace digests, diff/evaluator, capture and durable EvalStore evidence remain EQ-19+
 reviewer: Codex root implementation review plus canonical key ordering, explicit ordered/multiset policy, event payload allowlist, shared redaction profile, bounded output and no-runtime/no-effect boundary review; no runtime test reviewer
+
+### EQ-19 explicit volatile normalization evidence (2026-09-19)
+
+source_snapshot: d5487639 + EQ-19 working-tree slice; kiana-quality/src/{lib.rs,volatile.rs}; kiana-quality/tests/eq19_volatile.rs; kiana-quality/tests/eq19_quality_guard.rs; .github/workflows/eq19-trace-volatile.yml; docs/roadmap/evaluation-trace-volatile-baseline.md; docs/roadmap.md
+worktree_status: canonical traces now accept only declared timestamp/UUID/temp-path/actor rules, replace values with bounded stable tokens, record each replacement path/kind and reject inferred volatile values without a matching rule; wildcard array paths and a hard replacement budget are supported; normalized canonical bytes exclude raw source identity metadata; no I/O, provider, runner or effect path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq19_volatile.rs covers declared timestamp/UUID/temp-path/actor replacement, undeclared volatile rejection, wildcard array paths and budget limits; eq19_quality_guard protects the explicit-rule/token/no-I-O boundary; GitHub Actions EQ-19 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-19 source slice is implemented and roadmap row 285 is ✅. Volatile values are changed only through a validated policy, replacement count is visible, and undeclared likely volatile fields fail closed
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: inference is bounded heuristic detection over the canonical value and does not claim live host/path/time observation; event/trace digest, diff, capture, evaluator and durable EvalStore evidence remain EQ-20+
+reviewer: Codex root implementation review plus explicit path/kind policy, wildcard handling, UUID/timestamp/temp-path/actor inference, replacement budget, normalized-byte raw-ID exclusion and pure no-side-effect boundary review; no runtime test reviewer
