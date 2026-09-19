@@ -1,0 +1,61 @@
+name: cm11-index-invalidation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/index_invalidation.rs"
+      - "kiana-domain/src/workspace_snapshot.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm11_index_invalidation.rs"
+      - "kiana-query/src/index_invalidation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm11_index_invalidation.rs"
+      - "kiana-core/tests/cm11_index_invalidation_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm11-index-invalidation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm11-index-invalidation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/index_invalidation.rs"
+      - "kiana-domain/src/workspace_snapshot.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm11_index_invalidation.rs"
+      - "kiana-query/src/index_invalidation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/cm11_index_invalidation.rs"
+      - "kiana-core/tests/cm11_index_invalidation_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm11-index-invalidation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm11-index-invalidation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  index-invalidation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-11 domain invalidation fixtures
+        run: cargo test -p kiana-domain --test cm11_index_invalidation --locked -- --test-threads=1
+      - name: Run CM-11 query adapter fixtures
+        run: cargo test -p kiana-query --test cm11_index_invalidation --locked -- --test-threads=1
+      - name: Run CM-11 source guard
+        run: cargo test -p kiana-core --test cm11_index_invalidation_guard --locked -- --test-threads=1
