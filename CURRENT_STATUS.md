@@ -10788,3 +10788,19 @@ status change: CM-32 source slice is implemented and roadmap row 637 is ✅. Ins
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: full protocol/client/UI rendering, durable inspector hydration, actual correction command projection, deletion/rebuild controls and live approval UX remain open; no private source body is exposed by the contract
 reviewer: Codex root implementation review plus redacted locator/body boundary, receipt parity, projection/invalidation state, mutation operation restriction and operator approval review; no runtime test reviewer
+
+### CM-33 code graph temporal evidence (2026-09-20)
+
+source_snapshot: 2dcf6d90 + CM-33 working-tree slice; kiana-domain/src/{code_graph.rs,source_dependencies.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm33_code_graph.rs; kiana-query/src/repo_map.rs; kiana-core/tests/cm33_code_graph_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm33-code-graph.yml; docs/roadmap/cm33-code-graph-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CodeGraphEdge binds workspace SourceRef, scope digest, relation, valid_from/valid_to/invalidated temporal state and edge digest; CodeGraphRebuildPlan partitions affected source edges from retained edges under data epoch without mutating EventLog or widening ACL
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-33 source/scope/temporal edge and affected-only rebuild fixtures plus Core source guard; GitHub Actions CM-33 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-33 source slice is implemented and roadmap row 638 is ✅. Graph provenance/temporal/rebuild boundaries are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: compiler/parser semantic completeness, multi-hop graph retrieval, live index rebuild, external graph persistence and business authority remain open; graph edges do not replace text evidence or ACL
+reviewer: Codex root implementation review plus SourceRef kind, scope binding, temporal state, source deletion targeting and unrelated-edge preservation review; no runtime test reviewer

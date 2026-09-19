@@ -600,7 +600,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-33 · Code graph / temporal fact 后置扩展　⏳
+##### CM-33 · Code graph / temporal fact 后置扩展　✅
+
+当前 source slice 与 CI-only 证据见 [`cm33-code-graph-baseline.md`](cm33-code-graph-baseline.md)。
 
 在来源依赖和删除闭环稳定后接 GitNexus/Graphify/Graphiti 风格的符号图、valid/invalid/expired 时间边；图边必须指向 source refs，不能替代文本证据或 ACL。验收：`graph_edge_has_source_and_scope`、`graph_delete_rebuilds_affected_edges_only`。
 
