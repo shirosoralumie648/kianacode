@@ -8811,6 +8811,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus tool authority/catalog digest, role/trust filter, signed extension package/license/effect/namespace/CAS lifecycle and explicit missing BM25/tag/runtime fixture review; no runtime test reviewer
 ```
 
+### CAP-31 macOS backend evidence (partial, 2026-09-19)
+
+```text
+source_snapshot: 69570d5a + CAP-31 working-tree slice; kiana-ports/src/lib.rs; kiana-daemon/src/{harness_sandbox,process_supervisor}.rs; kiana-core/tests/cap31_macos_backend_guard.rs; .github/workflows/cap31-macos-backend.yml; docs/roadmap/cap31-macos-backend-baseline.md; docs/roadmap.md
+worktree_status: shared EnvironmentPort and ProcessSupervisor contracts remain the only cross-platform spine; current implementation is Linux/bwrap and CAP-31 adds a macOS target compile/source guard without claiming Seatbelt or target-machine behavior
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64 local static checks; GitHub Actions macos-latest target job is the only target-platform execution; no local test or smoke binary executed
+fixture or cassette: cap31_macos_backend_guard; macOS target compile workflow; no runtime macOS fixture yet
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-31 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-31 partial evidence slice recorded; roadmap remains ⏳ until a real macOS backend/probe and target behavior receipt exist
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: macOS Seatbelt backend, host-secret/GUI escape, descendant supervision and target-machine physical evidence are not implemented; `behavior_verified=false` remains the honest ceiling
+reviewer: Codex root implementation review plus shared environment contract, Linux backend non-equivalence, no-host-fallback and explicit macOS target-CI limitation review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

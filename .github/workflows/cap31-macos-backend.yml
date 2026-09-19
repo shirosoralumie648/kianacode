@@ -1,0 +1,43 @@
+name: CAP-31 macOS backend probe
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/tests/cap31_macos_backend_guard.rs"
+      - "docs/roadmap/cap31-macos-backend-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap31-macos-backend.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/tests/cap31_macos_backend_guard.rs"
+      - "docs/roadmap/cap31-macos-backend-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap31-macos-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-compile-and-guard:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Compile target without claiming behavior
+        run: cargo check --workspace --tests --locked
+      - name: Run CAP-31 source guard
+        run: cargo test -p kiana-core --test cap31_macos_backend_guard --locked -- --test-threads=1
