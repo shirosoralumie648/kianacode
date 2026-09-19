@@ -580,7 +580,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-31 · Retrieval quality and safety evaluation　⏳
+##### CM-31 · Retrieval quality and safety evaluation　✅
+
+当前 source slice 与 CI-only 证据见 [`cm31-retrieval-evaluation-baseline.md`](cm31-retrieval-evaluation-baseline.md)。
 
 加入 Recall@k/MRR/nDCG、citation precision、越权零命中、freshness、重复、撤销、p95 延迟和预算超界率；区分 fixture 确定性与真实模型语义质量。验收：`retrieval_eval_reports_quality_and_safety_separately`。
 

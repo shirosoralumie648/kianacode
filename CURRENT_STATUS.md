@@ -10756,3 +10756,19 @@ status change: CM-30 source slice is implemented and roadmap row 635 is ✅. Gol
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: fixture determinism does not prove semantic retrieval quality, real embedding quality, freshness, production latency, live provider behavior or business outcomes; CM-31 owns quality/safety evaluation
 reviewer: Codex root implementation review plus snapshot/epoch/generation/digest binding, multilingual/identifier/path/time/ACL coverage, byte stability and rank replay review; no runtime test reviewer
+
+### CM-31 retrieval evaluation quality safety evidence (2026-09-20)
+
+source_snapshot: 6a364529 + CM-31 working-tree slice; kiana-domain/src/{retrieval_evaluation.rs,golden_context.rs,unified_retrieval.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm31_retrieval_evaluation.rs; kiana-core/tests/cm31_retrieval_evaluation_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm31-retrieval-evaluation.yml; docs/roadmap/cm31-retrieval-evaluation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: RetrievalEvaluationReport separates fixture determinism from semantic quality, exposes Recall@k/MRR/nDCG/citation precision/freshness/duplicate/p95 latency/budget-overflow metrics, and independently gates unauthorized/revoked/stale/unverifiable safety counts
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-31 metric separation/safety fixture and Core source guard; GitHub Actions CM-31 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-31 source slice is implemented and roadmap row 636 is ✅. Quality/safety evaluation dimensions are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: fixture metrics do not establish semantic embedding quality, production freshness/latency, live provider behavior or business outcomes; later live/durable evidence remains required
+reviewer: Codex root implementation review plus metric bounds, rank formulas, fixture-vs-semantic separation and independent safety zero-hit gate review; no runtime test reviewer
