@@ -1,0 +1,46 @@
+name: DEP-28 migration preflight
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/migration_preflight.rs"
+      - "kiana-domain/src/migration_registry.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep28_migration_preflight.rs"
+      - "kiana-core/tests/dep28_migration_preflight_guard.rs"
+      - "docs/roadmap/dep28-migration-preflight-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep28-migration-preflight.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/migration_preflight.rs"
+      - "kiana-domain/src/migration_registry.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep28_migration_preflight.rs"
+      - "kiana-core/tests/dep28_migration_preflight_guard.rs"
+      - "docs/roadmap/dep28-migration-preflight-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep28-migration-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-28 domain fixtures
+        run: cargo test -p kiana-domain --test dep28_migration_preflight --locked -- --test-threads=1
+      - name: Run DEP-28 source guard
+        run: cargo test -p kiana-core --test dep28_migration_preflight_guard --locked -- --test-threads=1
+      - name: Compile DEP-28 targets
+        run: cargo check --workspace --tests --locked

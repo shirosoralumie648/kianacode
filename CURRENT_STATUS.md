@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-28 read-only migration preflight evidence (partial, 2026-09-19)
+
+source_snapshot: 6fa95dab + DEP-28 working-tree slice; kiana-domain/src/migration_preflight.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep28_migration_preflight.rs; kiana-core/tests/dep28_migration_preflight_guard.rs; .github/workflows/dep28-migration-preflight.yml; docs/roadmap/dep28-migration-preflight-baseline.md; docs/roadmap.md
+worktree_status: pure domain preflight now evaluates a bounded store/schema/projection/workflow/provider/config/space/clock/lease matrix, emits ordered axis results with stable reason/remediation/observed digest, binds registry and fact digests, and hard-codes read_only=true/effect_calls=0; no adapter, runner or broker is called
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep28_migration_preflight domain fixtures; dep28_migration_preflight_guard; GitHub Actions DEP-28 runs the blocked/ready matrix, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-28 is triggered by the eventual push and is not awaited
+status_change: DEP-28 source contract advanced from no matrix to a deterministic read-only report; roadmap remains ⏳ because facts are not yet collected durably and no backup verifier or migration runner exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: no store/schema/projection/provider/config/space/clock/lease adapter collector, backup verification, lock/fence, runtime preflight command or receipt was added; blocked reports cannot authorize apply
+reviewer: Codex root implementation review plus nine-axis ordering, downgrade/major/space/Unknown/old-writer/backup/clock rejection, remediation/digest binding and effect_calls=0/no-side-effect boundary review; no runtime test reviewer
+
 ### DEP-27 MigrationRegistry contract evidence (partial, 2026-09-19)
 
 source_snapshot: d9b6d867 + DEP-27 working-tree slice; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep27_migration_registry.rs; kiana-core/tests/dep27_migration_registry_guard.rs; .github/workflows/dep27-migration-registry.yml; docs/roadmap/dep27-migration-registry-baseline.md; docs/roadmap.md
