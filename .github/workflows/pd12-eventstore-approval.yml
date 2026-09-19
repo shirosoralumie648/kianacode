@@ -1,0 +1,44 @@
+name: PD-12 EventStore approval authority
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/approval_store.rs"
+      - "kiana-daemon/tests/pd12_eventstore_approval_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/pd12-eventstore-approval-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd12-eventstore-approval.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/journal_approvals.rs"
+      - "kiana-daemon/src/approval_store.rs"
+      - "kiana-daemon/tests/pd12_eventstore_approval_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/pd12-eventstore-approval-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd12-eventstore-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eventstore-approval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EventStore approval source guard
+        run: cargo test -p kiana-daemon --test pd12_eventstore_approval_guard --locked -- --test-threads=1
+      - name: Compile PD-12 targets
+        run: cargo check --workspace --tests --locked
