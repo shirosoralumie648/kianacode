@@ -518,7 +518,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-25 · Turn extraction proposal 管线　⏳
+##### CM-25 · Turn extraction proposal 管线　✅
+
+当前 source slice 与 CI-only 证据见 [`cm25-memory-extraction-baseline.md`](cm25-memory-extraction-baseline.md)。
 
 在用户 turn 结束一次性收集有界脱敏证据，服务端给相似旧记录，LLM 只能返回严格 `memory-proposal.v1`；quote/event/range/digest 校验，失败不阻塞原 run。验收：`turn_extraction_is_idempotent_and_evidence_bounded`、`invalid_quote_never_creates_proposal`。
 

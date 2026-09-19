@@ -10660,3 +10660,19 @@ status change: CM-24 source slice is implemented and roadmap row 335 is ✅. His
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: query/daemon ranking and history call sites are not fully migrated, durable conflict/citation receipts and deletion propagation remain open, and no semantic retrieval/live provider claim is made
 reviewer: Codex root implementation review plus ACL-before-as_of, future/validity filtering, explicit supersedes, conflict preservation and deterministic digest review; no runtime test reviewer
+
+### CM-25 turn extraction proposal evidence (2026-09-20)
+
+source_snapshot: 64c85204 + CM-25 working-tree slice; kiana-domain/src/{memory_extraction.rs,memory_proposals.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm25_memory_extraction.rs; kiana-core/tests/cm25_memory_extraction_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm25-memory-extraction.yml; docs/roadmap/cm25-memory-extraction-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: MemoryExtractionRequest binds terminal run/turn/event/cursor/extractor/scope/idempotency and bounded MemoryEvidenceQuote items; validate_proposal requires exact event/request/run tuple and quote equality against server-captured evidence before any proposal admission
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-25 idempotency/evidence-bound and invalid-quote proposal fixtures plus Core source guard; GitHub Actions CM-25 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-25 source slice is implemented and roadmap row 336 is ✅. Terminal extraction inputs and proposal quote admission are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: terminal capture/scheduler and durable claim/retry are not newly wired, provider extraction quality and proposal persistence remain CM-26/PD/ER, and no live provider claim is made
+reviewer: Codex root implementation review plus bound evidence size, deterministic idempotency, cursor/scope binding, exact quote matching and no-second-execution-path review; no runtime test reviewer
