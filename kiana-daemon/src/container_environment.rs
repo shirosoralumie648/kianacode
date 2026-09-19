@@ -15,7 +15,7 @@ use kiana_ports::{
     PortError, PreparedEnvironment,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -27,6 +27,7 @@ pub const DEFAULT_CONTAINER_RUNTIME: &str = "docker";
 pub const DEFAULT_CONTAINER_USER: &str = "65532:65532";
 pub const DEFAULT_CONTAINER_NETWORK: &str = "none";
 pub const DEFAULT_CONTAINER_RUNTIME_NAME: &str = "runc";
+pub const CONTAINER_STOP_SIGNAL: &str = "SIGTERM";
 const RUNTIME_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_RUNTIME_OUTPUT_BYTES: usize = 64 * 1024;
 const MAX_EXEC_ARGS: usize = 128;
@@ -36,6 +37,7 @@ const MAX_ENV_ENTRIES: usize = 64;
 const LABEL_OWNER: &str = "io.kiana.owner";
 const LABEL_SCOPE: &str = "io.kiana.scope";
 const LABEL_PLAN: &str = "io.kiana.plan";
+const LABEL_ROOT: &str = "io.kiana.root";
 const LABEL_BACKEND: &str = "io.kiana.backend";
 
 /// Immutable, server-selected settings for one container environment.
@@ -157,6 +159,70 @@ pub struct ContainerExecOperation {
     pub timeout_ms: u64,
 }
 
+/// Probe semantics are explicit because startup, readiness and liveness answer different
+/// questions.  None of them grants a permit or promotes a rollout; the ControlPlane remains the
+/// authority for those decisions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerProbeKind {
+    Startup,
+    Readiness,
+    Liveness,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerProbeRequest {
+    pub kind: ContainerProbeKind,
+    #[serde(default)]
+    pub operation: Option<ContainerExecOperation>,
+}
+
+impl ContainerProbeRequest {
+    pub fn startup() -> Self {
+        Self {
+            kind: ContainerProbeKind::Startup,
+            operation: None,
+        }
+    }
+
+    pub fn readiness(operation: ContainerExecOperation) -> Self {
+        Self {
+            kind: ContainerProbeKind::Readiness,
+            operation: Some(operation),
+        }
+    }
+
+    pub fn liveness(operation: ContainerExecOperation) -> Self {
+        Self {
+            kind: ContainerProbeKind::Liveness,
+            operation: Some(operation),
+        }
+    }
+
+    fn validate(&self) -> Result<(), PortError> {
+        match (self.kind, self.operation.as_ref()) {
+            (ContainerProbeKind::Startup, None)
+            | (ContainerProbeKind::Readiness | ContainerProbeKind::Liveness, Some(_)) => Ok(()),
+            (ContainerProbeKind::Startup, Some(_)) => Err(PortError::Failed(
+                "container_startup_probe_must_be_inspect_only".to_owned(),
+            )),
+            (ContainerProbeKind::Readiness | ContainerProbeKind::Liveness, None) => Err(
+                PortError::Failed("container_runtime_probe_operation_missing".to_owned()),
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ContainerProbeOutcome {
+    pub kind: ContainerProbeKind,
+    pub passed: bool,
+    pub observation_known: bool,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ContainerExecOutcome {
     pub exit_code: i32,
@@ -217,6 +283,7 @@ impl ContainerEnvironmentAdapter {
         validate_identity(plan_digest, "container_plan_invalid")?;
         validate_identity(name, "container_name_invalid")?;
         let workspace = config.canonical_workspace()?;
+        let root_identity = volume_root_identity(config, owner_id, scope_digest)?;
         let mut args = vec!["create".to_owned()];
         if config.runtime_name != DEFAULT_CONTAINER_RUNTIME_NAME {
             args.extend(["--runtime".to_owned(), config.runtime_name.clone()]);
@@ -225,6 +292,7 @@ impl ContainerEnvironmentAdapter {
             (LABEL_OWNER, owner_id),
             (LABEL_SCOPE, scope_digest),
             (LABEL_PLAN, plan_digest),
+            (LABEL_ROOT, root_identity.as_str()),
             (LABEL_BACKEND, CONTAINER_BACKEND),
         ] {
             args.extend(["--label".to_owned(), format!("{key}={value}")]);
@@ -233,6 +301,8 @@ impl ContainerEnvironmentAdapter {
             "--name".to_owned(),
             name.to_owned(),
             "--read-only".to_owned(),
+            "--stop-signal".to_owned(),
+            CONTAINER_STOP_SIGNAL.to_owned(),
             "--network".to_owned(),
             DEFAULT_CONTAINER_NETWORK.to_owned(),
             "--cap-drop".to_owned(),
@@ -272,7 +342,7 @@ impl ContainerEnvironmentAdapter {
         operation: ContainerExecOperation,
     ) -> Result<ContainerExecOutcome, PortError> {
         let planned = self.planned(prepared)?;
-        validate_exec_operation(&operation)?;
+        validate_exec_operation(&operation, &planned.config.environment)?;
         let mut command = self.runtime_command();
         command.arg("exec");
         command.arg("--workdir").arg(&operation.cwd);
@@ -317,6 +387,60 @@ impl ContainerEnvironmentAdapter {
         }
     }
 
+    /// Run an explicit lifecycle observation after checking the container's labelled identity.
+    /// Startup is inspect-only; readiness and liveness use caller-supplied argv constrained by
+    /// the same workspace and environment allowlist as normal execution.
+    pub async fn lifecycle_probe(
+        &self,
+        prepared: &PreparedEnvironment,
+        request: ContainerProbeRequest,
+    ) -> Result<ContainerProbeOutcome, PortError> {
+        request.validate()?;
+        let planned = self.planned(prepared)?;
+        let inspected = self.inspect(&planned).await?;
+        if !inspected.identity_matches(&planned) {
+            return Err(PortError::Failed(
+                "result_unknown:container_probe_identity_mismatch".to_owned(),
+            ));
+        }
+        if request.kind == ContainerProbeKind::Startup {
+            let running = inspected.running().ok_or_else(|| {
+                PortError::Failed("result_unknown:container_startup_state_unknown".to_owned())
+            })?;
+            return Ok(ContainerProbeOutcome {
+                kind: request.kind,
+                passed: running,
+                observation_known: true,
+                reason: (!running).then(|| "container_startup_not_running".to_owned()),
+            });
+        }
+        let running = inspected.running().ok_or_else(|| {
+            PortError::Failed("result_unknown:container_probe_state_unknown".to_owned())
+        })?;
+        if !running {
+            return Ok(ContainerProbeOutcome {
+                kind: request.kind,
+                passed: false,
+                observation_known: true,
+                reason: Some("container_probe_not_running".to_owned()),
+            });
+        }
+        let operation = request.operation.ok_or_else(|| {
+            PortError::Failed("container_runtime_probe_operation_missing".to_owned())
+        })?;
+        let outcome = self.execute_argv(prepared, operation).await?;
+        Ok(ContainerProbeOutcome {
+            kind: request.kind,
+            passed: !outcome.timed_out && outcome.exit_code == 0,
+            observation_known: !outcome.timed_out,
+            reason: if outcome.timed_out {
+                Some("result_unknown:container_probe_timeout".to_owned())
+            } else {
+                (outcome.exit_code != 0).then(|| format!("probe_exit_code:{}", outcome.exit_code))
+            },
+        })
+    }
+
     fn runtime_command(&self) -> Command {
         let mut command = Command::new(&self.config.runtime);
         command.env_clear();
@@ -356,7 +480,12 @@ impl ContainerEnvironmentAdapter {
 
     async fn stop_and_confirm(&self, planned: &PlannedContainer) -> Result<bool, PortError> {
         let mut stop = self.runtime_command();
-        stop.arg("stop").arg("--time").arg("1").arg(&planned.name);
+        stop.arg("stop")
+            .arg("--signal")
+            .arg(CONTAINER_STOP_SIGNAL)
+            .arg("--time")
+            .arg("1")
+            .arg(&planned.name);
         let output = bounded_runtime_output(stop).await?;
         if !output.status.success() {
             return Ok(false);
@@ -414,6 +543,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
             ("network_none".to_owned(), true),
             ("resource_limits".to_owned(), true),
             ("owner_scope_labels".to_owned(), true),
+            ("volume_root_identity".to_owned(), true),
             ("no_host_control_socket".to_owned(), true),
             (
                 "gvisor_runtime".to_owned(),
@@ -498,6 +628,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
                 "network_none".to_owned(),
                 "resource_limits".to_owned(),
                 "owner_scope_labels".to_owned(),
+                "volume_root_identity".to_owned(),
                 "no_host_control_socket".to_owned(),
             ],
         })
@@ -568,6 +699,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
             "network_none".to_owned(),
             "resource_limits".to_owned(),
             "owner_scope_labels".to_owned(),
+            "volume_root_identity".to_owned(),
             "no_host_control_socket".to_owned(),
         ];
         if planned.config.runtime_name == "runsc" {
@@ -685,21 +817,30 @@ impl ContainerInspection {
         let Some(labels) = self.labels() else {
             return false;
         };
+        let Some(root_identity) =
+            volume_root_identity(&planned.config, &planned.owner_id, &planned.scope_digest).ok()
+        else {
+            return false;
+        };
         labels.get(LABEL_OWNER).and_then(Value::as_str) == Some(planned.owner_id.as_str())
             && labels.get(LABEL_SCOPE).and_then(Value::as_str)
                 == Some(planned.scope_digest.as_str())
             && labels.get(LABEL_PLAN).and_then(Value::as_str) == Some(planned.plan_digest.as_str())
+            && labels.get(LABEL_ROOT).and_then(Value::as_str) == Some(root_identity.as_str())
             && labels.get(LABEL_BACKEND).and_then(Value::as_str) == Some(CONTAINER_BACKEND)
     }
 
-    fn stopped(&self) -> bool {
+    fn running(&self) -> Option<bool> {
         self.value
             .as_array()
             .and_then(|items| items.first())
             .and_then(|item| item.get("State"))
             .and_then(|state| state.get("Running"))
             .and_then(Value::as_bool)
-            == Some(false)
+    }
+
+    fn stopped(&self) -> bool {
+        self.running() == Some(false)
     }
 }
 
@@ -731,6 +872,7 @@ fn required_capabilities_supported(probe: &EnvironmentProbe, require_gvisor: boo
         "network_none",
         "resource_limits",
         "owner_scope_labels",
+        "volume_root_identity",
         "no_host_control_socket",
     ];
     required
@@ -836,7 +978,10 @@ fn default_exec_timeout_ms() -> u64 {
     30_000
 }
 
-fn validate_exec_operation(operation: &ContainerExecOperation) -> Result<(), PortError> {
+fn validate_exec_operation(
+    operation: &ContainerExecOperation,
+    allowed_environment: &BTreeMap<String, String>,
+) -> Result<(), PortError> {
     if operation.argv.is_empty()
         || operation.argv.len() > MAX_EXEC_ARGS
         || operation.timeout_ms == 0
@@ -858,11 +1003,30 @@ fn validate_exec_operation(operation: &ContainerExecOperation) -> Result<(), Por
         }
     }
     for (name, value) in &operation.environment {
-        if !is_safe_environment_name(name) || value.len() > 4_096 || value.contains('\0') {
+        if !is_safe_environment_name(name)
+            || !allowed_environment.contains_key(name)
+            || value.len() > 4_096
+            || value.contains('\0')
+        {
             return Err(PortError::Failed(
                 "container_exec_environment_denied".to_owned(),
             ));
         }
     }
     Ok(())
+}
+
+fn volume_root_identity(
+    config: &ContainerLaunchConfig,
+    owner_id: &str,
+    scope_digest: &str,
+) -> Result<String, PortError> {
+    let workspace = config.canonical_workspace()?;
+    Ok(kiana_domain::json_digest(&json!({
+        "owner_id": owner_id,
+        "scope_digest": scope_digest,
+        "workspace": workspace,
+        "container_path": "/workspace",
+        "read_only_root": true,
+    })))
 }

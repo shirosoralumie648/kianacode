@@ -8883,6 +8883,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: fake-model success is not a real model, live provider, business delivery or outcome receipt; no external account/credential/request was used; CI source indexing cannot prove cross-process recovery, scale, live handoff or physical effects
 reviewer: Codex root implementation review plus CompanyOS fake-vs-real-model, result_unknown/reconcile, evidence/owner and handoff proof-ceiling review; no runtime/live reviewer
 
+### DEP-36 container adapter lifecycle evidence (partial, 2026-09-19)
+
+source_snapshot: 6ba770c1 + DEP-36 working-tree slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-ports/src/lib.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/dep36_container_adapter_guard.rs; .github/workflows/dep36-container-adapter.yml; docs/roadmap/dep36-container-adapter-baseline.md; docs/roadmap.md
+worktree_status: the existing EnvironmentPort container adapter now binds a digest-pinned image to an owner/scope/workspace-derived volume_root_identity, rejects operation env names outside the configured allowlist, sends explicit SIGTERM on stop, and separates inspect-only startup from explicit readiness/liveness observations; no second execution loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep36_container_adapter fixture and dep36_container_adapter_guard; GitHub Actions DEP-36 runs the fixture, source guard, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-36 is triggered by the eventual push and is not awaited
+status_change: DEP-36 source contract advanced from CAP-33 lifecycle basics to explicit root identity, env, stop-signal and probe semantics; roadmap remains ⏳ because real container harness, durable inventory/fence, traffic drain, restart recovery and target runtime receipts remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the root digest is a plan-bound identity, not a filesystem integrity scan; readiness/liveness argv are caller-supplied observations, not authority; no real OCI/gVisor runtime, cross-process cleanup, health receipt or live traffic handoff was executed
+reviewer: Codex root implementation review plus image/volume identity, env allowlist, explicit SIGTERM, startup/readiness/liveness semantics, Unknown timeout and no-second-loop boundary review; no runtime/container reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

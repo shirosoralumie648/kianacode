@@ -1,0 +1,45 @@
+name: DEP-36 container adapter boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/container_environment.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/dep36_container_adapter.rs"
+      - "kiana-core/tests/dep36_container_adapter_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/dep36-container-adapter-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep36-container-adapter.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/container_environment.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/dep36_container_adapter.rs"
+      - "kiana-core/tests/dep36_container_adapter_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/dep36-container-adapter-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep36-container-adapter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-36 container adapter fixture
+        run: cargo test -p kiana-daemon --test dep36_container_adapter --locked -- --test-threads=1
+      - name: Run DEP-36 source guard
+        run: cargo test -p kiana-core --test dep36_container_adapter_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
