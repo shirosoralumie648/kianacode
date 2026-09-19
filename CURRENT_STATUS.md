@@ -8851,20 +8851,20 @@ reviewer: Codex root implementation review plus platform-neutral contract reuse,
 
 ### UI-41 UI/Entrypoints handoff and gap evidence (partial, 2026-09-19)
 
-source_snapshot: 6c61ae78 + UI-41 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{ui39-live-acp,ui40-release-gate,ui41-handoff}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui41_handoff_guard.rs; .github/workflows/ui41-handoff.yml; docs/roadmap.md
-worktree_status: UI-41 handoff guard now requires completed/partial/deferred/not_supported classification, source snapshot/reviewer/next action and explicit cross-process/live/physical/scale limits; it rejects blanket overall-complete language
+source_snapshot: 2b30bd10 + UI-41 handoff parity slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{ui39-live-acp,ui40-release-gate,ui41-handoff}-baseline.md; kiana-protocol/src/ui_contracts.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui41_handoff_guard.rs; .github/workflows/ui41-handoff.yml; docs/roadmap.md
+worktree_status: UI-41 handoff guard requires completed/partial/deferred/not_supported classification, source snapshot/reviewer/next action and explicit cross-process/live/physical/scale limits; it now also indexes the typed UiEvidenceCase/UiEvidenceBundle receipt/artifact and feature_status/proof_level boundary, links UI-40/UI-41 from module-map, and rejects blanket overall-complete language
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only ui41_handoff_guard; GitHub Actions UI-41 runs handoff source guard, diff check and workspace compilation
+fixture or cassette: CI-only ui41_handoff_guard; GitHub Actions UI-41 runs handoff source guard, diff check and workspace compilation against the UI-40 protocol evidence bundle
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-41 is triggered by the eventual push and is not awaited
 status_change: UI-41 handoff evidence advanced from UI-40 release gate; roadmap remains ⏳ because partial/deferred/live/physical dependencies remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: a handoff document cannot prove runtime parity, accessibility, ACP/IDE live behavior, Desktop packaging, external receipts, cross-process recovery or scale
-reviewer: Codex root implementation review plus status/proof/source snapshot, open limitation, reviewer and no-blanket-completion handoff boundary review; no runtime test reviewer
+limitations: a handoff document and source/fixture evidence bundle cannot prove runtime parity, accessibility, ACP/IDE live behavior, Desktop packaging, external receipts, cross-process recovery or scale
+reviewer: Codex root implementation review plus status/proof/source snapshot, typed UI evidence linkage, open limitation, reviewer and no-blanket-completion handoff boundary review; no runtime test reviewer
 
 ### CO-48 CompanyOS real-model closeout and handoff evidence (partial, 2026-09-19)
 

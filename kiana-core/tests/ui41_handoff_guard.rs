@@ -7,6 +7,7 @@ fn ui_handoff_keeps_partial_and_not_supported_boundaries_visible() {
     let module_map = include_str!("../../docs/module-map.md");
     let ui40 = include_str!("../../docs/roadmap/ui40-release-gate-baseline.md");
     let ui39 = include_str!("../../docs/roadmap/ui39-live-acp-baseline.md");
+    let ui_contracts = include_str!("../../kiana-protocol/src/ui_contracts.rs");
     let baseline = include_str!("../../docs/roadmap/ui41-handoff-baseline.md");
     for marker in [
         "UI-39",
@@ -19,6 +20,11 @@ fn ui_handoff_keeps_partial_and_not_supported_boundaries_visible() {
         "live provider",
         "scale",
         "proof-level",
+        "UiEvidenceBundle",
+        "UiEvidenceCase",
+        "feature_status",
+        "proof_level",
+        "receipt_digest",
     ] {
         assert!(
             roadmap.contains(marker)
@@ -26,6 +32,7 @@ fn ui_handoff_keeps_partial_and_not_supported_boundaries_visible() {
                 || module_map.contains(marker)
                 || ui40.contains(marker)
                 || ui39.contains(marker)
+                || ui_contracts.contains(marker)
                 || baseline.contains(marker),
             "UI-41 handoff marker missing: {marker}"
         );
