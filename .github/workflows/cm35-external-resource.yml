@@ -1,0 +1,59 @@
+name: cm35-external-resource
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/external_resource.rs"
+      - "kiana-domain/src/source*"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm35_external_resource.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm35_external_resource_guard.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm35-external-resource-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm35-external-resource.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/external_resource.rs"
+      - "kiana-domain/src/source*"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm35_external_resource.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm35_external_resource_guard.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm35-external-resource-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm35-external-resource.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-resource:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-35 external resource fixtures
+        run: cargo test -p kiana-domain --test cm35_external_resource --locked -- --test-threads=1
+      - name: Run CM-35 source guard
+        run: cargo test -p kiana-core --test cm35_external_resource_guard --locked -- --test-threads=1

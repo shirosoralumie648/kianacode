@@ -10820,3 +10820,19 @@ status change: CM-34 source slice is implemented and roadmap row 639 is ✅. Off
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: ONNX runtime execution, package signature verification, hardware/device performance, semantic embedding quality and production index rebuild remain open; no runtime download or live provider claim is made
 reviewer: Codex root implementation review plus hash/dimension/pooling/provider/device/network-deny validation, exact generation/manifest binding and old-read-only rotation review; no runtime test reviewer
+
+### CM-35 external context/resource adapter evidence (2026-09-20)
+
+source_snapshot: c7b7e69b + CM-35 working-tree slice; kiana-domain/src/{external_resource.rs,context_scope.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm35_external_resource.rs; kiana-core/tests/cm35_external_resource_guard.rs; kiana-daemon/src/{harness_mcp.rs,connectors.rs}; kiana-query/src/context_inputs.rs; kiana-protocol/src/lib.rs; .github/workflows/cm35-external-resource.yml; docs/roadmap/cm35-external-resource-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ExternalResourceRequest unifies MCP/resource, connector and user-import admission with processing-grant, quota, content/locator and equal base/requested scope digests; ExternalResourceSnapshot binds attributed untrusted SourceSnapshot to revision, data epoch, TTL and revocation, while forbidding memory write and scope widening
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-35 scope-widening/revocation fixtures and Core source guard; GitHub Actions CM-35 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-35 source slice is implemented and roadmap row 640 is ✅. External resource trust, quota, scope and revocation boundaries are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no external network call, MCP transport, connector business effect, import persistence or live remote provenance is claimed; real adapters must acquire grants/quotas and use the same snapshot/revocation contract
+reviewer: Codex root implementation review plus source-kind, attributed evidence, digest binding, equal-scope, quota, epoch/TTL and revocation gate review; no runtime test reviewer
