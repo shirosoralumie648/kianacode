@@ -9209,8 +9209,8 @@ reviewer: Codex root implementation review plus GoldenTrace source/input/receipt
 
 ### CAP-34 capability conformance matrix evidence (partial, 2026-09-19)
 
-source_snapshot: 8dbbf634 + CAP-34 working-tree slice; kiana-domain/src/capability_conformance.rs; kiana-domain/src/lib.rs; kiana-domain/tests/cap34_conformance.rs; kiana-core/tests/cap34_conformance_guard.rs; .github/workflows/cap34-conformance.yml; docs/roadmap/cap34-conformance-baseline.md; docs/roadmap.md
-worktree_status: domain now exposes a bounded backend/profile/tool/scenario matrix with explicit Verified/NotApplicable/NotImplemented/Blocked rows; non-verified rows require reasons, epoch snapshots are mandatory, grant drift and effect/resume fence bypass are rejected, and the report counts skips separately from verified cases
+source_snapshot: a4f65640 + CAP-34 working-tree slice; kiana-domain/src/{capability_conformance,platform_backend}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/cap34_conformance.rs; kiana-core/tests/cap34_conformance_guard.rs; .github/workflows/cap34-conformance.yml; docs/roadmap/cap34-conformance-baseline.md; docs/roadmap.md
+worktree_status: domain now exposes a bounded backend/profile/tool/scenario matrix with explicit Verified/NotApplicable/NotImplemented/Blocked rows; non-verified rows require reasons, epoch snapshots are mandatory, grant drift and effect/resume fence bypass are rejected, report counts skips separately, and Verified rows now require PlatformBackendDisposition::Implemented rather than TargetOnly/NotSupported
 command_argv:
   cargo fmt --all
   cargo fmt --all --check

@@ -3,7 +3,7 @@
 //! A matrix row is an evidence classification, not an execution permission. Unsupported rows
 //! remain visible with a reason; they are never counted as verified.
 
-use crate::{json_digest, SchemaVersion};
+use crate::{json_digest, PlatformBackendDisposition, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -68,6 +68,8 @@ pub struct ConformanceCase {
     pub status: ConformanceCaseStatus,
     pub reason: String,
     #[serde(default)]
+    pub backend_disposition: Option<PlatformBackendDisposition>,
+    #[serde(default)]
     pub evidence_digest: Option<String>,
     pub grant_digest: String,
     pub observed_grant_digest: String,
@@ -110,6 +112,14 @@ impl ConformanceCase {
             if self.grant_digest != self.observed_grant_digest {
                 return Err("backend_switch_cannot_expand_existing_grant".to_owned());
             }
+            if self.backend_disposition != Some(PlatformBackendDisposition::Implemented) {
+                return Err("verified_backend_disposition_missing".to_owned());
+            }
+        }
+        if self.backend_disposition == Some(PlatformBackendDisposition::Implemented)
+            && self.status != ConformanceCaseStatus::Verified
+        {
+            return Err("implemented_backend_requires_verified_case".to_owned());
         }
         if matches!(
             self.status,

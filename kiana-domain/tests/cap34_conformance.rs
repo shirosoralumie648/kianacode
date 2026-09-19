@@ -23,6 +23,8 @@ fn case(
         scenario,
         status,
         reason: reason.to_owned(),
+        backend_disposition: (status == ConformanceCaseStatus::Verified)
+            .then_some(kiana_domain::PlatformBackendDisposition::Implemented),
         evidence_digest: None,
         grant_digest: DIGEST_A.to_owned(),
         observed_grant_digest: DIGEST_A.to_owned(),
@@ -119,6 +121,37 @@ fn conformance_matrix_blocks_grant_drift_and_effect_fence_bypass() {
     assert_eq!(
         report.status,
         kiana_domain::ConformanceMatrixStatus::Blocked
+    );
+}
+
+#[test]
+fn verified_case_requires_implemented_backend_disposition() {
+    let mut value = case(
+        "target-not-verified",
+        ConformanceBackend::Macos,
+        ConformanceTool::Shell,
+        ConformanceScenario::Success,
+        ConformanceCaseStatus::Verified,
+        "target receipt pending",
+    );
+    value.backend_disposition = Some(kiana_domain::PlatformBackendDisposition::TargetOnly);
+    assert_eq!(
+        value.validate().unwrap_err(),
+        "verified_backend_disposition_missing"
+    );
+
+    let mut implemented = case(
+        "implemented-not-verified",
+        ConformanceBackend::Windows,
+        ConformanceTool::Shell,
+        ConformanceScenario::Success,
+        ConformanceCaseStatus::NotImplemented,
+        "target backend pending",
+    );
+    implemented.backend_disposition = Some(kiana_domain::PlatformBackendDisposition::Implemented);
+    assert_eq!(
+        implemented.validate().unwrap_err(),
+        "implemented_backend_requires_verified_case"
     );
 }
 

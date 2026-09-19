@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/capability_conformance.rs"
+      - "kiana-domain/src/platform_backend.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/cap34_conformance.rs"
       - "kiana-core/tests/cap34_conformance_guard.rs"
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/capability_conformance.rs"
+      - "kiana-domain/src/platform_backend.rs"
       - "kiana-domain/src/lib.rs"
       - "kiana-domain/tests/cap34_conformance.rs"
       - "kiana-core/tests/cap34_conformance_guard.rs"
