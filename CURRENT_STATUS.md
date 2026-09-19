@@ -9796,3 +9796,19 @@ status_change: EQ-21 source slice is implemented and roadmap row 287 is ✅. Nor
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: diff consumes caller-provided normalized values and does not establish source-run completeness, quality pass/fail, assertion semantics, candidate promotion or durable EvalStore evidence
 reviewer: Codex root implementation review plus compatibility gating, source-order first divergence, recursive object/array path stability, missing/extra/terminal classification, redacted bounded summaries and no-effect boundary review; no runtime test reviewer
+
+### EQ-22 declarative assertion DSL evidence (2026-09-19)
+
+source_snapshot: 54582101 + EQ-22 working-tree slice; kiana-quality/Cargo.toml; Cargo.lock; kiana-quality/src/{lib.rs,assertions.rs}; kiana-quality/tests/eq22_assertions.rs; kiana-quality/tests/eq22_assertions_guard.rs; .github/workflows/eq22-assertions.yml; docs/roadmap/evaluation-assertions-baseline.md; docs/roadmap.md
+worktree_status: bounded Assertion/AssertionMode/AssertionResult contracts now support exact, ordered, multiset, numeric tolerance, regex and contains over explicit paths; invalid specs, oversized regex, tolerance drift and assertion-count overflow fail closed, while mismatch codes and redacted summaries remain deterministic and the input/unrelated fields are unchanged; regex is the existing pure dependency only, with no runner/provider/effect path; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq22_assertions.rs covers every mode, ordered/multiset distinction, unrelated-field isolation, stable codes, redaction and invalid specs; eq22_assertions_guard protects pure regex/summary bounds; GitHub Actions EQ-22 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-22 source slice is implemented and roadmap row 288 is ✅. Declarative assertions now return pass/fail without changing values, and all unsupported/unsafe specification shapes are visible errors
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: assertions are caller-provided value checks and do not establish complete trace capture, evaluator aggregation, baseline/candidate governance, model quality or durable EvalStore evidence
+reviewer: Codex root implementation review plus mode semantics, path bounds, duplicate-preserving multiset, numeric tolerance, regex limits, contains subset behavior, redacted summaries and no-effect boundary review; no runtime test reviewer

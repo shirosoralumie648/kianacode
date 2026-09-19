@@ -1,0 +1,42 @@
+name: EQ-22 quality assertions
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-assertions-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq22-assertions.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-assertions-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq22-assertions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assertions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run assertion fixtures
+        run: cargo test -p kiana-quality --test eq22_assertions --locked -- --test-threads=1
+      - name: Run assertion source guard
+        run: cargo test -p kiana-quality --test eq22_assertions_guard --locked -- --test-threads=1
+      - name: Compile EQ-22 targets
+        run: cargo check --workspace --tests --locked

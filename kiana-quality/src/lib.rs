@@ -4,12 +4,17 @@
 //! capability. EQ-17--19 only select and normalize bounded durable evidence; digests, diffing,
 //! evaluation and persistence are explicit later stages.
 
+mod assertions;
 mod canonical;
 mod diff;
 mod digest;
 mod normalize;
 mod volatile;
 
+pub use assertions::{
+    evaluate_assertion, evaluate_assertions, Assertion, AssertionError, AssertionMode,
+    AssertionResult, ASSERTION_SCHEMA, MAX_ASSERTIONS,
+};
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,
     CANONICAL_NORMALIZATION_VERSION,

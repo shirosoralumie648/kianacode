@@ -13,5 +13,6 @@ publish = false
 
 [dependencies]
 kiana-domain.workspace = true
+regex.workspace = true
 serde.workspace = true
 thiserror.workspace = true
