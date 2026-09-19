@@ -508,7 +508,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-24 · 相关性、时效、冲突与历史查询　⏳
+##### CM-24 · 相关性、时效、冲突与历史查询　✅
+
+当前 source slice 与 CI-only 证据见 [`cm24-memory-temporal-baseline.md`](cm24-memory-temporal-baseline.md)。
 
 补 exact/BM25/dense 结果的 authority/freshness 排序、`as_of` 查询、supersedes 和 conflict set；不要由最新写入覆盖互斥事实。验收：`as_of_returns_only_valid_history`、`conflicting_memories_remain_explicit`。
 
