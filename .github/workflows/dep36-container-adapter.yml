@@ -7,6 +7,8 @@ on:
       - "kiana-daemon/src/container_environment.rs"
       - "kiana-daemon/src/lib.rs"
       - "kiana-daemon/tests/dep36_container_adapter.rs"
+      - "kiana-domain/src/container_lifecycle_evidence.rs"
+      - "kiana-domain/tests/dep36_container_lifecycle_evidence.rs"
       - "kiana-core/tests/dep36_container_adapter_guard.rs"
       - "kiana-ports/src/lib.rs"
       - "docs/roadmap/dep36-container-adapter-baseline.md"
@@ -18,6 +20,8 @@ on:
       - "kiana-daemon/src/container_environment.rs"
       - "kiana-daemon/src/lib.rs"
       - "kiana-daemon/tests/dep36_container_adapter.rs"
+      - "kiana-domain/src/container_lifecycle_evidence.rs"
+      - "kiana-domain/tests/dep36_container_lifecycle_evidence.rs"
       - "kiana-core/tests/dep36_container_adapter_guard.rs"
       - "kiana-ports/src/lib.rs"
       - "docs/roadmap/dep36-container-adapter-baseline.md"
@@ -40,6 +44,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run DEP-36 container adapter fixture
         run: cargo test -p kiana-daemon --test dep36_container_adapter --locked -- --test-threads=1
+      - name: Run DEP-36 lifecycle evidence fixture
+        run: cargo test -p kiana-domain --test dep36_container_lifecycle_evidence --locked -- --test-threads=1
       - name: Run DEP-36 source guard
         run: cargo test -p kiana-core --test dep36_container_adapter_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

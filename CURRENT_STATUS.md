@@ -8885,20 +8885,20 @@ reviewer: Codex root implementation review plus typed live closeout evidence, Co
 
 ### DEP-36 container adapter lifecycle evidence (partial, 2026-09-19)
 
-source_snapshot: 6ba770c1 + DEP-36 working-tree slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-ports/src/lib.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/dep36_container_adapter_guard.rs; .github/workflows/dep36-container-adapter.yml; docs/roadmap/dep36-container-adapter-baseline.md; docs/roadmap.md
-worktree_status: the existing EnvironmentPort container adapter now binds a digest-pinned image to an owner/scope/workspace-derived volume_root_identity, rejects operation env names outside the configured allowlist, sends explicit SIGTERM on stop, and separates inspect-only startup from explicit readiness/liveness observations; no second execution loop was added
+source_snapshot: 1737ac1c + DEP-36 lifecycle evidence-contract slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-ports/src/lib.rs; kiana-domain/src/container_lifecycle_evidence.rs; kiana-domain/tests/dep36_container_lifecycle_evidence.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/dep36_container_adapter_guard.rs; .github/workflows/dep36-container-adapter.yml; docs/roadmap/dep36-container-adapter-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: the existing EnvironmentPort container adapter binds a digest-pinned image to an owner/scope/workspace-derived volume_root_identity, rejects operation env names outside the configured allowlist, sends explicit SIGTERM on stop, and separates inspect-only startup from explicit readiness/liveness observations; ContainerLifecycleEvidence now binds all lifecycle phases and identity/receipt/fence/cleanup/result_unknown boundaries, and no second execution loop was added
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only dep36_container_adapter fixture and dep36_container_adapter_guard; GitHub Actions DEP-36 runs the fixture, source guard, diff check and workspace static compilation
+fixture or cassette: CI-only dep36_container_adapter, dep36_container_lifecycle_evidence and dep36_container_adapter_guard; GitHub Actions DEP-36 runs adapter and typed lifecycle fixtures, source guard, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-36 is triggered by the eventual push and is not awaited
 status_change: DEP-36 source contract advanced from CAP-33 lifecycle basics to explicit root identity, env, stop-signal and probe semantics; roadmap remains ⏳ because real container harness, durable inventory/fence, traffic drain, restart recovery and target runtime receipts remain open
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: the root digest is a plan-bound identity, not a filesystem integrity scan; readiness/liveness argv are caller-supplied observations, not authority; no real OCI/gVisor runtime, cross-process cleanup, health receipt or live traffic handoff was executed
-reviewer: Codex root implementation review plus image/volume identity, env allowlist, explicit SIGTERM, startup/readiness/liveness semantics, Unknown timeout and no-second-loop boundary review; no runtime/container reviewer
+limitations: the root digest is a plan-bound identity, not a filesystem integrity scan; readiness/liveness argv are caller-supplied observations, not authority; the new evidence contract is source-only; no real OCI/gVisor runtime, cross-process cleanup, health receipt or live traffic handoff was executed
+reviewer: Codex root implementation review plus typed lifecycle evidence, image/volume identity, env allowlist, explicit SIGTERM, startup/readiness/liveness semantics, Unknown timeout and no-second-loop boundary review; no runtime/container reviewer
 
 ### DEP-37 orchestrated rollout contract evidence (partial, 2026-09-19)
 

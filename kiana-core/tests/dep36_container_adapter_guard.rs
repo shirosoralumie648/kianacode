@@ -4,6 +4,7 @@
 fn container_adapter_is_identity_bound_and_probe_semantics_are_explicit() {
     let source = include_str!("../../kiana-daemon/src/container_environment.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
+    let evidence = include_str!("../../kiana-domain/src/container_lifecycle_evidence.rs");
     let baseline = include_str!("../../docs/roadmap/dep36-container-adapter-baseline.md");
 
     for marker in [
@@ -23,9 +24,15 @@ fn container_adapter_is_identity_bound_and_probe_semantics_are_explicit() {
         "result_unknown:container_probe_timeout",
         "result_unknown:container_cancel_unconfirmed",
         "no_host_control_socket",
+        "ContainerLifecycleEvidence",
+        "ContainerPhaseEvidence",
+        "container_lifecycle_unknown_cannot_verify",
+        "container_lifecycle_host_fallback_forbidden",
+        "cleanup_receipt_digest",
+        "runtime_identity_digest",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || evidence.contains(marker),
             "DEP-36 source marker missing: {marker}"
         );
     }
