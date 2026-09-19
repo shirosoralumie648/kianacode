@@ -488,7 +488,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-22 · 六层 ACL 与逐记录过滤统一化　⏳
+##### CM-22 · 六层 ACL 与逐记录过滤统一化　✅
+
+当前 source slice 与 CI-only 证据见 [`cm22-memory-acl-baseline.md`](cm22-memory-acl-baseline.md)。
 
 让 memory.search、自动预取、review list、引用回取、proposal similar records 共享 scope resolver；collection/path 仅预筛，最终逐记录检查 purpose/sensitivity/state/validity。验收：`memory_acl_holds_in_search_review_and_resume`、`collection_label_cannot_grant_access`。
 
