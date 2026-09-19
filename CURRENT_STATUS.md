@@ -10052,3 +10052,19 @@ status_change: SC-25 source slice is implemented and roadmap row 303 is ✅. Pro
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: the policy contract does not itself read trust files or wire every legacy/entrypoint loader, root digests are adapter-supplied, signed trust roots/cross-process recovery/real authentication and production resource loading remain unproved; later SC-26+ / EXT work must consume this boundary
 reviewer: Codex root implementation review plus trust scope/priority, project-root binding, revision conflict, unknown/untrusted deny, audit reference/digest and no-filesystem/no-loader policy boundary review; no runtime test reviewer
+
+### SC-26 ExtensionManifest / CapabilityCatalog evidence (2026-09-19)
+
+source_snapshot: 1182ea3d + SC-26 working-tree slice; kiana-domain/src/{extensions.rs,capability_catalog.rs}; kiana-domain/tests/{sc26_capability_catalog.rs,sc26_capability_catalog_guard.rs}; .github/workflows/sc26-capability-catalog.yml; docs/roadmap/sc26-capability-catalog-baseline.md; docs/roadmap.md
+worktree_status: extension_manifest_digest binds the complete validated ExtensionManifest including signature metadata/effect/version/requirements; CapabilityCatalog stores requested versus effective capability sets and computes effective only as host ∩ parent Grant ∩ exact approval; provided_capabilities/allowed-tools cannot mint authorization, ReadOnly cannot request write capability, and duplicate identity/digest/effective-set drift fail closed; value-only domain contract adds no package loader/Broker/effect path
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: domain manifest-digest, capability-intersection, ReadOnly/write-deny, provided-tool non-authority, widening and duplicate fixtures plus source guard; GitHub Actions SC-26 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-26 source slice is implemented and roadmap row 304 is ✅. Extension declarations are reduced to a digest-bound, deny-first capability snapshot rather than direct authorization
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: catalog inputs are adapter-supplied and not yet persisted/consumed by every extension lifecycle path, signature key trust/package loading/sandbox/revocation/cross-process recovery and external effect receipts remain SC-27+ / EXT/CAP work
+reviewer: Codex root implementation review plus manifest digest binding, host/Grant/approval intersection, provided/allowed-tools non-authority, ReadOnly write denial, duplicate/widening drift and domain-only boundary review; no runtime test reviewer
