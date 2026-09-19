@@ -10596,3 +10596,19 @@ status change: CM-20 source slice is implemented and roadmap row 331 is ✅. Art
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: EventLog/ArtifactStore atomic persistence, power-loss recovery and cross-process checkpoint hydration remain open; actual Runner/Daemon compaction commit wiring and CM-21 invalidation are not claimed
 reviewer: Codex root implementation review plus artifact-first ordering, source/context CAS, workspace/data fences, Inbox monotonicity and old-view crash safety review; no runtime test reviewer
+
+### CM-21 resume/cache/invalidation evidence (2026-09-20)
+
+source_snapshot: f38a6a50 + CM-21 working-tree slice; kiana-domain/src/{context_invalidation.rs,context_checkpoint.rs,source_dependencies.rs,request_budget.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm21_resume_cache_invalidation.rs; kiana-core/tests/cm21_resume_cache_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm21-resume-cache.yml; docs/roadmap/cm21-resume-cache-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ContextResumeView binds committed checkpoint, prepared request digest, source cursor, Inbox digest and data epoch for deterministic restart rebuild; ContextInvalidationPlan consumes SourceDependencyGraph/SourceInvalidation closure and maps derived Summary/Selection/Cache/Checkpoint targets; ContextCacheBinding records invalidation plan and advances observed epoch while setting valid=false
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-21 deterministic resume rebuild, source revocation closure/cache invalidation fixtures and Core source guard; GitHub Actions CM-21 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-21 source slice is implemented and roadmap row 332 is ✅. Resume/cache/delete invalidation boundaries are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: EventLog-backed restart hydration, durable provider/cache/index deletion propagation and actual daemon wiring remain PD/ER/DEP work; no live provider or physical effect claim is made
+reviewer: Codex root implementation review plus checkpoint/prepared/data epoch binding, dependency closure target mapping, cache invalidation and deterministic rebuild review; no runtime test reviewer
