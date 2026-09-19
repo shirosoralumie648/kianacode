@@ -1,0 +1,48 @@
+name: CAP-11 ambient authority and default-deny sandbox
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-core/tests/cap11_ambient_authority_guard.rs"
+      - "docs/roadmap/cap11-ambient-authority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap11-ambient-authority.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/harness_sandbox.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/execution_control.rs"
+      - "kiana-core/tests/cap11_ambient_authority_guard.rs"
+      - "docs/roadmap/cap11-ambient-authority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap11-ambient-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ambient-authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run sandbox environment fixture
+        run: cargo test -p kiana-daemon --lib sandbox_env_keeps_core_path_and_strips_secrets --locked -- --test-threads=1
+      - name: Run namespace and launch fixture
+        run: cargo test -p kiana-daemon --lib plan_uses_codex_session_cap_drop_and_clearenv --locked -- --test-threads=1
+      - name: Run CAP-11 source guard
+        run: cargo test -p kiana-core --test cap11_ambient_authority_guard --locked -- --test-threads=1
+      - name: Compile CAP-11 targets
+        run: cargo check --workspace --tests --locked

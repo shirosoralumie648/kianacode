@@ -94,6 +94,7 @@ impl ConfinedMcpClient {
         {
             use std::os::fd::AsRawFd;
             for (file, path) in &mounts {
+                plan.retain_mount_fd(file.clone());
                 extra.extend([
                     std::ffi::OsString::from("--ro-bind-fd"),
                     file.as_raw_fd().to_string().into(),
@@ -125,18 +126,7 @@ impl ConfinedMcpClient {
             .kill_on_drop(true);
         #[cfg(unix)]
         {
-            use std::os::fd::AsRawFd;
             command.process_group(0);
-            unsafe {
-                command.pre_exec(move || {
-                    for (file, _) in &mounts {
-                        if libc::fcntl(file.as_raw_fd(), libc::F_SETFD, 0) < 0 {
-                            return Err(std::io::Error::last_os_error());
-                        }
-                    }
-                    Ok(())
-                });
-            }
         }
         let mut child = command.spawn().map_err(|_| failed("mcp_spawn_failed"))?;
         let process_group = child.id();

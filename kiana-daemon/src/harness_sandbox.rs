@@ -14,7 +14,7 @@ use kiana_runner_protocol::{DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_W
 use std::ffi::OsString;
 use std::fs::{self, File};
 #[cfg(unix)]
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -43,6 +43,27 @@ const KIANA_LAUNCH_ENV_VARS: &[&str] = &[
     "KIANA_APPEND_SYSTEM_PROMPT",
 ];
 
+/// Names that can turn a child process back into a host-authorized process or redirect its
+/// startup/egress behavior.  The allowlist below already excludes them; keeping the explicit
+/// deny list makes that boundary auditable and prevents a future allowlist expansion from
+/// silently reintroducing ambient authority.
+const AMBIENT_AUTHORITY_ENV_VARS: &[&str] = &[
+    "SSH_AUTH_SOCK",
+    "SSH_AGENT_PID",
+    "GIT_SSH_COMMAND",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "BASH_ENV",
+    "ENV",
+    "PYTHONPATH",
+    "PYTHONHOME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+];
+
 /// 已解析、但尚未启动的 `bubblewrap` 进程计划。
 ///
 /// 调用方应把 [`program`](Self::program) 作为可执行文件、按顺序传入
@@ -66,19 +87,33 @@ impl BwrapPlan {
             }
         }
     }
+
+    /// Keep an additional descriptor-backed mount alive through the helper exec.
+    ///
+    /// MCP executable/configuration mounts use the same descriptor-relative boundary as the
+    /// system/project mounts.  They must be registered before [`configure_command`] so the
+    /// inherited-FD fence can retain only these descriptors and mark everything else CLOEXEC.
+    #[cfg(unix)]
+    pub(crate) fn retain_mount_fd(&mut self, file: Arc<File>) {
+        self.pinned.push(file);
+    }
+
     /// Keep mount descriptors alive through exec; paths are never reopened by bwrap.
     pub fn configure_command(&self, command: &mut tokio::process::Command) {
         command.args(&self.args);
         #[cfg(unix)]
         {
             let pinned = self.pinned.clone();
+            let pinned_fds: Vec<RawFd> = pinned.iter().map(|file| file.as_raw_fd()).collect();
             unsafe {
                 command.pre_exec(move || {
+                    mark_unlisted_fds_cloexec(&pinned_fds)?;
                     for file in &pinned {
                         if libc::fcntl(file.as_raw_fd(), libc::F_SETFD, 0) < 0 {
                             return Err(std::io::Error::last_os_error());
                         }
                     }
+                    set_no_new_privs()?;
                     Ok(())
                 });
             }
@@ -132,6 +167,10 @@ pub fn bwrap_plan_scoped(
         "/tmp".into(),
         "--dir".into(),
         "/tmp/kiana-home".into(),
+        "--tmpfs".into(),
+        "/run".into(),
+        "--tmpfs".into(),
+        "/sys".into(),
     ];
     let mut pinned = Vec::new();
     // No host-root bind: read-only mounts still expose credentials and Unix sockets.
@@ -419,6 +458,7 @@ pub fn sandbox_env(
         .filter(|(name, _)| is_unix_core_env(name))
         .filter(|(name, _)| !is_default_excluded_env(name))
         .filter(|(name, _)| !is_kiana_launch_env(name))
+        .filter(|(name, _)| !is_ambient_authority_env(name))
         .collect();
     env.retain(|(name, _)| {
         !name.eq_ignore_ascii_case("TMPDIR")
@@ -458,6 +498,83 @@ fn is_kiana_launch_env(name: &str) -> bool {
     KIANA_LAUNCH_ENV_VARS
         .iter()
         .any(|restricted| restricted.eq_ignore_ascii_case(name))
+}
+
+fn is_ambient_authority_env(name: &str) -> bool {
+    AMBIENT_AUTHORITY_ENV_VARS
+        .iter()
+        .any(|restricted| restricted.eq_ignore_ascii_case(name))
+}
+
+#[cfg(unix)]
+fn mark_unlisted_fds_cloexec(keep: &[RawFd]) -> std::io::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut fds = keep
+            .iter()
+            .copied()
+            .filter(|fd| *fd >= 3)
+            .collect::<Vec<_>>();
+        fds.sort_unstable();
+        fds.dedup();
+
+        let mut first = 3u32;
+        for fd in fds.into_iter().map(|fd| fd as u32) {
+            if fd > first {
+                close_range_cloexec(first, fd - 1)?;
+            }
+            first = fd.saturating_add(1);
+        }
+        close_range_cloexec(first, u32::MAX)?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = keep;
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "sandbox_fd_fence_unsupported",
+        ))
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn close_range_cloexec(first: u32, last: u32) -> std::io::Result<()> {
+    // CLOSE_RANGE_CLOEXEC keeps the Rust spawn error pipe usable by the bwrap helper while
+    // ensuring that unknown descriptors disappear when bwrap execs the actual tool.
+    const CLOSE_RANGE_CLOEXEC: libc::c_uint = 1;
+    let result = unsafe {
+        libc::syscall(
+            libc::SYS_close_range,
+            first as libc::c_uint,
+            last as libc::c_uint,
+            CLOSE_RANGE_CLOEXEC,
+        )
+    };
+    if result == -1 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn set_no_new_privs() -> std::io::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let result = unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "sandbox_no_new_privs_unsupported",
+        ))
+    }
 }
 
 fn find_bwrap() -> Result<PathBuf, PortError> {
@@ -569,6 +686,13 @@ mod tests {
         assert!(args.contains(&"--die-with-parent".to_string()));
         assert!(args.contains(&"--cap-drop".to_string()));
         assert!(args.contains(&"--clearenv".to_string()));
+        assert!(args
+            .windows(2)
+            .any(|window| { window[0] == "--tmpfs" && window[1] == "/run" }));
+        assert!(args
+            .windows(2)
+            .any(|window| { window[0] == "--tmpfs" && window[1] == "/sys" }));
+        assert!(!args.contains(&"--share-net".to_string()));
         let cap = args.iter().position(|arg| arg == "--cap-drop").unwrap();
         assert_eq!(args.get(cap + 1).map(String::as_str), Some("ALL"));
         let clear = args.iter().position(|arg| arg == "--clearenv").unwrap();
@@ -594,6 +718,10 @@ mod tests {
                 ("ANTHROPIC_API_KEY".to_owned(), "secret-key".to_owned()),
                 ("GITHUB_TOKEN".to_owned(), "secret-token".to_owned()),
                 ("AWS_SECRET_ACCESS_KEY".to_owned(), "secret".to_owned()),
+                ("SSH_AUTH_SOCK".to_owned(), "/tmp/agent.sock".to_owned()),
+                ("LD_PRELOAD".to_owned(), "/tmp/loader.so".to_owned()),
+                ("BASH_ENV".to_owned(), "/tmp/startup.sh".to_owned()),
+                ("HTTPS_PROXY".to_owned(), "http://proxy.invalid".to_owned()),
                 (
                     "KIANA_HARNESS_SCRIPT".to_owned(),
                     "/tmp/script.json".to_owned(),
@@ -604,8 +732,11 @@ mod tests {
             "read-only",
         );
         let map: std::collections::BTreeMap<_, _> = env.into_iter().collect();
-        assert_eq!(map.get("PATH").map(String::as_str), Some("/bin"));
-        assert_eq!(map.get("HOME").map(String::as_str), Some("/home/kiana"));
+        assert_eq!(
+            map.get("PATH").map(String::as_str),
+            Some("/usr/local/bin:/usr/bin:/bin")
+        );
+        assert_eq!(map.get("HOME").map(String::as_str), Some("/tmp/kiana-home"));
         assert_eq!(map.get("TMPDIR").map(String::as_str), Some("/tmp"));
         assert_eq!(
             map.get("KIANA_SANDBOX").map(String::as_str),
@@ -614,6 +745,10 @@ mod tests {
         assert!(!map.contains_key("ANTHROPIC_API_KEY"));
         assert!(!map.contains_key("GITHUB_TOKEN"));
         assert!(!map.contains_key("AWS_SECRET_ACCESS_KEY"));
+        assert!(!map.contains_key("SSH_AUTH_SOCK"));
+        assert!(!map.contains_key("LD_PRELOAD"));
+        assert!(!map.contains_key("BASH_ENV"));
+        assert!(!map.contains_key("HTTPS_PROXY"));
         assert!(!map.contains_key("KIANA_HARNESS_SCRIPT"));
         assert!(!map.contains_key("KIANA_SYSTEM_PROMPT"));
         assert!(!map.contains_key("EDITOR"));

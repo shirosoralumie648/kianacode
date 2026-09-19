@@ -8431,6 +8431,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus staged baseline/changeset, new-file parent confinement, source identity/revision, descriptor-relative commit, rollback Unknown, no-clean/reset and bounded host-effect publication boundary; no runtime test reviewer
 ```
 
+### CAP-11 ambient authority / default-deny sandbox evidence (2026-09-19)
+
+```text
+source_snapshot: f2507e7b + CAP-11 working-tree slice; kiana-daemon/src/{harness_sandbox,mcp_stdio}.rs; kiana-core/tests/cap11_ambient_authority_guard.rs; .github/workflows/cap11-ambient-authority.yml; docs/roadmap/cap11-ambient-authority-baseline.md; docs/roadmap.md
+worktree_status: bwrap tool and stdio-MCP launches now share synthetic HOME/TMP/fixed PATH and explicit ambient-environment denial; `/proc`, `/dev`, `/tmp`, `/run` and `/sys` are namespace-local views; unknown inherited FDs are marked CLOEXEC, only descriptor-pinned mounts are retained, and Linux no_new_privs failure stops launch; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only sandbox environment/source fixtures; no local test or smoke binary executed
+fixture or cassette: harness_sandbox synthetic environment and bwrap plan fixtures; stdio-MCP descriptor mount path; cap11_ambient_authority_guard; GitHub Actions CAP-11 runs focused daemon fixtures, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-11 is triggered by the eventual push and is not awaited
+status_change: CAP-11 source slice is implemented. Ambient provider/SSH/loader/startup/proxy variables are denied, namespace-local runtime paths are explicit, and the bwrap helper has an OS-facing FD/no_new_privs fence shared by shell and MCP; network remains default-deny through unshare-all with no host fallback
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kernel close_range/no_new_privs enforcement, bwrap runtime behavior, allowed local IPC and real network denial remain remote CI evidence; no physical isolation claim
+reviewer: Codex root implementation review plus explicit environment allow/deny list, synthetic paths, `/run`/`/sys` masking, namespace/default-deny, descriptor-pinned mount retention, CLOEXEC helper boundary, no_new_privs fail-closed and MCP reuse review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
