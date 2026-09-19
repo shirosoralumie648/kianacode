@@ -1,0 +1,33 @@
+name: h24-checkpoint-resume
+
+on:
+  push:
+    paths:
+      - 'kiana-core/src/recovery.rs'
+      - 'kiana-core/src/lifecycle.rs'
+      - 'kiana-core/tests/h24_checkpoint_resume_guard.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-domain/src/invocation_resume.rs'
+      - '.github/workflows/h24-checkpoint-resume.yml'
+  pull_request:
+    paths:
+      - 'kiana-core/src/recovery.rs'
+      - 'kiana-core/src/lifecycle.rs'
+      - 'kiana-core/tests/h24_checkpoint_resume_guard.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-domain/src/invocation_resume.rs'
+      - '.github/workflows/h24-checkpoint-resume.yml'
+
+jobs:
+  checkpoint-resume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test h24_checkpoint_resume_guard --locked -- --test-threads=1

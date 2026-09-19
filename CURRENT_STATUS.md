@@ -10164,3 +10164,19 @@ status_change: H23 source slice is implemented and roadmap row 310 is ✅. A sta
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no durable artifact store, distributed artifact/view transaction, model-generated retry, GC, external cache invalidation or restart recovery is claimed; these remain later H/PD/SC work
 reviewer: Codex root implementation review plus artifact-before-view ordering, digest/source cursor/event binding, stale steering/workspace/data epoch rejection, duplicate source detection and existing runner checkpoint/Compacted provenance boundary review; no runtime test reviewer
+
+### H24 complete checkpoint / explicit Resume evidence (2026-09-19)
+
+source_snapshot: 1d03594b + H24 working-tree slice; kiana-core/src/{recovery.rs,lifecycle.rs}; kiana-runner/src/harness.rs; kiana-domain/src/invocation_resume.rs; kiana-core/tests/h24_checkpoint_resume_guard.rs; .github/workflows/h24-checkpoint-resume.yml; docs/roadmap/h24-checkpoint-resume-baseline.md; docs/roadmap.md
+worktree_status: source guard inventories full runner checkpoint fields (messages/prompt sources/assignment/route/tool catalog/pending tools/Inbox/driver/deadline), explicit resume authority/scope/data/sandbox/action/pending-batch revalidation, EventLog CAS single snapshot claim and pending approval/Unknown handling; no auto resume/auto Start or second resumer path is present
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H24 complete checkpoint/explicit resume source guard for stale authority/data/scope, duplicate claim, pending queue and no-auto-start boundaries; GitHub Actions H24 runs the guard and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H24 source slice is implemented and roadmap row 311 is ✅. Resume is explicit, owner/epoch/scope bound and single-claim; missing/stale material cannot silently start a new execution
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source guard does not prove power-loss/cross-process durable restart, real process fencing, external effect confirmation or production crash recovery; later PD/ER/SC rehearsal remains required
+reviewer: Codex root implementation review plus checkpoint material completeness, owner/project/trust/role/sandbox/authority/data/action/batch fences, pending approval/Unknown semantics, EventLog CAS single claimant and no-auto-Start boundary review; no runtime test reviewer
