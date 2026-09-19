@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-27 MigrationRegistry contract evidence (partial, 2026-09-19)
+
+source_snapshot: d9b6d867 + DEP-27 working-tree slice; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep27_migration_registry.rs; kiana-core/tests/dep27_migration_registry_guard.rs; .github/workflows/dep27-migration-registry.yml; docs/roadmap/dep27-migration-registry-baseline.md; docs/roadmap.md
+worktree_status: domain now exposes a strict MigrationRegistry, MigrationStep, MigrationPrecondition, MigrationCompatibilityWindow and MigrationReleaseBinding contract; registries require a checksum, release/artifact/signature digest binding, ordered forward-only contiguous format steps, owner/backup requirements and source preconditions, while duplicate IDs/checksums, version gaps, owner drift and down migrations fail closed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep27_migration_registry domain fixtures; dep27_migration_registry_guard; GitHub Actions DEP-27 runs the domain fixtures, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-27 is triggered by the eventual push and is not awaited
+status_change: DEP-27 source contract advanced from the existing static StorageSchemaRegistry to a release-bound ordered migration registry; roadmap remains ⏳ because runner, durable registry, backup and cryptographic release-signature verification are not implemented
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: MigrationRunnerPort remains the default unsupported port; no migration is applied, no lock/fence or MigrationRecord is persisted, signature_digest is a binding rather than cryptographic verification, and no runtime migration receipt exists
+reviewer: Codex root implementation review plus strict schema/unknown-field, digest/order/forward-only, owner/precondition/verified-backup, compatibility-window and release-binding boundary review; no runtime test reviewer
+
 ### CAP-33 Container / gVisor execution evidence (partial, 2026-09-19)
 
 source_snapshot: b6edb290 + CAP-33 working-tree slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-daemon/tests/cap33_container.rs; kiana-core/tests/cap33_container_guard.rs; .github/workflows/cap33-container.yml; docs/roadmap/cap33-container-baseline.md; docs/roadmap.md
