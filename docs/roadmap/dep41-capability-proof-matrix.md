@@ -9,13 +9,15 @@ states and proof ceilings; it does not override source code, exact CI receipts o
 | DEP-27..31 migration contracts | partial | source | registry, preflight, bounded primitives, runner and rebuild guards | no durable EventLog runner, applied rows, projector rebuild or recovery receipt |
 | DEP-32 rollback gate | partial | source | binary/data/effect decision and retained-root checks | no restore, writer fencing, external reconciliation or rollback effect |
 | DEP-33..35 release/local rollout | partial | source | revision pin/drain, release preflight, local phase machine | no supervisor, backup/replace/promote effects or durable lease |
-| DEP-36 container lifecycle | partial | source | root identity, env allowlist, SIGTERM, startup/readiness/liveness contract | no container harness receipt, traffic drain or cross-process cleanup |
-| DEP-37 orchestrated rollout | partial | source | canary/blue-green/rainbow routes and target backend labels | Kubernetes/generic orchestrator remains target; no live routing/fence |
-| DEP-38 rollout lifecycle | partial | source | pause/resume/promote/rollback, health, retention and retirement contract | no durable rollout state, traffic effect, cleanup or live verification |
-| DEP-39 supply chain | partial | source | artifact/checksum/signature/SBOM/license/secret/compliance gate | no external signer, production artifact upload or installed Desktop package |
-| DEP-40 cross-entrypoint UAT | partial | source | four-entrypoint scenario matrix plus parity/spine fixtures | no durable cross-process E2E, real provider/account or physical/live UAT |
+| DEP-36 container lifecycle | partial | source | root identity, env allowlist, SIGTERM, startup/readiness/liveness contract, `ContainerLifecycleEvidence` | no container harness receipt, traffic drain or cross-process cleanup |
+| DEP-37 orchestrated rollout | partial | source | canary/blue-green/rainbow routes, target backend labels and `OrchestratedRolloutEvidence` | Kubernetes/generic orchestrator remains target; no live routing/fence |
+| DEP-38 rollout lifecycle | partial | source | pause/resume/promote/rollback, health, retention, retirement and `RolloutLifecycleEvidence` | no durable rollout state, traffic effect, cleanup or live verification |
+| DEP-39 supply chain | partial | source | artifact/checksum/signature/SBOM/license/secret/compliance gate and `SupplyChainReleaseEvidence` | no external signer, production artifact upload or installed Desktop package |
+| DEP-40 cross-entrypoint UAT | partial | source | four-entrypoint scenario matrix, parity/spine fixtures and `ReleaseUatEvidence` | no durable cross-process E2E, real provider/account or physical/live UAT |
 | H36 / CM-39 / UI-41 / CO-48 | partial | source | integration, memory, UI and CompanyOS handoff guards | fake/source evidence cannot prove live provider, business delivery or physical outcome |
 | DEP-41 handoff gate | partial | source | this runbook, matrix, evidence validator and CI workflow | documentation cannot promote any dependent slice or close the roadmap |
+
+| Typed evidence contract index | partial | source | Provider/Context/Memory/UI/CompanyOS and DEP-36..40 contracts are named above | contract presence and CI fixtures are not runtime, durable, live or physical receipts |
 
 ## Proof vocabulary
 

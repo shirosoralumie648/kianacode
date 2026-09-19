@@ -30,6 +30,15 @@ for marker in [
     "proof-level change",
     "limitations",
     "reviewer",
+    "ProviderLiveConnectionEvidence",
+    "ContextMemoryGoldenPathEvidence",
+    "UiEvidenceBundle",
+    "CompanyLiveCloseoutEvidence",
+    "ContainerLifecycleEvidence",
+    "OrchestratedRolloutEvidence",
+    "RolloutLifecycleEvidence",
+    "SupplyChainReleaseEvidence",
+    "ReleaseUatEvidence",
 ]:
     if marker not in runbook:
         raise SystemExit(f"DEP-41 runbook missing {marker}")

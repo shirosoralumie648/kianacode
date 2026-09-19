@@ -52,6 +52,15 @@ fn dep41_keeps_evidence_fields_and_proof_ceiling_explicit() {
         "CM-39",
         "UI-41",
         "CO-48",
+        "ProviderLiveConnectionEvidence",
+        "ContextMemoryGoldenPathEvidence",
+        "UiEvidenceBundle",
+        "CompanyLiveCloseoutEvidence",
+        "ContainerLifecycleEvidence",
+        "OrchestratedRolloutEvidence",
+        "RolloutLifecycleEvidence",
+        "SupplyChainReleaseEvidence",
+        "ReleaseUatEvidence",
     ] {
         assert!(
             matrix.contains(marker),

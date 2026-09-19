@@ -80,6 +80,13 @@ The capability/proof matrix in [`dep41-capability-proof-matrix.md`](dep41-capabi
 is a handoff index, not a second fact source. `CURRENT_STATUS.md` and precise source/CI evidence
 remain authoritative for what is actually proved.
 
+The current typed evidence contract index is: `ProviderLiveConnectionEvidence`,
+`ContextMemoryGoldenPathEvidence`, `UiEvidenceBundle`, `CompanyLiveCloseoutEvidence`,
+`ContainerLifecycleEvidence`, `OrchestratedRolloutEvidence`, `RolloutLifecycleEvidence`,
+`SupplyChainReleaseEvidence` and `ReleaseUatEvidence`. These contracts bind claims to digests and
+receipts, but their existence or CI fixture execution never upgrades a slice beyond the proof
+level recorded in `CURRENT_STATUS.md`.
+
 ## 5. Stop conditions and handoff
 
 Stop and request a decision when a fix would bypass ControlPlane, widen a capability intersection,
