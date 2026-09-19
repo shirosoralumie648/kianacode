@@ -620,7 +620,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-35 · External context/resource adapter　⏳
+##### CM-35 · External context/resource adapter　✅
+
+当前 source slice 与 CI-only 证据见 [`cm35-external-resource-baseline.md`](cm35-external-resource-baseline.md)。
 
 把 MCP/resource、connector、导入文档统一成 untrusted SourceRef，经过 trust、processing grant、quota、snapshot 和 provenance；外部描述或结果不能降低风险或扩大 Memory scope。验收：`external_resource_cannot_widen_scope`、`connector_source_is_revocable`。
 
