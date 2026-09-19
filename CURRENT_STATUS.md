@@ -10580,3 +10580,19 @@ status change: CM-19 source slice is implemented and roadmap row 330 is ✅. Com
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: actual admitted tools-empty summary model generation is not wired, authoritative evidence still requires EventLog/receipt projection, and artifact/CAS commit, crash recovery and cross-process hydration remain CM-20/21/ER/PD work
 reviewer: Codex root implementation review plus evidence kind/status/fact digest, confirmed-only claims, authoritative recheck, latest pending-group retention and no-second-execution-path review; no runtime test reviewer
+
+### CM-20 ContextCheckpoint CAS and Inbox concurrency evidence (2026-09-20)
+
+source_snapshot: 69ef4c93 + CM-20 working-tree slice; kiana-domain/src/{context_checkpoint.rs,compaction_commit.rs,contracts.rs,lib.rs}; kiana-domain/tests/{h23_compaction_commit.rs,cm20_context_checkpoint.rs}; kiana-core/tests/cm20_context_checkpoint_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm20-context-checkpoint.yml; docs/roadmap/cm20-context-checkpoint-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ContextCheckpoint starts as a validated Active old view, accepts only artifact-first CompactionArtifact/CompactionCommit with exact run/source context/cursor/workspace/data bindings, and produces a digest-bound Committed view; current Inbox digest/sequence is carried forward when newer steering arrives, while stale source/context or regressed Inbox state is rejected
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-20 crash-before-commit, stale-steering rejection, Inbox preservation fixtures and Core source guard; GitHub Actions CM-20 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-20 source slice is implemented and roadmap row 331 is ✅. Artifact-first context checkpoint CAS and new-input preservation are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: EventLog/ArtifactStore atomic persistence, power-loss recovery and cross-process checkpoint hydration remain open; actual Runner/Daemon compaction commit wiring and CM-21 invalidation are not claimed
+reviewer: Codex root implementation review plus artifact-first ordering, source/context CAS, workspace/data fences, Inbox monotonicity and old-view crash safety review; no runtime test reviewer

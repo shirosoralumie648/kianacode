@@ -466,7 +466,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-20 · ContextCheckpoint CAS 提交和新输入并发　⏳
+##### CM-20 · ContextCheckpoint CAS 提交和新输入并发　✅
+
+当前 source slice 与 CI-only 证据见 [`cm20-context-checkpoint-baseline.md`](cm20-context-checkpoint-baseline.md)。
 
 先保存摘要 artifact，再按 source cursor/context revision CAS 提交 checkpoint；压缩期间 Inbox 新输入不被覆盖，崩溃在各阶段可恢复旧或新视图。验收：`crash_before_compaction_commit_keeps_old_context`、`stale_summary_cannot_overwrite_new_steering`。
 
