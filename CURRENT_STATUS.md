@@ -10020,3 +10020,19 @@ status_change: SC-22 source slice is implemented and roadmap row 301 is ✅. Ret
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: MemoryRetentionStore is process-local/non-durable; no append-only retention event family, crash/restart recovery, tombstone/delete propagation, physical erase, backup/external replica handling or compliance certification is claimed; those remain SC-23+ / PD/OA work
 reviewer: Codex root implementation review plus finite retention, policy/data epoch, legal-hold precedence, source/projection cursor binding, unknown fail-closed and explicit SC-23 deletion boundary review; no runtime test reviewer
+
+### SC-23 DeleteRequest / Tombstone / data epoch evidence (2026-09-19)
+
+source_snapshot: 5a32bc3d + SC-23 working-tree slice; kiana-domain/src/deletion.rs; kiana-core/src/deletion.rs; kiana-eventlog/src/retention_store.rs; kiana-ports/src/lib.rs; kiana-domain/tests/sc23_deletion.rs; kiana-core/tests/{sc23_deletion.rs,sc23_deletion_guard.rs}; kiana-eventlog/tests/{sc23_deletion_store.rs,sc23_deletion_guard.rs}; .github/workflows/sc23-deletion-tombstone.yml; docs/roadmap/sc23-deletion-tombstone-baseline.md; docs/roadmap.md
+worktree_status: typed DeleteRequest requires project/purpose/legal basis/requester plus policy revision, current data epoch and source cursor; core plan_deletion consumes only an exact SC-22 RetentionScan, denies held/unknown/not-yet-eligible/stale targets, advances data_epoch exactly once, and emits digest-only DeletionTombstone records plus an explicit propagation manifest whose receipt-less targets are Unknown; RetentionStorePort typed methods and MemoryRetentionStore enforce tombstone-before-manifest, idempotent digest, monotonic epoch and boundary checks; no historical EventLog payload or projection is erased by this slice
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: domain request/tombstone/manifest fixtures, core deny-first deletion plan fixtures and source guard, eventlog typed append/manifest ordering fixtures and source guard; GitHub Actions SC-23 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-23 source slice is implemented and roadmap row 302 is ✅. Deletion cannot proceed from a held/unknown/stale retention view, old data epoch is fenced by the next epoch, and external propagation cannot be reported complete without a receipt
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: MemoryRetentionStore is process-local/non-durable; typed append records tombstone facts but does not physically erase payloads, rebuild or invalidate every derived store, confirm backup/external deletion, recover across restart or provide a live business/compliance receipt; those remain SC-24+ / PD/OA work
+reviewer: Codex root implementation review plus DeleteRequest authority binding, deny-first hold/unknown/stale checks, monotonic data epoch, digest-only tombstone, tombstone-before-manifest and explicit Unknown propagation review; no runtime test reviewer

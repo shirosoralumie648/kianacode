@@ -20,6 +20,7 @@ mod connectors;
 mod context_query;
 mod credential_recovery;
 mod data_governance;
+mod deletion;
 mod dispatch;
 mod eval;
 mod events;
@@ -90,6 +91,7 @@ pub use credential_recovery::{
     CREDENTIAL_RECOVERY_PROJECTION_VERSION,
 };
 pub use data_governance::{project_data_governance, project_data_governance_snapshot};
+pub use deletion::plan_deletion;
 pub use entrypoint_parity::{
     EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,

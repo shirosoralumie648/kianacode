@@ -24,14 +24,15 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
     BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
     CellLifecycle, CellSpec, ClockObservation, CommunicationMessage, ConfigSnapshot,
-    CorrelationContext, CorrelationScope, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
-    EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
-    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
-    ProjectIdentity, QualityArtifact, QualityArtifactId, QuotaReservation, QuotaReservationId,
-    QuotaReservationState, RateCard, RateCardId, RequestContext, RequestId, ResolvedAssignment,
-    RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind, SpanLinkKind,
-    SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth, StorageSchemaRegistry,
-    StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
+    CorrelationContext, CorrelationScope, DeletionManifest, DeletionTombstone, EvalCase,
+    EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor,
+    GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
+    PendingApproval, Principal, ProjectId, ProjectIdentity, QualityArtifact, QualityArtifactId,
+    QuotaReservation, QuotaReservationId, QuotaReservationState, RateCard, RateCardId,
+    RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId,
+    RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
+    StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
+    SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -862,6 +863,31 @@ pub trait RetentionStorePort: Send + Sync {
     ) -> Result<(), PortError> {
         Err(PortError::Unavailable(
             "retention_store_unsupported".to_owned(),
+        ))
+    }
+
+    /// Append a typed tombstone carrying the request, source cursor and next data epoch. The
+    /// legacy object/reason method above is intentionally insufficient for deletion authority;
+    /// adapters should implement this method for SC-23 and keep the old method fail-closed.
+    async fn append_deletion_tombstone(
+        &self,
+        _store_id: StoreIdentityId,
+        _tombstone: DeletionTombstone,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "typed_deletion_tombstone_unsupported".to_owned(),
+        ))
+    }
+
+    /// Record the propagation manifest separately from immutable tombstone facts. Unknown
+    /// targets must remain unknown until an adapter supplies a receipt.
+    async fn append_deletion_manifest(
+        &self,
+        _store_id: StoreIdentityId,
+        _manifest: DeletionManifest,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "deletion_manifest_unsupported".to_owned(),
         ))
     }
 
