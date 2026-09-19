@@ -8754,6 +8754,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus opaque handle digest, owner/scope/authority/expiry fencing, process-group stop/reap, capacity/lease retention, PTY resize/capture/OSC and Unknown receipt review; no runtime test reviewer
 ```
 
+### CAP-28 egress / credential evidence (2026-09-19)
+
+```text
+source_snapshot: 872a9dca + CAP-28 working-tree slice; kiana-domain/src/{network_policy,credentials,identity_contracts,oauth}.rs; kiana-ports/src/lib.rs; kiana-capability-broker/src/lib.rs; kiana-provider/src/{credentials,config,transport,oauth}.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/cap28_egress_credentials_guard.rs; .github/workflows/cap28-egress-credentials.yml; docs/roadmap/cap28-egress-credentials-baseline.md; docs/roadmap.md
+worktree_status: NetworkPolicy and NetworkEndpointObservation bind allowlist/TLS and every bounded DNS address, reject local/private/link-local/metadata/host mismatch, and expose policy/resolution digests; SecretRef/CredentialLease carry opaque references only and bind provider account/purpose/audience/endpoint/expiry/one-shot/generation; trusted provider transport is the only effect-time resolution boundary
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only network policy, credential lease, OAuth and source guards; no local test or smoke binary executed
+fixture or cassette: SC-14 network policy; SC-18 SecretRef/credential store; SC-19 rotation/revocation; CI-07 credential lease/store; CI-09 OAuth contracts; cap28_egress_credentials_guard; GitHub Actions CAP-28 runs these fixtures and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-28 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-28 source slice is implemented/reconciled. Direct/proxy-env bypass, DNS rebinding/private redirects, cross-origin credential reuse and raw secret/event exposure remain fail-closed; provider/network effect correctness is still evidence-gated
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; production proxy/registry, live DNS/egress and physical credential injection are not claimed, and HTTP MCP remains the later CAP-29 transport step
+reviewer: Codex root implementation review plus allowlist/TLS/address-set/digest, metadata/private/loopback/rebinding, opaque SecretRef/CredentialLease binding, expiry/one-shot/generation rotation and no raw secret/passthrough review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
