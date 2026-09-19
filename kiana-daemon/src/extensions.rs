@@ -134,7 +134,10 @@ impl ExtensionRegistry {
                 "activation":activation_state(manifest),"safety_validation":"not_evaluated"}),
             );
         }
-        if !matches!(action, "install" | "upgrade" | "revoke" | "rollback") {
+        if !matches!(
+            action,
+            "install" | "upgrade" | "revoke" | "rollback" | "uninstall"
+        ) {
             return Err(failed("extension_action_invalid"));
         }
         if !matches!(
@@ -196,6 +199,19 @@ impl ExtensionRegistry {
                 next.source_request_id = request.request.request_id;
                 (next, None)
             }
+            "uninstall" => {
+                let current = current.ok_or_else(|| failed("extension_not_installed"))?;
+                if matches!(current.state.as_str(), "revoked" | "uninstalled") {
+                    return Err(failed("extension_already_uninstalled"));
+                }
+                let mut next = current.clone();
+                // Uninstall is an append-only lifecycle fact. Cleanup is adapter-owned and is
+                // represented by the receipt; the cache is not silently erased here.
+                next.state = "uninstalled".to_owned();
+                next.installed_by = actor.to_owned();
+                next.source_request_id = request.request.request_id;
+                (next, None)
+            }
             "install" | "upgrade" | "rollback" => {
                 let package = if action == "rollback" {
                     if current.is_none() {
@@ -206,6 +222,7 @@ impl ExtensionRegistry {
                         e.data["state"]["manifest"]["extension_id"] == extension_id
                             && e.data["state"]["package_sha256"] == target
                             && e.data["action"] != "revoke"
+                            && e.data["action"] != "uninstall"
                     }) {
                         return Err(failed("extension_rollback_snapshot_missing"));
                     }
@@ -220,10 +237,11 @@ impl ExtensionRegistry {
                 if manifest.extension_id != extension_id {
                     return Err(failed("extension_package_identity_mismatch"));
                 }
-                if action == "install" && current.is_some() {
+                if action == "install" && current.is_some_and(|state| state.state != "uninstalled")
+                {
                     return Err(failed("extension_already_installed"));
                 }
-                if action == "upgrade" && current.is_none() {
+                if action == "upgrade" && current.is_none_or(|state| state.state == "uninstalled") {
                     return Err(failed("extension_not_installed"));
                 }
                 if let Some(current) = current {
@@ -286,7 +304,7 @@ impl ExtensionRegistry {
         }
         for state in prospective
             .values()
-            .filter(|state| state.state != "revoked")
+            .filter(|state| !matches!(state.state.as_str(), "revoked" | "uninstalled"))
         {
             self.compatibility(&state.manifest, &prospective)?;
         }
@@ -307,7 +325,7 @@ impl ExtensionRegistry {
             "package_sha256":next.package_sha256,"content_hash":next.manifest.content_hash,
             "version":next.manifest.version,"previous_version":current.map(|s| &s.manifest.version),
             "previous_package_sha256":current.map(|s| &s.package_sha256),"license":next.manifest.license,
-            "signature":next.manifest.signature,"signature_verified":action != "revoke",
+            "signature":next.manifest.signature,"signature_verified":matches!(action, "install" | "upgrade" | "rollback"),
             "capability_diff":next.manifest.capability_diff(current.map(|s| &s.manifest)),
             "migration":migration_receipt,"safety_validation":"not_evaluated","reason":kiana_domain::redact_text(reason),"actor_id":actor,
             "authorization_id":request.authorization_id,"replayed":false});
@@ -493,7 +511,8 @@ impl ExtensionRegistry {
         if requires.extensions.iter().any(|(id, version)| {
             id == &manifest.extension_id
                 || installed.get(id).is_none_or(|state| {
-                    state.state == "revoked" || &state.manifest.version != version
+                    matches!(state.state.as_str(), "revoked" | "uninstalled")
+                        || &state.manifest.version != version
                 })
         }) {
             return Err(failed("extension_dependency_incompatible"));
@@ -507,7 +526,8 @@ impl ExtensionRegistry {
             return Err(failed("extension_capability_namespace_denied"));
         }
         for other in installed.values().filter(|state| {
-            state.state != "revoked" && state.manifest.extension_id != manifest.extension_id
+            !matches!(state.state.as_str(), "revoked" | "uninstalled")
+                && state.manifest.extension_id != manifest.extension_id
         }) {
             if !manifest
                 .provided_capabilities
@@ -648,8 +668,10 @@ fn fold_registry(
         let state: InstalledExtension = serde_json::from_value(event.data["state"].clone())
             .map_err(|_| failed("extension_registry_event_invalid"))?;
         state.manifest.validate().map_err(failed)?;
-        if !matches!(state.state.as_str(), "enabled" | "staged" | "revoked")
-            || !kiana_domain::is_sha256_hex(&state.package_sha256)
+        if !matches!(
+            state.state.as_str(),
+            "enabled" | "staged" | "revoked" | "uninstalled"
+        ) || !kiana_domain::is_sha256_hex(&state.package_sha256)
         {
             return Err(failed("extension_registry_event_invalid"));
         }
