@@ -1,0 +1,38 @@
+name: sc25-project-trust
+
+on:
+  push:
+    paths:
+      - 'kiana-policy/src/project_trust.rs'
+      - 'kiana-policy/src/lib.rs'
+      - 'kiana-policy/tests/sc25_project_trust.rs'
+      - 'kiana-policy/tests/sc25_project_trust_guard.rs'
+      - 'kiana-skills/src/source_resolver.rs'
+      - 'kiana-skills/src/loader.rs'
+      - 'kiana-skills/src/plugins.rs'
+      - '.github/workflows/sc25-project-trust.yml'
+  pull_request:
+    paths:
+      - 'kiana-policy/src/project_trust.rs'
+      - 'kiana-policy/src/lib.rs'
+      - 'kiana-policy/tests/sc25_project_trust.rs'
+      - 'kiana-policy/tests/sc25_project_trust_guard.rs'
+      - 'kiana-skills/src/source_resolver.rs'
+      - 'kiana-skills/src/loader.rs'
+      - 'kiana-skills/src/plugins.rs'
+      - '.github/workflows/sc25-project-trust.yml'
+
+jobs:
+  project-trust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-policy --test sc25_project_trust --locked -- --test-threads=1
+      - run: cargo test -p kiana-policy --test sc25_project_trust_guard --locked -- --test-threads=1

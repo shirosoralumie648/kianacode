@@ -29,6 +29,8 @@ mod grant_scope;
 pub use grant_scope::*;
 mod provider;
 pub use provider::*;
+mod project_trust;
+pub use project_trust::*;
 
 /// 对单个能力请求作出纯策略决定的接口。
 ///
