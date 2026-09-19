@@ -9716,3 +9716,19 @@ status_change: NM-07 source slice is implemented and roadmap row 282 is ✅. Equ
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: MemoryNotificationDedupStore is process-local and non-durable; restart recovery, cross-process CAS, committed outbox, DeliveryWorker, channel submission/receipt and external notification proof remain later NM steps
 reviewer: Codex root implementation review plus key/content/revision/identity binding, atomic claim/CAS, replay identity, stale-writer rejection and no-Broker/no-second-bus boundary review; no runtime test reviewer
+
+### EQ-17 durable event selection / sequence / terminal / correlation evidence (2026-09-19)
+
+source_snapshot: d2ee9600 + EQ-17 working-tree slice; Cargo.toml; Cargo.lock; kiana-quality/Cargo.toml; kiana-quality/src/{lib.rs,normalize.rs}; kiana-quality/tests/eq17_normalize.rs; kiana-quality/tests/eq17_quality_guard.rs; .github/workflows/eq17-trace-normalizer.yml; docs/roadmap/evaluation-trace-normalizer-baseline.md; docs/roadmap.md
+worktree_status: new pure kiana-quality crate exposes bounded DurableEvent/Selection and TraceNormalizer; selection validates positive source cursor/order, event identity and registered payloads, request sequence and aggregate stream version monotonicity, one terminal per stream, one correlation root and selected causal/parent references; no Tokio/network/filesystem/provider/Broker/runner path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq17_normalize.rs covers durable selection, invalid cursor, multiple terminal, sequence/correlation drift and causal-reference failure; eq17_quality_guard protects the pure boundary; GitHub Actions EQ-17 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-17 source slice is implemented and roadmap row 283 is ✅. Durable event selection now fails closed on invalid cursor/ID/sequence/stream/correlation/terminal/reference contracts while allowing global cursor gaps for scoped traces
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: selection is process-local pure computation and does not persist or flush EventLog facts; canonical JSON, redaction, declared volatile normalization, trace/event digests, diff/evaluators and durable EvalStore evidence remain EQ-18+
+reviewer: Codex root implementation review plus source cursor and ID uniqueness, schema/sequence/stream ordering, terminal-per-stream, correlation and causal/parent closure, global cursor gap and no-side-effect boundary review; no runtime test reviewer
