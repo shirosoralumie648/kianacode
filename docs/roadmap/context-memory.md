@@ -528,7 +528,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-26 · Distillation、decision 与 lesson 统一入库　⏳
+##### CM-26 · Distillation、decision 与 lesson 统一入库　✅
+
+当前 source slice 与 CI-only 证据见 [`cm26-memory-distillation-baseline.md`](cm26-memory-distillation-baseline.md)。
 
 复用现有 queued/claim/started/completed/failed/finalize；run lesson 和已发布 symposium decision 只进入目标部门 candidate，内部 run 不递归。验收：`distillation_never_self_triggers`、`unknown_source_cannot_become_verified_lesson`。
 
