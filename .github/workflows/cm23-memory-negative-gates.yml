@@ -1,0 +1,53 @@
+name: cm23-memory-negative-gates
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_negative_gate.rs"
+      - "kiana-domain/src/memory.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm23_memory_negative_gates.rs"
+      - "kiana-core/tests/cm23_memory_negative_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm23-memory-negative-gates-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm23-memory-negative-gates.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_negative_gate.rs"
+      - "kiana-domain/src/memory.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm23_memory_negative_gates.rs"
+      - "kiana-core/tests/cm23_memory_negative_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm23-memory-negative-gates-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm23-memory-negative-gates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-negative-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-23 negative-gate fixtures
+        run: cargo test -p kiana-domain --test cm23_memory_negative_gates --locked -- --test-threads=1
+      - name: Run CM-23 source guard
+        run: cargo test -p kiana-core --test cm23_memory_negative_guard --locked -- --test-threads=1

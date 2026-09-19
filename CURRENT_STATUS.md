@@ -10628,3 +10628,19 @@ status change: CM-22 source slice is implemented and roadmap row 333 is ✅. One
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing daemon/query memory call sites are not all migrated to this helper, policy/Grant durable projections and deletion propagation remain open, and no live provider/effect claim is made
 reviewer: Codex root implementation review plus six-path scope reuse, collection prefilter boundary, project/session/purpose/sensitivity/validity/classification/lifecycle checks and no-second-authority review; no runtime test reviewer
+
+### CM-23 Memory negative gates evidence (2026-09-20)
+
+source_snapshot: 78e4b410 + CM-23 working-tree slice; kiana-domain/src/{memory_negative_gate.rs,memory.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm23_memory_negative_gates.rs; kiana-core/tests/cm23_memory_negative_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm23-memory-negative-gates.yml; docs/roadmap/cm23-memory-negative-gates-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: MemoryModelWriteGate derives model origin/candidate-draft or scratch-ephemeral-active from server collection/session, rejects user-private model writes and protected-field overrides; MemoryVisibility makes candidate review-only and scratch session-only, while MemoryRecord searchable() excludes invalid scratch states
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-23 candidate/scratch/private negative gates and Core source guard; GitHub Actions CM-23 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-23 source slice is implemented and roadmap row 334 is ✅. Candidate, scratch and user-private negative contracts are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing daemon/query writes and review/search call sites are not all migrated to MemoryModelWriteGate/MemoryAclDecision, durable session retirement/operator approval remains open, and no live provider/effect claim is made
+reviewer: Codex root implementation review plus server-owned lifecycle derivation, protected-field rejection, session-only scratch, candidate visibility and private-memory operator gate review; no runtime test reviewer

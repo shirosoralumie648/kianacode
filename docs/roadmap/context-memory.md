@@ -498,7 +498,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-23 · candidate / scratch / user-private 负向门　⏳
+##### CM-23 · candidate / scratch / user-private 负向门　✅
+
+当前 source slice 与 CI-only 证据见 [`cm23-memory-negative-gates-baseline.md`](cm23-memory-negative-gates-baseline.md)。
 
 保证模型持久写入 candidate/draft 不可检索，scratch 只在 session 内，user-private 默认人工门；模型不能传 origin、actor、classification 或 admission 覆盖服务端。验收：`candidate_never_appears_before_approval`、`scratch_does_not_survive_session_retirement`、`model_cannot_self_approve_private_memory`。
 
