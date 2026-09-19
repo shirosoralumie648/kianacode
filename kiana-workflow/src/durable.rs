@@ -2,6 +2,8 @@
 use kiana_domain::*;
 use std::collections::{BTreeMap, BTreeSet};
 type Result<T> = std::result::Result<T, &'static str>;
+const MAX_WORKFLOW_FAN_OUT: usize = 32;
+const MAX_WORKFLOW_DEPTH: u32 = 8;
 fn require(ok: bool, reason: &'static str) -> Result<()> {
     if ok {
         Ok(())
@@ -142,6 +144,29 @@ pub fn validate_definition(d: &WorkflowDefinition) -> Result<()> {
         graph.insert(id.clone(), packet);
     }
     validate_dependency_dag(&graph).map_err(|_| "workflow_dependency_graph_invalid")?;
+    for (id, node) in &d.nodes {
+        match &node.kind {
+            WorkflowNodeKind::FanOut => {
+                let branches = d
+                    .nodes
+                    .iter()
+                    .filter(|(_, candidate)| candidate.dependencies.contains(id))
+                    .count();
+                require(branches > 0, "workflow_fanout_without_branches")?;
+                require(
+                    branches <= MAX_WORKFLOW_FAN_OUT,
+                    "workflow_fanout_limit_exceeded",
+                )?;
+            }
+            WorkflowNodeKind::FanIn => {
+                require(
+                    !node.dependencies.is_empty(),
+                    "workflow_fanin_dependencies_required",
+                )?;
+            }
+            _ => {}
+        }
+    }
     let mut artifacts = BTreeMap::new();
     for (id, artifact) in &d.artifacts {
         require(
@@ -301,6 +326,158 @@ pub fn derive_plan_intent(
         .map_err(|_| "workflow_plan_intent_invalid")?;
     Ok(intent)
 }
+
+/// Return all currently ready nodes in stable definition order. The Advance command consumes one
+/// entry per committed transition; repeated calls therefore give independent execution IDs rather
+/// than smuggling parallel work through one effect.
+pub fn ready_node_ids(
+    instance: &WorkflowInstance,
+    definition: &WorkflowDefinition,
+) -> Result<Vec<String>> {
+    let mut ready = Vec::new();
+    for (id, node) in &definition.nodes {
+        if !selected(instance, definition, id) || instance.nodes.contains_key(id) {
+            continue;
+        }
+        for dependency in &node.dependencies {
+            require(
+                definition.nodes.contains_key(dependency),
+                "workflow_dependency_missing",
+            )?;
+        }
+        if node.dependencies.iter().all(|dependency| {
+            instance
+                .nodes
+                .get(dependency)
+                .is_some_and(|execution| execution.status == WorkflowNodeStatus::Succeeded)
+        }) {
+            ready.push(id.clone());
+        }
+    }
+    Ok(ready)
+}
+
+/// Fan-in consumes only committed successful outputs in lexicographic dependency order. A node
+/// with a missing/stale output digest cannot be treated as an empty value.
+pub fn stable_fan_in_outputs(
+    instance: &WorkflowInstance,
+    definition: &WorkflowDefinition,
+    node_id: &str,
+) -> Result<Vec<WorkflowValue>> {
+    let node = definition
+        .nodes
+        .get(node_id)
+        .ok_or("workflow_node_not_found")?;
+    require(
+        matches!(&node.kind, WorkflowNodeKind::FanIn),
+        "workflow_fanin_node_required",
+    )?;
+    let mut dependencies = node.dependencies.clone();
+    dependencies.sort();
+    let mut values = Vec::with_capacity(dependencies.len());
+    for dependency in dependencies {
+        let execution = instance
+            .nodes
+            .get(&dependency)
+            .ok_or("workflow_fanin_result_missing")?;
+        require(
+            execution.status == WorkflowNodeStatus::Succeeded
+                && execution.output_recorded
+                && execution.output_digest == json_digest(&execution.output),
+            "workflow_fanin_result_missing",
+        )?;
+        values.push(execution.output.clone());
+    }
+    Ok(values)
+}
+
+fn reconcile_subworkflow_children(state: &mut AutomationState, parent_id: &str) -> Result<()> {
+    let parent = state
+        .instances
+        .get(parent_id)
+        .ok_or("workflow_instance_not_found")?;
+    let definition_key = definition_key(&parent.definition_id, parent.definition_version);
+    let definition = state
+        .definitions
+        .get(&definition_key)
+        .cloned()
+        .ok_or("workflow_definition_not_found")?;
+    let children = parent
+        .nodes
+        .iter()
+        .filter_map(|(node_id, node)| {
+            let child_id = node.child_instance_id.as_ref()?;
+            let WorkflowNodeKind::SubWorkflow {
+                definition_id,
+                version,
+            } = &definition.nodes.get(node_id)?.kind
+            else {
+                return Some(Err("workflow_child_node_kind_mismatch"));
+            };
+            Some(Ok((
+                node_id.clone(),
+                child_id.clone(),
+                definition_id.clone(),
+                *version,
+            )))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut changed = false;
+    for (node_id, child_id, expected_definition_id, expected_version) in children {
+        let Some(child) = state.instances.get(&child_id).cloned() else {
+            return Err("workflow_child_instance_missing");
+        };
+        require(
+            child.definition_id == expected_definition_id
+                && child.definition_version == expected_version
+                && child.parent_instance_id.as_deref() == Some(parent_id),
+            "workflow_child_definition_drift",
+        )?;
+        let parent = state
+            .instances
+            .get_mut(parent_id)
+            .ok_or("workflow_instance_not_found")?;
+        let node = parent
+            .nodes
+            .get_mut(&node_id)
+            .ok_or("workflow_node_not_started")?;
+        if node.status.terminal() {
+            continue;
+        }
+        match child.status {
+            WorkflowInstanceStatus::Succeeded => {
+                node.status = WorkflowNodeStatus::Succeeded;
+                node.output = WorkflowValue::Object(child.outputs.into_iter().collect());
+                node.output_digest = json_digest(&node.output);
+                node.output_recorded = true;
+                node.ended_at = Some(child.created_at.max(parent.created_at));
+                changed = true;
+            }
+            WorkflowInstanceStatus::Failed | WorkflowInstanceStatus::Cancelled => {
+                node.status = WorkflowNodeStatus::Failed;
+                node.error_code = Some("workflow_child_failed".to_owned());
+                node.ended_at = Some(child.created_at.max(parent.created_at));
+                changed = true;
+            }
+            WorkflowInstanceStatus::ResultUnknown => {
+                node.status = WorkflowNodeStatus::ResultUnknown;
+                node.error_code = Some("workflow_child_result_unknown".to_owned());
+                node.ended_at = Some(child.created_at.max(parent.created_at));
+                changed = true;
+            }
+            _ => {}
+        }
+    }
+    if changed {
+        let parent = state
+            .instances
+            .get_mut(parent_id)
+            .ok_or("workflow_instance_not_found")?;
+        refresh(parent, &definition)?;
+    }
+    Ok(())
+}
+
 fn create_instance(
     state: &mut AutomationState,
     id: &str,
@@ -323,6 +500,37 @@ fn create_instance(
         .definitions
         .get(&definition_key(definition_id, version))
         .ok_or("workflow_definition_not_found")?;
+    let depth = if let Some(parent_id) = parent_instance_id.as_deref() {
+        let parent = state
+            .instances
+            .get(parent_id)
+            .ok_or("workflow_parent_instance_missing")?;
+        require(
+            parent.owner_id == a.context.actor_id.clone().unwrap_or_default(),
+            "workflow_child_owner_mismatch",
+        )?;
+        let parent_definition = state
+            .definitions
+            .get(&definition_key(
+                &parent.definition_id,
+                parent.definition_version,
+            ))
+            .ok_or("workflow_definition_not_found")?;
+        require(
+            d.max_steps
+                <= parent_definition
+                    .max_steps
+                    .saturating_sub(parent.steps_used),
+            "workflow_child_budget_exceeded",
+        )?;
+        parent
+            .depth
+            .checked_add(1)
+            .ok_or("workflow_child_depth_overflow")?
+    } else {
+        0
+    };
+    require(depth <= MAX_WORKFLOW_DEPTH, "workflow_child_depth_exceeded")?;
     require(
         d.allowed_roles.contains(&a.context.role_id),
         "workflow_role_denied",
@@ -354,6 +562,7 @@ fn create_instance(
             signals: BTreeMap::new(),
             trigger_id,
             parent_instance_id,
+            depth,
             selected_nodes: None,
             retry_counts: BTreeMap::new(),
         },
@@ -480,6 +689,8 @@ fn observe(
         _ => WorkflowNodeStatus::Reserved,
     };
     node.output = response.output.clone();
+    node.output_digest = json_digest(&node.output);
+    node.output_recorded = true;
     node.error_code = response.error.clone();
     node.evidence_refs = p.evidence_refs.clone();
     if node.status.terminal() {
@@ -578,6 +789,7 @@ pub fn plan_command(
             None,
         )?,
         AutomationCommand::Advance { instance_id } => {
+            reconcile_subworkflow_children(&mut next, instance_id)?;
             let instance = next.instances.get_mut(instance_id).unwrap();
             require(
                 !instance.status.terminal()
@@ -601,20 +813,9 @@ pub fn plan_command(
                     .any(|n| n.status == WorkflowNodeStatus::Reserved),
                 "workflow_execution_in_flight",
             )?;
-            let (id, node) = definition
-                .nodes
-                .iter()
-                .find(|(id, node)| {
-                    selected(instance, definition, id)
-                        && !instance.nodes.contains_key(*id)
-                        && node.dependencies.iter().all(|dep| {
-                            instance
-                                .nodes
-                                .get(dep)
-                                .is_some_and(|n| n.status == WorkflowNodeStatus::Succeeded)
-                        })
-                })
-                .ok_or("workflow_no_ready_node")?;
+            let ready = ready_node_ids(instance, definition)?;
+            let id = ready.first().ok_or("workflow_no_ready_node")?;
+            let node = definition.nodes.get(id).ok_or("workflow_node_not_found")?;
             let (id, node) = (id.clone(), node.clone());
             let mut inputs = instance.inputs.clone();
             inputs.extend(instance.outputs.clone());
@@ -631,6 +832,8 @@ pub fn plan_command(
                 ended_at: Some(a.now_ms),
                 input_digest: workflow_input_digest(&inputs),
                 output: WorkflowValue::Null,
+                output_digest: json_digest(&WorkflowValue::Null),
+                output_recorded: false,
                 error_code: None,
                 evidence_refs: Vec::new(),
                 child_instance_id: None,
@@ -639,20 +842,49 @@ pub fn plan_command(
                 WorkflowNodeKind::Literal { values } => {
                     instance.outputs.extend(values.clone());
                     execution.output = WorkflowValue::Object(values.clone().into_iter().collect());
+                    execution.output_recorded = true;
                 }
                 WorkflowNodeKind::CopyInput { mapping } => {
+                    let mut copied = BTreeMap::new();
                     for (output, input) in mapping {
                         let value = inputs.get(input).ok_or("workflow_input_missing")?;
                         instance.outputs.insert(output.clone(), value.clone());
+                        copied.insert(output.clone(), value.clone());
                     }
+                    execution.output = WorkflowValue::Object(copied.into_iter().collect());
+                    execution.output_recorded = true;
                 }
                 WorkflowNodeKind::Gate { key, equals } => {
                     if inputs.get(key) != Some(equals) {
                         execution.status = WorkflowNodeStatus::Failed;
                         execution.error_code = Some("workflow_gate_denied".into());
                     }
+                    execution.output = serde_json::json!({"key": key, "matched": execution.status == WorkflowNodeStatus::Succeeded});
+                    execution.output_recorded = true;
                 }
-                WorkflowNodeKind::FanOut | WorkflowNodeKind::FanIn => {}
+                WorkflowNodeKind::FanOut => {
+                    let mut branches = definition
+                        .nodes
+                        .iter()
+                        .filter(|(_, candidate)| candidate.dependencies.contains(&id))
+                        .map(|(branch_id, _)| branch_id.clone())
+                        .collect::<Vec<_>>();
+                    branches.sort();
+                    require(!branches.is_empty(), "workflow_fanout_without_branches")?;
+                    require(
+                        branches.len() <= MAX_WORKFLOW_FAN_OUT,
+                        "workflow_fanout_limit_exceeded",
+                    )?;
+                    execution.output = WorkflowValue::Array(
+                        branches.into_iter().map(WorkflowValue::String).collect(),
+                    );
+                    execution.output_recorded = true;
+                }
+                WorkflowNodeKind::FanIn => {
+                    let values = stable_fan_in_outputs(instance, definition, &id)?;
+                    execution.output = WorkflowValue::Array(values);
+                    execution.output_recorded = true;
+                }
                 WorkflowNodeKind::Approval { .. } => {
                     execution.status = WorkflowNodeStatus::WaitingApproval;
                     execution.ended_at = None;
@@ -661,6 +893,7 @@ pub fn plan_command(
                     if let Some(value) = instance.signals.get(signal) {
                         execution.output = value.clone();
                         instance.outputs.insert(id.clone(), value.clone());
+                        execution.output_recorded = true;
                     } else {
                         execution.status = WorkflowNodeStatus::WaitingSignal;
                         execution.ended_at = None;
@@ -683,6 +916,9 @@ pub fn plan_command(
                     execution.child_instance_id =
                         Some(format!("{}:{}:{}", instance_id, id, a.execution_id));
                 }
+            }
+            if execution.output_recorded {
+                execution.output_digest = json_digest(&execution.output);
             }
             instance.steps_used += 1;
             instance.nodes.insert(id.clone(), execution.clone());
@@ -796,6 +1032,8 @@ pub fn plan_command(
                     require(a.now_ms < node.lease_expires_at, "workflow_signal_expired")?;
                     node.status = WorkflowNodeStatus::Succeeded;
                     node.output = value.clone();
+                    node.output_digest = json_digest(&node.output);
+                    node.output_recorded = true;
                     node.ended_at = Some(a.now_ms);
                     node.evidence_refs.push(evidence_ref.clone());
                     instance.outputs.insert(id.clone(), value.clone());

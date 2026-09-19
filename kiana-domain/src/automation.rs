@@ -159,6 +159,10 @@ pub struct WorkflowNodeExecution {
     pub ended_at: Option<u64>,
     pub input_digest: String,
     pub output: Value,
+    #[serde(default)]
+    pub output_digest: String,
+    #[serde(default)]
+    pub output_recorded: bool,
     pub error_code: Option<String>,
     pub evidence_refs: Vec<String>,
     pub child_instance_id: Option<String>,
@@ -182,6 +186,8 @@ pub struct WorkflowInstance {
     pub signals: BTreeMap<String, Value>,
     pub trigger_id: Option<String>,
     pub parent_instance_id: Option<String>,
+    #[serde(default)]
+    pub depth: u32,
     #[serde(default)]
     pub selected_nodes: Option<Vec<String>>,
     #[serde(default)]

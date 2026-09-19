@@ -1,0 +1,36 @@
+name: aut13-advance-planner
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut13_advance_planner.rs"
+      - "kiana-workflow/tests/aut13_advance_guard.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut13_advance_route_guard.rs"
+      - ".github/workflows/aut13-advance-planner.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut13_advance_planner.rs"
+      - "kiana-workflow/tests/aut13_advance_guard.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut13_advance_route_guard.rs"
+      - ".github/workflows/aut13-advance-planner.yml"
+
+jobs:
+  advance-planner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Ready and fan-in planner behavior
+        run: cargo test -p kiana-workflow --test aut13_advance_planner --locked
+      - name: Advance source guard
+        run: cargo test -p kiana-workflow --test aut13_advance_guard --locked
+      - name: Control-plane route guard
+        run: cargo test -p kiana-core --test aut13_advance_route_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked

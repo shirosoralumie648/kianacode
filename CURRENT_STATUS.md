@@ -9206,6 +9206,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: planner state is committed only when the surrounding EventLog transition succeeds; Replace does not assume stop completion, result_unknown remains reconciliation-required, and no background queue/cancellation worker or external effect was executed
 reviewer: Codex root implementation review plus four concurrency branches, digest conflict, pending bound, Replace stop-before-successor and serde legacy compatibility boundary review; no runtime cancellation reviewer
 
+### AUT-13 Advance/fan-out/fan-in/sub-workflow planner evidence (partial, 2026-09-19)
+
+source_snapshot: 0f214407 + AUT-13 Advance planner slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-workflow/tests/aut13_advance_planner.rs; kiana-workflow/tests/aut13_advance_guard.rs; kiana-core/tests/aut13_advance_route_guard.rs; .github/workflows/aut13-advance-planner.yml; docs/roadmap/aut13-advance-planner-baseline.md; docs/roadmap.md
+worktree_status: Advance uses stable ready_node_ids, bounded FanOut, output_digest/output_recorded fan-in validation and sorted aggregation; SubWorkflow child creation checks fixed definition version, owner, depth and remaining parent step budget, while pure replay folds terminal child state into the parent; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke command executed
+fixture or cassette: CI-only aut13_advance_planner ready/fan-in output behavior, aut13_advance_guard source boundary and aut13_advance_route_guard ControlPlane path; GitHub Actions AUT-13 runs fixtures and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-13 source planner slice added. FanOut/FanIn/SubWorkflow now have bounded deterministic admission and replay-facing child/result fences; roadmap row remains ⏳ because durable child scope/lease/reservation, worker dispatch and physical restart recovery are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: output/depth fields are compatibility projections, child terminal timestamps are derived from available state, no OS/path/budget lease is consumed here, no child is executed in the workflow crate, and current ControlPlane dispatch remains the later reservation/worker migration boundary
+reviewer: Codex root implementation review plus ready ordering, fanout bound, fanin missing/tampered output, fixed child definition/owner/depth/budget and single ControlPlane dispatch boundary review; no runtime workflow reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
