@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### CM-38 context/memory fake Provider and live opt-in evidence (partial, 2026-09-19)
+
+source_snapshot: 0e9331ab + CM-38 working-tree slice; kiana-daemon/tests/eq10_fake_provider.rs; kiana-daemon/src/{eval_runtime,harness_memory}.rs; kiana-domain/src/{memory_journal,live_handoff}.rs; kiana-core/tests/cm38_context_memory_live_guard.rs; .github/workflows/cm38-context-memory-live.yml; docs/roadmap/cm38-context-memory-live-baseline.md; docs/roadmap.md
+worktree_status: existing FakeProviderAdapter, bounded harness memory broker, EventStore memory journal and LiveHandoffManifest are now indexed in a CM-38 CI-only gate; fake path remains offline/source-bound, and live path requires explicit opt-in, scope, redaction, independent receipt and cleanup
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, smoke or live provider request executed
+fixture or cassette: CI-only eq10_fake_provider and cm38_context_memory_live_guard; GitHub Actions CM-38 does not provide live credentials or external network
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-38 is triggered by the eventual push and is not awaited
+status_change: CM-38 fake/live boundary advanced from scattered existing contracts to a roadmap-linked end-to-end evidence gate; roadmap remains ⏳ because full durable golden path and live Provider evidence are absent
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: no real provider request, context-quality measurement, candidate approval/recovery end-to-end, durable index/retention maintenance or post-CM-33–37 evidence was run; fake output cannot promote live scope
+reviewer: Codex root implementation review plus fake provider no-network, memory candidate/approval/projection, EventStore source boundary, live opt-in/redaction/receipt/cleanup and no-fake-live promotion review; no runtime/live reviewer
+
 ### P4-J7-31 provider live boundary evidence (partial, 2026-09-19)
 
 source_snapshot: 57082aed + P4-J7-31 working-tree slice; scripts/provider-live-smoke.sh; kiana-provider/src/{lib,request,response}.rs; kiana-core/tests/p4_j7_31_provider_live_guard.rs; .github/workflows/p4-j7-31-provider-live.yml; docs/roadmap/p4-j7-31-provider-live-baseline.md; docs/roadmap.md

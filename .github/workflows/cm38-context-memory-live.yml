@@ -1,0 +1,47 @@
+name: CM-38 context memory fake/live boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/tests/eq10_fake_provider.rs"
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/src/memory_journal.rs"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/cm38_context_memory_live_guard.rs"
+      - "docs/roadmap/cm38-context-memory-live-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm38-context-memory-live.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/tests/eq10_fake_provider.rs"
+      - "kiana-daemon/src/eval_runtime.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/src/memory_journal.rs"
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-core/tests/cm38_context_memory_live_guard.rs"
+      - "docs/roadmap/cm38-context-memory-live-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm38-context-memory-live.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  context-memory-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run fake provider fixture
+        run: cargo test -p kiana-daemon --test eq10_fake_provider --locked -- --test-threads=1
+      - name: Run CM-38 source guard
+        run: cargo test -p kiana-core --test cm38_context_memory_live_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
