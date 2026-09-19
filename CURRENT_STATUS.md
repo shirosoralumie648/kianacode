@@ -9019,6 +9019,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: budgets evaluate caller-supplied summaries and do not measure real throughput, contention, power-loss, disk-full, long readers, platform FS behavior or production P95/P99; degraded rows are not health or admission authority
 reviewer: Codex root implementation review plus performance contract reuse, percentile ordering, queue/rejection/maintenance ceilings, degraded reason, facts-preserved and no-benchmark-as-production boundary review; no performance/storage operator reviewer
 
+### PD-35 persistence closeout and migration handoff evidence (partial, 2026-09-19)
+
+source_snapshot: a3481243 + PD-35 working-tree slice; docs/roadmap/pd35-persistence-closeout.md; docs/roadmap/persistence-data-layer.md; docs/roadmap/dep41-operator-runbook.md; docs/roadmap/dep41-capability-proof-matrix.md; scripts/validate-pd35-persistence-closeout.sh; kiana-core/tests/pd35_persistence_closeout_guard.rs; .github/workflows/pd35-persistence-closeout.yml; CURRENT_STATUS.md; docs/roadmap.md
+worktree_status: PD-35 now indexes PD-00..PD-34 feature_status/proof_level, adds backup/migration/retention/delete operator handoff and reuses DEP-41 runbook/matrix; source/static limitations, result_unknown/reconcile, legal-hold and no-documentation-as-durable boundaries are explicit
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, closeout script, migration, backup, restore or delete operation executed
+fixture or cassette: CI-only pd35_persistence_closeout_guard plus scripts/validate-pd35-persistence-closeout.sh; GitHub Actions PD-35 validates PD-00..34 identifiers, runbook/matrix references, evidence fields, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and persistence operations deliberately not run per user instruction; GitHub Actions PD-35 is triggered by the eventual push and is not awaited
+status_change: PD-35 persistence documentation/release gate advanced from roadmap-only to a linked closeout handoff; roadmap remains ⏳ because underlying storage, backup, migration, retention, capacity, platform and durable/live/physical proof remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the closeout gate validates document structure and identifier coverage, not bytes, crash recovery, cross-process leases, provider effects, platform filesystem behavior, deletion cleanup or production latency; PD-00..34 remain individually governed by their evidence blocks
+reviewer: Codex root implementation review plus PD identifier coverage, feature/proof separation, migration/backup/delete runbook, result_unknown/reconcile, retention/legal-hold and no-documents-as-durable boundary review; no storage/release operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

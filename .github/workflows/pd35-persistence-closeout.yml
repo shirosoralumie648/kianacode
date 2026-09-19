@@ -1,0 +1,46 @@
+name: PD-35 persistence closeout gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/pd35-persistence-closeout.md"
+      - "docs/roadmap/persistence-data-layer.md"
+      - "docs/roadmap/dep41-operator-runbook.md"
+      - "docs/roadmap/dep41-capability-proof-matrix.md"
+      - "scripts/validate-pd35-persistence-closeout.sh"
+      - "kiana-core/tests/pd35_persistence_closeout_guard.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd35-persistence-closeout.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/pd35-persistence-closeout.md"
+      - "docs/roadmap/persistence-data-layer.md"
+      - "docs/roadmap/dep41-operator-runbook.md"
+      - "docs/roadmap/dep41-capability-proof-matrix.md"
+      - "scripts/validate-pd35-persistence-closeout.sh"
+      - "kiana-core/tests/pd35_persistence_closeout_guard.rs"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd35-persistence-closeout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persistence-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Validate PD-35 persistence closeout
+        run: bash scripts/validate-pd35-persistence-closeout.sh
+      - name: Run PD-35 source guard
+        run: cargo test -p kiana-core --test pd35_persistence_closeout_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked
