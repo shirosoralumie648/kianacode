@@ -9908,3 +9908,19 @@ status_change: PD-11 source slice is implemented and roadmap row 294 is ✅. Aut
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: projection is pure over caller-provided facts; no durable checkpoint/lease, registry re-admission, process restart, cross-process ownership or physical storage proof is claimed
 reviewer: Codex root implementation review plus epoch monotonicity, grant expiry, cell parent containment, budget reservation/settlement and lease fence boundaries, sorted/source evidence and no-authority/no-dispatch review; no runtime test reviewer
+
+### PD-12 EventStore-backed approval authority evidence (2026-09-19)
+
+source_snapshot: 4dbf7872 + PD-12 working-tree slice; kiana-daemon/src/{lib.rs,journal_approvals.rs,approval_store.rs}; kiana-ports/src/lib.rs; kiana-daemon/tests/pd12_eventstore_approval_guard.rs; .github/workflows/pd12-eventstore-approval.yml; docs/roadmap/pd12-eventstore-approval-baseline.md; docs/roadmap.md
+worktree_status: DaemonHost product composition already wires JournalApprovalStore over the shared EventStorePort; typed stage/activation/decision/consumption facts use atomic transitions and legacy records without journal facts require reauthorization; MemoryApprovalStore/JSONL remains compatibility-only and is not instantiated by product daemon; no direct Broker/Runner authorization path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-daemon/tests/pd12_eventstore_approval_guard.rs checks JournalApprovalStore product wiring, atomic transition markers, legacy reauthorization and no direct execution; GitHub Actions PD-12 runs source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-12 source slice is implemented and roadmap row 295 is ✅. Product approval authority is the shared EventStore journal, not the compatibility JSONL/Memory adapter
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing compatibility adapter remains for migration/tests, no new migration executor was added, EventStore adapter durability/cross-process crash behavior remains its own proof boundary, and no human/provider live effect is claimed
+reviewer: Codex root implementation review plus daemon composition wiring, EventStore CAS transition ownership, legacy reauthorization, compatibility-only boundary and no-direct-execution review; no runtime test reviewer
