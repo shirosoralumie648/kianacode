@@ -9172,6 +9172,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: plan_interval_due is a pure calculation and does not observe or persist time; ControlPlane still supplies the current authority timestamp, no durable schedule cursor or timer service was added, and no real external trigger effect was executed
 reviewer: Codex root implementation review plus Skip/FireOnce/CatchUp semantics, exact occurrence key, bounded backlog, overflow and existing ControlPlane route review; no runtime timer reviewer
 
+### AUT-11 signed workflow event ingress evidence (partial, 2026-09-19)
+
+source_snapshot: ca0a4d1d + AUT-11 workflow event ingress slice; kiana-domain/src/workflow_event_ingress.rs; kiana-daemon/src/workflow_ingress.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut11_workflow_event_ingress.rs; kiana-daemon/tests/aut11_workflow_ingress.rs; kiana-core/tests/aut11_workflow_ingress_guard.rs; .github/workflows/aut11-workflow-event-ingress.yml; docs/roadmap/aut11-workflow-event-ingress-baseline.md; docs/roadmap.md
+worktree_status: WorkflowEventIngress/SourcePolicy/Occurrence bind bounded payload digest, HMAC signing material, source/project/key/event allowlist, field filters and stable occurrence key; WorkflowEventVerifier performs signature verification and idempotent dedupe, then only returns Fire command material with an evidence ref; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, HTTP/Webhook transport or external credential operation executed
+fixture or cassette: CI-only aut11_workflow_event_ingress domain filter/occurrence contract, aut11_workflow_ingress HMAC/dedupe/source tests and aut11_workflow_ingress_guard route boundary; GitHub Actions AUT-11 runs fixtures and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-11 source ingress slice added. Untrusted event payloads now require server allowlist/filter/signature/dedupe before an occurrence can produce Fire material; roadmap row remains ⏳ because EventLog ingress fact, HTTP transport, durable dedupe/replay and live source credentials are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: WorkflowEventVerifier is process-local for dedupe, stores no EventLog fact and does not call ControlPlane; signature keys are constructor inputs for the adapter, no SecretStore/rotation or external webhook transport was executed, and payload validation is not an input-schema mapping proof
+reviewer: Codex root implementation review plus source/project/key allowlist, HMAC digest binding, skew/filter/dedupe, event-to-occurrence-to-Fire and no-payload-to-capability boundary review; no runtime ingress operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

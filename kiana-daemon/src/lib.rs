@@ -30,6 +30,7 @@ mod process_supervisor;
 mod run_stream;
 mod shell_plan;
 mod storage;
+mod workflow_ingress;
 mod workflow_service;
 mod workspace_checkpoints;
 
@@ -66,6 +67,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 pub use storage::{resolve_storage_root, StorageLease};
+pub use workflow_ingress::WorkflowEventVerifier;
 pub use workflow_service::{
     WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
 };

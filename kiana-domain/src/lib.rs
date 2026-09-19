@@ -132,6 +132,7 @@ mod trust_snapshots;
 mod usage;
 mod versioning;
 mod work_packets;
+mod workflow_event_ingress;
 mod workflow_queue_claim;
 mod workflow_queue_lease;
 
@@ -256,6 +257,7 @@ pub use trust_snapshots::*;
 pub use usage::*;
 pub use versioning::*;
 pub use work_packets::*;
+pub use workflow_event_ingress::*;
 pub use workflow_queue_claim::*;
 pub use workflow_queue_lease::*;
 

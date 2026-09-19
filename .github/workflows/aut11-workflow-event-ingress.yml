@@ -1,0 +1,38 @@
+name: aut11-workflow-event-ingress
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/workflow_event_ingress.rs"
+      - "kiana-domain/tests/aut11_workflow_event_ingress.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_ingress.rs"
+      - "kiana-daemon/tests/aut11_workflow_ingress.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut11_workflow_ingress_guard.rs"
+      - ".github/workflows/aut11-workflow-event-ingress.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/workflow_event_ingress.rs"
+      - "kiana-domain/tests/aut11_workflow_event_ingress.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_ingress.rs"
+      - "kiana-daemon/tests/aut11_workflow_ingress.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut11_workflow_ingress_guard.rs"
+      - ".github/workflows/aut11-workflow-event-ingress.yml"
+
+jobs:
+  workflow-event-ingress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Domain ingress contract
+        run: cargo test -p kiana-domain --test aut11_workflow_event_ingress --locked
+      - name: Daemon signature and dedupe behavior
+        run: cargo test -p kiana-daemon --test aut11_workflow_ingress --locked
+      - name: Existing ControlPlane route guard
+        run: cargo test -p kiana-core --test aut11_workflow_ingress_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked
