@@ -8621,6 +8621,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus config-source snapshot, ProjectTrust-before-start, unknown/ambiguous selection, executable byte/hash sealing, protocol/tool catalog digest, discovery fact ordering, no HTTP/host/network fallback and supervisor cleanup review; no runtime test reviewer
 ```
 
+### CAP-21 bounded stdio MCP evidence (2026-09-19)
+
+```text
+source_snapshot: bee5bc51 + CAP-21 working-tree slice; kiana-daemon/src/{mcp_stdio,harness_mcp,process_supervisor}.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap21_mcp_bounded_transport_guard.rs; .github/workflows/cap21-mcp-bounded-transport.yml; docs/roadmap/cap21-mcp-bounded-transport-baseline.md; docs/roadmap.md
+worktree_status: existing stdio MCP transport is now under a CAP-21 gate: deadlines, frame/total bytes, frame/notification budgets, JSON-RPC ID/envelope, pagination cycle/count, server-request rejection, result/schema/content limits and ProcessSupervisor stop/Unknown are all source-indexed; HTTP/sampling/elicitation/roots remain explicit unsupported boundaries; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only MCP frame/pagination/schema/source fixtures; no local test or smoke binary executed
+fixture or cassette: P1-J4-01 MCP lifecycle fixture; cap21_mcp_bounded_transport_guard; GitHub Actions CAP-21 runs fixture, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-21 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-21 source slice is implemented/reconciled. Transport cancellation and failed stop remain Unknown/fenced, sent calls are not automatically retried, and untrusted server requests cannot invoke model/filesystem authority
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; live MCP interoperability, HTTP transport, pooled process isolation and cross-process transport recovery remain later evidence
+reviewer: Codex root implementation review plus deadline coverage, bounded frame/bytes/notifications, JSON-RPC ID/result-error correctness, pagination cycle, server-request rejection, schema/content limits, no safe retry after sent call and shared stop supervisor review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

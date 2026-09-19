@@ -1,0 +1,46 @@
+name: CAP-21 bounded stdio MCP transport
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-core/tests/cap21_mcp_bounded_transport_guard.rs"
+      - "docs/roadmap/cap21-mcp-bounded-transport-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap21-mcp-bounded-transport.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-core/tests/cap21_mcp_bounded_transport_guard.rs"
+      - "docs/roadmap/cap21-mcp-bounded-transport-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap21-mcp-bounded-transport.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-bounded-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run MCP lifecycle fixtures
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run CAP-21 source guard
+        run: cargo test -p kiana-core --test cap21_mcp_bounded_transport_guard --locked -- --test-threads=1
+      - name: Compile CAP-21 targets
+        run: cargo check --workspace --tests --locked
