@@ -1,0 +1,45 @@
+name: CI-11 audit redaction credential recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/credential_recovery_evidence.rs"
+      - "kiana-domain/tests/ci11_credential_recovery_evidence.rs"
+      - "kiana-core/tests/ci11_audit_recovery_guard.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/redaction.rs"
+      - "docs/roadmap/ci11-audit-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci11-audit-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/credential_recovery_evidence.rs"
+      - "kiana-domain/tests/ci11_credential_recovery_evidence.rs"
+      - "kiana-core/tests/ci11_audit_recovery_guard.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/redaction.rs"
+      - "docs/roadmap/ci11-audit-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci11-audit-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CI-11 recovery evidence fixture
+        run: cargo test -p kiana-domain --test ci11_credential_recovery_evidence --locked -- --test-threads=1
+      - name: Run CI-11 source guard
+        run: cargo test -p kiana-core --test ci11_audit_recovery_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

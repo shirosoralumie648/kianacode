@@ -9087,6 +9087,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the review and validator check evidence/linkage structure, not security correctness, real CI receipts, authn/SecretStore enforcement, vulnerability absence, regulatory compliance, runtime recovery or cleanup; typed contract index presence is not a receipt and operator sign-off is still required
 reviewer: Codex root implementation review plus typed evidence index, review-record completeness, module-map/status linkage, feature/proof separation, open-risk/non-claim and no-compliance-certification boundary review; no security/compliance operator sign-off
 
+### CI-11 audit, redaction and credential recovery evidence (partial, 2026-09-19)
+
+source_snapshot: 173e3cae + CI-11 recovery projection slice; kiana-domain/src/credential_recovery_evidence.rs; kiana-domain/tests/ci11_credential_recovery_evidence.rs; kiana-core/tests/ci11_audit_recovery_guard.rs; kiana-core/src/{audit_projection,redaction}.rs; .github/workflows/ci11-audit-recovery.yml; docs/roadmap/ci11-audit-recovery-baseline.md; docs/roadmap.md
+worktree_status: CredentialRecoveryProjection binds identity/assignment/config/credential/audit/redaction digests, generation/authority epoch, revisions, lease state and blockers; restart defaults to paused/re-admission-required, stale/unknown/refresh/lease failures cannot auto-resume, and only explicit re-admission can authorize resume
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, audit query, credential rotation or recovery operation executed
+fixture or cassette: CI-only ci11_credential_recovery_evidence and ci11_audit_recovery_guard; GitHub Actions CI-11 runs recovery fixture, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-11 is triggered by the eventual push and is not awaited
+status_change: CI-11 source/recovery boundary advanced from scattered audit/redaction/recovery guards to an explicit projection contract; roadmap remains ⏳ because durable EventLog projection, SecretStore rotation, cross-process re-admission and live receipt remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: the projection contract does not implement audit replay, redaction scanning, credential refresh or durable re-admission; no secret rotation, restart or external provider effect was executed
+reviewer: Codex root implementation review plus explicit blocker taxonomy, lease/revision/epoch fencing, audit/redaction digest binding, no-auto-resume and explicit re-admission proof-ceiling review; no runtime/credential operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
