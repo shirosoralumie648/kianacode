@@ -10116,3 +10116,19 @@ status_change: H20 source slice is implemented and roadmap row 307 is ✅. Conte
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: retrieval adapters still supply candidates, render/token estimate is a bounded UTF-8 proxy rather than provider tokenizer truth, provider wire/live fake assertions and cross-process context recovery remain later H/CM/CP work
 reviewer: Codex root implementation review plus Product/Context separation, source provenance, budget/omission explanation, StepIdentity/route/catalog/workspace/data epoch binding, request digest and no-second-compiler/no-provider boundary review; no runtime test reviewer
+
+### H21 request budget / stable prefix evidence (2026-09-19)
+
+source_snapshot: e0e5fca2 + H21 working-tree slice; kiana-domain/src/request_budget.rs; kiana-domain/tests/h21_request_budget.rs; kiana-runner/src/{harness.rs,budget.rs,compact.rs}; kiana-runner/tests/h21_budget_prefix_guard.rs; .github/workflows/h21-request-budget.yml; docs/roadmap/h21-request-budget-baseline.md; docs/roadmap.md
+worktree_status: WireBudgetInput/WireBudget now accounts for system/history/tool schema/attachment/provider framing and one output reserve/cap; Exact and ConservativeUtf8 accounting are explicit and overflow/over-budget denies; StablePrefix fixes ordered segments while cache key binds profile/prompt/catalog/data epoch and excludes dynamic suffix; existing runner TokenBudget/prompt provenance/product prefix source is CI-guarded; no provider-specific tokenizer or cache authority was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H21 Unicode/emoji/exact-vs-conservative/large-schema overflow and stable-prefix dynamic-suffix/revocation cache-key fixtures; runner budget/prefix source guard; GitHub Actions H21 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H21 source slice is implemented and roadmap row 308 is ✅. One budget contract and one stable prefix/cache identity now cover estimate/send inputs and invalidation dimensions
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: ConservativeUtf8 remains a bounded fallback, exact provider tokenizer/usage reconciliation and live cache behavior are not claimed; cache persistence, cross-process invalidation and provider billing remain later H/PD/provider work
+reviewer: Codex root implementation review plus full wire-component budget, shared output reserve, explicit accounting mode, stable ordering, dynamic suffix exclusion and profile/prompt/catalog/data epoch cache invalidation review; no runtime test reviewer
