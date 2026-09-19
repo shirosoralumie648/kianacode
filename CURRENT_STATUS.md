@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### UI-41 UI/Entrypoints handoff and gap evidence (partial, 2026-09-19)
+
+source_snapshot: 6c61ae78 + UI-41 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{ui39-live-acp,ui40-release-gate,ui41-handoff}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui41_handoff_guard.rs; .github/workflows/ui41-handoff.yml; docs/roadmap.md
+worktree_status: UI-41 handoff guard now requires completed/partial/deferred/not_supported classification, source snapshot/reviewer/next action and explicit cross-process/live/physical/scale limits; it rejects blanket overall-complete language
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only ui41_handoff_guard; GitHub Actions UI-41 runs handoff source guard, diff check and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-41 is triggered by the eventual push and is not awaited
+status_change: UI-41 handoff evidence advanced from UI-40 release gate; roadmap remains ⏳ because partial/deferred/live/physical dependencies remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: a handoff document cannot prove runtime parity, accessibility, ACP/IDE live behavior, Desktop packaging, external receipts, cross-process recovery or scale
+reviewer: Codex root implementation review plus status/proof/source snapshot, open limitation, reviewer and no-blanket-completion handoff boundary review; no runtime test reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

@@ -1,0 +1,43 @@
+name: UI-41 handoff and gap guard
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "docs/roadmap/ui41-handoff-baseline.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-core/tests/ui41_handoff_guard.rs"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui41-handoff.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "docs/roadmap/ui41-handoff-baseline.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-core/tests/ui41_handoff_guard.rs"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui41-handoff.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test ui41_handoff_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked
