@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-34 release preflight evidence (partial, 2026-09-19)
+
+source_snapshot: bcd4b5c6 + DEP-34 working-tree slice; kiana-domain/src/release_preflight.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep34_release_preflight.rs; kiana-core/tests/dep34_release_preflight_guard.rs; .github/workflows/dep34-release-preflight.yml; docs/roadmap/dep34-release-preflight-baseline.md; docs/roadmap.md
+worktree_status: pure domain ReleasePreflightReport now checks reproducible/clean build identity, expected/observed Cargo.lock digest, unique bounded target matrix, SBOM/checksum/signature evidence, migration registry/preflight and verified backup before publish_allowed=true; all reports remain read-only
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep34_release_preflight domain fixtures; dep34_release_preflight_guard; GitHub Actions DEP-34 runs ready/blocked build, lock, target, supply-chain, migration and backup fixtures plus workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-34 is triggered by the eventual push and is not awaited
+status_change: DEP-34 source contract advanced from revision/drain shape to a release evidence gate; roadmap remains ⏳ because no real build/sign/SBOM/backup collector or release action is wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: facts are supplied inputs, signature/checksum/SBOM are not generated or cryptographically checked here, migration preflight and backup are not executed, and publish_allowed is not a release receipt
+reviewer: Codex root implementation review plus reproducible build/clean tree, Cargo.lock/target identity, SBOM/checksum/signature, migration/backup gates, bounded matrix and no-publish side-effect boundary review; no runtime test reviewer
+
 ### DEP-33 revision pin and old-revision drain evidence (partial, 2026-09-19)
 
 source_snapshot: aff4bb50 + DEP-33 working-tree slice; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep33_revision_compatibility.rs; kiana-core/tests/dep33_revision_compatibility_guard.rs; .github/workflows/dep33-revision-compatibility.yml; docs/roadmap/dep33-revision-compatibility-baseline.md; docs/roadmap.md

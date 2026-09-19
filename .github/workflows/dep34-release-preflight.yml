@@ -1,0 +1,44 @@
+name: DEP-34 release preflight
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/release_preflight.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep34_release_preflight.rs"
+      - "kiana-core/tests/dep34_release_preflight_guard.rs"
+      - "docs/roadmap/dep34-release-preflight-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep34-release-preflight.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/release_preflight.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep34_release_preflight.rs"
+      - "kiana-core/tests/dep34_release_preflight_guard.rs"
+      - "docs/roadmap/dep34-release-preflight-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep34-release-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-34 domain fixtures
+        run: cargo test -p kiana-domain --test dep34_release_preflight --locked -- --test-threads=1
+      - name: Run DEP-34 source guard
+        run: cargo test -p kiana-core --test dep34_release_preflight_guard --locked -- --test-threads=1
+      - name: Compile DEP-34 targets
+        run: cargo check --workspace --tests --locked
