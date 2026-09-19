@@ -8716,6 +8716,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus typed receipt fields, owner/data revocation, source cursor/event identity, redaction, result request-ID pairing, four-entry digest parity, bounded terminal replay and no-execution reconnect review; no runtime test reviewer
 ```
 
+### CAP-26 capability closeout evidence (2026-09-19)
+
+```text
+source_snapshot: cb3f01ba + CAP-26 working-tree slice; kiana-core/src/{capabilities,dispatch,receipts}.rs; kiana-daemon/src/{lib,harness_capabilities,harness_mcp,harness_memory,pre_tool_hooks,apply_patch}.rs; kiana-capability-broker/src/lib.rs; kiana-runner/src/harness.rs; scripts/{harness-golden-smoke,v10-workbench-smoke,v10-p0-closeout-smoke}.sh; kiana-core/tests/cap26_capability_closeout_guard.rs; .github/workflows/cap26-capability-closeout.yml; docs/roadmap/cap26-capability-closeout-baseline.md; docs/roadmap.md
+worktree_status: CAP-26 adds a CI-only closeout matrix after prior deny/Unknown/cancel/reconciliation slices: product binary compilation, cassette golden packet/apply_patch/file/receipt projection, trusted/untrusted Workbench smoke, P0 closeout, daemon shell/Memory/stdio MCP fixtures and shared Hook/adapter/result guards; all effectful adapters remain behind DaemonHost→ControlPlane→permit→Broker and receipts remain EventLog projections
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; GitHub Actions is the only runtime/smoke execution environment for this step; no local test or smoke binary executed
+fixture or cassette: harness-golden-apply-patch cassette; harness_runtime; p1_j3_02_memory; p1_j4_01_mcp; cp05 entry-path; ER-15 adapter result; CAP-17/18/20/21 guards; harness-golden, v10-workbench and v10-p0-closeout smoke; cap26_capability_closeout_guard
+exit_code: 0 for format and workspace test-target static compilation; local tests and smoke deliberately not run per user instruction; GitHub Actions CAP-26 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-26 CI closeout slice is implemented. The remote gate exercises the existing five-tool/Hook path and negative boundaries, with explicit file/receipt/process/lock/temporary-workspace assertions in the inherited smoke and fixture set
+proof-level_change: source plus CI workflow definition/static compile evidence only; the eventual CI smoke ceiling is local_behavior, not live, durable, or physical
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; this closeout does not claim live provider, physical installation, cross-provider exactly-once, or a single cassette that invokes every adapter in one model turn; external effect reconciliation remains Unknown/evidence-gated
+reviewer: Codex root implementation review plus single ControlPlane/Broker route, deny-first adapter coverage, cassette file/receipt projection, trust/sandbox rejection, cancellation/Unknown, Memory/MCP/Hook result boundaries and explicit proof-ceiling review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

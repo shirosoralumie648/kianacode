@@ -1,0 +1,81 @@
+name: CAP-26 capability closeout
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/**"
+      - "kiana-core/tests/**"
+      - "kiana-daemon/src/**"
+      - "kiana-daemon/tests/**"
+      - "kiana-entrypoints/src/**"
+      - "kiana-entrypoints/tests/**"
+      - "kiana-capability-broker/src/**"
+      - "kiana-runner/src/**"
+      - "scripts/harness-golden-smoke.sh"
+      - "scripts/v10-workbench-smoke.sh"
+      - "scripts/v10-p0-closeout-smoke.sh"
+      - "scripts/v10-personal-lifecycle-smoke.sh"
+      - "scripts/fixtures/harness-golden-apply-patch.json"
+      - "kiana-core/tests/cap26_capability_closeout_guard.rs"
+      - "docs/roadmap/cap26-capability-closeout-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap26-capability-closeout.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/**"
+      - "kiana-core/tests/**"
+      - "kiana-daemon/src/**"
+      - "kiana-daemon/tests/**"
+      - "kiana-entrypoints/src/**"
+      - "kiana-entrypoints/tests/**"
+      - "kiana-capability-broker/src/**"
+      - "kiana-runner/src/**"
+      - "scripts/harness-golden-smoke.sh"
+      - "scripts/v10-workbench-smoke.sh"
+      - "scripts/v10-p0-closeout-smoke.sh"
+      - "scripts/v10-personal-lifecycle-smoke.sh"
+      - "scripts/fixtures/harness-golden-apply-patch.json"
+      - "kiana-core/tests/cap26_capability_closeout_guard.rs"
+      - "docs/roadmap/cap26-capability-closeout-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap26-capability-closeout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Compile product binary for CI smoke
+        run: cargo build --bin kiana --locked
+      - name: Run deny and adapter guards
+        run: cargo test -p kiana-core --test cp05_entry_paths_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test er15_adapter_result_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap17_execution_set_cancel_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap18_hook_execution_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap20_mcp_trust_discovery_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cap21_mcp_bounded_transport_guard --locked -- --test-threads=1
+      - name: Run adapter lifecycle fixtures
+        run: cargo test -p kiana-daemon --test harness_runtime --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test p1_j3_02_memory --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run cassette and workbench closeout smoke
+        run: bash scripts/harness-golden-smoke.sh
+      - run: bash scripts/v10-workbench-smoke.sh
+      - run: bash scripts/v10-p0-closeout-smoke.sh
+      - name: Run CAP-26 source guard
+        run: cargo test -p kiana-core --test cap26_capability_closeout_guard --locked -- --test-threads=1
+      - name: Compile CAP-26 targets
+        run: cargo check --workspace --tests --locked
