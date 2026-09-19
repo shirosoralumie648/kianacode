@@ -22,6 +22,7 @@ pub mod repo_map;
 pub mod stop_hooks;
 pub mod token_budget;
 pub mod transitions;
+pub mod unified_retrieval;
 pub mod workspace_snapshot;
 
 pub use chunker::{chunk_text, ChunkingOptions};
@@ -60,6 +61,7 @@ pub use transitions::{
     transition_query_state, QueryEffect, QueryEvent, QueryPhase, QueryState, QueryStopReason,
     QueryTransition,
 };
+pub use unified_retrieval::{rank_unified, UnifiedRetrievalPort};
 pub use workspace_snapshot::{
     read_workspace_snapshot, snapshot_digest, WorkspaceReadContent, WorkspaceReadOutcome,
     WorkspaceSnapshotOptions,

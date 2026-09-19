@@ -29,10 +29,11 @@ use kiana_domain::{
     GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
     PendingApproval, Principal, ProjectId, ProjectIdentity, QualityArtifact, QualityArtifactId,
     QuotaReservation, QuotaReservationId, QuotaReservationState, RateCard, RateCardId,
-    RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId,
-    RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
-    StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
-    SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
+    RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RetrievalItem,
+    RetrievalRequest, RetrievalResult, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind,
+    SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth,
+    StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId,
+    TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -2587,6 +2588,17 @@ pub trait AuditQueryPort: Send + Sync {
 #[async_trait]
 pub trait HealthProbePort: Send + Sync {
     async fn probe(&self) -> Result<HealthSnapshot, PortError>;
+}
+
+/// Shared, read-only retrieval boundary. Implementations must receive a server-filtered request
+/// and return the same deterministic ranking contract to memory, CLI and query adapters.
+pub trait RetrievalPort: Send + Sync {
+    fn retrieve(
+        &self,
+        request: &RetrievalRequest,
+        items: &[RetrievalItem],
+        limit: usize,
+    ) -> Result<RetrievalResult, PortError>;
 }
 
 #[derive(Default)]

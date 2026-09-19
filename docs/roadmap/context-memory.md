@@ -382,7 +382,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-12 · 统一 sparse/dense/RRF/MMR 检索器　⏳
+##### CM-12 · 统一 sparse/dense/RRF/MMR 检索器　✅
+
+当前 source slice 与 CI-only 证据见 [`cm12-unified-retrieval-baseline.md`](cm12-unified-retrieval-baseline.md)。
 
 把 daemon 当前 rank_records、CLI 搜索和 query index 的算法归到一个 `RetrievalPort` 实现；先 ACL 过滤，再 exact/BM25/dense，RRF60、MMR、稳定 tie-break 和版本化 profile。验收：`cli_and_memory_tool_have_identical_rankings`、`acl_filter_happens_before_ranking`。
 

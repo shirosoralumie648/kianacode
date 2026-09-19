@@ -10452,3 +10452,19 @@ status_change: CM-11 source slice is implemented and roadmap row 322 is ✅. Inc
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing persistent index builders are not fully migrated to the plan, durable tombstone/retention propagation and cross-process recovery remain PD/ER work, and no production freshness claim is made
 reviewer: Codex root implementation review plus content/identity/disposition diff, mtime-only rejection, rename/delete/tombstone, cache-key source/algorithm binding and no-mutation query boundary review; no runtime test reviewer
+
+### CM-12 unified retrieval evidence (2026-09-20)
+
+source_snapshot: 9485d1e0 + CM-12 working-tree slice; kiana-domain/src/{unified_retrieval.rs,contracts.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-query/src/{unified_retrieval.rs,lib.rs}; kiana-query/Cargo.toml; Cargo.lock; kiana-protocol/src/lib.rs; kiana-daemon/src/memory_retrieval.rs; kiana-commands/src/memory.rs; kiana-domain/tests/cm12_unified_retrieval.rs; kiana-query/tests/cm12_unified_retrieval.rs; kiana-core/tests/cm12_unified_retrieval_guard.rs; .github/workflows/cm12-unified-retrieval.yml; docs/roadmap/cm12-unified-retrieval-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: RetrievalRequest requires server-derived permission scope and acl_filtered=true; rank_retrieval filters denied items before exact/BM25-CJK/dense scoring, then applies pinned RRF-k60/MMR and stable tie-breaks; RetrievalResult binds source/scope/rank components/degraded reasons and digest; query exposes the same logic through RetrievalPort while legacy daemon/CLI paths remain compatibility adapters
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-12 domain ACL-first/stability fixtures, query RetrievalPort parity fixture and Core source guard; GitHub Actions CM-12 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-12 source slice is implemented and roadmap row 323 is ✅. One versioned ranking contract and RetrievalPort adapter are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: legacy daemon rank_records and CLI memory search are not fully migrated at every call site, external embedding/model quality and durable index integration remain open, and no live retrieval proof is claimed
+reviewer: Codex root implementation review plus ACL-before-ranking, scope binding, exact/BM25/dense/RRF/MMR/stable tie-break, degraded evidence and shared RetrievalPort boundary review; no runtime test reviewer
