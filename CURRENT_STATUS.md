@@ -9138,6 +9138,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: MemoryWorkflowQueueStore is process-local and does not fsync, replay, coordinate cross-process workers, detect worker death, persist queue history or reconcile external effects; result_unknown remains recovery-required and cannot be reclaimed; no scheduler or capability dispatch was added
 reviewer: Codex root implementation review plus lease owner/fence/expiry, effect Unknown, concurrent claim and no-Broker-boundary review; no runtime queue reviewer
 
+### AUT-09 DaemonHost bounded workflow service evidence (partial, 2026-09-19)
+
+source_snapshot: b8118ebd + AUT-09 workflow service slice; kiana-daemon/src/{lib,workflow_service}.rs; kiana-daemon/tests/aut09_workflow_service*.rs; kiana-eventlog/src/workflow_queue.rs; kiana-ports/src/lib.rs; .github/workflows/aut09-workflow-service.yml; docs/roadmap/aut09-workflow-service-baseline.md; docs/roadmap.md
+worktree_status: DaemonHost owns one WorkflowQueueService with a bounded mpsc channel and Tokio worker; queue operations are delegated to WorkflowQueueStore, active leases are fenced during ordered shutdown, and no model/provider/CapabilityBroker loop is created; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke command executed
+fixture or cassette: CI-only aut09_workflow_service bounded claim/heartbeat/shutdown fixture and aut09_workflow_service_guard source boundary; GitHub Actions AUT-09 runs service behavior, source guard and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-09 source service slice added. One DaemonHost-owned bounded worker now serializes queue coordination and reports shutdown fencing/recovery; roadmap row remains ⏳ because durable queue acknowledgements, scheduler timing, restart recovery and trigger execution are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: WorkflowQueueService is not a second execution loop but also does not persist its own acknowledgements, use ClockPort for deterministic timer scheduling, prove cross-process shutdown/worker death, or reconcile external effects; no capability dispatch was added
+reviewer: Codex root implementation review plus bounded channel, singleton start, ordered shutdown, active lease fence and no-second-loop boundary review; no runtime scheduler reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

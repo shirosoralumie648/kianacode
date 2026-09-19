@@ -1,0 +1,34 @@
+name: aut09-workflow-service
+
+on:
+  push:
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_service.rs"
+      - "kiana-daemon/tests/aut09_workflow_service.rs"
+      - "kiana-daemon/tests/aut09_workflow_service_guard.rs"
+      - "kiana-eventlog/src/workflow_queue.rs"
+      - "kiana-ports/src/lib.rs"
+      - ".github/workflows/aut09-workflow-service.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_service.rs"
+      - "kiana-daemon/tests/aut09_workflow_service.rs"
+      - "kiana-daemon/tests/aut09_workflow_service_guard.rs"
+      - "kiana-eventlog/src/workflow_queue.rs"
+      - "kiana-ports/src/lib.rs"
+      - ".github/workflows/aut09-workflow-service.yml"
+
+jobs:
+  workflow-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Bounded queue service behavior
+        run: cargo test -p kiana-daemon --test aut09_workflow_service --locked
+      - name: DaemonHost source guard
+        run: cargo test -p kiana-daemon --test aut09_workflow_service_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked

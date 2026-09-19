@@ -30,6 +30,7 @@ mod process_supervisor;
 mod run_stream;
 mod shell_plan;
 mod storage;
+mod workflow_service;
 mod workspace_checkpoints;
 
 pub use authn::LocalAuthnAdapter;
@@ -52,7 +53,7 @@ use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{
     AssignmentDirectoryPort, InMemoryAssignmentDirectory, ObservabilityQueue,
     ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats, PortError,
-    QueuedObservabilityItem, RunnerPort,
+    QueuedObservabilityItem, RunnerPort, WorkflowQueueStore,
 };
 use kiana_protocol::{
     RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
@@ -65,6 +66,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 pub use storage::{resolve_storage_root, StorageLease};
+pub use workflow_service::{
+    WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
+};
 
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
@@ -151,6 +155,7 @@ pub struct DaemonHost {
     project_authority: Arc<dyn ProjectTrustAuthority>,
     run_stream: Arc<RunStreamBus>,
     observability_queue: Arc<ObservabilityQueue>,
+    workflow_service: WorkflowQueueService,
 }
 
 pub trait ProjectTrustAuthority: Send + Sync {
@@ -229,6 +234,7 @@ impl DaemonHost {
                 ObservabilityQueue::new(OBSERVABILITY_QUEUE_CAPACITY)
                     .expect("static observability queue capacity is non-zero"),
             ),
+            workflow_service: WorkflowQueueService::new(),
         }
     }
 
@@ -624,6 +630,7 @@ impl DaemonHost {
     /// observability queue, then close the EventStore. A close/flush error is returned as
     /// `result_unknown` by callers; dropping the host is never treated as a terminal ack.
     pub async fn shutdown(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
+        let _ = self.workflow_service.shutdown().await?;
         self.flush_event_store().await?;
         let _ = self.flush_observability().await;
         self.shutdown_observability();
@@ -648,6 +655,20 @@ impl DaemonHost {
 
     pub fn shutdown_observability(&self) -> ObservabilityQueueStats {
         self.observability_queue.shutdown()
+    }
+
+    /// Start the one bounded workflow queue service owned by this DaemonHost. The service only
+    /// claims/heartbeats/fences queue leases; command admission and capability execution remain
+    /// on the existing ControlPlane/Broker spine.
+    pub async fn start_workflow_queue_service(
+        &self,
+        store: Arc<dyn WorkflowQueueStore>,
+    ) -> Result<(), PortError> {
+        self.workflow_service.start(store).await
+    }
+
+    pub fn workflow_queue_service(&self) -> WorkflowQueueService {
+        self.workflow_service.clone()
     }
 
     pub fn reopen_observability(&self) -> ObservabilityQueueStats {
