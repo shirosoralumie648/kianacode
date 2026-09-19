@@ -10180,3 +10180,19 @@ status_change: H24 source slice is implemented and roadmap row 311 is ✅. Resum
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: source guard does not prove power-loss/cross-process durable restart, real process fencing, external effect confirmation or production crash recovery; later PD/ER/SC rehearsal remains required
 reviewer: Codex root implementation review plus checkpoint material completeness, owner/project/trust/role/sandbox/authority/data/action/batch fences, pending approval/Unknown semantics, EventLog CAS single claimant and no-auto-Start boundary review; no runtime test reviewer
+
+### H25 replay / fault injection / Unknown reconciliation evidence (2026-09-19)
+
+source_snapshot: d444695e + H25 working-tree slice; kiana-core/src/{fault_injection.rs,replay_diagnostics.rs,recovery.rs}; kiana-domain/src/{fault.rs,recovery_resources.rs}; kiana-core/tests/h25_replay_fault_guard.rs; .github/workflows/h25-replay-fault.yml; docs/roadmap/h25-replay-fault-baseline.md; docs/roadmap.md
+worktree_status: replay-only fault_matrix covers eight bounded windows and explicitly does not call Model/Broker/provider or append facts; each FaultCase binds source cursor/event IDs, effect_started/effect_known and Unknown/Rejected status; ReplayDiagnostics compares deterministic projections, reports first divergence/terminal conflict/unknown effect, and never retries or rewrites facts; recovery remains evidence/explicit-resume gated
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H25 replay-only/no-effect, eight fault windows, source binding, Unknown fencing and terminal conflict source guards; GitHub Actions H25 runs the guard and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H25 source slice is implemented and roadmap row 312 is ✅. Replay/fault analysis cannot invoke effects or turn Unknown/contradictory terminal facts into success/retry
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no physical process kill, cross-process executor/job-handle verification, filesystem/provider effect confirmation or live crash replay is claimed; these remain PD/ER/SC rehearsal work
+reviewer: Codex root implementation review plus replay-only/no-effect, deterministic projection divergence, eight fault windows, source event binding, Unknown fencing, terminal conflict and explicit recovery/no-auto-retry boundary review; no runtime test reviewer

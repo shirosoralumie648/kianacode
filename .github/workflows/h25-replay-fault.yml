@@ -1,0 +1,33 @@
+name: h25-replay-fault
+
+on:
+  push:
+    paths:
+      - 'kiana-core/src/fault_injection.rs'
+      - 'kiana-core/src/replay_diagnostics.rs'
+      - 'kiana-core/src/recovery.rs'
+      - 'kiana-domain/src/fault.rs'
+      - 'kiana-core/tests/h25_replay_fault_guard.rs'
+      - '.github/workflows/h25-replay-fault.yml'
+  pull_request:
+    paths:
+      - 'kiana-core/src/fault_injection.rs'
+      - 'kiana-core/src/replay_diagnostics.rs'
+      - 'kiana-core/src/recovery.rs'
+      - 'kiana-domain/src/fault.rs'
+      - 'kiana-core/tests/h25_replay_fault_guard.rs'
+      - '.github/workflows/h25-replay-fault.yml'
+
+jobs:
+  replay-fault:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test h25_replay_fault_guard --locked -- --test-threads=1
