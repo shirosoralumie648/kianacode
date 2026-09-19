@@ -1,0 +1,51 @@
+name: sc22-retention-legal-hold
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/retention.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/sc22_retention.rs'
+      - 'kiana-core/src/retention.rs'
+      - 'kiana-core/src/lib.rs'
+      - 'kiana-core/tests/sc22_retention.rs'
+      - 'kiana-core/tests/sc22_retention_guard.rs'
+      - 'kiana-eventlog/src/retention_store.rs'
+      - 'kiana-eventlog/src/lib.rs'
+      - 'kiana-eventlog/tests/sc22_retention_store.rs'
+      - 'kiana-eventlog/tests/sc22_retention_guard.rs'
+      - 'kiana-ports/src/lib.rs'
+      - '.github/workflows/sc22-retention-legal-hold.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/retention.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/sc22_retention.rs'
+      - 'kiana-core/src/retention.rs'
+      - 'kiana-core/src/lib.rs'
+      - 'kiana-core/tests/sc22_retention.rs'
+      - 'kiana-core/tests/sc22_retention_guard.rs'
+      - 'kiana-eventlog/src/retention_store.rs'
+      - 'kiana-eventlog/src/lib.rs'
+      - 'kiana-eventlog/tests/sc22_retention_store.rs'
+      - 'kiana-eventlog/tests/sc22_retention_guard.rs'
+      - 'kiana-ports/src/lib.rs'
+      - '.github/workflows/sc22-retention-legal-hold.yml'
+
+jobs:
+  retention-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test sc22_retention --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test sc22_retention --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test sc22_retention_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-eventlog --test sc22_retention_store --locked -- --test-threads=1
+      - run: cargo test -p kiana-eventlog --test sc22_retention_guard --locked -- --test-threads=1
