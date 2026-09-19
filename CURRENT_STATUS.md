@@ -8545,6 +8545,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus prepared/resolved journal lifecycle, pending bound, descriptor identity, precondition/rollback conflict, Unknown result, no-clean/no-reexecution and existing late-hunk/rollback fixture linkage review; no runtime test reviewer
 ```
 
+### CAP-17 execution-set cancellation evidence (2026-09-19)
+
+```text
+source_snapshot: bbd87386 + CAP-17 working-tree slice; kiana-domain/src/cancellation.rs; kiana-core/src/{lifecycle,dispatch,approvals}.rs; kiana-daemon/src/{process_supervisor,harness_capabilities}.rs; kiana-daemon/tests/{p0_j1_03_process_group,p0_j1_04_cancel_race,daemon_host}.rs; kiana-core/tests/{cap17_execution_set_cancel_guard,cp15_cancellation_guard,cp16_handler_stop_guard,er19_process_handle_guard,er22_cancel_recovery_guard}.rs; .github/workflows/cap17-execution-set-cancel.yml; docs/roadmap/cap17-execution-set-cancel-baseline.md; docs/roadmap.md
+worktree_status: CAP-17 binds durable cancellation intent to the existing execution-set stop path and migrates stale stop guards to ProcessSupervisor; queued/pending work remains not_executed, started work requires StopReport confirmation, late results stay fenced/Unknown, and no second cancel dispatch path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only cancellation/race/source fixtures; no local test or smoke binary executed
+fixture or cassette: CP-15 durable cancellation guard; CP-16 handler stop guard; ER-19/ER-22 recovery guards; daemon process-group/cancel-race/late-stream fixtures; cap17_execution_set_cancel_guard; GitHub Actions CAP-17 runs all selected fixtures and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-17 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-17 source slice is implemented/reconciled. Cancel persists before signal, covers queued/approval/Runner/started execution classes, requires confirmed stop for Cancelled, and preserves ResultUnknown/quarantine semantics when confirmation or late-result fencing is incomplete
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cross-process cancellation recovery, external effect reconciliation, hook/memory cancellation propagation and physical process/file release remain later evidence
+reviewer: Codex root implementation review plus durable cancel-before-signal ordering, execution-set coverage, pending not-executed semantics, ProcessSupervisor StopReport routing, late result fence, old-guard migration and no-auto-retry boundary review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

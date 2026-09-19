@@ -84,6 +84,7 @@ fn er_stale_handle_cannot_stop_new_execution() {
 fn er_child_escape_or_leader_exit_is_unknown() {
     let execution = include_str!("../../kiana-daemon/src/execution_control.rs");
     let capabilities = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let domain = include_str!("../../kiana-domain/src/capabilities.rs");
     let receipts = include_str!("../src/receipts.rs");
     let fixture = include_str!("../../kiana-daemon/tests/h15_output_limits.rs");
@@ -92,9 +93,8 @@ fn er_child_escape_or_leader_exit_is_unknown() {
         execution,
         &[
             "process_group_id",
-            "process_group_exists",
-            "leader_reaped",
-            "terminate_process_group",
+            "ProcessSupervisor::stop",
+            "stop_report",
             "stop_confirmed",
             "result_unknown",
             "capture_complete",
@@ -103,10 +103,19 @@ fn er_child_escape_or_leader_exit_is_unknown() {
         "supervisor stop evidence",
     );
     require(
+        supervisor,
+        &[
+            "leader_reaped",
+            "observe_process_group",
+            "ProcessGroupState",
+        ],
+        "OS stop observation",
+    );
+    require(
         capabilities,
         &[
-            "process_group_exists",
-            "leader_reaped",
+            "ProcessSupervisor::stop",
+            "stop_report",
             "stop_confirmed",
             "shell_result_unknown:cancel_stop_unconfirmed",
             "output_drain_timeout",

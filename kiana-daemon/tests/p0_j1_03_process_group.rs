@@ -3,10 +3,11 @@ fn cancel_confirms_shell_process_group_stopped() {
     let harness = include_str!("../src/harness_capabilities.rs");
     let mcp = include_str!("../src/mcp_stdio.rs");
     let execution = include_str!("../src/execution_control.rs");
+    let supervisor = include_str!("../src/process_supervisor.rs");
     let existing = include_str!("daemon_host.rs");
     for marker in [
-        "prepare_process_group",
-        "terminate_process_group",
+        "ProcessSupervisor::prepare_command",
+        "ProcessSupervisor::stop",
         "process_group_exists",
         "stop_confirmed",
         "shell_result_unknown:process_group_not_stopped",
@@ -16,12 +17,13 @@ fn cancel_confirms_shell_process_group_stopped() {
             harness.contains(marker)
                 || mcp.contains(marker)
                 || execution.contains(marker)
+                || supervisor.contains(marker)
                 || existing.contains(marker),
             "process-group stop marker missing: {marker}"
         );
     }
-    assert!(harness.contains("if !stop_confirmed"));
-    assert!(harness.contains("finish_if_stopped"));
+    assert!(harness.contains("if !report.confirmed"));
+    assert!(harness.contains("ProcessSupervisor::guard"));
     assert!(execution.contains("process_group_id"));
 }
 

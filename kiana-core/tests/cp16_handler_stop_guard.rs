@@ -5,6 +5,8 @@ fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
     let patch = include_str!("../../kiana-daemon/src/apply_patch.rs");
     let mcp = include_str!("../../kiana-daemon/src/harness_mcp.rs");
     let stdio = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
+    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
+    let output = include_str!("../../kiana-daemon/src/execution_output.rs");
     let sandbox = include_str!("../../kiana-daemon/src/harness_sandbox.rs");
     let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
@@ -12,12 +14,12 @@ fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
     let race_fixture = include_str!("../../kiana-daemon/tests/p0_j1_04_cancel_race.rs");
 
     for marker in [
-        "prepare_process_group",
-        "terminate_process_group",
+        "ProcessSupervisor::prepare_command",
+        "ProcessSupervisor::stop",
         "process_group_exists",
-        "finish_if_stopped",
-        "PROCESS_GROUP_TERM_GRACE",
-        "PROCESS_GROUP_EXIT_GRACE",
+        "StopReport",
+        "TERM_GRACE",
+        "KILL_GRACE",
         "IO_DRAIN_TIMEOUT",
         "kill_on_drop(true)",
         "stop_confirmed",
@@ -27,7 +29,10 @@ fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
         "effect_known",
     ] {
         assert!(
-            shell.contains(marker) || stdio.contains(marker),
+            shell.contains(marker)
+                || stdio.contains(marker)
+                || supervisor.contains(marker)
+                || output.contains(marker),
             "CP-16 shell/MCP stop marker missing: {marker}"
         );
     }

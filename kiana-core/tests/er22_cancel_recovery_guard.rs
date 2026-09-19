@@ -108,6 +108,7 @@ fn stop_ack_and_effect_fences_block_late_results_and_success() {
     let events = include_str!("../src/events.rs");
     let shell = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
     let mcp = include_str!("../../kiana-daemon/src/harness_mcp.rs");
+    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let projection = include_str!("../src/projection.rs");
 
@@ -144,10 +145,10 @@ fn stop_ack_and_effect_fences_block_late_results_and_success() {
         "terminal event boundary",
     );
     require(
-        shell,
+        supervisor,
         &[
-            "terminate_process_group",
-            "ProcessGroupGuard",
+            "ProcessSupervisor::stop",
+            "StopReport",
             "stop_confirmed",
             "shell_result_unknown:cancel_stop_unconfirmed",
             "kill_on_drop",
