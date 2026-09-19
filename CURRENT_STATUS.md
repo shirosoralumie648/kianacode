@@ -10228,3 +10228,19 @@ status_change: H27 source slice is implemented and roadmap row 314 is ✅. A tex
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: RoleSpec/WorkPacket output schema resolution is not yet fully wired, provider-native structured response and bounded repair calls are not live, global ExecutionStatus awaiting_input mapping and durable terminal CAS remain later H/PD/provider work
 reviewer: Codex root implementation review plus deterministic contract validation, outcome precedence, digest binding, pending-work fences, Core annotation-before-run.completed and receipt projection review; no runtime test reviewer
+
+### H28 progress / stall evidence (2026-09-19)
+
+source_snapshot: f869bc5a + H28 working-tree slice; kiana-domain/src/{progress_stall.rs,contracts.rs,lib.rs}; kiana-runner/src/{progress.rs,harness.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/h28_progress.rs; kiana-protocol/tests/h28_progress.rs; kiana-core/tests/h28_progress_guard.rs; .github/workflows/h28-progress-stall.yml; docs/roadmap/h28-progress-stall-baseline.md; docs/roadmap.md
+worktree_status: bounded ProgressEvidence now covers observation/workspace/artifact/verification/job cursor/heartbeat evidence; ProgressTracker detects A→B→A cycles, repeated failures, empty turns and finite stop-hook feedback, returning Continue/FeedbackOnce/RequestClarification/Blocked; existing Runner repeated-tool threshold remains present and ProgressTracker is validated and checkpointed/restored with the run; no second model loop, Broker path or authority grant was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H28 domain cycle/repeated-failure/job-cursor/empty-turn/stop-hook fixtures, protocol projection fixture, Core/Runner source guards for repeated-tool threshold and checkpointed reducer; GitHub Actions H28 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H28 source slice is implemented and roadmap row 315 is ✅. Progress repair is finite and evidence-bound; an advancing job cursor is not mistaken for a stall
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: the reducer is not yet the live provider/hook scheduler, external heartbeat truth and process projector remain adapter-dependent, cross-process progress durability is limited to existing checkpoint material, and threshold calibration is not production performance evidence
+reviewer: Codex root implementation review plus evidence-only progress fingerprint, cycle/repeated-failure precedence, empty-turn/stop-hook budget, JobHandle cursor/heartbeat and Runner checkpoint/repeated-tool boundary review; no runtime test reviewer

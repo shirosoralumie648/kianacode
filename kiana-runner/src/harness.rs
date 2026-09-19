@@ -18,6 +18,7 @@ use crate::model::{
     ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
     UnavailableModel,
 };
+use crate::progress::ProgressTracker;
 use crate::state_driver::RunDriver;
 use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
@@ -123,6 +124,7 @@ struct ActiveRun {
     turn_id: Option<TurnId>,
     step_id: Option<StepId>,
     driver: RunDriver,
+    progress_tracker: ProgressTracker,
     /// The server-owned question remains attached to the same run across checkpoint/restore.
     pending_clarification: Option<kiana_domain::ClarificationRequest>,
     sandbox: String,
@@ -182,6 +184,8 @@ struct HarnessCheckpoint {
     step_id: Option<StepId>,
     #[serde(default)]
     driver: Option<RunDriver>,
+    #[serde(default)]
+    progress_tracker: Option<ProgressTracker>,
     #[serde(default)]
     pending_clarification: Option<kiana_domain::ClarificationRequest>,
     sandbox: String,
@@ -644,6 +648,7 @@ impl KianaHarness {
             turn_id,
             step_id: None,
             driver: RunDriver::new(run_id, turn_id),
+            progress_tracker: ProgressTracker::default(),
             pending_clarification: None,
             sandbox: sandbox.to_owned(),
             project_root,
@@ -1782,12 +1787,14 @@ impl RunnerPort for KianaHarness {
                 "runner_checkpoint_cancelled".to_owned(),
             ));
         }
+        run.progress_tracker.validate().map_err(PortError::Failed)?;
         serde_json::to_value(HarnessCheckpoint {
             schema: "kiana.harness-checkpoint.v1".to_owned(),
             run_id,
             turn_id: run.turn_id,
             step_id: run.step_id,
             driver: Some(run.driver.clone()),
+            progress_tracker: Some(run.progress_tracker.clone()),
             pending_clarification: run.pending_clarification.clone(),
             sandbox: run.sandbox.clone(),
             project_root: run.project_root.clone(),
@@ -1842,6 +1849,8 @@ impl RunnerPort for KianaHarness {
         driver
             .validate()
             .map_err(|error| PortError::Failed(error.to_string()))?;
+        let progress_tracker = checkpoint.progress_tracker.unwrap_or_default();
+        progress_tracker.validate().map_err(PortError::Failed)?;
         if driver.frame.run_id != run_id || driver.frame.turn.turn_id != checkpoint.turn_id {
             return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
         }
@@ -1908,6 +1917,7 @@ impl RunnerPort for KianaHarness {
                 turn_id: checkpoint.turn_id,
                 step_id: checkpoint.step_id,
                 driver,
+                progress_tracker,
                 pending_clarification: checkpoint.pending_clarification,
                 sandbox: checkpoint.sandbox,
                 project_root: checkpoint.project_root,

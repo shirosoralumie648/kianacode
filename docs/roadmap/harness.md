@@ -570,7 +570,9 @@ sequenceDiagram
 
 <a id="step-h28"></a>
 
-#### H28 — 进度、停滞检测与有界修复策略　⏳
+#### H28 — 进度、停滞检测与有界修复策略　✅
+
+当前 source slice 与 CI-only 证据见 [`h28-progress-stall-baseline.md`](h28-progress-stall-baseline.md)。
 
 **关联原单元**：`P0-J1-05a`、`P1-J8-01`、`P2-K6-01`。**依赖**：H07、H11、H17、H27。
 
