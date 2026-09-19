@@ -1,0 +1,61 @@
+name: h31-child-harness
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/child_harness.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h31_child_harness.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/h31_child_harness_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h31_child_harness.rs"
+      - "docs/roadmap/h31-child-harness-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h31-child-harness.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/child_harness.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/h31_child_harness.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/h31_child_harness_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/h31_child_harness.rs"
+      - "docs/roadmap/h31-child-harness-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h31-child-harness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  child-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H31 domain fixtures
+        run: cargo test -p kiana-domain --test h31_child_harness --locked -- --test-threads=1
+      - name: Run H31 protocol fixtures
+        run: cargo test -p kiana-protocol --test h31_child_harness --locked -- --test-threads=1
+      - name: Run H31 core source guard
+        run: cargo test -p kiana-core --test h31_child_harness_guard --locked -- --test-threads=1

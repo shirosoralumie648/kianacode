@@ -615,7 +615,9 @@ sequenceDiagram
 
 <a id="step-h31"></a>
 
-#### H31 — 受控子 Agent 的 Harness 接缝　⏳
+#### H31 — 受控子 Agent 的 Harness 接缝　✅
+
+当前 source slice 与 CI-only 证据见 [`h31-child-harness-baseline.md`](h31-child-harness-baseline.md)。
 
 **关联原单元**：`P1-C-02`、`P1-D-01`、`P4-J6-01`。**依赖**：H07、H09、H13、H24、H27、H30。
 
