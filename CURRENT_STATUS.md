@@ -10436,3 +10436,19 @@ status_change: CM-10 source slice is implemented and roadmap row 321 is ✅. Sha
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing broad index builders are not fully migrated to the shared state, crash/power-loss and cross-process lock proof remains open, and rename/delete invalidation remains CM-11/PD work
 reviewer: Codex root implementation review plus source-manifest/component binding, single active build, old Ready preservation, Ready-only reader, temp sync/atomic rename/parent sync and no-second-authority boundary review; no runtime test reviewer
+
+### CM-11 index invalidation and cache-key evidence (2026-09-20)
+
+source_snapshot: e203016b + CM-11 working-tree slice; kiana-domain/src/{index_invalidation.rs,workspace_snapshot.rs,index_generation.rs,contracts.rs,lib.rs}; kiana-query/src/{index_invalidation.rs,index_generation.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm11_index_invalidation.rs; kiana-query/tests/cm11_index_invalidation.rs; kiana-core/tests/cm11_index_invalidation_guard.rs; .github/workflows/cm11-index-invalidation.yml; docs/roadmap/cm11-index-invalidation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: IndexInvalidationPlan compares effective content digest, read disposition and identity-bound snapshot evidence; deterministic Added/Changed/Removed/Renamed changes emit invalidated paths and tombstones, while mtime-only drift with unchanged content is ignored; IndexCacheKey binds root/worktree/branch/dirty manifest/parser/chunker/config digests; query exposes only the pure plan adapter
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-11 domain changed/rename/delete/mtime/cache-key fixtures, query plan fixture and Core source guard; GitHub Actions CM-11 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-11 source slice is implemented and roadmap row 322 is ✅. Incremental invalidation, rename/delete tombstones and cache-key inputs are explicit
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing persistent index builders are not fully migrated to the plan, durable tombstone/retention propagation and cross-process recovery remain PD/ER work, and no production freshness claim is made
+reviewer: Codex root implementation review plus content/identity/disposition diff, mtime-only rejection, rename/delete/tombstone, cache-key source/algorithm binding and no-mutation query boundary review; no runtime test reviewer

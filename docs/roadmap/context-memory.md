@@ -372,7 +372,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-11 · 增量更新、rename/delete 与缓存失效　⏳
+##### CM-11 · 增量更新、rename/delete 与缓存失效　✅
+
+当前 source slice 与 CI-only 证据见 [`cm11-index-invalidation-baseline.md`](cm11-index-invalidation-baseline.md)。
 
 按 content hash + identity 识别 add/change/delete/rename；缓存 key 含 root/worktree/branch/dirty manifest/parser/chunker/config。删除和撤销产生 tombstone/invalid generation，不能仅靠 mtime。验收：`changed_file_invalidates_only_affected_chunks`、`deleted_source_is_absent_after_rebuild`。
 
