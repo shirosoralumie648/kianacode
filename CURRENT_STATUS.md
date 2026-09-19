@@ -9956,3 +9956,19 @@ status_change: PD-14 source slice is implemented and roadmap row 297 is ✅. Art
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: MemoryArtifactStore is process-local and non-durable; no fsync/atomic rename, cross-process lock, restart recovery, backup, retention, physical TOCTOU or production artifact receipt is claimed
 reviewer: Codex root implementation review plus stage/commit separation, content hash/size, scope/manifest identity, duplicate/no-overwrite, revision and no-filesystem/no-effect boundaries; no runtime test reviewer
+
+### PD-15 workspace checkpoint / patch / artifact reference evidence (2026-09-19)
+
+source_snapshot: 8b1d38c6 + PD-15 working-tree slice; kiana-core/src/{workspace_checkpoints.rs,artifacts.rs}; kiana-daemon/src/apply_patch.rs; kiana-domain/src/platform.rs; kiana-core/tests/pd15_workspace_artifact_guard.rs; .github/workflows/pd15-workspace-artifact.yml; docs/roadmap/pd15-workspace-artifact-baseline.md; docs/roadmap.md
+worktree_status: existing checkpoint/patch path binds revision/path/data epoch/company scope and approvals/runner invalidation, preview remains read-only, restore is routed through the existing brokered transaction, and immutable ArtifactRef content hash/scope validation is present; no transcript/UI restore or direct undo executor was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-core/tests/pd15_workspace_artifact_guard.rs checks checkpoint revision/data epoch/company/approval fences, artifact ref validation and no-direct-restore boundary; GitHub Actions PD-15 runs source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-15 source slice is implemented and roadmap row 298 is ✅. Workspace restore cannot use stale revision/path/scope/data or unbound artifact refs
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: checkpoint/artifact bytes remain adapter-dependent, no power-loss/cross-process recovery or physical filesystem undo proof is claimed, and restore still requires normal ControlPlane/Broker admission
+reviewer: Codex root implementation review plus checkpoint/revision/TOCTOU/data epoch/company/approval fences, immutable ArtifactRef hash/scope and no-transcript/no-direct-undo boundary review; no runtime test reviewer
