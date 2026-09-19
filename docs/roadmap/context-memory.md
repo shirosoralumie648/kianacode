@@ -558,7 +558,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-29 · Projection lag、recovery 与 result_unknown　⏳
+##### CM-29 · Projection lag、recovery 与 result_unknown　✅
+
+当前 source slice 与 CI-only 证据见 [`cm29-projection-recovery-baseline.md`](cm29-projection-recovery-baseline.md)。
 
 投影落后返回 cursor/`projection_pending`，不得读新旧混合；mutation/compaction/embedding/rebuild 崩溃标 result_unknown 并按原 key 对账。验收：`projection_lag_is_visible`、`unknown_mutation_is_not_retried_with_new_id`。
 

@@ -340,6 +340,7 @@ pub(crate) fn receipt_from_events(
             "invocations":invocations,
             "invocation_projection_error":invocation_error,
             "run_receipt": typed_receipt,
+            "projection": projection_lag_from_events(events),
             "execution_receipts": typed_execution_receipts,
             "aggregation": aggregation,
             "compact": compact_from_events(events),
@@ -812,6 +813,58 @@ pub(crate) fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
         }
     }
     hits
+}
+
+fn projection_lag_from_events(events: &[RuntimeEvent]) -> Value {
+    let source_cursor = events.len().min(u64::MAX as usize) as u64;
+    let projection_cursor = events
+        .iter()
+        .filter_map(|event| event.data.get("projector_cursor").and_then(Value::as_u64))
+        .max();
+    let projection_generation = events
+        .iter()
+        .rev()
+        .find_map(|event| {
+            event
+                .data
+                .get("projection_generation")
+                .and_then(Value::as_u64)
+        })
+        .unwrap_or(1);
+    let data_epoch = events
+        .iter()
+        .rev()
+        .find_map(|event| event.data.get("data_epoch").and_then(Value::as_u64))
+        .unwrap_or(1);
+    let reason = if projection_cursor.is_none() {
+        Some("projection_cursor_unobserved".to_owned())
+    } else if projection_cursor.is_some_and(|cursor| cursor < source_cursor) {
+        Some("projection_cursor_lagging".to_owned())
+    } else {
+        None
+    };
+    match kiana_domain::ProjectionLagView::new(
+        source_cursor,
+        projection_cursor,
+        projection_generation,
+        data_epoch,
+        reason,
+    ) {
+        Ok(view) => serde_json::to_value(view).unwrap_or_else(|_| {
+            json!({
+                "schema": kiana_domain::PROJECTION_LAG_VIEW_SCHEMA,
+                "status": "unknown",
+                "projection_pending": true,
+                "reason": "projection_view_encode_failed",
+            })
+        }),
+        Err(reason) => json!({
+            "schema": kiana_domain::PROJECTION_LAG_VIEW_SCHEMA,
+            "status": "unknown",
+            "projection_pending": true,
+            "reason": reason,
+        }),
+    }
 }
 
 pub(crate) fn retrieval_receipts_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
