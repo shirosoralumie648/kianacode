@@ -9924,3 +9924,19 @@ status_change: PD-12 source slice is implemented and roadmap row 295 is ✅. Pro
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing compatibility adapter remains for migration/tests, no new migration executor was added, EventStore adapter durability/cross-process crash behavior remains its own proof boundary, and no human/provider live effect is claimed
 reviewer: Codex root implementation review plus daemon composition wiring, EventStore CAS transition ownership, legacy reauthorization, compatibility-only boundary and no-direct-execution review; no runtime test reviewer
+
+### PD-13 pending invocation / continuation / workspace checkpoint evidence (2026-09-19)
+
+source_snapshot: 7bf844d0 + PD-13 working-tree slice; kiana-core/src/{recovery.rs,lifecycle.rs,workspace_checkpoints.rs}; kiana-domain/src/{capabilities.rs,invocation_resume.rs}; kiana-core/tests/pd13_recovery_material_guard.rs; .github/workflows/pd13-recovery-material.yml; docs/roadmap/pd13-recovery-material-baseline.md; docs/roadmap.md
+worktree_status: existing recovery path binds RunSnapshot/PendingInvocation/InvocationResumeBinding to owner, run/invocation/request, parameter/catalog, authority/data epoch, sandbox and pending batch; workspace restore rechecks scope/revision/data epoch and invalidates old approvals/runner context; explicit resume/admission remains required and no transcript/UI auto-resume or second runner loop exists; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-core/tests/pd13_recovery_material_guard.rs checks snapshot/pending/binding/checkpoint markers, re-admission fences and no-auto-resume/no-direct-effect boundary; GitHub Actions PD-13 runs source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-13 source slice is implemented and roadmap row 296 is ✅. Recovery material cannot resume from transcript/UI alone and checkpoint restore invalidates stale authority/context
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: current guard records existing source contracts but adds no durable checkpoint store or process-death/restart fixture; cross-process resume, runner worker fencing and physical workspace recovery remain open
+reviewer: Codex root implementation review plus snapshot/pending/binding identity, authority/data/sandbox/scope/revision fences, checkpoint restore invalidation and no-auto-resume/no-second-loop boundary review; no runtime test reviewer
