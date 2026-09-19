@@ -6,6 +6,8 @@ on:
     paths:
       - "kiana-ports/src/lib.rs"
       - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/platform_backend.rs"
+      - "kiana-domain/tests/cap32_platform_backend.rs"
       - "kiana-daemon/src/process_supervisor.rs"
       - "kiana-core/tests/cap32_windows_backend_guard.rs"
       - "docs/roadmap/cap32-windows-backend-baseline.md"
@@ -17,6 +19,8 @@ on:
     paths:
       - "kiana-ports/src/lib.rs"
       - "kiana-domain/src/job_handle.rs"
+      - "kiana-domain/src/platform_backend.rs"
+      - "kiana-domain/tests/cap32_platform_backend.rs"
       - "kiana-daemon/src/process_supervisor.rs"
       - "kiana-core/tests/cap32_windows_backend_guard.rs"
       - "docs/roadmap/cap32-windows-backend-baseline.md"
@@ -41,3 +45,5 @@ jobs:
         run: cargo check --workspace --tests --locked
       - name: Run CAP-32 source guard
         run: cargo test -p kiana-core --test cap32_windows_backend_guard --locked -- --test-threads=1
+      - name: Run CAP-32 platform disposition fixture
+        run: cargo test -p kiana-domain --test cap32_platform_backend --locked -- --test-threads=1

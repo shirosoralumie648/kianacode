@@ -8834,14 +8834,14 @@ reviewer: Codex root implementation review plus shared environment contract, Lin
 
 ```text
 source_snapshot: ea99f15f + CAP-32 working-tree slice; kiana-ports/src/lib.rs; kiana-domain/src/job_handle.rs; kiana-daemon/src/process_supervisor.rs; kiana-core/tests/cap32_windows_backend_guard.rs; .github/workflows/cap32-windows-backend.yml; docs/roadmap/cap32-windows-backend-baseline.md; docs/roadmap.md
-worktree_status: shared EnvironmentPort/JobHandle/ProcessSupervisor contracts are indexed for Windows, but no Windows handle/ACL/Job Object backend is claimed; target CI compiles and source-checks only
+worktree_status: shared EnvironmentPort/JobHandle/ProcessSupervisor contracts plus typed PlatformBackendReport disposition are indexed for Windows; no Windows handle/ACL/Job Object backend is claimed, and TargetOnly/NotSupported require limitations, behavior_verified=false and no host fallback
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64 local static checks; GitHub Actions windows-latest target job is the only target-platform execution; no local test or smoke binary executed
-fixture or cassette: cap32_windows_backend_guard; Windows target compile workflow; no runtime Windows fixture yet
+fixture or cassette: cap32_windows_backend_guard and cap32_platform_backend; Windows target compile workflow; no runtime Windows fixture yet
 exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-32 is triggered by the eventual push and is not awaited; final diff check is pending before commit
 status_change: CAP-32 partial evidence slice recorded; roadmap remains ⏳ until Windows backend/Job Object/ACL/path/lock behavior and target receipts exist
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion

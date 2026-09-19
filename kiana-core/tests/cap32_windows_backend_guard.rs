@@ -6,6 +6,7 @@ fn windows_backend_requirements_and_no_fake_success_are_explicit() {
     let job = include_str!("../../kiana-domain/src/job_handle.rs");
     let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let baseline = include_str!("../../docs/roadmap/cap32-windows-backend-baseline.md");
+    let platform = include_str!("../../kiana-domain/src/platform_backend.rs");
     for marker in ["EnvironmentPort", "ProcessSupervisor", "JobHandle"] {
         assert!(ports.contains(marker) || job.contains(marker) || supervisor.contains(marker));
     }
@@ -19,5 +20,16 @@ fn windows_backend_requirements_and_no_fake_success_are_explicit() {
         "no fake success",
     ] {
         assert!(baseline.contains(marker), "CAP-32 marker missing: {marker}");
+    }
+    for marker in [
+        "PlatformTarget",
+        "Windows",
+        "TargetOnly",
+        "behavior_verified",
+    ] {
+        assert!(
+            platform.contains(marker),
+            "platform marker missing: {marker}"
+        );
     }
 }
