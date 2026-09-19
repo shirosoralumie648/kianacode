@@ -19,6 +19,7 @@ pub mod repo_map;
 pub mod stop_hooks;
 pub mod token_budget;
 pub mod transitions;
+pub mod workspace_snapshot;
 
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use context_inputs::repo_map_candidate;
@@ -52,4 +53,8 @@ pub use token_budget::{
 pub use transitions::{
     transition_query_state, QueryEffect, QueryEvent, QueryPhase, QueryState, QueryStopReason,
     QueryTransition,
+};
+pub use workspace_snapshot::{
+    read_workspace_snapshot, snapshot_digest, WorkspaceReadContent, WorkspaceReadOutcome,
+    WorkspaceSnapshotOptions,
 };

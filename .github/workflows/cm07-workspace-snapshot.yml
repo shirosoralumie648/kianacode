@@ -1,0 +1,65 @@
+name: cm07-workspace-snapshot
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/workspace_snapshot.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm07_workspace_snapshot.rs"
+      - "kiana-query/src/workspace_snapshot.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/Cargo.toml"
+      - "kiana-query/tests/cm07_workspace_snapshot.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm07_workspace_snapshot_guard.rs"
+      - "Cargo.lock"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm07-workspace-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm07-workspace-snapshot.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/workspace_snapshot.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cm07_workspace_snapshot.rs"
+      - "kiana-query/src/workspace_snapshot.rs"
+      - "kiana-query/src/context_inputs.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/Cargo.toml"
+      - "kiana-query/tests/cm07_workspace_snapshot.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/cm07_workspace_snapshot_guard.rs"
+      - "Cargo.lock"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap/cm07-workspace-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm07-workspace-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-07 domain contract fixtures
+        run: cargo test -p kiana-domain --test cm07_workspace_snapshot --locked -- --test-threads=1
+      - name: Run CM-07 query read fixtures
+        run: cargo test -p kiana-query --test cm07_workspace_snapshot --locked -- --test-threads=1
+      - name: Run CM-07 source guard
+        run: cargo test -p kiana-core --test cm07_workspace_snapshot_guard --locked -- --test-threads=1
