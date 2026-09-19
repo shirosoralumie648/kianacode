@@ -1,0 +1,45 @@
+name: UI-40 release evidence gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "docs/roadmap/cap34-conformance-baseline.md"
+      - "docs/roadmap/h36-harness-integration-baseline.md"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-core/tests/ui40_release_gate_guard.rs"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui40-release-gate.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "docs/roadmap/cap34-conformance-baseline.md"
+      - "docs/roadmap/h36-harness-integration-baseline.md"
+      - "docs/roadmap/ui39-live-acp-baseline.md"
+      - "docs/module-map.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-core/tests/ui40_release_gate_guard.rs"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui40-release-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test ui40_release_gate_guard --locked -- --test-threads=1
+      - run: git diff --check
+      - run: cargo check --workspace --tests --locked
