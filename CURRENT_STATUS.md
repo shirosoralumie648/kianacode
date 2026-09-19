@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-29 bounded migration primitives evidence (partial, 2026-09-19)
+
+source_snapshot: 58a9d5b9 + DEP-29 working-tree slice; kiana-domain/src/migration_primitives.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep29_migration_primitives.rs; kiana-core/tests/dep29_migration_primitives_guard.rs; .github/workflows/dep29-migration-primitives.yml; docs/roadmap/dep29-migration-primitives-baseline.md; docs/roadmap.md
+worktree_status: pure domain MigrationBatchPlan/MigrationCheckpoint now encode ordered expand/backfill/verify/switch/contract phases, narrow storage targets, registry/step binding, bounded batch/item digests, derived idempotency keys, monotonic source cursors and digest-bound checkpoint advancement; replaying one batch is a no-op and phase skips/rollback/unsafe switch fail closed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep29_migration_primitives domain fixtures; dep29_migration_primitives_guard; GitHub Actions DEP-29 runs phase/replay/boundary fixtures, source guard and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-29 is triggered by the eventual push and is not awaited
+status_change: DEP-29 source primitives advanced from no typed phase/checkpoint contract to a bounded pure state transition; roadmap remains ⏳ because no rows are applied and no durable CAS, runner lock/fence or MigrationRecord exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: primitive target allowlist excludes provider/shell/MCP, but the future runner still must enforce this boundary; checkpoints are not persisted, actual expand/backfill/verify/switch/contract work is absent, and old-reader compatibility remains open
+reviewer: Codex root implementation review plus five-phase ordering, registry/step binding, batch/item bounds, idempotency replay, source cursor monotonicity, verify gate and no-provider/shell/MCP side-effect boundary review; no runtime test reviewer
+
 ### DEP-28 read-only migration preflight evidence (partial, 2026-09-19)
 
 source_snapshot: 6fa95dab + DEP-28 working-tree slice; kiana-domain/src/migration_preflight.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep28_migration_preflight.rs; kiana-core/tests/dep28_migration_preflight_guard.rs; .github/workflows/dep28-migration-preflight.yml; docs/roadmap/dep28-migration-preflight-baseline.md; docs/roadmap.md
