@@ -39,7 +39,7 @@ jobs:
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
       - name: Run MCP lifecycle fixtures
-        run: cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1
+        run: "cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1"
       - run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
       - name: Run CAP-20 source guard
         run: cargo test -p kiana-core --test cap20_mcp_trust_discovery_guard --locked -- --test-threads=1
