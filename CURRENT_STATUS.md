@@ -10276,3 +10276,19 @@ status_change: H30 source slice is implemented and roadmap row 317 is ✅. Retri
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: actual retrieval quality/provider semantics, incremental index generation, rename/delete invalidation, durable cache/projector and external freshness proof remain CM/PD/provider work
 reviewer: Codex root implementation review plus source snapshot/freshness/evidence, ACL/data epoch/query digest, lesson non-promotion, source-kind/duplicate/tamper rejection and single ContextPlan compiler boundary review; no runtime test reviewer
+
+### H31 child Harness seam evidence (2026-09-19)
+
+source_snapshot: 4d0f2291 + H31 working-tree slice; kiana-domain/src/{child_harness.rs,work_packets.rs,contracts.rs,lib.rs}; kiana-core/src/{collaboration.rs,cell_registry.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/h31_child_harness.rs; kiana-protocol/tests/h31_child_harness.rs; kiana-core/tests/h31_child_harness_guard.rs; .github/workflows/h31-child-harness.yml; docs/roadmap/h31-child-harness-baseline.md; docs/roadmap.md
+worktree_status: ChildHarnessIntent binds parent/child run-turn-cell IDs, depth, narrowed budget/tool/path/sandbox scope, input refs and output contract; existing SpawnPlan/CellRegistry remains the admission spine with parent/depth/grant/budget/children containment; ChildHarnessOutcome returns bounded summary plus artifact/evidence refs with transcript_forwarded=false; cancellation retains result_unknown when stop/effect evidence is insufficient; no free message bus, arbitrary process spawn or second Harness loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H31 domain scope-widening/depth/outcome/cancel fixtures, protocol refs-only fixture, Core source guard for SpawnPlan/CellRegistry parent/depth/grant/budget containment and same Runner route; GitHub Actions H31 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H31 source slice is implemented and roadmap row 587 is ✅. Child Harness delegation is typed, narrowed and refs-based rather than a transcript or free-message path
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: child live scheduling and parent cancellation across processes are not newly wired, durable child projector and external effect confirmation remain later H32/H33/PD/ER work
+reviewer: Codex root implementation review plus child identity/depth, budget/tool/path/sandbox intersection, SpawnPlan/CellRegistry containment, refs-only outcome, cancel Unknown and no-free-bus boundary review; no runtime test reviewer
