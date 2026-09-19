@@ -7,6 +7,7 @@
 mod assertions;
 mod canonical;
 mod capture;
+mod catalog;
 mod diff;
 mod digest;
 mod normalize;
@@ -25,6 +26,10 @@ pub use capture::{
     capture_golden_trace, CaptureError, CaptureSource, CaptureSourceKind,
     GoldenTraceCaptureReceipt, GoldenTraceCaptureRequest, CAPTURE_SCHEMA,
     MAX_DESTINATION_REF_BYTES,
+};
+pub use catalog::{
+    build_catalog, CatalogEntry, CatalogError, CatalogOptions, CatalogScenario, CatalogStatus,
+    CatalogTier, ScenarioCatalog, CATALOG_SCHEMA, MAX_CATALOG_ENTRIES,
 };
 pub use diff::{TraceDiff, TraceDiffClass, TraceDivergence, TRACE_DIFF_SCHEMA};
 pub use digest::{

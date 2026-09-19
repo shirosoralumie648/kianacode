@@ -9844,3 +9844,19 @@ status_change: EQ-24 source slice is implemented and roadmap row 290 is ✅. Can
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: scenario artifacts and cleanup receipts are caller-provided, no reference/candidate execution or actual environment cleanup occurs, no scope authorization or durable report store exists, and no live/physical evidence is claimed
 reviewer: Codex root implementation review plus scrubbed environment/path/secret bounds, environment digest matching, TraceDiff use, cleanup receipt semantics, scope predicate and no-I/O/no-runner boundary review; no runtime test reviewer
+
+### EQ-25 curated/deep scenario catalog evidence (2026-09-19)
+
+source_snapshot: 00748571 + EQ-25 working-tree slice; kiana-quality/src/{lib.rs,catalog.rs}; kiana-quality/tests/eq25_catalog.rs; kiana-quality/tests/eq25_catalog_guard.rs; .github/workflows/eq25-catalog.yml; docs/roadmap/evaluation-catalog-baseline.md; docs/roadmap.md
+worktree_status: catalog builder now validates bounded scenario metadata, sorts by stable order, folds duplicate dedupe keys with visible duplicate_count, keeps no-golden entries visible, and marks deep entries skipped unless explicitly opted in; catalog digest covers the selected ordered entries; no discovery, fixture read, runner, provider or store path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq25_catalog.rs covers deep opt-in, no-golden visibility, stable sorting, dedupe folding, permutation stability and invalid inputs; eq25_catalog_guard protects visible-skip/no-I-O boundaries; GitHub Actions EQ-25 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-25 source slice is implemented and roadmap row 291 is ✅. Catalog output exposes skipped/no-golden states and is stable across input permutation
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: catalog inputs are caller-provided and no fixture discovery, execution, golden capture, evaluator, authorization or durable catalog store exists; catalog digest is source metadata, not a quality pass
+reviewer: Codex root implementation review plus tier/opt-in visibility, no-golden fail-open prevention, dedupe/stable ordering, bounded catalog and no-I/O/no-runner boundary review; no runtime test reviewer
