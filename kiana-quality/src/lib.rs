@@ -10,6 +10,7 @@ mod capture;
 mod catalog;
 mod diff;
 mod digest;
+mod fixtures;
 mod normalize;
 mod scenario;
 mod volatile;
@@ -35,6 +36,10 @@ pub use diff::{TraceDiff, TraceDiffClass, TraceDivergence, TRACE_DIFF_SCHEMA};
 pub use digest::{
     artifact_digest, event_digest, receipt_digest, trace_digest, DigestError, DigestKind,
     VersionedEvidenceDigest, DIGEST_SCHEMA,
+};
+pub use fixtures::{
+    core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
+    FixtureFamily, TraceFixture, FIXTURE_SCHEMA,
 };
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
