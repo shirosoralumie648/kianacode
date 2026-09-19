@@ -5,12 +5,17 @@
 //! evaluation and persistence are explicit later stages.
 
 mod canonical;
+mod digest;
 mod normalize;
 mod volatile;
 
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,
     CANONICAL_NORMALIZATION_VERSION,
+};
+pub use digest::{
+    artifact_digest, event_digest, receipt_digest, trace_digest, DigestError, DigestKind,
+    VersionedEvidenceDigest, DIGEST_SCHEMA,
 };
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
