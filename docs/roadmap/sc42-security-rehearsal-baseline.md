@@ -5,6 +5,10 @@ SC-42 adds a fake/source-bound rehearsal matrix for restart, quarantine restore,
 duplicate effect, quarantine verification, committed retention watermark and legal-hold respect;
 Unknown requires reconcile and forbids automatic retry.
 
+The rehearsal handoff also references `PersistenceUatEvidence` and
+`RolloutLifecycleEvidence` for receipt, restart/replay, retention and deletion-gate boundaries;
+these are evidence indexes only and do not promote the fake rehearsal to durable/live/physical.
+
 GitHub Actions validates the existing package lifecycle, OA-28 live-handoff and OA-26 durable
 observability script boundaries and runs the domain/source fixtures. It does not delete data,
 restore a production root, kill a live process, contact a provider or claim durable/live/physical

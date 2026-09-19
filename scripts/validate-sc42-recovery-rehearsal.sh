@@ -18,7 +18,7 @@ root = Path.cwd()
 baseline = (root / "docs/roadmap/sc42-security-rehearsal-baseline.md").read_text(encoding="utf-8")
 status = (root / "CURRENT_STATUS.md").read_text(encoding="utf-8")
 roadmap = (root / "docs/roadmap.md").read_text(encoding="utf-8")
-for marker in ["restart", "quarantine", "replay", "result_unknown", "reconcile", "retention", "legal hold", "partial", "durable", "live"]:
+for marker in ["restart", "quarantine", "replay", "result_unknown", "reconcile", "retention", "legal hold", "partial", "durable", "live", "PersistenceUatEvidence", "RolloutLifecycleEvidence"]:
     if marker not in baseline:
         raise SystemExit(f"SC-42 baseline missing {marker}")
 if "### SC-42" not in status:

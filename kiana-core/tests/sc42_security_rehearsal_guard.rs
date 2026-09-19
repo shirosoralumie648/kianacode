@@ -5,6 +5,7 @@ fn sc42_rehearsal_keeps_old_lease_unknown_and_retention_guards() {
     let source = include_str!("../../kiana-domain/src/security_rehearsal.rs");
     let baseline = include_str!("../../docs/roadmap/sc42-security-rehearsal-baseline.md");
     let workflow = include_str!("../../.github/workflows/sc42-security-rehearsal.yml");
+    let baseline_text = include_str!("../../docs/roadmap/sc42-security-rehearsal-baseline.md");
     for marker in [
         "SecurityRehearsalScenario",
         "Restart",
@@ -57,9 +58,11 @@ fn sc42_rehearsal_keeps_old_lease_unknown_and_retention_guards() {
         "fake",
         "partial",
         "physical",
+        "PersistenceUatEvidence",
+        "RolloutLifecycleEvidence",
     ] {
         assert!(
-            baseline.contains(marker),
+            baseline.contains(marker) || baseline_text.contains(marker),
             "SC-42 baseline marker missing: {marker}"
         );
     }
