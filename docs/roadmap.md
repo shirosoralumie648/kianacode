@@ -455,7 +455,7 @@
 | 285 | W3 | 专项 | [`EQ-19`](#step-eq-19) | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `EQ-18` | ✅ | [专项卡](#step-eq-19) |
 | 286 | W3 | 专项 | [`EQ-20`](#step-eq-20) | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `EQ-19` | ✅ | [专项卡](#step-eq-20) |
 | 287 | W3 | 专项 | [`EQ-21`](#step-eq-21) | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `EQ-20` | ✅ | [专项卡](#step-eq-21) |
-| 288 | W3 | 专项 | [`EQ-22`](#step-eq-22) | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `EQ-21` | ⏳ | [专项卡](#step-eq-22) |
+| 288 | W3 | 专项 | [`EQ-22`](#step-eq-22) | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `EQ-21` | ✅ | [专项卡](#step-eq-22) |
 | 289 | W3 | 专项 | [`EQ-23`](#step-eq-23) | 添加 `eval capture`：只从明确 source run/fixture 生成新 GoldenTrace，原文件不可覆盖 | `EQ-22` | ⏳ | [专项卡](#step-eq-23) |
 | 290 | W3 | 专项 | [`EQ-24`](#step-eq-24) | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `EQ-23` | ⏳ | [专项卡](#step-eq-24) |
 | 291 | W3 | 专项 | [`EQ-25`](#step-eq-25) | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `EQ-24` | ⏳ | [专项卡](#step-eq-25) |
@@ -1649,6 +1649,7 @@
 | 2026-09-19 | `EQ-19` explicit volatile normalization completed at source：增加 timestamp/UUID/temp path/actor rule policy、wildcard array paths、bounded replacement count and `<TS>/<UUID>/<TEMP_PATH>/<ACTOR>` tokens；UUID-like/path/timestamp/actor inference without declaration fails closed；不运行本地测试，CI-only volatile fixture/source guard 已加入且不等待；event/trace digest、diff、capture、EvalStore 与 durable proof 仍为限制 | 待本提交 |
 | 2026-09-19 | `EQ-20` version-bound evidence digest completed at source：新增 event/trace/artifact/receipt `VersionedEvidenceDigest`，trace digest 绑定 normalized event digest list、array policy、cursor/source normalizer、replacement accounting 与 exact `normalization_version`；不运行本地测试，CI-only digest fixture/source guard 已加入且不等待；trace diff、capture、evaluator、EvalStore 与 durable evidence 仍为限制 | 待本提交 |
 | 2026-09-19 | `EQ-21` deterministic first-divergence diff completed at source：新增 `TraceDiff`，按 normalization/array compatibility、event cursor/kind/length、nested canonical JSON、terminal/metadata 顺序返回首个差异，附稳定路径、分类和 redacted bounded expected/actual 摘要；不运行本地测试，CI-only diff fixture/source guard 已加入且不等待；assertion DSL、evaluator、capture、EvalStore 与 durable quality evidence 仍为限制 | 待本提交 |
+| 2026-09-19 | `EQ-22` declarative assertions completed at source：新增 exact/ordered/multiset、numeric absolute/relative tolerance、regex、contains modes，显式 path resolution、stable failure codes、redacted bounded summaries、regex/assertion limits 与 invalid-spec fail-closed；不运行本地测试，CI-only assertion fixture/source guard 已加入且不等待；evaluator aggregation、baseline/candidate comparison、capture、EvalStore 与 durable quality evidence 仍为限制 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

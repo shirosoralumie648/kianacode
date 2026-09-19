@@ -2566,6 +2566,7 @@ name = "kiana-quality"
 version = "0.1.0"
 dependencies = [
  "kiana-domain",
+ "regex",
  "serde",
  "thiserror 1.0.69",
 ]
