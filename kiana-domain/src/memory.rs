@@ -88,6 +88,15 @@ pub enum MemoryClassification {
     UserPrivate,
     Scratch,
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryVisibility {
+    Searchable,
+    SessionOnly,
+    ReviewOnly,
+    Denied,
+}
 impl MemoryClassification {
     pub fn for_collection(collection: &MemoryCollection) -> Self {
         match collection.layer.as_str() {
@@ -262,17 +271,43 @@ impl MemoryRecord {
     }
 
     pub fn searchable(&self) -> bool {
-        if self.import_mode == MemoryImportMode::LegacyImport {
-            return false;
-        }
-        if self.state == MemoryState::Rejected || self.admission_state == MemoryAdmission::Rejected
+        matches!(
+            self.visibility(),
+            MemoryVisibility::Searchable | MemoryVisibility::SessionOnly
+        )
+    }
+
+    pub fn visibility(&self) -> MemoryVisibility {
+        if self.import_mode == MemoryImportMode::LegacyImport
+            || self.state == MemoryState::Rejected
+            || self.admission_state == MemoryAdmission::Rejected
         {
-            return false;
+            return MemoryVisibility::Denied;
         }
         if self.layer == MEMORY_LAYER_INSTANCE_SCRATCH {
-            return true;
+            return if self.admission_state == MemoryAdmission::Ephemeral
+                && self.state == MemoryState::Active
+            {
+                MemoryVisibility::SessionOnly
+            } else {
+                MemoryVisibility::Denied
+            };
         }
-        self.admission_state == MemoryAdmission::Qualified && self.state == MemoryState::Active
+        if self.admission_state == MemoryAdmission::Candidate && self.state == MemoryState::Draft {
+            MemoryVisibility::ReviewOnly
+        } else if self.admission_state == MemoryAdmission::Qualified
+            && self.state == MemoryState::Active
+        {
+            MemoryVisibility::Searchable
+        } else {
+            MemoryVisibility::Denied
+        }
+    }
+
+    pub fn visible_in_session(&self, session_id: &str) -> bool {
+        !session_id.trim().is_empty()
+            && self.session_id == session_id
+            && self.visibility() == MemoryVisibility::SessionOnly
     }
     pub fn hit(&self) -> Value {
         json!({"project_root":self.project_root,"id":self.id, "layer":self.layer, "collection":self.collection,
