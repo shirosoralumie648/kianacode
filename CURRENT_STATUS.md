@@ -8917,6 +8917,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: decisions consume caller-supplied routes and canary facts, do not mutate traffic or workers, and cannot prove a real orchestrator, cross-process writer fencing, operator approval or external health outcome; target backends remain not implemented
 reviewer: Codex root implementation review plus profile routing, revision pin, single-writer/fence, canary failure, deadline, action decision and target-backend proof-ceiling review; no runtime/orchestrator reviewer
 
+### DEP-38 rollout lifecycle and verification evidence (partial, 2026-09-19)
+
+source_snapshot: 775e3558 + DEP-38 working-tree slice; kiana-domain/src/{rollout_lifecycle,orchestrated_rollout,revision_compatibility}.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep38_rollout_lifecycle.rs; kiana-core/tests/dep38_rollout_lifecycle_guard.rs; .github/workflows/dep38-rollout-lifecycle.yml; docs/roadmap/dep38-rollout-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: pure domain state now gates pause/resume/promote/rollback, RevisionDrain retirement, old-root retention, bounded health windows and post-deploy readiness/liveness/receipt evidence; promotion rejects old writers or failed health, retirement keeps deletion eligibility behind the retention window, and no effect path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep38_rollout_lifecycle domain fixture and dep38_rollout_lifecycle_guard; GitHub Actions DEP-38 runs lifecycle/health/retention fixtures, source guard, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-38 is triggered by the eventual push and is not awaited
+status_change: DEP-38 source lifecycle contract advanced from DEP-37 decision shape to an evidence-gated pure state machine; roadmap remains ⏳ because durable state, real rollout effects, cross-process leases, cleanup and live verification are not wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: transitions only validate caller-supplied facts and do not alter traffic, fence/kill workers, delete roots or collect external health/receipts; deletion eligibility is not deletion, and fake CI is not live proof
+reviewer: Codex root implementation review plus action/phase ordering, old-writer drain, health/receipt verification, retention/deletion boundary and no-side-effect state-machine review; no runtime/orchestrator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

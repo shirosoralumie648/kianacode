@@ -337,7 +337,16 @@ impl OrchestratedRolloutPlan {
                     (true, "pause_requested")
                 }
             }
-            OrchestratedRolloutAction::Resume | OrchestratedRolloutAction::Promote => {
+            OrchestratedRolloutAction::Resume => {
+                if now_unix_ms == 0 || now_unix_ms > self.progress_deadline_unix_ms {
+                    (false, "rollout_progress_deadline_exceeded")
+                } else if !self.canary.passed {
+                    (false, "rollout_canary_gate_blocked")
+                } else {
+                    (true, "ok")
+                }
+            }
+            OrchestratedRolloutAction::Promote => {
                 if now_unix_ms == 0 || now_unix_ms > self.progress_deadline_unix_ms {
                     (false, "rollout_progress_deadline_exceeded")
                 } else if !self.canary.passed {
