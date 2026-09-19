@@ -10500,3 +10500,19 @@ status_change: CM-14 source slice is implemented and roadmap row 325 is ✅. Ret
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: actual freshness probes, durable generation health/recovery, external embedding quality and live availability remain open; no operational SLO claim is made
 reviewer: Codex root implementation review plus source/revision/generation/rank evidence, freshness/evidence status, empty reason, health failure reason and safe-retry enforcement review; no runtime test reviewer
+
+### CM-15 ContextPlan selection and omission evidence (2026-09-20)
+
+source_snapshot: 7ef7eabe + CM-15 working-tree slice; kiana-domain/src/{context_plan.rs,retrieval_context.rs,contracts.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/cm15_context_plan_selection.rs; kiana-core/tests/cm15_context_plan_guard.rs; .github/workflows/cm15-context-plan.yml; docs/roadmap/cm15-context-plan-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: ContextMaterialType classifies ProductSystem/Role/Task/Packet/WorkspaceSnapshot/History/Memory/RepoMap/LiveResult; ProductSystem/Role require verified Prompt sources, all other types remain Context and enforce source-kind boundaries; ContextPlan applies fixed selection order, per-material budgets, deterministic tie-breaks, explicit omission reasons and digest-checked budget usage
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-15 ContextPlan explainability/authority fixtures and Core source guard; GitHub Actions CM-15 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-15 source slice is implemented and roadmap row 326 is ✅. Nine material types, fixed precedence, source budgets and omission explanations are now part of the ContextPlan contract
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: provider tokenizer/wire accounting, immutable PreparedModelRequest submission and durable/live retrieval behavior remain CM-16/17/provider work; source-kind classification is a domain boundary and does not prove semantic retrieval quality
+reviewer: Codex root implementation review plus material authority/source, deterministic ordering, budget accounting and no-second-execution-path review; no runtime test reviewer
