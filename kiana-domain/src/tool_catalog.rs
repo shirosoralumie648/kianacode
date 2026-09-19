@@ -1,4 +1,5 @@
 //! The canonical model-tool schema catalog shared by model, policy and broker adapters.
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 /// 模型可见的 shell 工具名称。
@@ -91,6 +92,92 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
     ]
+}
+
+/// Server-owned filters for dynamic discovery. A catalog version or health failure is a search
+/// failure, never a reason to return an unpinned or stale descriptor.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolSearchOptions {
+    pub catalog_version: crate::SchemaVersion,
+    pub max_context_tokens: usize,
+    pub require_healthy_catalog: bool,
+    pub replay_safe_only: bool,
+}
+
+impl Default for ToolSearchOptions {
+    fn default() -> Self {
+        Self {
+            catalog_version: crate::TOOL_CATALOG_VERSION,
+            max_context_tokens: 8_192,
+            require_healthy_catalog: true,
+            replay_safe_only: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolSearchResponse {
+    pub tools: Vec<Value>,
+    pub catalog_version: crate::SchemaVersion,
+    pub catalog_digest: String,
+    pub selected_schema_bytes: usize,
+    pub estimated_context_tokens: usize,
+    pub does_not_grant_execution: bool,
+}
+
+/// Search the server-owned catalog with version/health filters and account only for schemas that
+/// were selected into the response. The token estimate is deliberately bounded and is not a
+/// model/provider usage receipt.
+pub fn search_tool_catalog(
+    query: &str,
+    allowed_tools: &[String],
+    max_results: usize,
+    max_schema_bytes: usize,
+    options: &ToolSearchOptions,
+) -> Result<ToolSearchResponse, String> {
+    if options.max_context_tokens == 0 {
+        return Err("tool_search_context_budget_invalid".to_owned());
+    }
+    let catalog = crate::ToolCatalogSnapshot::current();
+    if options.catalog_version != catalog.version {
+        return Err("tool_search_catalog_version_mismatch".to_owned());
+    }
+    if options.require_healthy_catalog {
+        catalog
+            .validate()
+            .map_err(|_| "tool_search_catalog_unhealthy".to_owned())?;
+    }
+    let allowed = if options.replay_safe_only {
+        allowed_tools
+            .iter()
+            .filter(|name| {
+                catalog
+                    .descriptor(name)
+                    .is_some_and(|descriptor| descriptor.replay_class == "replay_safe")
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    } else {
+        allowed_tools.to_vec()
+    };
+    let tools = search_tool_schemas(query, &allowed, max_results, max_schema_bytes)?;
+    let selected_schema_bytes = serde_json::to_vec(&tools)
+        .map_err(|_| "tool_search_schema_encode_failed".to_owned())?
+        .len();
+    let estimated_context_tokens = selected_schema_bytes.div_ceil(4);
+    if estimated_context_tokens > options.max_context_tokens {
+        return Err("tool_search_context_budget_exceeded".to_owned());
+    }
+    Ok(ToolSearchResponse {
+        tools,
+        catalog_version: catalog.version,
+        catalog_digest: catalog.digest,
+        selected_schema_bytes,
+        estimated_context_tokens,
+        does_not_grant_execution: true,
+    })
 }
 
 /// 按当前工具 schema 校验一次模型工具调用参数。

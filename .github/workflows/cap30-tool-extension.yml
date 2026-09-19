@@ -15,6 +15,7 @@ on:
       - "kiana-core/tests/p1_h01_tool_authority_guard.rs"
       - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
       - "kiana-domain/tests/ext04_catalog.rs"
+      - "kiana-domain/tests/cap30_tool_search.rs"
       - "docs/roadmap/cap30-tool-extension-baseline.md"
       - "docs/roadmap/capability.md"
       - "docs/roadmap.md"
@@ -33,6 +34,7 @@ on:
       - "kiana-core/tests/p1_h01_tool_authority_guard.rs"
       - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
       - "kiana-domain/tests/ext04_catalog.rs"
+      - "kiana-domain/tests/cap30_tool_search.rs"
       - "docs/roadmap/cap30-tool-extension-baseline.md"
       - "docs/roadmap/capability.md"
       - "docs/roadmap.md"
@@ -54,6 +56,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run catalog and extension fixtures
         run: cargo test -p kiana-domain --test ext04_catalog --locked -- --test-threads=1
+      - name: Run bounded tool search fixture
+        run: cargo test -p kiana-domain --test cap30_tool_search --locked -- --test-threads=1
       - name: Run existing authority guards
         run: cargo test -p kiana-core --test p1_h01_tool_authority_guard --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test p4_j7_10_catalog_guard --locked -- --test-threads=1

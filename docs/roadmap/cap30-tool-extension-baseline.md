@@ -9,11 +9,12 @@ Extension manifests and daemon admission already bind publisher signature, packa
 license, effect, required capabilities, policy/platform/dependency constraints, capability
 namespace, registry CAS version, upgrade/revoke/rollback and extension execution scope. Tool
 search now uses deterministic exact/prefix/token ranking with result/schema-byte bounds and a
-catalog digest; it remains discovery-only. Skill context is trust/role filtered and extension activation is an EventLog fact; extensions cannot
-self-grant or replace a built-in binding.
+catalog digest; it remains discovery-only. The bounded search response also binds catalog
+version/health, optional replay-safe filtering and selected-schema context-token accounting.
+Skill context is trust/role filtered and extension activation is an EventLog fact; extensions
+cannot self-grant or replace a built-in binding.
 
 Remaining CAP-30 work is explicit rather than silently promoted: BM25/tag ranking, extension
-descriptor indexing, selected-schema-only context token accounting, health/version filtering in
-tool search and a CI fixture for a read-only extension plus an approved side-effect extension.
+descriptor indexing and a CI fixture for a read-only extension plus an approved side-effect extension.
 GitHub Actions runs the current catalog/extension fixtures and source guards. No local runtime
 tests or smoke commands were run; this step remains `partial`.

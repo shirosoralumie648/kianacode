@@ -78,6 +78,11 @@ fn tool_search_and_extensions_remain_server_owned() {
         &[
             "tool.search",
             "search_tool_schemas",
+            "search_tool_catalog",
+            "ToolSearchOptions",
+            "estimated_context_tokens",
+            "tool_search_catalog_version_mismatch",
+            "tool_search_context_budget_exceeded",
             "ranked_token_bounded",
             "catalog_digest",
             "does_not_grant_execution",
