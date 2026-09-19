@@ -20,6 +20,7 @@ mod harness_skills;
 mod instance;
 mod journal_approvals;
 mod local_packages;
+mod mcp_http;
 mod mcp_stdio;
 mod memory_retrieval;
 mod model_client;

@@ -43,10 +43,12 @@ fn mcp_tool_schema_and_health_are_traceable() {
             "MCP lifecycle marker missing: {marker}"
         );
     }
-    assert!(harness.contains("server.transport != TransportType::Stdio"));
+    assert!(harness.contains("TransportType::Http"));
+    assert!(harness.contains("McpInvocationClient"));
+    assert!(!harness.contains("server.transport != TransportType::Stdio"));
     assert!(harness.contains("mcp.discovery_committed"));
     assert!(harness.contains("health_snapshot(&protocol, &tools)"));
     assert!(stdio.contains("2025-06-18"));
     assert!(stdio.contains("kill_on_drop(true)"));
-    assert!(!harness.contains("connect_http"));
+    assert!(harness.contains("mcp_http_endpoint_denied"));
 }

@@ -8773,6 +8773,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus allowlist/TLS/address-set/digest, metadata/private/loopback/rebinding, opaque SecretRef/CredentialLease binding, expiry/one-shot/generation rotation and no raw secret/passthrough review; no runtime test reviewer
 ```
 
+### CAP-29 HTTP MCP evidence (2026-09-19)
+
+```text
+source_snapshot: 6e084b5b + CAP-29 working-tree slice; kiana-daemon/src/{mcp_http,harness_mcp,mcp_stdio}.rs; kiana-services/src/{mcp,network_policy}.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/{cap22_mcp_drift_isolation_guard,cap29_http_mcp_guard}.rs; .github/workflows/cap29-http-mcp.yml; docs/roadmap/cap29-http-mcp-baseline.md; docs/roadmap.md
+worktree_status: Streamable HTTP/SSE MCP now enters through the same daemon registry/prepare/discovery/catalog/approval/Broker result path as stdio; endpoint/redirect egress is validated, raw auth headers and process fields are rejected, HTTP session identity is non-authoritative, and sent-call transport failure remains result_unknown rather than safe retry
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only service HTTP/SSE mock fixtures and product MCP source guards; no local test or smoke binary executed
+fixture or cassette: kiana-services MCP HTTP/SSE mock tests; P1-J4 product lifecycle guard; CAP-22 drift regression; cap29_http_mcp_guard; GitHub Actions CAP-29 runs these fixtures and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-29 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-29 product adapter slice is implemented. HTTP/SSE config reaches the existing MCP discovery/catalog/result boundary, server session IDs cannot grant authority, and remote effect uncertainty remains explicit
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; live credential/audience injection, durable SSE reconnect/replay, provider-account interoperability and remote exactly-once remain open; remote effects are not isolated by local bwrap
+reviewer: Codex root implementation review plus HTTP/SSE route selection, endpoint/redirect policy, raw credential rejection, JSON/SSE mock transport, session non-authority, discovery/catalog/schema drift and Unknown/no-retry after send review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

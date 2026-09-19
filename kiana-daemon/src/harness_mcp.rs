@@ -1,4 +1,5 @@
 //! MCP discovery and business calls use the same permit-protected broker.
+use crate::mcp_http::HttpMcpClient;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     AdapterCommitState, AdapterResultKind, AggregateVersion, AuthorizedCapabilityRequest,
@@ -28,6 +29,64 @@ const MCP_MAX_RESULT_BYTES: usize = 256 * 1024;
 #[cfg(test)]
 const MCP_MAX_SCHEMA_DEPTH: usize = 32;
 pub(crate) const MCP_SERVERS_ENV: &str = "KIANA_MCP_SERVERS_JSON";
+
+enum McpInvocationClient {
+    Stdio(crate::mcp_stdio::ConfinedMcpClient),
+    Http(HttpMcpClient),
+}
+
+impl McpInvocationClient {
+    async fn connect(
+        config: &McpServerConfig,
+        scope: &Value,
+        cancellation: watch::Receiver<bool>,
+    ) -> Result<Self, PortError> {
+        match &config.transport {
+            TransportType::Stdio => Ok(Self::Stdio(
+                crate::mcp_stdio::ConfinedMcpClient::connect(config, scope, cancellation).await?,
+            )),
+            TransportType::Http | TransportType::Sse => Ok(Self::Http(
+                HttpMcpClient::connect(config, cancellation).await?,
+            )),
+            _ => Err(mcp_failed("mcp_transport_unsupported")),
+        }
+    }
+
+    async fn list_tools(&mut self) -> Result<Vec<Value>, PortError> {
+        match self {
+            Self::Stdio(client) => client.list_tools().await,
+            Self::Http(client) => client.list_tools().await,
+        }
+    }
+
+    async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value, PortError> {
+        match self {
+            Self::Stdio(client) => client.call_tool(name, arguments).await,
+            Self::Http(client) => client.call_tool(name, arguments).await,
+        }
+    }
+
+    async fn stop(&mut self) -> Result<Value, PortError> {
+        match self {
+            Self::Stdio(client) => client.stop().await,
+            Self::Http(client) => client.stop().await,
+        }
+    }
+
+    fn call_started(&self) -> bool {
+        match self {
+            Self::Stdio(client) => client.call_started,
+            Self::Http(client) => client.call_started,
+        }
+    }
+
+    fn server_info(&self) -> Value {
+        match self {
+            Self::Stdio(client) => client.server_info.clone(),
+            Self::Http(client) => client.server_info.clone(),
+        }
+    }
+}
 
 /// Immutable trusted configuration; discovery facts are read from the journal, not this cache.
 pub(crate) struct McpRegistry {
@@ -63,22 +122,40 @@ impl McpRegistry {
             {
                 return Err(mcp_failed("mcp_server_name_invalid"));
             }
-            if server.transport != TransportType::Stdio
-                || server.url.is_some()
-                || server
-                    .headers
-                    .as_ref()
-                    .is_some_and(|headers| !headers.is_empty())
-            {
-                return Err(mcp_failed("mcp_transport_unsupported"));
+            match &server.transport {
+                TransportType::Stdio => {
+                    if server.url.is_some()
+                        || server
+                            .headers
+                            .as_ref()
+                            .is_some_and(|headers| !headers.is_empty())
+                    {
+                        return Err(mcp_failed("mcp_transport_config_invalid"));
+                    }
+                    let command = server
+                        .command
+                        .as_ref()
+                        .filter(|c| !c.is_empty() && !c.contains('\0'))
+                        .ok_or_else(|| mcp_failed("mcp_command_required"))?;
+                    let resolved = resolve_command(command)?;
+                    server.command = Some(resolved.to_string_lossy().into_owned());
+                }
+                TransportType::Http | TransportType::Sse => {
+                    let url = server
+                        .url
+                        .as_deref()
+                        .ok_or_else(|| mcp_failed("mcp_http_url_required"))?;
+                    kiana_services::network_policy::validate_http_url(
+                        kiana_services::network_policy::HttpNetworkSurface::HttpMcp,
+                        url,
+                    )
+                    .map_err(|_| mcp_failed("mcp_http_endpoint_denied"))?;
+                    if server.command.is_some() || server.args.is_some() || server.env.is_some() {
+                        return Err(mcp_failed("mcp_http_process_fields_invalid"));
+                    }
+                }
+                _ => return Err(mcp_failed("mcp_transport_unsupported")),
             }
-            let command = server
-                .command
-                .as_ref()
-                .filter(|c| !c.is_empty() && !c.contains('\0'))
-                .ok_or_else(|| mcp_failed("mcp_command_required"))?;
-            let resolved = resolve_command(command)?;
-            server.command = Some(resolved.to_string_lossy().into_owned());
             if server.args.as_ref().is_some_and(|args| {
                 args.len() > 128
                     || args
@@ -347,7 +424,10 @@ impl McpHandler {
             execution_scope["sandbox"] = json!("read-only");
         }
         let mut workspace = None;
-        if !discovering && arguments["sandbox"] == "workspace-write" {
+        if !discovering
+            && arguments["sandbox"] == "workspace-write"
+            && config.transport == TransportType::Stdio
+        {
             let owned = request.clone();
             let root = PathBuf::from(
                 arguments["project_root"]
@@ -364,12 +444,8 @@ impl McpHandler {
             execution_scope["path_allow"] = json!(["."]);
             workspace = Some(copied);
         }
-        let mut client = crate::mcp_stdio::ConfinedMcpClient::connect(
-            &config,
-            &execution_scope,
-            cancellation.clone(),
-        )
-        .await?;
+        let mut client =
+            McpInvocationClient::connect(&config, &execution_scope, cancellation.clone()).await?;
         let performed = async {
             let tools = client.list_tools().await?;
             for tool in &tools {
@@ -378,7 +454,7 @@ impl McpHandler {
             if discovering {
                 return Ok((Value::Null, tools));
             }
-            if catalog_digest(&tools, &client.server_info) != snapshot["catalog_digest"] {
+            if catalog_digest(&tools, &client.server_info()) != snapshot["catalog_digest"] {
                 return Err(mcp_failed("mcp_catalog_changed"));
             }
             let tool = required_tool(arguments)?;
@@ -400,8 +476,8 @@ impl McpHandler {
             Ok((result, tools))
         }
         .await;
-        let started = client.call_started;
-        let protocol = client.server_info.clone();
+        let started = client.call_started();
+        let protocol = client.server_info();
         let stopped = client.stop().await;
         let stop_confirmed = stopped.is_ok();
         let cancelled = *cancellation.borrow();
@@ -641,6 +717,32 @@ fn health_snapshot(protocol: &Value, tools: &[Value]) -> Value {
 }
 
 fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError> {
+    if matches!(&config.transport, TransportType::Http | TransportType::Sse) {
+        let url = config
+            .url
+            .as_deref()
+            .ok_or_else(|| mcp_failed("mcp_http_url_required"))?;
+        kiana_services::network_policy::validate_http_url(
+            kiana_services::network_policy::HttpNetworkSurface::HttpMcp,
+            url,
+        )
+        .map_err(|_| mcp_failed("mcp_http_endpoint_denied"))?;
+        let header_names = config
+            .headers
+            .as_ref()
+            .map(|headers| {
+                let mut names = headers.keys().cloned().collect::<Vec<_>>();
+                names.sort();
+                names
+            })
+            .unwrap_or_default();
+        return Ok(json!({
+            "transport": "streamable_http",
+            "url": url,
+            "endpoint_digest": kiana_domain::json_digest(&json!(url)),
+            "header_names": header_names
+        }));
+    }
     let executable = file_pin(Path::new(
         config
             .command

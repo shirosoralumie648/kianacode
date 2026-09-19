@@ -1,0 +1,58 @@
+name: CAP-29 HTTP MCP
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/mcp_http.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-services/src/mcp.rs"
+      - "kiana-services/src/network_policy.rs"
+      - "kiana-core/tests/cap29_http_mcp_guard.rs"
+      - "kiana-core/tests/cap22_mcp_drift_isolation_guard.rs"
+      - "docs/roadmap/cap29-http-mcp-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap29-http-mcp.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/mcp_http.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-services/src/mcp.rs"
+      - "kiana-services/src/network_policy.rs"
+      - "kiana-core/tests/cap29_http_mcp_guard.rs"
+      - "kiana-core/tests/cap22_mcp_drift_isolation_guard.rs"
+      - "docs/roadmap/cap29-http-mcp-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap29-http-mcp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run legacy wire mock interoperability fixture
+        run: cargo test -p kiana-services --lib mcp::tests --locked -- --test-threads=1
+      - name: Run product MCP lifecycle fixture
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run CAP-22 regression guard
+        run: cargo test -p kiana-core --test cap22_mcp_drift_isolation_guard --locked -- --test-threads=1
+      - name: Run CAP-29 source guard
+        run: cargo test -p kiana-core --test cap29_http_mcp_guard --locked -- --test-threads=1
+      - name: Compile CAP-29 targets
+        run: cargo check --workspace --tests --locked
