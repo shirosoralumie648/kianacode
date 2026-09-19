@@ -5,6 +5,7 @@ fn container_backend_is_fail_closed_and_identity_bound() {
     let source = include_str!("../../kiana-daemon/src/container_environment.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let baseline = include_str!("../../docs/roadmap/cap33-container-baseline.md");
+    let inventory = include_str!("../../kiana-domain/src/container_inventory.rs");
 
     for marker in [
         "EnvironmentPort",
@@ -33,6 +34,20 @@ fn container_backend_is_fail_closed_and_identity_bound() {
         assert!(
             source.contains(marker),
             "CAP-33 source marker missing: {marker}"
+        );
+    }
+    for marker in [
+        "ContainerInventoryRecord",
+        "container_inventory_requires_reconcile",
+        "container_inventory_identity_mismatch",
+        "container_inventory_lease_stale",
+        "result_unknown:container_inventory_runtime_unverified",
+        "old_process_fenced",
+        "runtime_identity_verified",
+    ] {
+        assert!(
+            inventory.contains(marker),
+            "CAP-33 inventory marker missing: {marker}"
         );
     }
     for marker in [

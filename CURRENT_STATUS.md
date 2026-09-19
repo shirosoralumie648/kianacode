@@ -9396,15 +9396,15 @@ reviewer: Codex root implementation review plus strict schema/unknown-field, dig
 
 ### CAP-33 Container / gVisor execution evidence (partial, 2026-09-19)
 
-source_snapshot: b6edb290 + CAP-33 working-tree slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-daemon/tests/cap33_container.rs; kiana-core/tests/cap33_container_guard.rs; .github/workflows/cap33-container.yml; docs/roadmap/cap33-container-baseline.md; docs/roadmap.md
-worktree_status: ContainerEnvironmentAdapter now implements the shared EnvironmentPort lifecycle for a digest-pinned OCI image: non-root/read-only/network-none/cap-drop/resource-limited launch args, explicit env filtering, isolated workspace mount, owner/scope/plan labels, runtime probe, identity verification and bounded exec timeout cleanup are source-wired; the adapter has no host fallback and process-local plan inventory fails closed after restart
+source_snapshot: 58cf7269 + CAP-33 working-tree slice; kiana-daemon/src/container_environment.rs; kiana-daemon/src/lib.rs; kiana-domain/src/container_inventory.rs; kiana-daemon/tests/cap33_container.rs; kiana-domain/tests/cap33_container_inventory.rs; kiana-core/tests/cap33_container_guard.rs; .github/workflows/cap33-container.yml; docs/roadmap/cap33-container-baseline.md; docs/roadmap.md
+worktree_status: ContainerEnvironmentAdapter now implements the shared EnvironmentPort lifecycle for a digest-pinned OCI image: non-root/read-only/network-none/cap-drop/resource-limited launch args, explicit env filtering, isolated workspace mount, owner/scope/plan labels, runtime probe, identity verification and bounded exec timeout cleanup are source-wired; a server-owned ContainerInventoryRecord now defines owner/scope/plan/root/runtime/lease/restart/fence requirements for future restart re-admission, while the adapter still has no host fallback and process-local plan inventory fails closed after restart
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64 local static checks; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only pure container plan fixtures; cap33_container_guard; GitHub Actions CAP-33 runs the plan fixtures, source guard and workspace compilation
+fixture or cassette: CI-only pure container plan and inventory recovery fixtures; cap33_container_guard; GitHub Actions CAP-33 runs the plan fixtures, inventory fixture, source guard and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-33 is triggered by the eventual push and is not awaited
 status_change: CAP-33 source implementation advanced from absent backend to partial OCI lifecycle adapter. The deny-first boundaries container_never_mounts_host_control_socket_or_credentials, container_runtime_failure_never_falls_back_to_host and container_cancel_confirms_inner_process_stop are recorded; roadmap remains ⏳
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, gVisor or physical promotion

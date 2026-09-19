@@ -15,7 +15,9 @@ The required negative cases remain explicit:
 
 The plan registry is process-local until an EventLog-backed environment inventory/lease projection
 is connected, so daemon restart recovery is unavailable rather than inferred from a container
-name. Shell/MCP routing through this adapter, changeset/artifact publication, disk-full fixtures,
+name. CAP-33 now defines the server-owned inventory/recovery record and requires owner/scope/plan/
+root/lease/runtime identity, restart epoch and old-process fencing before re-admission; the domain
+contract still does not persist or inspect a runtime by itself. Shell/MCP routing through this adapter, changeset/artifact publication, disk-full fixtures,
 remote cleanup recovery, and a target CI runtime fixture are not yet complete. runsc is an
 explicit runtime selection, but no gVisor machine receipt exists. CAP-33 therefore remains
 partial with behavior_verified=false; the source and static compile gate must not be promoted

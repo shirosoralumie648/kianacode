@@ -6,6 +6,8 @@ on:
     paths:
       - "kiana-daemon/src/container_environment.rs"
       - "kiana-daemon/src/lib.rs"
+      - "kiana-domain/src/container_inventory.rs"
+      - "kiana-domain/tests/cap33_container_inventory.rs"
       - "kiana-daemon/tests/cap33_container.rs"
       - "kiana-ports/src/lib.rs"
       - "kiana-core/tests/cap33_container_guard.rs"
@@ -18,6 +20,8 @@ on:
     paths:
       - "kiana-daemon/src/container_environment.rs"
       - "kiana-daemon/src/lib.rs"
+      - "kiana-domain/src/container_inventory.rs"
+      - "kiana-domain/tests/cap33_container_inventory.rs"
       - "kiana-daemon/tests/cap33_container.rs"
       - "kiana-ports/src/lib.rs"
       - "kiana-core/tests/cap33_container_guard.rs"
@@ -42,6 +46,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run pure container plan fixtures
         run: cargo test -p kiana-daemon --test cap33_container --locked -- --test-threads=1
+      - name: Run container inventory recovery fixture
+        run: cargo test -p kiana-domain --test cap33_container_inventory --locked -- --test-threads=1
       - name: Run CAP-33 source guard
         run: cargo test -p kiana-core --test cap33_container_guard --locked -- --test-threads=1
       - name: Compile CAP-33 targets
