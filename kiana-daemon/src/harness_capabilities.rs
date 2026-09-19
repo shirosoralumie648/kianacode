@@ -4,6 +4,7 @@
 //! The runner never executes these tools.
 
 use crate::apply_patch::apply_codex_patch;
+use crate::execution_output::{drain_capped, metadata, read_capped, render_capped};
 use crate::process_supervisor::ProcessSupervisor;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
@@ -18,17 +19,12 @@ use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncReadExt;
 use tokio::process::Command;
-use tokio::task::JoinHandle;
 
 const SHELL_OPERATION: &str = "shell.exec";
 const APPLY_PATCH_OPERATION: &str = "apply_patch";
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const EXEC_TIMEOUT_EXIT_CODE: i32 = 124;
-const EXEC_OUTPUT_MAX_BYTES: usize = 1024 * 1024;
-const IO_DRAIN_TIMEOUT: Duration = Duration::from_millis(2000);
-const READ_CHUNK_SIZE: usize = 8192;
 
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
     broker.register_static(
@@ -398,8 +394,9 @@ pub(crate) async fn run_confined_cancellable(
         .stderr
         .take()
         .ok_or_else(|| PortError::Failed("shell_exec_failed:stderr_pipe_unavailable".to_owned()))?;
-    let mut stdout_handle = tokio::spawn(read_capped(stdout, EXEC_OUTPUT_MAX_BYTES));
-    let mut stderr_handle = tokio::spawn(read_capped(stderr, EXEC_OUTPUT_MAX_BYTES));
+    let output_budget = kiana_domain::ExecutionOutputBudget::default();
+    let mut stdout_handle = tokio::spawn(read_capped(stdout, output_budget.clone()));
+    let mut stderr_handle = tokio::spawn(read_capped(stderr, output_budget.clone()));
     // Codex exec.rs consume_output: timeout is an exec outcome (exit 124,
     // timed_out=true), not a capability crash. Kill the child, then drain
     // pipes with IO_DRAIN_TIMEOUT so inherited fds cannot hang the agent.
@@ -439,12 +436,12 @@ pub(crate) async fn run_confined_cancellable(
     process_guard.disarm();
     let stdout = drain_capped(&mut stdout_handle).await;
     let stderr = drain_capped(&mut stderr_handle).await;
-    let budget = kiana_domain::ProcessResourceBudget::for_wall_time_ms(
+    let process_budget = kiana_domain::ProcessResourceBudget::for_wall_time_ms(
         timeout.as_millis().min(u128::from(u64::MAX)) as u64,
     );
     Ok(json!({
-        "stdout": render_capped(&stdout.bytes, stdout.truncated),
-        "stderr": render_capped(&stderr.bytes, stderr.truncated),
+        "stdout": render_capped(&stdout.bytes, stdout.truncated, output_budget.preview_max_bytes),
+        "stderr": render_capped(&stderr.bytes, stderr.truncated, output_budget.preview_max_bytes),
         "exit_code": exit_code,
         "timed_out": timed_out,
         "cancelled": cancelled,
@@ -454,122 +451,12 @@ pub(crate) async fn run_confined_cancellable(
         "stop_state": if cancelled { if stop_report.confirmed { "confirmed" } else { "unconfirmed" } } else { "not_requested" },
         "stop_confirmed": stop_report.confirmed,
         "stop_report": stop_report,
-        "resource_budget": ProcessSupervisor::resource_receipt(&budget),
-        "stdout_metadata":{"captured_bytes":stdout.bytes.len(),"observed_bytes":stdout.observed_bytes,"lines":stdout.lines,"truncated":stdout.truncated,"read_error":stdout.read_error},
-        "stderr_metadata":{"captured_bytes":stderr.bytes.len(),"observed_bytes":stderr.observed_bytes,"lines":stderr.lines,"truncated":stderr.truncated,"read_error":stderr.read_error},
+        "resource_budget": ProcessSupervisor::resource_receipt(&process_budget),
+        "stdout_metadata": metadata(&stdout, &output_budget),
+        "stderr_metadata": metadata(&stderr, &output_budget),
         "sandbox": sandbox,
         "backend": crate::harness_sandbox::SANDBOX_BACKEND,
     }))
-}
-
-struct CappedOutput {
-    bytes: Vec<u8>,
-    truncated: bool,
-    observed_bytes: u64,
-    lines: u64,
-    read_error: Option<String>,
-}
-
-async fn read_capped<R>(mut reader: R, max_bytes: usize) -> std::io::Result<CappedOutput>
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    let mut bytes = Vec::with_capacity(READ_CHUNK_SIZE.min(max_bytes));
-    let mut tmp = [0u8; READ_CHUNK_SIZE];
-    let mut truncated = false;
-    let mut observed_bytes = 0u64;
-    let mut lines = 0u64;
-    let mut read_error = None;
-    loop {
-        let n = match reader.read(&mut tmp).await {
-            Ok(count) => count,
-            Err(error) => {
-                read_error = Some(error.kind().to_string());
-                break;
-            }
-        };
-        if n == 0 {
-            break;
-        }
-        observed_bytes = observed_bytes.saturating_add(n as u64);
-        lines = lines.saturating_add(tmp[..n].iter().filter(|byte| **byte == b'\n').count() as u64);
-        if observed_bytes > 32 * 1024 * 1024 {
-            truncated = true;
-            read_error = Some("output_total_limit".to_owned());
-            break;
-        }
-        if bytes.len() >= max_bytes {
-            truncated = true;
-            continue;
-        }
-        let take = (max_bytes - bytes.len()).min(n);
-        bytes.extend_from_slice(&tmp[..take]);
-        if take < n {
-            truncated = true;
-        }
-    }
-    Ok(CappedOutput {
-        bytes,
-        truncated,
-        observed_bytes,
-        lines,
-        read_error,
-    })
-}
-
-async fn drain_capped(handle: &mut JoinHandle<std::io::Result<CappedOutput>>) -> CappedOutput {
-    match tokio::time::timeout(IO_DRAIN_TIMEOUT, &mut *handle).await {
-        Ok(Ok(Ok(output))) => output,
-        Ok(Ok(Err(_))) | Ok(Err(_)) => CappedOutput {
-            bytes: Vec::new(),
-            truncated: false,
-            observed_bytes: 0,
-            lines: 0,
-            read_error: Some("output_reader_failed".to_owned()),
-        },
-        Err(_) => {
-            handle.abort();
-            CappedOutput {
-                bytes: Vec::new(),
-                truncated: false,
-                observed_bytes: 0,
-                lines: 0,
-                read_error: Some("output_drain_timeout".to_owned()),
-            }
-        }
-    }
-}
-
-/// Remove terminal control sequences before display, persistence or model feedback.
-pub(crate) fn safe_output_text(text: &str) -> String {
-    let text = kiana_domain::redact_text(text);
-    let mut output = String::new();
-    let mut state = 0u8;
-    for ch in text.chars() {
-        match state {
-            0 if ch == '\u{1b}' => state = 1,
-            0 if ch == '\n' || ch == '\t' || !ch.is_control() => output.push(ch),
-            0 => {}
-            1 if ch == '[' => state = 2,
-            1 if ch == ']' => state = 3,
-            1 => state = 0,
-            2 if ('@'..='~').contains(&ch) => state = 0,
-            3 if ch == '\u{7}' => state = 0,
-            3 if ch == '\u{1b}' => state = 4,
-            4 if ch == '\\' => state = 0,
-            4 => state = 3,
-            _ => {}
-        }
-    }
-    output
-}
-
-fn render_capped(bytes: &[u8], truncated: bool) -> String {
-    let mut text = safe_output_text(&String::from_utf8_lossy(bytes));
-    if truncated {
-        text.push_str("\n...truncated...");
-    }
-    text
 }
 
 #[cfg(test)]
@@ -924,7 +811,10 @@ mod tests {
             result.output
         );
         assert!(
-            stdout.len() <= EXEC_OUTPUT_MAX_BYTES + "...truncated...".len() + 1,
+            stdout.len()
+                <= kiana_domain::ExecutionOutputBudget::default().collect_max_bytes
+                    + "...truncated...".len()
+                    + 1,
             "stdout exceeded Codex 1MiB cap: {}",
             stdout.len()
         );

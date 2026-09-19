@@ -718,7 +718,7 @@ async fn capture<R: tokio::io::AsyncRead + Unpin>(
             return Err(error("process_output_quota_exceeded"));
         }
         let text = redactor.push(&String::from_utf8_lossy(&buffer[..count]));
-        let text = crate::harness_capabilities::safe_output_text(&text);
+        let text = crate::execution_output::safe_output_text(&text);
         let mut output = entry
             .output
             .lock()
@@ -761,15 +761,18 @@ pub(crate) fn store_output(
     output: &mut Value,
 ) -> Result<(), PortError> {
     let mut captured = serde_json::Map::new();
+    let budget = kiana_domain::ExecutionOutputBudget::default();
+    budget
+        .validate()
+        .map_err(|_| error("output_budget_invalid"))?;
     for name in ["stdout", "stderr"] {
         if let Some(text) = output[name].as_str() {
-            let safe = crate::harness_capabilities::safe_output_text(text);
+            let safe = crate::execution_output::safe_output_text(text);
             captured.insert(name.to_owned(), json!(safe));
-            let mut end = safe.len().min(8192);
-            while !safe.is_char_boundary(end) {
-                end -= 1;
-            }
-            output[name] = json!(&safe[..end]);
+            output[name] = json!(crate::execution_output::bounded_preview(
+                &safe,
+                budget.preview_max_bytes
+            ));
         }
     }
     if captured.is_empty() {
@@ -810,20 +813,24 @@ pub(crate) fn store_output(
     let record = json!({"schema":"kiana.execution-output.v1","identity":identity,"data_epoch":epoch,
         "expires_at_unix_ms":expires_at_unix_ms,"output_ref":output_ref.clone(),"output":captured});
     let bytes = serde_json::to_vec(&record).map_err(|_| error("output_encode_failed"))?;
+    if bytes.len() > budget.persist_max_bytes {
+        return Err(error("output_persist_quota_exceeded"));
+    }
     crate::local_packages::LocalDir::open(&output_directory()?, true)?
         .publish(&format!("{id}.json"), &bytes)?;
     let mut output_ref =
         serde_json::to_value(output_ref).map_err(|_| error("output_reference_encode_failed"))?;
     output_ref["sha256"] = json!(format!("sha256:{}", crate::local_packages::sha256(&bytes)));
-    output_ref["preview_bytes"] = json!(8192);
+    output_ref["preview_bytes"] = json!(budget.preview_max_bytes);
     output["output_ref"] = output_ref;
     Ok(())
 }
 fn read_output(arguments: &Value) -> Result<Value, PortError> {
+    let budget = kiana_domain::ExecutionOutputBudget::default();
     let id = serde_json::from_value::<RequestId>(arguments["output_id"].clone())
         .map_err(|_| error("output_id_invalid"))?;
     let bytes = crate::local_packages::LocalDir::open(&output_directory()?, false)?
-        .read(&format!("{id}.json"), 8 * 1024 * 1024)?;
+        .read(&format!("{id}.json"), budget.persist_max_bytes)?;
     let record: Value =
         serde_json::from_slice(&bytes).map_err(|_| error("output_record_invalid"))?;
     check_owner(&record["identity"], arguments)?;

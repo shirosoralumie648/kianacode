@@ -10,6 +10,52 @@ use serde_json::json;
 pub const EXECUTION_OUTPUT_REF_SCHEMA: &str = "kiana.execution-output-ref.v1";
 pub const EXECUTION_OUTPUT_REF_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_EXECUTION_OUTPUT_REF_BYTES: u64 = 16 * 1024 * 1024;
+pub const EXECUTION_OUTPUT_BUDGET_SCHEMA: &str = "kiana.execution-output-budget.v1";
+
+/// Separate collection, preview, persistence and observation limits for process output.
+///
+/// A preview limit is not permission to discard the persisted artifact, and an observed limit
+/// is a hard stop for the reader rather than an unbounded diagnostic allowance.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionOutputBudget {
+    pub schema: String,
+    pub collect_max_bytes: usize,
+    pub preview_max_bytes: usize,
+    pub persist_max_bytes: usize,
+    pub observed_max_bytes: usize,
+    pub max_lines: usize,
+}
+
+impl Default for ExecutionOutputBudget {
+    fn default() -> Self {
+        Self {
+            schema: EXECUTION_OUTPUT_BUDGET_SCHEMA.to_owned(),
+            collect_max_bytes: 1024 * 1024,
+            preview_max_bytes: 8 * 1024,
+            persist_max_bytes: 4 * 1024 * 1024,
+            observed_max_bytes: 32 * 1024 * 1024,
+            max_lines: 1_000_000,
+        }
+    }
+}
+
+impl ExecutionOutputBudget {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXECUTION_OUTPUT_BUDGET_SCHEMA
+            || self.collect_max_bytes == 0
+            || self.preview_max_bytes == 0
+            || self.persist_max_bytes < self.collect_max_bytes
+            || self.observed_max_bytes < self.collect_max_bytes
+            || self.max_lines == 0
+            || self.collect_max_bytes > MAX_EXECUTION_OUTPUT_REF_BYTES as usize
+            || self.persist_max_bytes > MAX_EXECUTION_OUTPUT_REF_BYTES as usize
+        {
+            return Err("execution_output_budget_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
 
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {

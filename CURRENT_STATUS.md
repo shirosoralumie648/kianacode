@@ -8469,6 +8469,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus single-supervisor routing, bounded stop/reap, leader/group confirmation, rlimit dimension honesty, output/stop report linkage and MCP reuse review; no runtime test reviewer
 ```
 
+### CAP-13 bounded output / redaction artifact evidence (2026-09-19)
+
+```text
+source_snapshot: 25412d5a + CAP-13 working-tree slice; kiana-domain/src/{execution_output.rs,contracts.rs}; kiana-daemon/src/{execution_output,harness_capabilities,execution_control}.rs; kiana-domain/tests/cap13_output_budget.rs; kiana-core/tests/cap13_bounded_output_guard.rs; .github/workflows/cap13-bounded-output.yml; docs/roadmap/cap13-bounded-output-baseline.md; docs/roadmap.md
+worktree_status: shared ExecutionOutputBudget and daemon output module now separate collection/preview/persistence/observation limits, bound byte/line capture and drain, redact before ANSI/OSC projection, and expose read errors/budget metadata; shell and long-running output reuse the boundary; ExecutionOutputRef reads retain owner/digest/expiry/data-epoch/cursor fences; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only output budget/redaction/artifact/source fixtures; no local test or smoke binary executed
+fixture or cassette: domain ExecutionOutputBudget contract fixtures; daemon shell output-cap fixture; cap13_bounded_output_guard; GitHub Actions CAP-13 runs focused fixtures, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-13 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-13 source slice is implemented. Output collection, preview, persistence and observation are bounded; invalid UTF-8/ANSI/OSC and secret markers are projected safely; truncation, line/byte quota and drain failures remain visible; stale or foreign output artifacts fail closed
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; external ArtifactStore durability, disk-full/power-loss recovery, cross-process retention and physical output-resource enforcement remain open
+reviewer: Codex root implementation review plus budget dimension separation, bounded reader/drain, cross-chunk redaction, terminal-control filtering, preview/persistence limits, digest/expiry/data-epoch/cursor and no foreign artifact read review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

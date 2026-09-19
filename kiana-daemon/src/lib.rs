@@ -9,6 +9,7 @@ mod context_query;
 mod data_governance;
 pub mod eval_runtime;
 mod execution_control;
+mod execution_output;
 mod execution_workspace;
 mod extensions;
 mod harness_capabilities;
