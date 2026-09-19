@@ -555,7 +555,9 @@ sequenceDiagram
 
 <a id="step-h27"></a>
 
-#### H27 — 结构化输出与准确的 TurnOutcome　⏳
+#### H27 — 结构化输出与准确的 TurnOutcome　✅
+
+当前 source slice 与 CI-only 证据见 [`h27-turn-outcome-baseline.md`](h27-turn-outcome-baseline.md)。
 
 **关联原单元**：`P0-B-01`、`P0-M1-01`、`P3-I-04`。**依赖**：H05、H11、H14、H26。
 

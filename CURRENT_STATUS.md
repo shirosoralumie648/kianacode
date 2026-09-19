@@ -10212,3 +10212,19 @@ status_change: H26 source slice is implemented and roadmap row 313 is ✅. Clari
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: question request/answer EventLog persistence and cross-process hydration are not yet wired, provider/model clarification registration is not live, the global waiting_for_input TurnOutcome is reserved for H27, and current UI command routing still relies on the existing Human Inbox platform adapter
 reviewer: Codex root implementation review plus typed question-vs-approval fields, request/answer digest and expiry/cancel fences, Core no-authority boundary, Runner one-interaction resume, checkpoint material and shared TTY/Web projection review; no runtime test reviewer
+
+### H27 structured output / TurnOutcome evidence (2026-09-19)
+
+source_snapshot: f45b73e9 + H27 working-tree slice; kiana-domain/src/{turn_outcome.rs,contracts.rs,event_contracts.rs,lib.rs}; kiana-core/src/{turn_outcome.rs,lifecycle.rs,lib.rs,receipts.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/h27_turn_outcome.rs; kiana-protocol/tests/h27_turn_outcome.rs; kiana-core/tests/h27_turn_outcome_guard.rs; .github/workflows/h27-turn-outcome.yml; docs/roadmap/h27-turn-outcome-baseline.md; docs/roadmap.md
+worktree_status: bounded OutputContract now validates object shape, required fields, field types, additional-property policy and contract digest; TurnOutcome has explicit answered/completed/awaiting_input/awaiting_approval/blocked/cancelled/failed/result_unknown kinds, terminal/resumable semantics, pending-work precedence, output/contract/outcome digests and evidence refs; Core annotates Runner Completed output with the server-derived outcome before recording run.completed and receipt; no second output validator or model loop was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H27 domain contract/invalid-output/pending-work/Unknown/cancel fixtures, protocol wire visibility fixture, Core source guard for lifecycle/receipt terminal gate; GitHub Actions H27 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H27 source slice is implemented and roadmap row 314 is ✅. A text-only model result cannot become completed while output schema is invalid or work/wait/Unknown blockers remain
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: RoleSpec/WorkPacket output schema resolution is not yet fully wired, provider-native structured response and bounded repair calls are not live, global ExecutionStatus awaiting_input mapping and durable terminal CAS remain later H/PD/provider work
+reviewer: Codex root implementation review plus deterministic contract validation, outcome precedence, digest binding, pending-work fences, Core annotation-before-run.completed and receipt projection review; no runtime test reviewer

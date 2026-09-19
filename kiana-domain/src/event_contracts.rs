@@ -104,6 +104,15 @@ const RUN_FIELDS: &[&str] = &[
     "request_digest",
     "answer_digest",
     "waiting_for_input",
+    "turn_outcome",
+    "contract_digest",
+    "output_digest",
+    "artifact_refs",
+    "verification_refs",
+    "blockers",
+    "outcome_digest",
+    "terminal",
+    "kind",
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",

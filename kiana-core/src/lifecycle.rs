@@ -1413,6 +1413,12 @@ impl ControlPlane {
                     if let Some(object) = harness_output.as_object_mut() {
                         object.insert("run_id".to_owned(), json!(run_id));
                     }
+                    let outcome = crate::propose_turn_outcome(
+                        kiana_domain::TurnOutcomeInput::completed(run_id, harness_output.clone()),
+                    )
+                    .map_err(PortError::Failed)?;
+                    harness_output = crate::annotate_output(harness_output, &outcome)
+                        .map_err(PortError::Failed)?;
                     output = redact_event_value(&harness_output);
                     completed = true;
                     self.record_terminal_event(
