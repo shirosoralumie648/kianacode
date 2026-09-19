@@ -9780,3 +9780,19 @@ status_change: EQ-20 source slice is implemented and roadmap row 286 is ✅. Nor
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: digests are pure in-process calculations over caller-provided values; no source capture, artifact/receipt persistence, trace diff, evaluator finding or durable EvalStore/replay proof is claimed
 reviewer: Codex root implementation review plus canonical key-order stability, event/trace aggregation, artifact/receipt kind separation, normalization-version binding, raw-ID exclusion and no-effect boundary review; no runtime test reviewer
+
+### EQ-21 deterministic first-divergence trace diff evidence (2026-09-19)
+
+source_snapshot: 72d1fcff + EQ-21 working-tree slice; kiana-quality/src/{lib.rs,diff.rs}; kiana-quality/tests/eq21_trace_diff.rs; kiana-quality/tests/eq21_trace_diff_guard.rs; .github/workflows/eq21-trace-diff.yml; docs/roadmap/evaluation-trace-diff-baseline.md; docs/roadmap.md
+worktree_status: `TraceDiff` compares compatible normalized traces in deterministic event/field order, reports the first cursor/kind/missing/extra/nested-field/terminal/metadata divergence with stable path and bounded redacted expected/actual summaries, and treats normalization/array-policy drift as not comparable; no evaluator, store, provider or effect path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq21_trace_diff.rs covers nested first divergence, cursor/kind/length/version classification, provenance-insensitive identity and redacted summaries; eq21_trace_diff_guard protects the pure bounded-summary boundary; GitHub Actions EQ-21 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-21 source slice is implemented and roadmap row 287 is ✅. Normalized trace comparison now returns one deterministic first divergence or an explicit identical/not-comparable result
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: diff consumes caller-provided normalized values and does not establish source-run completeness, quality pass/fail, assertion semantics, candidate promotion or durable EvalStore evidence
+reviewer: Codex root implementation review plus compatibility gating, source-order first divergence, recursive object/array path stability, missing/extra/terminal classification, redacted bounded summaries and no-effect boundary review; no runtime test reviewer
