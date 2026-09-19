@@ -9342,6 +9342,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: output/depth fields are compatibility projections, child terminal timestamps are derived from available state, no OS/path/budget lease is consumed here, no child is executed in the workflow crate, and current ControlPlane dispatch remains the later reservation/worker migration boundary
 reviewer: Codex root implementation review plus ready ordering, fanout bound, fanin missing/tampered output, fixed child definition/owner/depth/budget and single ControlPlane dispatch boundary review; no runtime workflow reviewer
 
+### AUT-13 Advance planner completion slice (2026-09-19)
+
+source_snapshot: be23f68d + AUT-13 completion evidence; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-workflow/tests/aut13_advance_planner.rs; kiana-workflow/tests/aut13_advance_guard.rs; kiana-core/tests/aut13_advance_route_guard.rs; .github/workflows/aut13-advance-planner.yml; docs/roadmap/aut13-advance-planner-baseline.md; docs/roadmap.md
+worktree_status: Advance planner and route guards are unchanged from the reviewed source slice; completion backfill records stable ready nodes, bounded FanOut, digest-bound/sorted FanIn, fixed SubWorkflow definition/owner/depth/budget and pure child terminal replay; no child/capability execution path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or workflow/child operation executed
+fixture or cassette: GitHub Actions only: workflow planner fixtures cover ready ordering and missing/tampered FanIn outputs; workflow source guard covers FanOut/depth/child budget/fixed version; core route guard covers existing ControlPlane spine and no second loop
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-13 workflow is triggered by the push and is not awaited
+status_change: AUT-13 is complete at source/local-fixture scope. Advance produces deterministic bounded intent, FanIn never treats missing/tampered output as empty, and SubWorkflow replay folds only fixed-version owner-bound terminal child state without executing a child in the planner.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: child scope/path/budget leases, effect reservation, worker dispatch, cross-process restart recovery and external child outcome remain AUT-14/AUT-19/PD/ER scope
+reviewer: Codex root implementation review plus ready ordering, FanOut bound, FanIn digest/missing result, SubWorkflow fixed version/owner/depth/budget, pure replay and no-child/no-capability boundary review; no runtime workflow reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
