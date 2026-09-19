@@ -6,6 +6,11 @@ manifest digests, license status, secret-scan status, signing/compliance policy 
 reviewer. Unknown licenses, dependency findings, secret-scan failure, missing Desktop evidence or
 any incomplete artifact evidence block `publish_allowed`.
 
+`SupplyChainReleaseEvidence` now keeps the gate decision separate from the release action. It
+binds the source snapshot, gate report, artifact digests, approval, rollback plan and optional
+publish receipt; a blocked gate, Unknown result or missing publish receipt cannot be recorded as a
+published release.
+
 GitHub Actions runs the domain gate fixture, source guard, release/compliance script syntax,
 offline compliance/SBOM/license fixtures and the existing signature-verification smoke. The
 package and Desktop scripts are wired as boundaries, but no external signer, release upload,

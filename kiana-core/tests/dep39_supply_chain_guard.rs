@@ -3,6 +3,7 @@
 #[test]
 fn supply_chain_gate_is_fail_closed_and_script_bound() {
     let source = include_str!("../../kiana-domain/src/supply_chain.rs");
+    let release = include_str!("../../kiana-domain/src/supply_chain_release_evidence.rs");
     let workflow = include_str!("../../.github/workflows/dep39-supply-chain.yml");
     let baseline = include_str!("../../docs/roadmap/dep39-supply-chain-baseline.md");
     for marker in [
@@ -22,9 +23,14 @@ fn supply_chain_gate_is_fail_closed_and_script_bound() {
         "supply_chain_secret_scan_failed",
         "supply_chain_desktop_package_missing",
         "supply_chain_artifact_evidence_incomplete",
+        "SupplyChainReleaseEvidence",
+        "SupplyChainReleaseDisposition",
+        "supply_chain_blocked_release",
+        "supply_chain_publish_receipt_missing",
+        "supply_chain_unknown_publish_cannot_verify",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || release.contains(marker),
             "DEP-39 source marker missing: {marker}"
         );
     }
