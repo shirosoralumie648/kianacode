@@ -99,3 +99,17 @@ fn safe_expiry_requires_a_new_monotonic_fence() {
         Some(lease().lease_digest.as_str())
     );
 }
+
+#[test]
+fn lease_ttl_is_bounded_even_when_constructed_without_the_store_adapter() {
+    let error = WorkflowQueueLease::issue(
+        &claim(),
+        "worker-a",
+        1,
+        1,
+        1_000,
+        1_000 + kiana_domain::WORKFLOW_QUEUE_LEASE_TTL_MAX_MS + 1,
+    )
+    .expect_err("lease ttl must be bounded");
+    assert_eq!(error, "workflow_queue_lease_header_invalid");
+}

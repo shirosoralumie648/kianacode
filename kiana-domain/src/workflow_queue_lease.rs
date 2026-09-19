@@ -347,6 +347,10 @@ impl WorkflowQueueLease {
             || self.issued_at_unix_ms == 0
             || self.heartbeat_at_unix_ms < self.issued_at_unix_ms
             || self.expires_at_unix_ms <= self.heartbeat_at_unix_ms
+            || self
+                .expires_at_unix_ms
+                .saturating_sub(self.heartbeat_at_unix_ms)
+                > WORKFLOW_QUEUE_LEASE_TTL_MAX_MS
         {
             return Err("workflow_queue_lease_header_invalid".to_owned());
         }

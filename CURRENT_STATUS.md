@@ -9172,6 +9172,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: MemoryWorkflowQueueStore is process-local and does not fsync, replay, coordinate cross-process workers, detect worker death, persist queue history or reconcile external effects; result_unknown remains recovery-required and cannot be reclaimed; no scheduler or capability dispatch was added
 reviewer: Codex root implementation review plus lease owner/fence/expiry, effect Unknown, concurrent claim and no-Broker-boundary review; no runtime queue reviewer
 
+### AUT-08 workflow queue store completion slice (2026-09-19)
+
+source_snapshot: 967d0d22 + AUT-08 completion slice; kiana-domain/src/workflow_queue_lease.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/workflow_queue.rs; kiana-core/src/workflow_queue.rs; CI lease/store/guard fixtures; docs/roadmap/aut08-workflow-queue-store-baseline.md; docs/roadmap.md
+worktree_status: queue lease validation now bounds TTL even when constructed outside the adapter; MemoryWorkflowQueueStore retains one locked state transition for claim/heartbeat/effect/fence/reclaim and deterministic BTreeMap ready ordering; unknown/in-flight/stale owner/fence/authority and duplicate/expired paths remain fail-closed; unrelated files were not changed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; formatting and diff checks only; no local test, smoke, cargo check or queue/scheduler operation executed
+fixture or cassette: GitHub Actions only: aut08_workflow_queue_lease covers owner/fence, in-flight/Unknown reclaim, monotonic reclaim and adapter-independent TTL; aut08_workflow_queue_store covers competing claim, safe expiry, Unknown recovery and deterministic ready exclusion; aut08_workflow_queue_guard covers no Broker dispatch
+exit_code: 0 for formatter and diff checks; local tests deliberately not run per user instruction; AUT-08 workflow is triggered by the push and is not awaited
+status_change: AUT-08 is complete at source/local-fixture scope. WorkflowQueueStore exposes the typed claim/lease transition boundary and the in-process adapter serializes competing workers, bounded TTL, heartbeat, effect state, fence and safe reclaim; ControlPlane only validates dispatch tuple and never executes a capability from the queue adapter.
+feature_status: implemented (source and CI fixture boundary)
+proof-level_change: source plus static formatting/diff evidence only; no local_behavior, durable, live or physical promotion
+limitations: MemoryWorkflowQueueStore is process-local and does not fsync, replay EventLog queue history, coordinate cross-process workers, detect worker death or reconcile external effects; scheduler timing/integration and durable recovery remain AUT-09+
+reviewer: Codex root implementation review plus atomic claim race, owner/fence/authority/TTL, heartbeat, effect Unknown, safe reclaim, deterministic ready ordering and no-Broker/no-second-loop boundary review; no runtime queue reviewer
+
 ### AUT-09 DaemonHost bounded workflow service evidence (partial, 2026-09-19)
 
 source_snapshot: b8118ebd + AUT-09 workflow service slice; kiana-daemon/src/{lib,workflow_service}.rs; kiana-daemon/tests/aut09_workflow_service*.rs; kiana-eventlog/src/workflow_queue.rs; kiana-ports/src/lib.rs; .github/workflows/aut09-workflow-service.yml; docs/roadmap/aut09-workflow-service-baseline.md; docs/roadmap.md

@@ -13,9 +13,9 @@ const D: &str = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 const E: &str = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const F: &str = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
-fn claim() -> WorkflowQueueClaimContract {
+fn named_claim(item_id: &str) -> WorkflowQueueClaimContract {
     WorkflowQueueClaimContract::new(
-        "packet-1",
+        item_id,
         A,
         Some(B.to_owned()),
         C,
@@ -37,9 +37,17 @@ fn claim() -> WorkflowQueueClaimContract {
     .expect("valid claim")
 }
 
+fn claim() -> WorkflowQueueClaimContract {
+    named_claim("packet-1")
+}
+
 fn request(owner_id: &str, fence_token: u64) -> WorkflowQueueClaimRequest {
+    request_for("packet-1", owner_id, fence_token)
+}
+
+fn request_for(item_id: &str, owner_id: &str, fence_token: u64) -> WorkflowQueueClaimRequest {
     WorkflowQueueClaimRequest {
-        claim: claim(),
+        claim: named_claim(item_id),
         owner_id: owner_id.to_owned(),
         fence_token,
         authority_epoch: 1,
@@ -126,4 +134,32 @@ async fn unknown_effect_enters_recovery_and_cannot_be_reclaimed() {
     assert!(
         blocked.to_string().contains("reclaimable") || blocked.to_string().contains("recovery")
     );
+}
+
+#[tokio::test]
+async fn ready_view_is_bounded_lexical_and_excludes_claimed_items() {
+    let store = MemoryWorkflowQueueStore::new();
+    store
+        .enqueue(named_claim("packet-b"))
+        .await
+        .expect("enqueue b");
+    store
+        .enqueue(named_claim("packet-a"))
+        .await
+        .expect("enqueue a");
+    let ready = store.ready(2).await.expect("ready view");
+    assert_eq!(
+        ready
+            .iter()
+            .map(|claim| claim.item_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["packet-a", "packet-b"]
+    );
+    store
+        .claim(request_for("packet-a", "worker-a", 1))
+        .await
+        .expect("claim packet-a");
+    let ready = store.ready(2).await.expect("ready view after claim");
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].item_id, "packet-b");
 }
