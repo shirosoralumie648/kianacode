@@ -4,6 +4,7 @@
 fn harness_eval_is_replay_bound_and_side_effect_free() {
     let quality = include_str!("../../kiana-domain/src/quality.rs");
     let eval = include_str!("../../kiana-domain/src/eval.rs");
+    let harness_eval = include_str!("../../kiana-domain/src/harness_eval.rs");
     let performance = include_str!("../../kiana-domain/src/performance.rs");
     let versioning = include_str!("../src/versioning.rs");
     let evidence = include_str!("../../kiana-daemon/src/eval_runtime.rs");
@@ -37,10 +38,26 @@ fn harness_eval_is_replay_bound_and_side_effect_free() {
         "provider_calls",
         "EvalEvidenceCapture",
         "infra_flush_unknown",
+        "HarnessTraceBinding",
+        "tool_directory_hash",
+        "workspace_hash",
+        "HarnessReplayReport",
+        "OfflineNoEffects",
+        "MissingResult",
+        "ExtraSideEffect",
+        "HarnessEvalMetric",
+        "CancellationLatency",
+        "UsageCompleteness",
+        "HarnessEvalComparison",
+        "security_regression",
+        "result_integrity_regression",
+        "performance_improved",
+        "harness_eval_comparison_promote_mismatch",
     ] {
         assert!(
             quality.contains(marker)
                 || eval.contains(marker)
+                || harness_eval.contains(marker)
                 || performance.contains(marker)
                 || versioning.contains(marker)
                 || evidence.contains(marker),

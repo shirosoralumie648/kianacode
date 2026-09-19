@@ -675,7 +675,9 @@ sequenceDiagram
 
 <a id="step-h35"></a>
 
-#### H35 — Harness 轨迹评测与性能验证　⏳
+#### H35 — Harness 轨迹评测与性能验证　✅
+
+当前 source slice 与 CI-only 证据见 [`h35-harness-eval-baseline.md`](h35-harness-eval-baseline.md)。
 
 **关联原单元**：`P1-L1-01`、`P1-J8-01`、`P4-L3-01`。**依赖**：H25、H27、H28、H30、H34。
 

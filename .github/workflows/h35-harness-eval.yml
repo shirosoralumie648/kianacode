@@ -6,10 +6,15 @@ on:
     paths:
       - "kiana-domain/src/quality.rs"
       - "kiana-domain/src/eval.rs"
+      - "kiana-domain/src/harness_eval.rs"
       - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
       - "kiana-core/src/versioning.rs"
       - "kiana-daemon/src/eval_runtime.rs"
       - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-domain/tests/h35_harness_eval.rs"
+      - "kiana-protocol/src/lib.rs"
       - "kiana-core/tests/p1_l1_01_golden_trace.rs"
       - "kiana-core/tests/eval_baseline.rs"
       - "kiana-core/tests/eq14_evidence_capture_guard.rs"
@@ -22,10 +27,15 @@ on:
     paths:
       - "kiana-domain/src/quality.rs"
       - "kiana-domain/src/eval.rs"
+      - "kiana-domain/src/harness_eval.rs"
       - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
       - "kiana-core/src/versioning.rs"
       - "kiana-daemon/src/eval_runtime.rs"
       - "kiana-domain/tests/eq03_eval_objects.rs"
+      - "kiana-domain/tests/h35_harness_eval.rs"
+      - "kiana-protocol/src/lib.rs"
       - "kiana-core/tests/p1_l1_01_golden_trace.rs"
       - "kiana-core/tests/eval_baseline.rs"
       - "kiana-core/tests/eq14_evidence_capture_guard.rs"
@@ -49,6 +59,7 @@ jobs:
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
       - run: cargo test -p kiana-domain --test eq03_eval_objects --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test h35_harness_eval --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test p1_l1_01_golden_trace --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test eval_baseline --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test eq14_evidence_capture_guard --locked -- --test-threads=1
