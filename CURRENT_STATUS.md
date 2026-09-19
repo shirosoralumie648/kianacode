@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### H35 Harness trajectory evaluation and performance evidence (partial, 2026-09-19)
+
+source_snapshot: 45db6e1d + H35 working-tree slice; kiana-domain/src/{quality,eval,performance}.rs; kiana-core/src/versioning.rs; kiana-daemon/src/eval_runtime.rs; kiana-domain/tests/eq03_eval_objects.rs; kiana-core/tests/{p1_l1_01_golden_trace,eval_baseline,eq14_evidence_capture_guard,h35_harness_eval_guard}.rs; .github/workflows/h35-harness-eval.yml; docs/roadmap/h35-harness-eval-baseline.md; docs/roadmap.md
+worktree_status: existing GoldenTrace, provider-independent eval, evidence-capture and performance contracts now have a single CI-only H35 gate; source/input/event/receipt binding, replay divergence, no-network/no-process replay boundary, bounded evidence and cost/latency/capacity limits are indexed without adding a second runner or effect path
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only eq03_eval_objects, p1_l1_01_golden_trace, eval_baseline, eq14_evidence_capture_guard and h35_harness_eval_guard; GitHub Actions H35 runs focused fixtures and workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H35 is triggered by the eventual push and is not awaited
+status_change: H35 source/CI evidence gate advanced from existing scattered eval/golden/performance contracts to a roadmap-linked combined closeout; roadmap remains ⏳ because required pinned scenario results and performance/live evidence are absent
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: no real Provider/account or multi-entry runtime executed, no RSS/cleanup threshold measurement, no durable benchmark artifact, and replay/evidence fixtures do not prove external effect correctness
+reviewer: Codex root implementation review plus GoldenTrace source/input/receipt binding, no-side-effect replay, missing-result/extra-effect failure, eval cost/latency, capacity and no-second-loop boundary review; no runtime test reviewer
+
 ### CAP-34 capability conformance matrix evidence (partial, 2026-09-19)
 
 source_snapshot: 8dbbf634 + CAP-34 working-tree slice; kiana-domain/src/capability_conformance.rs; kiana-domain/src/lib.rs; kiana-domain/tests/cap34_conformance.rs; kiana-core/tests/cap34_conformance_guard.rs; .github/workflows/cap34-conformance.yml; docs/roadmap/cap34-conformance-baseline.md; docs/roadmap.md
