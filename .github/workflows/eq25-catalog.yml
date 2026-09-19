@@ -1,0 +1,38 @@
+name: EQ-25 evaluation catalog
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-catalog-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq25-catalog.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-catalog-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq25-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run catalog fixtures
+        run: cargo test -p kiana-quality --test eq25_catalog --locked -- --test-threads=1
+      - name: Run catalog source guard
+        run: cargo test -p kiana-quality --test eq25_catalog_guard --locked -- --test-threads=1
+      - name: Compile EQ-25 targets
+        run: cargo check --workspace --tests --locked
