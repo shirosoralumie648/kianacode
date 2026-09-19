@@ -390,7 +390,11 @@ pub struct DurableTrigger {
     pub next_at: Option<u64>,
     pub firings_used: u32,
     pub pending_keys: Vec<String>,
+    #[serde(default)]
+    pub pending_digests: BTreeMap<String, String>,
     pub fired: BTreeMap<String, String>,
+    #[serde(default)]
+    pub fired_digests: BTreeMap<String, String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

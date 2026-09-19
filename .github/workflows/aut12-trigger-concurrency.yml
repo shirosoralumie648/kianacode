@@ -1,0 +1,36 @@
+name: aut12-trigger-concurrency
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/tests/aut12_trigger_state.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut12_pending_policy.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut12_pending_policy_guard.rs"
+      - ".github/workflows/aut12-trigger-concurrency.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/tests/aut12_trigger_state.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut12_pending_policy.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/aut12_pending_policy_guard.rs"
+      - ".github/workflows/aut12-trigger-concurrency.yml"
+
+jobs:
+  trigger-concurrency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Domain trigger state compatibility
+        run: cargo test -p kiana-domain --test aut12_trigger_state --locked
+      - name: Workflow concurrency source guard
+        run: cargo test -p kiana-workflow --test aut12_pending_policy --locked
+      - name: Control-plane route guard
+        run: cargo test -p kiana-core --test aut12_pending_policy_guard --locked
+      - name: Workspace compile
+        run: cargo check --workspace --tests --locked

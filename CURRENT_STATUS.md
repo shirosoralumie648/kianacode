@@ -9189,6 +9189,23 @@ proof-level_change: source plus planned CI behavior only; no local_behavior, dur
 limitations: WorkflowEventVerifier is process-local for dedupe, stores no EventLog fact and does not call ControlPlane; signature keys are constructor inputs for the adapter, no SecretStore/rotation or external webhook transport was executed, and payload validation is not an input-schema mapping proof
 reviewer: Codex root implementation review plus source/project/key allowlist, HMAC digest binding, skew/filter/dedupe, event-to-occurrence-to-Fire and no-payload-to-capability boundary review; no runtime ingress operator reviewer
 
+### AUT-12 trigger concurrency and pending digest evidence (partial, 2026-09-19)
+
+source_snapshot: 7c3eff5b + AUT-12 trigger concurrency slice; kiana-domain/src/automation.rs; kiana-workflow/src/durable.rs; kiana-core/src/automation.rs; kiana-domain/tests/aut12_trigger_state.rs; kiana-workflow/tests/aut12_pending_policy.rs; kiana-core/tests/aut12_pending_policy_guard.rs; .github/workflows/aut12-trigger-concurrency.yml; docs/roadmap/aut12-trigger-concurrency-baseline.md; docs/roadmap.md
+worktree_status: DurableTrigger now persists pending/fired occurrence digests with serde-compatible defaults; planner rejects digest collisions, bounds pending keys, keeps Reject/Queue/Coalesce/Replace explicit and marks active Replace instances CancelRequested before retaining a successor; static verification is pending commit/push
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke command executed
+fixture or cassette: CI-only aut12_trigger_state compatibility fixture, aut12_pending_policy planner source guard and aut12_pending_policy_guard ControlPlane route guard; GitHub Actions AUT-12 runs fixtures and workspace compilation
+exit_code: 0 for cargo fmt --all, cargo fmt --all --check, cargo check --workspace --tests --locked --offline and git diff --check; local tests deliberately not run; CI trigger will be pushed and intentionally not awaited
+status_change: AUT-12 source planner slice added. Pending/fired occurrence identity and concurrency policy are explicit and bounded; roadmap row remains ⏳ because durable pending projection, stop confirmation, CAS/restart race and physical cancellation are not proven
+proof-level_change: source plus planned CI behavior only; no local_behavior, durable, live or physical proof is claimed
+limitations: planner state is committed only when the surrounding EventLog transition succeeds; Replace does not assume stop completion, result_unknown remains reconciliation-required, and no background queue/cancellation worker or external effect was executed
+reviewer: Codex root implementation review plus four concurrency branches, digest conflict, pending bound, Replace stop-before-successor and serde legacy compatibility boundary review; no runtime cancellation reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

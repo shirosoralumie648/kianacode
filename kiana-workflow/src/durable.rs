@@ -977,7 +977,9 @@ pub fn plan_command(
                     next_at,
                     firings_used: 0,
                     pending_keys: Vec::new(),
+                    pending_digests: BTreeMap::new(),
                     fired: BTreeMap::new(),
+                    fired_digests: BTreeMap::new(),
                 },
             );
         }
@@ -993,6 +995,7 @@ pub fn plan_command(
             )?;
             t.enabled = false;
             t.pending_keys.clear();
+            t.pending_digests.clear();
         }
         AutomationCommand::Tick { trigger_id } | AutomationCommand::Fire { trigger_id, .. } => {
             fire_trigger(&mut next, trigger_id, command, a, p)?
@@ -1051,7 +1054,7 @@ fn fire_trigger(
         t.definition.role_id == a.context.role_id,
         "trigger_execution_role_mismatch",
     )?;
-    let mut keys = Vec::new();
+    let mut occurrences = Vec::new();
     let mut next_at = t.next_at;
     match command {
         AutomationCommand::Fire {
@@ -1080,12 +1083,23 @@ fn fire_trigger(
                 )?,
                 _ => return Err("trigger_interval_requires_tick"),
             }
-            if !t.fired.contains_key(firing_key) && !t.pending_keys.contains(firing_key) {
-                keys.push(firing_key.clone());
-            }
+            let digest = trigger_occurrence_digest(
+                id,
+                firing_key,
+                event_ref.as_deref(),
+                p.event_kind.as_deref(),
+            );
+            push_occurrence(&t, &mut occurrences, firing_key.clone(), digest)?;
         }
         AutomationCommand::Tick { .. } => {
-            keys.extend(t.pending_keys.clone());
+            for key in &t.pending_keys {
+                let digest = t
+                    .pending_digests
+                    .get(key)
+                    .cloned()
+                    .unwrap_or_else(|| trigger_occurrence_digest(id, key, None, None));
+                push_occurrence(&t, &mut occurrences, key.clone(), digest)?;
+            }
             if let TriggerSchedule::Interval { every_ms, .. } = t.definition.schedule {
                 let batch = plan_interval_due(
                     t.next_at.ok_or("trigger_schedule_invalid")?,
@@ -1094,7 +1108,10 @@ fn fire_trigger(
                     t.definition.missed_schedule,
                 )
                 .map_err(|_| "trigger_interval_cursor_invalid")?;
-                keys.extend(batch.occurrence_keys);
+                for key in batch.occurrence_keys {
+                    let digest = trigger_occurrence_digest(id, &key, None, Some("interval"));
+                    push_occurrence(&t, &mut occurrences, key, digest)?;
+                }
                 next_at = Some(batch.next_at);
             }
         }
@@ -1108,17 +1125,14 @@ fn fire_trigger(
         .collect();
     let mut pending = Vec::new();
     let mut started = !active.is_empty();
-    for key in keys {
-        if t.fired.contains_key(&key) {
-            continue;
-        }
+    for (key, digest) in occurrences {
         if started {
             match t.definition.concurrency {
                 TriggerConcurrency::Reject => return Err("trigger_already_running"),
-                TriggerConcurrency::Queue => pending.push(key),
+                TriggerConcurrency::Queue => push_pending(&mut pending, key, digest)?,
                 TriggerConcurrency::Coalesce => {
                     pending.clear();
-                    pending.push(key);
+                    push_pending(&mut pending, key, digest)?;
                 }
                 TriggerConcurrency::Replace => {
                     // Replacement never assumes an old side effect stopped. Queue it and require
@@ -1128,7 +1142,7 @@ fn fire_trigger(
                             WorkflowInstanceStatus::CancelRequested;
                     }
                     pending.clear();
-                    pending.push(key);
+                    push_pending(&mut pending, key, digest)?;
                 }
             }
             continue;
@@ -1147,13 +1161,72 @@ fn fire_trigger(
             None,
         )?;
         let current = state.triggers.get_mut(id).unwrap();
-        current.fired.insert(key, instance_id);
+        current.fired.insert(key.clone(), instance_id);
+        current.fired_digests.insert(key, digest);
         current.firings_used += 1;
         started = true;
     }
-    require(pending.len() <= 128, "trigger_queue_full")?;
     let current = state.triggers.get_mut(id).unwrap();
     current.next_at = next_at;
-    current.pending_keys = pending;
+    current.pending_keys = pending.iter().map(|(key, _)| key.clone()).collect();
+    current.pending_digests = pending.into_iter().collect();
+    Ok(())
+}
+
+fn trigger_occurrence_digest(
+    trigger_id: &str,
+    firing_key: &str,
+    event_ref: Option<&str>,
+    event_kind: Option<&str>,
+) -> String {
+    json_digest(&serde_json::json!({
+        "trigger_id": trigger_id,
+        "firing_key": firing_key,
+        "event_ref": event_ref,
+        "event_kind": event_kind,
+    }))
+}
+
+fn push_occurrence(
+    trigger: &DurableTrigger,
+    occurrences: &mut Vec<(String, String)>,
+    key: String,
+    digest: String,
+) -> Result<()> {
+    if let Some(previous) = trigger.fired_digests.get(&key) {
+        if previous != &digest {
+            return Err("trigger_occurrence_digest_conflict");
+        }
+        return Ok(());
+    }
+    if trigger.fired.contains_key(&key) {
+        return Ok(());
+    }
+    if let Some(previous) = trigger.pending_digests.get(&key) {
+        if previous != &digest {
+            return Err("trigger_occurrence_digest_conflict");
+        }
+    }
+    if let Some((_, previous)) = occurrences.iter().find(|(candidate, _)| candidate == &key) {
+        if previous != &digest {
+            return Err("trigger_occurrence_digest_conflict");
+        }
+        return Ok(());
+    }
+    occurrences.push((key, digest));
+    Ok(())
+}
+
+fn push_pending(pending: &mut Vec<(String, String)>, key: String, digest: String) -> Result<()> {
+    if let Some((_, previous)) = pending.iter().find(|(candidate, _)| candidate == &key) {
+        if previous != &digest {
+            return Err("trigger_occurrence_digest_conflict");
+        }
+        return Ok(());
+    }
+    if pending.len() >= 128 {
+        return Err("trigger_queue_full");
+    }
+    pending.push((key, digest));
     Ok(())
 }
