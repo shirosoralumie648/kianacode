@@ -41,6 +41,7 @@ mod notification_projector;
 mod notification_resolver;
 mod parity;
 mod performance;
+mod persistence_read_model;
 mod platform;
 mod projection;
 mod projection_checkpoint;
@@ -107,6 +108,10 @@ pub use notification_resolver::resolve_notification_subscriptions;
 pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use performance::{
     build_performance_baseline, percentile_micros, summarize_benchmark, PerformanceError,
+};
+pub use persistence_read_model::{
+    project_persistence_read_model, PersistenceReadModel, ProjectedRunState,
+    PERSISTENCE_READ_MODEL_SCHEMA,
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};

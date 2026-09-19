@@ -1,0 +1,44 @@
+name: PD-10 persistence read model
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/persistence_read_model.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/pd10_read_model.rs"
+      - "kiana-core/tests/pd10_read_model_guard.rs"
+      - "docs/roadmap/pd10-read-model-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd10-read-model.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/persistence_read_model.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/pd10_read_model.rs"
+      - "kiana-core/tests/pd10_read_model_guard.rs"
+      - "docs/roadmap/pd10-read-model-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd10-read-model.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-10 read model fixtures
+        run: cargo test -p kiana-core --test pd10_read_model --locked -- --test-threads=1
+      - name: Run PD-10 source guard
+        run: cargo test -p kiana-core --test pd10_read_model_guard --locked -- --test-threads=1
+      - name: Compile PD-10 targets
+        run: cargo check --workspace --tests --locked
