@@ -1,0 +1,38 @@
+name: h21-request-budget
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/request_budget.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/h21_request_budget.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-runner/src/budget.rs'
+      - 'kiana-runner/src/compact.rs'
+      - 'kiana-runner/tests/h21_budget_prefix_guard.rs'
+      - '.github/workflows/h21-request-budget.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/request_budget.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/h21_request_budget.rs'
+      - 'kiana-runner/src/harness.rs'
+      - 'kiana-runner/src/budget.rs'
+      - 'kiana-runner/src/compact.rs'
+      - 'kiana-runner/tests/h21_budget_prefix_guard.rs'
+      - '.github/workflows/h21-request-budget.yml'
+
+jobs:
+  request-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test h21_request_budget --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test h21_budget_prefix_guard --locked -- --test-threads=1
