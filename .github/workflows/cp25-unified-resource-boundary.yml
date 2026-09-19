@@ -1,0 +1,49 @@
+name: cp25-unified-resource-boundary
+
+on:
+  push:
+    paths:
+      - 'kiana-core/tests/cp25_unified_boundary_guard.rs'
+      - 'kiana-core/src/approvals.rs'
+      - 'kiana-core/src/actions.rs'
+      - 'kiana-daemon/src/harness_skills.rs'
+      - 'kiana-daemon/src/harness_mcp.rs'
+      - 'kiana-daemon/src/harness_memory.rs'
+      - 'kiana-daemon/src/pre_tool_hooks.rs'
+      - 'kiana-skills/src/source_resolver.rs'
+      - 'kiana-capability-broker/src/lib.rs'
+      - 'kiana-domain/src/extensions.rs'
+      - 'kiana-domain/src/credentials.rs'
+      - 'kiana-domain/src/identity_contracts.rs'
+      - 'kiana-ports/src/lib.rs'
+      - '.github/workflows/cp25-unified-resource-boundary.yml'
+  pull_request:
+    paths:
+      - 'kiana-core/tests/cp25_unified_boundary_guard.rs'
+      - 'kiana-core/src/approvals.rs'
+      - 'kiana-core/src/actions.rs'
+      - 'kiana-daemon/src/harness_skills.rs'
+      - 'kiana-daemon/src/harness_mcp.rs'
+      - 'kiana-daemon/src/harness_memory.rs'
+      - 'kiana-daemon/src/pre_tool_hooks.rs'
+      - 'kiana-skills/src/source_resolver.rs'
+      - 'kiana-capability-broker/src/lib.rs'
+      - 'kiana-domain/src/extensions.rs'
+      - 'kiana-domain/src/credentials.rs'
+      - 'kiana-domain/src/identity_contracts.rs'
+      - 'kiana-ports/src/lib.rs'
+      - '.github/workflows/cp25-unified-resource-boundary.yml'
+
+jobs:
+  unified-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked --offline
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test cp25_unified_boundary_guard --locked -- --test-threads=1

@@ -10084,3 +10084,19 @@ status_change: SC-27 source slice is implemented and roadmap row 305 is ✅. Ext
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: uninstall retains package/cache references and does not prove physical cleanup, lifecycle recovery across processes, real hook/provider outcomes, signed key rotation or external receipts; sandbox availability remains adapter/host dependent and later EXT/PD/SC work remains
 reviewer: Codex root implementation review plus lifecycle transition graph, enabled-only callback permits, package/manifest/expiry binding, uninstall/revoke retention, EventStore CAS, ExtensionAdmission, hook decision/Unknown and bwrap/no-new-privileges boundary review; no runtime test reviewer
+
+### CP-25 unified Skills / Hooks / Memory / MCP / Secret boundary evidence (2026-09-19)
+
+source_snapshot: 4619255e + CP-25 working-tree slice; kiana-core/tests/cp25_unified_boundary_guard.rs; kiana-daemon/src/{harness_skills.rs,pre_tool_hooks.rs,harness_mcp.rs,harness_memory.rs}; kiana-skills/src/source_resolver.rs; kiana-capability-broker/src/lib.rs; kiana-domain/src/{extensions.rs,credentials.rs,identity_contracts.rs}; kiana-ports/src/lib.rs; .github/workflows/cp25-unified-resource-boundary.yml; docs/roadmap/cp25-unified-resource-boundary-baseline.md; docs/roadmap.md
+worktree_status: one CI source guard now cross-checks the existing common boundary: ProjectTrust/source resolution precedes resource loading; skills/Memory/MCP annotations cannot mint authority; Broker ExtensionAdmission rechecks package/effect/scope; hooks use bounded read-only confined/cancellable execution and append decision facts; MCP pins config/discovery/catalog/schema/health/scope and rejects drift before/after call; Memory handlers derive server scope and data policy before journal/projection access; SecretRef/CredentialLease remains opaque with purpose/audience/endpoint/generation checks; no second policy engine or direct effect path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: cp_untrusted_extension_cannot_inject_execution_authority, cp_mcp_schema_change_invalidates_pending_approval and cp_secret_handle_cannot_cross_actor_or_destination source guards; GitHub Actions CP-25 runs the guard and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CP-25 source slice is implemented and roadmap row 306 is ✅. Skills/Hooks/Memory/MCP/Secret all remain inputs checked under the same ControlPlane/Broker/port boundaries instead of alternate authority paths
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: this is a cross-layer source guard over existing adapters, not live provider/secret-store execution; physical secret protection, all-entrypoint parity, cross-process recovery, external MCP outcomes and production hook semantics remain later CP/SC/CAP work
+reviewer: Codex root implementation review plus trust-before-load, extension/allowed-tools non-authority, hook sandbox/bounds/decision facts, MCP snapshot/schema/CAS/approval drift, server memory scope/data revoke and opaque secret purpose/audience/endpoint/generation boundary review; no runtime test reviewer
