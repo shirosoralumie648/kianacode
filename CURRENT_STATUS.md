@@ -10036,3 +10036,19 @@ status_change: SC-23 source slice is implemented and roadmap row 302 is ✅. Del
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: MemoryRetentionStore is process-local/non-durable; typed append records tombstone facts but does not physically erase payloads, rebuild or invalidate every derived store, confirm backup/external deletion, recover across restart or provide a live business/compliance receipt; those remain SC-24+ / PD/OA work
 reviewer: Codex root implementation review plus DeleteRequest authority binding, deny-first hold/unknown/stale checks, monotonic data epoch, digest-only tombstone, tombstone-before-manifest and explicit Unknown propagation review; no runtime test reviewer
+
+### SC-25 ProjectTrust root resolution evidence (2026-09-19)
+
+source_snapshot: 9e02f516 + SC-25 working-tree slice; kiana-policy/src/project_trust.rs; kiana-policy/tests/{sc25_project_trust.rs,sc25_project_trust_guard.rs}; kiana-skills/src/{source_resolver.rs,loader.rs,plugins.rs}; .github/workflows/sc25-project-trust.yml; docs/roadmap/sc25-project-trust-baseline.md; docs/roadmap.md
+worktree_status: kiana-policy now owns pure versioned ProjectTrustRoot/ProjectTrustResolution contracts for User, KIANA_HOME and Project scopes, with explicit priority, project-root/root digests, revision, redacted audit_ref and resolution digest; same-scope missing/unknown/untrusted/conflicting roots deny with stable reasons and cross-scope roots cannot authorize a load; no filesystem read, resource load, capability grant or second loader path was added
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-policy trusted/deny/conflict/tamper fixtures and pure source guard; existing kiana-skills SourceResolver/loader/plugin trust-boundary code remains the adapter evidence surface; GitHub Actions SC-25 runs focused tests and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: SC-25 source slice is implemented and roadmap row 303 is ✅. Project-local and user/KIANA_HOME trust scopes are explicit, auditable and deny-first before resource loading
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: the policy contract does not itself read trust files or wire every legacy/entrypoint loader, root digests are adapter-supplied, signed trust roots/cross-process recovery/real authentication and production resource loading remain unproved; later SC-26+ / EXT work must consume this boundary
+reviewer: Codex root implementation review plus trust scope/priority, project-root binding, revision conflict, unknown/untrusted deny, audit reference/digest and no-filesystem/no-loader policy boundary review; no runtime test reviewer
