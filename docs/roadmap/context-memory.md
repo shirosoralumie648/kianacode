@@ -332,7 +332,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-07 · Workspace/artifact snapshot 与安全读取　⏳
+##### CM-07 · Workspace/artifact snapshot 与安全读取　✅
+
+当前 source slice 与 CI-only 证据见 [`cm07-workspace-snapshot-baseline.md`](cm07-workspace-snapshot-baseline.md)。
 
 复用 PathResolver、trust、hardlink/symlink 检查，生成 dirty manifest 和 per-file digest；读取前后核对 file identity，限制总字节、文件数、深度和时间。验收：`workspace_change_between_scan_and_read_is_fenced`、`untrusted_project_resources_are_not_indexed_as_instructions`。
 

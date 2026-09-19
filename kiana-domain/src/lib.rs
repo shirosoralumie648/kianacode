@@ -152,6 +152,7 @@ mod work_packets;
 mod workflow_event_ingress;
 mod workflow_queue_claim;
 mod workflow_queue_lease;
+mod workspace_snapshot;
 
 pub use adapter_result::*;
 pub use approval_journal::*;
@@ -294,6 +295,7 @@ pub use work_packets::*;
 pub use workflow_event_ingress::*;
 pub use workflow_queue_claim::*;
 pub use workflow_queue_lease::*;
+pub use workspace_snapshot::*;
 
 pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
 pub const ROLE_BUILDER: &str = "builder";

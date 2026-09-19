@@ -10372,3 +10372,19 @@ status_change: H36 source closeout gate is strengthened, but roadmap row 729 rem
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no live request or external effect was executed, synthetic/fake receipts do not satisfy live closeout, one configured model path cannot cover all providers, and no operator approval/budget/credential target was supplied
 reviewer: Codex root implementation review plus per-surface live readiness, result_unknown fence, common DaemonHost/ControlPlane/Harness/Provider spine, provider identity/Receipt and no-auto-live boundary review; no runtime/live reviewer
+
+### CM-07 workspace/artifact snapshot evidence (2026-09-20)
+
+source_snapshot: da50ab1e + CM-07 working-tree slice; kiana-domain/src/{workspace_snapshot.rs,contracts.rs,lib.rs}; kiana-query/src/{workspace_snapshot.rs,context_inputs.rs,lib.rs}; kiana-query/Cargo.toml; Cargo.lock; kiana-protocol/src/lib.rs; kiana-domain/tests/cm07_workspace_snapshot.rs; kiana-query/tests/cm07_workspace_snapshot.rs; kiana-core/tests/cm07_workspace_snapshot_guard.rs; .github/workflows/cm07-workspace-snapshot.yml; docs/roadmap/cm07-workspace-snapshot-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: bounded WorkspaceSnapshot/WorkspaceFileIdentity/Trust/ReadDisposition contracts are added; query canonicalizes a real directory root, rejects symlink roots, skips symlink/hardlink entries, sorts and bounds files/bytes/depth/time, compares identity before/after reading, fences TOCTOU changes, and returns content only for stable trusted UTF-8 files; unknown/untrusted material is metadata-only and SourceSnapshot remains the context provenance boundary
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: CM-07 domain/query snapshot/read fixtures and Core source guard; GitHub Actions CM-07 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: CM-07 source slice is implemented and roadmap row 318 is ✅. Workspace/artifact reads now preserve trust, bounded identity and read-fence evidence
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full ProjectTrust resolver integration, stable chunker/offset provenance, index generation/atomic switch, rename-delete invalidation and cross-process durable snapshot remain CM-08–CM-11/PD work
+reviewer: Codex root implementation review plus canonical-root/symlink-hardlink, trust-before-content, limits, before-after identity fence, metadata-only untrusted material and SourceSnapshot/no-authority boundary review; no runtime test reviewer

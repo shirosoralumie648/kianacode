@@ -81,7 +81,9 @@ pub use kiana_domain::{
     SwarmPlanId, SwarmTransitionEntity, SwarmTransitionEvent, SwarmTransitionReducer,
     SwarmWorkGraph, Symposium, TemplateId, ToolSpec, TurnId, TurnIdentity, TurnOutcome,
     TurnOutcomeInput, TurnOutcomeKind, TurnSemantics, WorkPacket, WorkPacketStatus,
-    WorkspaceBinding, WorkspaceId, ACTION_REF_SCHEMA, ADAPTER_RESULT_MAX_EVIDENCE,
+    WorkspaceBinding, WorkspaceEntryKind, WorkspaceFileIdentity, WorkspaceFileSnapshot,
+    WorkspaceId, WorkspaceReadDisposition, WorkspaceSnapshot, WorkspaceSnapshotLimits,
+    WorkspaceTrust, ACTION_REF_SCHEMA, ADAPTER_RESULT_MAX_EVIDENCE,
     ADAPTER_RESULT_MAX_OUTPUT_BYTES, ADAPTER_RESULT_SCHEMA, ADAPTER_RESULT_VERSION,
     APPROVAL_CONSUMPTION_FACT_SCHEMA, APPROVAL_DECISION_FACT_SCHEMA, APPROVAL_FACT_VERSION,
     APPROVAL_MATERIAL_SCHEMA, APPROVAL_MATERIAL_VERSION, APPROVAL_PLAN_PREVIEW_SCHEMA,
@@ -143,6 +145,7 @@ pub use kiana_domain::{
     SUBSCRIPTION_SCHEMA, SWARM_LINEAGE_SCHEMA, SWARM_PARTITION_SCHEMA,
     SWARM_TRANSITION_EVENT_SCHEMA, SWARM_WORK_GRAPH_SCHEMA, TOOL_AUTHORITY_SCHEMA, TOOL_SPECS,
     TRUST_SNAPSHOT_VERSION, TURN_IDENTITY_SCHEMA, TURN_OUTCOME_SCHEMA, TURN_OUTCOME_VERSION,
+    WORKSPACE_FILE_SNAPSHOT_SCHEMA, WORKSPACE_SNAPSHOT_SCHEMA, WORKSPACE_SNAPSHOT_VERSION,
     WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
