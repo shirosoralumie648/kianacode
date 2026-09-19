@@ -1,0 +1,42 @@
+name: CAP-16 patch transaction and recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-core/tests/cap16_patch_recovery_guard.rs"
+      - "docs/roadmap/cap16-patch-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap16-patch-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-core/tests/cap16_patch_recovery_guard.rs"
+      - "docs/roadmap/cap16-patch-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap16-patch-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run late-hunk atomicity fixture
+        run: cargo test -p kiana-daemon --lib later_chunk_mismatch_does_not_write_partial_update --locked -- --test-threads=1
+      - name: Run commit rollback fixture
+        run: cargo test -p kiana-daemon --lib commit_failure_rolls_back_earlier_operations --locked -- --test-threads=1
+      - name: Run CAP-16 source guards
+        run: cargo test -p kiana-core --test cap16_patch_recovery_guard --locked -- --test-threads=1
+      - name: Compile CAP-16 targets
+        run: cargo check --workspace --tests --locked

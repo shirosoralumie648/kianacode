@@ -8526,6 +8526,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus shared parser/overlay identity, read-only preview, digest/path/before-hash parity, move two-end preconditions, handler scope reuse and no-write preview boundary review; no runtime test reviewer
 ```
 
+### CAP-16 patch transaction / recovery evidence (2026-09-19)
+
+```text
+source_snapshot: 9eeb20e0 + CAP-16 working-tree slice; kiana-daemon/src/apply_patch.rs; kiana-core/tests/cap16_patch_recovery_guard.rs; .github/workflows/cap16-patch-recovery.yml; docs/roadmap/cap16-patch-recovery-baseline.md; docs/roadmap.md
+worktree_status: existing patch journal now has an independent CAP-16 evidence gate: prepared/resolved records, bounded pending scan, root/path identity recheck, descriptor-relative commit, precondition-guarded rollback, sync/rename and Unknown/reconciliation outcomes are source-indexed without a second recovery authority; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only late-hunk/rollback/recovery/source fixtures; no local test or smoke binary executed
+fixture or cassette: existing later_chunk_mismatch_does_not_write_partial_update and commit_failure_rolls_back_earlier_operations fixtures; cap16_patch_recovery_guard; GitHub Actions CAP-16 runs focused fixtures, source guards and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-16 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-16 source slice is implemented/reconciled. Patch commit failure attempts guarded rollback, concurrent/precondition drift blocks overwrite, unresolved journals require explicit bounded recovery, and recovery does not re-execute authorization or silently clean the workspace
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ordinary filesystem multi-file atomic visibility, power-loss durability and full fsync/recovery fault matrix remain open
+reviewer: Codex root implementation review plus prepared/resolved journal lifecycle, pending bound, descriptor identity, precondition/rollback conflict, Unknown result, no-clean/no-reexecution and existing late-hunk/rollback fixture linkage review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
