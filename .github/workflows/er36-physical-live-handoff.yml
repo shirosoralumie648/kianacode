@@ -1,0 +1,54 @@
+name: ER-36 physical live handoff boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/tests/oa28_live_handoff.rs"
+      - "kiana-core/tests/er36_physical_live_guard.rs"
+      - "scripts/oa28-live-handoff-preflight.sh"
+      - "docs/roadmap/oa28-live-handoff.md"
+      - "docs/roadmap/er36-physical-live-handoff-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er36-physical-live-handoff.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/tests/oa28_live_handoff.rs"
+      - "kiana-core/tests/er36_physical_live_guard.rs"
+      - "scripts/oa28-live-handoff-preflight.sh"
+      - "docs/roadmap/oa28-live-handoff.md"
+      - "docs/roadmap/er36-physical-live-handoff-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er36-physical-live-handoff.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  handoff-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: bash -n scripts/oa28-live-handoff-preflight.sh
+      - name: Confirm default deny without live opt-in
+        run: |
+          set +e
+          output="$(bash scripts/oa28-live-handoff-preflight.sh 2>&1)"
+          code=$?
+          printf '%s\n' "$output"
+          test "$code" -eq 2
+          printf '%s\n' "$output" | grep -F "live_opt_in_required"
+      - run: cargo fmt --all --check
+      - name: Run existing non-live handoff fixture
+        run: cargo test -p kiana-domain --test oa28_live_handoff --locked -- --test-threads=1
+      - name: Run ER-36 source guard
+        run: cargo test -p kiana-core --test er36_physical_live_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

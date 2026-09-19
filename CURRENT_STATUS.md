@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### ER-36 physical/live boundary and handoff evidence (partial, 2026-09-19)
+
+source_snapshot: c258275d + ER-36 working-tree slice; kiana-domain/src/live_handoff.rs; kiana-domain/tests/oa28_live_handoff.rs; kiana-core/tests/er36_physical_live_guard.rs; scripts/oa28-live-handoff-preflight.sh; docs/roadmap/oa28-live-handoff.md; docs/roadmap/er36-physical-live-handoff-baseline.md; .github/workflows/er36-physical-live-handoff.yml; docs/roadmap.md
+worktree_status: existing LiveHandoffManifest/OA-28 runbook is now covered by an ER-36 default-deny CI gate; target OS/provider/connector/OTLP statuses remain explicit NotSupported/OptedIn/Verified/Unknown, raw credentials are rejected, opt-in requires operator approval, and verified requires independent receipt plus cleanup evidence
+command_argv:
+  bash -n scripts/oa28-live-handoff-preflight.sh
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64 local static checks; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only OA-28 non-live manifest fixtures; er36_physical_live_guard; default-deny script invocation; GitHub Actions ER-36 does not connect external services or target hardware
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-36 is triggered by the eventual push and is not awaited
+status_change: ER-36 source/handoff boundary advanced from unindexed OA-28 evidence to a roadmap-linked default-deny gate; roadmap remains ⏳ because no target-specific live or physical receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: no external credential, provider/connector/OTLP account, target OS or operator approval was supplied; CI/mock receipts are not live proof, unsupported targets remain not_supported, and no external effect or cleanup was executed
+reviewer: Codex root implementation review plus explicit opt-in/default deny, secret reference, approval, independent receipt, Unknown/reconcile, retention/cleanup and no external-network/no-mock-as-live boundary review; no runtime/live reviewer
+
 ### DEP-35 managed-local / embedded-local rollout evidence (partial, 2026-09-19)
 
 source_snapshot: dfa8811a + DEP-35 working-tree slice; kiana-domain/src/local_rollout.rs; kiana-domain/src/revision_compatibility.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep35_local_rollout.rs; kiana-core/tests/dep35_local_rollout_guard.rs; .github/workflows/dep35-local-rollout.yml; docs/roadmap/dep35-local-rollout-baseline.md; docs/roadmap.md
