@@ -414,7 +414,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-15 · ContextPlan 选材与 omission 解释　⏳
+##### CM-15 · ContextPlan 选材与 omission 解释　✅
+
+当前 source slice 与 CI-only 证据见 [`cm15-context-plan-baseline.md`](cm15-context-plan-baseline.md)。
 
 将 Product/system、role、task、packet、workspace snapshot、history、Memory、repo map、live results 分成 authority/type；按固定优先级和来源预算选择，记录 omitted reason。验收：`context_plan_selection_is_explainable`、`untrusted_text_cannot_enter_product_section`。
 

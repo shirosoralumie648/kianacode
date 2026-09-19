@@ -5,8 +5,8 @@
 //! and evidence; no candidate can promote itself to Product instructions or Company fact.
 
 use crate::{
-    json_digest, ContextCandidate, ContextPlan, EvidenceStatus, Freshness, PromptAuthority,
-    PromptBundle, SourceKind, SourceSnapshot,
+    json_digest, ContextCandidate, ContextMaterialType, ContextPlan, EvidenceStatus, Freshness,
+    PromptAuthority, PromptBundle, SourceKind, SourceSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -138,6 +138,12 @@ impl RetrievalCandidate {
             EvidenceStatus::Unverifiable => "unverifiable",
             EvidenceStatus::Missing => "missing",
         };
+        let material_type = match self.source_kind {
+            RetrievalSourceKind::Memory => ContextMaterialType::Memory,
+            RetrievalSourceKind::RepoMap => ContextMaterialType::RepoMap,
+            RetrievalSourceKind::CodeSearch => ContextMaterialType::LiveResult,
+            RetrievalSourceKind::Artifact => ContextMaterialType::Packet,
+        };
         Ok(ContextCandidate {
             name: format!("retrieval:{}", self.candidate_id),
             text: format!(
@@ -146,6 +152,7 @@ impl RetrievalCandidate {
             ),
             source: self.source_snapshot.source.clone(),
             authority: PromptAuthority::Context,
+            material_type,
             permission_scope: self.permission_scope.clone(),
             revision: self.source_snapshot.source.revision.clone(),
             priority: 1_000u32.saturating_sub(u32::from(self.relevance_milli)),

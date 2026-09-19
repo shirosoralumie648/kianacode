@@ -17,6 +17,164 @@ pub const RESOLVED_STEP_CONTEXT_SCHEMA: &str = "kiana.resolved-step-context.v1";
 pub const CONTEXT_PLAN_MAX_ITEMS: usize = 256;
 pub const CONTEXT_PLAN_MAX_TEXT_BYTES: usize = 512 * 1024;
 
+/// The material classes which may enter one prepared context plan.
+///
+/// The order is part of the contract: lower values are selected first. Product material is
+/// deliberately separate from all retrieved or user/project supplied context so a source can
+/// never gain product authority by changing its label or relevance score.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextMaterialType {
+    ProductSystem,
+    Role,
+    Task,
+    Packet,
+    WorkspaceSnapshot,
+    History,
+    Memory,
+    RepoMap,
+    LiveResult,
+}
+
+impl ContextMaterialType {
+    pub const ALL: [Self; 9] = [
+        Self::ProductSystem,
+        Self::Role,
+        Self::Task,
+        Self::Packet,
+        Self::WorkspaceSnapshot,
+        Self::History,
+        Self::Memory,
+        Self::RepoMap,
+        Self::LiveResult,
+    ];
+
+    /// Stable selection order. This is not a user-controlled priority.
+    pub const fn selection_priority(self) -> u8 {
+        match self {
+            Self::ProductSystem => 0,
+            Self::Role => 1,
+            Self::Task => 2,
+            Self::Packet => 3,
+            Self::WorkspaceSnapshot => 4,
+            Self::History => 5,
+            Self::Memory => 6,
+            Self::RepoMap => 7,
+            Self::LiveResult => 8,
+        }
+    }
+
+    /// Share of the non-product source budget, in thousandths of the plan limit.
+    const fn budget_milli(self) -> u64 {
+        match self {
+            Self::ProductSystem | Self::Role => 1_000,
+            Self::Task => 300,
+            Self::Packet => 250,
+            Self::WorkspaceSnapshot => 250,
+            Self::History => 200,
+            Self::Memory => 200,
+            Self::RepoMap => 200,
+            Self::LiveResult => 150,
+        }
+    }
+
+    fn budget_limit(self, token_limit: u64) -> u64 {
+        if self.budget_milli() == 1_000 {
+            token_limit
+        } else {
+            let scaled = token_limit.saturating_mul(self.budget_milli());
+            (scaled / 1_000 + u64::from(scaled % 1_000 != 0)).max(1)
+        }
+    }
+
+    fn index(self) -> usize {
+        usize::from(self.selection_priority())
+    }
+
+    fn source_allowed(self, source: SourceKind) -> bool {
+        match self {
+            Self::ProductSystem | Self::Role => source == SourceKind::Prompt,
+            Self::Task => matches!(
+                source,
+                SourceKind::Prompt | SourceKind::Event | SourceKind::UserImport
+            ),
+            Self::Packet => matches!(source, SourceKind::Artifact | SourceKind::Event),
+            Self::WorkspaceSnapshot | Self::RepoMap => source == SourceKind::WorkspaceFile,
+            Self::History => matches!(source, SourceKind::Event | SourceKind::Artifact),
+            Self::Memory => source == SourceKind::Memory,
+            Self::LiveResult => matches!(
+                source,
+                SourceKind::Connector
+                    | SourceKind::Event
+                    | SourceKind::Artifact
+                    | SourceKind::WorkspaceFile
+            ),
+        }
+    }
+
+    fn validate_authority(
+        self,
+        authority: PromptAuthority,
+        source: &SourceRef,
+    ) -> Result<(), String> {
+        let product = matches!(self, Self::ProductSystem | Self::Role);
+        if product && authority != PromptAuthority::Product {
+            return Err("context_product_authority_missing".to_owned());
+        }
+        if !product && authority == PromptAuthority::Product {
+            return Err("context_product_material_type_invalid".to_owned());
+        }
+        if product {
+            if source.kind != SourceKind::Prompt {
+                return Err("context_product_source_untrusted".to_owned());
+            }
+            if source.evidence != EvidenceStatus::Verified {
+                return Err("context_product_evidence_unverified".to_owned());
+            }
+        } else if !self.source_allowed(source.kind) {
+            return Err("context_material_source_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    fn from_prompt_section(section: &crate::PromptSection) -> Self {
+        if section.authority == PromptAuthority::Product {
+            if section.name == "role" {
+                Self::Role
+            } else {
+                Self::ProductSystem
+            }
+        } else {
+            Self::Task
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextSourceBudget {
+    pub material_type: ContextMaterialType,
+    pub token_limit: u64,
+    pub used_tokens: u64,
+}
+
+impl ContextSourceBudget {
+    fn new(material_type: ContextMaterialType, plan_limit: u64) -> Self {
+        Self {
+            material_type,
+            token_limit: material_type.budget_limit(plan_limit),
+            used_tokens: 0,
+        }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.token_limit == 0 || self.used_tokens > self.token_limit {
+            return Err("context_source_budget_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
         return Err(format!("{field}_invalid"));
@@ -41,6 +199,7 @@ pub struct ContextCandidate {
     pub text: String,
     pub source: SourceRef,
     pub authority: PromptAuthority,
+    pub material_type: ContextMaterialType,
     pub permission_scope: String,
     pub revision: String,
     pub priority: u32,
@@ -55,9 +214,8 @@ impl ContextCandidate {
         self.source.validate()?;
         required(&self.permission_scope, "context_candidate_scope", 256)?;
         required(&self.revision, "context_candidate_revision", 256)?;
-        if self.authority == PromptAuthority::Product && self.source.kind != SourceKind::Prompt {
-            return Err("context_product_source_untrusted".to_owned());
-        }
+        self.material_type
+            .validate_authority(self.authority, &self.source)?;
         Ok(())
     }
 }
@@ -69,6 +227,7 @@ pub struct ContextPlanItem {
     pub text: String,
     pub source: SourceRef,
     pub authority: PromptAuthority,
+    pub material_type: ContextMaterialType,
     pub permission_scope: String,
     pub revision: String,
     pub priority: u32,
@@ -86,6 +245,7 @@ impl ContextPlanItem {
             text: candidate.text,
             source: candidate.source,
             authority: candidate.authority,
+            material_type: candidate.material_type,
             permission_scope: candidate.permission_scope,
             revision: candidate.revision,
             priority: candidate.priority,
@@ -100,6 +260,7 @@ impl ContextPlanItem {
             text: self.text.clone(),
             source: self.source.clone(),
             authority: self.authority,
+            material_type: self.material_type,
             permission_scope: self.permission_scope.clone(),
             revision: self.revision.clone(),
             priority: self.priority,
@@ -114,6 +275,14 @@ impl ContextPlanItem {
         if !self.included && self.omission_reason.is_none() {
             return Err("context_plan_omission_reason_missing".to_owned());
         }
+        if let Some(reason) = self.omission_reason.as_deref() {
+            if !matches!(
+                reason,
+                "context_source_budget_exceeded" | "context_budget_exceeded"
+            ) {
+                return Err("context_plan_omission_reason_invalid".to_owned());
+            }
+        }
         Ok(())
     }
 }
@@ -125,6 +294,7 @@ pub struct ContextPlan {
     pub role_id: String,
     pub prompt_bundle_digest: String,
     pub items: Vec<ContextPlanItem>,
+    pub source_budgets: Vec<ContextSourceBudget>,
     pub token_limit: u64,
     pub estimated_tokens: u64,
     pub plan_digest: String,
@@ -148,6 +318,7 @@ impl ContextPlan {
                 text: section.text.clone(),
                 source,
                 authority: section.authority,
+                material_type: ContextMaterialType::from_prompt_section(section),
                 permission_scope: if section.authority == PromptAuthority::Product {
                     "product".to_owned()
                 } else {
@@ -165,29 +336,42 @@ impl ContextPlan {
         items.sort_by(|left, right| {
             (
                 left.authority != PromptAuthority::Product,
+                left.material_type.selection_priority(),
                 left.priority,
                 &left.name,
             )
                 .cmp(&(
                     right.authority != PromptAuthority::Product,
+                    right.material_type.selection_priority(),
                     right.priority,
                     &right.name,
                 ))
                 .then_with(|| left.source.digest().cmp(&right.source.digest()))
         });
+        let mut source_budgets = ContextMaterialType::ALL
+            .into_iter()
+            .map(|material_type| ContextSourceBudget::new(material_type, token_limit))
+            .collect::<Vec<_>>();
         let mut used = 0u64;
         for item in &mut items {
             let mandatory = item.authority == PromptAuthority::Product;
             let next = used.saturating_add(item.estimated_tokens);
+            let budget = &mut source_budgets[item.material_type.index()];
+            let next_source = budget.used_tokens.saturating_add(item.estimated_tokens);
             if mandatory {
                 if next > token_limit {
                     return Err("context_plan_product_budget_exceeded".to_owned());
                 }
                 item.included = true;
                 used = next;
+                budget.used_tokens = next_source;
+            } else if next_source > budget.token_limit {
+                item.included = false;
+                item.omission_reason = Some("context_source_budget_exceeded".to_owned());
             } else if next <= token_limit {
                 item.included = true;
                 used = next;
+                budget.used_tokens = next_source;
             } else {
                 item.included = false;
                 item.omission_reason = Some("context_budget_exceeded".to_owned());
@@ -202,6 +386,7 @@ impl ContextPlan {
             role_id: bundle.role_id.clone(),
             prompt_bundle_digest,
             items,
+            source_budgets,
             token_limit,
             estimated_tokens: used,
             plan_digest: String::new(),
@@ -224,8 +409,21 @@ impl ContextPlan {
             &self.prompt_bundle_digest,
             "context_plan_prompt_bundle_digest",
         )?;
+        if self.source_budgets.len() != ContextMaterialType::ALL.len() {
+            return Err("context_source_budget_set_invalid".to_owned());
+        }
+        for (index, budget) in self.source_budgets.iter().enumerate() {
+            budget.validate()?;
+            if budget.material_type != ContextMaterialType::ALL[index] {
+                return Err("context_source_budget_order_invalid".to_owned());
+            }
+            if budget.token_limit != budget.material_type.budget_limit(self.token_limit) {
+                return Err("context_source_budget_policy_drift".to_owned());
+            }
+        }
         let mut names = BTreeSet::new();
         let mut estimated = 0u64;
+        let mut source_used = vec![0u64; ContextMaterialType::ALL.len()];
         if !self
             .items
             .iter()
@@ -240,10 +438,17 @@ impl ContextPlan {
             }
             if item.included {
                 estimated = estimated.saturating_add(item.estimated_tokens);
+                source_used[item.material_type.index()] =
+                    source_used[item.material_type.index()].saturating_add(item.estimated_tokens);
             }
         }
         if estimated != self.estimated_tokens || estimated > self.token_limit {
             return Err("context_plan_budget_drift".to_owned());
+        }
+        for (index, budget) in self.source_budgets.iter().enumerate() {
+            if source_used[index] != budget.used_tokens {
+                return Err("context_source_budget_drift".to_owned());
+            }
         }
         digest(&self.plan_digest, "context_plan_digest")?;
         if self.plan_digest != self.digest() {

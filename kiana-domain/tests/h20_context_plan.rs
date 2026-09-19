@@ -1,6 +1,7 @@
 use kiana_domain::{
-    json_digest, ContextCandidate, ContextPlan, EvidenceStatus, PromptAuthority, PromptBundle,
-    ResolvedStepContext, RoleSpec, RunId, SourceKind, SourceRef, StepId, StepIdentity, TurnId,
+    json_digest, ContextCandidate, ContextMaterialType, ContextPlan, EvidenceStatus,
+    PromptAuthority, PromptBundle, ResolvedStepContext, RoleSpec, RunId, SourceKind, SourceRef,
+    StepId, StepIdentity, TurnId,
 };
 
 fn source(id: &str, kind: SourceKind, evidence: EvidenceStatus) -> SourceRef {
@@ -26,6 +27,7 @@ fn candidate(name: &str, text: &str) -> ContextCandidate {
             EvidenceStatus::Unverifiable,
         ),
         authority: PromptAuthority::Context,
+        material_type: ContextMaterialType::WorkspaceSnapshot,
         permission_scope: "project:read".to_owned(),
         revision: "workspace:1".to_owned(),
         priority: 500,
