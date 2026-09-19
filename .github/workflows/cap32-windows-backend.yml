@@ -1,0 +1,43 @@
+name: CAP-32 Windows backend probe
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/tests/cap32_windows_backend_guard.rs"
+      - "docs/roadmap/cap32-windows-backend-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap32-windows-backend.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-domain/src/job_handle.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/tests/cap32_windows_backend_guard.rs"
+      - "docs/roadmap/cap32-windows-backend-baseline.md"
+      - "docs/roadmap/capability.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap32-windows-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-compile-and-guard:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Compile target without claiming behavior
+        run: cargo check --workspace --tests --locked
+      - name: Run CAP-32 source guard
+        run: cargo test -p kiana-core --test cap32_windows_backend_guard --locked -- --test-threads=1
