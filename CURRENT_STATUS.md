@@ -8849,6 +8849,23 @@ limitations: Windows reparse/UNC containment, breakaway prevention, cross-proces
 reviewer: Codex root implementation review plus platform-neutral contract reuse, no-fake-success, target CI and explicit Windows behavior gap review; no runtime test reviewer
 ```
 
+### DEP-30 migration runner contract evidence (partial, 2026-09-19)
+
+source_snapshot: be505507 + DEP-30 working-tree slice; kiana-domain/src/migration_runner.rs; kiana-domain/src/migration_primitives.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep30_migration_runner.rs; kiana-core/tests/dep30_migration_runner_guard.rs; .github/workflows/dep30-migration-runner.yml; docs/roadmap/dep30-migration-runner-baseline.md; docs/roadmap.md
+worktree_status: pure domain MigrationRunnerState now binds registry/step/checkpoint to owner, expiring lease and monotonic fence; it emits digest-bound Started/Step/Blocked/Completed facts, issues resume tokens bound to event sequence and checkpoint, and quarantines failure so old tokens and continued steps are rejected
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only dep30_migration_runner domain fixtures; dep30_migration_runner_guard; GitHub Actions DEP-30 runs event ordering, lease/fence, resume, drift and quarantine fixtures plus workspace compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions DEP-30 is triggered by the eventual push and is not awaited
+status_change: DEP-30 source contract advanced from checkpoint primitives to a fenced runner state machine; roadmap remains ⏳ because lock/CAS, EventLog append/replay and durable quarantine/recovery are not wired
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: runner state remains in-memory, no second process can observe the lease, event emission is not a durable append, restart recovery is not implemented, and a successful source transition does not prove a migration was applied
+reviewer: Codex root implementation review plus concurrent-runner/stale-fence/lease-expiry/resume-token/checksum-drift/quarantine/terminal-event and no-fake-completion boundary review; no runtime test reviewer
+
 ### DEP-29 bounded migration primitives evidence (partial, 2026-09-19)
 
 source_snapshot: 58a9d5b9 + DEP-29 working-tree slice; kiana-domain/src/migration_primitives.rs; kiana-domain/src/migration_registry.rs; kiana-domain/src/lib.rs; kiana-domain/tests/dep29_migration_primitives.rs; kiana-core/tests/dep29_migration_primitives_guard.rs; .github/workflows/dep29-migration-primitives.yml; docs/roadmap/dep29-migration-primitives-baseline.md; docs/roadmap.md
