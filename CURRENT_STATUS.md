@@ -9764,3 +9764,19 @@ status_change: EQ-19 source slice is implemented and roadmap row 285 is ✅. Vol
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: inference is bounded heuristic detection over the canonical value and does not claim live host/path/time observation; event/trace digest, diff, capture, evaluator and durable EvalStore evidence remain EQ-20+
 reviewer: Codex root implementation review plus explicit path/kind policy, wildcard handling, UUID/timestamp/temp-path/actor inference, replacement budget, normalized-byte raw-ID exclusion and pure no-side-effect boundary review; no runtime test reviewer
+
+### EQ-20 version-bound event / trace / artifact / receipt digest evidence (2026-09-19)
+
+source_snapshot: 619725b3 + EQ-20 working-tree slice; kiana-quality/src/{lib.rs,digest.rs}; kiana-quality/tests/eq20_digest.rs; kiana-quality/tests/eq20_digest_guard.rs; .github/workflows/eq20-trace-digest.yml; docs/roadmap/evaluation-trace-digest-baseline.md; docs/roadmap.md
+worktree_status: `VersionedEvidenceDigest` now computes deterministic event, trace, artifact and receipt digests with an exact normalization_version binding; trace fingerprints include normalized event digest order, array policy, source cursor range, source normalization version and volatile replacement accounting, while raw source identity is excluded from normalized event bytes; no store, runner, provider or effect path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq20_digest.rs covers key-order stability, version binding, event/trace/artifact/receipt kind separation and invalid trace rejection; eq20_digest_guard protects the version-bound/no-effect boundary; GitHub Actions EQ-20 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-20 source slice is implemented and roadmap row 286 is ✅. Normalized evidence digests are structured, kind-tagged and cannot be reused across normalization-version changes
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: digests are pure in-process calculations over caller-provided values; no source capture, artifact/receipt persistence, trace diff, evaluator finding or durable EvalStore/replay proof is claimed
+reviewer: Codex root implementation review plus canonical key-order stability, event/trace aggregation, artifact/receipt kind separation, normalization-version binding, raw-ID exclusion and no-effect boundary review; no runtime test reviewer
