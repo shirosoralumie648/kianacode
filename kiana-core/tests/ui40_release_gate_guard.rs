@@ -8,6 +8,7 @@ fn ui_release_gate_requires_deny_recovery_parity_and_honest_limits() {
     let cap34 = include_str!("../../docs/roadmap/cap34-conformance-baseline.md");
     let h36 = include_str!("../../docs/roadmap/h36-harness-integration-baseline.md");
     let ui39 = include_str!("../../docs/roadmap/ui39-live-acp-baseline.md");
+    let ui_contracts = include_str!("../../kiana-protocol/src/ui_contracts.rs");
     let baseline = include_str!("../../docs/roadmap/ui40-release-gate-baseline.md");
     for marker in [
         "UI-32",
@@ -21,6 +22,12 @@ fn ui_release_gate_requires_deny_recovery_parity_and_honest_limits() {
         "source_snapshot",
         "exit_code",
         "Unknown",
+        "UiEvidenceBundle",
+        "UiEvidenceCase",
+        "feature_status",
+        "proof_level",
+        "ui_evidence_secret_in_command_argv",
+        "ui_evidence_live_proof_required",
     ] {
         assert!(
             roadmap.contains(marker)
@@ -28,7 +35,8 @@ fn ui_release_gate_requires_deny_recovery_parity_and_honest_limits() {
                 || module_map.contains(marker)
                 || cap34.contains(marker)
                 || h36.contains(marker)
-                || ui39.contains(marker),
+                || ui39.contains(marker)
+                || ui_contracts.contains(marker),
             "UI-40 source marker missing: {marker}"
         );
     }

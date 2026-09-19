@@ -12,6 +12,8 @@ on:
       - "docs/module-map.md"
       - "CURRENT_STATUS.md"
       - "kiana-core/tests/ui40_release_gate_guard.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui40_release_evidence.rs"
       - "docs/roadmap.md"
       - ".github/workflows/ui40-release-gate.yml"
   pull_request:
@@ -24,6 +26,8 @@ on:
       - "docs/module-map.md"
       - "CURRENT_STATUS.md"
       - "kiana-core/tests/ui40_release_gate_guard.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui40_release_evidence.rs"
       - "docs/roadmap.md"
       - ".github/workflows/ui40-release-gate.yml"
   workflow_dispatch:
@@ -40,6 +44,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
+      - name: Run UI-40 evidence fixture
+        run: cargo test -p kiana-protocol --test ui40_release_evidence --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test ui40_release_gate_guard --locked -- --test-threads=1
       - run: git diff --check
       - run: cargo check --workspace --tests --locked

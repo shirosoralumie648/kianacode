@@ -23,6 +23,8 @@ pub const UI_HEALTH_SCHEMA: &str = "kiana.ui-health.v1";
 pub const UI_INSTANCE_RECORD_SCHEMA: &str = "kiana.ui-instance-record.v1";
 pub const UI_HOST_CAPABILITY_SCHEMA: &str = "kiana.ui-host-capability.v1";
 pub const UI_LIVE_HOST_EVIDENCE_SCHEMA: &str = "kiana.ui-live-host-evidence.v1";
+pub const UI_EVIDENCE_CASE_SCHEMA: &str = "kiana.ui-evidence-case.v1";
+pub const UI_EVIDENCE_BUNDLE_SCHEMA: &str = "kiana.ui-evidence-bundle.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -418,6 +420,280 @@ impl UiLiveHostEvidence {
             "reconnect_verified": self.reconnect_verified,
             "receipt_digest": self.receipt_digest,
             "limitations": self.limitations,
+        }))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiEvidenceClass {
+    Deny,
+    Recovery,
+    Happy,
+    Parity,
+    Performance,
+    Live,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiEvidenceOutcome {
+    Passed,
+    Failed,
+    Skipped,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFeatureStatus {
+    Implemented,
+    Partial,
+    Target,
+    Deferred,
+    NotSupported,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiProofLevel {
+    Source,
+    LocalBehavior,
+    Durable,
+    Live,
+    Physical,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiEvidenceCase {
+    pub schema: String,
+    pub case_id: String,
+    pub surface: UiSurface,
+    pub class: UiEvidenceClass,
+    pub command_argv: Vec<String>,
+    pub source_snapshot: String,
+    pub fixture_digest: String,
+    pub environment_digest: String,
+    #[serde(default)]
+    pub exit_code: Option<i32>,
+    pub feature_status: UiFeatureStatus,
+    pub proof_level: UiProofLevel,
+    pub outcome: UiEvidenceOutcome,
+    #[serde(default)]
+    pub receipt_digest: Option<String>,
+    #[serde(default)]
+    pub artifact_digests: Vec<String>,
+    #[serde(default)]
+    pub limitations: Vec<EvidenceLimitation>,
+    pub reviewer: String,
+    pub case_digest: String,
+}
+
+impl UiEvidenceCase {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        case_id: impl Into<String>,
+        surface: UiSurface,
+        class: UiEvidenceClass,
+        command_argv: Vec<String>,
+        source_snapshot: impl Into<String>,
+        fixture_digest: impl Into<String>,
+        environment_digest: impl Into<String>,
+        exit_code: Option<i32>,
+        feature_status: UiFeatureStatus,
+        proof_level: UiProofLevel,
+        outcome: UiEvidenceOutcome,
+        receipt_digest: Option<String>,
+        mut artifact_digests: Vec<String>,
+        limitations: Vec<EvidenceLimitation>,
+        reviewer: impl Into<String>,
+    ) -> Result<Self, String> {
+        artifact_digests.sort();
+        artifact_digests.dedup();
+        let mut case = Self {
+            schema: UI_EVIDENCE_CASE_SCHEMA.to_owned(),
+            case_id: case_id.into(),
+            surface,
+            class,
+            command_argv,
+            source_snapshot: source_snapshot.into(),
+            fixture_digest: fixture_digest.into(),
+            environment_digest: environment_digest.into(),
+            exit_code,
+            feature_status,
+            proof_level,
+            outcome,
+            receipt_digest,
+            artifact_digests,
+            limitations,
+            reviewer: reviewer.into(),
+            case_digest: String::new(),
+        };
+        case.case_digest = case.digest();
+        case.validate()?;
+        Ok(case)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_EVIDENCE_CASE_SCHEMA {
+            return Err("ui_evidence_case_schema_invalid".to_owned());
+        }
+        required(&self.case_id, "ui_evidence_case_id", 128)?;
+        required(&self.source_snapshot, "ui_evidence_source_snapshot", 256)?;
+        required(&self.reviewer, "ui_evidence_reviewer", 256)?;
+        if self.command_argv.is_empty() || self.command_argv.len() > 64 {
+            return Err("ui_evidence_command_argv_invalid".to_owned());
+        }
+        for argument in &self.command_argv {
+            required(argument, "ui_evidence_command_argument", 4_096)?;
+            let lower = argument.to_ascii_lowercase();
+            if lower.contains("api_key=")
+                || lower.contains("token=")
+                || lower.contains("secret=")
+                || lower.contains("bearer ")
+            {
+                return Err("ui_evidence_secret_in_command_argv".to_owned());
+            }
+        }
+        digest(&self.fixture_digest, "ui_evidence_fixture_digest")?;
+        digest(&self.environment_digest, "ui_evidence_environment_digest")?;
+        if self.outcome != UiEvidenceOutcome::Skipped && self.exit_code.is_none() {
+            return Err("ui_evidence_exit_code_missing".to_owned());
+        }
+        if self.outcome == UiEvidenceOutcome::Passed && self.exit_code != Some(0) {
+            return Err("ui_evidence_pass_exit_code_invalid".to_owned());
+        }
+        if let Some(receipt) = &self.receipt_digest {
+            digest(receipt, "ui_evidence_receipt_digest")?;
+        }
+        if self
+            .artifact_digests
+            .iter()
+            .any(|value| digest(value, "ui_evidence_artifact_digest").is_err())
+            || self
+                .artifact_digests
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+        {
+            return Err("ui_evidence_artifact_digests_invalid".to_owned());
+        }
+        if self.limitations.len() > 128 {
+            return Err("ui_evidence_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            limitation.validate()?;
+        }
+        if self.feature_status == UiFeatureStatus::Implemented
+            && self.proof_level == UiProofLevel::Source
+        {
+            return Err("ui_evidence_implemented_requires_behavior".to_owned());
+        }
+        if self.class == UiEvidenceClass::Live
+            && self.outcome == UiEvidenceOutcome::Passed
+            && !matches!(
+                self.proof_level,
+                UiProofLevel::Live | UiProofLevel::Physical
+            )
+        {
+            return Err("ui_evidence_live_proof_required".to_owned());
+        }
+        if matches!(
+            self.proof_level,
+            UiProofLevel::Durable | UiProofLevel::Live | UiProofLevel::Physical
+        ) && self.receipt_digest.is_none()
+        {
+            return Err("ui_evidence_receipt_required".to_owned());
+        }
+        if self.outcome != UiEvidenceOutcome::Passed && self.limitations.is_empty() {
+            return Err("ui_evidence_outcome_limitation_required".to_owned());
+        }
+        if self.case_digest != self.digest() {
+            return Err("ui_evidence_case_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "case_id": self.case_id,
+            "surface": self.surface,
+            "class": self.class,
+            "command_argv": self.command_argv,
+            "source_snapshot": self.source_snapshot,
+            "fixture_digest": self.fixture_digest,
+            "environment_digest": self.environment_digest,
+            "exit_code": self.exit_code,
+            "feature_status": self.feature_status,
+            "proof_level": self.proof_level,
+            "outcome": self.outcome,
+            "receipt_digest": self.receipt_digest,
+            "artifact_digests": self.artifact_digests,
+            "limitations": self.limitations,
+            "reviewer": self.reviewer,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiEvidenceBundle {
+    pub schema: String,
+    pub source_snapshot: String,
+    pub cases: Vec<UiEvidenceCase>,
+    pub bundle_digest: String,
+}
+
+impl UiEvidenceBundle {
+    pub fn new(
+        source_snapshot: impl Into<String>,
+        cases: Vec<UiEvidenceCase>,
+    ) -> Result<Self, String> {
+        let mut bundle = Self {
+            schema: UI_EVIDENCE_BUNDLE_SCHEMA.to_owned(),
+            source_snapshot: source_snapshot.into(),
+            cases,
+            bundle_digest: String::new(),
+        };
+        bundle.bundle_digest = bundle.digest();
+        bundle.validate()?;
+        Ok(bundle)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_EVIDENCE_BUNDLE_SCHEMA {
+            return Err("ui_evidence_bundle_schema_invalid".to_owned());
+        }
+        required(
+            &self.source_snapshot,
+            "ui_evidence_bundle_source_snapshot",
+            256,
+        )?;
+        if self.cases.is_empty() || self.cases.len() > 256 {
+            return Err("ui_evidence_bundle_case_count_invalid".to_owned());
+        }
+        let mut ids = BTreeSet::new();
+        for case in &self.cases {
+            case.validate()?;
+            if case.source_snapshot != self.source_snapshot {
+                return Err("ui_evidence_bundle_source_snapshot_drift".to_owned());
+            }
+            if !ids.insert(case.case_id.clone()) {
+                return Err("ui_evidence_bundle_case_duplicate".to_owned());
+            }
+        }
+        if self.bundle_digest != self.digest() {
+            return Err("ui_evidence_bundle_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "source_snapshot": self.source_snapshot,
+            "cases": self.cases,
         }))
     }
 }

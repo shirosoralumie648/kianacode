@@ -9089,20 +9089,20 @@ reviewer: Codex root implementation review plus review-record completeness, modu
 
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
-source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
-worktree_status: UI-40 now has a CI-only source gate requiring deny/recovery/parity/performance references, source snapshot/argv/exit/proof/limitations evidence, module-map and diff checks; it explicitly preserves CAP-34/H36/UI-39 partial and live/physical/not_supported boundaries
+source_snapshot: e280f8fa + UI-40 evidence-bundle slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; kiana-protocol/src/ui_contracts.rs; kiana-protocol/tests/ui40_release_evidence.rs; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md
+worktree_status: UI-40 has a CI-only source gate requiring deny/recovery/parity/performance references, and UiEvidenceCase/UiEvidenceBundle now bind shared source snapshot, secret-free command argv, fixture/environment digests, exit classification, feature_status/proof_level, receipt/artifact references, limitations and reviewer; bundle/source drift, duplicate cases, source-only Implemented, live-without-live-proof and raw command secrets fail closed, while CAP-34/H36/UI-39 partial and live/physical/not_supported boundaries remain explicit
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
-fixture or cassette: CI-only ui40_release_gate_guard; GitHub Actions UI-40 runs source guard, diff check and workspace compilation
+fixture or cassette: CI-only ui40_release_evidence and ui40_release_gate_guard; GitHub Actions UI-40 runs protocol evidence fixtures, source guard, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-40 is triggered by the eventual push and is not awaited
 status_change: UI-40 source/evidence gate advanced from UI-39 boundary; roadmap remains ⏳ because UI-32/33 recovery, live ACP/IDE, Desktop/performance and physical/live evidence are absent
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: source documentation cannot prove runtime parity, screenshots, accessibility, desktop tests, live host behavior or release artifact integrity; no release action was performed
-reviewer: Codex root implementation review plus deny/recovery/parity/performance reference, evidence bundle, source snapshot, limitation and no-false-closeout boundary review; no runtime test reviewer
+limitations: the new bundle is source/fixture evidence only and cannot prove runtime parity, screenshots, accessibility, desktop tests, live host behavior or release artifact integrity; no release action was performed
+reviewer: Codex root implementation review plus typed evidence bundle, deny/recovery/parity/performance reference, source snapshot, limitation and no-false-closeout boundary review; no runtime test reviewer
 
 ### UI-39 live ACP/IDE boundary evidence (partial, 2026-09-19)
 
