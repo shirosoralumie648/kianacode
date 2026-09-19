@@ -24,6 +24,10 @@ fn sc43_keeps_review_proof_limits_and_next_actions_explicit() {
         "physical",
         "Open risks",
         "Explicit non-claims",
+        "SupplyChainReleaseEvidence",
+        "ReleaseUatEvidence",
+        "PersistenceUatEvidence",
+        "PersistenceCapacityEvidence",
     ] {
         assert!(
             review.contains(marker),

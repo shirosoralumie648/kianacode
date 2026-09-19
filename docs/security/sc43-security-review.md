@@ -16,6 +16,9 @@
 - Deny-first, ProjectTrust, grant intersection, exact approval, fencing, redaction, `result_unknown` and reconcile remain explicit boundaries.
 - SC-41 covers workflow/script structure and SC-42 covers fake/source recovery and retention rehearsal; neither proves runtime enforcement or external cleanup.
 - `CURRENT_STATUS.md` remains the evidence ledger. This review record is a handoff view and cannot overwrite a narrower source snapshot or promote a historical CI result.
+- The typed evidence index reviewed for this handoff includes `SupplyChainReleaseEvidence`,
+  `ReleaseUatEvidence`, `PersistenceUatEvidence` and `PersistenceCapacityEvidence`; contract
+  presence remains source evidence, not an operator receipt.
 
 ## Open risks and next owner actions
 

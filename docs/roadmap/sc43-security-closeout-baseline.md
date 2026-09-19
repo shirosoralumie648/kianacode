@@ -9,3 +9,7 @@ The CI gate validates documentation and linkage only. It is not a security audit
 certification, vulnerability-free statement, production release approval or proof of runtime
 enforcement. SC-43 remains partial until the security operator and each dependent capability owner
 review the exact receipts and open risks.
+
+The review also names the typed release, UAT and persistence evidence contracts so their
+approval/receipt/Unknown/retention limits are visible in the handoff. This index does not certify
+those contracts or replace the exact `CURRENT_STATUS.md` evidence blocks.

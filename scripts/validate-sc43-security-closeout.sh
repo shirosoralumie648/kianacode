@@ -30,6 +30,14 @@ if '<a id="step-sc-43"></a>SC-43' not in roadmap:
 for marker in ["review record", "module map", "CURRENT_STATUS", "partial", "source", "limitations"]:
     if marker not in baseline:
         raise SystemExit(f"SC-43 baseline missing {marker}")
+for marker in [
+    "SupplyChainReleaseEvidence",
+    "ReleaseUatEvidence",
+    "PersistenceUatEvidence",
+    "PersistenceCapacityEvidence",
+]:
+    if marker not in review:
+        raise SystemExit(f"SC-43 evidence index missing {marker}")
 
 print("SC-43 security closeout review and status handoff are structurally complete")
 PY

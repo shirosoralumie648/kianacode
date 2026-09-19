@@ -9072,20 +9072,20 @@ reviewer: Codex root implementation review plus evidence linkage, old-lease fenc
 
 ### SC-43 security status, module-map and review closeout evidence (partial, 2026-09-19)
 
-source_snapshot: be1f17fa + SC-43 working-tree slice; docs/security/sc43-security-review.md; docs/module-map.md; docs/roadmap/sc43-security-closeout-baseline.md; scripts/validate-sc43-security-closeout.sh; kiana-core/tests/sc43_security_closeout_guard.rs; .github/workflows/sc43-security-closeout.yml; CURRENT_STATUS.md; docs/roadmap.md
-worktree_status: SC-43 now links a dated security review record, module-map security row, CURRENT_STATUS evidence and structural closeout validator; feature_status/proof_level, reviewer, next actions, result_unknown/reconcile, durable/live/physical ceilings and explicit non-claims remain visible
+source_snapshot: 3228cf2c + SC-43 evidence-index slice; docs/security/sc43-security-review.md; docs/module-map.md; docs/roadmap/sc43-security-closeout-baseline.md; scripts/validate-sc43-security-closeout.sh; kiana-core/tests/sc43_security_closeout_guard.rs; .github/workflows/sc43-security-closeout.yml; CURRENT_STATUS.md; docs/roadmap.md
+worktree_status: SC-43 links a dated security review record, module-map security row, CURRENT_STATUS evidence and structural closeout validator; it now indexes SupplyChainReleaseEvidence, ReleaseUatEvidence, PersistenceUatEvidence and PersistenceCapacityEvidence while feature_status/proof_level, reviewer, next actions, result_unknown/reconcile, durable/live/physical ceilings and explicit non-claims remain visible
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, audit, compliance certification or external operation executed
-fixture or cassette: CI-only sc43_security_closeout_guard plus scripts/validate-sc43-security-closeout.sh; GitHub Actions SC-43 validates review/module-map/status/roadmap linkage, diff check and workspace static compilation
+fixture or cassette: CI-only sc43_security_closeout_guard plus scripts/validate-sc43-security-closeout.sh; GitHub Actions SC-43 validates review/module-map/status/roadmap linkage, typed evidence index, diff check and workspace compilation
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and security review deliberately not run per user instruction; GitHub Actions SC-43 is triggered by the eventual push and is not awaited
 status_change: SC-43 security status/review closeout advanced from roadmap-only to a linked handoff record; roadmap remains ⏳ because documentation cannot certify enforcement, compliance, vulnerabilities, production release, durable recovery or live/physical effects
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: the review and validator check evidence/linkage structure, not security correctness, real CI receipts, authn/SecretStore enforcement, vulnerability absence, regulatory compliance, runtime recovery or cleanup; operator sign-off is still required
-reviewer: Codex root implementation review plus review-record completeness, module-map/status linkage, feature/proof separation, open-risk/non-claim and no-compliance-certification boundary review; no security/compliance operator sign-off
+limitations: the review and validator check evidence/linkage structure, not security correctness, real CI receipts, authn/SecretStore enforcement, vulnerability absence, regulatory compliance, runtime recovery or cleanup; typed contract index presence is not a receipt and operator sign-off is still required
+reviewer: Codex root implementation review plus typed evidence index, review-record completeness, module-map/status linkage, feature/proof separation, open-risk/non-claim and no-compliance-certification boundary review; no security/compliance operator sign-off
 
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
