@@ -9732,3 +9732,19 @@ status_change: EQ-17 source slice is implemented and roadmap row 283 is ✅. Dur
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: selection is process-local pure computation and does not persist or flush EventLog facts; canonical JSON, redaction, declared volatile normalization, trace/event digests, diff/evaluators and durable EvalStore evidence remain EQ-18+
 reviewer: Codex root implementation review plus source cursor and ID uniqueness, schema/sequence/stream ordering, terminal-per-stream, correlation and causal/parent closure, global cursor gap and no-side-effect boundary review; no runtime test reviewer
+
+### EQ-18 canonical JSON / whitelist / redaction evidence (2026-09-19)
+
+source_snapshot: 4a93edb3 + EQ-18 working-tree slice; kiana-quality/src/{lib.rs,canonical.rs}; kiana-quality/tests/eq18_canonical.rs; kiana-quality/tests/eq18_quality_guard.rs; .github/workflows/eq18-trace-canonical.yml; docs/roadmap/evaluation-trace-canonical-baseline.md; docs/roadmap.md
+worktree_status: TraceNormalizer now emits a bounded canonical event trace after EQ-17 selection; object keys use the existing domain canonical_journal_bytes boundary, registered event payloads use an explicit allowlist, structured values use the domain Trace redaction profile, and arrays are either preserved or explicitly sorted as multisets; no volatile replacement, digest/diff, store, provider or effect path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-quality/tests/eq18_canonical.rs covers canonical object/array policy, redaction and payload allowlist; eq18_quality_guard protects shared canonical/redaction and no-runtime boundaries; GitHub Actions EQ-18 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: EQ-18 source slice is implemented and roadmap row 284 is ✅. Canonical trace output is deterministic for declared array policy and does not expose the tested bearer/API-key values
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: canonical output remains an in-process pure value; volatile timestamp/UUID/path/actor normalization, event/trace digests, diff/evaluator, capture and durable EvalStore evidence remain EQ-19+
+reviewer: Codex root implementation review plus canonical key ordering, explicit ordered/multiset policy, event payload allowlist, shared redaction profile, bounded output and no-runtime/no-effect boundary review; no runtime test reviewer
