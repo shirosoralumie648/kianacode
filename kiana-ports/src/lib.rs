@@ -1516,6 +1516,42 @@ pub trait WorkflowQueueStore: Send + Sync {
     }
 }
 
+/// Atomic notification-intent deduplication boundary.
+///
+/// A successful claim creates one semantic intent; it does not enqueue, submit or deliver a
+/// channel effect. Implementations must compare the dedup key, content digest and subscription
+/// revision under one consistency boundary, and must make a stale CAS fail without overwriting
+/// the accepted record. In-memory implementations are CI semantics only until a durable adapter
+/// supplies restart and cross-process evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationDedupOutcome {
+    Claimed(kiana_domain::NotificationDedupRecord),
+    Replayed(kiana_domain::NotificationDedupRecord),
+}
+
+#[async_trait]
+pub trait NotificationDedupStore: Send + Sync {
+    async fn claim_notification(
+        &self,
+        _request: kiana_domain::NotificationDedupRequest,
+    ) -> Result<NotificationDedupOutcome, PortError> {
+        Err(PortError::Unavailable(
+            "notification_dedup_claim_unsupported".to_owned(),
+        ))
+    }
+
+    async fn compare_and_swap_notification(
+        &self,
+        _dedup_key: &str,
+        _expected_revision: u64,
+        _next: kiana_domain::NotificationDedupRecord,
+    ) -> Result<kiana_domain::NotificationDedupRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_dedup_cas_unsupported".to_owned(),
+        ))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitObserverFailure {
     pub command_id: kiana_domain::RequestId,

@@ -9700,3 +9700,19 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; reservation durability, queue claim/heartbeat/fence and replay-index integration remain AUT-07/08 and persistence steps
 reviewer: Codex root implementation review plus pure-planner/no-I/O/no-second-loop, digest/schema strictness, terminal-versus-dispatch classification and ControlPlane-only effect routing review; no runtime test reviewer
 ```
+
+### NM-07 notification deduplication / idempotency / OCC evidence (2026-09-19)
+
+source_snapshot: f7e51d3a + NM-07 working-tree slice; kiana-domain/src/notifications.rs; kiana-domain/src/contracts.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/notification_dedup.rs; kiana-eventlog/src/lib.rs; kiana-eventlog/tests/nm07_notification_dedup.rs; kiana-core/tests/nm07_notification_dedup_guard.rs; .github/workflows/nm07-notification-dedup.yml; docs/roadmap/nm07-notification-dedup-baseline.md; docs/roadmap.md
+worktree_status: NotificationDedupRequest/Record bind dedup key, content digest, subscription revision and monotonic revision; notification content digest excludes generated notification ID and mutable delivery status; MemoryNotificationDedupStore atomically folds at-least-once claims, replays the original record, rejects digest/revision/identity drift and makes concurrent CAS one-winner; no outbox, channel, Broker or second bus was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-eventlog/tests/nm07_notification_dedup.rs covers claim/replay, same-key digest conflict, stale revision and concurrent CAS; kiana-core/tests/nm07_notification_dedup_guard.rs protects the no-dispatch boundary; GitHub Actions NM-07 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: NM-07 source slice is implemented and roadmap row 282 is ✅. Equal at-least-once notification requests replay the original notification record; same-key content drift, stale revision and notification identity overwrite are rejected; concurrent CAS has one winner
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: MemoryNotificationDedupStore is process-local and non-durable; restart recovery, cross-process CAS, committed outbox, DeliveryWorker, channel submission/receipt and external notification proof remain later NM steps
+reviewer: Codex root implementation review plus key/content/revision/identity binding, atomic claim/CAS, replay identity, stale-writer rejection and no-Broker/no-second-bus boundary review; no runtime test reviewer
