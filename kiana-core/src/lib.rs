@@ -7,6 +7,7 @@ mod audit;
 mod audit_export;
 mod audit_projection;
 mod authority;
+mod authority_read_model;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
@@ -70,6 +71,11 @@ pub use audit_export::{AuditExportError, AuditExportInput};
 pub use audit_projection::{
     rebuild_audit_projection, AuditProjection, AuditProjectionError, AuditQueryInput,
     AUDIT_PROJECTION_VERSION,
+};
+pub use authority_read_model::{
+    project_authority_read_model, AuthorityProjectionError, AuthorityReadModel,
+    BudgetAuthorityProjection, CellAuthorityProjection, GrantAuthorityProjection,
+    LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
 };
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{

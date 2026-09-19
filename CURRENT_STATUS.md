@@ -9892,3 +9892,19 @@ status_change: PD-10 source slice is implemented and roadmap row 293 is ✅. The
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: model is an in-process pure composition over caller-provided facts; no durable projection checkpoint/store, process restart, cross-process projector lease or Cell/Grant/Budget/Lease read model is claimed
 reviewer: Codex root implementation review plus foreign-run filtering, terminal/duplicate/epoch rejection, source cursor/event binding, redacted receipt reuse and no-write/no-Broker/no-Runner boundary review; no runtime test reviewer
+
+### PD-11 fact-only authority projection evidence (2026-09-19)
+
+source_snapshot: 14fada41 + PD-11 working-tree slice; kiana-core/src/{lib.rs,authority_read_model.rs}; kiana-core/tests/pd11_authority_projection.rs; kiana-core/tests/pd11_authority_projection_guard.rs; .github/workflows/pd11-authority-projection.yml; docs/roadmap/pd11-authority-projection-baseline.md; docs/roadmap.md
+worktree_status: `AuthorityReadModel` now folds committed Cell/Grant/Budget/Lease facts with monotonic authority epoch, sorted typed rows and source IDs; stale epoch, active expired grant, unknown lease release, settlement without reservation and missing child parent fail closed; no registry mutation, grant issuance, budget settlement, lease acquisition, Broker or Runner path was added; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; no local test or test-target compilation executed per user instruction
+fixture or cassette: GitHub Actions only: kiana-core/tests/pd11_authority_projection.rs covers authority rebuild, lease fence, budget settlement, stale epoch, unknown lease, child-parent and active-expired grant rejection; pd11_authority_projection_guard protects fact-only/no-authority/no-dispatch boundaries; GitHub Actions PD-11 runs fixtures, source guard and workspace compilation and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: PD-11 source slice is implemented and roadmap row 294 is ✅. Authority projection cannot promote stale/revoked/expired/foreign resource facts into active authority
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: projection is pure over caller-provided facts; no durable checkpoint/lease, registry re-admission, process restart, cross-process ownership or physical storage proof is claimed
+reviewer: Codex root implementation review plus epoch monotonicity, grant expiry, cell parent containment, budget reservation/settlement and lease fence boundaries, sorted/source evidence and no-authority/no-dispatch review; no runtime test reviewer
