@@ -1,0 +1,50 @@
+name: CAP-18 controlled hook execution
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-core/tests/cap18_hook_execution_guard.rs"
+      - "docs/roadmap/cap18-hook-execution-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap18-hook-execution.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/pre_tool_hooks.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/process_supervisor.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "kiana-core/tests/cap18_hook_execution_guard.rs"
+      - "docs/roadmap/cap18-hook-execution-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap18-hook-execution.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-execution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run hook decision fixtures
+        run: cargo test -p kiana-daemon --test daemon_host pre_tool_use_hook --locked -- --test-threads=1
+      - name: Run CAP-18 source guard
+        run: cargo test -p kiana-core --test cap18_hook_execution_guard --locked -- --test-threads=1
+      - name: Compile CAP-18 targets
+        run: cargo check --workspace --tests --locked

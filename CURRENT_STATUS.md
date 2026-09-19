@@ -8564,6 +8564,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus durable cancel-before-signal ordering, execution-set coverage, pending not-executed semantics, ProcessSupervisor StopReport routing, late result fence, old-guard migration and no-auto-retry boundary review; no runtime test reviewer
 ```
 
+### CAP-18 controlled hook execution evidence (2026-09-19)
+
+```text
+source_snapshot: bf31090a + CAP-18 working-tree slice; kiana-daemon/src/pre_tool_hooks.rs; kiana-daemon/src/{harness_capabilities,process_supervisor}.rs; kiana-core/src/capabilities.rs; kiana-ports/src/lib.rs; kiana-daemon/tests/daemon_host.rs; kiana-core/tests/cap18_hook_execution_guard.rs; .github/workflows/cap18-hook-execution.yml; docs/roadmap/cap18-hook-execution-baseline.md; docs/roadmap.md
+worktree_status: Hook snapshot/trust checks, read-only narrow scope, bounded input/output/deadline/cancellation and AdapterResult stop evidence are routed through the shared ProcessSupervisor; hook decisions remain restrictions only, input rewrite is explicit fail-closed unsupported, and no query/direct broker bypass exists; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only hook allow/block/ask/update/source fixtures; no local test or smoke binary executed
+fixture or cassette: daemon pre_tool_use_hook_blocks_apply_patch_before_broker_execute, pre_tool_use_hook_update_input_fails_closed_before_broker_execute and pre_tool_use_hook_ask_fails_closed_before_broker_execute; cap18_hook_execution_guard; GitHub Actions CAP-18 runs focused fixtures, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-18 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-18 source slice is implemented with explicit unsupported update-input boundary. Untrusted/project-untrusted hooks do not spawn, configuration drift blocks, hook scope stays read-only/narrow, cancellation waits on the shared process stop path, and Allow/Block/Ask cannot discharge policy/approval authority
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; UpdateInput reprepare is not supported in this slice, PostTool/stop hooks and cross-process hook recovery remain open, and no physical hook isolation claim
+reviewer: Codex root implementation review plus trust-before-open, snapshot digest/command bounds, no-direct-spawn/broker, read-only path scope, shared ProcessSupervisor cancellation, decision reauthorization and explicit updatedInput denial review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
