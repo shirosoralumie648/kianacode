@@ -8985,6 +8985,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: the runbook/matrix validator checks structural honesty, not runtime correctness, external receipts, actual release/restore/migration effects, capability enforcement, cross-process recovery or target environment cleanup; dependent slices remain partial/target/not_supported as listed
 reviewer: Codex root implementation review plus evidence-field completeness, feature/proof separation, runbook deny-first decision tree, result_unknown/reconcile, live/physical ceiling and no-documentation-as-completion review; no operator/release reviewer
 
+### PD-33 persistence lifecycle UAT evidence (partial, 2026-09-19)
+
+source_snapshot: cd7997ed + PD-33 working-tree slice; kiana-domain/src/persistence_uat.rs; kiana-domain/src/lib.rs; kiana-domain/tests/pd33_persistence_uat.rs; kiana-core/tests/pd33_persistence_uat_guard.rs; kiana-core/src/workspace_checkpoints.rs; kiana-core/tests/er18_workspace_checkpoint_guard.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-daemon/tests/eq12_daemon_spine.rs; .github/workflows/pd33-persistence-uat.yml; docs/roadmap/pd33-persistence-uat-baseline.md; docs/roadmap.md
+worktree_status: persistence UAT matrix now covers CLI/Web/Workbench backup, restore, upgrade, restart and governance-delete deny/success rows plus replay/Unknown; success binds StorageRoot/EventStore identity, cursor/projection/Receipt parity, backup/quarantine/auth re-admission, old-root retention, migration/journal and legal-hold/delete gates
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, UAT, backup, restore, upgrade, restart, delete or external effect executed
+fixture or cassette: CI-only pd33_persistence_uat domain matrix and source guard; GitHub Actions PD-33 also runs existing workspace checkpoint restore, entrypoint parity and DaemonHost spine fixtures plus workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests and persistence UAT deliberately not run per user instruction; GitHub Actions PD-33 is triggered by the eventual push and is not awaited
+status_change: PD-33 persistence UAT evidence advanced from separate restore/parity/spine contracts to a lifecycle matrix; roadmap remains ⏳ because no durable backup/restore/restart/delete execution, power-loss/SQLite conformance or live external receipt exists
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: matrix facts are caller-supplied and CI-only; it cannot prove backup bytes, crash recovery, cross-process auth re-admission, index/Receipt rebuild, migration effects, legal-hold enforcement or deletion cleanup
+reviewer: Codex root implementation review plus lifecycle coverage, storage identity/cursor parity, restore quarantine/auth re-admission, old-root/legal-hold boundaries, Unknown reconciliation and no-side-effect UAT review; no runtime/storage operator reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

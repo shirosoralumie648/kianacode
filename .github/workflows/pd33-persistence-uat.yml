@@ -1,0 +1,56 @@
+name: PD-33 persistence lifecycle UAT
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/persistence_uat.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/pd33_persistence_uat.rs"
+      - "kiana-core/tests/pd33_persistence_uat_guard.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-core/tests/er18_workspace_checkpoint_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "docs/roadmap/pd33-persistence-uat-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd33-persistence-uat.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/persistence_uat.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/pd33_persistence_uat.rs"
+      - "kiana-core/tests/pd33_persistence_uat_guard.rs"
+      - "kiana-core/src/workspace_checkpoints.rs"
+      - "kiana-core/tests/er18_workspace_checkpoint_guard.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "docs/roadmap/pd33-persistence-uat-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd33-persistence-uat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persistence-uat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-33 persistence UAT matrix fixture
+        run: cargo test -p kiana-domain --test pd33_persistence_uat --locked -- --test-threads=1
+      - name: Run PD-33 source guard
+        run: cargo test -p kiana-core --test pd33_persistence_uat_guard --locked -- --test-threads=1
+      - name: Run existing restore and entrypoint spine guards
+        run: |
+          cargo test -p kiana-core --test er18_workspace_checkpoint_guard --locked -- --test-threads=1
+          cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
+          cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
