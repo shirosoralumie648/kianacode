@@ -9,6 +9,8 @@ on:
       - "kiana-daemon/src/harness_memory.rs"
       - "kiana-domain/src/memory_journal.rs"
       - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/src/context_memory_evidence.rs"
+      - "kiana-domain/tests/cm38_context_memory_evidence.rs"
       - "kiana-core/tests/cm38_context_memory_live_guard.rs"
       - "docs/roadmap/cm38-context-memory-live-baseline.md"
       - "docs/roadmap.md"
@@ -21,6 +23,8 @@ on:
       - "kiana-daemon/src/harness_memory.rs"
       - "kiana-domain/src/memory_journal.rs"
       - "kiana-domain/src/live_handoff.rs"
+      - "kiana-domain/src/context_memory_evidence.rs"
+      - "kiana-domain/tests/cm38_context_memory_evidence.rs"
       - "kiana-core/tests/cm38_context_memory_live_guard.rs"
       - "docs/roadmap/cm38-context-memory-live-baseline.md"
       - "docs/roadmap.md"
@@ -42,6 +46,8 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run fake provider fixture
         run: cargo test -p kiana-daemon --test eq10_fake_provider --locked -- --test-threads=1
+      - name: Run context memory evidence fixture
+        run: cargo test -p kiana-domain --test cm38_context_memory_evidence --locked -- --test-threads=1
       - name: Run CM-38 source guard
         run: cargo test -p kiana-core --test cm38_context_memory_live_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

@@ -9140,20 +9140,20 @@ reviewer: Codex root implementation review plus docs/source owner parity, proof-
 
 ### CM-38 context/memory fake Provider and live opt-in evidence (partial, 2026-09-19)
 
-source_snapshot: 0e9331ab + CM-38 working-tree slice; kiana-daemon/tests/eq10_fake_provider.rs; kiana-daemon/src/{eval_runtime,harness_memory}.rs; kiana-domain/src/{memory_journal,live_handoff}.rs; kiana-core/tests/cm38_context_memory_live_guard.rs; .github/workflows/cm38-context-memory-live.yml; docs/roadmap/cm38-context-memory-live-baseline.md; docs/roadmap.md
-worktree_status: existing FakeProviderAdapter, bounded harness memory broker, EventStore memory journal and LiveHandoffManifest are now indexed in a CM-38 CI-only gate; fake path remains offline/source-bound, and live path requires explicit opt-in, scope, redaction, independent receipt and cleanup
+source_snapshot: f69fbba9 + CM-38 evidence-contract slice; kiana-daemon/tests/eq10_fake_provider.rs; kiana-daemon/src/{eval_runtime,harness_memory}.rs; kiana-domain/src/{memory_journal,live_handoff,context_memory_evidence}.rs; kiana-domain/tests/cm38_context_memory_evidence.rs; kiana-core/tests/cm38_context_memory_live_guard.rs; .github/workflows/cm38-context-memory-live.yml; docs/roadmap/cm38-context-memory-live-baseline.md; docs/roadmap.md
+worktree_status: existing FakeProviderAdapter, bounded harness memory broker, EventStore memory journal and LiveHandoffManifest are indexed in a CM-38 CI-only gate; ContextMemoryGoldenPathEvidence now binds scope/redaction and all ContextPlan/provider/tool/retrieval/candidate/approval/projection/recovery/receipt stages, separates FakeCassette from LiveOptIn, and rejects incomplete stages or fake live claims; the fake path remains offline/source-bound and live still requires explicit opt-in, independent receipt and cleanup
 command_argv:
   cargo fmt --all
   cargo fmt --all --check
   cargo check --workspace --tests --locked --offline
   git diff --check
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test, smoke or live provider request executed
-fixture or cassette: CI-only eq10_fake_provider and cm38_context_memory_live_guard; GitHub Actions CM-38 does not provide live credentials or external network
+fixture or cassette: CI-only eq10_fake_provider, cm38_context_memory_evidence and cm38_context_memory_live_guard; GitHub Actions CM-38 does not provide live credentials or external network
 exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-38 is triggered by the eventual push and is not awaited
 status_change: CM-38 fake/live boundary advanced from scattered existing contracts to a roadmap-linked end-to-end evidence gate; roadmap remains ⏳ because full durable golden path and live Provider evidence are absent
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
-limitations: no real provider request, context-quality measurement, candidate approval/recovery end-to-end, durable index/retention maintenance or post-CM-33–37 evidence was run; fake output cannot promote live scope
-reviewer: Codex root implementation review plus fake provider no-network, memory candidate/approval/projection, EventStore source boundary, live opt-in/redaction/receipt/cleanup and no-fake-live promotion review; no runtime/live reviewer
+limitations: no real provider request, context-quality measurement, candidate approval/recovery end-to-end, durable index/retention maintenance or post-CM-33–37 evidence was run; the new manifest is source-only and does not make the fake path durable; fake output cannot promote live scope
+reviewer: Codex root implementation review plus typed stage completeness, fake provider no-network, memory candidate/approval/projection, EventStore source boundary, live opt-in/redaction/receipt/cleanup and no-fake-live promotion review; no runtime/live reviewer
 
 ### P4-J7-31 provider live boundary evidence (partial, 2026-09-19)
 
