@@ -1845,6 +1845,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.credential-recovery-projection.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.credential-recovery-event.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.audit-query.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Wire,

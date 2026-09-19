@@ -5,10 +5,17 @@ on:
     branches: [main, master]
     paths:
       - "kiana-domain/src/credential_recovery_evidence.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
       - "kiana-domain/tests/ci11_credential_recovery_evidence.rs"
       - "kiana-core/tests/ci11_audit_recovery_guard.rs"
+      - "kiana-core/tests/ci11_credential_recovery_projection.rs"
+      - "kiana-core/src/credential_recovery.rs"
       - "kiana-core/src/audit_projection.rs"
       - "kiana-core/src/redaction.rs"
+      - "kiana-eventlog/src/credential_rotation.rs"
+      - "kiana-eventlog/tests/ci11_credential_rotation.rs"
+      - "kiana-daemon/src/lib.rs"
       - "docs/roadmap/ci11-audit-recovery-baseline.md"
       - "docs/roadmap.md"
       - "CURRENT_STATUS.md"
@@ -16,10 +23,17 @@ on:
   pull_request:
     paths:
       - "kiana-domain/src/credential_recovery_evidence.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
       - "kiana-domain/tests/ci11_credential_recovery_evidence.rs"
       - "kiana-core/tests/ci11_audit_recovery_guard.rs"
+      - "kiana-core/tests/ci11_credential_recovery_projection.rs"
+      - "kiana-core/src/credential_recovery.rs"
       - "kiana-core/src/audit_projection.rs"
       - "kiana-core/src/redaction.rs"
+      - "kiana-eventlog/src/credential_rotation.rs"
+      - "kiana-eventlog/tests/ci11_credential_rotation.rs"
+      - "kiana-daemon/src/lib.rs"
       - "docs/roadmap/ci11-audit-recovery-baseline.md"
       - "docs/roadmap.md"
       - "CURRENT_STATUS.md"
@@ -40,6 +54,10 @@ jobs:
       - run: cargo fmt --all --check
       - name: Run CI-11 recovery evidence fixture
         run: cargo test -p kiana-domain --test ci11_credential_recovery_evidence --locked -- --test-threads=1
+      - name: Run CI-11 core replay fixture
+        run: cargo test -p kiana-core --test ci11_credential_recovery_projection --locked -- --test-threads=1
+      - name: Run CI-11 opaque rotation fixture
+        run: cargo test -p kiana-eventlog --test ci11_credential_rotation --locked -- --test-threads=1
       - name: Run CI-11 source guard
         run: cargo test -p kiana-core --test ci11_audit_recovery_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

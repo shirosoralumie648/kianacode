@@ -21,6 +21,7 @@ const COMMUNICATION_IDS: &[&str] = &["message"];
 const COMMUNICATION_LIFECYCLE_IDS: &[&str] = &["message_id"];
 const SWARM_TRANSITION_IDS: &[&str] = &["swarm_plan_id"];
 const QUALITY_IDS: &[&str] = &["request_id"];
+const RECOVERY_IDS: &[&str] = &["run_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -151,6 +152,7 @@ const QUALITY_FIELDS: &[&str] = &[
     "verdict",
     "evidence_refs",
 ];
+const RECOVERY_FIELDS: &[&str] = &["run_id", "recovery"];
 const INVOCATION_FIELDS: &[&str] = &[
     "run_id",
     "turn_id",
@@ -775,6 +777,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         false,
         Some("legacy_session_event_v0_to_v1")
     ),
+    spec!(
+        "recovery.credential",
+        "run",
+        RECOVERY_IDS,
+        RECOVERY_FIELDS,
+        false,
+        None
+    ),
 ];
 
 pub const EVENT_MIGRATIONS: &[(&str, u32, u32, &str)] = &[
@@ -803,6 +813,7 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "communication.",
         "eval.",
         "quality.",
+        "recovery.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))
