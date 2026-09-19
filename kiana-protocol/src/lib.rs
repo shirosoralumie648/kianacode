@@ -167,6 +167,8 @@ pub const QUALITY_EVENT_KINDS: &[&str] = &[
     "quality.rollback",
 ];
 pub const CLARIFICATION_ANSWER_COMMAND: &str = "run.clarification.answer";
+pub const RUN_DISPLAY_STATE_SCHEMA: &str = "kiana.run-display-state.v1";
+pub const MAX_RUN_DISPLAY_TEXT_BYTES: usize = 128 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1435,6 +1437,168 @@ pub struct UiSnapshot {
     pub stream_cursor: Option<UiCursor>,
     pub status: Option<ExecutionStatus>,
     pub pending_actions: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunDisplayState {
+    pub schema: String,
+    pub run_id: RunId,
+    pub cursor: UiCursor,
+    pub status: String,
+    pub terminal: bool,
+    pub text: String,
+    pub gap_detected: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_event_digest: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DisplayApply {
+    Applied,
+    IgnoredDuplicate,
+    GapRequiresSnapshot,
+}
+
+impl RunDisplayState {
+    pub fn new(run_id: RunId) -> Self {
+        Self {
+            schema: RUN_DISPLAY_STATE_SCHEMA.to_owned(),
+            run_id,
+            cursor: UiCursor::default(),
+            status: "queued".to_owned(),
+            terminal: false,
+            text: String::new(),
+            gap_detected: false,
+            last_event_digest: None,
+        }
+    }
+
+    pub fn hydrate(&mut self, snapshot: &UiSnapshot) -> Result<(), String> {
+        if snapshot.run_id != Some(self.run_id) {
+            return Err("display_snapshot_run_mismatch".to_owned());
+        }
+        if !snapshot.cursor.epoch.is_empty() {
+            snapshot
+                .cursor
+                .validate()
+                .map_err(|error| error.to_owned())?;
+        }
+        self.cursor = snapshot.cursor.clone();
+        self.status = snapshot
+            .status
+            .map(|status| status.as_str().to_owned())
+            .unwrap_or_else(|| "queued".to_owned());
+        self.terminal = snapshot.status.is_some_and(ExecutionStatus::is_terminal);
+        self.gap_detected = false;
+        self.text.clear();
+        self.last_event_digest = None;
+        self.validate()
+    }
+
+    pub fn apply(&mut self, envelope: &RunStreamEnvelope) -> Result<DisplayApply, String> {
+        if envelope.epoch.is_empty() && envelope.sequence == 0 {
+            if self.terminal {
+                return Ok(DisplayApply::IgnoredDuplicate);
+            }
+            self.apply_event(&envelope.event)?;
+            return Ok(DisplayApply::Applied);
+        }
+        if envelope.epoch.is_empty() || envelope.sequence == 0 {
+            return Err("display_cursor_invalid".to_owned());
+        }
+        if self.terminal {
+            return Ok(DisplayApply::IgnoredDuplicate);
+        }
+        if !self.cursor.epoch.is_empty() && self.cursor.epoch != envelope.epoch {
+            return Err("display_epoch_changed".to_owned());
+        }
+        if self.cursor.epoch == envelope.epoch && envelope.sequence <= self.cursor.sequence {
+            return Ok(DisplayApply::IgnoredDuplicate);
+        }
+        let gap = self.cursor.sequence != 0
+            && envelope.sequence != self.cursor.sequence.saturating_add(1);
+        if gap && !matches!(envelope.event, RunStreamEvent::Terminal { .. }) {
+            self.gap_detected = true;
+            return Ok(DisplayApply::GapRequiresSnapshot);
+        }
+        self.apply_event(&envelope.event)?;
+        self.cursor = UiCursor {
+            epoch: envelope.epoch.clone(),
+            sequence: envelope.sequence,
+        };
+        self.gap_detected |= gap;
+        self.validate()?;
+        Ok(DisplayApply::Applied)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != RUN_DISPLAY_STATE_SCHEMA
+            || self.run_id.as_uuid().is_nil()
+            || self.status.trim().is_empty()
+            || self.status.len() > 64
+            || self.text.len() > MAX_RUN_DISPLAY_TEXT_BYTES
+        {
+            return Err("display_state_invalid".to_owned());
+        }
+        if !self.cursor.epoch.is_empty() {
+            self.cursor.validate().map_err(|error| error.to_owned())?;
+        }
+        if let Some(digest) = &self.last_event_digest {
+            if !digest.starts_with("sha256:") || digest.len() != 71 {
+                return Err("display_event_digest_invalid".to_owned());
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_event(&mut self, event: &RunStreamEvent) -> Result<(), String> {
+        match event {
+            RunStreamEvent::Delta { run_id, text } => {
+                if *run_id != self.run_id {
+                    return Err("display_event_run_mismatch".to_owned());
+                }
+                if self.text.len().saturating_add(text.len()) > MAX_RUN_DISPLAY_TEXT_BYTES {
+                    return Err("display_text_limit".to_owned());
+                }
+                self.text.push_str(text);
+            }
+            RunStreamEvent::Terminal { run_id, response } => {
+                if *run_id != self.run_id {
+                    return Err("display_event_run_mismatch".to_owned());
+                }
+                self.status = response.status.as_str().to_owned();
+                self.terminal = response.status.is_terminal();
+                self.last_event_digest = Some(json_digest(
+                    &serde_json::to_value(response)
+                        .map_err(|_| "display_terminal_encode_failed".to_owned())?,
+                ));
+            }
+            RunStreamEvent::ApprovalRequested { run_id, .. } => {
+                if *run_id != self.run_id {
+                    return Err("display_event_run_mismatch".to_owned());
+                }
+                self.status = "awaiting_approval".to_owned();
+            }
+            RunStreamEvent::Error { run_id, data } => {
+                if *run_id != self.run_id {
+                    return Err("display_event_run_mismatch".to_owned());
+                }
+                self.status = data
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("runtime_error")
+                    .to_owned();
+            }
+            RunStreamEvent::Usage { run_id, .. } | RunStreamEvent::ToolCall { run_id, .. } => {
+                if *run_id != self.run_id {
+                    return Err("display_event_run_mismatch".to_owned());
+                }
+            }
+            RunStreamEvent::Unknown => {}
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

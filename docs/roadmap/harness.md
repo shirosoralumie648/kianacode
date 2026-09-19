@@ -630,7 +630,9 @@ sequenceDiagram
 
 <a id="step-h32"></a>
 
-#### H32 — 事实流、展示流与三入口状态一致性　⏳
+#### H32 — 事实流、展示流与三入口状态一致性　✅
+
+当前 source slice 与 CI-only 证据见 [`h32-display-state-baseline.md`](h32-display-state-baseline.md)。
 
 **关联原单元**：`P4-J7-02/03`、`P2-M2-01`、`P2-M4-01`、`P2-M5-01`。**依赖**：H06、H13、H18、H24、H26、H27。
 

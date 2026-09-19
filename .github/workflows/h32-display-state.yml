@@ -1,0 +1,55 @@
+name: h32-display-state
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/h32_display_state.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/h32_display_guard.rs"
+      - "docs/roadmap/h32-display-state-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h32-display-state.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/h32_display_state.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/stream_render.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/h32_display_guard.rs"
+      - "docs/roadmap/h32-display-state-baseline.md"
+      - "docs/roadmap/harness.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/h32-display-state.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  display-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H32 protocol fixtures
+        run: cargo test -p kiana-protocol --test h32_display_state --locked -- --test-threads=1
+      - name: Run H32 entrypoint source guard
+        run: cargo test -p kiana-entrypoints --test h32_display_guard --locked -- --test-threads=1

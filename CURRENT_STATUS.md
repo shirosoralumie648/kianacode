@@ -10292,3 +10292,19 @@ status_change: H31 source slice is implemented and roadmap row 587 is ✅. Child
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: child live scheduling and parent cancellation across processes are not newly wired, durable child projector and external effect confirmation remain later H32/H33/PD/ER work
 reviewer: Codex root implementation review plus child identity/depth, budget/tool/path/sandbox intersection, SpawnPlan/CellRegistry containment, refs-only outcome, cancel Unknown and no-free-bus boundary review; no runtime test reviewer
+
+### H32 display state / three-surface evidence (2026-09-19)
+
+source_snapshot: 88dee49b + H32 working-tree slice; kiana-protocol/src/lib.rs; kiana-protocol/tests/h32_display_state.rs; kiana-daemon/src/run_stream.rs; kiana-entrypoints/src/{workbench_chat.rs,stream_render.rs,web.rs}; kiana-entrypoints/tests/h32_display_guard.rs; .github/workflows/h32-display-state.yml; docs/roadmap/h32-display-state-baseline.md; docs/roadmap.md
+worktree_status: RunDisplayState is a bounded canonical projection over RunStreamEnvelope: same-epoch duplicate cursor is ignored, non-terminal gap requires snapshot, epoch drift cannot mutate state, terminal event is retained even across a gap, and UiSnapshot hydration resets cursor/gap; CLI/TTY/Web all remain on shared RunStreamEvent/ResponseEnvelope/daemon bus source path; display state has no authority to execute or authorize actions
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check or smoke command executed per user instruction
+fixture or cassette: GitHub Actions only: H32 protocol duplicate/gap/terminal/epoch/hydration fixtures and entrypoint source guards for shared stream/response/cursor and no local-time completion; GitHub Actions H32 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status_change: H32 source slice is implemented and roadmap row 417 is ✅. Display projections cannot overwrite newer epoch/terminal state or turn client timing into completion
+proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: slow subscriber/browser reconnect and durable feed replay remain adapter/network evidence, Desktop embedding is not newly proven, and external live timing is not claimed
+reviewer: Codex root implementation review plus cursor/epoch duplicate/gap policy, terminal preservation, snapshot hydration and shared CLI/TTY/Web stream path review; no runtime test reviewer
