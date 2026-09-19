@@ -6,7 +6,7 @@ pub const DATA_POLICY_SCHEMA: &str = "kiana.data-policy.v1";
 pub const DATA_GOVERNANCE_SNAPSHOT_SCHEMA: &str = "kiana.data-governance-snapshot.v1";
 pub const DATA_GOVERNANCE_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_DATA_OBSERVATIONS: usize = 256;
-pub const MAX_DERIVED_DATA_STORES: usize = 16;
+pub const MAX_DERIVED_DATA_STORES: usize = 32;
 
 fn nonempty(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max {
@@ -409,7 +409,23 @@ pub fn project_data_governance(
         DataPayloadState::Available
     };
     let derived_store_states = [
-        "receipt", "audit", "artifact", "memory", "index", "cache", "export",
+        "receipt",
+        "audit",
+        "artifact",
+        "memory",
+        "memory-jsonl",
+        "memory-body",
+        "index",
+        "bm25-index",
+        "dense-index",
+        "repo-index",
+        "cache",
+        "prompt-cache",
+        "context-plan",
+        "summary",
+        "checkpoint",
+        "ui",
+        "export",
     ]
     .into_iter()
     .map(|store| (store.to_owned(), state))

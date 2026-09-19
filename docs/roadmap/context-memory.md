@@ -548,7 +548,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-28 · 删除、过期、撤销传播　⏳
+##### CM-28 · 删除、过期、撤销传播　✅
+
+当前 source slice 与 CI-only 证据见 [`cm28-memory-invalidation-baseline.md`](cm28-memory-invalidation-baseline.md)。
 
 以 tombstone/epoch 传播到 Memory JSONL、正文、BM25/dense/repo index、ContextPlan、summary/checkpoint、prompt cache 和 UI；历史 receipt 保留引用但标 invalid/deleted_at。验收：`deletion_propagates_to_memory_and_index`、`historical_receipt_is_preserved_but_not_reinjected`。
 

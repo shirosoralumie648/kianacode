@@ -10708,3 +10708,19 @@ status change: CM-27 source slice is implemented and roadmap row 338 is ✅. Ret
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: producer events for actual selection/send/citation, provider delivery evidence, UI inspector, cross-process receipt projection and deletion/expiry invalidation remain open; no semantic citation-quality or live provider claim is made
 reviewer: Codex root implementation review plus stage-order enforcement, query/scope/algorithm retention, source revision binding, degraded/omission preservation and unverifiable citation rejection; no runtime test reviewer
+
+### CM-28 deletion expiry revocation propagation evidence (2026-09-20)
+
+source_snapshot: 8bd4b699 + CM-28 working-tree slice; kiana-domain/src/{memory_invalidation.rs,governance.rs,deletion.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm28_memory_invalidation.rs; kiana-core/src/{data_governance.rs,receipts.rs,workspace_checkpoints.rs}; kiana-core/tests/cm28_memory_invalidation_guard.rs; kiana-daemon/src/{data_governance.rs,harness_memory.rs,context_query.rs}; kiana-protocol/src/lib.rs; .github/workflows/cm28-memory-invalidation.yml; docs/roadmap/cm28-memory-invalidation-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: MemoryInvalidationPlan binds deleted/expired/revoked reason, source/tombstone digest and monotonic data epoch to all memory/index/context/cache/UI targets; historical receipts remain preserved-invalid with reinjection forbidden; governance and revoked receipt projections expose the same boundary
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; stable Rust toolchain; no local test, build, check, clippy or smoke command executed per user instruction
+fixture·cassette: GitHub Actions only: CM-28 tombstone propagation and historical-receipt non-reinjection fixtures plus Core/daemon source guard; GitHub Actions CM-28 runs focused fixtures and is not awaited
+exit_code: 0 for format and diff checks; local tests deliberately not run; CI result intentionally not awaited
+status change: CM-28 source slice is implemented and roadmap row 339 is ✅. Epoch-fenced invalidation and preserved-invalid receipt semantics are explicit
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: physical JSONL/body erasure, durable index generation rebuild, cross-process projector/recovery, UI refresh, retention GC and provider exposure revocation remain open; EventLog history is retained by design
+reviewer: Codex root implementation review plus target-set completeness, monotonic epoch/tombstone binding, invalidation of derived context, historical receipt retention and reinjection denial review; no runtime test reviewer
