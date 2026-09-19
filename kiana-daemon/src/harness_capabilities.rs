@@ -6,6 +6,7 @@
 use crate::apply_patch::apply_codex_patch;
 use crate::execution_output::{drain_capped, metadata, read_capped, render_capped};
 use crate::process_supervisor::ProcessSupervisor;
+use crate::shell_plan::ShellCommandPlan;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
@@ -73,7 +74,8 @@ async fn execute_shell(
     let sandbox = argument_sandbox(arguments)?;
     let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
     let workdir = confined_workdir(&project_root, arguments.get("workdir"))?;
-    let argv = command_argv(arguments.get("command"))?;
+    let command_plan = ShellCommandPlan::from_value(arguments.get("command"))?;
+    let argv = command_plan.argv.clone();
     let timeout = command_timeout(arguments);
     let mut output = if sandbox == HARNESS_SANDBOX_WORKSPACE_WRITE {
         let owned = request.clone();
@@ -143,6 +145,7 @@ async fn execute_shell(
     })
     .await
     .map_err(|_| PortError::Failed("result_unknown:output_store_join_failed".to_owned()))??;
+    output["shell_plan"] = command_plan.metadata();
     let mut result = CapabilityResult::success(request_id, output.clone());
     if output["exit_code"].as_i64().is_some_and(|code| code != 0) && output["cancelled"] != true {
         result.success = false;
@@ -319,34 +322,7 @@ pub(crate) fn confined_workdir(
 }
 
 pub(crate) fn command_argv(command: Option<&Value>) -> Result<Vec<String>, PortError> {
-    let command =
-        command.ok_or_else(|| PortError::Failed("harness_command_required".to_owned()))?;
-    if let Some(value) = command.as_str() {
-        let value = value.trim();
-        if value.is_empty() {
-            return Err(PortError::Failed("harness_command_required".to_owned()));
-        }
-        return Ok(vec![
-            "/bin/sh".to_owned(),
-            "-c".to_owned(),
-            value.to_owned(),
-        ]);
-    }
-    if let Some(items) = command.as_array() {
-        let argv = items
-            .iter()
-            .map(|item| {
-                item.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| PortError::Failed("harness_command_invalid".to_owned()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if argv.is_empty() || argv.iter().all(|item| item.trim().is_empty()) {
-            return Err(PortError::Failed("harness_command_required".to_owned()));
-        }
-        return Ok(argv);
-    }
-    Err(PortError::Failed("harness_command_invalid".to_owned()))
+    Ok(ShellCommandPlan::from_value(command)?.argv)
 }
 
 #[cfg(test)]

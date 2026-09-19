@@ -26,6 +26,7 @@ mod model_client;
 mod pre_tool_hooks;
 mod process_supervisor;
 mod run_stream;
+mod shell_plan;
 mod storage;
 mod workspace_checkpoints;
 

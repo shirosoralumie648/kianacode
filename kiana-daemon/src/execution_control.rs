@@ -1,5 +1,6 @@
 //! Operator continuations for a supervised process; every request still consumes a core permit.
 use crate::process_supervisor::ProcessSupervisor;
+use crate::shell_plan::ShellCommandPlan;
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
@@ -114,7 +115,8 @@ impl ExecutionControl {
         }
         let workdir =
             crate::harness_capabilities::confined_workdir(&root, arguments.get("workdir"))?;
-        let argv = crate::harness_capabilities::command_argv(arguments.get("command"))?;
+        let command_plan = ShellCommandPlan::from_value(arguments.get("command"))?;
+        let argv = command_plan.argv.clone();
         let timeout = arguments["timeout_ms"].as_u64().unwrap_or(300_000);
         if timeout == 0 || timeout > 3_600_000 {
             return Err(error("process_deadline_invalid"));
@@ -210,7 +212,7 @@ impl ExecutionControl {
             "role_id":arguments["role_id"],"department_id":arguments["department_id"],"project_root":root,"authority":authority,
             "run_id":run_id,"turn_id":turn_id,
             "path_allow":paths,"sandbox":sandbox,"request_id":request.request.request_id,"execution_id":request.authorization_id,
-            "timeout_ms":timeout,"pty":tty,"job_handle":Value::Null});
+            "timeout_ms":timeout,"pty":tty,"job_handle":Value::Null,"shell_plan":command_plan.metadata()});
         {
             let map = self
                 .processes

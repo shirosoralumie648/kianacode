@@ -8488,6 +8488,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus budget dimension separation, bounded reader/drain, cross-chunk redaction, terminal-control filtering, preview/persistence limits, digest/expiry/data-epoch/cursor and no foreign artifact read review; no runtime test reviewer
 ```
 
+### CAP-14 typed shell executor evidence (2026-09-19)
+
+```text
+source_snapshot: e843d641 + CAP-14 working-tree slice; kiana-daemon/src/{shell_plan.rs,harness_capabilities.rs,execution_control.rs,process_supervisor.rs}; kiana-core/tests/cap14_shell_executor_guard.rs; .github/workflows/cap14-shell-executor.yml; docs/roadmap/cap14-shell-executor-baseline.md; docs/roadmap.md
+worktree_status: short shell and long-running process adapters now consume one bounded ShellCommandPlan; opaque string commands use fixed non-login `/bin/sh -c` with digest metadata, argv remains argv, and both route through ProcessSupervisor with fixed workdir/profile/deadline; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only typed-plan/source fixtures; no local test or smoke binary executed
+fixture or cassette: shell_plan string/argv/bounds fixtures; focused workdir-denial shell regression; cap14_shell_executor_guard; GitHub Actions CAP-14 runs typed-plan fixtures, regression, source guard and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-14 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-14 source slice is implemented. String/argv semantics are explicit, command size/NUL/empty executable bounds fail closed, no shell-prefix or regex side-effect approval exists, and execution metadata carries command kind/digest/fixed login state
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; shell parser/runtime behavior is CI-only, command-specific policy/approval remains owned by upstream ControlPlane, and non-Linux executor guarantees remain open
+reviewer: Codex root implementation review plus typed string/argv separation, fixed non-login shell, NUL/size bounds, opaque digest metadata, no side-effect inference, workdir/profile/deadline pinning and shared supervisor routing review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text
