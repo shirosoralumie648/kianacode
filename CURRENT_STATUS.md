@@ -8866,6 +8866,23 @@ proof-level_change: source plus static compile evidence only; no local_behavior,
 limitations: a handoff document cannot prove runtime parity, accessibility, ACP/IDE live behavior, Desktop packaging, external receipts, cross-process recovery or scale
 reviewer: Codex root implementation review plus status/proof/source snapshot, open limitation, reviewer and no-blanket-completion handoff boundary review; no runtime test reviewer
 
+### CO-48 CompanyOS real-model closeout and handoff evidence (partial, 2026-09-19)
+
+source_snapshot: 44c10373 + CO-48 working-tree slice; kiana-domain/src/{company,company_business,company_closeout}.rs; kiana-core/src/company_governance.rs; kiana-daemon/tests/p3_i06_company_golden.rs; kiana-core/tests/co48_company_closeout_guard.rs; .github/workflows/co48-company-closeout.yml; docs/roadmap/co48-company-closeout-baseline.md; docs/roadmap.md
+worktree_status: CO-48 now has a CI-only source/handoff guard indexing the fake-model Company golden path, CompanyState replay, Review/Acceptance/Delivery/ClosingReceipt and governance projection; result_unknown/reconcile plus independent evidence/owner boundaries remain explicit, and no real-model completion is claimed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; no local test or smoke binary executed
+fixture or cassette: CI-only co48_company_closeout_guard plus existing p3_i06_company_golden; GitHub Actions CO-48 runs fake-model golden fixture, source guard, diff check and workspace static compilation
+exit_code: 0 for format, workspace test-target static compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-48 is triggered by the eventual push and is not awaited
+status_change: CO-48 closeout/handoff evidence advanced from roadmap-only to a linked source and CI boundary; roadmap remains ⏳ because real model/account/credential, external delivery confirmation, outcome measurement, cross-process projection and physical/live handoff remain open
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: fake-model success is not a real model, live provider, business delivery or outcome receipt; no external account/credential/request was used; CI source indexing cannot prove cross-process recovery, scale, live handoff or physical effects
+reviewer: Codex root implementation review plus CompanyOS fake-vs-real-model, result_unknown/reconcile, evidence/owner and handoff proof-ceiling review; no runtime/live reviewer
+
 ### UI-40 UI release gate and evidence bundle evidence (partial, 2026-09-19)
 
 source_snapshot: 25a1c4b8 + UI-40 working-tree slice; docs/roadmap/ui-entrypoints.md; docs/roadmap/{cap34-conformance,h36-harness-integration,ui39-live-acp,ui40-release-gate}-baseline.md; docs/module-map.md; CURRENT_STATUS.md; kiana-core/tests/ui40_release_gate_guard.rs; .github/workflows/ui40-release-gate.yml; docs/roadmap.md

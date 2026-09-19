@@ -1,0 +1,47 @@
+name: CO-48 CompanyOS closeout boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-core/tests/co48_company_closeout_guard.rs"
+      - "docs/roadmap/co48-company-closeout-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co48-company-closeout.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-core/src/company_governance.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-core/tests/co48_company_closeout_guard.rs"
+      - "docs/roadmap/co48-company-closeout-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co48-company-closeout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run fake Company golden fixture
+        run: cargo test -p kiana-daemon --test p3_i06_company_golden --locked -- --test-threads=1
+      - name: Run CO-48 source guard
+        run: cargo test -p kiana-core --test co48_company_closeout_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
