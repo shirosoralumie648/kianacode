@@ -35,6 +35,8 @@ const UPDATE_FILE: &str = "*** Update File: ";
 const MOVE_TO: &str = "*** Move to: ";
 const EOF_MARKER: &str = "*** End of File";
 const TEMP_SIBLING_ATTEMPTS: usize = 16;
+const MAX_PATCH_BYTES: usize = 4 * 1024 * 1024;
+const MAX_PATCH_HUNKS: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Hunk {
@@ -169,9 +171,32 @@ pub fn apply_codex_patch(project_root: &Path, patch: &str) -> Result<Value, Port
     if hunks.is_empty() {
         return Err(failed("apply_patch_empty"));
     }
+    let hunk_count = hunks.len();
     let _lock = ProjectPatchLock::acquire(&project_root)?;
     let planned = plan_hunks(&project_root, hunks)?;
-    commit_planned(&project_root, &planned)
+    commit_planned(&project_root, &planned, patch.len(), hunk_count)
+}
+
+/// Read-only preview using the exact parser/overlay planner consumed by commit.
+pub(crate) fn preview_codex_patch(project_root: &Path, patch: &str) -> Result<Value, PortError> {
+    let project_root = project_root
+        .canonicalize()
+        .map_err(|error| failed(format!("apply_patch_project_root_invalid:{error}")))?;
+    if !project_root.is_dir() {
+        return Err(failed("apply_patch_project_root_invalid:not_directory"));
+    }
+    let hunks = parse_patch(patch)?;
+    if hunks.is_empty() {
+        return Err(failed("apply_patch_empty"));
+    }
+    let hunk_count = hunks.len();
+    let planned = plan_hunks(&project_root, hunks)?;
+    Ok(patch_preview(
+        &project_root,
+        &planned,
+        patch.len(),
+        hunk_count,
+    ))
 }
 
 /// Publish a script's bounded changes through the same confinement and commit journal as patch.
@@ -236,6 +261,8 @@ pub(crate) fn publish_workspace_files(
             operations,
             preconditions,
         },
+        0,
+        0,
     )
 }
 
@@ -595,6 +622,8 @@ pub(crate) fn restore_checkpoint(
             operations,
             preconditions,
         },
+        0,
+        0,
     )?;
     let after = capture_checkpoint_files(&root, &paths)
         .map_err(|error| failed(format!("result_unknown:checkpoint_post_read:{error}")))?;
@@ -677,6 +706,9 @@ fn lock_project_patch(_file: &File) -> Result<(), PortError> {
 }
 
 fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
+    if patch.len() > MAX_PATCH_BYTES || patch.contains('\0') {
+        return Err(failed("apply_patch_size_invalid"));
+    }
     let normalized = patch.replace("\r\n", "\n");
     let lines: Vec<&str> = normalized.lines().collect();
     if lines.first().map(|line| line.trim()) != Some(BEGIN_PATCH) {
@@ -793,6 +825,9 @@ fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
             continue;
         }
         return Err(failed("apply_patch_hunk_invalid"));
+    }
+    if hunks.len() > MAX_PATCH_HUNKS {
+        return Err(failed("apply_patch_hunk_limit"));
     }
     Ok(hunks)
 }
@@ -999,7 +1034,12 @@ fn open_commit_directories(
     Ok(())
 }
 
-fn commit_planned(project_root: &Path, planned: &PlannedPatch) -> Result<Value, PortError> {
+fn commit_planned(
+    project_root: &Path,
+    planned: &PlannedPatch,
+    patch_bytes: usize,
+    hunk_count: usize,
+) -> Result<Value, PortError> {
     let directories = open_commit_directories(&planned.preconditions)?;
     verify_preconditions(&planned.preconditions)?;
     let transaction = PatchTransaction::begin(project_root, planned)?;
@@ -1021,7 +1061,79 @@ fn commit_planned(project_root: &Path, planned: &PlannedPatch) -> Result<Value, 
         }
     }
     transaction.finish("committed")?;
-    Ok(json!({ "changed": changed, "transaction_id":transaction.id }))
+    let preview = patch_preview(project_root, planned, patch_bytes, hunk_count);
+    Ok(json!({
+        "changed": changed,
+        "transaction_id":transaction.id,
+        "patch_digest":preview["patch_digest"],
+        "affected_paths":preview["affected_paths"],
+        "before_hashes":preview["before_hashes"],
+        "patch_bytes":preview["patch_bytes"],
+        "hunk_count":preview["hunk_count"]
+    }))
+}
+
+fn patch_preview(
+    project_root: &Path,
+    planned: &PlannedPatch,
+    patch_bytes: usize,
+    hunk_count: usize,
+) -> Value {
+    let affected_paths = planned
+        .operations
+        .iter()
+        .map(|operation| match operation {
+            PlannedOp::WriteBytes {
+                target,
+                contents,
+                executable,
+            } => json!({"op":"write","path":display_relative(project_root,target),"bytes":contents.len(),"executable":executable}),
+            PlannedOp::Add { target, contents } => {
+                json!({"op":"add","path":display_relative(project_root,target),"bytes":contents.len()})
+            }
+            PlannedOp::Delete { target } => {
+                json!({"op":"delete","path":display_relative(project_root,target)})
+            }
+            PlannedOp::Update { target, contents } => {
+                json!({"op":"update","path":display_relative(project_root,target),"bytes":contents.len()})
+            }
+            PlannedOp::Move {
+                source,
+                destination,
+                contents,
+            } => json!({
+                "op":"move",
+                "source":display_relative(project_root,source),
+                "destination":display_relative(project_root,destination),
+                "bytes":contents.len()
+            }),
+        })
+        .collect::<Vec<_>>();
+    let before_hashes = planned
+        .preconditions
+        .iter()
+        .filter_map(|precondition| {
+            let value = match &precondition.snapshot {
+                PathSnapshot::Missing => Value::Null,
+                PathSnapshot::Present { contents, .. } => contents
+                    .as_ref()
+                    .map(|bytes| Value::String(kiana_domain::journal_sha256(bytes)))
+                    .unwrap_or_else(|| Value::String("directory".to_owned())),
+            };
+            (!precondition.path.as_os_str().is_empty())
+                .then(|| (display_relative(project_root, &precondition.path), value))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let plan_value = serde_json::to_value(planned).unwrap_or(Value::Null);
+    json!({
+        "schema":"kiana.patch-preview.v1",
+        "patch_digest":kiana_domain::json_digest(&plan_value),
+        "affected_paths":affected_paths,
+        "before_hashes":before_hashes,
+        "patch_bytes":patch_bytes,
+        "hunk_count":hunk_count,
+        "read_only":true
+    })
 }
 
 fn capture_preconditions(
@@ -1789,6 +1901,24 @@ mod tests {
             fs::read_to_string(root.join("blocker")).unwrap(),
             "keep-me\n"
         );
+    }
+
+    #[test]
+    fn preview_and_commit_share_the_same_plan_digest_and_affected_paths() {
+        let root = temp_root();
+        fs::write(root.join("before.txt"), "before\n").unwrap();
+        let patch = "*** Begin Patch\n*** Update File: before.txt\n@@\n-before\n+after\n*** Add File: new.txt\n+new\n*** End Patch\n";
+        let preview = preview_codex_patch(&root, patch).unwrap();
+        let committed = apply_codex_patch(&root, patch).unwrap();
+        assert_eq!(preview["patch_digest"], committed["patch_digest"]);
+        assert_eq!(preview["affected_paths"], committed["affected_paths"]);
+        assert_eq!(preview["hunk_count"], 2);
+        assert_eq!(preview["read_only"], true);
+        assert_eq!(
+            fs::read_to_string(root.join("before.txt")).unwrap(),
+            "after\n"
+        );
+        assert_eq!(fs::read_to_string(root.join("new.txt")).unwrap(), "new\n");
     }
 
     #[test]

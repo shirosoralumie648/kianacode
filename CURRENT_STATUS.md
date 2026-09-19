@@ -8507,6 +8507,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus typed string/argv separation, fixed non-login shell, NUL/size bounds, opaque digest metadata, no side-effect inference, workdir/profile/deadline pinning and shared supervisor routing review; no runtime test reviewer
 ```
 
+### CAP-15 typed patch plan / preview evidence (2026-09-19)
+
+```text
+source_snapshot: 7ef59e47 + CAP-15 working-tree slice; kiana-daemon/src/{apply_patch.rs,harness_capabilities.rs}; kiana-core/tests/cap15_patch_plan_guard.rs; .github/workflows/cap15-patch-plan.yml; docs/roadmap/cap15-patch-plan-baseline.md; docs/roadmap.md
+worktree_status: apply_patch parser/overlay/precondition produces one PlannedPatch consumed by read-only apply_patch.preview and journaled commit; shared handler scope/data-policy validation, digest/affected paths/before hashes/move endpoints/size and hunk metadata are now exposed; static verification is complete and commit/push follow this evidence update
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked offline Cargo dependency cache; CI-only patch preview/commit/source fixtures; no local test or smoke binary executed
+fixture or cassette: daemon preview/commit shared-plan fixture; CAP-15 source guards; GitHub Actions CAP-15 runs focused fixture, guards and workspace compilation
+exit_code: 0 for format and workspace test-target static compilation; local tests deliberately not run per user instruction; GitHub Actions CAP-15 is triggered by the eventual push and is not awaited; final diff check is pending before commit
+status_change: CAP-15 source slice is implemented. Preview is read-only and does not acquire the patch lock or commit; apply and preview report the same planned target set/digest; malformed/oversized/NUL/late-hunk and precondition failures remain before writes
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live, or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; binary patch/mode policy, full move destination authority projection, crash/fsync recovery and physical filesystem atomicity remain CAP-16 or later evidence
+reviewer: Codex root implementation review plus shared parser/overlay identity, read-only preview, digest/path/before-hash parity, move two-end preconditions, handler scope reuse and no-write preview boundary review; no runtime test reviewer
+```
+
 ### AUT-06 pure planner intent evidence (2026-09-19)
 
 ```text

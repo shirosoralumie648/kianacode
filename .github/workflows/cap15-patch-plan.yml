@@ -1,0 +1,42 @@
+name: CAP-15 typed patch plan and preview
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-core/tests/cap15_patch_plan_guard.rs"
+      - "docs/roadmap/cap15-patch-plan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap15-patch-plan.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/apply_patch.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-core/tests/cap15_patch_plan_guard.rs"
+      - "docs/roadmap/cap15-patch-plan-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap15-patch-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run preview and commit fixture
+        run: cargo test -p kiana-daemon --lib preview_and_commit_share_the_same_plan_digest_and_affected_paths --locked -- --test-threads=1
+      - name: Run CAP-15 source guards
+        run: cargo test -p kiana-core --test cap15_patch_plan_guard --locked -- --test-threads=1
+      - name: Compile CAP-15 targets
+        run: cargo check --workspace --tests --locked

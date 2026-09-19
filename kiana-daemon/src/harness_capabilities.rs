@@ -3,7 +3,7 @@
 //! `shell.exec` and `apply_patch` are registered on the capability broker.
 //! The runner never executes these tools.
 
-use crate::apply_patch::apply_codex_patch;
+use crate::apply_patch::{apply_codex_patch, preview_codex_patch};
 use crate::execution_output::{drain_capped, metadata, read_capped, render_capped};
 use crate::process_supervisor::ProcessSupervisor;
 use crate::shell_plan::ShellCommandPlan;
@@ -24,6 +24,7 @@ use tokio::process::Command;
 
 const SHELL_OPERATION: &str = "shell.exec";
 const APPLY_PATCH_OPERATION: &str = "apply_patch";
+const APPLY_PATCH_PREVIEW_OPERATION: &str = "apply_patch.preview";
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const EXEC_TIMEOUT_EXIT_CODE: i32 = 124;
 
@@ -37,6 +38,11 @@ pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
         CapabilityKind::Filesystem,
         APPLY_PATCH_OPERATION,
         Arc::new(ApplyPatchHandler),
+    )?;
+    broker.register_static(
+        CapabilityKind::Filesystem,
+        APPLY_PATCH_PREVIEW_OPERATION,
+        Arc::new(ApplyPatchPreviewHandler),
     )?;
     Ok(())
 }
@@ -180,51 +186,7 @@ impl CapabilityHandler for ApplyPatchHandler {
         ensure_operation(&request, APPLY_PATCH_OPERATION)?;
         let request_id = request.request.request_id;
         let arguments = &request.request.arguments;
-        let sandbox = argument_sandbox(arguments)?;
-        if sandbox != HARNESS_SANDBOX_WORKSPACE_WRITE {
-            return Err(PortError::Failed(
-                "apply_patch_requires_workspace_write".to_owned(),
-            ));
-        }
-        let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
-        let patch = argument_string(arguments, "patch")?.to_owned();
-        let paths = arguments["path_allow"]
-            .as_array()
-            .map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let data_policy = crate::data_governance::read_policy(&project_root)?;
-        for line in patch.lines() {
-            let target = [
-                "*** Add File: ",
-                "*** Update File: ",
-                "*** Delete File: ",
-                "*** Move to: ",
-            ]
-            .iter()
-            .find_map(|prefix| line.strip_prefix(prefix));
-            if let Some(target) = target {
-                let target = kiana_domain::normalize_role_path(target)
-                    .ok_or_else(|| PortError::Failed("apply_patch_path_invalid".to_owned()))?;
-                if target == ".git"
-                    || target.starts_with(".git/")
-                    || target == ".kiana"
-                    || target.starts_with(".kiana/")
-                {
-                    return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
-                }
-                if kiana_domain::enforce_path_containment(&paths, &target).is_err()
-                    || data_policy.revoked_sources.contains(&target)
-                {
-                    return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
-                }
-            }
-        }
+        let (project_root, patch) = prepare_patch_request(arguments, APPLY_PATCH_OPERATION)?;
         let output = tokio::task::spawn_blocking(move || apply_codex_patch(&project_root, &patch))
             .await
             .map_err(|error| PortError::Failed(format!("apply_patch_join_failed:{error}")))??;
@@ -236,6 +198,87 @@ impl CapabilityHandler for ApplyPatchHandler {
         )
         .map_err(|error| PortError::Failed(format!("adapter_result_invalid:{error}")))
     }
+}
+
+struct ApplyPatchPreviewHandler;
+
+#[async_trait]
+impl CapabilityHandler for ApplyPatchPreviewHandler {
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        ensure_operation(&request, APPLY_PATCH_PREVIEW_OPERATION)?;
+        let request_id = request.request.request_id;
+        let arguments = &request.request.arguments;
+        let (project_root, patch) =
+            prepare_patch_request(arguments, APPLY_PATCH_PREVIEW_OPERATION)?;
+        let output =
+            tokio::task::spawn_blocking(move || preview_codex_patch(&project_root, &patch))
+                .await
+                .map_err(|error| {
+                    PortError::Failed(format!("apply_patch_preview_join_failed:{error}"))
+                })??;
+        let result = CapabilityResult::success(request_id, output);
+        kiana_domain::attach_adapter_result(
+            result,
+            AdapterResultKind::Patch,
+            AdapterCommitState::NotStarted,
+        )
+        .map_err(|error| PortError::Failed(format!("adapter_result_invalid:{error}")))
+    }
+}
+
+fn prepare_patch_request(
+    arguments: &Value,
+    _operation: &str,
+) -> Result<(PathBuf, String), PortError> {
+    let sandbox = argument_sandbox(arguments)?;
+    if sandbox != HARNESS_SANDBOX_WORKSPACE_WRITE {
+        return Err(PortError::Failed(
+            "apply_patch_requires_workspace_write".to_owned(),
+        ));
+    }
+    let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
+    let patch = argument_string(arguments, "patch")?.to_owned();
+    let paths = arguments["path_allow"]
+        .as_array()
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let data_policy = crate::data_governance::read_policy(&project_root)?;
+    for line in patch.lines() {
+        let target = [
+            "*** Add File: ",
+            "*** Update File: ",
+            "*** Delete File: ",
+            "*** Move to: ",
+        ]
+        .iter()
+        .find_map(|prefix| line.strip_prefix(prefix));
+        if let Some(target) = target {
+            let target = kiana_domain::normalize_role_path(target)
+                .ok_or_else(|| PortError::Failed("apply_patch_path_invalid".to_owned()))?;
+            if target == ".git"
+                || target.starts_with(".git/")
+                || target == ".kiana"
+                || target.starts_with(".kiana/")
+            {
+                return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
+            }
+            if kiana_domain::enforce_path_containment(&paths, &target).is_err()
+                || data_policy.revoked_sources.contains(&target)
+            {
+                return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
+            }
+        }
+    }
+    Ok((project_root, patch))
 }
 
 fn ensure_operation(
