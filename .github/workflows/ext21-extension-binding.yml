@@ -1,0 +1,44 @@
+name: EXT-21 extension dependency binding
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/tests/ext21_extension_binding.rs"
+      - "kiana-core/tests/ext21_extension_binding_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext21-extension-binding-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext21-extension-binding.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/tests/ext21_extension_binding.rs"
+      - "kiana-core/tests/ext21_extension_binding_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext21-extension-binding-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext21-extension-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-dependency-binding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-21 domain fixtures
+        run: cargo test -p kiana-domain --test ext21_extension_binding --locked -- --test-threads=1
+      - name: Run EXT-21 source guard
+        run: cargo test -p kiana-core --test ext21_extension_binding_guard --locked -- --test-threads=1
+      - name: Compile EXT-21 target
+        run: cargo check -p kiana-daemon --tests --locked

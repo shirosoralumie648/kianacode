@@ -229,6 +229,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: external marketplace, SBOM/commit provenance, durable CAS rename/power-loss proof and live key revocation service remain deferred
 reviewer: Codex source review; checked trusted-key verification, content/package hash recomputation, bounds/path checks, inert cache and no package-script execution
 
+### EXT-21 extension dependency and binding evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-21 source slice; `kiana-domain/src/extensions.rs`, domain fixture, core source guard, workflow and baseline document
+worktree_status: EXT-21 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-domain/tests/ext21_extension_binding.rs` covers cycle, missing version, scope/platform mismatch, deterministic resolution and parent-scope invalidation; `kiana-core/tests/ext21_extension_binding_guard.rs` covers the inert/non-authorizing product boundary
+exit_code: format and diff checks passed; local tests deliberately not run; CI result intentionally not awaited
+status change: EXT-21 source slice is implemented and roadmap row 356 is ✅; dependency resolution and binding snapshot invalidation are now typed and fail-closed
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: daemon registry integration, lifecycle mutation, durable snapshot persistence, approval/revocation propagation, runtime Hook/MCP/Capability adapters and live external effects remain EXT-22+
+reviewer: Codex source review; checked exact-version/kind resolution, cycle detection, scope intersection, platform admission, bounded binding metadata, parent digest invalidation and no capability grant from declarations
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow

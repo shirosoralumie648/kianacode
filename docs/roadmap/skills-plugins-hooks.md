@@ -314,9 +314,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-21 · 依赖图与 binding　⏳
+#### EXT-21 · 依赖图与 binding　✅
 
-对 Skill、Hook、MCP、Capability、Memory、Provider、UI component 构建有向图，先检测 cycle、缺失版本、scope 不交集和 platform mismatch，再生成 binding。binding 绑定 destination、packet、role、data class、network policy、secret handle、budget、expiry 和 snapshot；父 scope 任何缩减都会使子 binding 失效。依赖声明不是授予能力的凭据。
+当前 source slice 与 CI-only 证据见 [`ext21-extension-binding-baseline.md`](ext21-extension-binding-baseline.md)。对 Skill、Hook、MCP、Capability、Memory、Provider、UI component 构建有向图，先检测 cycle、缺失版本、scope 不交集和 platform mismatch，再生成 inert binding snapshot。binding 绑定 destination、packet、role、data class、network policy、secret handle、budget、expiry 和 snapshot；父 scope 任何缩减都会使子 binding 失效。依赖声明不是授予能力的凭据，ControlPlane/Broker 仍是唯一授权执行边界。
 
 <a id="step-ext-22"></a>
 
