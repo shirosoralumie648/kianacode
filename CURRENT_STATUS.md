@@ -21,6 +21,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: protocol/entrypoint projection, explicit activation lifecycle, package signing/revocation, durable snapshot recovery, provider/live resource effects and cross-process evidence remain in EXT-07+ and later roadmap steps
 reviewer: Codex source review; checked metadata-only projection, root-relative resource resolution, package/hash/quota output, dual budget checks, no truncation claim and preservation of pre-existing WIP
 
+### EXT-07 skill activation and package resource evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-07 source slice; `kiana-skills/src/disclosure.rs`, `kiana-skills/src/lib.rs`, activation/resource fixtures, source guard and workflow
+worktree_status: EXT-07 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext07_activation.rs` covers explicit activation, package-hash tamper, revoke and expiry denial; EXT-06 regression fixture covers root-relative resource and quota behavior; `kiana-core/tests/ext07_skill_activation_guard.rs` covers activation-bound resource wiring
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-07 behavior evidence; CI result intentionally not awaited
+status change: EXT-07 source slice is implemented and roadmap row 342 is ✅; resource reads now require an active activation record before package-root access
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: activation authority is an in-process typed source contract; ControlPlane command/event projection, durable activation persistence, revoke propagation across processes, protocol/entrypoint/UI exposure, package signing and external/live resource effects remain later roadmap work
+reviewer: Codex source review; checked expiry/generation/package binding, revoked/tampered denial, root containment ordering and no script execution
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

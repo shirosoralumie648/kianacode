@@ -1,0 +1,52 @@
+name: EXT-07 skill activation and package resources
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/disclosure.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext06_progressive_disclosure.rs"
+      - "kiana-skills/tests/ext07_activation.rs"
+      - "kiana-skills/src/source_resolver.rs"
+      - "kiana-core/tests/ext07_skill_activation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext07-skill-activation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext07-skill-activation.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/disclosure.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext06_progressive_disclosure.rs"
+      - "kiana-skills/tests/ext07_activation.rs"
+      - "kiana-skills/src/source_resolver.rs"
+      - "kiana-core/tests/ext07_skill_activation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext07-skill-activation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext07-skill-activation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skill-activation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-06 regression fixtures
+        run: cargo test -p kiana-skills --test ext06_progressive_disclosure --locked -- --test-threads=1
+      - name: Run EXT-07 activation fixtures
+        run: cargo test -p kiana-skills --test ext07_activation --locked -- --test-threads=1
+      - name: Run EXT-07 source guard
+        run: cargo test -p kiana-core --test ext07_skill_activation_guard --locked -- --test-threads=1
+      - name: Compile EXT-07 targets
+        run: cargo check -p kiana-skills --tests --locked

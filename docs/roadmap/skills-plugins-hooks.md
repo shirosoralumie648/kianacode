@@ -170,9 +170,11 @@ flowchart TD
 
 
 
-#### EXT-07 · 显式激活与包内资源　⏳
+#### EXT-07 · 显式激活与包内资源　✅
 
-Skill 被目录命中不等于激活；显式 `skill.activate` 或满足受控条件后生成带 expiry 的 activation record。资源读取经过 package root containment、symlink 检查、大小/编码限额和 active snapshot 校验；脚本先作为不可执行资源处理，未来若开放执行必须走独立 capability adapter 和 approval。验收 `skill_activation_resource_cannot_escape_package_root`、`untrusted_project_skill_never_enters_prompt`。
+当前 source slice 与 CI-only 证据见 [`ext07-skill-activation-baseline.md`](ext07-skill-activation-baseline.md)。
+
+Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package hash、source、snapshot generation、reason 和 expiry 的 activation record。`read_skill_resource` 在 active activation 校验通过后才执行 package-root containment、symlink、大小/quota 检查；脚本只作为不可执行资源读取，未来若开放执行必须走独立 capability adapter 和 approval。验收覆盖激活篡改、过期、撤销、路径逃逸和资源预算拒绝。
 
 <a id="step-ext-08"></a>
 

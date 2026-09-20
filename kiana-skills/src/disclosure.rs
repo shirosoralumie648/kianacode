@@ -14,6 +14,7 @@ use thiserror::Error;
 use tokio::fs;
 
 pub const SKILL_DISCLOSURE_SCHEMA: &str = "kiana.skill-disclosure.v1";
+pub const SKILL_ACTIVATION_SCHEMA: &str = "kiana.skill-activation.v1";
 pub const DEFAULT_BODY_MAX_BYTES: usize = 16 * 1024;
 pub const DEFAULT_BODY_MAX_TOKENS: usize = 4 * 1024;
 pub const DEFAULT_RESOURCE_MAX_BYTES: usize = 256 * 1024;
@@ -121,6 +122,36 @@ pub struct SkillResource {
     pub quota: DisclosureQuota,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillActivationStatus {
+    Active,
+    Revoked,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SkillActivationRequest {
+    pub snapshot_generation: u64,
+    pub now_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SkillActivation {
+    pub schema: String,
+    pub activation_id: String,
+    pub skill_name: String,
+    pub package_hash: String,
+    pub source: SkillSourceSummary,
+    pub snapshot_generation: u64,
+    pub expires_at_unix_ms: u64,
+    pub status: SkillActivationStatus,
+    pub activation_digest: String,
+}
+
 #[derive(Debug, Error)]
 pub enum DisclosureError {
     #[error("budget_invalid")]
@@ -137,6 +168,12 @@ pub enum DisclosureError {
     },
     #[error("skill_root_missing")]
     SkillRootMissing,
+    #[error("skill_activation_denied:{0}")]
+    ActivationDenied(&'static str),
+    #[error("skill_activation_invalid")]
+    ActivationInvalid,
+    #[error("skill_activation_expired")]
+    ActivationExpired,
     #[error("resource_invalid:{0}")]
     ResourceInvalid(String),
     #[error("resource_io:{0}")]
@@ -205,12 +242,63 @@ pub fn load_skill_body(
     })
 }
 
+pub fn activate_skill(
+    skill: &Command,
+    request: &SkillActivationRequest,
+) -> Result<SkillActivation, DisclosureError> {
+    if !skill.user_invocable {
+        return Err(DisclosureError::ActivationDenied(
+            "skill_not_user_invocable",
+        ));
+    }
+    if request.snapshot_generation == 0
+        || request.now_unix_ms == 0
+        || request.expires_at_unix_ms <= request.now_unix_ms
+        || request.reason.trim().is_empty()
+        || request.reason.len() > 1_024
+        || request.reason.contains('\0')
+    {
+        return Err(DisclosureError::ActivationInvalid);
+    }
+    let package_hash = package_hash(skill);
+    let source = skill_source_summary(skill);
+    let activation_key = json!({
+        "skill_name": skill.name,
+        "package_hash": package_hash,
+        "source": source,
+        "snapshot_generation": request.snapshot_generation,
+        "expires_at_unix_ms": request.expires_at_unix_ms,
+        "reason": request.reason,
+    });
+    let activation_id = format!(
+        "skill-activation:{}",
+        json_digest(&activation_key).trim_start_matches("sha256:")
+    );
+    let mut activation = SkillActivation {
+        schema: SKILL_ACTIVATION_SCHEMA.to_owned(),
+        activation_id,
+        skill_name: skill.name.clone(),
+        package_hash,
+        source,
+        snapshot_generation: request.snapshot_generation,
+        expires_at_unix_ms: request.expires_at_unix_ms,
+        status: SkillActivationStatus::Active,
+        activation_digest: String::new(),
+    };
+    activation.activation_digest = activation.digest();
+    activation.validate_for(skill, request.now_unix_ms)?;
+    Ok(activation)
+}
+
 pub async fn read_skill_resource(
     skill: &Command,
+    activation: &SkillActivation,
     relative_path: &str,
     budget: &DisclosureBudget,
+    now_unix_ms: u64,
 ) -> Result<SkillResource, DisclosureError> {
     budget.validate()?;
+    activation.validate_for(skill, now_unix_ms)?;
     let root = skill
         .skill_root
         .as_ref()
@@ -278,12 +366,7 @@ fn skill_catalog_entry(skill: &Command) -> SkillCatalogEntry {
         name: skill.name.clone(),
         display_name: skill.display_name.clone(),
         description: skill.description.clone(),
-        source: SkillSourceSummary {
-            source: source_id(skill),
-            trust: SourceTrust::Trusted,
-            setting_source: skill.source,
-            loaded_from: skill.loaded_from,
-        },
+        source: skill_source_summary(skill),
         status: if skill.disable_model_invocation {
             SkillDisclosureStatus::Disabled
         } else {
@@ -293,6 +376,38 @@ fn skill_catalog_entry(skill: &Command) -> SkillCatalogEntry {
         content_digest: skill_content_digest(skill),
         user_invocable: skill.user_invocable,
         disable_model_invocation: skill.disable_model_invocation,
+    }
+}
+
+impl SkillActivation {
+    pub fn validate_for(&self, skill: &Command, now_unix_ms: u64) -> Result<(), DisclosureError> {
+        if self.expires_at_unix_ms <= now_unix_ms {
+            return Err(DisclosureError::ActivationExpired);
+        }
+        if self.schema != SKILL_ACTIVATION_SCHEMA
+            || self.activation_id.trim().is_empty()
+            || self.skill_name != skill.name
+            || self.package_hash != package_hash(skill)
+            || self.snapshot_generation == 0
+            || self.status != SkillActivationStatus::Active
+            || self.activation_digest != self.digest()
+        {
+            return Err(DisclosureError::ActivationInvalid);
+        }
+        Ok(())
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "activation_id": self.activation_id,
+            "skill_name": self.skill_name,
+            "package_hash": self.package_hash,
+            "source": self.source,
+            "snapshot_generation": self.snapshot_generation,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+            "status": self.status,
+        }))
     }
 }
 
@@ -306,6 +421,15 @@ fn source_id(skill: &Command) -> String {
             .map(|path| json_digest(&json!({ "root": path.to_string_lossy() })))
             .unwrap_or_else(|| "sha256:unknown".to_owned())
     )
+}
+
+fn skill_source_summary(skill: &Command) -> SkillSourceSummary {
+    SkillSourceSummary {
+        source: source_id(skill),
+        trust: SourceTrust::Trusted,
+        setting_source: skill.source,
+        loaded_from: skill.loaded_from,
+    }
 }
 
 fn package_hash(skill: &Command) -> String {

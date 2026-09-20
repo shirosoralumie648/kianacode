@@ -1,6 +1,7 @@
 use kiana_skills::{
-    list_skill_catalog, load_skill_body, read_skill_resource, search_skill_catalog, Command,
-    DisclosureBudget, DisclosureError, LoadedFrom, SettingSource, SkillDisclosureStatus,
+    activate_skill, list_skill_catalog, load_skill_body, read_skill_resource, search_skill_catalog,
+    Command, DisclosureBudget, DisclosureError, LoadedFrom, SettingSource, SkillActivationRequest,
+    SkillDisclosureStatus,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -92,14 +93,26 @@ async fn resource_read_is_root_relative_and_quota_bound() {
     fs::write(root.join("README.md"), "resource body").unwrap();
     fs::write(root.join("script.sh"), "#!/bin/sh\nprintf ok\n").unwrap();
     let command = skill(Some(root.clone()), "review", "Review", "body");
+    let activation = activate_skill(
+        &command,
+        &SkillActivationRequest {
+            snapshot_generation: 7,
+            now_unix_ms: 100,
+            expires_at_unix_ms: 200,
+            reason: "explicit user activation".to_owned(),
+        },
+    )
+    .unwrap();
 
     let resource = read_skill_resource(
         &command,
+        &activation,
         "README.md",
         &DisclosureBudget {
             max_bytes: 64,
             max_tokens: 16,
         },
+        150,
     )
     .await
     .unwrap();
@@ -110,11 +123,13 @@ async fn resource_read_is_root_relative_and_quota_bound() {
 
     let denied = read_skill_resource(
         &command,
+        &activation,
         "../outside.txt",
         &DisclosureBudget {
             max_bytes: 64,
             max_tokens: 16,
         },
+        150,
     )
     .await
     .unwrap_err();
@@ -122,11 +137,13 @@ async fn resource_read_is_root_relative_and_quota_bound() {
 
     let over_budget = read_skill_resource(
         &command,
+        &activation,
         "script.sh",
         &DisclosureBudget {
             max_bytes: 4,
             max_tokens: 2,
         },
+        150,
     )
     .await
     .unwrap_err();
@@ -137,6 +154,20 @@ async fn resource_read_is_root_relative_and_quota_bound() {
             ..
         }
     ));
+
+    let expired = read_skill_resource(
+        &command,
+        &activation,
+        "README.md",
+        &DisclosureBudget {
+            max_bytes: 64,
+            max_tokens: 16,
+        },
+        200,
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(expired, DisclosureError::ActivationExpired));
 
     fs::remove_dir_all(Path::new(&root)).unwrap();
 }

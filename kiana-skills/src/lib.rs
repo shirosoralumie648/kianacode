@@ -13,11 +13,12 @@ pub mod types;
 pub use bundled::{get_bundled_skills, register_bundled_skill, BundledSkill};
 pub use catalog::{build_skill_catalog, SkillCatalog};
 pub use disclosure::{
-    list_skill_catalog, load_skill_body, read_skill_resource, search_skill_catalog,
-    DisclosureBudget, DisclosureError, DisclosureQuota, SkillBody, SkillCatalogEntry,
-    SkillCatalogResponse, SkillDisclosureStatus, SkillResource, SkillSourceSummary,
-    DEFAULT_BODY_MAX_BYTES, DEFAULT_BODY_MAX_TOKENS, DEFAULT_RESOURCE_MAX_BYTES,
-    DEFAULT_RESOURCE_MAX_TOKENS, SKILL_DISCLOSURE_SCHEMA,
+    activate_skill, list_skill_catalog, load_skill_body, read_skill_resource, search_skill_catalog,
+    DisclosureBudget, DisclosureError, DisclosureQuota, SkillActivation, SkillActivationRequest,
+    SkillActivationStatus, SkillBody, SkillCatalogEntry, SkillCatalogResponse,
+    SkillDisclosureStatus, SkillResource, SkillSourceSummary, DEFAULT_BODY_MAX_BYTES,
+    DEFAULT_BODY_MAX_TOKENS, DEFAULT_RESOURCE_MAX_BYTES, DEFAULT_RESOURCE_MAX_TOKENS,
+    SKILL_ACTIVATION_SCHEMA, SKILL_DISCLOSURE_SCHEMA,
 };
 pub use dynamic::{
     activate_conditional_skills_for_paths, add_dynamic_skill, get_dynamic_skills,
