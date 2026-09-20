@@ -15,6 +15,7 @@ pub mod chunker;
 pub mod config;
 pub mod context_inputs;
 pub mod deps;
+pub mod hook_outcome;
 pub mod index;
 pub mod index_generation;
 pub mod index_invalidation;
@@ -30,6 +31,7 @@ pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use context_inputs::repo_map_candidate;
 pub use deps::QueryDeps;
+pub use hook_outcome::{parse_hook_outcome, HookOutcome, HOOK_OUTCOME_SCHEMA};
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,

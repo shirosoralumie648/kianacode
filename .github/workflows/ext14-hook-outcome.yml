@@ -1,0 +1,42 @@
+name: EXT-14 hook outcomes and failure policy
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/hook_outcome.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext14_hook_outcome_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext14-hook-outcome-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext14-hook-outcome.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/hook_outcome.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext14_hook_outcome_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext14-hook-outcome-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext14-hook-outcome.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-outcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-14 source guard
+        run: cargo test -p kiana-core --test ext14_hook_outcome_guard --locked -- --test-threads=1
+      - name: Compile EXT-14 target
+        run: cargo check -p kiana-query --tests --locked

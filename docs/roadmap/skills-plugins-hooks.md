@@ -242,9 +242,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-14 · Outcome 与失败策略　⏳
+#### EXT-14 · Outcome 与失败策略　✅
 
-统一 `Allow`、`Block(reason)`、`Ask(approval_ref)`、`UpdateInput(patch)`、`AdditionalContext`、`Timeout`、`Cancelled`、`Unknown`；解析 stdout 时拒绝多 JSON、未知字段、超限 patch 和不可应用 diff。PreTool guard 的 error/timeout/cancel 默认 fail-closed；observer 可记录失败但不能隐藏 receipt。
+当前 source slice 与 CI-only 证据见 [`ext14-hook-outcome-baseline.md`](ext14-hook-outcome-baseline.md)。
+
+新增闭合 `HookOutcome` 与 strict stdout adapter，统一 `Allow`、`Block(reason)`、`Ask(approval_ref)`、`UpdateInput(patch)`、`AdditionalContext`、`Timeout`、`Cancelled`、`Unknown`；解析拒绝多 JSON、未知字段、超限 patch、缺 approval ref 和非法 update。PreTool guard 的 error/timeout/cancel 保持 fail-closed，observer 只能记录，不隐藏 receipt。
 
 <a id="step-ext-15"></a>
 

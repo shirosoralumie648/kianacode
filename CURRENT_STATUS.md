@@ -133,6 +133,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: full descendant reaping/stop report plumbing, real per-process CPU/AS enforcement, streaming output backpressure, secret redaction receipt and cross-process recovery remain later CAP/ER/SC work
 reviewer: Codex source review; checked env clearing, cwd binding, process group setup, cancellation/timeout path, output truncation marker and no inherited host environment
 
+### EXT-14 hook outcome evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-14 source slice; `kiana-query/src/hook_outcome.rs`, source guard and workflow
+worktree_status: EXT-14 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext14_hook_outcome_guard.rs` covers the closed outcome set, unknown-field denial, update reauthorization and patch/context bounds
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-14 behavior evidence; CI result intentionally not awaited
+status change: EXT-14 source slice is implemented and roadmap row 349 is ✅; Hook stdout now has a typed fail-closed outcome contract
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: runtime aggregation wiring, observer receipt persistence, real approval refs, process Unknown reconciliation and PreTool final reauthorization remain EXT-15+
+reviewer: Codex source review; checked closed outcome variants, strict parsing, fail-closed timeout/cancel/unknown, update reauthorization and bounded patch/context
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：
