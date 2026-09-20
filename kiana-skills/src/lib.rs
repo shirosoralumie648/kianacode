@@ -22,7 +22,10 @@ pub use disclosure::{
 };
 pub use dynamic::{
     activate_conditional_skills_for_paths, add_dynamic_skill, get_dynamic_skills,
-    store_conditional_skill,
+    store_conditional_skill, DynamicActivationReceipt, DynamicActivationStatus, DynamicSkillError,
+    DynamicSkillScope, DynamicSkillStore, PathGlobAst, SkillInvocation, SkillInvocationRequest,
+    DYNAMIC_ACTIVATION_RECEIPT_SCHEMA, DYNAMIC_SKILL_SCHEMA, PATH_GLOB_AST_SCHEMA,
+    SKILL_INVOCATION_SCHEMA,
 };
 pub use loader::{
     get_skill_dirs, get_skill_dirs_with_trust, load_skills_from_dir, normalize_skill_name,

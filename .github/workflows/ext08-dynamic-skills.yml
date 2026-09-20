@@ -1,0 +1,46 @@
+name: EXT-08 dynamic skills and parameterized invocation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/dynamic.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext08_dynamic_scope.rs"
+      - "kiana-core/tests/ext08_dynamic_skill_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext08-dynamic-skills-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext08-dynamic-skills.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/dynamic.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext08_dynamic_scope.rs"
+      - "kiana-core/tests/ext08_dynamic_skill_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext08-dynamic-skills-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext08-dynamic-skills.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-08 dynamic scope fixtures
+        run: cargo test -p kiana-skills --test ext08_dynamic_scope --locked -- --test-threads=1
+      - name: Run EXT-08 source guard
+        run: cargo test -p kiana-core --test ext08_dynamic_skill_guard --locked -- --test-threads=1
+      - name: Compile EXT-08 targets
+        run: cargo check -p kiana-skills --tests --locked

@@ -180,9 +180,11 @@ Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package has
 
 
 
-#### EXT-08 · 条件 Skill、路径和参数　⏳
+#### EXT-08 · 条件 Skill、路径和参数　✅
 
-把 `paths` 编译成可重放的 glob AST，记录触发路径 digest、匹配顺序和 activation reason；修复 dynamic store 的进程级全局状态，使激活按 session/snapshot 隔离并可撤销。用户参数使用结构化 argv/JSON，不拼接 shell；缺失、过长、未知参数先拒绝。取消或 snapshot 失效后动态 Skill 从可见集合移除并产生 receipt。
+当前 source slice 与 CI-only 证据见 [`ext08-dynamic-skills-baseline.md`](ext08-dynamic-skills-baseline.md)。
+
+把 `paths` 编译成带 digest 的确定性 `PathGlobAst`，记录触发路径、匹配顺序和 activation reason；`DynamicSkillStore` 按 session/snapshot 隔离，revoke 会把动态 Skill 从可见集合移除并产生 receipt。参数走结构化 argv 校验，不拼接 shell；缺失、过长、NUL、未知 named 参数和未声明参数先拒绝。
 
 <a id="step-ext-09"></a>
 

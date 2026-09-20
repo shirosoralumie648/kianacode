@@ -37,6 +37,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: activation authority is an in-process typed source contract; ControlPlane command/event projection, durable activation persistence, revoke propagation across processes, protocol/entrypoint/UI exposure, package signing and external/live resource effects remain later roadmap work
 reviewer: Codex source review; checked expiry/generation/package binding, revoked/tampered denial, root containment ordering and no script execution
 
+### EXT-08 dynamic Skill scope and argument evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-08 source slice; `kiana-skills/src/dynamic.rs`, `kiana-skills/src/lib.rs`, dynamic fixtures, source guard and workflow
+worktree_status: EXT-08 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext08_dynamic_scope.rs` covers path AST digest, trigger ordering, session/snapshot isolation, bounded argv and revoke; `kiana-core/tests/ext08_dynamic_skill_guard.rs` covers no operational single-map dynamic global and no shell construction
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-08 behavior evidence; CI result intentionally not awaited
+status change: EXT-08 source slice is implemented and roadmap row 343 is ✅; conditional activation, revoke and parameterized invocation now have scoped typed contracts
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: ControlPlane command/event projection, durable dynamic scope, cross-process cancellation/recovery, full argument schema language, protocol/entrypoint/UI exposure and external/live effects remain later roadmap work
+reviewer: Codex source review; checked session/snapshot isolation, deterministic path digest/ordering, revoke removal, argument bounds and structured-argv-only boundary
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：
