@@ -160,9 +160,11 @@ flowchart TD
 
 
 
-#### EXT-06 · 三层渐进披露　⏳
+#### EXT-06 · 三层渐进披露　✅
 
-实现 catalog metadata、Skill body、resource/script read 三层接口；`list/search` 只返回摘要和 source/trust/status，`load` 才返回正文，resource read 必须给出 package hash、相对路径和 quota。正文预算同时按 UTF-8 bytes 与 token 估算，超限返回 `over_budget`，不能截断后宣称完整加载。
+当前 source slice 与 CI-only 证据见 [`ext06-progressive-disclosure-baseline.md`](ext06-progressive-disclosure-baseline.md)。
+
+`kiana-skills` 现在提供 metadata-only `list/search`、显式完整 `load_skill_body` 和 package-relative `read_skill_resource`；目录条目携带 source/trust/status、package hash 与 content digest，资源返回 package hash、规范化相对路径和 quota。正文与资源均按 UTF-8 bytes 和有界 token 估算，超限返回 `over_budget`，不得截断后宣称完整加载。Harness 适配层在自动披露超预算时显式记录 omission reason。
 
 <a id="step-ext-07"></a>
 

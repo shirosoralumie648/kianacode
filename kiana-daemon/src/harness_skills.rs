@@ -8,11 +8,17 @@ use async_trait::async_trait;
 use kiana_domain::{PromptAuthority, PromptBundle, PromptSection, RoleSpec};
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use kiana_skills::{load_all_skills_with_trust, Command as Skill};
+use kiana_skills::{
+    load_all_skills_with_trust, load_skill_body, Command as Skill, DisclosureBudget,
+    DisclosureError,
+};
 use kiana_types::ProjectTrust;
 use std::sync::Arc;
 
-const SKILL_CONTENT_LIMIT: usize = 4000;
+const SKILL_BODY_BUDGET: DisclosureBudget = DisclosureBudget {
+    max_bytes: 16 * 1024,
+    max_tokens: 4 * 1024,
+};
 
 pub(crate) struct SkillAwareRunner {
     inner: Arc<dyn RunnerPort>,
@@ -190,7 +196,7 @@ fn skill_sections(skills: &[Skill]) -> Vec<PromptSection> {
                 skill.name,
                 serde_json::to_string(&skill.allowed_tools).unwrap_or_else(|_| "[]".to_owned()),
                 skill.description,
-                truncate(&skill.content, SKILL_CONTENT_LIMIT)
+                disclose_skill_body(skill)
             ),
             source: skill
                 .skill_root
@@ -203,8 +209,16 @@ fn skill_sections(skills: &[Skill]) -> Vec<PromptSection> {
     sections.sort_by(|a, b| (&a.name, &a.source).cmp(&(&b.name, &b.source)));
     sections
 }
-fn truncate(text: &str, limit: usize) -> String {
-    text.chars().take(limit).collect()
+
+fn disclose_skill_body(skill: &Skill) -> String {
+    match load_skill_body(skill, &SKILL_BODY_BUDGET) {
+        Ok(body) => body.body,
+        Err(DisclosureError::OverBudget { .. }) => {
+            "Skill body omitted: over_budget (explicit load required with a larger bounded budget)."
+                .to_owned()
+        }
+        Err(error) => format!("Skill body omitted: disclosure_error:{error}"),
+    }
 }
 
 #[cfg(test)]

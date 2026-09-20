@@ -4,6 +4,23 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### EXT-06 progressive disclosure evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-06 source slice; `kiana-skills/src/disclosure.rs`, `kiana-skills/src/lib.rs`, `kiana-daemon/src/harness_skills.rs`, CI-only fixtures, source guard and workflow
+worktree_status: EXT-06 changes are isolated from pre-existing `kiana-domain` WIP; unrelated `kiana-domain/src/lib.rs` and `kiana-domain/src/memory_workbench.rs` changes were preserved
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  cargo check -p kiana-skills -p kiana-daemon --tests --locked --offline
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext06_progressive_disclosure.rs` covers metadata-only catalog/search, complete-or-over-budget body loads, package-root resource reads and quota denial; `kiana-core/tests/ext06_progressive_disclosure_guard.rs` covers product-path wiring and no silent truncation
+exit_code: format and diff checks passed; local target compile observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-06 behavior evidence; CI result intentionally not awaited
+status change: EXT-06 source slice is implemented and roadmap row 341 is ✅; catalog/body/resource boundaries and explicit over-budget behavior are now represented
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: protocol/entrypoint projection, explicit activation lifecycle, package signing/revocation, durable snapshot recovery, provider/live resource effects and cross-process evidence remain in EXT-07+ and later roadmap steps
+reviewer: Codex source review; checked metadata-only projection, root-relative resource resolution, package/hash/quota output, dual budget checks, no truncation claim and preservation of pre-existing WIP
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：
