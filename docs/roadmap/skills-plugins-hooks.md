@@ -338,9 +338,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-24 · secret、state 和 migration　⏳
+#### EXT-24 · secret、state 和 migration　✅
 
-插件配置只保存 secret handle，不在 manifest、Prompt、Hook diagnostics 或 receipt 中保存原值；adapter 在执行点按 destination/expiry 再授权。迁移是独立受控 action：校验 old schema/hash → 隔离备份 → bounded migration → 验证新 schema/hash → 一次 CAS 切换。迁移异常留下旧版本和 unknown；state 与只读 package cache 分离并按 publisher/plugin/scope 隔离。
+当前 source slice 与 CI-only 证据见 ext24-secret-state-baseline.md。插件配置只保存 secret handle，不在 manifest、Prompt、Hook diagnostics 或 receipt 中保存原值；adapter 在执行点按 destination/expiry 再授权。迁移是独立受控 action：校验 old schema/hash → 隔离备份 → bounded migration → 验证新 schema/hash → 一次 CAS 切换。迁移异常留下旧版本和 unknown；state 与只读 package cache 分离并按 publisher/plugin/scope 隔离。
 
 <a id="step-ext-25"></a>
 
