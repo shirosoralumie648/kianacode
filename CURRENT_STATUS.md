@@ -165,6 +165,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: actual capabilities.rs wiring, patch application semantics, PathLock/approval CAS, runtime Hook rerun and TOCTOU behavior remain later integration work
 reviewer: Codex source review; checked new request identity, exact old/new args and scope digests, scope clearing, approval invalidation, recursion limit and no direct effect
 
+### EXT-16 hook lifecycle dispatch evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-16 source slice; `kiana-query/src/hook_lifecycle_dispatch.rs`, source guard and workflow
+worktree_status: EXT-16 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext16_hook_lifecycle_guard.rs` covers normalized lifecycle event set, identity binding, committed PostTool result gate and no capability execution
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-16 behavior evidence; CI result intentionally not awaited
+status change: EXT-16 source slice is implemented and roadmap row 351 is ✅; one typed lifecycle dispatch contract now covers all normalized Hook lifecycle points
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: runtime dispatcher invocation from Runner/Daemon, EventLog persistence, Hook snapshot execution, cancellation/retry and cross-process lifecycle recovery remain later integration work
+reviewer: Codex source review; checked lifecycle completeness, identity/sequence/digest binding, committed-result gate and explicit no-capability-effect boundary
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

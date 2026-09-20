@@ -1,0 +1,42 @@
+name: EXT-16 hook lifecycle dispatch
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/hook_lifecycle_dispatch.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext16_hook_lifecycle_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext16-hook-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext16-hook-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/hook_lifecycle_dispatch.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext16_hook_lifecycle_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext16-hook-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext16-hook-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-16 source guard
+        run: cargo test -p kiana-core --test ext16_hook_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile EXT-16 target
+        run: cargo check -p kiana-query --tests --locked

@@ -262,9 +262,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-16 · 全生命周期事件接线　⏳
+#### EXT-16 · 全生命周期事件接线　✅
 
-补齐 session-start/user-prompt，并把 BeforeModel、PostToolUse、PostToolFailure、Compaction、Stop、SessionEnd、Terminal 接入同一个 lifecycle dispatcher。dispatcher 只产生 Runner/ControlPlane 事件，不直接执行 capability；每个 event 带 run/session/snapshot id。PostToolUse 不能重写已提交 result，只能产生后续 action 的 guard 或 observer。
+当前 source slice 与 CI-only 证据见 [`ext16-hook-lifecycle-baseline.md`](ext16-hook-lifecycle-baseline.md)。
+
+新增统一 lifecycle dispatcher contract，覆盖 session-start/user-prompt、BeforeModel、PostToolUse、PostToolFailure、Compaction、Stop、SessionEnd、Terminal；每个 event 带 run/session/snapshot id、sequence 和 payload digest。dispatcher 只产出 Runner/ControlPlane 事件，不执行 capability；PostToolUse/PostToolFailure 必须先有 committed result，不能重写已提交事实。
 
 <a id="step-ext-17"></a>
 
