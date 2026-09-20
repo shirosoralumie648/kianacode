@@ -1,0 +1,48 @@
+name: EXT-22 extension lifecycle boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extension_lifecycle.rs"
+      - "kiana-domain/tests/ext22_extension_lifecycle.rs"
+      - "kiana-core/tests/ext22_extension_lifecycle_guard.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext22-extension-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext22-extension-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extension_lifecycle.rs"
+      - "kiana-domain/tests/ext22_extension_lifecycle.rs"
+      - "kiana-core/tests/ext22_extension_lifecycle_guard.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext22-extension-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext22-extension-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-22 domain fixtures
+        run: cargo test -p kiana-domain --test ext22_extension_lifecycle --locked -- --test-threads=1
+      - name: Run EXT-22 source guard
+        run: cargo test -p kiana-core --test ext22_extension_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile EXT-22 target
+        run: cargo check -p kiana-daemon --tests --locked

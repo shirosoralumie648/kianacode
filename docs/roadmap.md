@@ -525,7 +525,7 @@
 | 354 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
 | 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
 | 356 | W4 | 专项 | [`EXT-21`](roadmap/skills-plugins-hooks.md#step-ext-21) | Skills / Plugins / Hooks · 依赖图与 binding | `EXT-19`、`EXT-20` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-21) |
-| 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
+| 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
 | 358 | W4 | 专项 | [`EXT-23`](roadmap/skills-plugins-hooks.md#step-ext-23) | Skills / Plugins / Hooks · upgrade、disable、revoke、rollback、uninstall | `EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-23) |
 | 359 | W4 | 专项 | [`EXT-24`](roadmap/skills-plugins-hooks.md#step-ext-24) | Skills / Plugins / Hooks · secret、state 和 migration | `EXT-22`、`EXT-23` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-24) |
 | 360 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |

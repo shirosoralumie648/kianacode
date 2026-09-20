@@ -245,6 +245,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: daemon registry integration, lifecycle mutation, durable snapshot persistence, approval/revocation propagation, runtime Hook/MCP/Capability adapters and live external effects remain EXT-22+
 reviewer: Codex source review; checked exact-version/kind resolution, cycle detection, scope intersection, platform admission, bounded binding metadata, parent digest invalidation and no capability grant from declarations
 
+### EXT-22 extension lifecycle evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-22 source slice; `kiana-domain/src/extension_lifecycle.rs`, domain fixture, core source guard, existing `kiana-core/src/commands.rs`/`kiana-daemon/src/extensions.rs`, workflow and baseline document
+worktree_status: EXT-22 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-domain/tests/ext22_extension_lifecycle.rs` covers config precedence/source provenance, secret-handle-only storage, enable approval/config requirements and unknown-field rejection; `kiana-core/tests/ext22_extension_lifecycle_guard.rs` covers ControlPlane mutation and daemon CAS boundaries
+exit_code: format and diff checks passed; local tests deliberately not run; CI result intentionally not awaited
+status change: EXT-22 source slice is implemented and roadmap row 357 is ✅; inspect/stage/install/enable mutation and config contracts are now typed and fail-closed
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full daemon stage/install/enable runtime projection, pending-approval persistence, durable config store, multi-surface commands and live package effects remain open for follow-up integration steps
+reviewer: Codex source review; checked action-specific package/dependency/approval requirements, registry CAS/idempotency markers, redacted config provenance, scope precedence and no raw secret storage
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow
