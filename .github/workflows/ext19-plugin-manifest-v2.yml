@@ -1,0 +1,46 @@
+name: EXT-19 plugin manifest v2
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext19_plugin_manifest_v2.rs"
+      - "kiana-core/tests/ext19_plugin_manifest_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext19-plugin-manifest-v2-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext19-plugin-manifest-v2.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext19_plugin_manifest_v2.rs"
+      - "kiana-core/tests/ext19_plugin_manifest_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext19-plugin-manifest-v2-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext19-plugin-manifest-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-manifest-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-19 manifest fixtures
+        run: cargo test -p kiana-skills --test ext19_plugin_manifest_v2 --locked -- --test-threads=1
+      - name: Run EXT-19 source guard
+        run: cargo test -p kiana-core --test ext19_plugin_manifest_guard --locked -- --test-threads=1
+      - name: Compile EXT-19 target
+        run: cargo check -p kiana-skills --tests --locked

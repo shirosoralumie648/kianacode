@@ -294,9 +294,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-19 · Plugin manifest v2　⏳
+#### EXT-19 · Plugin manifest v2　✅
 
-在现有 `ExtensionManifest` v1 上增加稳定 `plugin_id`、publisher、component list、entrypoint kind、source/license、compatibility、required/optional dependencies、config schema、state schema 和 migration refs；组件 id 在 package 内唯一，namespace 不由包内容自定义。各种来源的 manifest 通过导入 adapter 转成同一 DTO，保留原始文件 hash 与来源。
+当前 source slice 与 CI-only 证据见 [`ext19-plugin-manifest-v2-baseline.md`](ext19-plugin-manifest-v2-baseline.md)。
+
+新增 `NormalizedPluginManifestV2` adapter，提供稳定 `plugin_id`、publisher、component list、entrypoint kind、source/license、required/optional dependencies、config/state schema 和 migration refs；组件 id 在 package 内唯一，namespace 由服务端按 publisher/plugin_id 派生，不由包内容自定义。旧 manifest 继续通过已有 adapter，所有来源保留原始 source digest。
 
 <a id="step-ext-20"></a>
 

@@ -10,6 +10,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const NORMALIZED_PLUGIN_MANIFEST_SCHEMA: &str = kiana_domain::PLUGIN_MANIFEST_SCHEMA;
+pub const NORMALIZED_PLUGIN_MANIFEST_V2_SCHEMA: &str = "kiana.plugin-manifest.v2";
 pub const NORMALIZED_HOOK_MANIFEST_SCHEMA: &str = kiana_domain::HOOK_MANIFEST_SCHEMA;
 pub const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 
@@ -41,6 +42,33 @@ pub struct NormalizedPluginManifest {
     pub description: Option<String>,
     pub components: Vec<PluginComponent>,
     pub legacy_adapter: bool,
+    pub source_digest: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginManifestV2Component {
+    pub id: String,
+    pub kind: PluginComponentKind,
+    pub entry: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NormalizedPluginManifestV2 {
+    pub schema: String,
+    pub plugin_id: String,
+    pub publisher: String,
+    pub version: String,
+    pub license: String,
+    pub source: String,
+    pub namespace: String,
+    pub components: Vec<PluginManifestV2Component>,
+    pub required_dependencies: BTreeMap<String, String>,
+    pub optional_dependencies: BTreeMap<String, String>,
+    pub configuration_schema: Value,
+    pub state_schema: Value,
+    pub migration_refs: Vec<String>,
     pub source_digest: String,
 }
 
@@ -133,6 +161,32 @@ struct StrictPluginManifest {
     #[serde(default)]
     description: Option<String>,
     components: Vec<PluginComponent>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StrictPluginManifestV2 {
+    schema: String,
+    plugin_id: String,
+    publisher: String,
+    version: String,
+    license: String,
+    source: String,
+    components: Vec<PluginManifestV2Component>,
+    #[serde(default)]
+    required_dependencies: BTreeMap<String, String>,
+    #[serde(default)]
+    optional_dependencies: BTreeMap<String, String>,
+    #[serde(default = "empty_object")]
+    configuration_schema: Value,
+    #[serde(default = "empty_object")]
+    state_schema: Value,
+    #[serde(default)]
+    migration_refs: Vec<String>,
+}
+
+fn empty_object() -> Value {
+    Value::Object(Default::default())
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -339,6 +393,92 @@ pub fn parse_plugin_manifest(raw: &str) -> Result<NormalizedPluginManifest, Exte
     }
 
     parse_legacy_plugin_manifest(value, source_digest)
+}
+
+pub fn parse_plugin_manifest_v2(raw: &str) -> Result<NormalizedPluginManifestV2, ExtensionError> {
+    if raw.len() > MAX_MANIFEST_BYTES {
+        return Err(error(
+            ExtensionErrorCode::InvalidSchema,
+            "plugin manifest v2 exceeds size limit",
+        ));
+    }
+    let value = kiana_domain::parse_bounded_json(raw.as_bytes()).map_err(|reason| {
+        error(
+            ExtensionErrorCode::InvalidSchema,
+            format!("plugin manifest v2 JSON invalid:{reason}"),
+        )
+    })?;
+    let source_digest = json_digest(&value);
+    let strict: StrictPluginManifestV2 = serde_json::from_value(value).map_err(|_| {
+        error(
+            ExtensionErrorCode::InvalidSchema,
+            "plugin manifest v2 fields invalid",
+        )
+    })?;
+    if strict.schema != NORMALIZED_PLUGIN_MANIFEST_V2_SCHEMA
+        || !valid_identifier(&strict.plugin_id, 128)
+        || !valid_identifier(&strict.publisher, 128)
+        || !valid_identifier(&strict.version, 64)
+        || strict.license.trim().is_empty()
+        || strict.license.len() > 256
+        || strict.source.trim().is_empty()
+        || strict.source.len() > 4_096
+        || strict.components.is_empty()
+        || strict.components.len() > 64
+        || strict.required_dependencies.len() > 64
+        || strict.optional_dependencies.len() > 64
+        || strict.migration_refs.len() > 32
+    {
+        return Err(error(
+            ExtensionErrorCode::InvalidIdentity,
+            "plugin manifest v2 identity or bounds invalid",
+        ));
+    }
+    let mut component_ids = BTreeSet::new();
+    for component in &strict.components {
+        if !valid_identifier(&component.id, 128)
+            || !valid_entry(&component.entry)
+            || !component_ids.insert(component.id.clone())
+        {
+            return Err(error(
+                ExtensionErrorCode::DuplicateIdentity,
+                "plugin manifest v2 component identity invalid",
+            ));
+        }
+    }
+    if strict
+        .required_dependencies
+        .keys()
+        .chain(strict.optional_dependencies.keys())
+        .any(|key| !valid_identifier(key, 128))
+    {
+        return Err(error(
+            ExtensionErrorCode::InvalidIdentity,
+            "plugin manifest v2 dependency identity invalid",
+        ));
+    }
+    if strict.migration_refs.iter().any(|path| !valid_entry(path)) {
+        return Err(error(
+            ExtensionErrorCode::InvalidIdentity,
+            "plugin manifest v2 migration reference invalid",
+        ));
+    }
+    Ok(NormalizedPluginManifestV2 {
+        schema: NORMALIZED_PLUGIN_MANIFEST_V2_SCHEMA.to_owned(),
+        plugin_id: strict.plugin_id.clone(),
+        publisher: strict.publisher.clone(),
+        version: strict.version,
+        license: strict.license,
+        source: strict.source,
+        namespace: format!("plugin:{}:{}", strict.publisher, strict.plugin_id),
+        components: strict.components,
+        required_dependencies: strict.required_dependencies,
+        optional_dependencies: strict.optional_dependencies,
+        configuration_schema: strict.configuration_schema,
+        state_schema: strict.state_schema,
+        migration_refs: strict.migration_refs,
+        source_digest,
+    })
 }
 
 fn parse_legacy_plugin_manifest(

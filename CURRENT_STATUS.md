@@ -213,6 +213,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime receipt persistence, EventLog projection, supervisor cleanup proof, ControlPlane recovery choices and cross-process replay remain later ER/PD/SC work
 reviewer: Codex source review; checked receipt completeness, receipt-only replay, Unknown fencing, no script/process execution and conservative recovery gate
 
+### EXT-19 plugin manifest v2 evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow
+worktree_status: EXT-19 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext19_plugin_manifest_v2.rs` covers v2 identity, namespace, component/dependency/config/state/migration fields and duplicate/escape rejection; `kiana-core/tests/ext19_plugin_manifest_guard.rs` covers server namespace and bounded component markers
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-19 behavior evidence; CI result intentionally not awaited
+status change: EXT-19 source slice is implemented and roadmap row 354 is ✅; v2 Plugin manifest import now produces one typed bounded DTO alongside legacy v1 compatibility
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: package verification/signature/immutable store/upgrade lifecycle/component dependency resolution and runtime enablement remain EXT-20+
+reviewer: Codex source review; checked stable identity fields, server namespace derivation, unique component IDs, path/dependency bounds and source digest retention
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

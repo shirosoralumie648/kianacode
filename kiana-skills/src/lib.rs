@@ -37,10 +37,11 @@ pub use loader::{
     parse_skill_document, SkillLoadError,
 };
 pub use manifest::{
-    component_index, parse_hook_manifest, parse_plugin_manifest, HookEntry,
-    NormalizedHookDescriptor, NormalizedHookEvent, NormalizedHookManifest,
-    NormalizedPluginManifest, PluginComponent, PluginComponentKind, MAX_MANIFEST_BYTES,
-    NORMALIZED_HOOK_MANIFEST_SCHEMA, NORMALIZED_PLUGIN_MANIFEST_SCHEMA,
+    component_index, parse_hook_manifest, parse_plugin_manifest, parse_plugin_manifest_v2,
+    HookEntry, NormalizedHookDescriptor, NormalizedHookEvent, NormalizedHookManifest,
+    NormalizedPluginManifest, NormalizedPluginManifestV2, PluginComponent, PluginComponentKind,
+    PluginManifestV2Component, MAX_MANIFEST_BYTES, NORMALIZED_HOOK_MANIFEST_SCHEMA,
+    NORMALIZED_PLUGIN_MANIFEST_SCHEMA, NORMALIZED_PLUGIN_MANIFEST_V2_SCHEMA,
 };
 pub use mcp::fetch_mcp_skills_for_client;
 pub use plugins::{
