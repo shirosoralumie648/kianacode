@@ -2,14 +2,17 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use kiana_skills::{
-    clear_caches, get_plugin_skill_dirs_for_cwd, get_skill_dirs_with_trust,
-    load_all_skills_with_trust, plugin_skill_load_audit_for_cwd, Command as SkillCommand,
-    LoadedFrom, SettingSource,
+    activate_skill, clear_caches, get_plugin_skill_dirs_for_cwd, get_skill_dirs_with_trust,
+    list_skill_catalog, load_all_skills_with_trust, plugin_skill_load_audit_for_cwd,
+    read_skill_resource, Command as SkillCommand, DisclosureBudget, DynamicSkillScope,
+    DynamicSkillStore, LoadedFrom, SettingSource, SkillActivationRequest, SkillInvocationRequest,
 };
 use kiana_types::project_trust_from_app_state;
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct SkillsCommand;
 
@@ -36,9 +39,12 @@ impl Command for SkillsCommand {
         match command.unwrap_or("list") {
             "" | "list" | "status" => list_skills(&context, rest).await,
             "json" => skills_json(&context, rest).await,
+            "catalog" => skills_catalog(&context, rest).await,
             "audit" => skills_audit(&context, rest).await,
             "show" | "get" => show_skill(&context, rest).await,
             "path" | "paths" => skill_paths(&context, rest).await,
+            "invoke" => invoke_skill(&context, rest).await,
+            "resource_read" | "resource" => read_skill_resource_command(&context, rest).await,
             "query" | "search" | "find" => list_skills(&context, rest).await,
             "help" | "--help" | "-h" => Ok(CommandResult::text(usage())),
             other => Err(anyhow!("unknown skills command '{}'\n\n{}", other, usage())),
@@ -97,7 +103,7 @@ async fn list_skills(context: &CommandContext, query: &str) -> Result<CommandRes
         );
     }
     lines
-        .push("usage: kiana skills show <name> | json [query] | path [name] | query <text>".into());
+        .push("usage: kiana skills catalog [query] | invoke <name> [JSON args] | resource_read <name> <relative_path> [budget JSON] | show <name> | path [name] | query <text>".into());
     Ok(CommandResult::text(lines.join("\n")))
 }
 
@@ -106,6 +112,189 @@ async fn skills_json(context: &CommandContext, query: &str) -> Result<CommandRes
     let skills = filtered_skills(load_skills(context, &cwd).await, query);
     let payload: Vec<SkillSummary> = skills.iter().map(SkillSummary::from).collect();
     Ok(CommandResult::text(serde_json::to_string_pretty(&payload)?))
+}
+
+async fn skills_catalog(context: &CommandContext, query: &str) -> Result<CommandResult> {
+    let cwd = cwd(context);
+    let skills = filtered_skills(load_skills(context, &cwd).await, query);
+    Ok(CommandResult::text(serde_json::to_string_pretty(
+        &list_skill_catalog(&skills),
+    )?))
+}
+
+async fn invoke_skill(context: &CommandContext, rest: &str) -> Result<CommandResult> {
+    let (name, raw_args) = split_word(rest);
+    let name = name.ok_or_else(|| anyhow!("usage: kiana skills invoke <name> [JSON args]"))?;
+    let argv = parse_skill_argv(raw_args)?;
+    let cwd = cwd(context);
+    let skills = load_skills(context, &cwd).await;
+    let skill = find_skill(&skills, name)
+        .ok_or_else(|| anyhow!("skill '{}' was not found", name))?
+        .clone();
+    if !skill.user_invocable {
+        return Err(anyhow!("skill '{}' is not user-invocable", name));
+    }
+    let now = now_unix_ms()?;
+    let scope = DynamicSkillScope::new(session_id(context), snapshot_generation(context))
+        .map_err(|error| anyhow!(error.to_string()))?;
+    let store = DynamicSkillStore::default();
+    store
+        .add_dynamic_skill_for_scope(
+            &scope,
+            skill.clone(),
+            now,
+            now.saturating_add(5 * 60 * 1000),
+            "explicit_command",
+        )
+        .map_err(|error| anyhow!(error.to_string()))?;
+    let invocation = store
+        .prepare_invocation(&SkillInvocationRequest {
+            scope,
+            skill_name: skill.name.clone(),
+            argv,
+            now_unix_ms: now,
+        })
+        .map_err(|error| anyhow!(error.to_string()))?;
+    Ok(CommandResult::text(serde_json::to_string_pretty(
+        &serde_json::json!({
+            "schema": "kiana.skill-invocation-adapter.v1",
+            "action": "invoke",
+            "invocation": invocation,
+            "role_id": context.app_state.get("role_id").and_then(Value::as_str),
+            "approval": "read_only_adapter_no_external_effect",
+            "allowed_tools": skill.allowed_tools,
+            "does_not_grant_tools": true,
+            "does_not_execute": true,
+        }),
+    )?))
+}
+
+async fn read_skill_resource_command(
+    context: &CommandContext,
+    rest: &str,
+) -> Result<CommandResult> {
+    let (name, remainder) = split_word(rest);
+    let name = name.ok_or_else(|| {
+        anyhow!("usage: kiana skills resource_read <name> <relative_path> [budget JSON]")
+    })?;
+    let (relative_path, raw_budget) = split_word(remainder);
+    let relative_path = relative_path.ok_or_else(|| {
+        anyhow!("usage: kiana skills resource_read <name> <relative_path> [budget JSON]")
+    })?;
+    let cwd = cwd(context);
+    let skills = load_skills(context, &cwd).await;
+    let skill = find_skill(&skills, name)
+        .ok_or_else(|| anyhow!("skill '{}' was not found", name))?
+        .clone();
+    let now = now_unix_ms()?;
+    let activation = activate_skill(
+        &skill,
+        &SkillActivationRequest {
+            snapshot_generation: snapshot_generation(context),
+            now_unix_ms: now,
+            expires_at_unix_ms: now.saturating_add(5 * 60 * 1000),
+            reason: "explicit_resource_read".to_owned(),
+        },
+    )
+    .map_err(|error| anyhow!(error.to_string()))?;
+    let budget = parse_resource_budget(raw_budget)?;
+    let resource = read_skill_resource(&skill, &activation, relative_path, &budget, now)
+        .await
+        .map_err(|error| anyhow!(error.to_string()))?;
+    Ok(CommandResult::text(serde_json::to_string_pretty(
+        &serde_json::json!({
+            "schema": "kiana.skill-resource-read-adapter.v1",
+            "action": "resource_read",
+            "resource": resource,
+            "approval": "read_only_adapter_no_external_effect",
+            "does_not_execute_script": true,
+        }),
+    )?))
+}
+
+fn parse_skill_argv(raw: &str) -> Result<Vec<String>> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let value: Value = serde_json::from_str(raw)
+        .map_err(|_| anyhow!("skill arguments must be a JSON object or string array"))?;
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| anyhow!("skill argv entries must be strings"))
+            })
+            .collect(),
+        Value::Object(values) => values
+            .into_iter()
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .map(|(key, value)| {
+                let value = match value {
+                    Value::String(value) => value,
+                    Value::Bool(value) => value.to_string(),
+                    Value::Number(value) => value.to_string(),
+                    _ => return Err(anyhow!("skill JSON arguments must be scalar values")),
+                };
+                Ok(format!("--{key}={value}"))
+            })
+            .collect(),
+        _ => Err(anyhow!(
+            "skill arguments must be a JSON object or string array"
+        )),
+    }
+}
+
+fn parse_resource_budget(raw: &str) -> Result<DisclosureBudget> {
+    if raw.trim().is_empty() {
+        return Ok(DisclosureBudget::resource_default());
+    }
+    let value: Value = serde_json::from_str(raw)
+        .map_err(|_| anyhow!("resource budget must be JSON {\"max_bytes\":N,\"max_tokens\":N}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow!("resource budget must be a JSON object"))?;
+    let max_bytes = object
+        .get("max_bytes")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("resource budget requires max_bytes"))?;
+    let max_tokens = object
+        .get("max_tokens")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("resource budget requires max_tokens"))?;
+    Ok(DisclosureBudget {
+        max_bytes: usize::try_from(max_bytes).map_err(|_| anyhow!("max_bytes is too large"))?,
+        max_tokens: usize::try_from(max_tokens).map_err(|_| anyhow!("max_tokens is too large"))?,
+    })
+}
+
+fn session_id(context: &CommandContext) -> String {
+    context
+        .app_state
+        .get("session_id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("skills-command-session")
+        .to_owned()
+}
+
+fn snapshot_generation(context: &CommandContext) -> u64 {
+    context
+        .app_state
+        .get("extension_snapshot_generation")
+        .and_then(Value::as_u64)
+        .filter(|generation| *generation > 0)
+        .unwrap_or(1)
+}
+
+fn now_unix_ms() -> Result<u64> {
+    Ok(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| anyhow!("clock_error:{error}"))?
+        .as_millis() as u64)
 }
 
 async fn skills_audit(context: &CommandContext, rest: &str) -> Result<CommandResult> {
@@ -320,7 +509,7 @@ fn loaded_from_label(loaded_from: LoadedFrom) -> &'static str {
 }
 
 fn usage() -> &'static str {
-    "usage: kiana skills [list|status|json [query]|audit [--json]|show <name>|path [name]|query <text>]"
+    "usage: kiana skills [list|catalog [query]|json [query]|audit [--json]|show <name>|invoke <name> [JSON args]|resource_read <name> <relative_path> [budget JSON]|path [name]|query <text>]"
 }
 
 #[derive(Serialize)]

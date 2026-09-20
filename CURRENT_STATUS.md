@@ -69,6 +69,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: ContextPlan/provider tokenizer integration, durable snapshot persistence, cross-process rebuild, prompt delivery telemetry and live model budget reconciliation remain later roadmap work
 reviewer: Codex source review; checked section binding, trust/hash/version/snapshot fields, omission-vs-truncation semantics, Context-only authority and extension/harness parity
 
+### EXT-10 skill invocation adapter evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-10 source slice; `kiana-commands/src/skills.rs`, Skill disclosure/dynamic contracts, source guard and workflow
+worktree_status: EXT-10 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: existing `kiana-commands` skill command tests plus `kiana-core/tests/ext10_skill_invocation_guard.rs`; adapter coverage targets catalog/invoke/resource_read, structured argv, user_invocable/activation/quota and non-authorizing allowed-tools
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-10 behavior evidence; CI result intentionally not awaited
+status change: EXT-10 source slice is implemented and roadmap row 345 is ✅; compatibility command surface now separates catalog/invoke/resource_read without direct execution
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full four-surface command routing, ControlPlane approval replay, role-specific Skill policy, durable invocation receipts, cancellation/retry runtime and external/live effects remain later roadmap work
+reviewer: Codex source review; checked explicit action separation, structured argv conversion, activation/resource quota reuse, non-authorizing allowed-tools and no second execution path
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

@@ -200,9 +200,11 @@ Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package has
 
 
 
-#### EXT-10 · Skill invocation 兼容　⏳
+#### EXT-10 · Skill invocation 兼容　✅
 
-保留已有 `/skill` 或命令形式作为 adapter，但分成 `catalog`、`invoke`、`resource_read` 三种动作；调用前检查 user_invocable、角色、scope、参数和 approval，调用中仍只能产生普通模型/能力请求。`disable_model_invocation` 只影响自动注入；`allowed-tools` 只能作为候选提示，最终集合由 policy/Broker 决定。验收命令注入、越权 tool、禁用 Skill、取消和重试。
+当前 source slice 与 CI-only 证据见 [`ext10-skill-invocation-baseline.md`](ext10-skill-invocation-baseline.md)。
+
+保留已有 `kiana skills` 命令作为兼容 adapter，分成 `catalog`、`invoke`、`resource_read` 三种动作；调用前检查 user_invocable、session/snapshot scope、结构化参数和只读 approval disposition，调用结果只是普通 invocation/resource envelope，不另起模型或工具执行。`disable_model_invocation` 不阻断显式 user invoke；`allowed-tools` 只作为候选提示，返回 `does_not_grant_tools=true`，最终集合仍由 policy/Broker 决定。
 
 ### 25.6 Wave 2：Hook 运行、重新授权和生命周期
 

@@ -1,0 +1,46 @@
+name: EXT-10 skill invocation adapter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-commands/src/skills.rs"
+      - "kiana-skills/src/disclosure.rs"
+      - "kiana-skills/src/dynamic.rs"
+      - "kiana-core/tests/ext10_skill_invocation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext10-skill-invocation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext10-skill-invocation.yml"
+  pull_request:
+    paths:
+      - "kiana-commands/src/skills.rs"
+      - "kiana-skills/src/disclosure.rs"
+      - "kiana-skills/src/dynamic.rs"
+      - "kiana-core/tests/ext10_skill_invocation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext10-skill-invocation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext10-skill-invocation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skill-invocation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-10 command tests
+        run: cargo test -p kiana-commands --lib --locked -- --test-threads=1
+      - name: Run EXT-10 source guard
+        run: cargo test -p kiana-core --test ext10_skill_invocation_guard --locked -- --test-threads=1
+      - name: Compile EXT-10 targets
+        run: cargo check -p kiana-commands -p kiana-skills --tests --locked
