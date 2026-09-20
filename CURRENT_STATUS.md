@@ -11110,6 +11110,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: full protocol/client/UI rendering, durable inspector hydration, actual correction command projection, deletion/rebuild controls and live approval UX remain open; no private source body is exposed by the contract
 reviewer: Codex root implementation review plus redacted locator/body boundary, receipt parity, projection/invalidation state, mutation operation restriction and operator approval review; no runtime test reviewer
 
+### EXT-26 plugin component adapter evidence (2026-09-20)
+
+source_snapshot: 7340c403 + EXT-26 working-tree slice; kiana-domain/src/extension_adapters.rs; kiana-domain/src/lib.rs; kiana-domain/tests/ext26_extension_adapters.rs; kiana-daemon/src/extensions.rs; kiana-daemon/tests/ext26_extension_adapters_guard.rs; kiana-capability-broker/src/lib.rs; .github/workflows/ext26-extension-adapters.yml; docs/roadmap/ext26-plugin-component-adapter-baseline.md; docs/roadmap/skills-plugins-hooks.md; docs/roadmap.md
+worktree_status: VerifiedExtensionComponent and ExtensionAdapterBinding bind package, manifest/source/snapshot/binding digests, registry generation, lifecycle revision, effect, network policy and approval. Declaration-only, unsigned/untrusted, missing/native/script, dependency, stale/revoked/disabled and network paths remain deny-first; unsupported Capability/Workflow/Memory/Provider/UI expose explicit unsupported capability. Daemon inspect projects a deterministic registry and Broker rechecks it through existing ExtensionAdmission. Pre-existing untracked kiana-domain/src/memory_workbench.rs and its lib.rs export are unrelated WIP and were not staged.
+command_argv:
+  cargo check -p kiana-domain --locked --offline (diagnostic only; no tests)
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test ext26_extension_adapters --locked -- --test-threads=1; cargo test -p kiana-daemon --test ext26_extension_adapters_guard --locked -- --test-threads=1
+cwd/environment: repository root; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only EXT-26 declaration/binding/deny-first fixtures and daemon/broker no-direct-execution source guard in ext26-extension-adapters.yml
+exit_code: local cargo check non-zero on pre-existing workspace WIP (ambiguous WorkspaceFileSnapshot, memory/output spill and related baseline errors); no local test exit code claimed; remote CI pending/not awaited
+status change: EXT-26 source slice is implemented and roadmap row 361/card are ✅. Adapter registry, component status/reason/unsupported capability projection and broker binding recheck are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live Hook process, MCP transport, arbitrary network/host-file access, durable restart recovery, receipt replay proof or physical side-effect correctness; runtime effects remain behind ControlPlane/Broker and later EXT-27–31 slices
+reviewer: Codex root implementation review plus /root/ext26_review deny-first/security review; no local runtime test reviewer
+
 ### CM-33 code graph temporal evidence (2026-09-20)
 
 source_snapshot: 2dcf6d90 + CM-33 working-tree slice; kiana-domain/src/{code_graph.rs,source_dependencies.rs,contracts.rs,lib.rs}; kiana-domain/tests/cm33_code_graph.rs; kiana-query/src/repo_map.rs; kiana-core/tests/cm33_code_graph_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/cm33-code-graph.yml; docs/roadmap/cm33-code-graph-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md

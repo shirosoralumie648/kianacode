@@ -12,7 +12,7 @@
 use async_trait::async_trait;
 use kiana_domain::{
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, CredentialLease,
-    ExtensionExecutionContract,
+    ExtensionAdapterDescriptor, ExtensionExecutionContract,
 };
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
@@ -105,12 +105,31 @@ pub trait ExtensionAdmission: Send + Sync {
         request: &AuthorizedCapabilityRequest,
         contract: &ExtensionExecutionContract,
     ) -> Result<(), PortError>;
+
+    /// Component adapters remain metadata until this final binding check succeeds. The default
+    /// implementation preserves compatibility for admissions that only manage legacy extension
+    /// execution contracts; daemon-owned admissions should override it when a component registry
+    /// is available.
+    async fn check_component_adapter(
+        &self,
+        _request: &AuthorizedCapabilityRequest,
+        descriptor: &ExtensionAdapterDescriptor,
+    ) -> Result<(), PortError> {
+        if descriptor.status != kiana_domain::ExtensionAdapterStatus::Available {
+            return Err(PortError::Failed(format!(
+                "extension_adapter_not_available:{}",
+                descriptor.reason
+            )));
+        }
+        Ok(())
+    }
 }
 
 struct ExtensionHandler {
     handler: Arc<dyn CapabilityHandler>,
     contract: ExtensionExecutionContract,
     admission: Arc<dyn ExtensionAdmission>,
+    component: Option<ExtensionAdapterDescriptor>,
 }
 
 #[async_trait]
@@ -127,6 +146,11 @@ impl CapabilityHandler for ExtensionHandler {
             .check(&request.request)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
         self.admission.check(&request, &self.contract).await?;
+        if let Some(component) = &self.component {
+            self.admission
+                .check_component_adapter(&request, component)
+                .await?;
+        }
         self.handler
             .execute_cancellable(request, cancellation)
             .await
@@ -139,6 +163,11 @@ impl CapabilityHandler for ExtensionHandler {
             .check(&request.request)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
         self.admission.check(&request, &self.contract).await?;
+        if let Some(component) = &self.component {
+            self.admission
+                .check_component_adapter(&request, component)
+                .await?;
+        }
         self.handler.execute(request).await
     }
 }
@@ -322,6 +351,31 @@ impl CapabilityBroker {
                 handler,
                 contract,
                 admission,
+                component: None,
+            }),
+        )
+    }
+
+    /// Register a component adapter without giving it a second execution path. The descriptor is
+    /// checked by the existing ExtensionAdmission immediately before the wrapped handler runs.
+    pub fn register_extension_component_static(
+        &mut self,
+        capability: CapabilityKind,
+        operation: impl Into<String>,
+        handler: Arc<dyn CapabilityHandler>,
+        contract: ExtensionExecutionContract,
+        admission: Arc<dyn ExtensionAdmission>,
+        component: ExtensionAdapterDescriptor,
+    ) -> Result<(), PortError> {
+        component.validate().map_err(PortError::Failed)?;
+        self.register_static(
+            capability,
+            operation,
+            Arc::new(ExtensionHandler {
+                handler,
+                contract,
+                admission,
+                component: Some(component),
             }),
         )
     }
