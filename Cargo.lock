@@ -2562,16 +2562,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiana-quality"
-version = "0.1.0"
-dependencies = [
- "kiana-domain",
- "regex",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "kiana-gates"
 version = "0.1.0"
 dependencies = [
@@ -2634,6 +2624,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "kiana-quality"
+version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "regex",
+ "serde",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2748,6 +2748,7 @@ dependencies = [
  "kiana-services",
  "kiana-types",
  "once_cell",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",

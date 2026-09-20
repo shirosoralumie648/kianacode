@@ -101,6 +101,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: Hook discovery/ordering/process supervision/outcome aggregation/re-authorization and lifecycle execution remain EXT-12+; normalized descriptors are inert metadata and do not claim runtime hook execution
 reviewer: Codex source review; checked event allow-list, strict/legacy adapter behavior, bounded descriptor fields and deny/ask/update semantic preservation
 
+### EXT-12 hook discovery evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-12 source slice; `kiana-skills/src/hook_discovery.rs`, manifest adapter, fixture, source guard and workflow
+worktree_status: EXT-12 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext12_hook_discovery.rs` covers deterministic event/matcher ordering, guard/observer partition, unmatched reasons and invalid regex; `kiana-core/tests/ext12_hook_discovery_guard.rs` covers read-only discovery boundary
+exit_code: format and diff checks passed; offline lockfile refresh completed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-12 behavior evidence; CI result intentionally not awaited
+status change: EXT-12 source slice is implemented and roadmap row 347 is ✅; discovery snapshots now retain deterministic match order, diagnostics and input digest
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: live source root scanning, runtime HookSnapshot persistence, process supervision, outcome aggregation, approval/re-authorization and cross-process recovery remain EXT-13+
+reviewer: Codex source review; checked event/matcher normalization, ordering tie-breakers, guard/observer separation, invalid matcher diagnostics and no execution side effects
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

@@ -2,6 +2,7 @@ pub mod bundled;
 pub mod catalog;
 pub mod disclosure;
 pub mod dynamic;
+pub mod hook_discovery;
 pub mod loader;
 pub mod manifest;
 pub mod mcp;
@@ -26,6 +27,10 @@ pub use dynamic::{
     DynamicSkillScope, DynamicSkillStore, PathGlobAst, SkillInvocation, SkillInvocationRequest,
     DYNAMIC_ACTIVATION_RECEIPT_SCHEMA, DYNAMIC_SKILL_SCHEMA, PATH_GLOB_AST_SCHEMA,
     SKILL_INVOCATION_SCHEMA,
+};
+pub use hook_discovery::{
+    discover_hooks, HookDiscoveryCandidate, HookDiscoveryRequest, HookDiscoverySnapshot,
+    HookMatchPhase, HookMatchRecord, HOOK_DISCOVERY_SCHEMA,
 };
 pub use loader::{
     get_skill_dirs, get_skill_dirs_with_trust, load_skills_from_dir, normalize_skill_name,

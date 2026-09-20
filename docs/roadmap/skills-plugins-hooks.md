@@ -222,9 +222,11 @@ Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package has
 
 
 
-#### EXT-12 · Discovery、匹配和聚合输入　⏳
+#### EXT-12 · Discovery、匹配和聚合输入　✅
 
-Hook discovery 与 Skill/Plugin 使用同一个 SourceResolver 和 trust matrix。匹配使用规范化 tool/event 名、glob/regex 编译结果和显式优先级；同一 phase 按 source priority、specificity、declaration order、id 排序。每次运行保存匹配 descriptor ids、未匹配原因和输入 digest。Guard 与 observer 分开聚合，guard deny sticky，observer 错误不能隐藏 receipt。
+当前 source slice 与 CI-only 证据见 [`ext12-hook-discovery-baseline.md`](ext12-hook-discovery-baseline.md)。
+
+Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果。纯 discovery 层按规范化 event、glob/regex 编译结果、source priority、specificity、declaration order、id 固定顺序，保存匹配 descriptor ids、未匹配原因和 input digest；Guard/Observer 分组独立输出，后续聚合层可保持 guard deny sticky 且不隐藏 observer receipt。
 
 <a id="step-ext-13"></a>
 

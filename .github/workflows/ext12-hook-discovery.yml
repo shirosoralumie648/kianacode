@@ -1,0 +1,50 @@
+name: EXT-12 hook discovery and matching
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/hook_discovery.rs"
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/Cargo.toml"
+      - "kiana-skills/tests/ext12_hook_discovery.rs"
+      - "kiana-core/tests/ext12_hook_discovery_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext12-hook-discovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext12-hook-discovery.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/hook_discovery.rs"
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/Cargo.toml"
+      - "kiana-skills/tests/ext12_hook_discovery.rs"
+      - "kiana-core/tests/ext12_hook_discovery_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext12-hook-discovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext12-hook-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-discovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-12 discovery fixtures
+        run: cargo test -p kiana-skills --test ext12_hook_discovery --locked -- --test-threads=1
+      - name: Run EXT-12 source guard
+        run: cargo test -p kiana-core --test ext12_hook_discovery_guard --locked -- --test-threads=1
+      - name: Compile EXT-12 targets
+        run: cargo check -p kiana-skills --tests --locked
