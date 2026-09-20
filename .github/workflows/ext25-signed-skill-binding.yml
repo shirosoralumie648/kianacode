@@ -1,0 +1,54 @@
+name: EXT-25 signed skill server binding
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/tests/ext25_signed_skill_scope.rs"
+      - "kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-core/tests/ext25_signed_skill_scope_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-runner/src/tools.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext25-signed-skill-binding-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext25-signed-skill-binding.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-domain/tests/ext25_signed_skill_scope.rs"
+      - "kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs"
+      - "kiana-core/tests/ext25_signed_skill_scope_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-runner/src/tools.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext25-signed-skill-binding-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext25-signed-skill-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-skill-binding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-25 domain fixtures
+        run: cargo test -p kiana-domain --test ext25_signed_skill_scope --locked -- --test-threads=1
+      - name: Run EXT-25 source guard
+        run: cargo test -p kiana-core --test ext25_signed_skill_scope_guard --locked -- --test-threads=1
+      - name: Compile EXT-25 product targets
+        run: cargo check -p kiana-daemon -p kiana-capability-broker -p kiana-runner --tests --locked
