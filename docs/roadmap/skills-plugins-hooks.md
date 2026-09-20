@@ -212,9 +212,11 @@ Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package has
 
 
 
-#### EXT-11 · Hook schema 与事件　⏳
+#### EXT-11 · Hook schema 与事件　✅
 
-定义 normalized events：`SessionStart`、`UserPromptSubmit`、`BeforeModel`、`PreToolUse`、`PostToolUse`、`PostToolFailure`、`Compaction`、`Stop`、`SessionEnd`、`Terminal`。每个 HookDescriptor 声明 matcher、phase（guard/observer）、timeout、input/output schema、source、effect、required scope 和 version；Claude/Gemini/本地旧格式通过 adapter，adapter 不能改变 deny/ask 语义。
+当前 source slice 与 CI-only 证据见 [`ext11-hook-schema-baseline.md`](ext11-hook-schema-baseline.md)。
+
+定义 normalized events：`SessionStart`、`UserPromptSubmit`、`BeforeModel`、`PreToolUse`、`PostToolUse`、`PostToolFailure`、`Compaction`、`Stop`、`SessionEnd`、`Terminal`。`NormalizedHookDescriptor` 声明 matcher、phase（guard/observer）、timeout、input/output schema、source digest、effect、required scope 和 version；Claude/Gemini/本地旧格式通过 adapter，固定 deny-sticky、ask-preserved 和 update re-authorization，未知事件 fail-closed。
 
 <a id="step-ext-12"></a>
 

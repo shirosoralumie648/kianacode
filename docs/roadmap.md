@@ -514,7 +514,7 @@
 | 343 | W4 | 专项 | [`EXT-08`](roadmap/skills-plugins-hooks.md#step-ext-08) | Skills / Plugins / Hooks · 条件 Skill、路径和参数 | `EXT-07` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-08) |
 | 344 | W4 | 专项 | [`EXT-09`](roadmap/skills-plugins-hooks.md#step-ext-09) | Skills / Plugins / Hooks · Prompt provenance 与预算 | `EXT-05`、`EXT-06` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-09) |
 | 345 | W4 | 专项 | [`EXT-10`](roadmap/skills-plugins-hooks.md#step-ext-10) | Skills / Plugins / Hooks · Skill invocation 兼容 | `EXT-08`、`EXT-09` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-10) |
-| 346 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
+| 346 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
 | 347 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
 | 348 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
 | 349 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-11` Hook schema 与事件：现有 strict/legacy manifest adapter 新增 typed normalized events、descriptor version/input-output schema/timeout/effect/required scope，并固定 deny-sticky、ask-preserved、update-requires-reauthorization；未知事件 fail-closed；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-10` Skill invocation 兼容：`kiana skills` 新增 metadata-only catalog、结构化 JSON/argv invoke、带 activation/quota 的 resource_read；explicit invocation 不受 disable_model_invocation 误伤，allowed-tools 仅展示且返回 does_not_grant_tools；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-09` Prompt provenance 与预算：PromptBundle 新增 Skill provenance / snapshot / activation / budget 合同；harness 与 verified extension prompt 记录 bytes/token 使用、omission 或 truncation，保留 Context-only 非授权边界；新增 domain fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-08` 条件 Skill、路径和参数：新增可重放 PathGlobAst、session/snapshot 隔离的 DynamicSkillStore、path-trigger/revoke receipt 与 bounded structured argv 校验；移除 operational dynamic map 的单一进程全局形态，保留显式 legacy adapter；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |

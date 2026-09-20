@@ -1,0 +1,46 @@
+name: EXT-11 hook schema and event adapters
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext11_hook_schema.rs"
+      - "kiana-core/tests/ext11_hook_schema_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext11-hook-schema-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext11-hook-schema.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext11_hook_schema.rs"
+      - "kiana-core/tests/ext11_hook_schema_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext11-hook-schema-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext11-hook-schema.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-11 hook fixtures
+        run: cargo test -p kiana-skills --test ext11_hook_schema --locked -- --test-threads=1
+      - name: Run EXT-11 source guard
+        run: cargo test -p kiana-core --test ext11_hook_schema_guard --locked -- --test-threads=1
+      - name: Compile EXT-11 targets
+        run: cargo check -p kiana-skills --tests --locked

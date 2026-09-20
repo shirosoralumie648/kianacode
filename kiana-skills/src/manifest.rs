@@ -4,7 +4,7 @@
 //! a capability.  Legacy manifests are accepted only through the explicit adapter branch and are
 //! marked as such in the normalized DTO.
 
-use kiana_domain::{json_digest, ExtensionError, ExtensionErrorCode};
+use kiana_domain::{json_digest, ExtensionError, ExtensionErrorCode, HookPhase};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,11 +54,72 @@ pub struct HookEntry {
     pub entry: String,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NormalizedHookEvent {
+    SessionStart,
+    UserPromptSubmit,
+    BeforeModel,
+    PreToolUse,
+    PostToolUse,
+    PostToolFailure,
+    Compaction,
+    Stop,
+    SessionEnd,
+    Terminal,
+}
+
+impl NormalizedHookEvent {
+    fn parse(value: &str) -> Option<Self> {
+        let normalized = value
+            .chars()
+            .filter(|character| !matches!(character, '_' | '-' | '.' | ' '))
+            .collect::<String>()
+            .to_ascii_lowercase();
+        match normalized.as_str() {
+            "sessionstart" => Some(Self::SessionStart),
+            "userpromptsubmit" => Some(Self::UserPromptSubmit),
+            "beforemodel" => Some(Self::BeforeModel),
+            "pretooluse" => Some(Self::PreToolUse),
+            "posttooluse" => Some(Self::PostToolUse),
+            "posttoolfailure" => Some(Self::PostToolFailure),
+            "compaction" => Some(Self::Compaction),
+            "stop" => Some(Self::Stop),
+            "sessionend" => Some(Self::SessionEnd),
+            "terminal" | "taskcompleted" => Some(Self::Terminal),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NormalizedHookDescriptor {
+    pub schema: String,
+    pub version: String,
+    pub id: String,
+    pub event: NormalizedHookEvent,
+    pub matcher: String,
+    pub phase: HookPhase,
+    pub timeout_ms: u64,
+    pub input_schema: String,
+    pub output_schema: String,
+    pub source_digest: String,
+    pub effect: String,
+    pub required_scope: BTreeSet<String>,
+    pub deny_sticky: bool,
+    pub ask_preserved: bool,
+    pub update_requires_reauthorization: bool,
+    pub entry: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NormalizedHookManifest {
     pub schema: String,
     pub hooks: Vec<HookEntry>,
+    #[serde(default)]
+    pub descriptors: Vec<NormalizedHookDescriptor>,
     pub legacy_adapter: bool,
     pub source_digest: String,
 }
@@ -169,6 +230,67 @@ fn validate_hooks(hooks: &[HookEntry]) -> Result<(), ExtensionError> {
         }
     }
     Ok(())
+}
+
+fn normalize_hook_descriptors(
+    hooks: &[HookEntry],
+    source_digest: &str,
+) -> Result<Vec<NormalizedHookDescriptor>, ExtensionError> {
+    hooks
+        .iter()
+        .map(|hook| {
+            let event = NormalizedHookEvent::parse(&hook.event).ok_or_else(|| {
+                error(
+                    ExtensionErrorCode::Unsupported,
+                    format!(
+                        "unsupported hook event '{}'; adapter is fail-closed",
+                        hook.event
+                    ),
+                )
+            })?;
+            let phase = match hook.phase.as_str() {
+                "guard" => HookPhase::Guard,
+                "observer" => HookPhase::Observer,
+                _ => {
+                    return Err(error(
+                        ExtensionErrorCode::InvalidSchema,
+                        "hook phase is invalid",
+                    ))
+                }
+            };
+            let event_name = serde_json::to_string(&event).map_err(|_| {
+                error(
+                    ExtensionErrorCode::InvalidSchema,
+                    "hook event encode failed",
+                )
+            })?;
+            let event_name = event_name.trim_matches('"').to_owned();
+            let mut required_scope = BTreeSet::new();
+            required_scope.insert(format!("hook:{event_name}"));
+            Ok(NormalizedHookDescriptor {
+                schema: "kiana.normalized-hook-descriptor.v1".to_owned(),
+                version: "1.0.0".to_owned(),
+                id: hook.id.clone(),
+                event,
+                matcher: hook.matcher.clone(),
+                phase,
+                timeout_ms: 5_000,
+                input_schema: "kiana.hook-input.v1".to_owned(),
+                output_schema: "kiana.hook-output.v1".to_owned(),
+                source_digest: source_digest.to_owned(),
+                effect: if phase == HookPhase::Guard {
+                    "guard".to_owned()
+                } else {
+                    "observer".to_owned()
+                },
+                required_scope,
+                deny_sticky: true,
+                ask_preserved: true,
+                update_requires_reauthorization: true,
+                entry: hook.entry.clone(),
+            })
+        })
+        .collect()
 }
 
 pub fn parse_plugin_manifest(raw: &str) -> Result<NormalizedPluginManifest, ExtensionError> {
@@ -408,9 +530,11 @@ pub fn parse_hook_manifest(raw: &str) -> Result<NormalizedHookManifest, Extensio
         (hooks, true)
     };
     validate_hooks(&hooks)?;
+    let descriptors = normalize_hook_descriptors(&hooks, &source_digest)?;
     Ok(NormalizedHookManifest {
         schema: NORMALIZED_HOOK_MANIFEST_SCHEMA.to_owned(),
         hooks,
+        descriptors,
         legacy_adapter,
         source_digest,
     })

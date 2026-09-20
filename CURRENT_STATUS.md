@@ -85,6 +85,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: full four-surface command routing, ControlPlane approval replay, role-specific Skill policy, durable invocation receipts, cancellation/retry runtime and external/live effects remain later roadmap work
 reviewer: Codex source review; checked explicit action separation, structured argv conversion, activation/resource quota reuse, non-authorizing allowed-tools and no second execution path
 
+### EXT-11 hook schema and event adapter evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-11 source slice; `kiana-skills/src/manifest.rs`, normalized hook fixture, source guard and workflow
+worktree_status: EXT-11 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-skills/tests/ext11_hook_schema.rs` covers normalized event mapping, descriptor metadata and unknown-event denial; `kiana-core/tests/ext11_hook_schema_guard.rs` covers adapter semantics markers
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-11 behavior evidence; CI result intentionally not awaited
+status change: EXT-11 source slice is implemented and roadmap row 346 is ✅; strict/legacy hook manifests now expose one typed normalized descriptor contract
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: Hook discovery/ordering/process supervision/outcome aggregation/re-authorization and lifecycle execution remain EXT-12+; normalized descriptors are inert metadata and do not claim runtime hook execution
+reviewer: Codex source review; checked event allow-list, strict/legacy adapter behavior, bounded descriptor fields and deny/ask/update semantic preservation
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：
