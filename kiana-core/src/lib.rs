@@ -29,6 +29,7 @@ mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod health;
 mod history;
+mod hook_reauthorization;
 mod incident_projection;
 mod invocation_projection;
 mod lifecycle;
@@ -107,6 +108,7 @@ pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };
 pub use health::{project_health_snapshot, HealthProjectionError};
+pub use hook_reauthorization::*;
 pub use incident_projection::{
     project_incidents, project_observability_incidents, IncidentProjectionError,
 };

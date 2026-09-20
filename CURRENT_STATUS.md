@@ -149,6 +149,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime aggregation wiring, observer receipt persistence, real approval refs, process Unknown reconciliation and PreTool final reauthorization remain EXT-15+
 reviewer: Codex source review; checked closed outcome variants, strict parsing, fail-closed timeout/cancel/unknown, update reauthorization and bounded patch/context
 
+### EXT-15 hook reauthorization evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-15 source slice; `kiana-core/src/hook_reauthorization.rs`, source guard and workflow
+worktree_status: EXT-15 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext15_hook_reauthorization_guard.rs` covers new request identity, cleared scope bindings, approval invalidation, recursion guard and broker-not-called boundary
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-15 behavior evidence; CI result intentionally not awaited
+status change: EXT-15 source slice is implemented and roadmap row 350 is ✅; Hook updates now have an explicit reauthorization material before any Broker handoff
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: actual capabilities.rs wiring, patch application semantics, PathLock/approval CAS, runtime Hook rerun and TOCTOU behavior remain later integration work
+reviewer: Codex source review; checked new request identity, exact old/new args and scope digests, scope clearing, approval invalidation, recursion limit and no direct effect
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

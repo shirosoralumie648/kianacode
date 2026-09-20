@@ -252,9 +252,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-15 · PreTool 最终输入重新授权　⏳
+#### EXT-15 · PreTool 最终输入重新授权　✅
 
-顺序固定为：原始 request → policy/gate → 匹配 Hook → guard → 校验 patch → 重新运行 identity、scope、PathLock、policy/gate、approval 和 Hook（带 recursion guard）→ Broker。若 patch 改变路径、命令、MCP server、memory scope、secret ref 或 effect，旧 approval 立即失效。工具未执行前任何 Ask/Block/Unknown 都不得进入 Broker。
+当前 source slice 与 CI-only 证据见 [`ext15-hook-reauthorization-baseline.md`](ext15-hook-reauthorization-baseline.md)。
+
+顺序固定为：原始 request → policy/gate → 匹配 Hook → guard → 校验 patch → 生成新 request identity/scope material → 重新运行 identity、scope、PathLock、policy/gate、approval 和 Hook（带 recursion guard）→ Broker。若 patch 改变路径、命令、MCP server、memory scope、secret ref 或 effect，旧 approval 立即失效；工具未执行前任何 Ask/Block/Unknown 都不得进入 Broker。
 
 <a id="step-ext-16"></a>
 

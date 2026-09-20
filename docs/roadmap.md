@@ -518,7 +518,7 @@
 | 347 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
 | 348 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
 | 349 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
-| 350 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
+| 350 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
 | 351 | W4 | 专项 | [`EXT-16`](roadmap/skills-plugins-hooks.md#step-ext-16) | Skills / Plugins / Hooks · 全生命周期事件接线 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-16) |
 | 352 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
 | 353 | W4 | 专项 | [`EXT-18`](roadmap/skills-plugins-hooks.md#step-ext-18) | Skills / Plugins / Hooks · Receipt、重放和恢复 | `EXT-15`、`EXT-16`、`EXT-17` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-18) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-15` PreTool 最终输入重新授权：新增 HookReauthorization material，更新参数生成新 RequestId/args+scope digest，清空旧 execution/grant/lease scope，approval 立即失效并以 recursion depth/`broker_not_called` 固定重跑边界；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-14` Hook outcomes：新增闭合 HookOutcome contract 与 strict stdout adapter，覆盖 Allow/Block/Ask/UpdateInput/AdditionalContext/Timeout/Cancelled/Unknown；未知字段、approval ref 缺失、patch/context 超限和 update 未重新授权均 fail-closed；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-13` ProcessSupervisor：Hook executor 统一清理宿主环境、固定 cwd/minimal PATH、Unix process group、kill-on-drop、timeout/cancel 传递与 bounded UTF-8 output；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-12` Hook discovery：新增只读 deterministic discovery snapshot，复用 normalized descriptor 做 event + glob/regex matcher，按 phase/source priority/specificity/declaration order/id 排序，保留 matched/unmatched reason、guard/observer 分组和 input digest；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
