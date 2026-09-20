@@ -1,0 +1,42 @@
+name: EXT-18 hook receipts replay and recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/hook_receipt.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext18_hook_receipt_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext18-hook-receipt-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext18-hook-receipt.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/hook_receipt.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext18_hook_receipt_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext18-hook-receipt-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext18-hook-receipt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-18 source guard
+        run: cargo test -p kiana-core --test ext18_hook_receipt_guard --locked -- --test-threads=1
+      - name: Compile EXT-18 target
+        run: cargo check -p kiana-query --tests --locked

@@ -282,9 +282,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-18 · Receipt、重放和恢复　⏳
+#### EXT-18 · Receipt、重放和恢复　✅
 
-记录 Hook snapshot、输入/输出 digest、决策、审批引用、退出码、timeout/cancel、patch 前后 hash 和 process cleanup 证明。replay 只读取 receipt，不再次执行 Hook、脚本或外部资源；恢复遇到 unknown 先 fence 后由 ControlPlane 选择重试、人工确认或终止。目标验收：`replay_does_not_execute_hook_or_script`、`hook_cancel_stops_descendants_or_marks_unknown`。
+当前 source slice 与 CI-only 证据见 [`ext18-hook-receipt-baseline.md`](ext18-hook-receipt-baseline.md)。
+
+`HookReceipt` 记录 snapshot、输入/输出 digest、决策、审批引用、退出码、timeout/cancel、patch 前后 hash 和 process cleanup。replay 只读取 receipt 并返回 `executed=false`，不再次执行 Hook、脚本或外部资源；恢复遇到 Unknown/cleanup Unknown 先 fence 后由 ControlPlane 选择重试、人工确认或终止。
 
 ### 25.7 Wave 3：Plugin 包、组件和生命周期
 

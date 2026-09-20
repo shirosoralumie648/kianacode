@@ -18,6 +18,7 @@ pub mod deps;
 pub mod hook_cancellation;
 pub mod hook_lifecycle_dispatch;
 pub mod hook_outcome;
+pub mod hook_receipt;
 pub mod index;
 pub mod index_generation;
 pub mod index_invalidation;
@@ -42,6 +43,10 @@ pub use hook_lifecycle_dispatch::{
     HOOK_LIFECYCLE_DISPATCH_SCHEMA,
 };
 pub use hook_outcome::{parse_hook_outcome, HookOutcome, HOOK_OUTCOME_SCHEMA};
+pub use hook_receipt::{
+    hook_receipt_digest, replay_hook_receipt, HookCleanupState, HookReceipt, HookReplayView,
+    HOOK_RECEIPT_SCHEMA,
+};
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,

@@ -197,6 +197,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime observer task scheduling, supervisor stop evidence, EventLog receipt persistence, cross-process cancellation and retry execution remain later integration work
 reviewer: Codex source review; checked idempotency key composition, visited-set cycle rejection, bounded recursion, Unknown preservation and observer-only retry
 
+### EXT-18 hook receipt replay evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-18 source slice; `kiana-query/src/hook_receipt.rs`, source guard and workflow
+worktree_status: EXT-18 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext18_hook_receipt_guard.rs` covers receipt fields, replay `executed=false`, Unknown fencing and no process/external execution
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-18 behavior evidence; CI result intentionally not awaited
+status change: EXT-18 source slice is implemented and roadmap row 353 is ✅; Hook replay/recovery now has an explicit receipt-only contract
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: runtime receipt persistence, EventLog projection, supervisor cleanup proof, ControlPlane recovery choices and cross-process replay remain later ER/PD/SC work
+reviewer: Codex source review; checked receipt completeness, receipt-only replay, Unknown fencing, no script/process execution and conservative recovery gate
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：
