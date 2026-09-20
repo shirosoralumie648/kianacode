@@ -272,9 +272,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-17 · 取消、递归、异步 observer　⏳
+#### EXT-17 · 取消、递归、异步 observer　✅
 
-同一 Hook 在同一 run 的重复触发使用 invocation id 和幂等键；Hook 触发工具或模型请求必须有 recursion depth/visited set。同步 guard 有界完成；异步 observer 得到只读事件副本，不能阻塞或修改已提交输入。取消时传播 parent token、终止进程组、写入 cancelled/unknown receipt；重试只适用于 observer。
+当前 source slice 与 CI-only 证据见 [`ext17-hook-cancellation-baseline.md`](ext17-hook-cancellation-baseline.md)。
+
+同一 Hook 在同一 run 的重复触发使用 run/hook/invocation identity 和幂等键；Hook 触发工具或模型请求必须有 recursion depth/visited set。同步 guard 有界完成；异步 observer 只允许读取事件副本和在 Unknown 时重试。取消终态区分 confirmed cancelled 与 Unknown，后续 supervisor 负责进程组 stop evidence。
 
 <a id="step-ext-18"></a>
 

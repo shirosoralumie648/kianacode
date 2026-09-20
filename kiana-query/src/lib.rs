@@ -15,6 +15,7 @@ pub mod chunker;
 pub mod config;
 pub mod context_inputs;
 pub mod deps;
+pub mod hook_cancellation;
 pub mod hook_lifecycle_dispatch;
 pub mod hook_outcome;
 pub mod index;
@@ -32,6 +33,10 @@ pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use context_inputs::repo_map_candidate;
 pub use deps::QueryDeps;
+pub use hook_cancellation::{
+    cancellation_terminal, prepare_hook_invocation, retry_allowed, HookInvocationIdentity,
+    HookRunRole, HookRunTerminal, HOOK_CANCELLATION_SCHEMA,
+};
 pub use hook_lifecycle_dispatch::{
     HookLifecycleDispatcher, HookLifecycleEvent, HookLifecycleEventKind,
     HOOK_LIFECYCLE_DISPATCH_SCHEMA,

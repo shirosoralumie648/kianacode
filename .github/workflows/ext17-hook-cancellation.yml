@@ -1,0 +1,42 @@
+name: EXT-17 hook cancellation and recursion
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/hook_cancellation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext17_hook_cancellation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext17-hook-cancellation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext17-hook-cancellation.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/hook_cancellation.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-core/tests/ext17_hook_cancellation_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext17-hook-cancellation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext17-hook-cancellation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-cancellation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-17 source guard
+        run: cargo test -p kiana-core --test ext17_hook_cancellation_guard --locked -- --test-threads=1
+      - name: Compile EXT-17 target
+        run: cargo check -p kiana-query --tests --locked

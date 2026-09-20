@@ -181,6 +181,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime dispatcher invocation from Runner/Daemon, EventLog persistence, Hook snapshot execution, cancellation/retry and cross-process lifecycle recovery remain later integration work
 reviewer: Codex source review; checked lifecycle completeness, identity/sequence/digest binding, committed-result gate and explicit no-capability-effect boundary
 
+### EXT-17 hook cancellation and recursion evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-17 source slice; `kiana-query/src/hook_cancellation.rs`, source guard and workflow
+worktree_status: EXT-17 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext17_hook_cancellation_guard.rs` covers idempotency identity, recursion/visited fences, cancelled/unknown terminal and observer-only retry
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-17 behavior evidence; CI result intentionally not awaited
+status change: EXT-17 source slice is implemented and roadmap row 352 is ✅; Hook cancellation/recursion/retry boundaries now have a typed contract
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: runtime observer task scheduling, supervisor stop evidence, EventLog receipt persistence, cross-process cancellation and retry execution remain later integration work
+reviewer: Codex source review; checked idempotency key composition, visited-set cycle rejection, bounded recursion, Unknown preservation and observer-only retry
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

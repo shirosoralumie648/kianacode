@@ -520,7 +520,7 @@
 | 349 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
 | 350 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
 | 351 | W4 | 专项 | [`EXT-16`](roadmap/skills-plugins-hooks.md#step-ext-16) | Skills / Plugins / Hooks · 全生命周期事件接线 | `EXT-14` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-16) |
-| 352 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
+| 352 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
 | 353 | W4 | 专项 | [`EXT-18`](roadmap/skills-plugins-hooks.md#step-ext-18) | Skills / Plugins / Hooks · Receipt、重放和恢复 | `EXT-15`、`EXT-16`、`EXT-17` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-18) |
 | 354 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
 | 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-17` Hook cancellation/recursion：新增 run+hook+invocation idempotency identity、visited set/recursion bound、cancelled/unknown terminal 与 observer-only retry policy；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-16` Hook lifecycle：新增统一 lifecycle dispatcher contract，覆盖 SessionStart/UserPromptSubmit/BeforeModel/PreToolUse/PostToolUse/PostToolFailure/Compaction/Stop/SessionEnd/Terminal；绑定 session/run/snapshot/sequence/payload digest，PostTool 需 committed result，dispatcher 不产生 capability effect；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-15` PreTool 最终输入重新授权：新增 HookReauthorization material，更新参数生成新 RequestId/args+scope digest，清空旧 execution/grant/lease scope，approval 立即失效并以 recursion depth/`broker_not_called` 固定重跑边界；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-14` Hook outcomes：新增闭合 HookOutcome contract 与 strict stdout adapter，覆盖 Allow/Block/Ask/UpdateInput/AdditionalContext/Timeout/Cancelled/Unknown；未知字段、approval ref 缺失、patch/context 超限和 update 未重新授权均 fail-closed；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
