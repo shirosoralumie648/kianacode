@@ -196,27 +196,198 @@ impl ExtensionManifest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExtensionExecutionScope {
+    pub schema: String,
+    pub version: SchemaVersion,
     pub extension_id: String,
+    pub publisher: String,
     pub package_sha256: String,
     pub content_hash: String,
+    pub registry_generation: u64,
+    pub role_id: String,
     pub effect: ExtensionEffect,
     pub required_capabilities: BTreeSet<String>,
     pub network_policy: ExtensionNetworkPolicy,
     pub supported_roles: BTreeSet<String>,
+    pub capability_diff_digest: String,
+    pub network_policy_digest: String,
+    pub secret_policy_digest: String,
+    pub issued_at_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub scope_digest: String,
 }
 
 impl ExtensionExecutionScope {
+    pub const SCHEMA: &'static str = "kiana.extension-execution-scope.v2";
+    pub const VERSION: SchemaVersion = SchemaVersion::new(2, 0);
+
+    pub fn new(
+        manifest: &ExtensionManifest,
+        package_sha256: impl Into<String>,
+        registry_generation: u64,
+        role_id: impl Into<String>,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        manifest.validate().map_err(str::to_owned)?;
+        let mut scope = Self {
+            schema: Self::SCHEMA.to_owned(),
+            version: Self::VERSION,
+            extension_id: manifest.extension_id.clone(),
+            publisher: manifest.publisher.clone(),
+            package_sha256: package_sha256.into(),
+            content_hash: manifest.content_hash.clone(),
+            registry_generation,
+            role_id: role_id.into(),
+            effect: manifest.effect,
+            required_capabilities: manifest.required_capabilities.clone(),
+            network_policy: manifest.network_policy.clone(),
+            supported_roles: manifest.supported_roles.clone(),
+            capability_diff_digest: json_digest(&manifest.capability_diff(None)),
+            network_policy_digest: json_digest(
+                &serde_json::to_value(&manifest.network_policy)
+                    .map_err(|_| "extension_scope_policy_serialize".to_owned())?,
+            ),
+            secret_policy_digest: json_digest(&json!({
+                "secret_refs": manifest.secret_refs,
+            })),
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+            scope_digest: String::new(),
+        };
+        scope.scope_digest = scope.digest();
+        scope.validate()?;
+        Ok(scope)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != Self::SCHEMA
+            || self.version != Self::VERSION
+            || !valid_extension_identifier(&self.extension_id)
+            || !valid_extension_identifier(&self.publisher)
+            || !valid_extension_identifier(&self.role_id)
+            || self.registry_generation == 0
+            || self.issued_at_unix_ms == 0
+            || self.expires_at_unix_ms <= self.issued_at_unix_ms
+            || !is_sha256_hex(&self.package_sha256)
+            || !is_sha256_hex(&self.content_hash)
+        {
+            return Err("extension_scope_header_invalid".to_owned());
+        }
+        if !self.supported_roles.contains(&self.role_id) {
+            return Err("extension_scope_role_not_supported".to_owned());
+        }
+        for (value, field) in [
+            (
+                &self.capability_diff_digest,
+                "extension_scope_capability_diff_digest",
+            ),
+            (
+                &self.network_policy_digest,
+                "extension_scope_network_policy_digest",
+            ),
+            (
+                &self.secret_policy_digest,
+                "extension_scope_secret_policy_digest",
+            ),
+            (&self.scope_digest, "extension_scope_digest"),
+        ] {
+            if !value.starts_with("sha256:")
+                || value.len() != 71
+                || !value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+            {
+                return Err(format!("{field}_invalid"));
+            }
+        }
+        if self.scope_digest != self.digest() {
+            return Err("extension_scope_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn validate_at(
+        &self,
+        now_unix_ms: u64,
+        registry_generation: u64,
+        role_id: &str,
+    ) -> Result<(), String> {
+        self.validate()?;
+        if now_unix_ms >= self.expires_at_unix_ms {
+            return Err("extension_scope_expired".to_owned());
+        }
+        if self.registry_generation != registry_generation {
+            return Err("extension_scope_generation_stale".to_owned());
+        }
+        if self.role_id != role_id {
+            return Err("extension_scope_role_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn matches_manifest(&self, manifest: &ExtensionManifest) -> Result<(), String> {
+        manifest.validate().map_err(str::to_owned)?;
+        if self.extension_id != manifest.extension_id
+            || self.publisher != manifest.publisher
+            || self.content_hash != manifest.content_hash
+            || self.effect != manifest.effect
+            || self.required_capabilities != manifest.required_capabilities
+            || self.network_policy != manifest.network_policy
+            || self.supported_roles != manifest.supported_roles
+            || self.capability_diff_digest != json_digest(&manifest.capability_diff(None))
+            || self.network_policy_digest
+                != json_digest(
+                    &serde_json::to_value(&manifest.network_policy)
+                        .map_err(|_| "extension_scope_policy_serialize".to_owned())?,
+                )
+            || self.secret_policy_digest
+                != json_digest(&json!({"secret_refs": manifest.secret_refs}))
+        {
+            return Err("extension_scope_policy_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn contract(&self, handler_effect: ExtensionEffect) -> ExtensionExecutionContract {
         ExtensionExecutionContract {
             extension_id: self.extension_id.clone(),
+            publisher: self.publisher.clone(),
             package_sha256: self.package_sha256.clone(),
             content_hash: self.content_hash.clone(),
+            registry_generation: self.registry_generation,
+            role_id: self.role_id.clone(),
             effect: self.effect,
             required_capabilities: self.required_capabilities.clone(),
             network_policy: self.network_policy.clone(),
             supported_roles: self.supported_roles.clone(),
+            capability_diff_digest: self.capability_diff_digest.clone(),
+            network_policy_digest: self.network_policy_digest.clone(),
+            secret_policy_digest: self.secret_policy_digest.clone(),
+            issued_at_unix_ms: self.issued_at_unix_ms,
+            expires_at_unix_ms: self.expires_at_unix_ms,
+            scope_digest: self.scope_digest.clone(),
             handler_effect,
         }
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "extension_id": self.extension_id,
+            "publisher": self.publisher,
+            "package_sha256": self.package_sha256,
+            "content_hash": self.content_hash,
+            "registry_generation": self.registry_generation,
+            "role_id": self.role_id,
+            "effect": self.effect,
+            "required_capabilities": self.required_capabilities,
+            "network_policy": self.network_policy,
+            "supported_roles": self.supported_roles,
+            "capability_diff_digest": self.capability_diff_digest,
+            "network_policy_digest": self.network_policy_digest,
+            "secret_policy_digest": self.secret_policy_digest,
+            "issued_at_unix_ms": self.issued_at_unix_ms,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+        }))
     }
 }
 
@@ -232,6 +403,9 @@ pub fn request_extension_scopes(
             if scopes.len() > 64 {
                 return Err("extension_scope_limit_exceeded");
             }
+            for scope in &scopes {
+                scope.validate().map_err(|_| "extension_scope_invalid")?;
+            }
             Ok(scopes)
         })
         .transpose()
@@ -240,23 +414,83 @@ pub fn request_extension_scopes(
 #[derive(Clone, Debug)]
 pub struct ExtensionExecutionContract {
     pub extension_id: String,
+    pub publisher: String,
     pub package_sha256: String,
     pub content_hash: String,
+    pub registry_generation: u64,
+    pub role_id: String,
     pub effect: ExtensionEffect,
     pub required_capabilities: BTreeSet<String>,
     pub network_policy: ExtensionNetworkPolicy,
     pub supported_roles: BTreeSet<String>,
+    pub capability_diff_digest: String,
+    pub network_policy_digest: String,
+    pub secret_policy_digest: String,
+    pub issued_at_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub scope_digest: String,
     /// Classification of the concrete host adapter, separate from a caller's risk label.
     pub handler_effect: ExtensionEffect,
 }
 
 impl ExtensionExecutionContract {
+    pub fn validate_at(
+        &self,
+        now_unix_ms: u64,
+        registry_generation: u64,
+        role_id: &str,
+    ) -> Result<(), String> {
+        if now_unix_ms >= self.expires_at_unix_ms {
+            return Err("extension_scope_expired".to_owned());
+        }
+        if self.registry_generation != registry_generation {
+            return Err("extension_scope_generation_stale".to_owned());
+        }
+        if self.role_id != role_id {
+            return Err("extension_scope_role_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn matches_manifest(&self, manifest: &ExtensionManifest) -> Result<(), String> {
+        manifest.validate().map_err(str::to_owned)?;
+        if self.extension_id != manifest.extension_id
+            || self.publisher != manifest.publisher
+            || self.content_hash != manifest.content_hash
+            || self.effect != manifest.effect
+            || self.required_capabilities != manifest.required_capabilities
+            || self.network_policy != manifest.network_policy
+            || self.supported_roles != manifest.supported_roles
+            || self.capability_diff_digest != json_digest(&manifest.capability_diff(None))
+            || self.network_policy_digest
+                != json_digest(
+                    &serde_json::to_value(&manifest.network_policy)
+                        .map_err(|_| "extension_scope_policy_serialize".to_owned())?,
+                )
+            || self.secret_policy_digest
+                != json_digest(&json!({"secret_refs": manifest.secret_refs}))
+        {
+            return Err("extension_scope_policy_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn check(&self, request: &CapabilityRequest) -> Result<(), &'static str> {
         if !valid_extension_identifier(&self.extension_id)
+            || !valid_extension_identifier(&self.publisher)
+            || !valid_extension_identifier(&self.role_id)
+            || self.registry_generation == 0
+            || self.issued_at_unix_ms == 0
+            || self.expires_at_unix_ms <= self.issued_at_unix_ms
             || !is_sha256_hex(&self.content_hash)
             || !is_sha256_hex(&self.package_sha256)
+            || !self.scope_digest.starts_with("sha256:")
+            || self.scope_digest.len() != 71
         {
             return Err("extension_execution_contract_invalid");
+        }
+        if request.arguments.get("role_id").and_then(Value::as_str) != Some(self.role_id.as_str()) {
+            return Err("extension_scope_role_mismatch");
         }
         if self.effect == ExtensionEffect::ReadOnly
             && (self.handler_effect != ExtensionEffect::ReadOnly

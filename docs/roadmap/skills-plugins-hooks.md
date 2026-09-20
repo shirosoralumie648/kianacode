@@ -346,7 +346,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-25 · 签名 Skill 服务端绑定　⏳
+#### EXT-25 · 签名 Skill 服务端绑定　✅
+
+当前 source slice 与 CI-only 证据见 ext25-signed-skill-binding-baseline.md。
 
 将 `ExtensionRegistry::skill_context` 生成的 scope 变成 ControlPlane 可验证引用：每个引用绑定 package hash、registry generation、role、effect、capability diff、network/secret policy、expiry。`KianaHarness` 可把它作为 request metadata 传递，但 Broker 必须从 registry snapshot 重新查证，客户端和模型不能伪造 `_extension_scopes`。包升级、撤销、角色变化和新 approval 都触发 recheck。
 

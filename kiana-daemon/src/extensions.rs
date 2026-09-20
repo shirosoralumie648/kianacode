@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_PACKAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_CONTENT_BYTES: usize = 4 * 1024 * 1024;
@@ -618,7 +619,11 @@ impl ExtensionRegistry {
         PortError,
     > {
         let (_, history) = self.stream(project_root).await?;
-        let (_, states) = fold_registry(&history)?;
+        let (registry_generation, states) = fold_registry(&history)?;
+        let issued_at_unix_ms = unix_time_ms()?;
+        let expires_at_unix_ms = issued_at_unix_ms
+            .checked_add(60_000)
+            .ok_or_else(|| failed("extension_scope_expiry_overflow"))?;
         let mut sections = Vec::new();
         let mut scopes = Vec::new();
         let mut provenance = Vec::new();
@@ -670,15 +675,17 @@ impl ExtensionRegistry {
                 budget,
                 snapshot_id: format!("extension-snapshot:{}", state.package_sha256),
             });
-            scopes.push(kiana_domain::ExtensionExecutionScope {
-                extension_id: state.manifest.extension_id.clone(),
-                package_sha256: state.package_sha256.clone(),
-                content_hash: state.manifest.content_hash.clone(),
-                effect: state.manifest.effect,
-                required_capabilities: state.manifest.required_capabilities.clone(),
-                network_policy: state.manifest.network_policy.clone(),
-                supported_roles: state.manifest.supported_roles.clone(),
-            });
+            scopes.push(
+                kiana_domain::ExtensionExecutionScope::new(
+                    &state.manifest,
+                    state.package_sha256.clone(),
+                    registry_generation,
+                    role_id,
+                    issued_at_unix_ms,
+                    expires_at_unix_ms,
+                )
+                .map_err(failed)?,
+            );
         }
         Ok((sections, scopes, provenance))
     }
@@ -753,26 +760,31 @@ impl ExtensionAdmission for ExtensionRegistry {
         let (_, history) = self
             .stream(string(&request.request.arguments, "project_root")?)
             .await?;
-        let (_, states) = fold_registry(&history)?;
+        let (registry_generation, states) = fold_registry(&history)?;
+        let role_id = string(&request.request.arguments, "role_id")?;
+        contract
+            .validate_at(unix_time_ms()?, registry_generation, role_id)
+            .map_err(failed)?;
         let state = states
             .get(&contract.extension_id)
             .ok_or_else(|| failed("extension_not_installed"))?;
-        if state.state != "enabled"
-            || state.package_sha256 != contract.package_sha256
-            || state.manifest.content_hash != contract.content_hash
-            || state.manifest.effect != contract.effect
-            || state.manifest.required_capabilities != contract.required_capabilities
-            || state.manifest.network_policy != contract.network_policy
-            || state.manifest.supported_roles != contract.supported_roles
-        {
+        if state.state != "enabled" || state.package_sha256 != contract.package_sha256 {
             return Err(failed("extension_execution_snapshot_inactive"));
         }
+        contract.matches_manifest(&state.manifest).map_err(failed)?;
         let package = self.load_cached(&state.package_sha256).await?;
         if package.package.manifest != state.manifest {
             return Err(failed("extension_snapshot_mismatch"));
         }
         self.compatibility(&state.manifest, &states)
     }
+}
+
+fn unix_time_ms() -> Result<u64, PortError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .map_err(|_| failed("extension_clock_invalid"))
 }
 
 fn fold_registry(

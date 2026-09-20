@@ -293,6 +293,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: no durable extension state store, backup persistence, actual migration runner, crash recovery, multi-process CAS, external/live secret backend or physical deletion proof is claimed
 reviewer: Codex source review; checked no raw secret fields, destination/expiry reauthorization, publisher/plugin/scope namespaces, cache read-only separation, bounded migration preconditions, old-version retention and explicit unknown handling
 
+### EXT-25 signed Skill server binding evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-25 source slice; kiana-domain/src/extensions.rs, kiana-domain/tests/ext25_signed_skill_scope.rs, kiana-core/tests/ext25_signed_skill_scope_guard.rs, kiana-daemon/src/extensions.rs, broker/harness/runner source guards, workflow and baseline document
+worktree_status: EXT-25 changes are isolated from pre-existing kiana-domain WIP; memory_workbench.rs and its lib.rs exports remain unstaged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: EXT-25 domain fixtures cover signed scope construction, registry-generation staleness, role/expiry drift, manifest policy-digest mismatch and unknown-field rejection; core source guard covers skill_context issuance, Broker admission, ExtensionAdmission recheck and fixed-tool non-forwarding
+exit_code: 0 for cargo fmt and git diff --check; local tests deliberately not run; CI result intentionally not awaited
+status change: EXT-25 source slice is implemented and roadmap row 360 is ✅; signed Skill scopes now bind package/publisher/role/generation/effect/policy digests/expiry and are rechecked before dispatch
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no durable scope store, no cross-process registry recovery, no cryptographic bearer token beyond the server-owned registry/ExecutionScope chain, and no live provider or external effect proof is claimed
+reviewer: Codex source review; checked server-generated scope fields, exact role/generation/expiry validation, package and manifest policy recheck, Broker admission ordering and no fixed-tool forwarding of model-supplied scope metadata
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow
