@@ -4,10 +4,12 @@ use crate::local_packages::{decode_hex, failed, sha256, LocalDir};
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionExecutionContract,
-    ExtensionManifest, ExtensionPackage, ExtensionType, PromptAuthority, PromptBudgetUsage,
-    PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance, EXTENSION_MANAGE_OPERATION,
-    EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionConfigurationSnapshot,
+    ExtensionExecutionContract, ExtensionManifest, ExtensionPackage, ExtensionStateMigrationPlan,
+    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType, PromptAuthority,
+    PromptBudgetUsage, PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance,
+    EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+    SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -26,6 +28,7 @@ const REGISTRY_SCHEMA: &str = "kiana.extension-lifecycle.v1";
 pub(crate) struct ExtensionRegistry {
     events: Arc<dyn EventStorePort>,
     cache_root: PathBuf,
+    state_root: PathBuf,
     /// Only daemon startup configuration can add a trusted publisher/key pair.
     trusted_keys: BTreeMap<String, BTreeMap<String, String>>,
 }
@@ -56,6 +59,10 @@ impl ExtensionRegistry {
             .ok_or_else(|| failed("extension_home_unavailable"))?
             .join("extensions")
             .join("packages");
+        let extension_home = root
+            .parent()
+            .ok_or_else(|| failed("extension_home_unavailable"))?;
+        let state_root = extension_home.join("state");
         let keys = match std::env::var("KIANA_EXTENSION_TRUSTED_KEYS_JSON") {
             Ok(value) if value.len() <= 64 * 1024 => {
                 serde_json::from_str::<BTreeMap<String, BTreeMap<String, String>>>(&value)
@@ -80,6 +87,7 @@ impl ExtensionRegistry {
         Ok(Arc::new(Self {
             events,
             cache_root: root,
+            state_root,
             trusted_keys: keys,
         }))
     }
@@ -99,7 +107,12 @@ impl ExtensionRegistry {
     async fn stream(&self, project_root: &str) -> Result<(String, Vec<RuntimeEvent>), PortError> {
         let project_root = canonical_project(project_root)?;
         // Package/trust authority must not live under the project it controls.
-        if self.cache_root.starts_with(&project_root) {
+        // Mutable extension state is deliberately a different root from the immutable package
+        // cache; neither root may be controlled by the extension project itself.
+        if self.cache_root == self.state_root
+            || self.cache_root.starts_with(&project_root)
+            || self.state_root.starts_with(&project_root)
+        {
             return Err(failed("extension_home_inside_project"));
         }
         let scope = sha256(project_root.to_string_lossy().as_bytes());
@@ -107,6 +120,32 @@ impl ExtensionRegistry {
             scope.clone(),
             self.events.read_stream(EXTENSION_STREAM, &scope).await?,
         ))
+    }
+
+    fn state_scope(
+        &self,
+        project_root: &str,
+        manifest: &ExtensionManifest,
+    ) -> Result<ExtensionStateScope, PortError> {
+        let project_root = canonical_project(project_root)?;
+        let scope_digest = format!(
+            "sha256:{}",
+            sha256(project_root.to_string_lossy().as_bytes())
+        );
+        let namespace = format!(
+            "{}/{}/{}",
+            manifest.publisher,
+            manifest.extension_id,
+            scope_digest.trim_start_matches("sha256:")
+        );
+        ExtensionStateScope::new(
+            &manifest.publisher,
+            &manifest.extension_id,
+            scope_digest,
+            format!("{namespace}/state"),
+            format!("{namespace}/cache"),
+        )
+        .map_err(failed)
     }
 
     async fn manage(&self, request: &AuthorizedCapabilityRequest) -> Result<Value, PortError> {
@@ -128,11 +167,19 @@ impl ExtensionRegistry {
             let package = self.load_source(arguments).await?;
             let manifest = &package.package.manifest;
             self.compatibility(manifest, &states)?;
+            let state_scope = self.state_scope(project_root, manifest)?;
+            let configuration = parse_configuration_snapshot(
+                arguments.get("configuration"),
+                manifest,
+                &state_scope,
+            )?;
             return Ok(
                 json!({"schema":REGISTRY_SCHEMA,"registry_version":version,"manifest":manifest,
                 "package_sha256":package.package_sha256,"signature_verified":true,
                 "capability_diff":manifest.capability_diff(states.get(&manifest.extension_id).map(|s| &s.manifest)),
-                "activation":activation_state(manifest),"safety_validation":"not_evaluated"}),
+                "activation":activation_state(manifest),"state_scope_digest":state_scope.scope_contract_digest,
+                "configuration_digest":configuration.as_ref().map(|snapshot| snapshot.config_digest.clone()),
+                "safety_validation":"not_evaluated"}),
             );
         }
         if !matches!(
@@ -268,17 +315,28 @@ impl ExtensionRegistry {
                 }
                 self.compatibility(manifest, &states)?;
                 if let Some(reference) = &manifest.migration_ref {
-                    let migration = read_stateless_migration(&package.package, reference)?;
-                    if action != "rollback"
-                        && (migration.from_version.as_deref()
-                            != current.map(|state| state.manifest.version.as_str())
-                            || migration.to_version != manifest.version)
-                    {
-                        return Err(failed("extension_migration_version_mismatch"));
+                    match read_migration_declaration(&package.package, reference)? {
+                        MigrationDeclaration::Stateless(migration) => {
+                            if action != "rollback"
+                                && (migration.from_version.as_deref()
+                                    != current.map(|state| state.manifest.version.as_str())
+                                    || migration.to_version != manifest.version)
+                            {
+                                return Err(failed("extension_migration_version_mismatch"));
+                            }
+                            migration_receipt = json!({"kind":"stateless","reference":reference,
+                                "from_version":current.map(|state|&state.manifest.version),"to_version":manifest.version,
+                                "content_hash":sha256(&decode_hex(&package.package.files[reference])?),"scripts_executed":false});
+                        }
+                        MigrationDeclaration::Controlled(plan) => {
+                            let scope = self.state_scope(project_root, manifest)?;
+                            let receipt = prepare_controlled_migration(manifest, &scope, &plan)?;
+                            return Err(failed(format!(
+                                "extension_state_migration_requires_controlled_action:{}",
+                                receipt.reason
+                            )));
+                        }
                     }
-                    migration_receipt = json!({"kind":"stateless","reference":reference,
-                        "from_version":current.map(|state|&state.manifest.version),"to_version":manifest.version,
-                        "content_hash":sha256(&decode_hex(&package.package.files[reference])?),"scripts_executed":false});
                 }
                 let next = InstalledExtension {
                     manifest: manifest.clone(),
@@ -309,6 +367,12 @@ impl ExtensionRegistry {
         {
             self.compatibility(&state.manifest, &prospective)?;
         }
+        let state_scope = self.state_scope(project_root, &next.manifest)?;
+        let configuration = parse_configuration_snapshot(
+            arguments.get("configuration"),
+            &next.manifest,
+            &state_scope,
+        )?;
         if let Some(package) = package {
             let root = self.cache_root.clone();
             tokio::task::spawn_blocking(move || {
@@ -329,6 +393,7 @@ impl ExtensionRegistry {
             "signature":next.manifest.signature,"signature_verified":matches!(action, "install" | "upgrade" | "rollback"),
             "capability_diff":next.manifest.capability_diff(current.map(|s| &s.manifest)),
             "migration":migration_receipt,"safety_validation":"not_evaluated","reason":kiana_domain::redact_text(reason),"actor_id":actor,
+            "state_scope":state_scope,"configuration_digest":configuration.as_ref().map(|snapshot| snapshot.config_digest.clone()),
             "authorization_id":request.authorization_id,"replayed":false});
         let event = RuntimeEvent::new(
             request.request.request_id,
@@ -434,7 +499,7 @@ impl ExtensionRegistry {
             if !package.files.contains_key(path) {
                 return Err(failed("extension_reference_missing"));
             }
-            read_stateless_migration(&package, path)?;
+            read_migration_declaration(&package, path)?;
         }
         if manifest.extension_type == ExtensionType::Skill {
             let text = package
@@ -746,6 +811,37 @@ struct StatelessMigration {
     from_version: Option<String>,
     to_version: String,
 }
+
+enum MigrationDeclaration {
+    Stateless(StatelessMigration),
+    Controlled(ExtensionStateMigrationPlan),
+}
+
+fn read_migration_declaration(
+    package: &ExtensionPackage,
+    reference: &str,
+) -> Result<MigrationDeclaration, PortError> {
+    let encoded = package
+        .files
+        .get(reference)
+        .ok_or_else(|| failed("extension_reference_missing"))?;
+    let bytes = decode_hex(encoded)?;
+    let value: Value = serde_json::from_slice(&bytes)
+        .map_err(|_| failed("extension_migration_declaration_invalid"))?;
+    match value.get("schema").and_then(Value::as_str) {
+        Some(kiana_domain::EXTENSION_STATE_MIGRATION_PLAN_SCHEMA) => {
+            let plan: ExtensionStateMigrationPlan = serde_json::from_value(value)
+                .map_err(|_| failed("extension_state_migration_plan_invalid"))?;
+            plan.validate().map_err(failed)?;
+            Ok(MigrationDeclaration::Controlled(plan))
+        }
+        Some("kiana.extension-migration.v1") => Ok(MigrationDeclaration::Stateless(
+            read_stateless_migration(package, reference)?,
+        )),
+        _ => Err(failed("extension_migration_adapter_unavailable")),
+    }
+}
+
 fn read_stateless_migration(
     package: &ExtensionPackage,
     reference: &str,
@@ -764,6 +860,40 @@ fn read_stateless_migration(
         return Err(failed("extension_migration_adapter_unavailable"));
     }
     Ok(migration)
+}
+
+fn prepare_controlled_migration(
+    manifest: &ExtensionManifest,
+    scope: &ExtensionStateScope,
+    plan: &ExtensionStateMigrationPlan,
+) -> Result<ExtensionStateMigrationReceipt, PortError> {
+    plan.validate().map_err(failed)?;
+    if plan.extension_id != manifest.extension_id
+        || plan.publisher != manifest.publisher
+        || plan.scope_digest != scope.scope_digest
+    {
+        return Err(failed("extension_state_migration_binding_mismatch"));
+    }
+    ExtensionStateMigrationReceipt::unknown(plan, "migration_requires_controlled_action")
+        .map_err(failed)
+}
+
+fn parse_configuration_snapshot(
+    value: Option<&Value>,
+    manifest: &ExtensionManifest,
+    scope: &ExtensionStateScope,
+) -> Result<Option<ExtensionConfigurationSnapshot>, PortError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let snapshot: ExtensionConfigurationSnapshot = serde_json::from_value(value.clone())
+        .map_err(|_| failed("extension_configuration_snapshot_invalid"))?;
+    snapshot.validate().map_err(failed)?;
+    if snapshot.extension_id != manifest.extension_id || snapshot.scope_digest != scope.scope_digest
+    {
+        return Err(failed("extension_configuration_scope_mismatch"));
+    }
+    Ok(Some(snapshot))
 }
 
 fn activation_state(manifest: &ExtensionManifest) -> &'static str {

@@ -277,6 +277,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime invalidation propagation to approvals/prompts/bindings, durable generation history, multi-process recovery and external/live package effects remain open
 reviewer: Codex source review; checked pause/invalidation flags, old-generation rollback fence, signature/policy/revocation eligibility, cleanup receipt retention and existing append-only CAS markers
 
+### EXT-24 extension secret, state and migration evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-24 source slice; kiana-domain/src/extension_state.rs, kiana-domain/tests/ext24_secret_state.rs, kiana-core/tests/ext24_secret_state_guard.rs, kiana-daemon/src/extensions.rs, workflow and baseline document
+worktree_status: EXT-24 changes are isolated from pre-existing kiana-domain WIP; memory_workbench.rs remains untracked and was not staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: EXT-24 domain fixtures cover handle-only secret bindings, effect-time destination/expiry reauthorization, raw secret rejection, state/cache isolation, bounded backup/hash/CAS migration and retained-old/unknown receipts; core source guard covers daemon root separation, configuration snapshot validation and controlled-migration fail-closed wiring
+exit_code: 0 for cargo fmt and git diff --check; local tests deliberately not run; CI result intentionally not awaited
+status change: EXT-24 source slice is implemented and roadmap row 359 is ✅; extension configuration is handle-only, mutable state is isolated from immutable package cache, and controlled migration cannot auto-activate without an explicit action
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no durable extension state store, backup persistence, actual migration runner, crash recovery, multi-process CAS, external/live secret backend or physical deletion proof is claimed
+reviewer: Codex source review; checked no raw secret fields, destination/expiry reauthorization, publisher/plugin/scope namespaces, cache read-only separation, bounded migration preconditions, old-version retention and explicit unknown handling
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow
