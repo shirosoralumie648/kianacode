@@ -322,9 +322,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-22 · inspect → stage → install → enable　⏳
+#### EXT-22 · inspect → stage → install → enable　✅
 
-`inspect` 只读验证并返回风险、组件和权限差异；`stage` 写入 inert CAS；`install` 产生待审批 lifecycle event；`enable` 仅在 approval、trust、dependency、config 校验通过后切换 registry generation。每个 mutation 携带 expected registry version、idempotency key、actor、reason，并通过 `extension.manage` 进入 ControlPlane。配置按 host/user/project/run scope 合并并记录每字段来源。
+当前 source slice 与 CI-only 证据见 [`ext22-extension-lifecycle-baseline.md`](ext22-extension-lifecycle-baseline.md)。`inspect` 只读验证；stage/install/enable mutation 绑定 exact package hash、dependency snapshot、expected registry version、idempotency key、actor、reason、trust revision，enable 额外要求 approval 与 config snapshot。配置按 host/user/project/run scope 合并并记录每字段来源；已有 `extension.manage` → ControlPlane → daemon append-only CAS 仍是唯一 mutation path。
 
 <a id="step-ext-23"></a>
 
