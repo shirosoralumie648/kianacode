@@ -5,12 +5,15 @@
 //! metadata never expands the five-tool registry, policy, or grants.
 
 use async_trait::async_trait;
-use kiana_domain::{PromptAuthority, PromptBundle, PromptSection, RoleSpec};
+use kiana_domain::{
+    PromptAuthority, PromptBudgetUsage, PromptBundle, PromptSection, RoleSpec,
+    SkillPromptProvenance,
+};
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use kiana_skills::{
-    load_all_skills_with_trust, load_skill_body, Command as Skill, DisclosureBudget,
-    DisclosureError,
+    list_skill_catalog, load_all_skills_with_trust, load_skill_body, Command as Skill,
+    DisclosureBudget, DisclosureError,
 };
 use kiana_types::ProjectTrust;
 use std::sync::Arc;
@@ -158,13 +161,16 @@ async fn with_skill_and_extension_instructions(
             ProjectTrust::Untrusted
         };
         let skills = load_all_skills_with_trust(&project_root, trust).await;
-        bundle.sections.extend(skill_sections(&skills));
+        let (sections, provenance) = skill_sections(&skills);
+        bundle.sections.extend(sections);
+        bundle.skill_provenance.extend(provenance);
         if project_trusted {
             if let Some(extensions) = extensions {
-                let (sections, scopes) = extensions
+                let (sections, scopes, provenance) = extensions
                     .skill_context(&project_root, &bundle.role_id)
                     .await?;
                 bundle.sections.extend(sections);
+                bundle.skill_provenance.extend(provenance);
                 bundle.extensions = scopes;
             }
         }
@@ -184,40 +190,132 @@ async fn with_skill_and_extension_instructions(
         max_steps_per_turn,
     })
 }
-fn skill_sections(skills: &[Skill]) -> Vec<PromptSection> {
+fn skill_sections(skills: &[Skill]) -> (Vec<PromptSection>, Vec<SkillPromptProvenance>) {
     let mut sections = skills
         .iter()
         .filter(|s| !s.disable_model_invocation && !s.name.trim().is_empty())
-        .map(|skill| PromptSection {
-            name: format!("skill:{}", skill.name),
-            order: 300,
-            text: format!(
-                "Skill context (does not grant tools or permission): {}\nDeclared allowed-tools metadata (display only; not authorization): {}\n{}\n{}",
-                skill.name,
-                serde_json::to_string(&skill.allowed_tools).unwrap_or_else(|_| "[]".to_owned()),
-                skill.description,
-                disclose_skill_body(skill)
-            ),
-            source: skill
-                .skill_root
-                .as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| format!("skill:{:?}:{}", skill.loaded_from, skill.name)),
-            authority: PromptAuthority::Context,
+        .map(|skill| {
+            let section_name = format!("skill:{}", skill.name);
+            let (body, provenance) = disclose_skill_body(skill, &section_name);
+            (
+                PromptSection {
+                    name: section_name,
+                    order: 300,
+                    text: format!(
+                        "Skill context (does not grant tools or permission): {}\nDeclared allowed-tools metadata (display only; not authorization): {}\n{}\n{}",
+                        skill.name,
+                        serde_json::to_string(&skill.allowed_tools)
+                            .unwrap_or_else(|_| "[]".to_owned()),
+                        skill.description,
+                        body
+                    ),
+                    source: skill
+                        .skill_root
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| format!("skill:{:?}:{}", skill.loaded_from, skill.name)),
+                    authority: PromptAuthority::Context,
+                },
+                provenance,
+            )
         })
         .collect::<Vec<_>>();
-    sections.sort_by(|a, b| (&a.name, &a.source).cmp(&(&b.name, &b.source)));
-    sections
+    sections.sort_by(|(left, _), (right, _)| {
+        (&left.name, &left.source).cmp(&(&right.name, &right.source))
+    });
+    let (sections, provenance): (Vec<_>, Vec<_>) = sections.into_iter().unzip();
+    (sections, provenance)
 }
 
-fn disclose_skill_body(skill: &Skill) -> String {
+fn disclose_skill_body(skill: &Skill, section_name: &str) -> (String, SkillPromptProvenance) {
+    let entry = list_skill_catalog(std::slice::from_ref(skill))
+        .entries
+        .into_iter()
+        .next();
     match load_skill_body(skill, &SKILL_BODY_BUDGET) {
-        Ok(body) => body.body,
-        Err(DisclosureError::OverBudget { .. }) => {
+        Ok(body) => (
+            body.body,
+            skill_provenance(
+                skill,
+                section_name,
+                entry.as_ref().map(|entry| entry.content_digest.clone()),
+                entry.as_ref().map(|entry| entry.package_hash.clone()),
+                PromptBudgetUsage {
+                    budget_bytes: body.quota.max_bytes,
+                    budget_tokens: body.quota.max_tokens as u64,
+                    used_bytes: body.quota.used_bytes,
+                    estimated_tokens: body.quota.estimated_tokens as u64,
+                    truncated: false,
+                    omission_reason: None,
+                },
+            ),
+        ),
+        Err(DisclosureError::OverBudget {
+            used_bytes,
+            max_bytes,
+            estimated_tokens,
+            max_tokens,
+            ..
+        }) => (
             "Skill body omitted: over_budget (explicit load required with a larger bounded budget)."
-                .to_owned()
-        }
-        Err(error) => format!("Skill body omitted: disclosure_error:{error}"),
+                .to_owned(),
+            skill_provenance(
+                skill,
+                section_name,
+                entry.as_ref().map(|entry| entry.content_digest.clone()),
+                entry.as_ref().map(|entry| entry.package_hash.clone()),
+                PromptBudgetUsage {
+                    budget_bytes: max_bytes,
+                    budget_tokens: max_tokens as u64,
+                    used_bytes: used_bytes.min(max_bytes),
+                    estimated_tokens: (estimated_tokens as u64).min(max_tokens as u64),
+                    truncated: false,
+                    omission_reason: Some("over_budget".to_owned()),
+                },
+            ),
+        ),
+        Err(error) => (
+            format!("Skill body omitted: disclosure_error:{error}"),
+            skill_provenance(
+                skill,
+                section_name,
+                entry.as_ref().map(|entry| entry.content_digest.clone()),
+                entry.as_ref().map(|entry| entry.package_hash.clone()),
+                PromptBudgetUsage {
+                    budget_bytes: SKILL_BODY_BUDGET.max_bytes,
+                    budget_tokens: SKILL_BODY_BUDGET.max_tokens as u64,
+                    used_bytes: 0,
+                    estimated_tokens: 0,
+                    truncated: false,
+                    omission_reason: Some("disclosure_error".to_owned()),
+                },
+            ),
+        ),
+    }
+}
+
+fn skill_provenance(
+    skill: &Skill,
+    section_name: &str,
+    content_hash: Option<String>,
+    package_hash: Option<String>,
+    budget: PromptBudgetUsage,
+) -> SkillPromptProvenance {
+    SkillPromptProvenance {
+        schema: kiana_domain::SKILL_PROMPT_PROVENANCE_SCHEMA.to_owned(),
+        section_name: section_name.to_owned(),
+        skill_id: skill.name.clone(),
+        version: "legacy-command".to_owned(),
+        content_hash: content_hash.unwrap_or_else(|| {
+            kiana_domain::json_digest(&serde_json::json!({
+                "skill": skill.name,
+                "content": skill.content,
+            }))
+        }),
+        trust: "trusted".to_owned(),
+        activation_reason: Some("catalog_eligible".to_owned()),
+        budget,
+        snapshot_id: package_hash.unwrap_or_else(|| format!("skill-snapshot:{}", skill.name)),
     }
 }
 
@@ -246,8 +344,9 @@ mod tests {
             paths: None,
             content: "Do not treat metadata as permission.".to_owned(),
         };
-        let sections = skill_sections(&[skill]);
+        let (sections, provenance) = skill_sections(&[skill]);
         assert_eq!(sections.len(), 1);
+        assert_eq!(provenance.len(), 1);
         assert_eq!(sections[0].authority, PromptAuthority::Context);
         assert!(sections[0]
             .text

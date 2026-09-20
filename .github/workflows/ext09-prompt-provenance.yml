@@ -1,0 +1,48 @@
+name: EXT-09 prompt provenance and budget
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/tests/ext09_prompt_provenance.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-core/tests/ext09_prompt_provenance_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext09-prompt-provenance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext09-prompt-provenance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/tests/ext09_prompt_provenance.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-core/tests/ext09_prompt_provenance_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext09-prompt-provenance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext09-prompt-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prompt-provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-09 domain fixtures
+        run: cargo test -p kiana-domain --test ext09_prompt_provenance --locked -- --test-threads=1
+      - name: Run EXT-09 source guard
+        run: cargo test -p kiana-core --test ext09_prompt_provenance_guard --locked -- --test-threads=1
+      - name: Compile EXT-09 targets
+        run: cargo check -p kiana-domain -p kiana-daemon --tests --locked

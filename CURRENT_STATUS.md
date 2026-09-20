@@ -53,6 +53,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: ControlPlane command/event projection, durable dynamic scope, cross-process cancellation/recovery, full argument schema language, protocol/entrypoint/UI exposure and external/live effects remain later roadmap work
 reviewer: Codex source review; checked session/snapshot isolation, deterministic path digest/ordering, revoke removal, argument bounds and structured-argv-only boundary
 
+### EXT-09 prompt provenance and budget evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-09 source slice; `kiana-domain/src/prompts.rs`, `kiana-daemon/src/harness_skills.rs`, `kiana-daemon/src/extensions.rs`, fixtures, source guard and workflow
+worktree_status: EXT-09 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-domain/tests/ext09_prompt_provenance.rs` covers round-trip, section binding, Product/unknown rejection and budget metadata; `kiana-core/tests/ext09_prompt_provenance_guard.rs` covers non-authorizing provenance and no silent legacy truncation
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-09 behavior evidence; CI result intentionally not awaited
+status change: EXT-09 source slice is implemented and roadmap row 344 is ✅; Skill prompt provenance and explicit byte/token budget outcomes now travel with PromptBundle
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: ContextPlan/provider tokenizer integration, durable snapshot persistence, cross-process rebuild, prompt delivery telemetry and live model budget reconciliation remain later roadmap work
+reviewer: Codex source review; checked section binding, trust/hash/version/snapshot fields, omission-vs-truncation semantics, Context-only authority and extension/harness parity
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

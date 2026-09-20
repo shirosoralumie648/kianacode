@@ -190,9 +190,11 @@ Skill 被目录命中不等于激活；`activate_skill` 生成绑定 package has
 
 
 
-#### EXT-09 · Prompt provenance 与预算　⏳
+#### EXT-09 · Prompt provenance 与预算　✅
 
-`harness_skills` 只从 ExtensionSnapshot 生成 `PromptSection`，每段带 source、skill id/version/hash、trust、activation reason、budget usage 和 snapshot id。模型消息只接收预算内正文，裁剪结果注明 `truncated`；PromptBundle 不携带可直接执行的 capability grant。上下文重建必须按同一 snapshot 或明确新 generation 重新组装。
+当前 source slice 与 CI-only 证据见 [`ext09-prompt-provenance-baseline.md`](ext09-prompt-provenance-baseline.md)。
+
+`PromptBundle.skill_provenance` 绑定每个 Skill context section 的 source identity、skill id/version/hash、trust、activation reason、budget usage 和 snapshot id。模型消息只接收预算内正文；完整 body 记录 complete，verified extension 超限正文记录 `truncated`，普通 Skill 超限记录 omission。Provenance 只属于 Context，不携带可直接执行的 capability grant；Bundle 校验拒绝 provenance section 漂移和 Product authority 混用。
 
 <a id="step-ext-10"></a>
 

@@ -5,8 +5,9 @@ use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
 use kiana_domain::{
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionExecutionContract,
-    ExtensionManifest, ExtensionPackage, ExtensionType, PromptAuthority, PromptSection, RequestId,
-    RuntimeEvent, EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+    ExtensionManifest, ExtensionPackage, ExtensionType, PromptAuthority, PromptBudgetUsage,
+    PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance, EXTENSION_MANAGE_OPERATION,
+    EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -547,6 +548,7 @@ impl ExtensionRegistry {
         (
             Vec<PromptSection>,
             Vec<kiana_domain::ExtensionExecutionScope>,
+            Vec<SkillPromptProvenance>,
         ),
         PortError,
     > {
@@ -554,6 +556,7 @@ impl ExtensionRegistry {
         let (_, states) = fold_registry(&history)?;
         let mut sections = Vec::new();
         let mut scopes = Vec::new();
+        let mut provenance = Vec::new();
         for state in states.values().filter(|state| {
             state.state == "enabled"
                 && state.manifest.extension_type == ExtensionType::Skill
@@ -573,19 +576,34 @@ impl ExtensionRegistry {
             )?;
             let content =
                 String::from_utf8(content).map_err(|_| failed("extension_skill_invalid"))?;
+            let section_name = format!("extension:{}", state.manifest.extension_id);
+            let (prompt_body, budget) = bounded_extension_prompt_body(&content);
             sections.push(PromptSection {
-                name: format!("extension:{}", state.manifest.extension_id),
+                name: section_name.clone(),
                 order: 310,
                 text: format!(
                     "Installed skill context (declarations do not grant permission): {}\n{}",
-                    state.manifest.extension_id,
-                    content.chars().take(4000).collect::<String>()
+                    state.manifest.extension_id, prompt_body
                 ),
                 source: format!(
                     "extension:{}@{}:sha256:{}",
                     state.manifest.extension_id, state.manifest.version, state.package_sha256
                 ),
                 authority: PromptAuthority::Context,
+            });
+            provenance.push(SkillPromptProvenance {
+                schema: SKILL_PROMPT_PROVENANCE_SCHEMA.to_owned(),
+                section_name,
+                skill_id: state.manifest.extension_id.clone(),
+                version: state.manifest.version.clone(),
+                content_hash: format!(
+                    "sha256:{}",
+                    state.manifest.content_hash.trim_start_matches("sha256:")
+                ),
+                trust: "verified_signature".to_owned(),
+                activation_reason: Some("extension_enabled".to_owned()),
+                budget,
+                snapshot_id: format!("extension-snapshot:{}", state.package_sha256),
             });
             scopes.push(kiana_domain::ExtensionExecutionScope {
                 extension_id: state.manifest.extension_id.clone(),
@@ -597,8 +615,47 @@ impl ExtensionRegistry {
                 supported_roles: state.manifest.supported_roles.clone(),
             });
         }
-        Ok((sections, scopes))
+        Ok((sections, scopes, provenance))
     }
+}
+
+fn bounded_extension_prompt_body(content: &str) -> (String, PromptBudgetUsage) {
+    const MAX_BYTES: usize = 16 * 1024;
+    const MAX_TOKENS: u64 = 4 * 1024;
+    let used_bytes = content.as_bytes().len();
+    let estimated_tokens = used_bytes.div_ceil(4) as u64;
+    if used_bytes <= MAX_BYTES && estimated_tokens <= MAX_TOKENS {
+        return (
+            content.to_owned(),
+            PromptBudgetUsage {
+                budget_bytes: MAX_BYTES,
+                budget_tokens: MAX_TOKENS,
+                used_bytes,
+                estimated_tokens,
+                truncated: false,
+                omission_reason: None,
+            },
+        );
+    }
+    const MARKER: &str = "\n[truncated: prompt_budget]";
+    let available = MAX_BYTES.saturating_sub(MARKER.len());
+    let mut end = available.min(content.len());
+    while end > 0 && !content.is_char_boundary(end) {
+        end -= 1;
+    }
+    let body = format!("{}{}", &content[..end], MARKER);
+    let body_bytes = body.as_bytes().len();
+    (
+        body,
+        PromptBudgetUsage {
+            budget_bytes: MAX_BYTES,
+            budget_tokens: MAX_TOKENS,
+            used_bytes: body_bytes.min(MAX_BYTES),
+            estimated_tokens: (body_bytes.div_ceil(4) as u64).min(MAX_TOKENS),
+            truncated: true,
+            omission_reason: None,
+        },
+    )
 }
 
 #[async_trait]

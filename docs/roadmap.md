@@ -512,7 +512,7 @@
 | 341 | W4 | 专项 | [`EXT-06`](roadmap/skills-plugins-hooks.md#step-ext-06) | Skills / Plugins / Hooks · 三层渐进披露 | `EXT-05` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-06) |
 | 342 | W4 | 专项 | [`EXT-07`](roadmap/skills-plugins-hooks.md#step-ext-07) | Skills / Plugins / Hooks · 显式激活与包内资源 | `EXT-06` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-07) |
 | 343 | W4 | 专项 | [`EXT-08`](roadmap/skills-plugins-hooks.md#step-ext-08) | Skills / Plugins / Hooks · 条件 Skill、路径和参数 | `EXT-07` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-08) |
-| 344 | W4 | 专项 | [`EXT-09`](roadmap/skills-plugins-hooks.md#step-ext-09) | Skills / Plugins / Hooks · Prompt provenance 与预算 | `EXT-05`、`EXT-06` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-09) |
+| 344 | W4 | 专项 | [`EXT-09`](roadmap/skills-plugins-hooks.md#step-ext-09) | Skills / Plugins / Hooks · Prompt provenance 与预算 | `EXT-05`、`EXT-06` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-09) |
 | 345 | W4 | 专项 | [`EXT-10`](roadmap/skills-plugins-hooks.md#step-ext-10) | Skills / Plugins / Hooks · Skill invocation 兼容 | `EXT-08`、`EXT-09` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-10) |
 | 346 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
 | 347 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-09` Prompt provenance 与预算：PromptBundle 新增 Skill provenance / snapshot / activation / budget 合同；harness 与 verified extension prompt 记录 bytes/token 使用、omission 或 truncation，保留 Context-only 非授权边界；新增 domain fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-08` 条件 Skill、路径和参数：新增可重放 PathGlobAst、session/snapshot 隔离的 DynamicSkillStore、path-trigger/revoke receipt 与 bounded structured argv 校验；移除 operational dynamic map 的单一进程全局形态，保留显式 legacy adapter；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-07` 显式激活与包内资源：新增带 snapshot generation / package hash / expiry 的 Skill activation record，resource read 在激活校验后才进入 package-root containment 与 quota；脚本只读不执行；新增 activation fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-06` 三层渐进披露：新增 metadata-only catalog/search、完整 body load、package-relative resource/script read 与 bytes/token 双预算；超限返回 `over_budget`，harness 不再静默截断；新增 skills fixture、core source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
