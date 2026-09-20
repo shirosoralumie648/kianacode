@@ -1,8 +1,11 @@
 //! Signed local extension metadata. Declarations can only restrict execution.
 
-use crate::{CapabilityKind, CapabilityRequest, RiskLevel, RoleSpec};
+use crate::{
+    json_digest, CapabilityKind, CapabilityRequest, RiskLevel, RoleSpec, SchemaVersion, ScopeLimit,
+    ScopeSet,
+};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const EXTENSION_MANIFEST_SCHEMA: &str = "kiana.extension-manifest.v1";
@@ -335,4 +338,661 @@ pub fn is_hex_bytes(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+// Dependency resolution and binding are inert metadata. A declaration never grants capability;
+// the ControlPlane and Broker remain the only effect-authorizing boundaries.
+pub const EXTENSION_DEPENDENCY_GRAPH_SCHEMA: &str = "kiana.extension-dependency-graph.v1";
+pub const EXTENSION_GRAPH_RESOLUTION_SCHEMA: &str = "kiana.extension-graph-resolution.v1";
+pub const EXTENSION_BINDING_SCHEMA: &str = "kiana.extension-binding.v1";
+pub const EXTENSION_BINDING_SNAPSHOT_SCHEMA: &str = "kiana.extension-binding-snapshot.v1";
+pub const EXTENSION_DEPENDENCY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const MAX_EXTENSION_GRAPH_NODES: usize = 256;
+pub const MAX_EXTENSION_DEPENDENCIES: usize = 64;
+pub const MAX_EXTENSION_BINDINGS: usize = 256;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtensionGraphKind {
+    Skill,
+    Hook,
+    Mcp,
+    Capability,
+    Memory,
+    Provider,
+    UiComponent,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionDependency {
+    pub dependency_id: String,
+    pub version: String,
+    pub kind: ExtensionGraphKind,
+    #[serde(default)]
+    pub optional: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required_scope: Option<ScopeSet>,
+}
+
+impl ExtensionDependency {
+    fn validate(&self) -> Result<(), String> {
+        if !valid_extension_identifier(&self.dependency_id)
+            || !valid_extension_identifier(&self.version)
+        {
+            return Err("extension_dependency_identity_invalid".to_owned());
+        }
+        if let Some(scope) = &self.required_scope {
+            scope.validate()?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionGraphNode {
+    pub node_id: String,
+    pub extension_id: String,
+    pub version: String,
+    pub kind: ExtensionGraphKind,
+    pub source_digest: String,
+    #[serde(default)]
+    pub dependencies: Vec<ExtensionDependency>,
+    #[serde(default)]
+    pub supported_platforms: BTreeSet<String>,
+    pub scope: ScopeSet,
+}
+
+impl ExtensionGraphNode {
+    fn validate(&self) -> Result<(), String> {
+        if !valid_extension_identifier(&self.node_id)
+            || !valid_extension_identifier(&self.extension_id)
+            || !valid_extension_identifier(&self.version)
+            || !is_sha256_hex(&self.source_digest)
+            || self.dependencies.len() > MAX_EXTENSION_DEPENDENCIES
+            || self.supported_platforms.len() > 16
+        {
+            return Err("extension_graph_node_invalid".to_owned());
+        }
+        self.scope.validate()?;
+        for platform in &self.supported_platforms {
+            if !valid_extension_identifier(platform) {
+                return Err("extension_graph_platform_invalid".to_owned());
+            }
+        }
+        for dependency in &self.dependencies {
+            dependency.validate()?;
+        }
+        if self.dependencies.windows(2).any(|pair| {
+            (&pair[0].dependency_id, &pair[0].version, pair[0].kind)
+                > (&pair[1].dependency_id, &pair[1].version, pair[1].kind)
+        }) {
+            return Err("extension_dependency_order_invalid".to_owned());
+        }
+        if self
+            .dependencies
+            .windows(2)
+            .any(|pair| pair[0].dependency_id == pair[1].dependency_id)
+        {
+            return Err("extension_dependency_duplicate".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionDependencyGraph {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub platform: String,
+    pub nodes: BTreeMap<String, ExtensionGraphNode>,
+    pub graph_digest: String,
+}
+
+impl ExtensionDependencyGraph {
+    pub fn new(
+        platform: impl Into<String>,
+        nodes: Vec<ExtensionGraphNode>,
+    ) -> Result<Self, String> {
+        let mut indexed = BTreeMap::new();
+        for mut node in nodes {
+            node.dependencies.sort_by(|left, right| {
+                (&left.dependency_id, &left.version, left.kind).cmp(&(
+                    &right.dependency_id,
+                    &right.version,
+                    right.kind,
+                ))
+            });
+            node.validate()?;
+            if indexed.insert(node.node_id.clone(), node).is_some() {
+                return Err("extension_graph_node_duplicate".to_owned());
+            }
+        }
+        let mut graph = Self {
+            schema: EXTENSION_DEPENDENCY_GRAPH_SCHEMA.to_owned(),
+            version: EXTENSION_DEPENDENCY_VERSION,
+            platform: platform.into(),
+            nodes: indexed,
+            graph_digest: String::new(),
+        };
+        graph.graph_digest = graph.digest();
+        graph.validate()?;
+        Ok(graph)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_DEPENDENCY_GRAPH_SCHEMA
+            || self.version != EXTENSION_DEPENDENCY_VERSION
+            || !valid_extension_identifier(&self.platform)
+            || self.nodes.len() > MAX_EXTENSION_GRAPH_NODES
+            || !is_prefixed_digest(&self.graph_digest)
+        {
+            return Err("extension_dependency_graph_header_invalid".to_owned());
+        }
+        for node in self.nodes.values() {
+            node.validate()?;
+            if !node.supported_platforms.is_empty()
+                && !node.supported_platforms.contains(&self.platform)
+            {
+                return Err("extension_dependency_platform_mismatch".to_owned());
+            }
+            for dependency in &node.dependencies {
+                let Some(target) = self.nodes.get(&dependency.dependency_id) else {
+                    if dependency.optional {
+                        continue;
+                    }
+                    return Err("extension_dependency_unsatisfied".to_owned());
+                };
+                if target.version != dependency.version {
+                    return Err("extension_dependency_version_unavailable".to_owned());
+                }
+                if target.kind != dependency.kind {
+                    return Err("extension_dependency_kind_mismatch".to_owned());
+                }
+                if !target.supported_platforms.is_empty()
+                    && !target.supported_platforms.contains(&self.platform)
+                {
+                    return Err("extension_dependency_platform_mismatch".to_owned());
+                }
+                node.scope
+                    .intersect(&target.scope)
+                    .map_err(|_| "extension_dependency_scope_disjoint".to_owned())?;
+                if let Some(required_scope) = &dependency.required_scope {
+                    required_scope
+                        .intersect(&node.scope)
+                        .map_err(|_| "extension_dependency_scope_disjoint".to_owned())?;
+                    required_scope
+                        .intersect(&target.scope)
+                        .map_err(|_| "extension_dependency_scope_disjoint".to_owned())?;
+                }
+            }
+        }
+        let mut visiting = BTreeSet::new();
+        let mut visited = BTreeSet::new();
+        for node_id in self.nodes.keys() {
+            visit_extension_node(node_id, &self.nodes, &mut visiting, &mut visited)?;
+        }
+        if self.graph_digest != self.digest() {
+            return Err("extension_dependency_graph_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn resolve(&self) -> Result<ExtensionGraphResolution, String> {
+        self.validate()?;
+        let mut resolved_dependencies = Vec::new();
+        for node in self.nodes.values() {
+            for dependency in &node.dependencies {
+                if let Some(target) = self.nodes.get(&dependency.dependency_id) {
+                    resolved_dependencies.push(ResolvedExtensionDependency {
+                        source_node_id: node.node_id.clone(),
+                        target_node_id: target.node_id.clone(),
+                        version: target.version.clone(),
+                        kind: target.kind,
+                        required_scope_digest: dependency
+                            .required_scope
+                            .as_ref()
+                            .map(ScopeSet::digest),
+                    });
+                }
+            }
+        }
+        resolved_dependencies.sort_by(|left, right| {
+            (
+                &left.source_node_id,
+                &left.target_node_id,
+                &left.version,
+                left.kind,
+            )
+                .cmp(&(
+                    &right.source_node_id,
+                    &right.target_node_id,
+                    &right.version,
+                    right.kind,
+                ))
+        });
+        let mut resolution = ExtensionGraphResolution {
+            schema: EXTENSION_GRAPH_RESOLUTION_SCHEMA.to_owned(),
+            version: EXTENSION_DEPENDENCY_VERSION,
+            graph_digest: self.graph_digest.clone(),
+            platform: self.platform.clone(),
+            resolved_dependencies,
+            resolution_digest: String::new(),
+        };
+        resolution.resolution_digest = resolution.digest();
+        resolution.validate()?;
+        Ok(resolution)
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "platform": self.platform,
+            "nodes": self.nodes,
+        }))
+    }
+}
+
+fn visit_extension_node(
+    node_id: &str,
+    nodes: &BTreeMap<String, ExtensionGraphNode>,
+    visiting: &mut BTreeSet<String>,
+    visited: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    if visited.contains(node_id) {
+        return Ok(());
+    }
+    if !visiting.insert(node_id.to_owned()) {
+        return Err("extension_dependency_cycle".to_owned());
+    }
+    if let Some(node) = nodes.get(node_id) {
+        for dependency in &node.dependencies {
+            if nodes.contains_key(&dependency.dependency_id) {
+                visit_extension_node(&dependency.dependency_id, nodes, visiting, visited)?;
+            }
+        }
+    }
+    visiting.remove(node_id);
+    visited.insert(node_id.to_owned());
+    Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResolvedExtensionDependency {
+    pub source_node_id: String,
+    pub target_node_id: String,
+    pub version: String,
+    pub kind: ExtensionGraphKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required_scope_digest: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionGraphResolution {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub graph_digest: String,
+    pub platform: String,
+    pub resolved_dependencies: Vec<ResolvedExtensionDependency>,
+    pub resolution_digest: String,
+}
+
+impl ExtensionGraphResolution {
+    fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_GRAPH_RESOLUTION_SCHEMA
+            || self.version != EXTENSION_DEPENDENCY_VERSION
+            || !is_prefixed_digest(&self.graph_digest)
+            || !valid_extension_identifier(&self.platform)
+            || !is_prefixed_digest(&self.resolution_digest)
+        {
+            return Err("extension_graph_resolution_invalid".to_owned());
+        }
+        if self.resolved_dependencies.windows(2).any(|pair| {
+            (
+                &pair[0].source_node_id,
+                &pair[0].target_node_id,
+                &pair[0].version,
+                pair[0].kind,
+            ) > (
+                &pair[1].source_node_id,
+                &pair[1].target_node_id,
+                &pair[1].version,
+                pair[1].kind,
+            )
+        }) {
+            return Err("extension_graph_resolution_order_invalid".to_owned());
+        }
+        for dependency in &self.resolved_dependencies {
+            if !valid_extension_identifier(&dependency.source_node_id)
+                || !valid_extension_identifier(&dependency.target_node_id)
+                || !valid_extension_identifier(&dependency.version)
+                || dependency
+                    .required_scope_digest
+                    .as_deref()
+                    .is_some_and(|digest| !is_prefixed_digest(digest))
+            {
+                return Err("extension_graph_resolution_dependency_invalid".to_owned());
+            }
+        }
+        if self.resolution_digest != self.digest() {
+            return Err("extension_graph_resolution_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "graph_digest": self.graph_digest,
+            "platform": self.platform,
+            "resolved_dependencies": self.resolved_dependencies,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionBinding {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub binding_id: String,
+    pub snapshot_id: String,
+    pub source_node_id: String,
+    pub destination: String,
+    pub packet_id: String,
+    pub role_id: String,
+    pub data_classes: BTreeSet<String>,
+    pub network_policy: ExtensionNetworkPolicy,
+    pub secret_handles: BTreeSet<String>,
+    pub budget: ScopeLimit,
+    pub expires_at_unix_ms: u64,
+    pub parent_scope_digest: String,
+    pub scope: ScopeSet,
+    pub binding_digest: String,
+}
+
+impl ExtensionBinding {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        binding_id: impl Into<String>,
+        snapshot_id: impl Into<String>,
+        source_node_id: impl Into<String>,
+        destination: impl Into<String>,
+        packet_id: impl Into<String>,
+        role_id: impl Into<String>,
+        data_classes: BTreeSet<String>,
+        network_policy: ExtensionNetworkPolicy,
+        secret_handles: BTreeSet<String>,
+        budget: ScopeLimit,
+        expires_at_unix_ms: u64,
+        parent_scope: &ScopeSet,
+        scope: ScopeSet,
+    ) -> Result<Self, String> {
+        parent_scope.validate()?;
+        scope.validate()?;
+        if !scope.is_subset_of(parent_scope)? {
+            return Err("extension_binding_scope_widened".to_owned());
+        }
+        let mut binding = Self {
+            schema: EXTENSION_BINDING_SCHEMA.to_owned(),
+            version: EXTENSION_DEPENDENCY_VERSION,
+            binding_id: binding_id.into(),
+            snapshot_id: snapshot_id.into(),
+            source_node_id: source_node_id.into(),
+            destination: destination.into(),
+            packet_id: packet_id.into(),
+            role_id: role_id.into(),
+            data_classes,
+            network_policy,
+            secret_handles,
+            budget,
+            expires_at_unix_ms,
+            parent_scope_digest: parent_scope.digest(),
+            scope,
+            binding_digest: String::new(),
+        };
+        binding.binding_digest = binding.digest();
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_BINDING_SCHEMA
+            || self.version != EXTENSION_DEPENDENCY_VERSION
+            || !valid_extension_identifier(&self.binding_id)
+            || !valid_extension_identifier(&self.snapshot_id)
+            || !valid_extension_identifier(&self.source_node_id)
+            || !valid_extension_identifier(&self.packet_id)
+            || !valid_extension_identifier(&self.role_id)
+            || self.destination.trim().is_empty()
+            || self.destination.len() > 512
+            || self.destination.contains('\0')
+            || self.data_classes.len() > 32
+            || self.secret_handles.len() > 32
+            || self.expires_at_unix_ms == 0
+            || matches!(self.budget, ScopeLimit::NotApplicable)
+            || !is_prefixed_digest(&self.parent_scope_digest)
+            || !is_prefixed_digest(&self.binding_digest)
+        {
+            return Err("extension_binding_invalid".to_owned());
+        }
+        validate_string_set(&self.data_classes, "extension_binding_data_class")?;
+        validate_string_set(&self.secret_handles, "extension_binding_secret_handle")?;
+        validate_network_policy(&self.network_policy)?;
+        self.scope.validate()?;
+        if self.binding_digest != self.digest() {
+            return Err("extension_binding_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn is_valid_against(
+        &self,
+        current_parent_scope: &ScopeSet,
+        now_ms: u64,
+    ) -> Result<(), String> {
+        self.validate()?;
+        current_parent_scope.validate()?;
+        if self.parent_scope_digest != current_parent_scope.digest() {
+            return Err("extension_binding_parent_scope_changed".to_owned());
+        }
+        if !self.scope.is_subset_of(current_parent_scope)? {
+            return Err("extension_binding_scope_widened".to_owned());
+        }
+        if now_ms >= self.expires_at_unix_ms {
+            return Err("extension_binding_expired".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "binding_id": self.binding_id,
+            "snapshot_id": self.snapshot_id,
+            "source_node_id": self.source_node_id,
+            "destination": self.destination,
+            "packet_id": self.packet_id,
+            "role_id": self.role_id,
+            "data_classes": self.data_classes,
+            "network_policy": self.network_policy,
+            "secret_handles": self.secret_handles,
+            "budget": self.budget,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+            "parent_scope_digest": self.parent_scope_digest,
+            "scope": self.scope,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionBindingSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub snapshot_id: String,
+    pub graph_digest: String,
+    pub resolution_digest: String,
+    pub authority_epoch: u64,
+    pub bindings: Vec<ExtensionBinding>,
+    pub snapshot_digest: String,
+}
+
+impl ExtensionBindingSnapshot {
+    pub fn new(
+        graph: &ExtensionDependencyGraph,
+        resolution: &ExtensionGraphResolution,
+        snapshot_id: impl Into<String>,
+        authority_epoch: u64,
+        mut bindings: Vec<ExtensionBinding>,
+    ) -> Result<Self, String> {
+        graph.validate()?;
+        resolution.validate()?;
+        if resolution.graph_digest != graph.graph_digest {
+            return Err("extension_binding_graph_changed".to_owned());
+        }
+        let snapshot_id = snapshot_id.into();
+        if !valid_extension_identifier(&snapshot_id) || authority_epoch == 0 {
+            return Err("extension_binding_snapshot_header_invalid".to_owned());
+        }
+        bindings.sort_by(|left, right| left.binding_id.cmp(&right.binding_id));
+        for binding in &bindings {
+            binding.validate()?;
+            let Some(parent) = graph.nodes.get(&binding.source_node_id) else {
+                return Err("extension_binding_parent_missing".to_owned());
+            };
+            if binding.snapshot_id != snapshot_id
+                || binding.parent_scope_digest != parent.scope.digest()
+                || !binding.scope.is_subset_of(&parent.scope)?
+            {
+                return Err("extension_binding_snapshot_mismatch".to_owned());
+            }
+        }
+        if bindings
+            .windows(2)
+            .any(|pair| pair[0].binding_id == pair[1].binding_id)
+        {
+            return Err("extension_binding_duplicate".to_owned());
+        }
+        let mut snapshot = Self {
+            schema: EXTENSION_BINDING_SNAPSHOT_SCHEMA.to_owned(),
+            version: EXTENSION_DEPENDENCY_VERSION,
+            snapshot_id,
+            graph_digest: graph.graph_digest.clone(),
+            resolution_digest: resolution.resolution_digest.clone(),
+            authority_epoch,
+            bindings,
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_BINDING_SNAPSHOT_SCHEMA
+            || self.version != EXTENSION_DEPENDENCY_VERSION
+            || !valid_extension_identifier(&self.snapshot_id)
+            || !is_prefixed_digest(&self.graph_digest)
+            || !is_prefixed_digest(&self.resolution_digest)
+            || self.authority_epoch == 0
+            || self.bindings.len() > MAX_EXTENSION_BINDINGS
+            || !is_prefixed_digest(&self.snapshot_digest)
+        {
+            return Err("extension_binding_snapshot_invalid".to_owned());
+        }
+        for binding in &self.bindings {
+            binding.validate()?;
+            if binding.snapshot_id != self.snapshot_id {
+                return Err("extension_binding_snapshot_identity_mismatch".to_owned());
+            }
+        }
+        if self
+            .bindings
+            .windows(2)
+            .any(|pair| pair[0].binding_id >= pair[1].binding_id)
+        {
+            return Err("extension_binding_snapshot_order_invalid".to_owned());
+        }
+        if self.snapshot_digest != self.digest() {
+            return Err("extension_binding_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn revalidate(&self, graph: &ExtensionDependencyGraph, now_ms: u64) -> Result<(), String> {
+        self.validate()?;
+        graph.validate()?;
+        if self.graph_digest != graph.graph_digest {
+            return Err("extension_binding_graph_changed".to_owned());
+        }
+        for binding in &self.bindings {
+            let Some(parent) = graph.nodes.get(&binding.source_node_id) else {
+                return Err("extension_binding_parent_missing".to_owned());
+            };
+            binding.is_valid_against(&parent.scope, now_ms)?;
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "snapshot_id": self.snapshot_id,
+            "graph_digest": self.graph_digest,
+            "resolution_digest": self.resolution_digest,
+            "authority_epoch": self.authority_epoch,
+            "bindings": self.bindings,
+        }))
+    }
+}
+
+fn validate_string_set(values: &BTreeSet<String>, field: &str) -> Result<(), String> {
+    if values.iter().any(|value| {
+        value.trim().is_empty()
+            || value.len() > 256
+            || value.contains('\0')
+            || value.chars().any(char::is_control)
+    }) {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
+
+fn validate_network_policy(policy: &ExtensionNetworkPolicy) -> Result<(), String> {
+    if let ExtensionNetworkPolicy::Allowlist { hosts } = policy {
+        if hosts.is_empty()
+            || hosts.len() > 32
+            || hosts.iter().any(|host| {
+                host.is_empty()
+                    || host.len() > 253
+                    || host.starts_with('.')
+                    || host.ends_with('.')
+                    || host.contains("..")
+                    || !host.bytes().all(|byte| {
+                        byte.is_ascii_lowercase()
+                            || byte.is_ascii_digit()
+                            || matches!(byte, b'.' | b'-')
+                    })
+            })
+        {
+            return Err("extension_binding_network_policy_invalid".to_owned());
+        }
+    }
+    Ok(())
+}
+
+fn is_prefixed_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
