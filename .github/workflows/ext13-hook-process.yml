@@ -1,0 +1,40 @@
+name: EXT-13 hook process supervisor boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-query/src/stop_hooks.rs"
+      - "kiana-core/tests/ext13_hook_process_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext13-hook-process-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext13-hook-process.yml"
+  pull_request:
+    paths:
+      - "kiana-query/src/stop_hooks.rs"
+      - "kiana-core/tests/ext13_hook_process_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext13-hook-process-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext13-hook-process.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-process:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-13 source guard
+        run: cargo test -p kiana-core --test ext13_hook_process_guard --locked -- --test-threads=1
+      - name: Compile EXT-13 target
+        run: cargo check -p kiana-query --tests --locked

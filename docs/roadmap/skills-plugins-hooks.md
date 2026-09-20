@@ -232,9 +232,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-13 · ProcessSupervisor　⏳
+#### EXT-13 · ProcessSupervisor　✅
 
-新增 port 管理命令、cwd、env allowlist、stdin/stdout/stderr 上限、wall/cpu timeout、abort signal、process group/descendant cleanup 和 output redaction。禁止传递未过滤宿主环境、secret 原值或任意工作区写权限。`kill_on_drop` 只是触发信号；无法证明后代退出时返回 `unknown` 并阻断依赖动作。
+当前 source slice 与 CI-only 证据见 [`ext13-hook-process-baseline.md`](ext13-hook-process-baseline.md)。
+
+现有 Hook executor 复用受控进程边界：固定 cwd、清空宿主环境、minimal PATH、Unix process group、kill-on-drop、timeout/cancel 传递和 bounded UTF-8 output。Hook 不继承 secret 原值或任意 workspace write set；无法证明后代退出的完整 stop confirmation 仍保留 Unknown/阻断边界，后续 durable supervisor slice 继续收口。
 
 <a id="step-ext-14"></a>
 

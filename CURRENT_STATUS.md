@@ -117,6 +117,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: live source root scanning, runtime HookSnapshot persistence, process supervision, outcome aggregation, approval/re-authorization and cross-process recovery remain EXT-13+
 reviewer: Codex source review; checked event/matcher normalization, ordering tie-breakers, guard/observer separation, invalid matcher diagnostics and no execution side effects
 
+### EXT-13 hook process supervision evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-13 source slice; `kiana-query/src/stop_hooks.rs`, source guard and workflow
+worktree_status: EXT-13 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext13_hook_process_guard.rs` covers env/cwd/process-group/kill-on-drop/output-boundary markers; runtime process-tree proof remains deferred to later supervisor/recovery fixtures
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-13 behavior evidence; CI result intentionally not awaited
+status change: EXT-13 source slice is implemented and roadmap row 348 is ✅; Hook execution now carries explicit process containment and output limits
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: full descendant reaping/stop report plumbing, real per-process CPU/AS enforcement, streaming output backpressure, secret redaction receipt and cross-process recovery remain later CAP/ER/SC work
+reviewer: Codex source review; checked env clearing, cwd binding, process group setup, cancellation/timeout path, output truncation marker and no inherited host environment
+
 ## 1. 状态与证明等级
 
 状态与证明等级是两个维度：

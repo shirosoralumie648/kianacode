@@ -516,7 +516,7 @@
 | 345 | W4 | 专项 | [`EXT-10`](roadmap/skills-plugins-hooks.md#step-ext-10) | Skills / Plugins / Hooks · Skill invocation 兼容 | `EXT-08`、`EXT-09` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-10) |
 | 346 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
 | 347 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
-| 348 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
+| 348 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
 | 349 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
 | 350 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
 | 351 | W4 | 专项 | [`EXT-16`](roadmap/skills-plugins-hooks.md#step-ext-16) | Skills / Plugins / Hooks · 全生命周期事件接线 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-16) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-13` ProcessSupervisor：Hook executor 统一清理宿主环境、固定 cwd/minimal PATH、Unix process group、kill-on-drop、timeout/cancel 传递与 bounded UTF-8 output；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-12` Hook discovery：新增只读 deterministic discovery snapshot，复用 normalized descriptor 做 event + glob/regex matcher，按 phase/source priority/specificity/declaration order/id 排序，保留 matched/unmatched reason、guard/observer 分组和 input digest；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-11` Hook schema 与事件：现有 strict/legacy manifest adapter 新增 typed normalized events、descriptor version/input-output schema/timeout/effect/required scope，并固定 deny-sticky、ask-preserved、update-requires-reauthorization；未知事件 fail-closed；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-10` Skill invocation 兼容：`kiana skills` 新增 metadata-only catalog、结构化 JSON/argv invoke、带 activation/quota 的 resource_read；explicit invocation 不受 disable_model_invocation 误伤，allowed-tools 仅展示且返回 does_not_grant_tools；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |

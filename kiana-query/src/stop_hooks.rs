@@ -599,7 +599,14 @@ async fn execute_hook_set(
 
         // 每个命令获得执行前 event 的快照；PreToolUse 的输入更新会传给后续命令。
         let input_json = hook_input_json(&event, ctx, active);
-        let run = run_hook_command(command, &input_json, timeout_duration, &ctx.abort_signal).await;
+        let run = run_hook_command(
+            command,
+            &input_json,
+            timeout_duration,
+            &ctx.abort_signal,
+            &ctx.cwd,
+        )
+        .await;
         hook_infos.push(HookInfo {
             command: command.clone(),
             prompt_text: Some(input_json.clone()),
@@ -767,8 +774,14 @@ async fn execute_context_hook_set(
         }
 
         let input_json = hook_input_json(&event, ctx, false);
-        let run =
-            run_hook_command(&command, &input_json, timeout_duration, &ctx.abort_signal).await;
+        let run = run_hook_command(
+            &command,
+            &input_json,
+            timeout_duration,
+            &ctx.abort_signal,
+            &ctx.cwd,
+        )
+        .await;
         if run.aborted {
             return Err(format!("{hook_name} hook aborted"));
         }
@@ -923,11 +936,12 @@ async fn run_hook_command(
     input_json: &str,
     timeout_duration: Duration,
     abort_signal: &Arc<tokio::sync::Notify>,
+    cwd: &Path,
 ) -> HookRun {
-    // 每个命令都在独立 shell 子进程中运行，stdin 接收结构化 JSON；timeout 或取消时
-    // `kill_on_drop` 负责回收子进程句柄，但不声称能清理所有外部孙进程。
+    // 每个命令都在独立受控 shell 子进程中运行，清理宿主环境、固定 cwd、设置进程组并
+    // 绑定 kill_on_drop；timeout/取消仍保持 Unknown 边界，不把 leader 退出当成整棵树已停。
     let started = Instant::now();
-    let mut shell = shell_command(command);
+    let mut shell = shell_command(command, cwd);
     shell
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -982,8 +996,8 @@ async fn run_hook_command(
             Ok(Ok(output)) => HookRun {
                 duration_ms: elapsed_ms(started),
                 exit_code: output.status.code(),
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+                stdout: bounded_hook_output(&output.stdout),
+                stderr: bounded_hook_output(&output.stderr),
                 error: None,
                 error_code: None,
                 error_details: json!({}),
@@ -1015,11 +1029,22 @@ async fn run_hook_command(
     }
 }
 
-fn shell_command(command: &str) -> Command {
+fn shell_command(command: &str, cwd: &Path) -> Command {
+    let path = if cfg!(windows) {
+        r"C:\Windows\System32;C:\Windows"
+    } else {
+        "/usr/bin:/bin"
+    };
     #[cfg(windows)]
     {
         let mut shell = Command::new(preferred_bash_program());
-        shell.arg("-lc").arg(command);
+        shell
+            .arg("-lc")
+            .arg(command)
+            .current_dir(cwd)
+            .env_clear()
+            .env("PATH", path)
+            .kill_on_drop(true);
         shell
     }
 
@@ -1027,9 +1052,31 @@ fn shell_command(command: &str) -> Command {
     {
         let program = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         let mut shell = Command::new(program);
-        shell.arg("-lc").arg(command);
+        shell
+            .arg("-lc")
+            .arg(command)
+            .current_dir(cwd)
+            .env_clear()
+            .env("PATH", path)
+            .kill_on_drop(true);
+        shell.process_group(0);
         shell
     }
+}
+
+fn bounded_hook_output(bytes: &[u8]) -> String {
+    const MAX_HOOK_OUTPUT_BYTES: usize = 64 * 1024;
+    if bytes.len() <= MAX_HOOK_OUTPUT_BYTES {
+        return String::from_utf8_lossy(bytes).to_string();
+    }
+    let mut end = MAX_HOOK_OUTPUT_BYTES.saturating_sub(32).min(bytes.len());
+    while end > 0 && std::str::from_utf8(&bytes[..end]).is_err() {
+        end -= 1;
+    }
+    format!(
+        "{}\n[truncated: hook_output_budget]",
+        String::from_utf8_lossy(&bytes[..end])
+    )
 }
 
 #[cfg(windows)]
