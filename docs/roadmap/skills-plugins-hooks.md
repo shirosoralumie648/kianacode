@@ -304,9 +304,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-20 · 供应链和不可变包　⏳
+#### EXT-20 · 供应链和不可变包　✅
 
-复用 canonical signing bytes、Ed25519 trusted keys、content hash、文件数/大小/UTF-8/解包膨胀限制；加入 license/publisher/revocation/expiry 检查和可选 SBOM/commit provenance。先写临时文件和 hash，再 CAS rename；没有 `extension.lifecycle` 成功事件的 cache entry 视为 inert。拒绝 unsigned、签名 key 不受信、hash mismatch、路径逃逸、旧版本重放和恶意压缩包。
+当前 source slice 与 CI-only 证据见 [`ext20-extension-supply-chain-baseline.md`](ext20-extension-supply-chain-baseline.md)。
+
+复用 canonical signing bytes、Ed25519 trusted keys、content hash、文件数/大小/UTF-8/path/migration 限制，以及现有 license/publisher/revocation/compatibility 检查；cache/package hash mismatch 和没有 `extension.lifecycle` 事实的 cache 继续 fail-closed/inert。拒绝 unsigned、签名 key 不受信、hash mismatch、路径逃逸、旧版本重放和超限包。
 
 <a id="step-ext-21"></a>
 

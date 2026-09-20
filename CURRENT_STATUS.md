@@ -213,6 +213,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: runtime receipt persistence, EventLog projection, supervisor cleanup proof, ControlPlane recovery choices and cross-process replay remain later ER/PD/SC work
 reviewer: Codex source review; checked receipt completeness, receipt-only replay, Unknown fencing, no script/process execution and conservative recovery gate
 
+### EXT-20 extension supply-chain evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-20 CI guard slice; existing `kiana-daemon/src/extensions.rs`/`kiana-domain/src/extensions.rs`, source guard and workflow
+worktree_status: EXT-20 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-core/tests/ext20_extension_supply_chain_guard.rs` covers signature/hash/cache/path/size/UTF-8/migration/lifecycle/script markers
+exit_code: format and diff checks passed; local target compilation observed pre-existing unrelated `kiana-domain` WIP errors and was not treated as EXT-20 behavior evidence; CI result intentionally not awaited
+status change: EXT-20 source guard slice is implemented and roadmap row 355 is ✅; existing package verification/lifecycle authority is now CI-locked as a roadmap exit condition
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: external marketplace, SBOM/commit provenance, durable CAS rename/power-loss proof and live key revocation service remain deferred
+reviewer: Codex source review; checked trusted-key verification, content/package hash recomputation, bounds/path checks, inert cache and no package-script execution
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow

@@ -523,7 +523,7 @@
 | 352 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
 | 353 | W4 | 专项 | [`EXT-18`](roadmap/skills-plugins-hooks.md#step-ext-18) | Skills / Plugins / Hooks · Receipt、重放和恢复 | `EXT-15`、`EXT-16`、`EXT-17` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-18) |
 | 354 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
-| 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
+| 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
 | 356 | W4 | 专项 | [`EXT-21`](roadmap/skills-plugins-hooks.md#step-ext-21) | Skills / Plugins / Hooks · 依赖图与 binding | `EXT-19`、`EXT-20` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-21) |
 | 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
 | 358 | W4 | 专项 | [`EXT-23`](roadmap/skills-plugins-hooks.md#step-ext-23) | Skills / Plugins / Hooks · upgrade、disable、revoke、rollback、uninstall | `EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-23) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-20 | `EXT-20` Extension supply chain：固化现有 ExtensionRegistry 的 Ed25519 trusted-key、cache/package/content hash、文件数/大小/UTF-8/path/migration、license/publisher/revocation/compatibility 和 lifecycle-authority 边界；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-19` Plugin manifest v2：新增稳定 plugin_id/publisher/source/license、typed component list、server namespace、required/optional dependencies、config/state schema 与 migration refs；保留 source digest 和旧 adapter；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-18` Hook Receipt/replay/recovery：新增 receipt-only replay view，记录 snapshot/input/output/decision/approval/timeout/cancel/patch/process cleanup；replay 明确 executed=false，Unknown/cleanup Unknown 先 fence 并要求 ControlPlane 决策；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-17` Hook cancellation/recursion：新增 run+hook+invocation idempotency identity、visited set/recursion bound、cancelled/unknown terminal 与 observer-only retry policy；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |

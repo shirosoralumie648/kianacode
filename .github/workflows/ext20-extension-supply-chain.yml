@@ -1,0 +1,42 @@
+name: EXT-20 extension supply chain boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-core/tests/ext20_extension_supply_chain_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext20-extension-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext20-extension-supply-chain.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-domain/src/extensions.rs"
+      - "kiana-core/tests/ext20_extension_supply_chain_guard.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext20-extension-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext20-extension-supply-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-20 source guard
+        run: cargo test -p kiana-core --test ext20_extension_supply_chain_guard --locked -- --test-threads=1
+      - name: Compile EXT-20 target
+        run: cargo check -p kiana-daemon --tests --locked
