@@ -261,6 +261,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: full daemon stage/install/enable runtime projection, pending-approval persistence, durable config store, multi-surface commands and live package effects remain open for follow-up integration steps
 reviewer: Codex source review; checked action-specific package/dependency/approval requirements, registry CAS/idempotency markers, redacted config provenance, scope precedence and no raw secret storage
 
+### EXT-23 extension control changes evidence (2026-09-20)
+
+source_snapshot: current HEAD plus EXT-23 source slice; `kiana-domain/src/extension_lifecycle.rs`, domain fixture, core source guard, existing `kiana-daemon/src/extensions.rs`, workflow and baseline document
+worktree_status: EXT-23 changes are isolated from pre-existing `kiana-domain` WIP; no unrelated WIP was staged
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; local tests deliberately not run
+fixture·cassette: GitHub Actions only: `kiana-domain/tests/ext23_extension_controls.rs` covers upgrade/revoke invalidation, rollback eligibility and uninstall cleanup/receipt retention; `kiana-core/tests/ext23_extension_controls_guard.rs` covers existing daemon lifecycle fences and no resurrection of revoked packages
+exit_code: format and diff checks passed; local tests deliberately not run; CI result intentionally not awaited
+status change: EXT-23 source slice is implemented and roadmap row 358 is ✅; lifecycle control changes now require explicit invalidation, rollback eligibility and cleanup evidence
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: runtime invalidation propagation to approvals/prompts/bindings, durable generation history, multi-process recovery and external/live package effects remain open
+reviewer: Codex source review; checked pause/invalidation flags, old-generation rollback fence, signature/policy/revocation eligibility, cleanup receipt retention and existing append-only CAS markers
+
 ### EXT-19 plugin manifest v2 evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-19 source slice; `kiana-skills/src/manifest.rs`, fixture, source guard and workflow

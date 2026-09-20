@@ -615,3 +615,305 @@ impl ExtensionLifecycleMutation {
         }))
     }
 }
+
+pub const EXTENSION_LIFECYCLE_CHANGESET_SCHEMA: &str = "kiana.extension-lifecycle-changeset.v1";
+pub const EXTENSION_ROLLBACK_CANDIDATE_SCHEMA: &str = "kiana.extension-rollback-candidate.v1";
+pub const EXTENSION_CLEANUP_RECEIPT_SCHEMA: &str = "kiana.extension-cleanup-receipt.v1";
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtensionLifecycleControlAction {
+    Upgrade,
+    Disable,
+    Revoke,
+    Rollback,
+    Uninstall,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionRollbackCandidate {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub package_sha256: String,
+    pub manifest_digest: String,
+    pub verified_signature: bool,
+    pub policy_allowed: bool,
+    pub revoked: bool,
+    pub source_generation: u64,
+    pub target_generation: u64,
+    pub candidate_digest: String,
+}
+
+impl ExtensionRollbackCandidate {
+    pub fn new(
+        package_sha256: impl Into<String>,
+        manifest_digest: impl Into<String>,
+        verified_signature: bool,
+        policy_allowed: bool,
+        revoked: bool,
+        source_generation: u64,
+        target_generation: u64,
+    ) -> Result<Self, String> {
+        let mut candidate = Self {
+            schema: EXTENSION_ROLLBACK_CANDIDATE_SCHEMA.to_owned(),
+            version: EXTENSION_LIFECYCLE_VERSION,
+            package_sha256: package_sha256.into(),
+            manifest_digest: manifest_digest.into(),
+            verified_signature,
+            policy_allowed,
+            revoked,
+            source_generation,
+            target_generation,
+            candidate_digest: String::new(),
+        };
+        candidate.candidate_digest = candidate.digest();
+        candidate.validate()?;
+        Ok(candidate)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_ROLLBACK_CANDIDATE_SCHEMA
+            || self.version != EXTENSION_LIFECYCLE_VERSION
+            || !is_hex_bytes(&self.package_sha256, 32)
+            || self.source_generation == 0
+            || self.target_generation == 0
+            || self.target_generation >= self.source_generation
+        {
+            return Err("extension_rollback_candidate_invalid".to_owned());
+        }
+        sha_digest(&self.manifest_digest, "extension_rollback_manifest_digest")?;
+        sha_digest(
+            &self.candidate_digest,
+            "extension_rollback_candidate_digest",
+        )?;
+        if !self.verified_signature || !self.policy_allowed || self.revoked {
+            return Err("extension_rollback_candidate_not_eligible".to_owned());
+        }
+        if self.candidate_digest != self.digest() {
+            return Err("extension_rollback_candidate_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "package_sha256": self.package_sha256,
+            "manifest_digest": self.manifest_digest,
+            "verified_signature": self.verified_signature,
+            "policy_allowed": self.policy_allowed,
+            "revoked": self.revoked,
+            "source_generation": self.source_generation,
+            "target_generation": self.target_generation,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionCleanupReceipt {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub package_sha256: String,
+    pub configuration_retained: bool,
+    pub state_retained: bool,
+    pub receipt_refs_retained: bool,
+    pub cache_disposition: String,
+    pub cleanup_digest: String,
+}
+
+impl ExtensionCleanupReceipt {
+    pub fn new(
+        package_sha256: impl Into<String>,
+        configuration_retained: bool,
+        state_retained: bool,
+        receipt_refs_retained: bool,
+        cache_disposition: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut receipt = Self {
+            schema: EXTENSION_CLEANUP_RECEIPT_SCHEMA.to_owned(),
+            version: EXTENSION_LIFECYCLE_VERSION,
+            package_sha256: package_sha256.into(),
+            configuration_retained,
+            state_retained,
+            receipt_refs_retained,
+            cache_disposition: cache_disposition.into(),
+            cleanup_digest: String::new(),
+        };
+        receipt.cleanup_digest = receipt.digest();
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_CLEANUP_RECEIPT_SCHEMA
+            || self.version != EXTENSION_LIFECYCLE_VERSION
+            || !is_hex_bytes(&self.package_sha256, 32)
+            || !matches!(
+                self.cache_disposition.as_str(),
+                "retained" | "removed" | "unknown"
+            )
+            || !self.receipt_refs_retained
+        {
+            return Err("extension_cleanup_receipt_invalid".to_owned());
+        }
+        sha_digest(&self.cleanup_digest, "extension_cleanup_digest")?;
+        if self.cleanup_digest != self.digest() {
+            return Err("extension_cleanup_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "package_sha256": self.package_sha256,
+            "configuration_retained": self.configuration_retained,
+            "state_retained": self.state_retained,
+            "receipt_refs_retained": self.receipt_refs_retained,
+            "cache_disposition": self.cache_disposition,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtensionLifecycleChangeSet {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub action: ExtensionLifecycleControlAction,
+    pub extension_id: String,
+    pub expected_generation: u64,
+    pub next_generation: u64,
+    pub pause_new_requests: bool,
+    pub invalidate_pending_approvals: bool,
+    pub invalidate_prompt_snapshot: bool,
+    pub invalidate_binding_snapshot: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollback_candidate: Option<ExtensionRollbackCandidate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cleanup_receipt: Option<ExtensionCleanupReceipt>,
+    pub change_digest: String,
+}
+
+impl ExtensionLifecycleChangeSet {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        action: ExtensionLifecycleControlAction,
+        extension_id: impl Into<String>,
+        expected_generation: u64,
+        next_generation: u64,
+        pause_new_requests: bool,
+        invalidate_pending_approvals: bool,
+        invalidate_prompt_snapshot: bool,
+        invalidate_binding_snapshot: bool,
+        rollback_candidate: Option<ExtensionRollbackCandidate>,
+        cleanup_receipt: Option<ExtensionCleanupReceipt>,
+    ) -> Result<Self, String> {
+        let mut change = Self {
+            schema: EXTENSION_LIFECYCLE_CHANGESET_SCHEMA.to_owned(),
+            version: EXTENSION_LIFECYCLE_VERSION,
+            action,
+            extension_id: extension_id.into(),
+            expected_generation,
+            next_generation,
+            pause_new_requests,
+            invalidate_pending_approvals,
+            invalidate_prompt_snapshot,
+            invalidate_binding_snapshot,
+            rollback_candidate,
+            cleanup_receipt,
+            change_digest: String::new(),
+        };
+        change.change_digest = change.digest();
+        change.validate()?;
+        Ok(change)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EXTENSION_LIFECYCLE_CHANGESET_SCHEMA
+            || self.version != EXTENSION_LIFECYCLE_VERSION
+            || !valid_extension_identifier(&self.extension_id)
+            || self.expected_generation == 0
+            || self.next_generation == 0
+            || self.next_generation <= self.expected_generation
+        {
+            return Err("extension_lifecycle_changeset_invalid".to_owned());
+        }
+        if let Some(candidate) = &self.rollback_candidate {
+            candidate.validate()?;
+        }
+        if let Some(receipt) = &self.cleanup_receipt {
+            receipt.validate()?;
+        }
+        match self.action {
+            ExtensionLifecycleControlAction::Upgrade => {
+                if !self.pause_new_requests
+                    || !self.invalidate_pending_approvals
+                    || !self.invalidate_prompt_snapshot
+                    || !self.invalidate_binding_snapshot
+                {
+                    return Err("extension_upgrade_invalidation_required".to_owned());
+                }
+            }
+            ExtensionLifecycleControlAction::Disable => {
+                if !self.pause_new_requests {
+                    return Err("extension_disable_pause_required".to_owned());
+                }
+            }
+            ExtensionLifecycleControlAction::Revoke => {
+                if !self.pause_new_requests
+                    || !self.invalidate_pending_approvals
+                    || !self.invalidate_prompt_snapshot
+                    || !self.invalidate_binding_snapshot
+                {
+                    return Err("extension_revoke_invalidation_required".to_owned());
+                }
+            }
+            ExtensionLifecycleControlAction::Rollback => {
+                if self.rollback_candidate.is_none()
+                    || !self.pause_new_requests
+                    || !self.invalidate_prompt_snapshot
+                    || !self.invalidate_binding_snapshot
+                {
+                    return Err("extension_rollback_fence_required".to_owned());
+                }
+            }
+            ExtensionLifecycleControlAction::Uninstall => {
+                if self.cleanup_receipt.is_none()
+                    || !self.pause_new_requests
+                    || !self.invalidate_pending_approvals
+                    || !self.invalidate_prompt_snapshot
+                    || !self.invalidate_binding_snapshot
+                {
+                    return Err("extension_uninstall_cleanup_required".to_owned());
+                }
+            }
+        }
+        sha_digest(&self.change_digest, "extension_lifecycle_changeset_digest")?;
+        if self.change_digest != self.digest() {
+            return Err("extension_lifecycle_changeset_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "action": self.action,
+            "extension_id": self.extension_id,
+            "expected_generation": self.expected_generation,
+            "next_generation": self.next_generation,
+            "pause_new_requests": self.pause_new_requests,
+            "invalidate_pending_approvals": self.invalidate_pending_approvals,
+            "invalidate_prompt_snapshot": self.invalidate_prompt_snapshot,
+            "invalidate_binding_snapshot": self.invalidate_binding_snapshot,
+            "rollback_candidate": self.rollback_candidate,
+            "cleanup_receipt": self.cleanup_receipt,
+        }))
+    }
+}

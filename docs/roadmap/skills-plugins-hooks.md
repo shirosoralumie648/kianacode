@@ -330,9 +330,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-23 · upgrade、disable、revoke、rollback、uninstall　⏳
+#### EXT-23 · upgrade、disable、revoke、rollback、uninstall　✅
 
-upgrade 先验证新包并保留旧 generation，切换前使相关 pending approval、PromptBundle 和 binding 失效；新请求暂停并重建 snapshot。disable 阻止新激活但保留审计；revoke 立即阻断新 capability 与资源读取；rollback 只能回到未撤销、hash 已验证且 policy 仍允许的版本，不能复活 revoked 包。uninstall 记录包、配置、state、receipt 引用的保留/清理结果。
+当前 source slice 与 CI-only 证据见 [`ext23-extension-controls-baseline.md`](ext23-extension-controls-baseline.md)。upgrade/revoke/uninstall 变更要求暂停新请求并使 pending approval、PromptBundle、binding snapshot 失效；rollback 只能回到签名已验证、policy 仍允许且未撤销的旧 generation；uninstall 记录配置、state、cache 与 receipt 引用的保留/清理结果。现有 daemon lifecycle CAS 仍是唯一状态权威。
 
 <a id="step-ext-24"></a>
 
