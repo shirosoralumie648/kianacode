@@ -11207,3 +11207,20 @@ status change: PD-18 source slice is implemented and roadmap row 375/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing lexical/vector/index/cache stores are not yet independently persisted or rebuilt, deletion propagation receipts remain PD-19+ / PD-21+ work, unregistered legacy sources remain compatibility-visible, and no live/physical erasure is claimed
 reviewer: Codex root implementation review plus epoch, scope, lifecycle, revocation, retention, tombstone/cache and no-second-authority boundary review; no local runtime test reviewer
+
+### PD-19 ContextIndex generation evidence (2026-09-21)
+
+source_snapshot: 7b09c7e7 + PD-19 working-tree slice; kiana-query/src/{index_generation.rs,index.rs,lib.rs}; kiana-query/tests/pd19_context_index_generation.rs; kiana-query/tests/pd19_context_index_generation_guard.rs; .github/workflows/pd19-context-index-generation.yml; docs/roadmap/pd19-context-index-generation-baseline.md; docs/roadmap.md
+worktree_status: ContextIndexSourceManifest binds canonical root, sorted file/content fingerprints, ignore-rule digest, config digest and deterministic model id; ContextIndexGenerationEnvelope binds the source manifest to one Ready IndexManifest generation and publishes it with temp-file sync plus atomic rename. Changed source, ignore rules, config or model compare as Stale instead of being treated as fresh.
+command_argv:
+  rustfmt --edition 2021 kiana-query/src/index_generation.rs kiana-query/src/lib.rs kiana-query/tests/pd19_context_index_generation.rs kiana-query/tests/pd19_context_index_generation_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-query --test pd19_context_index_generation --locked -- --test-threads=1; cargo test -p kiana-query --test pd19_context_index_generation_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-19 generation/fingerprint/atomic envelope fixtures and query source guard in pd19-context-index-generation.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-19 source slice is implemented and roadmap row 376/card are ✅. Context index freshness, generation binding and atomic Ready publication are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing persistent index cache remains a compatibility adapter, multi-process generation leases/projector recovery and vector/model quality evidence remain open, and no external/live effect is claimed
+reviewer: Codex root implementation review plus fingerprint determinism, stale detection, Ready-only generation, root/config/model binding and atomic publication boundary review; no local runtime test reviewer
