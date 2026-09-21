@@ -554,7 +554,7 @@
 | 383 | W4 | 专项 | [`INT-02`](roadmap/integrations-connectors.md#step-int-02) | Domain typed IDs、definition/binding/invocation/receipt/recovery 合同 | `INT-01` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-02) |
 | 384 | W4 | 专项 | [`INT-03`](roadmap/integrations-connectors.md#step-int-03) | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | `INT-02` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-03) |
 | 385 | W4 | 专项 | [`INT-04`](roadmap/integrations-connectors.md#step-int-04) | Connector registry immutable version、hash/signature、CAS、catalog projection | `INT-02`、`INT-03` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-04) |
-| 386 | W4 | 专项 | [`INT-05`](roadmap/integrations-connectors.md#step-int-05) | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | `INT-02`、`INT-04` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-05) |
+| 386 | W4 | 专项 | [`INT-05`](roadmap/integrations-connectors.md#step-int-05) | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | `INT-02`、`INT-04` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-05) |
 | 387 | W4 | 专项 | [`SC-24`](roadmap/security-compliance.md#step-sc-24) | kiana-query memory/index/cache/export boundary | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`SC-21`、`SC-22`、`SC-23` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-24) |
 | **W5** | **Provider 协议与调用链** |  |  |  |  |  |  |
 | 388 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `INT-05` Connector scope：新增 owner/project/data epoch/revision/status 绑定与只减不增的 scope intersection；跨身份/epoch、scope widening、revoked/expired 绑定 fail-closed；新增 domain/core fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `INT-04` Connector registry：新增 immutable snapshot、monotonic version、content/signature digest 和 CAS replacement；unknown adapter/registry drift/stale writer fail-closed；新增 domain/core fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `INT-03` Connector operation contract：新增 typed input/output schema digest、effect/risk、required scopes、data classes、bounded size/timeout、retry 与 idempotency 合同；新增 domain/core fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `INT-02` Connector contracts：收口 strict definition/operation/account binding/snapshot/provider receipt/effect observation 合同、revision/digest/unknown-field 与 reconcile 绑定；新增 core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |

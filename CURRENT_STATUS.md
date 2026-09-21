@@ -11375,3 +11375,20 @@ status change: INT-04 source slice is implemented and roadmap row 385/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no durable registry store, cryptographic key verification, catalog projection or live adapter enablement is claimed; INT-05+ remains open
 reviewer: Codex root implementation review plus version monotonicity, CAS, definition identity, signature/content digest and no-auto-enable boundary review; no local runtime test reviewer
+
+### INT-05 connector scope evidence (2026-09-21)
+
+source_snapshot: 306a2cc6 + INT-05 working-tree slice; kiana-domain/src/{connector_scope.rs,connector_registry.rs,connectors.rs,lib.rs}; kiana-domain/tests/int05_connector_scope.rs; kiana-core/src/connectors.rs; kiana-core/tests/int05_connector_scope_guard.rs; .github/workflows/int05-connector-scope.yml; docs/roadmap/int05-connector-scope-baseline.md; docs/roadmap.md
+worktree_status: ConnectorScopeBinding binds owner, project, read/write/data-class scope, data epoch, expiry, status and revision. Server-side intersection only narrows, and owner/project/epoch mismatch, scope widening, stale revision and inactive bindings fail closed.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/connector_scope.rs kiana-domain/src/lib.rs kiana-domain/tests/int05_connector_scope.rs kiana-core/tests/int05_connector_scope_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test int05_connector_scope --locked -- --test-threads=1; cargo test -p kiana-core --test int05_connector_scope_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only INT-05 scope intersection/epoch fixtures and core source guard in int05-connector-scope.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: INT-05 source slice is implemented and roadmap row 386/card are ✅. Connector owner/project/data boundary and narrowing intersection are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no credential lease, account persistence, provider route, revocation EventLog projector or live effect is claimed; INT-06+ remains open
+reviewer: Codex root implementation review plus owner/project/epoch/revision/expiry/status and no-scope-widening boundary review; no local runtime test reviewer
