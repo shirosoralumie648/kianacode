@@ -1,0 +1,41 @@
+name: pd24-migration-record
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/migration_record.rs'
+      - 'kiana-domain/src/migration_registry.rs'
+      - 'kiana-domain/src/migration_preflight.rs'
+      - 'kiana-domain/src/migration_runner.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/pd24_migration_record.rs'
+      - 'kiana-daemon/tests/pd24_migration_record_guard.rs'
+      - '.github/workflows/pd24-migration-record.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/migration_record.rs'
+      - 'kiana-domain/src/migration_registry.rs'
+      - 'kiana-domain/src/migration_preflight.rs'
+      - 'kiana-domain/src/migration_runner.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/pd24_migration_record.rs'
+      - 'kiana-daemon/tests/pd24_migration_record_guard.rs'
+      - '.github/workflows/pd24-migration-record.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migration-record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test pd24_migration_record --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test pd24_migration_record_guard --locked -- --test-threads=1

@@ -11275,3 +11275,20 @@ status change: PD-22 source slice is implemented and roadmap row 379/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no physical copy, fsync/crash durability, restore activation, old-root fencing or external effect reconciliation is claimed; those remain PD-23+ / DEP work
 reviewer: Codex root implementation review plus backup root, mode/previous snapshot, cursor/epoch, file hash, quiesce/WAL and no-effect boundary review; no local runtime test reviewer
+
+### PD-24 migration record evidence (2026-09-21)
+
+source_snapshot: cf7cb69b + PD-24 working-tree slice; kiana-domain/src/{migration_record.rs,migration_registry.rs,migration_preflight.rs,migration_runner.rs,lib.rs}; kiana-domain/tests/pd24_migration_record.rs; kiana-daemon/tests/pd24_migration_record_guard.rs; .github/workflows/pd24-migration-record.yml; docs/roadmap/pd24-migration-record-baseline.md; docs/roadmap.md
+worktree_status: MigrationRecord binds registry checksum, preflight digest, verified backup snapshot, owner, ordered format versions, attempt and status. Planned/Running/Applied/Failed/Quarantined transitions are explicit and failure reasons are mandatory; existing registry/preflight/runner remain pure and no migration effect path is added.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/migration_record.rs kiana-domain/src/lib.rs kiana-domain/tests/pd24_migration_record.rs kiana-daemon/tests/pd24_migration_record_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test pd24_migration_record --locked -- --test-threads=1; cargo test -p kiana-daemon --test pd24_migration_record_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-24 migration record/transition fixtures and daemon source guard in pd24-migration-record.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-24 source slice is implemented and roadmap row 380/card are ✅. Migration registry/preflight/backup/checksum/owner/transition boundaries are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no durable cross-process migration lock, actual upcaster, backup restore, migration I/O or release activation is claimed; these remain later DEP/PD work
+reviewer: Codex root implementation review plus registry/preflight/backup binding, checksum, owner, attempt, quarantine and no-effect transition review; no local runtime test reviewer
