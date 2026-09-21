@@ -11325,3 +11325,19 @@ status change: INT-01 source/document slice is implemented and roadmap row 382/c
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no external connector/provider/A2A effect, OAuth, HTTP MCP, enterprise tenant or business outcome is claimed; INT-02+ contracts remain open
 reviewer: Codex root implementation review plus terminology, direct-authority, secret/remote/fake outcome and ControlPlane route-boundary review; no local runtime test reviewer
+
+### INT-02 connector contract evidence (2026-09-21)
+
+source_snapshot: a717ac0f + INT-02 source-guard slice; kiana-domain/src/connectors.rs; kiana-core/src/connectors.rs; kiana-daemon/src/connectors.rs; kiana-core/tests/int02_connector_contract_guard.rs; .github/workflows/int02-connector-contract.yml; docs/roadmap/int02-connector-contract-baseline.md; docs/roadmap.md
+worktree_status: Existing connector contracts are now roadmap-linked as the typed INT-02 boundary: strict definition/operation/binding/snapshot/receipt/effect metadata, revision/digest binding, unknown-field rejection and server-owned reconcile checks. No second connector authority or direct provider effect path is introduced.
+command_argv:
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-core --test int02_connector_contract_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only INT-02 typed contract/source boundary guard in int02-connector-contract.yml
+exit_code: 0 for cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: INT-02 source slice is implemented and roadmap row 383/card are ✅. Connector typed contracts, strict parsing and receipt/recovery binding are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live OAuth/account provider, external effect, durable connector registry CAS or cross-process recovery is claimed; INT-03+ remains open
+reviewer: Codex root implementation review plus strict serde, digest/revision, binding scope, receipt ownership and no-direct-effect boundary review; no local runtime test reviewer
