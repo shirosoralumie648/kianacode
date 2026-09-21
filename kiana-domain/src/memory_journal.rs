@@ -5,7 +5,10 @@
 //! Replaying the committed stream reconstructs the latest row for each record and exposes a
 //! projection lag instead of silently treating a stale file as an empty memory store.
 
-use crate::{json_digest, MemoryRecord, RuntimeEvent};
+use crate::{
+    json_digest, MemoryAdmission, MemoryImportMode, MemoryMutation, MemoryMutationAuthority,
+    MemoryMutationOperation, MemoryOrigin, MemoryRecord, MemoryState, RuntimeEvent,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const MEMORY_FACT_EVENT_KIND: &str = "memory.fact";
 pub const MEMORY_FACT_SCHEMA: &str = "kiana.memory-fact.v1";
 pub const MEMORY_BODY_REF_SCHEMA: &str = "kiana.memory-body-ref.v1";
+pub const MEMORY_MUTATION_JOURNAL_SCHEMA: &str = "kiana.memory-mutation-journal.v1";
 pub const MEMORY_STREAM: &str = "memory";
 
 fn bounded(value: &str, max: usize) -> bool {
@@ -54,6 +58,145 @@ impl MemoryBodyRef {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryMutationJournalStage {
+    Candidate,
+    Draft,
+    Ephemeral,
+    Qualify,
+    Approve,
+    Supersede,
+    Tombstone,
+}
+
+impl MemoryMutationJournalStage {
+    fn validate_record(
+        self,
+        mutation: &MemoryMutation,
+        record: &MemoryRecord,
+    ) -> Result<(), String> {
+        let expected = mutation
+            .expected_revisions
+            .first()
+            .ok_or_else(|| "memory_mutation_journal_target_missing".to_owned())?;
+        if mutation.expected_revisions.len() != 1
+            || expected.record_id != record.id
+            || expected.collection != record.collection
+            || record.last_mutation_key.as_deref() != Some(mutation.idempotency_key.as_str())
+            || record.revision != expected.expected_revision.saturating_add(1)
+        {
+            return Err("memory_mutation_journal_target_mismatch".to_owned());
+        }
+        if record.import_mode == MemoryImportMode::Native && record.origin == MemoryOrigin::Unknown
+        {
+            return Err("memory_mutation_journal_origin_unresolved".to_owned());
+        }
+        match self {
+            Self::Candidate | Self::Draft => {
+                if !matches!(
+                    (record.admission_state, record.state),
+                    (MemoryAdmission::Candidate, MemoryState::Draft)
+                ) || !matches!(
+                    mutation.operation,
+                    MemoryMutationOperation::Add | MemoryMutationOperation::Update
+                ) {
+                    return Err("memory_mutation_journal_candidate_invalid".to_owned());
+                }
+            }
+            Self::Ephemeral => {
+                if !matches!(
+                    (record.admission_state, record.state),
+                    (MemoryAdmission::Ephemeral, MemoryState::Active)
+                ) {
+                    return Err("memory_mutation_journal_ephemeral_invalid".to_owned());
+                }
+            }
+            Self::Qualify | Self::Approve => {
+                if !matches!(
+                    (record.admission_state, record.state),
+                    (MemoryAdmission::Qualified, MemoryState::Active)
+                ) || !matches!(
+                    mutation.operation,
+                    MemoryMutationOperation::Approve | MemoryMutationOperation::Publish
+                ) || mutation.authority == MemoryMutationAuthority::Agent
+                    || record.reviewed_by.is_none()
+                    || record.reviewed_at_ms.is_none()
+                {
+                    return Err("memory_mutation_journal_approval_invalid".to_owned());
+                }
+            }
+            Self::Supersede => {
+                if record.supersedes.is_none()
+                    || !matches!(
+                        mutation.operation,
+                        MemoryMutationOperation::Update | MemoryMutationOperation::Publish
+                    )
+                    || mutation.authority == MemoryMutationAuthority::Agent
+                {
+                    return Err("memory_mutation_journal_supersede_invalid".to_owned());
+                }
+            }
+            Self::Tombstone => {
+                if !matches!(
+                    (record.admission_state, record.state),
+                    (MemoryAdmission::Rejected, MemoryState::Rejected)
+                ) || !matches!(
+                    mutation.operation,
+                    MemoryMutationOperation::Delete
+                        | MemoryMutationOperation::Expire
+                        | MemoryMutationOperation::Revoke
+                ) || mutation.authority == MemoryMutationAuthority::Agent
+                {
+                    return Err("memory_mutation_journal_tombstone_invalid".to_owned());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoryMutationJournal {
+    pub schema: String,
+    pub mutation: MemoryMutation,
+    pub stage: MemoryMutationJournalStage,
+    pub mutation_digest: String,
+}
+
+impl MemoryMutationJournal {
+    pub fn new(
+        mutation: MemoryMutation,
+        stage: MemoryMutationJournalStage,
+    ) -> Result<Self, String> {
+        mutation.validate()?;
+        let journal = Self {
+            schema: MEMORY_MUTATION_JOURNAL_SCHEMA.to_owned(),
+            mutation_digest: mutation.digest(),
+            mutation,
+            stage,
+        };
+        journal.validate()?;
+        Ok(journal)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != MEMORY_MUTATION_JOURNAL_SCHEMA
+            || self.mutation_digest != self.mutation.digest()
+        {
+            return Err("memory_mutation_journal_header_invalid".to_owned());
+        }
+        self.mutation.validate()
+    }
+
+    pub fn validate_for_record(&self, record: &MemoryRecord) -> Result<(), String> {
+        self.validate()?;
+        record.validate_lifecycle()?;
+        self.stage.validate_record(&self.mutation, record)
+    }
+}
+
 /// One server-committed memory mutation/review fact.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -63,6 +206,8 @@ pub struct MemoryJournalFact {
     pub mutation_key: String,
     pub record: MemoryRecord,
     pub body_ref: MemoryBodyRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mutation: Option<MemoryMutationJournal>,
 }
 
 impl MemoryJournalFact {
@@ -78,7 +223,19 @@ impl MemoryJournalFact {
             mutation_key: mutation_key.into(),
             record,
             body_ref,
+            mutation: None,
         }
+    }
+
+    pub fn with_mutation(
+        mut self,
+        mutation: MemoryMutation,
+        stage: MemoryMutationJournalStage,
+    ) -> Result<Self, String> {
+        let journal = MemoryMutationJournal::new(mutation, stage)?;
+        journal.validate_for_record(&self.record)?;
+        self.mutation = Some(journal);
+        Ok(self)
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -93,6 +250,12 @@ impl MemoryJournalFact {
         if self.record.content_hash != self.body_ref.content_hash {
             return Err("memory_body_ref_hash_mismatch".to_owned());
         }
+        if let Some(mutation) = &self.mutation {
+            mutation.validate_for_record(&self.record)?;
+            if mutation.mutation.idempotency_key != self.mutation_key {
+                return Err("memory_mutation_journal_key_mismatch".to_owned());
+            }
+        }
         Ok(())
     }
 }
@@ -102,6 +265,7 @@ impl MemoryJournalFact {
 pub struct MemoryProjection {
     pub source_cursor: u64,
     pub records: BTreeMap<String, Value>,
+    pub mutation_digests: BTreeMap<String, String>,
 }
 
 impl MemoryProjection {
@@ -124,6 +288,8 @@ pub fn project_memory_facts(events: &[RuntimeEvent]) -> Result<MemoryProjection,
     let mut projection = MemoryProjection::default();
     let mut ids = BTreeSet::new();
     let mut keys = BTreeSet::new();
+    let mut mutation_keys = BTreeSet::new();
+    let mut previous_records = BTreeMap::new();
     let mut expected = 1u64;
     for event in events {
         if event.kind != MEMORY_FACT_EVENT_KIND {
@@ -151,6 +317,22 @@ pub fn project_memory_facts(events: &[RuntimeEvent]) -> Result<MemoryProjection,
         if fact.body_ref.stream_id != event.aggregate_id.clone().unwrap_or_default() {
             return Err("memory_body_ref_stream_mismatch".to_owned());
         }
+        if let Some(mutation) = &fact.mutation {
+            if !mutation_keys.insert(mutation.mutation.idempotency_key.clone()) {
+                return Err("memory_mutation_journal_duplicate".to_owned());
+            }
+            mutation.validate_for_record(&fact.record)?;
+            if let Some(previous) = previous_records.get(&fact.record.id) {
+                if previous.revision.saturating_add(1) != fact.record.revision {
+                    return Err("memory_mutation_journal_revision_gap".to_owned());
+                }
+            }
+            projection.mutation_digests.insert(
+                mutation.mutation.idempotency_key.clone(),
+                mutation.mutation_digest.clone(),
+            );
+        }
+        previous_records.insert(fact.record.id.clone(), fact.record.clone());
         projection.records.insert(
             fact.record.id.clone(),
             serde_json::to_value(fact.record)

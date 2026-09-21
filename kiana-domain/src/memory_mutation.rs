@@ -32,6 +32,20 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Server-derived authority class for a memory mutation.
+///
+/// Model-originated mutations may create candidates, but they can never commit an approval or
+/// tombstone. The daemon stamps `Human` or `Service` only after its own command/approval gate.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryMutationAuthority {
+    #[default]
+    Agent,
+    Human,
+    Service,
+    Unknown,
+}
+
 /// The only mutation verbs accepted by the memory authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -134,6 +148,8 @@ pub struct MemoryMutation {
     pub schema: String,
     pub mutation_id: String,
     pub operation: MemoryMutationOperation,
+    #[serde(default)]
+    pub authority: MemoryMutationAuthority,
     /// Server-resolved actor. It must match the principal carried by `scope`.
     pub actor: String,
     pub scope: MemoryScope,
@@ -193,6 +209,7 @@ impl MemoryMutation {
             schema: MEMORY_MUTATION_SCHEMA.to_owned(),
             mutation_id: mutation_id.into(),
             operation,
+            authority: MemoryMutationAuthority::Agent,
             actor: actor.into(),
             scope,
             expected_revisions,
@@ -204,6 +221,12 @@ impl MemoryMutation {
         };
         mutation.validate()?;
         Ok(mutation)
+    }
+
+    pub fn with_authority(mut self, authority: MemoryMutationAuthority) -> Result<Self, String> {
+        self.authority = authority;
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -220,6 +243,9 @@ impl MemoryMutation {
         digest(&self.payload_digest, "memory_mutation_payload_digest")?;
         if self.policy_epoch == 0 || self.data_epoch == 0 {
             return Err("memory_mutation_epoch_invalid".to_owned());
+        }
+        if self.authority == MemoryMutationAuthority::Unknown {
+            return Err("memory_mutation_authority_unknown".to_owned());
         }
         self.scope.validate()?;
         if !self.scope.allow_write {

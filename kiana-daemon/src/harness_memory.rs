@@ -8,13 +8,14 @@ use kiana_domain::{
     json_digest, memory_query_terms, AdapterCommitState, AdapterResultKind,
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, EvidenceStatus, MemoryAdmission,
     MemoryBodyRef, MemoryClassification, MemoryCollection, MemoryJournalFact, MemoryMutation,
-    MemoryMutationLedger, MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt,
-    MemoryMutationTarget, MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope,
-    MemorySensitivity, MemoryState, Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef,
-    MEMORY_FACT_EVENT_KIND, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
-    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
-    MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
-    MEMORY_STREAM, MEMORY_WRITE_SCHEMA,
+    MemoryMutationAuthority, MemoryMutationJournalStage, MemoryMutationLedger,
+    MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt, MemoryMutationTarget,
+    MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState,
+    Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef, MEMORY_FACT_EVENT_KIND,
+    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
+    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
+    MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_STREAM,
+    MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
@@ -161,6 +162,8 @@ fn journal_memory_fact(
     operation: &str,
     mutation_key: &str,
     record: &MemoryRecord,
+    mutation: Option<&MemoryMutation>,
+    stage: Option<MemoryMutationJournalStage>,
 ) -> Result<(u64, bool), PortError> {
     let Some(events) = scope.events.clone() else {
         return Ok((0, false));
@@ -188,17 +191,32 @@ fn journal_memory_fact(
                     "memory_journal_idempotency_payload_mismatch".to_owned(),
                 ));
             }
+            if let Some(mutation) = mutation {
+                let Some(journal) = fact.mutation.as_ref() else {
+                    return Err(failed("memory_mutation_journal_missing"));
+                };
+                if journal.mutation_digest != mutation.digest() {
+                    return Err(PortError::Conflict(
+                        "memory_mutation_journal_digest_mismatch".to_owned(),
+                    ));
+                }
+            }
             return Ok((previous.stream_version.unwrap_or(expected), true));
         }
         let version = expected
             .checked_add(1)
             .ok_or_else(|| failed("memory_journal_version_exhausted"))?;
-        let fact = MemoryJournalFact::new(
+        let mut fact = MemoryJournalFact::new(
             operation,
             mutation_key,
             record.clone(),
             MemoryBodyRef::new(&stream_id, &record.content_hash),
         );
+        if let (Some(mutation), Some(stage)) = (mutation, stage) {
+            fact = fact
+                .with_mutation(mutation.clone(), stage)
+                .map_err(failed)?;
+        }
         fact.validate().map_err(failed)?;
         let event = RuntimeEvent::new(
             request_id,
@@ -568,6 +586,12 @@ fn write_record_with_mutation(
                 "write",
                 &mutation_key,
                 &record,
+                Some(&mutation),
+                Some(if scratch {
+                    MemoryMutationJournalStage::Ephemeral
+                } else {
+                    MemoryMutationJournalStage::Candidate
+                }),
             )?;
             journal_cursor = cursor;
             journal_replayed = replayed_event;
@@ -593,6 +617,12 @@ fn write_record_with_mutation(
                 "write",
                 &mutation_key,
                 &record,
+                Some(&mutation),
+                Some(if scratch {
+                    MemoryMutationJournalStage::Ephemeral
+                } else {
+                    MemoryMutationJournalStage::Candidate
+                }),
             )?;
             journal_cursor = cursor;
             journal_replayed = replayed_event;
@@ -728,6 +758,8 @@ fn review_records_with_mutation(
                 mutation_key.clone(),
                 &payload,
             )
+            .map_err(failed)?
+            .with_authority(MemoryMutationAuthority::Human)
             .map_err(failed)?;
             let receipt = replayed_memory_receipt(&mutation, record.revision)?;
             return Ok(
@@ -748,24 +780,32 @@ fn review_records_with_mutation(
     };
     let payload = json!({"action":action,"record_id":record.id,"reason":reason,
         "expected_revision":expected,"collection":collection.collection});
-    let mutation_receipt = if let Some(mutation_scope) = mutation_scope {
-        let mutation = MemoryMutation::new(
-            format!("memory.review:{}", record.id),
-            operation,
-            mutation_scope.principal.principal_id.clone(),
-            mutation_scope.clone(),
-            vec![MemoryMutationTarget::new(
-                &record.id,
-                &record.collection,
-                expected,
-            )],
-            vec![memory_source_ref(&record.id, &record.source, &record.text)?],
-            policy_epoch,
-            data_epoch,
-            mutation_key.clone(),
-            &payload,
+    let journal_mutation = if let Some(mutation_scope) = mutation_scope {
+        Some(
+            MemoryMutation::new(
+                format!("memory.review:{}", record.id),
+                operation,
+                mutation_scope.principal.principal_id.clone(),
+                mutation_scope.clone(),
+                vec![MemoryMutationTarget::new(
+                    &record.id,
+                    &record.collection,
+                    expected,
+                )],
+                vec![memory_source_ref(&record.id, &record.source, &record.text)?],
+                policy_epoch,
+                data_epoch,
+                mutation_key.clone(),
+                &payload,
+            )
+            .map_err(failed)?
+            .with_authority(MemoryMutationAuthority::Human)
+            .map_err(failed)?,
         )
-        .map_err(failed)?;
+    } else {
+        None
+    };
+    let mutation_receipt = if let Some(mutation) = journal_mutation.clone() {
         let mut ledger = MemoryMutationLedger::new();
         for previous in &existing {
             ledger
@@ -811,6 +851,12 @@ fn review_records_with_mutation(
             "review",
             &mutation_key,
             &record,
+            journal_mutation.as_ref(),
+            Some(if action == "promote" {
+                MemoryMutationJournalStage::Approve
+            } else {
+                MemoryMutationJournalStage::Tombstone
+            }),
         )?
     } else {
         (0, false)

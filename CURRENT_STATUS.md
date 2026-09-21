@@ -11173,3 +11173,20 @@ status change: CM-35 source slice is implemented and roadmap row 640 is ✅. Ext
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no external network call, MCP transport, connector business effect, import persistence or live remote provenance is claimed; real adapters must acquire grants/quotas and use the same snapshot/revocation contract
 reviewer: Codex root implementation review plus source-kind, attributed evidence, digest binding, equal-scope, quota, epoch/TTL and revocation gate review; no runtime test reviewer
+
+### PD-17 memory mutation journal evidence (2026-09-21)
+
+source_snapshot: 8d6742f2 + PD-17 working-tree slice; kiana-domain/src/{memory_mutation.rs,memory_journal.rs}; kiana-domain/tests/pd17_memory_mutation_journal.rs; kiana-daemon/src/harness_memory.rs; kiana-daemon/tests/pd17_memory_mutation_journal_guard.rs; .github/workflows/pd17-memory-mutation-journal.yml; docs/roadmap/pd17-memory-mutation-journal-baseline.md; docs/roadmap/persistence-data-layer.md; docs/roadmap.md
+worktree_status: MemoryMutation now carries server-derived authority; MemoryJournalFact can bind a typed mutation journal with lifecycle stage, scope/target/revision/idempotency checks, and projection rebuild rejects duplicate keys, unresolved native origin, invalid approval/tombstone transitions and revision gaps. Daemon memory.write/review stamps candidate/ephemeral/approve/tombstone stages and commits the mutation-bound fact before JSONL projection. Pre-existing untracked kiana-domain/src/memory_workbench.rs remains unrelated WIP and was not staged.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/memory_mutation.rs kiana-domain/src/memory_journal.rs kiana-daemon/src/harness_memory.rs kiana-domain/tests/pd17_memory_mutation_journal.rs kiana-daemon/tests/pd17_memory_mutation_journal_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test pd17_memory_mutation_journal --locked -- --test-threads=1; cargo test -p kiana-daemon --test pd17_memory_mutation_journal_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-17 domain mutation journal fixtures and daemon source guard in pd17-memory-mutation-journal.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-17 source slice is implemented and roadmap row 374/card are ✅. Mutation authority, lifecycle stage, scope/evidence binding, idempotent journal identity and fact-first projection ordering are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: legacy memory facts remain compatibility-shaped, cross-process mutation receipt recovery and durable projector restart evidence remain open, supersede/retention propagation continues in PD-18+, and no live/physical side effect is claimed
+reviewer: Codex root implementation review plus deny-first authority, scope/revision/idempotency, origin/evidence, journal-before-projection and replay boundary review; no local runtime test reviewer

@@ -542,7 +542,7 @@
 | 371 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ✅ | [基础卡](#step-p4-j3-05) |
 | 372 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ✅ | [基础卡](#step-p4-l5-01) |
 | 373 | W4 | 基础 | [`P4-L6-01`](#step-p4-l6-01) | P4 基础 · 供应链 | `P4-L5-01` | ✅ | [基础卡](#step-p4-l6-01) |
-| 374 | W4 | 专项 | [`PD-17`](roadmap/persistence-data-layer.md#step-pd-17) | Memory mutation journal、candidate/draft/qualify/approve/supersede/tombstone；`kiana-daemon`、`kiana-eventlog` | `CM-04`、`CM-05`、`PD-07`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-17) |
+| 374 | W4 | 专项 | [`PD-17`](roadmap/persistence-data-layer.md#step-pd-17) | Memory mutation journal、candidate/draft/qualify/approve/supersede/tombstone；`kiana-daemon`、`kiana-eventlog` | `CM-04`、`CM-05`、`PD-07`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-17) |
 | 375 | W4 | 专项 | [`PD-18`](roadmap/persistence-data-layer.md#step-pd-18) | Memory projection、ACL/治理 epoch、retention 和删除索引联动；`kiana-daemon`、`kiana-core` | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`PD-17` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-18) |
 | 376 | W4 | 专项 | [`PD-19`](roadmap/persistence-data-layer.md#step-pd-19) | ContextIndex generation、source fingerprint、freshness、原子切换；`kiana-query` | `CM-10`、`CM-11`、`CM-12`、`CM-13`、`CM-14`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-19) |
 | 377 | W4 | 专项 | [`PD-20`](roadmap/persistence-data-layer.md#step-pd-20) | RepoMap、context artifact ingest 和依赖图的持久 manifest；`kiana-query` | `PD-14`、`PD-19` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-20) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `PD-17` Memory mutation journal：将 mutation authority、阶段、scope、evidence、origin、revision 和 idempotency 绑定到 `memory.fact`；新增 candidate/draft/ephemeral/approve/tombstone 重建校验，模型不能自批，daemon 在 JSONL 可见前先提交带 mutation 的 EventStore fact；新增 domain/daemon guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 |---|---|---|
 | 2026-09-20 | `EXT-20` Extension supply chain：固化现有 ExtensionRegistry 的 Ed25519 trusted-key、cache/package/content hash、文件数/大小/UTF-8/path/migration、license/publisher/revocation/compatibility 和 lifecycle-authority 边界；新增 source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
 | 2026-09-20 | `EXT-19` Plugin manifest v2：新增稳定 plugin_id/publisher/source/license、typed component list、server namespace、required/optional dependencies、config/state schema 与 migration refs；保留 source digest 和旧 adapter；新增 fixture、source guard、CI workflow 与 baseline；不运行本地测试，CI 已触发但未等待 | 待本提交 |
