@@ -28,6 +28,14 @@ fn usage(value: &Value, input: &str, output: &str) -> Result<Option<ModelUsage>,
         _ => Ok(None),
     }
 }
+
+fn update_monotonic(slot: &mut Option<u64>, next: u64) -> Result<(), ModelError> {
+    if slot.is_some_and(|previous| next < previous) {
+        return Err(error("provider_usage_regressed"));
+    }
+    *slot = Some(next);
+    Ok(())
+}
 fn call(
     id: String,
     name: &str,
@@ -489,8 +497,11 @@ impl Accumulator {
                         return Err(error("provider_duplicate_finish"));
                     }
                 }
+                if let Some(input) = value["usage"]["input_tokens"].as_u64() {
+                    update_monotonic(&mut self.input, input)?;
+                }
                 if let Some(output) = value["usage"]["output_tokens"].as_u64() {
-                    self.output = Some(output);
+                    update_monotonic(&mut self.output, output)?;
                 }
             }
             Some("message_stop") => {
@@ -1188,5 +1199,138 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(error.code, "provider_delta_after_finish");
+    }
+
+    fn anthropic_prepared() -> PreparedModelCall {
+        let tools = tool_schemas();
+        let mut prepared = PreparedModelCall {
+            schema: MODEL_CALL_SCHEMA.to_owned(),
+            spec: ModelCallSpec {
+                call_id: RequestId::new(),
+                attempt_id: RequestId::new(),
+                model_attempt_id: None,
+                step_id: None,
+                step: 1,
+                purpose: ModelPurpose::Task,
+                assignment: None,
+                response_format: ModelResponseFormat::Text,
+                replay: Vec::new(),
+                deadline_unix_ms: u64::MAX,
+            },
+            route: ModelRoute {
+                provider_id: "anthropic".to_owned(),
+                protocol: ModelProtocol::AnthropicMessages,
+                connection_id: "fixture".to_owned(),
+                model_id: "claude-fixture".to_owned(),
+                profile: "default".to_owned(),
+                configuration_revision: "fixture.v1".to_owned(),
+                streaming: true,
+            },
+            request: ModelRequest {
+                messages: Vec::new(),
+                tools: tools.clone(),
+                sandbox: "read-only".to_owned(),
+            },
+            wire_body: serde_json::json!({}),
+            request_hash: String::new(),
+            budget: TokenBudget::new(1, 1, 1, 1, 4_096),
+            tool_catalog_hash: tool_catalog_hash(&tools),
+            provider_account: None,
+            credential_revision: None,
+        };
+        prepared.seal();
+        prepared
+    }
+
+    #[test]
+    fn anthropic_text_tool_result_and_final_answer_decode_without_private_replay() {
+        let prepared = anthropic_prepared();
+        let reply = decode(
+            serde_json::json!({
+                "id": "message-1",
+                "model": "claude-fixture",
+                "content": [
+                    {"type": "text", "text": "use the tool"},
+                    {"type": "tool_use", "id": "call-1", "name": "shell", "input": {"command": "pwd"}}
+                ],
+                "stop_reason": "tool_use",
+                "usage": {"input_tokens": 4, "output_tokens": 3}
+            }),
+            &prepared,
+        )
+        .unwrap();
+        assert_eq!(reply.output.text, "use the tool");
+        assert_eq!(reply.output.tool_calls[0].id, "call-1");
+        assert_eq!(reply.output.tool_calls[0].name, "shell");
+        assert_eq!(reply.output.tool_calls[0].arguments["command"], "pwd");
+        assert_eq!(reply.output.usage.unwrap().output_tokens, 3);
+    }
+
+    #[test]
+    fn anthropic_stream_requires_message_stop_and_accumulates_usage() {
+        let prepared = anthropic_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::AnthropicMessages);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"type":"message_start","message":{"id":"message-1","model":"claude-fixture","usage":{"input_tokens":4,"output_tokens":0}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_stop","index":0}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert!(accumulator
+            .push(r#"{"type":"message_stop"}"#, &mut sink(&mut deltas),)
+            .unwrap());
+        let reply = accumulator.finish(&prepared).unwrap();
+        assert_eq!(reply.output.text, "hello");
+        assert_eq!(reply.output.usage.unwrap().output_tokens, 2);
+    }
+
+    #[test]
+    fn anthropic_usage_regression_is_rejected() {
+        let mut accumulator = Accumulator::new(ModelProtocol::AnthropicMessages);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"type":"message_start","message":{"id":"message-1","model":"claude-fixture","usage":{"input_tokens":4,"output_tokens":0}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"message_delta","usage":{"output_tokens":3}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let error = accumulator
+            .push(
+                r#"{"type":"message_delta","usage":{"output_tokens":2}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_usage_regressed");
     }
 }
