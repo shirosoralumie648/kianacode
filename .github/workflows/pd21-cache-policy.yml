@@ -1,0 +1,42 @@
+name: pd21-cache-policy
+
+on:
+  push:
+    paths:
+      - 'kiana-query/src/cache_policy.rs'
+      - 'kiana-query/src/index.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/pd21_cache_policy.rs'
+      - 'kiana-query/tests/pd21_cache_policy_guard.rs'
+      - 'kiana-daemon/src/context_query.rs'
+      - 'kiana-daemon/tests/pd21_cache_policy_guard.rs'
+      - '.github/workflows/pd21-cache-policy.yml'
+  pull_request:
+    paths:
+      - 'kiana-query/src/cache_policy.rs'
+      - 'kiana-query/src/index.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/pd21_cache_policy.rs'
+      - 'kiana-query/tests/pd21_cache_policy_guard.rs'
+      - 'kiana-daemon/src/context_query.rs'
+      - 'kiana-daemon/tests/pd21_cache_policy_guard.rs'
+      - '.github/workflows/pd21-cache-policy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cache-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-query --test pd21_cache_policy --locked -- --test-threads=1
+      - run: cargo test -p kiana-query --test pd21_cache_policy_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test pd21_cache_policy_guard --locked -- --test-threads=1

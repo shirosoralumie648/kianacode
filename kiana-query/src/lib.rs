@@ -11,6 +11,7 @@
 //!
 //! 这里的序列化结构和结果报告是当前实现的本地契约；字段存在不表示所有入口都已经接入，
 //! 也不自动提供 durable、live 或 physical 证明。
+pub mod cache_policy;
 pub mod chunker;
 pub mod config;
 pub mod context_inputs;
@@ -31,6 +32,7 @@ pub mod transitions;
 pub mod unified_retrieval;
 pub mod workspace_snapshot;
 
+pub use cache_policy::{ContextCacheDecision, ContextCacheStatus, CONTEXT_CACHE_DECISION_SCHEMA};
 pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use context_inputs::repo_map_candidate;

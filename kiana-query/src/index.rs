@@ -442,6 +442,8 @@ pub struct ContextIndexCacheReport {
     pub changed_files: usize,
     /// 被移除文件数。
     pub removed_files: usize,
+    #[serde(default)]
+    pub decision: Option<crate::ContextCacheDecision>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1352,6 +1354,17 @@ fn cache_report(
                 added_files: current.files.len(),
                 changed_files: 0,
                 removed_files: 0,
+                decision: Some(crate::ContextCacheDecision::from_report(
+                    match previous {
+                        CachedContextIndex::Missing => "created",
+                        CachedContextIndex::Invalid => "recovered",
+                        CachedContextIndex::Valid(_) => unreachable!(),
+                    },
+                    0,
+                    current.files.len(),
+                    0,
+                    0,
+                )),
             };
         }
     };
@@ -1390,6 +1403,13 @@ fn cache_report(
         added_files,
         changed_files,
         removed_files,
+        decision: Some(crate::ContextCacheDecision::from_report(
+            "updated",
+            reused_files,
+            added_files,
+            changed_files,
+            removed_files,
+        )),
     }
 }
 

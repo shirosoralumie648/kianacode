@@ -11241,3 +11241,20 @@ status change: PD-20 source slice is implemented and roadmap row 377/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: source manifest persistence is currently an adapter-level file contract, multi-process leases/recovery, backup/restore, external ArtifactStore and live effects remain open
 reviewer: Codex root implementation review plus root/path/content hash/source cursor/tool version/dependency graph/atomic publication boundary review; no local runtime test reviewer
+
+### PD-21 cache policy evidence (2026-09-21)
+
+source_snapshot: de9c5904 + PD-21 working-tree slice; kiana-query/src/{cache_policy.rs,index.rs,lib.rs}; kiana-query/tests/pd21_cache_policy.rs; kiana-query/tests/pd21_cache_policy_guard.rs; kiana-daemon/tests/pd21_cache_policy_guard.rs; .github/workflows/pd21-cache-policy.yml; docs/roadmap.md
+worktree_status: ContextIndexCacheReport now carries a typed cache decision. Only unchanged reuse is `Hit` and allowed to supply a cached business result; missing, invalid/recovered, changed/stale and disabled states remain explicit non-authoritative outcomes. Cache errors continue to return/rebuild rather than becoming empty facts, and the daemon/query source guards keep cache outside ControlPlane authority.
+command_argv:
+  rustfmt --edition 2021 kiana-query/src/cache_policy.rs kiana-query/src/index.rs kiana-query/src/lib.rs kiana-query/tests/pd21_cache_policy.rs kiana-query/tests/pd21_cache_policy_guard.rs kiana-daemon/tests/pd21_cache_policy_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-query --test pd21_cache_policy --locked -- --test-threads=1; cargo test -p kiana-query --test pd21_cache_policy_guard --locked -- --test-threads=1; cargo test -p kiana-daemon --test pd21_cache_policy_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-21 cache decision fixtures and query/daemon source guards in pd21-cache-policy.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-21 source slice is implemented and roadmap row 378/card are ✅. Cache hit/miss/stale/degraded/disabled semantics and non-authoritative business-result boundaries are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: size/time eviction, cross-process cache leases, health projection, persistent index deletion and full cache invalidation propagation remain later PD/DEP work; cache remains an optimization adapter
+reviewer: Codex root implementation review plus cache status, business-result boundary, invalid-cache rebuild, stale-change and no-second-authority review; no local runtime test reviewer
