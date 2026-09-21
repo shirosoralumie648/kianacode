@@ -66,7 +66,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-14` | 归一化流与完成状态机 | `P4-J7-06`、`P4-J7-13` | 唯一 assembler；完整终态后才输出工具；EOF/长度截断不假成功 | ✅ |
 | `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ✅ |
 | `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ✅ |
-| `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ⏳ |
+| `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ✅ |
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | ⏳ |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ⏳ |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | ⏳ |
@@ -264,9 +264,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-17 OpenAI Responses 原生适配　⏳
+#### P4-J7-17 OpenAI Responses 原生适配　✅
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
+- 当前 source slice 与 CI-only 证据见 [`p4-j7-17-openai-responses-baseline.md`](p4-j7-17-openai-responses-baseline.md)。
 - **改动位置**：provider/protocols/openai_responses；protocol 注册；Responses request/item/event fixtures。
 - **步骤**：① 单列 protocol/route，不将既有 Chat base_url 自动改为 Responses；② 编译 instructions/input/function_call_output 和平铺 function tools；③ 跟踪 output_index/item_id/call_id，处理 text/arguments/refusal 和 output_item.done；④ completed/failed/incomplete 校验独立；⑤ 默认 store=false、保留回传 item 的字段，下一轮重新发送所需 instructions/tools；⑥ 收集 response ID 和 reported model，`-20` 接精确 reasoning replay。
 - **先拒绝**：`responses_item_id_cannot_replace_call_id`、`responses_incomplete_never_completes_the_run`、`responses_unrequested_hosted_tool_is_rejected`。

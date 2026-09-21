@@ -11510,3 +11510,20 @@ status change: P4-J7-16 source slice is implemented and roadmap row 393/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
+
+### P4-J7-17 OpenAI Responses evidence (2026-09-21)
+
+source_snapshot: a82f80c4 + P4-J7-17 source slice; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_17_openai_responses_guard.rs; .github/workflows/p4-j7-17-openai-responses.yml; docs/roadmap/p4-j7-17-openai-responses-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: OpenAI Responses remains a separate stateless route with store=false; local function calls preserve call_id/item identity, completed status is required, final item arguments are compared with accumulated fragments, and hosted/reasoning items fail closed.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_17_openai_responses_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-17 Responses decode/stream fixtures and core source guard in p4-j7-17-openai-responses.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-17 source slice is implemented and roadmap row 394/card are ✅. Responses stateless item/call identity and completed terminal semantics are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: reasoning replay, hosted tools, retry/usage settlement, recovery reconciliation and live OpenAI Responses effects remain open
+reviewer: Codex root implementation review plus stateless request shape, output item identity, call_id preservation, completed-only status and hosted/reasoning deny boundary review; no local runtime test reviewer
