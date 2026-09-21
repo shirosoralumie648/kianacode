@@ -11258,3 +11258,20 @@ status change: PD-21 source slice is implemented and roadmap row 378/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: size/time eviction, cross-process cache leases, health projection, persistent index deletion and full cache invalidation propagation remain later PD/DEP work; cache remains an optimization adapter
 reviewer: Codex root implementation review plus cache status, business-result boundary, invalid-cache rebuild, stale-change and no-second-authority review; no local runtime test reviewer
+
+### PD-22 snapshot manifest evidence (2026-09-21)
+
+source_snapshot: e851bee2 + PD-22 working-tree slice; kiana-domain/src/{snapshot_manifest.rs,lib.rs}; kiana-domain/tests/pd22_snapshot_manifest.rs; kiana-daemon/tests/pd22_snapshot_manifest_guard.rs; kiana-eventlog/tests/pd22_snapshot_manifest_guard.rs; .github/workflows/pd22-snapshot-manifest.yml; docs/roadmap/pd22-snapshot-manifest-baseline.md; docs/roadmap.md
+worktree_status: SnapshotManifest binds full/incremental mode, owner/store/instance, active and backup roots, deterministic file hashes, source cursor, data epoch, quiesce/WAL seals and manifest digest. Active-root overlap, missing previous incremental snapshot, unsealed material and malformed hashes fail closed. No copy/restore/activation effect is added.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/snapshot_manifest.rs kiana-domain/src/lib.rs kiana-domain/tests/pd22_snapshot_manifest.rs kiana-daemon/tests/pd22_snapshot_manifest_guard.rs kiana-eventlog/tests/pd22_snapshot_manifest_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test pd22_snapshot_manifest --locked -- --test-threads=1; cargo test -p kiana-daemon --test pd22_snapshot_manifest_guard --locked -- --test-threads=1; cargo test -p kiana-eventlog --test pd22_snapshot_manifest_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-22 sealed snapshot fixtures and daemon/eventlog source guards in pd22-snapshot-manifest.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-22 source slice is implemented and roadmap row 379/card are ✅. Backup metadata, cursor/epoch seal and unsafe-root denial are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no physical copy, fsync/crash durability, restore activation, old-root fencing or external effect reconciliation is claimed; those remain PD-23+ / DEP work
+reviewer: Codex root implementation review plus backup root, mode/previous snapshot, cursor/epoch, file hash, quiesce/WAL and no-effect boundary review; no local runtime test reviewer
