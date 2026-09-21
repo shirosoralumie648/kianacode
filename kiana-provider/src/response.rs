@@ -587,7 +587,11 @@ impl Accumulator {
                     }
                 }
                 if let Some(name) = item["function"]["name"].as_str() {
-                    block.name.push_str(name);
+                    if block.name.is_empty() {
+                        block.name = name.to_owned();
+                    } else if block.name != name {
+                        return Err(error("provider_tool_name_changed"));
+                    }
                 }
                 if let Some(arguments) = item["function"]["arguments"].as_str() {
                     append_args(block, arguments)?;
@@ -1332,5 +1336,74 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(error.code, "provider_usage_regressed");
+    }
+
+    #[test]
+    fn openai_usage_only_chunk_is_retained() {
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"id":"response-1","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"id":"response-1","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"id":"response-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert!(accumulator.push("[DONE]", &mut sink(&mut deltas)).unwrap());
+    }
+
+    #[test]
+    fn openai_interleaved_tool_ids_and_names_cannot_swap() {
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-a","type":"function","function":{"name":"shell","arguments":"{"}}]},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let id_error = accumulator
+            .push(
+                r#"{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-b","type":"function","function":{"arguments":"}"}}]},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(id_error.code, "provider_tool_id_changed");
+
+        let mut names = Accumulator::new(ModelProtocol::OpenAiChat);
+        names
+            .push(
+                r#"{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-a","type":"function","function":{"name":"shell","arguments":"{"}}]},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let name_error = names
+            .push(
+                r#"{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"type":"function","function":{"name":"mcp"}}]},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(name_error.code, "provider_tool_name_changed");
+    }
+
+    #[test]
+    fn malformed_openai_tool_arguments_never_become_empty_object() {
+        assert_eq!(
+            parse_arguments(&serde_json::json!("not-json"))
+                .unwrap_err()
+                .code,
+            "provider_tool_json_invalid"
+        );
     }
 }

@@ -11493,3 +11493,20 @@ status change: P4-J7-15 source slice is implemented and roadmap row 392/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: DeepSeek/other compatibility dialects, reasoning replay, durable usage settlement, retry orchestration and live Anthropic effects remain open
 reviewer: Codex root implementation review plus native system/content/tool-result mapping, block order, message_stop, cumulative usage and private-replay deny boundary review; no local runtime test reviewer
+
+### P4-J7-16 OpenAI Chat streaming evidence (2026-09-21)
+
+source_snapshot: 06d6a3d0 + P4-J7-16 source slice; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_16_openai_chat_guard.rs; .github/workflows/p4-j7-16-openai-chat.yml; docs/roadmap/p4-j7-16-openai-chat-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: OpenAI Chat uses the native Chat request shape and shared Accumulator; usage-only chunks remain visible, tool index/id/name identity is stable, `[DONE]` requires a finish, and malformed arguments never become an empty object.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_16_openai_chat_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-16 Chat accumulator fixtures and core source guard in p4-j7-16-openai-chat.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-16 source slice is implemented and roadmap row 393/card are ✅. Native OpenAI Chat streaming identity and finish semantics are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
+reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer

@@ -65,7 +65,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ✅ |
 | `P4-J7-14` | 归一化流与完成状态机 | `P4-J7-06`、`P4-J7-13` | 唯一 assembler；完整终态后才输出工具；EOF/长度截断不假成功 | ✅ |
 | `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ✅ |
-| `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ⏳ |
+| `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ✅ |
 | `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ⏳ |
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | ⏳ |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ⏳ |
@@ -250,9 +250,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-16 OpenAI Chat Completions 原生流式　⏳
+#### P4-J7-16 OpenAI Chat Completions 原生流式　✅
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
+- 当前 source slice 与 CI-only 证据见 [`p4-j7-16-openai-chat-baseline.md`](p4-j7-16-openai-chat-baseline.md)。
 - **改动位置**：provider/protocols/openai_chat、compatibility；现有 OpenAI-compatible wrapper；Chat SSE fixtures。
 - **步骤**：① 实现 stream=true 的实际 SSE 请求；② 按 choices/index 与 tool_calls/index 聚合交错参数，n 固定为 1；③ 允许 usage-only 的空 choices，处理 finish_reason/[DONE] 的完整性；④ 版本化 max_tokens/max_completion_tokens、system/developer、stream_options 等差异；⑤ 为 DeepSeek/OpenRouter/vLLM 的已支持配置建 dialect fixture，完成后只将该支持范围改为 Native。
 - **先拒绝**：`chat_done_without_valid_choice_finish_is_incomplete`、`chat_interleaved_tools_cannot_swap_ids`、`chat_malformed_arguments_never_become_empty_object`。
