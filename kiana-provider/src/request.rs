@@ -1,29 +1,19 @@
 use crate::config::Connection;
 use kiana_domain::*;
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
-pub(crate) fn wire_name(name: &str) -> String {
-    kiana_domain::tool_wire_name(name).unwrap_or_else(|| name.replace('.', "_"))
-}
 pub(crate) fn internal_name(name: &str, tools: &[Value]) -> Result<String, ModelError> {
-    tools
-        .iter()
-        .find_map(|tool| tool["name"].as_str().filter(|id| wire_name(id) == name))
+    ToolNameMap::from_tools(tools, true)?
+        .internal_name(name)
         .map(str::to_owned)
-        .ok_or_else(|| ModelError::invalid("provider_returned_unadvertised_tool"))
 }
-fn tool_map(tools: &[Value]) -> Result<Vec<Value>, ModelError> {
-    if tools.len() > 64 {
-        return Err(ModelError::invalid("model_tool_catalog_too_large"));
-    }
-    let mut names = HashSet::new();
+fn tool_map(tools: &[Value], names: &ToolNameMap) -> Result<Vec<Value>, ModelError> {
     tools.iter().map(|tool| {
-        let name=tool["name"].as_str().ok_or_else(||ModelError::invalid("model_tool_schema_name_missing"))?;
-        let wire=wire_name(name);
-        if wire.is_empty()||wire.len()>64||!wire.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-')||!names.insert(wire.clone()) {
-            return Err(ModelError::invalid("model_tool_wire_name_collision"));
-        }
+        let name = tool["name"]
+            .as_str()
+            .ok_or_else(|| ModelError::invalid("model_tool_schema_name_missing"))?;
+        let wire = names.wire_name(name)?.to_owned();
         let parameters=tool.get("parameters").or_else(||tool.get("input_schema")).filter(|v|v.is_object())
             .ok_or_else(||ModelError::invalid("model_tool_schema_missing"))?;
         Ok(json!({"name":wire,"description":tool["description"].as_str().unwrap_or(""),"parameters":parameters}))
@@ -59,15 +49,24 @@ pub(crate) fn compile(
     }
     let request = normalize_structured_request(request, &route, connection)?;
     let context = ModelRequestContext::for_request(&request);
-    let tools = tool_map(&request.tools)?;
+    let tool_names = ToolNameMap::from_tools(&request.tools, true)?;
+    let tools = tool_map(&request.tools, &tool_names)?;
     let mut body = match route.protocol {
         ModelProtocol::AnthropicMessages => {
-            anthropic_body(&request, &context.system_prompt, &tools)
+            anthropic_body(&request, &context.system_prompt, &tools, &tool_names)
         }
-        ModelProtocol::OpenAiChat => chat_body(&request, &context.system_prompt, &tools),
-        ModelProtocol::OpenAiResponses => responses_body(&request, &context.system_prompt, &tools),
-        ModelProtocol::OllamaChat => ollama_body(&request, &context.system_prompt, &tools),
-        ModelProtocol::GeminiInteractions => gemini_body(&request, &context.system_prompt, &tools),
+        ModelProtocol::OpenAiChat => {
+            chat_body(&request, &context.system_prompt, &tools, &tool_names)
+        }
+        ModelProtocol::OpenAiResponses => {
+            responses_body(&request, &context.system_prompt, &tools, &tool_names)
+        }
+        ModelProtocol::OllamaChat => {
+            ollama_body(&request, &context.system_prompt, &tools, &tool_names)
+        }
+        ModelProtocol::GeminiInteractions => {
+            gemini_body(&request, &context.system_prompt, &tools, &tool_names)
+        }
         ModelProtocol::Legacy => {
             return Err(ModelError::invalid(
                 "provider_legacy_protocol_not_networked",
@@ -131,11 +130,23 @@ pub(crate) fn compile(
     if bytes > connection.limits.max_body {
         return Err(ModelError::invalid("model_request_body_limit"));
     }
-    // The entire final wire body, including system, schemas and protocol framing, is counted once.
+    let system_bytes = body
+        .get("system")
+        .or_else(|| body.get("instructions"))
+        .or_else(|| body.get("system_instruction"))
+        .map(|value| serde_json::to_vec(value).map_or(0, |encoded| encoded.len()))
+        .unwrap_or(0);
+    let schema_bytes = body
+        .get("tools")
+        .map(|value| serde_json::to_vec(value).map_or(0, |encoded| encoded.len()))
+        .unwrap_or(0);
+    let message_bytes = bytes.saturating_sub(system_bytes.saturating_add(schema_bytes));
+    // Count the final wire shape once, while retaining the system/schema/output breakdown used by
+    // the admission budget. The request hash below freezes the exact body after this calculation.
     let budget = TokenBudget::new(
-        bytes,
-        0,
-        0,
+        message_bytes,
+        system_bytes,
+        schema_bytes,
         connection.max_output,
         connection.capabilities.context_window,
     );
@@ -227,6 +238,7 @@ fn anthropic_body(
     request: &ModelRequest,
     system: &str,
     tools: &[Value],
+    names: &ToolNameMap,
 ) -> Result<Value, ModelError> {
     let mut messages = Vec::new();
     for message in &request.messages {
@@ -238,7 +250,9 @@ fn anthropic_body(
                 if !message.text.is_empty() {
                     content.push(json!({"type":"text","text":message.text}));
                 }
-                content.extend(message.tool_calls.iter().map(|call|json!({"type":"tool_use","id":call.id,"name":wire_name(&call.name),"input":call.arguments})));
+                for call in &message.tool_calls {
+                    content.push(json!({"type":"tool_use","id":call.id,"name":names.wire_name(&call.name)? ,"input":call.arguments}));
+                }
                 if content.is_empty() {
                     return Err(ModelError::invalid("model_empty_assistant_item"));
                 }
@@ -270,7 +284,12 @@ fn anthropic_body(
     }
     Ok(body)
 }
-fn chat_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<Value, ModelError> {
+fn chat_body(
+    request: &ModelRequest,
+    system: &str,
+    tools: &[Value],
+    names: &ToolNameMap,
+) -> Result<Value, ModelError> {
     let mut messages = Vec::new();
     if !system.is_empty() {
         messages.push(json!({"role":"system","content":system}));
@@ -282,7 +301,13 @@ fn chat_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<Va
             ModelRole::Assistant => {
                 let mut item = json!({"role":"assistant","content":message.text});
                 if !message.tool_calls.is_empty() {
-                    item["tool_calls"]=json!(message.tool_calls.iter().map(|call|json!({"id":call.id,"type":"function","function":{"name":wire_name(&call.name),"arguments":call.arguments.to_string()}})).collect::<Vec<_>>());
+                    item["tool_calls"] = json!(message
+                        .tool_calls
+                        .iter()
+                        .map(|call| {
+                            Ok(json!({"id":call.id,"type":"function","function":{"name":names.wire_name(&call.name)?,"arguments":call.arguments.to_string()}}))
+                        })
+                        .collect::<Result<Vec<_>, ModelError>>()?);
                 }
                 messages.push(item);
             }
@@ -304,6 +329,7 @@ fn responses_body(
     request: &ModelRequest,
     system: &str,
     tools: &[Value],
+    names: &ToolNameMap,
 ) -> Result<Value, ModelError> {
     let mut input = Vec::new();
     for message in &request.messages {
@@ -312,7 +338,9 @@ fn responses_body(
             ModelRole::User=>input.push(json!({"role":"user","content":message.text})),
             ModelRole::Assistant=>{
                 if !message.text.is_empty(){input.push(json!({"role":"assistant","content":message.text}));}
-                input.extend(message.tool_calls.iter().map(|call|json!({"type":"function_call","call_id":call.id,"name":wire_name(&call.name),"arguments":call.arguments.to_string()})));
+                for call in &message.tool_calls {
+                    input.push(json!({"type":"function_call","call_id":call.id,"name":names.wire_name(&call.name)?,"arguments":call.arguments.to_string()}));
+                }
             },
             ModelRole::Tool=>input.push(json!({"type":"function_call_output","call_id":message.tool_call_id,"output":message.text})),
         }
@@ -323,13 +351,18 @@ fn responses_body(
     }
     Ok(body)
 }
-fn ollama_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<Value, ModelError> {
-    let mut body = chat_body(request, system, tools)?;
+fn ollama_body(
+    request: &ModelRequest,
+    system: &str,
+    tools: &[Value],
+    names: &ToolNameMap,
+) -> Result<Value, ModelError> {
+    let mut body = chat_body(request, system, tools, names)?;
     body.as_object_mut().unwrap().remove("n");
-    let mut names = BTreeMap::new();
+    let mut call_names = BTreeMap::new();
     for message in &request.messages {
         for call in &message.tool_calls {
-            names.insert(call.id.clone(), wire_name(&call.name));
+            call_names.insert(call.id.clone(), names.wire_name(&call.name)?.to_owned());
         }
     }
     for message in body["messages"].as_array_mut().unwrap() {
@@ -344,7 +377,7 @@ fn ollama_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<
             let id = message["tool_call_id"]
                 .as_str()
                 .ok_or_else(|| ModelError::invalid("model_history_orphan_tool_result"))?;
-            message["tool_name"] = json!(names
+            message["tool_name"] = json!(call_names
                 .get(id)
                 .ok_or_else(|| ModelError::invalid("model_history_orphan_tool_result"))?);
             message.as_object_mut().unwrap().remove("tool_call_id");
@@ -352,13 +385,21 @@ fn ollama_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<
     }
     Ok(body)
 }
-fn gemini_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<Value, ModelError> {
+fn gemini_body(
+    request: &ModelRequest,
+    system: &str,
+    tools: &[Value],
+    tool_names: &ToolNameMap,
+) -> Result<Value, ModelError> {
     // Interactions uses a flat sequence of typed steps, including every local tool result.
     let mut input = Vec::new();
     let mut names = BTreeMap::new();
     for message in &request.messages {
         for call in &message.tool_calls {
-            names.insert(call.id.clone(), wire_name(&call.name));
+            names.insert(
+                call.id.clone(),
+                tool_names.wire_name(&call.name)?.to_owned(),
+            );
         }
     }
     for message in &request.messages {
@@ -370,7 +411,9 @@ fn gemini_body(request: &ModelRequest, system: &str, tools: &[Value]) -> Result<
                 if !message.text.is_empty() {
                     input.push(json!({"type":"model_output","content":[{"type":"text","text":message.text}]}));
                 }
-                input.extend(message.tool_calls.iter().map(|call|json!({"type":"function_call","id":call.id,"name":wire_name(&call.name),"arguments":call.arguments})));
+                for call in &message.tool_calls {
+                    input.push(json!({"type":"function_call","id":call.id,"name":tool_names.wire_name(&call.name)?,"arguments":call.arguments}));
+                }
             }
             ModelRole::Tool => {
                 let id = message

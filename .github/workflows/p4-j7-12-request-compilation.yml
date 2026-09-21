@@ -1,0 +1,59 @@
+name: p4-j7-12-request-compilation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/request_compilation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/tests/p4_j7_12_request_compilation.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_12_request_compilation_guard.rs"
+      - "docs/roadmap/p4-j7-12-request-compilation-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-12-request-compilation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/request_compilation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/src/tool_authority.rs"
+      - "kiana-domain/tests/p4_j7_12_request_compilation.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_12_request_compilation_guard.rs"
+      - "docs/roadmap/p4-j7-12-request-compilation-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-12-request-compilation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  request-compilation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-12 request-compilation fixtures
+        run: cargo test -p kiana-domain --test p4_j7_12_request_compilation --locked -- --test-threads=1
+      - name: Run P4-J7-12 source guard
+        run: cargo test -p kiana-core --test p4_j7_12_request_compilation_guard --locked -- --test-threads=1
+      - name: Compile provider request path
+        run: cargo check -p kiana-provider --tests --locked
