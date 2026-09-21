@@ -11476,3 +11476,20 @@ status change: P4-J7-14 source slice is implemented and roadmap row 391/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: provider-specific codec completeness, reasoning replay, retry orchestration, usage settlement, recovery reconciliation and live model behavior remain P4-J7-15+
 reviewer: Codex root implementation review plus single-accumulator, block lifecycle, terminal identity, no-EOF-completion, no-late-delta and final tool validation boundary review; no local runtime test reviewer
+
+### P4-J7-15 Anthropic Messages evidence (2026-09-21)
+
+source_snapshot: 8e3fa983 + P4-J7-15 source slice; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_15_anthropic_guard.rs; .github/workflows/p4-j7-15-anthropic.yml; docs/roadmap/p4-j7-15-anthropic-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: Native Anthropic system/content/tool-result encoding and block lifecycle reuse the shared compiler/Accumulator. message_stop is required, usage counters are monotonic, and private reasoning/replay or unknown required blocks fail closed.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_15_anthropic_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-15 Anthropic request/decode/stream fixtures and core source guard in p4-j7-15-anthropic.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-15 source slice is implemented and roadmap row 392/card are ✅. Native Anthropic Messages request/response/terminal boundaries are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: DeepSeek/other compatibility dialects, reasoning replay, durable usage settlement, retry orchestration and live Anthropic effects remain open
+reviewer: Codex root implementation review plus native system/content/tool-result mapping, block order, message_stop, cumulative usage and private-replay deny boundary review; no local runtime test reviewer

@@ -64,7 +64,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ✅ |
 | `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ✅ |
 | `P4-J7-14` | 归一化流与完成状态机 | `P4-J7-06`、`P4-J7-13` | 唯一 assembler；完整终态后才输出工具；EOF/长度截断不假成功 | ✅ |
-| `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ⏳ |
+| `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ✅ |
 | `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ⏳ |
 | `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ⏳ |
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | ⏳ |
@@ -236,9 +236,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-15 Anthropic Messages 完整收口　⏳
+#### P4-J7-15 Anthropic Messages 完整收口　✅
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
+- 当前 source slice 与 CI-only 证据见 [`p4-j7-15-anthropic-baseline.md`](p4-j7-15-anthropic-baseline.md)。
 - **改动位置**：provider/protocols/anthropic、compatibility；旧 Anthropic facade 与 fixtures。
 - **步骤**：① 迁独立 system/content/tool_result 编码，包含错误工具结果；② 解码 block 生命周期、message_delta 累计 usage、流内 error/ping；③ 原生终态要求 message_stop 和一致的 blocks；④ DeepSeek Anthropic 兼容连接单独钉 dialect，只有有证据的差异才允许映射；⑤ 记录 requested/reported model、request id，提供 thinking/replay 的完整字段挂点给 `-20`。
 - **先拒绝**：`anthropic_stop_reason_without_message_stop_is_incomplete`、`anthropic_stream_error_after_text_never_dispatches_tools`、`anthropic_unknown_required_block_fails_closed`。
