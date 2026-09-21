@@ -562,7 +562,7 @@
 | 390 | W5 | 专项 | [`P4-J7-13`](roadmap/provider.md#step-p4-j7-13) | Provider · HTTP、SSE、NDJSON 的有界传输 | `P4-J7-07`、`P4-J7-09` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-13) |
 | 391 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
 | 392 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
-| 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
+| 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
 | 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
 | 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-18) |
 | 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-19) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `P4-J7-16` OpenAI Chat：固化原生 Chat Completions `max_completion_tokens`、usage-only chunk、n=1、交错 tool-call index/id/name、finish/[DONE] 终态与 malformed argument 拒绝；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-15` Anthropic Messages：收口 system/content/tool_result 编码、原生 block 生命周期、message_delta 累计 usage、message_stop 严格终态与私有 replay deny；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-14` Normalized stream/terminal state：固化 Anthropic/OpenAI/Ollama/Gemini 共用单一 `Accumulator`；拒绝 closed block late delta、open-block terminal、duplicate finish、早 `[DONE]`、EOF 假完成与未完整工具 JSON；新增 provider state fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-13` Bounded transport：固化 connect/header/first-semantic/read-idle/attempt-total/deadline 分层；SSE/NDJSON 任意切块、CRLF、多行 data、heartbeat、尾行、UTF-8/frame/body 上限与 Content-Type 拒绝；新增 provider framing fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
