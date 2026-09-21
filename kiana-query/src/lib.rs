@@ -14,6 +14,7 @@
 pub mod chunker;
 pub mod config;
 pub mod context_inputs;
+pub mod context_manifest;
 pub mod deps;
 pub mod hook_cancellation;
 pub mod hook_lifecycle_dispatch;
@@ -33,6 +34,10 @@ pub mod workspace_snapshot;
 pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use context_inputs::repo_map_candidate;
+pub use context_manifest::{
+    read_context_material_manifest, write_context_material_manifest_atomic,
+    ContextMaterialManifest, CONTEXT_MATERIAL_MANIFEST_SCHEMA,
+};
 pub use deps::QueryDeps;
 pub use hook_cancellation::{
     cancellation_terminal, prepare_hook_invocation, retry_allowed, HookInvocationIdentity,

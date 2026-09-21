@@ -1,0 +1,39 @@
+name: pd20-context-material-manifest
+
+on:
+  push:
+    paths:
+      - 'kiana-query/src/context_manifest.rs'
+      - 'kiana-query/src/index.rs'
+      - 'kiana-query/src/index_generation.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/pd20_context_material_manifest.rs'
+      - 'kiana-query/tests/pd20_context_material_manifest_guard.rs'
+      - '.github/workflows/pd20-context-material-manifest.yml'
+  pull_request:
+    paths:
+      - 'kiana-query/src/context_manifest.rs'
+      - 'kiana-query/src/index.rs'
+      - 'kiana-query/src/index_generation.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/pd20_context_material_manifest.rs'
+      - 'kiana-query/tests/pd20_context_material_manifest_guard.rs'
+      - '.github/workflows/pd20-context-material-manifest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  context-material-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-query --test pd20_context_material_manifest --locked -- --test-threads=1
+      - run: cargo test -p kiana-query --test pd20_context_material_manifest_guard --locked -- --test-threads=1
