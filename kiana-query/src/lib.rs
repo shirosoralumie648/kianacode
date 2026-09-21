@@ -16,6 +16,7 @@ pub mod chunker;
 pub mod config;
 pub mod context_inputs;
 pub mod context_manifest;
+pub mod data_boundary;
 pub mod deps;
 pub mod hook_cancellation;
 pub mod hook_lifecycle_dispatch;
@@ -40,6 +41,7 @@ pub use context_manifest::{
     read_context_material_manifest, write_context_material_manifest_atomic,
     ContextMaterialManifest, CONTEXT_MATERIAL_MANIFEST_SCHEMA,
 };
+pub use data_boundary::{QueryDataBoundary, QueryDataDisposition, QUERY_DATA_BOUNDARY_SCHEMA};
 pub use deps::QueryDeps;
 pub use hook_cancellation::{
     cancellation_terminal, prepare_hook_invocation, retry_allowed, HookInvocationIdentity,

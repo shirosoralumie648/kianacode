@@ -11392,3 +11392,20 @@ status change: INT-05 source slice is implemented and roadmap row 386/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no credential lease, account persistence, provider route, revocation EventLog projector or live effect is claimed; INT-06+ remains open
 reviewer: Codex root implementation review plus owner/project/epoch/revision/expiry/status and no-scope-widening boundary review; no local runtime test reviewer
+
+### SC-24 query data boundary evidence (2026-09-21)
+
+source_snapshot: 44e2328b + SC-24 working-tree slice; kiana-query/src/{data_boundary.rs,cache_policy.rs,lib.rs}; kiana-query/tests/sc24_query_data_boundary.rs; kiana-query/tests/sc24_query_data_boundary_guard.rs; kiana-daemon/src/harness_memory.rs; .github/workflows/sc24-query-data-boundary.yml; docs/roadmap/sc24-query-data-boundary-baseline.md; docs/roadmap.md
+worktree_status: QueryDataBoundary binds project root, scope digest and data epoch to memory/index/cache/export decisions. Revoked or retention-blocked data denies every derived view, and the cache decision remains non-authoritative rather than re-enabling access.
+command_argv:
+  rustfmt --edition 2021 kiana-query/src/data_boundary.rs kiana-query/src/lib.rs kiana-query/tests/sc24_query_data_boundary.rs kiana-query/tests/sc24_query_data_boundary_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-query --test sc24_query_data_boundary --locked -- --test-threads=1; cargo test -p kiana-query --test sc24_query_data_boundary_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only SC-24 query boundary/revocation/retention fixtures and source guard in sc24-query-data-boundary.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: SC-24 source slice is implemented and roadmap row 387/card are ✅. Query-derived memory/index/cache/export visibility now shares one digest-bound governance decision.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: actual query/export adapters, persistent index deletion, cross-process governance projection and live export effects remain open
+reviewer: Codex root implementation review plus scope/epoch/revocation/retention/cache non-authority and no-side-effect boundary review; no local runtime test reviewer
