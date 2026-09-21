@@ -11358,3 +11358,20 @@ status change: INT-03 source slice is implemented and roadmap row 384/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: operation contracts are not yet registry/CAS/account/credential/adapter-wired; external transports and live effects remain unopened
 reviewer: Codex root implementation review plus effect/risk alignment, digest stability, scope/data classes, bounded limits and retry/idempotency boundary review; no local runtime test reviewer
+
+### INT-04 connector registry evidence (2026-09-21)
+
+source_snapshot: a03dabfb + INT-04 working-tree slice; kiana-domain/src/{connector_registry.rs,connector_operation.rs,connectors.rs,lib.rs}; kiana-domain/tests/int04_connector_registry.rs; kiana-daemon/src/connectors.rs; kiana-core/tests/int04_connector_registry_guard.rs; .github/workflows/int04-connector-registry.yml; docs/roadmap/int04-connector-registry-baseline.md; docs/roadmap.md
+worktree_status: ConnectorRegistrySnapshot binds strict local-fixture definitions to monotonic registry versions, content/signature digests and CAS replacement. Stale writer, skipped version, unknown adapter and content drift fail closed; daemon EventLog remains the fact path and no auto-enable/direct adapter path is added.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/connector_registry.rs kiana-domain/src/lib.rs kiana-domain/tests/int04_connector_registry.rs kiana-core/tests/int04_connector_registry_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test int04_connector_registry --locked -- --test-threads=1; cargo test -p kiana-core --test int04_connector_registry_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only INT-04 immutable registry/CAS fixtures and core source guard in int04-connector-registry.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: INT-04 source slice is implemented and roadmap row 385/card are ✅. Connector registry versioning, digest binding and CAS replacement are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no durable registry store, cryptographic key verification, catalog projection or live adapter enablement is claimed; INT-05+ remains open
+reviewer: Codex root implementation review plus version monotonicity, CAS, definition identity, signature/content digest and no-auto-enable boundary review; no local runtime test reviewer
