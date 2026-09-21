@@ -1,0 +1,45 @@
+name: p4-j7-17-openai-responses
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_17_openai_responses_guard.rs"
+      - "docs/roadmap/p4-j7-17-openai-responses-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-17-openai-responses.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_17_openai_responses_guard.rs"
+      - "docs/roadmap/p4-j7-17-openai-responses-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-17-openai-responses.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openai-responses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-17 OpenAI Responses fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-17 source guard
+        run: cargo test -p kiana-core --test p4_j7_17_openai_responses_guard --locked -- --test-threads=1

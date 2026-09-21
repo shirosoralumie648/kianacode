@@ -1406,4 +1406,85 @@ mod tests {
             "provider_tool_json_invalid"
         );
     }
+
+    fn responses_prepared() -> PreparedModelCall {
+        let mut prepared = anthropic_prepared();
+        prepared.route.provider_id = "openai".to_owned();
+        prepared.route.protocol = ModelProtocol::OpenAiResponses;
+        prepared.seal();
+        prepared
+    }
+
+    #[test]
+    fn responses_stateless_tool_round_trip() {
+        let prepared = responses_prepared();
+        let reply = decode(
+            serde_json::json!({
+                "id": "response-1",
+                "status": "completed",
+                "output": [
+                    {"type":"message","content":[{"type":"output_text","text":"continue"}]},
+                    {"type":"function_call","call_id":"call-1","name":"shell","arguments":"{\"command\":\"pwd\"}"}
+                ],
+                "usage": {"input_tokens": 5, "output_tokens": 4}
+            }),
+            &prepared,
+        )
+        .unwrap();
+        assert_eq!(reply.output.text, "continue");
+        assert_eq!(reply.output.tool_calls[0].id, "call-1");
+        assert_eq!(reply.output.tool_calls[0].name, "shell");
+        assert_eq!(reply.output.usage.unwrap().input_tokens, 5);
+    }
+
+    #[test]
+    fn responses_incomplete_and_hosted_items_fail_closed() {
+        let prepared = responses_prepared();
+        assert_eq!(
+            decode(
+                serde_json::json!({"id":"response-1","status":"incomplete","output":[]}),
+                &prepared,
+            )
+            .unwrap_err()
+            .code,
+            "provider_response_incomplete"
+        );
+        assert_eq!(
+            decode(
+                serde_json::json!({"id":"response-1","status":"completed","output":[{"type":"computer_call"}]}),
+                &prepared,
+            )
+            .unwrap_err()
+            .code,
+            "provider_hosted_tool_denied"
+        );
+    }
+
+    #[test]
+    fn responses_item_identity_cannot_replace_call_identity() {
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiResponses);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(r#"{"type":"response.created"}"#, &mut sink(&mut deltas))
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"item-1","call_id":"call-a","name":"shell"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"response.function_call_arguments.delta","output_index":0,"item_id":"item-1","delta":"{\"command\":\"pwd\"}"}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let error = accumulator
+            .push(
+                r#"{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"item-1","call_id":"call-b","arguments":"{\"command\":\"pwd\"}"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_final_item_mismatch");
+    }
 }
