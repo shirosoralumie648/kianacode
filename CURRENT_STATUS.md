@@ -11341,3 +11341,20 @@ status change: INT-02 source slice is implemented and roadmap row 383/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no live OAuth/account provider, external effect, durable connector registry CAS or cross-process recovery is claimed; INT-03+ remains open
 reviewer: Codex root implementation review plus strict serde, digest/revision, binding scope, receipt ownership and no-direct-effect boundary review; no local runtime test reviewer
+
+### INT-03 connector operation contract evidence (2026-09-21)
+
+source_snapshot: fa0380cd + INT-03 working-tree slice; kiana-domain/src/{connector_operation.rs,connectors.rs,lib.rs}; kiana-domain/tests/int03_connector_operation.rs; kiana-core/tests/int03_connector_operation_guard.rs; .github/workflows/int03-connector-operation.yml; docs/roadmap/int03-connector-operation-baseline.md; docs/roadmap.md
+worktree_status: ConnectorOperationContract binds effect/risk, input/output schema digests, required scopes, data classes, bounded payload/timeout, retry and idempotency modes. Risk downgrade, retry/idempotency conflict, unknown fields and digest drift fail closed; no adapter execution or new authority path is added.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/connector_operation.rs kiana-domain/src/lib.rs kiana-domain/tests/int03_connector_operation.rs kiana-core/tests/int03_connector_operation_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test int03_connector_operation --locked -- --test-threads=1; cargo test -p kiana-core --test int03_connector_operation_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only INT-03 operation risk/schema/scope/retry fixture and core source guard in int03-connector-operation.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: INT-03 source slice is implemented and roadmap row 384/card are ✅. Operation-level risk, payload/schema, scope, retry and idempotency boundaries are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: operation contracts are not yet registry/CAS/account/credential/adapter-wired; external transports and live effects remain unopened
+reviewer: Codex root implementation review plus effect/risk alignment, digest stability, scope/data classes, bounded limits and retry/idempotency boundary review; no local runtime test reviewer
