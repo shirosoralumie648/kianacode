@@ -62,7 +62,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ✅ |
 | `P4-J7-11` | 角色路由与调用准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | 服务端角色决定 route；每真实 attempt 有许可、预算与审计 | ✅ |
 | `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ✅ |
-| `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ⏳ |
+| `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ✅ |
 | `P4-J7-14` | 归一化流与完成状态机 | `P4-J7-06`、`P4-J7-13` | 唯一 assembler；完整终态后才输出工具；EOF/长度截断不假成功 | ⏳ |
 | `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ⏳ |
 | `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ⏳ |
@@ -208,9 +208,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-13 HTTP、SSE、NDJSON 的有界传输　⏳
+#### P4-J7-13 HTTP、SSE、NDJSON 的有界传输　✅
 
 - **依赖**：`P4-J7-07`、`P4-J7-09`。
+- 当前 source slice 与 CI-only 证据见 [`p4-j7-13-transport-baseline.md`](p4-j7-13-transport-baseline.md)。
 - **改动位置**：provider/transport；共用 Tokio/reqwest client 与 FakeTransport/clock；loopback HTTP fixtures。
 - **步骤**：① 分离 connect、header、first-semantic、read-idle、attempt-total 和 run 剩余时限；② 编写受限 SSE/NDJSON framing，覆盖 UTF-8 跨块、CRLF、多行 data、heartbeat、尾行；③ 限制解压后 body/frame/line 和错误正文，校验 Content-Type/status；④ 可取消的有界队列与连接池按连接快照隔离；⑤ reader 退出/drop 释放资源，底层自动重试不隐藏尝试次数。
 - **先拒绝**：`oversized_provider_frame_is_rejected_before_allocation_growth`、`heartbeat_cannot_extend_total_deadline`、`html_success_body_is_not_an_empty_model_success`。

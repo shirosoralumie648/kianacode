@@ -362,3 +362,69 @@ impl Framer {
         Ok(Vec::new())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sse_survives_arbitrary_utf8_chunking_and_crlf() {
+        let payload = "data: {\"text\":\"你好\"}\r\n\r\n";
+        let mut framer = Framer::new(false, 128);
+        let mut frames = Vec::new();
+        for chunk in payload.as_bytes().chunks(1) {
+            frames.extend(framer.push(chunk).expect("sse frame"));
+        }
+        frames.extend(framer.finish().expect("sse complete"));
+        assert_eq!(frames, vec![r#"{"text":"你好"}"#.to_owned()]);
+    }
+
+    #[test]
+    fn sse_multiline_data_and_comments_are_bounded() {
+        let mut framer = Framer::new(false, 128);
+        let mut frames = Vec::new();
+        frames.extend(
+            framer
+                .push(b": heartbeat\r\ndata: first\r\ndata: second\r\n\r\n")
+                .expect("sse frame"),
+        );
+        assert_eq!(frames, vec!["first\nsecond".to_owned()]);
+        assert!(framer.finish().expect("sse complete").is_empty());
+    }
+
+    #[test]
+    fn ndjson_flushes_complete_lines_and_one_bounded_tail() {
+        let mut framer = Framer::new(true, 64);
+        let mut frames = Vec::new();
+        for chunk in b"{\"a\":1}\n{\"b\":2}".chunks(2) {
+            frames.extend(framer.push(chunk).expect("ndjson frame"));
+        }
+        frames.extend(framer.finish().expect("ndjson tail"));
+        assert_eq!(
+            frames,
+            vec![r#"{"a":1}"#.to_owned(), r#"{"b":2}"#.to_owned()]
+        );
+    }
+
+    #[test]
+    fn oversized_and_truncated_frames_fail_closed() {
+        let mut oversized = Framer::new(true, 4);
+        assert_eq!(
+            oversized.push(b"12345").unwrap_err().code,
+            "provider_frame_limit"
+        );
+
+        let mut invalid_utf8 = Framer::new(true, 16);
+        assert_eq!(
+            invalid_utf8.push(&[0xff, b'\n']).unwrap_err().code,
+            "provider_frame_utf8_invalid"
+        );
+
+        let mut truncated = Framer::new(false, 64);
+        truncated.push(b"data: partial\n").expect("partial sse");
+        assert_eq!(
+            truncated.finish().unwrap_err().code,
+            "provider_frame_truncated"
+        );
+    }
+}

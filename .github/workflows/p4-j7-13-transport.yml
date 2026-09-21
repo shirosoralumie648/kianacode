@@ -1,0 +1,47 @@
+name: p4-j7-13-transport
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_13_transport_guard.rs"
+      - "docs/roadmap/p4-j7-13-transport-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-13-transport.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-core/tests/p4_j7_13_transport_guard.rs"
+      - "docs/roadmap/p4-j7-13-transport-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-13-transport.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-13 transport fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-13 source guard
+        run: cargo test -p kiana-core --test p4_j7_13_transport_guard --locked -- --test-threads=1
