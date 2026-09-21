@@ -356,9 +356,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-26 · Plugin component adapter　⏳
+#### EXT-26 · Plugin component adapter　✅
 
-先实现 Skill、受控 Hook、声明式 MCP connector 的 adapter；Capability/Workflow/Memory/Provider/UI 只有在各自 port、policy、receipt 和恢复合同存在后才允许 enable。任何原生代码、任意脚本、任意网络或宿主文件访问都必须被拒绝或进入单独的 sandbox/approval 设计，不能因为 manifest 声明了 `type` 就直接加载。adapter registry 输出 component status、原因和未实现能力。
+当前 source slice 与 CI-only 证据见 [`ext26-plugin-component-adapter-baseline.md`](ext26-plugin-component-adapter-baseline.md)。daemon 从已验证 package 构造确定性 adapter registry，descriptor 绑定 package/manifest/source/snapshot/binding digest、registry generation、lifecycle revision、effect、network policy 和 approval；Broker 在既有 `ExtensionAdmission` 后再次检查 component binding。Skill 只投影 context/resource，Hook 只允许受控 adapter，MCP 只保留声明式 stdio connector 目录；Capability/Workflow/Memory/Provider/UI 保持 `not_supported`，原生/脚本/宿主文件/网络路径 fail-closed。无直接进程、socket 或网络执行，运行时副作用、receipt 和恢复仍归 ControlPlane/Broker 及后续切片。
 
 ### 25.8 Wave 4：入口投影、全链路和发布证据
 

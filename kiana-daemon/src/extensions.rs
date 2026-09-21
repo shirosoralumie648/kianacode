@@ -4,12 +4,13 @@ use crate::local_packages::{decode_hex, failed, sha256, LocalDir};
 use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionConfigurationSnapshot,
-    ExtensionExecutionContract, ExtensionManifest, ExtensionPackage, ExtensionStateMigrationPlan,
-    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType, PromptAuthority,
-    PromptBudgetUsage, PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance,
-    EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
-    SKILL_PROMPT_PROVENANCE_SCHEMA,
+    json_digest, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
+    ExtensionAdapterRegistry, ExtensionComponentKind, ExtensionConfigurationSnapshot,
+    ExtensionExecutionContract, ExtensionLifecyclePhase, ExtensionManifest, ExtensionPackage,
+    ExtensionStateMigrationPlan, ExtensionStateMigrationReceipt, ExtensionStateScope,
+    ExtensionType, PromptAuthority, PromptBudgetUsage, PromptSection, RequestId, RuntimeEvent,
+    SkillPromptProvenance, VerifiedExtensionComponent, EXTENSION_MANAGE_OPERATION,
+    EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -174,12 +175,14 @@ impl ExtensionRegistry {
                 manifest,
                 &state_scope,
             )?;
+            let component_adapters = build_component_adapter_registry(&package, version.max(1))?;
             return Ok(
                 json!({"schema":REGISTRY_SCHEMA,"registry_version":version,"manifest":manifest,
                 "package_sha256":package.package_sha256,"signature_verified":true,
                 "capability_diff":manifest.capability_diff(states.get(&manifest.extension_id).map(|s| &s.manifest)),
                 "activation":activation_state(manifest),"state_scope_digest":state_scope.scope_contract_digest,
                 "configuration_digest":configuration.as_ref().map(|snapshot| snapshot.config_digest.clone()),
+                "component_adapters":component_adapters,
                 "safety_validation":"not_evaluated"}),
             );
         }
@@ -778,6 +781,43 @@ impl ExtensionAdmission for ExtensionRegistry {
         }
         self.compatibility(&state.manifest, &states)
     }
+
+    async fn check_component_adapter(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        descriptor: &kiana_domain::ExtensionAdapterDescriptor,
+    ) -> Result<(), PortError> {
+        let project_root = string(&request.request.arguments, "project_root")?;
+        let (generation, states) = {
+            let (_, history) = self.stream(project_root).await?;
+            fold_registry(&history)?
+        };
+        let state = states
+            .get(&descriptor.extension_id)
+            .ok_or_else(|| failed("extension_not_installed"))?;
+        if state.state != "enabled"
+            || generation != descriptor.registry_generation
+            || state.package_sha256 != descriptor.package_sha256
+        {
+            return Err(failed("extension_adapter_binding_stale"));
+        }
+        let package = self.load_cached(&state.package_sha256).await?;
+        let registry = build_component_adapter_registry(&package, generation)?;
+        let current = registry
+            .find(&descriptor.extension_id, &descriptor.component_id)
+            .ok_or_else(|| failed("extension_adapter_component_missing"))?;
+        if current.descriptor_digest != descriptor.descriptor_digest {
+            return Err(failed("extension_adapter_descriptor_stale"));
+        }
+        kiana_domain::validate_adapter_binding(
+            current,
+            &state.package_sha256,
+            &current.snapshot_digest,
+            generation,
+            current.lifecycle_revision,
+        )
+        .map_err(failed)
+    }
 }
 
 fn unix_time_ms() -> Result<u64, PortError> {
@@ -914,6 +954,84 @@ fn activation_state(manifest: &ExtensionManifest) -> &'static str {
     } else {
         "staged"
     }
+}
+
+/// Build the inspect-only component registry from a package that has already passed the daemon's
+/// signature, content-hash, trust and dependency checks. The registry is metadata; it never
+/// executes the component entry. Runtime requests still go through the existing broker admission
+/// and extension execution contract.
+fn build_component_adapter_registry(
+    package: &VerifiedPackage,
+    registry_generation: u64,
+) -> Result<ExtensionAdapterRegistry, PortError> {
+    let manifest = &package.package.manifest;
+    let kind = match manifest.extension_type {
+        ExtensionType::Skill => ExtensionComponentKind::Skill,
+        ExtensionType::Capability => ExtensionComponentKind::Capability,
+        ExtensionType::Workflow => ExtensionComponentKind::Workflow,
+        ExtensionType::Memory => ExtensionComponentKind::Memory,
+        ExtensionType::Provider => ExtensionComponentKind::Provider,
+        ExtensionType::Ui => ExtensionComponentKind::Ui,
+    };
+    let entry = if kind == ExtensionComponentKind::Skill {
+        "SKILL.md".to_owned()
+    } else {
+        package
+            .package
+            .files
+            .keys()
+            .next()
+            .cloned()
+            .ok_or_else(|| failed("extension_adapter_entry_missing"))?
+    };
+    let manifest_digest = json_digest(
+        &serde_json::to_value(manifest).map_err(|_| failed("extension_manifest_digest_failed"))?,
+    );
+    let source_digest = json_digest(&json!({
+        "publisher": manifest.publisher.clone(),
+        "extension_id": manifest.extension_id.clone(),
+        "package_sha256": package.package_sha256.clone(),
+    }));
+    let snapshot_digest = json_digest(&json!({
+        "registry_generation": registry_generation,
+        "package_sha256": package.package_sha256.clone(),
+    }));
+    let binding_digest = json_digest(&json!({
+        "snapshot_digest": snapshot_digest.clone(),
+        "extension_id": manifest.extension_id.clone(),
+        "lifecycle_revision": registry_generation,
+    }));
+    let phase = if manifest.extension_type == ExtensionType::Skill {
+        ExtensionLifecyclePhase::Enabled
+    } else {
+        ExtensionLifecyclePhase::Staged
+    };
+    let component = VerifiedExtensionComponent::from_verified_package(
+        &package.package,
+        package.package_sha256.clone(),
+        manifest_digest,
+        source_digest,
+        snapshot_digest,
+        binding_digest,
+        "main",
+        kind,
+        entry,
+        registry_generation,
+        registry_generation,
+        phase,
+        manifest.effect,
+        manifest.network_policy.clone(),
+        true,
+        manifest.required_capabilities.clone(),
+        true,
+        true,
+        true,
+        None,
+    )
+    .map_err(failed)?;
+    let descriptor =
+        kiana_domain::ExtensionAdapterDescriptor::from_verified(component).map_err(failed)?;
+    ExtensionAdapterRegistry::new(registry_generation, vec![descriptor]).map_err(failed)
 }
 
 fn verify_manifest_signature(

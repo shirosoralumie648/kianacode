@@ -1,0 +1,39 @@
+name: ext26-extension-adapters
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/extension_adapters.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/ext26_extension_adapters.rs'
+      - 'kiana-daemon/src/extensions.rs'
+      - 'kiana-daemon/tests/ext26_extension_adapters_guard.rs'
+      - 'kiana-capability-broker/src/lib.rs'
+      - '.github/workflows/ext26-extension-adapters.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/extension_adapters.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/ext26_extension_adapters.rs'
+      - 'kiana-daemon/src/extensions.rs'
+      - 'kiana-daemon/tests/ext26_extension_adapters_guard.rs'
+      - 'kiana-capability-broker/src/lib.rs'
+      - '.github/workflows/ext26-extension-adapters.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  extension-adapters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test ext26_extension_adapters --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test ext26_extension_adapters_guard --locked -- --test-threads=1
