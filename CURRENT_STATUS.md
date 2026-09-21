@@ -11292,3 +11292,20 @@ status change: PD-24 source slice is implemented and roadmap row 380/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no durable cross-process migration lock, actual upcaster, backup restore, migration I/O or release activation is claimed; these remain later DEP/PD work
 reviewer: Codex root implementation review plus registry/preflight/backup binding, checksum, owner, attempt, quarantine and no-effect transition review; no local runtime test reviewer
+
+### PD-25 retention watermark evidence (2026-09-21)
+
+source_snapshot: 2fb037eb + PD-25 working-tree slice; kiana-domain/src/{retention_watermark.rs,lib.rs}; kiana-domain/tests/pd25_retention_watermark.rs; kiana-eventlog/src/retention_store.rs; kiana-core/tests/pd25_retention_watermark_guard.rs; .github/workflows/pd25-retention-watermark.yml; docs/roadmap/pd25-retention-watermark-baseline.md; docs/roadmap.md
+worktree_status: RetentionWatermark binds store/policy/data epochs, source cursor, bounded upper limit and batch size. Planned→Committed requires legal-hold and tombstone confirmation; missing gates remain Blocked, and cursor advancement cannot regress or exceed the finite bound. EventLog RetentionStorePort remains the fact boundary; no purge worker or unbounded delete loop was added.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/retention_watermark.rs kiana-domain/src/lib.rs kiana-domain/tests/pd25_retention_watermark.rs kiana-core/tests/pd25_retention_watermark_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test pd25_retention_watermark --locked -- --test-threads=1; cargo test -p kiana-core --test pd25_retention_watermark_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-25 retention watermark/hold/tombstone order fixtures and core/eventlog source guard in pd25-retention-watermark.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-25 source slice is implemented and roadmap row 381/card are ✅. Retention sweep order, bounded watermark and blocked-state evidence are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no physical archive/prune, cross-process maintenance lease, throughput bound, crash recovery or live deletion effect is claimed; those remain later PD/DEP work
+reviewer: Codex root implementation review plus hold/tombstone ordering, cursor monotonicity, upper-bound/batch limits and EventLog-only fact boundary review; no local runtime test reviewer

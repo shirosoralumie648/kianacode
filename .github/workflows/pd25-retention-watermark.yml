@@ -1,0 +1,37 @@
+name: pd25-retention-watermark
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/retention_watermark.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/pd25_retention_watermark.rs'
+      - 'kiana-eventlog/src/retention_store.rs'
+      - 'kiana-core/tests/pd25_retention_watermark_guard.rs'
+      - '.github/workflows/pd25-retention-watermark.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/retention_watermark.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/pd25_retention_watermark.rs'
+      - 'kiana-eventlog/src/retention_store.rs'
+      - 'kiana-core/tests/pd25_retention_watermark_guard.rs'
+      - '.github/workflows/pd25-retention-watermark.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  retention-watermark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test pd25_retention_watermark --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd25_retention_watermark_guard --locked -- --test-threads=1
