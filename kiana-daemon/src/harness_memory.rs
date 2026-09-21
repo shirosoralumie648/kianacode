@@ -10,12 +10,12 @@ use kiana_domain::{
     MemoryBodyRef, MemoryClassification, MemoryCollection, MemoryJournalFact, MemoryMutation,
     MemoryMutationAuthority, MemoryMutationJournalStage, MemoryMutationLedger,
     MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt, MemoryMutationTarget,
-    MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState,
-    Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef, MEMORY_FACT_EVENT_KIND,
-    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
-    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
-    MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_STREAM,
-    MEMORY_WRITE_SCHEMA,
+    MemoryOrigin, MemoryProjectionFence, MemoryRecord, MemoryScope as DomainMemoryScope,
+    MemorySensitivity, MemoryState, Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef,
+    MEMORY_FACT_EVENT_KIND, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
+    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
+    MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
+    MEMORY_STREAM, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
@@ -405,16 +405,25 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
             &session_id,
             scope.home.as_deref(),
         )?;
-        records.extend(read_records(&path)?.into_iter().filter(|record| {
-            record.collection == collection.collection
-                && !data_policy
-                    .revoked_sources
-                    .iter()
-                    .any(|source| record.source.contains(source))
-                && record.searchable()
-                && (collection.layer != MEMORY_LAYER_INSTANCE_SCRATCH
-                    || record.session_id == session_id)
-        }));
+        for record in read_records(&path)? {
+            if record.collection != collection.collection
+                || (collection.layer == MEMORY_LAYER_INSTANCE_SCRATCH
+                    && record.session_id != session_id)
+            {
+                continue;
+            }
+            let fence = MemoryProjectionFence::evaluate(
+                &record,
+                &data_policy,
+                data_policy.data_epoch,
+                &project_root,
+                now_ms(),
+            )
+            .map_err(failed)?;
+            if fence.searchable() {
+                records.push(record);
+            }
+        }
     }
     let superseded = records
         .iter()
@@ -431,7 +440,8 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
     }
     Ok(
         json!({"schema":MEMORY_SEARCH_SCHEMA,"query":query,"terms":terms,
-        "role_id":role.role_id,"department_id":role.department_id,"session_id":session_id,"hits":hits}),
+        "role_id":role.role_id,"department_id":role.department_id,"session_id":session_id,
+        "data_epoch":data_policy.data_epoch,"hits":hits}),
     )
 }
 

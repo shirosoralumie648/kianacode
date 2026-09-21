@@ -73,6 +73,7 @@ pub fn project_data_governance_snapshot(
     }
     let mut snapshot =
         kiana_domain::project_data_governance(policy, project_ref, last_cursor, ids, now_ms)?;
+    kiana_domain::MemoryProjectionFence::validate_epoch(policy.data_epoch, snapshot.data_epoch)?;
     if pending_invalidation {
         for observation in &mut snapshot.observations {
             observation.payload = DataPayloadState::Unknown;
