@@ -62,7 +62,12 @@ pub use index::{
     ContextPackSnippet, ContextSearchHit, ContextSearchOptions, ContextSearchResults,
     ContextVectorSearchHit, ContextVectorSearchOptions, ContextVectorSearchResults,
 };
-pub use index_generation::{manifest_path, read_index_manifest, write_index_manifest_atomic};
+pub use index_generation::{
+    build_context_index_generation, manifest_path, read_context_index_generation,
+    read_index_manifest, write_context_index_generation_atomic, write_index_manifest_atomic,
+    ContextIndexGenerationEnvelope, ContextIndexSourceManifest,
+    CONTEXT_INDEX_GENERATION_ENVELOPE_SCHEMA, CONTEXT_INDEX_SOURCE_MANIFEST_SCHEMA,
+};
 pub use index_invalidation::plan_index_invalidation;
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use repo_map_task::select_repo_map_for_task;
