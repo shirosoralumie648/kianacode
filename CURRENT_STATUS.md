@@ -11224,3 +11224,20 @@ status change: PD-19 source slice is implemented and roadmap row 376/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: existing persistent index cache remains a compatibility adapter, multi-process generation leases/projector recovery and vector/model quality evidence remain open, and no external/live effect is claimed
 reviewer: Codex root implementation review plus fingerprint determinism, stale detection, Ready-only generation, root/config/model binding and atomic publication boundary review; no local runtime test reviewer
+
+### PD-20 context material manifest evidence (2026-09-21)
+
+source_snapshot: 5a7c53dd + PD-20 working-tree slice; kiana-query/src/{context_manifest.rs,index.rs,index_generation.rs,lib.rs}; kiana-query/tests/pd20_context_material_manifest.rs; kiana-query/tests/pd20_context_material_manifest_guard.rs; .github/workflows/pd20-context-material-manifest.yml; docs/roadmap/pd20-context-material-manifest-baseline.md; docs/roadmap.md
+worktree_status: ContextMaterialManifest composes RepoMap, context artifact store and dependency graph under one canonical root, source cursor, tool version and manifest digest; relative-path/content-hash/root binding rejects foreign or tampered material, and publication reuses the PD-19 atomic JSON helper. The manifest remains a read/rebuild projection and does not authorize capabilities or replace EventLog/ArtifactStore authority.
+command_argv:
+  rustfmt --edition 2021 kiana-query/src/context_manifest.rs kiana-query/src/index_generation.rs kiana-query/src/lib.rs kiana-query/tests/pd20_context_material_manifest.rs kiana-query/tests/pd20_context_material_manifest_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-query --test pd20_context_material_manifest --locked -- --test-threads=1; cargo test -p kiana-query --test pd20_context_material_manifest_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-20 manifest/root/hash/dependency fixtures and query source guard in pd20-context-material-manifest.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-20 source slice is implemented and roadmap row 377/card are ✅. RepoMap, artifact and dependency material now share one persistent source-bound manifest.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source manifest persistence is currently an adapter-level file contract, multi-process leases/recovery, backup/restore, external ArtifactStore and live effects remain open
+reviewer: Codex root implementation review plus root/path/content hash/source cursor/tool version/dependency graph/atomic publication boundary review; no local runtime test reviewer

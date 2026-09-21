@@ -304,7 +304,11 @@ pub fn write_index_manifest_atomic(
     result
 }
 
-fn atomic_write_json<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<(), String> {
+pub(crate) fn atomic_write_json<T: Serialize>(
+    path: &Path,
+    value: &T,
+    label: &str,
+) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| format!("{label}_parent_missing"))?;
