@@ -11442,3 +11442,20 @@ status change: P4-J7-12 source slice is implemented and roadmap row 389/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: provider transport framing, protocol response accumulation, usage settlement, replay recovery and live provider effects remain P4-J7-13+
 reviewer: Codex root implementation review plus tool-map reversibility, unknown/collision rejection, history pairing, final-wire budget and no credential/model-option injection boundary review; no local runtime test reviewer
+
+### P4-J7-13 bounded transport evidence (2026-09-21)
+
+source_snapshot: 812588da + P4-J7-13 source slice; kiana-provider/src/transport.rs; kiana-provider/src/config.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_13_transport_guard.rs; .github/workflows/p4-j7-13-transport.yml; docs/roadmap/p4-j7-13-transport-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: Transport preserves separate header/first-event/idle/total/deadline fences, bounded body/frame buffers, incremental SSE/NDJSON framing, Content-Type validation and owned capacity release; source-only transport fixtures cover chunking and fail-closed frame edges.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_13_transport_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-13 framing fixtures and core source guard in p4-j7-13-transport.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-13 source slice is implemented and roadmap row 390/card are ✅. Provider transport now has explicit bounded framing and layered time limits.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: protocol-specific terminal state, usage settlement, retry orchestration, recovery reconciliation and live provider behavior remain P4-J7-14+
+reviewer: Codex root implementation review plus deadline layering, arbitrary chunking, UTF-8/CRLF/multi-line SSE, NDJSON tail, body/frame bounds, Content-Type and no implicit retry boundary review; no local runtime test reviewer
