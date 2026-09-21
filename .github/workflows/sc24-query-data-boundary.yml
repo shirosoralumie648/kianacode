@@ -1,0 +1,39 @@
+name: sc24-query-data-boundary
+
+on:
+  push:
+    paths:
+      - 'kiana-query/src/data_boundary.rs'
+      - 'kiana-query/src/cache_policy.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/sc24_query_data_boundary.rs'
+      - 'kiana-query/tests/sc24_query_data_boundary_guard.rs'
+      - 'kiana-daemon/src/harness_memory.rs'
+      - '.github/workflows/sc24-query-data-boundary.yml'
+  pull_request:
+    paths:
+      - 'kiana-query/src/data_boundary.rs'
+      - 'kiana-query/src/cache_policy.rs'
+      - 'kiana-query/src/lib.rs'
+      - 'kiana-query/tests/sc24_query_data_boundary.rs'
+      - 'kiana-query/tests/sc24_query_data_boundary_guard.rs'
+      - 'kiana-daemon/src/harness_memory.rs'
+      - '.github/workflows/sc24-query-data-boundary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  query-data-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-query --test sc24_query_data_boundary --locked -- --test-threads=1
+      - run: cargo test -p kiana-query --test sc24_query_data_boundary_guard --locked -- --test-threads=1
