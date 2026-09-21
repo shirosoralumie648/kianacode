@@ -11409,3 +11409,19 @@ status change: SC-24 source slice is implemented and roadmap row 387/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: actual query/export adapters, persistent index deletion, cross-process governance projection and live export effects remain open
 reviewer: Codex root implementation review plus scope/epoch/revocation/retention/cache non-authority and no-side-effect boundary review; no local runtime test reviewer
+
+### P4-J7-11 role route and attempt admission evidence (2026-09-21)
+
+source_snapshot: 6ab73335 + P4-J7-11 source-guard slice; kiana-domain/src/versioning.rs; kiana-domain/src/model.rs; kiana-ports/src/model.rs; kiana-domain/src/budget_contracts.rs; kiana-provider/src/lib.rs; kiana-core/tests/p4_j7_11_role_route_admission_guard.rs; .github/workflows/p4-j7-11-role-route-admission.yml; docs/roadmap/p4-j7-11-role-route-admission-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: Existing provider/domain contracts expose server role/profile route selection, PreparedModelCall/ModelCallPermit request+route binding, attempt identity, expiry and budget reservation; source guard records the before-send admission boundary without moving authority into prompt text or provider output.
+command_argv:
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-core --test p4_j7_11_role_route_admission_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-11 source guard in p4-j7-11-role-route-admission.yml
+exit_code: 0 for cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-11 source slice is implemented and roadmap row 388/card are ✅. Role route and per-attempt admission evidence are now roadmap-linked.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live network send, cross-process permit settlement, provider retry/usage accounting or physical model effect is claimed; P4-J7-12+ remains open
+reviewer: Codex root implementation review plus role/profile route, attempt/request/route digest, expiry, budget and no-prompt-authority boundary review; no local runtime test reviewer

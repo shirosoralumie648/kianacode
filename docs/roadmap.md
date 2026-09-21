@@ -557,7 +557,7 @@
 | 386 | W4 | 专项 | [`INT-05`](roadmap/integrations-connectors.md#step-int-05) | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | `INT-02`、`INT-04` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-05) |
 | 387 | W4 | 专项 | [`SC-24`](roadmap/security-compliance.md#step-sc-24) | kiana-query memory/index/cache/export boundary | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`SC-21`、`SC-22`、`SC-23` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-24) |
 | **W5** | **Provider 协议与调用链** |  |  |  |  |  |  |
-| 388 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
+| 388 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
 | 389 | W5 | 专项 | [`P4-J7-12`](roadmap/provider.md#step-p4-j7-12) | Provider · 请求编译、工具映射与上下文完整性 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-12) |
 | 390 | W5 | 专项 | [`P4-J7-13`](roadmap/provider.md#step-p4-j7-13) | Provider · HTTP、SSE、NDJSON 的有界传输 | `P4-J7-07`、`P4-J7-09` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-13) |
 | 391 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `P4-J7-11` Role route/admission：收口服务端 role/profile→route、PreparedModelCall、ModelCallPermit、attempt/request/route digest、expiry、budget/admission 绑定；新增 core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `SC-24` Query data boundary：新增 scope/data epoch/revocation/retention 绑定的 memory/index/cache/export decision；撤销或保留期阻断所有派生视图；新增 query fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `INT-05` Connector scope：新增 owner/project/data epoch/revision/status 绑定与只减不增的 scope intersection；跨身份/epoch、scope widening、revoked/expired 绑定 fail-closed；新增 domain/core fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `INT-04` Connector registry：新增 immutable snapshot、monotonic version、content/signature digest 和 CAS replacement；unknown adapter/registry drift/stale writer fail-closed；新增 domain/core fixtures/source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
