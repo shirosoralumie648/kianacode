@@ -61,7 +61,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ✅ |
 | `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ✅ |
 | `P4-J7-11` | 角色路由与调用准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | 服务端角色决定 route；每真实 attempt 有许可、预算与审计 | ✅ |
-| `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ⏳ |
+| `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ✅ |
 | `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ⏳ |
 | `P4-J7-14` | 归一化流与完成状态机 | `P4-J7-06`、`P4-J7-13` | 唯一 assembler；完整终态后才输出工具；EOF/长度截断不假成功 | ⏳ |
 | `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ⏳ |
@@ -194,9 +194,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-12 请求编译、工具映射与上下文完整性　⏳
+#### P4-J7-12 请求编译、工具映射与上下文完整性　✅
 
 - **依赖**：`P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04`。
+- 当前 source slice 与 CI-only 证据见 [`p4-j7-12-request-compilation-baseline.md`](p4-j7-12-request-compilation-baseline.md)。
 - **改动位置**：provider/request、各协议请求编码、既有 PromptBundle/TokenBudget/ToolSpec；runner history 输入边界。
 - **步骤**：① 编译已确定的角色 prompt、context、历史和工具快照；② 生成双向无碰撞 ToolNameMap，保留内部五工具目录，wire hash 入元数据；③ 校验 call/result 配对、顺序与重复身份，不自动插假结果；④ 根据协议转换 system/developer、tool schema 和生成参数；⑤ strict/非 strict 明确，内部 schema 接受集不被 wire 转换改变；⑥ 在最终请求形状上计预算并冻结 payload hash，发送不得重新读取环境改变内容。
 - **先拒绝**：`wire_tool_name_collision_is_rejected`、`orphan_tool_result_fails_before_send`、`compiled_request_cannot_exceed_context_budget`、`provider_options_cannot_override_tools_or_auth`。

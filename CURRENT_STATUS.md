@@ -11425,3 +11425,20 @@ status change: P4-J7-11 source slice is implemented and roadmap row 388/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no live network send, cross-process permit settlement, provider retry/usage accounting or physical model effect is claimed; P4-J7-12+ remains open
 reviewer: Codex root implementation review plus role/profile route, attempt/request/route digest, expiry, budget and no-prompt-authority boundary review; no local runtime test reviewer
+
+### P4-J7-12 request compilation evidence (2026-09-21)
+
+source_snapshot: 0fe1f44e + P4-J7-12 source slice; kiana-domain/src/request_compilation.rs; kiana-domain/src/lib.rs; kiana-domain/tests/p4_j7_12_request_compilation.rs; kiana-domain/src/model.rs; kiana-domain/src/prompts.rs; kiana-domain/src/tool_authority.rs; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_12_request_compilation_guard.rs; .github/workflows/p4-j7-12-request-compilation.yml; docs/roadmap/p4-j7-12-request-compilation-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: ToolNameMap is server-catalog-derived, reversible and collision-checked; all five protocol encoders use the same mapping; history pairing remains deny-first; final wire body accounting is split into message/system/schema/output reserves and request_hash seals the prepared payload.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test p4_j7_12_request_compilation --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_12_request_compilation_guard --locked -- --test-threads=1; cargo check -p kiana-provider --tests --locked
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-12 tool-map/history/budget fixtures and core source guard in p4-j7-12-request-compilation.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-12 source slice is implemented and roadmap row 389/card are ✅. Request compilation now binds tool mapping, history completeness, final wire budget and prepared request hash.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: provider transport framing, protocol response accumulation, usage settlement, replay recovery and live provider effects remain P4-J7-13+
+reviewer: Codex root implementation review plus tool-map reversibility, unknown/collision rejection, history pairing, final-wire budget and no credential/model-option injection boundary review; no local runtime test reviewer
