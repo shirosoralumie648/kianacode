@@ -546,7 +546,7 @@
 | 375 | W4 | 专项 | [`PD-18`](roadmap/persistence-data-layer.md#step-pd-18) | Memory projection、ACL/治理 epoch、retention 和删除索引联动；`kiana-daemon`、`kiana-core` | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`PD-17` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-18) |
 | 376 | W4 | 专项 | [`PD-19`](roadmap/persistence-data-layer.md#step-pd-19) | ContextIndex generation、source fingerprint、freshness、原子切换；`kiana-query` | `CM-10`、`CM-11`、`CM-12`、`CM-13`、`CM-14`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-19) |
 | 377 | W4 | 专项 | [`PD-20`](roadmap/persistence-data-layer.md#step-pd-20) | RepoMap、context artifact ingest 和依赖图的持久 manifest；`kiana-query` | `PD-14`、`PD-19` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-20) |
-| 378 | W4 | 专项 | [`PD-21`](roadmap/persistence-data-layer.md#step-pd-21) | Cache 与事实/投影分离，淘汰、大小/时间上限和禁用开关；`kiana-query`、`kiana-daemon` | `PD-09`、`PD-18`、`PD-19`、`PD-20` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-21) |
+| 378 | W4 | 专项 | [`PD-21`](roadmap/persistence-data-layer.md#step-pd-21) | Cache 与事实/投影分离，淘汰、大小/时间上限和禁用开关；`kiana-query`、`kiana-daemon` | `PD-09`、`PD-18`、`PD-19`、`PD-20` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-21) |
 | 379 | W4 | 专项 | [`PD-22`](roadmap/persistence-data-layer.md#step-pd-22) | SnapshotManifest、增量/全量 backup、文件 hash、cursor/epoch seal；`kiana-daemon`、`kiana-eventlog` | `PD-08`、`PD-09`、`PD-10`、`PD-11`、`PD-12`、`PD-13`、`PD-14`、`PD-15`、`PD-16`、`PD-17`、`PD-18`、`PD-19`、`PD-20`、`PD-21` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-22) |
 | 380 | W4 | 专项 | [`PD-24`](roadmap/persistence-data-layer.md#step-pd-24) | 有序 migration runner、preflight、lock、checksum、MigrationRecord；`kiana-domain`、`kiana-daemon` | `PD-02`、`PD-22`、`PD-03` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-24) |
 | 381 | W4 | 专项 | [`PD-25`](roadmap/persistence-data-layer.md#step-pd-25) | Retention policy、legal/audit hold、archive、bounded prune/watermark；`kiana-core`、`kiana-eventlog` | `PD-18`、`PD-22`、`PD-24` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-25) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `PD-21` Cache policy：为 ContextIndex cache 增加 Hit/Miss/Stale/Degraded/Disabled 决策、cache-read/business-result 边界和稳定 digest；缺失/损坏/变化都显式重建或降级，不把 cache miss 当事实；新增 query/daemon guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-20` Context material manifest：将 RepoMap、context artifact store 和 dependency graph 绑定到 canonical root、content hash、source cursor、tool version 与统一 digest；新增 root/hash deny-first、原子写入读取、query fixtures、source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-19` ContextIndex generation：新增 source manifest/fingerprint、ignore/config/model 绑定、Current/Stale freshness 比较、`IndexGenerationState` Ready 绑定与 generation envelope 原子写入/读取；新增 query fixtures、source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-18` Memory projection：新增 `MemoryProjectionFence`，按 server-owned data epoch、project scope、Memory lifecycle、revoked source 和 retention expiry 在检索前 fail-closed；daemon 搜索先过 fence，core governance projector 复核 epoch，新增 domain/daemon/core guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
