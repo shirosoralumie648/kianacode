@@ -1043,3 +1043,150 @@ fn gemini_usage(value: &Value) -> Result<Option<ModelUsage>, ModelError> {
     }
     Ok(Some(measured))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sink<'a>(
+        deltas: &'a mut Vec<ModelDelta>,
+    ) -> impl FnMut(ModelDelta) -> Result<(), String> + 'a {
+        move |delta| {
+            deltas.push(delta);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn terminal_finishes_without_socket_eof() {
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiChat);
+        let mut deltas = Vec::new();
+        assert!(!accumulator
+            .push(
+                r#"{"id":"response-1","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!accumulator
+            .push(
+                r#"{"id":"response-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(accumulator.push("[DONE]", &mut sink(&mut deltas)).unwrap());
+        assert_eq!(
+            deltas
+                .iter()
+                .filter(|delta| matches!(delta, ModelDelta::Text { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn identical_text_deltas_are_not_deduplicated() {
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiChat);
+        let mut deltas = Vec::new();
+        for text in ["same", "same"] {
+            accumulator
+                .push(
+                    &format!(
+                        r#"{{"choices":[{{"index":0,"delta":{{"content":"{text}"}},"finish_reason":null}}]}}"#
+                    ),
+                    &mut sink(&mut deltas),
+                )
+                .unwrap();
+        }
+        let texts = deltas
+            .into_iter()
+            .filter_map(|delta| match delta {
+                ModelDelta::Text { text } => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(texts, vec!["same", "same"]);
+    }
+
+    #[test]
+    fn closed_tool_block_cannot_receive_more_arguments() {
+        let mut accumulator = Accumulator::new(ModelProtocol::AnthropicMessages);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"type":"message_start","message":{"id":"message-1","model":"fixture","usage":{"input_tokens":1,"output_tokens":0}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call-1","name":"shell","input":{}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_stop","index":0}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let error = accumulator
+            .push(
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{}"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_delta_after_block_stop");
+    }
+
+    #[test]
+    fn terminal_with_open_blocks_is_rejected() {
+        let mut accumulator = Accumulator::new(ModelProtocol::AnthropicMessages);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"type":"message_start","message":{"id":"message-1","model":"fixture","usage":{"input_tokens":1,"output_tokens":0}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"hello"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let error = accumulator
+            .push(
+                r#"{"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_finish_with_open_blocks");
+    }
+
+    #[test]
+    fn done_without_finish_and_late_delta_fail_closed() {
+        let mut early_done = Accumulator::new(ModelProtocol::OpenAiChat);
+        let mut deltas = Vec::new();
+        assert_eq!(
+            early_done
+                .push("[DONE]", &mut sink(&mut deltas))
+                .unwrap_err()
+                .code,
+            "provider_done_without_finish"
+        );
+
+        let mut late = Accumulator::new(ModelProtocol::OpenAiChat);
+        late.push(
+            r#"{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
+            &mut sink(&mut deltas),
+        )
+        .unwrap();
+        let error = late
+            .push(
+                r#"{"choices":[{"index":0,"delta":{"content":"late"},"finish_reason":null}]}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_delta_after_finish");
+    }
+}

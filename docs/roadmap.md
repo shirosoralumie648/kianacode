@@ -560,7 +560,7 @@
 | 388 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
 | 389 | W5 | 专项 | [`P4-J7-12`](roadmap/provider.md#step-p4-j7-12) | Provider · 请求编译、工具映射与上下文完整性 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-12) |
 | 390 | W5 | 专项 | [`P4-J7-13`](roadmap/provider.md#step-p4-j7-13) | Provider · HTTP、SSE、NDJSON 的有界传输 | `P4-J7-07`、`P4-J7-09` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-13) |
-| 391 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
+| 391 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
 | 392 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
 | 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
 | 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `P4-J7-14` Normalized stream/terminal state：固化 Anthropic/OpenAI/Ollama/Gemini 共用单一 `Accumulator`；拒绝 closed block late delta、open-block terminal、duplicate finish、早 `[DONE]`、EOF 假完成与未完整工具 JSON；新增 provider state fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-13` Bounded transport：固化 connect/header/first-semantic/read-idle/attempt-total/deadline 分层；SSE/NDJSON 任意切块、CRLF、多行 data、heartbeat、尾行、UTF-8/frame/body 上限与 Content-Type 拒绝；新增 provider framing fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-12` Request compilation：新增可逆 `ToolNameMap`，统一五工具目录到 Anthropic/OpenAI/Ollama/Gemini wire 映射；拒绝未知/碰撞工具与孤儿 tool result；按最终 wire body 分 system/schema/message/output 预算并冻结 request hash；新增 domain fixture、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-11` Role route/admission：收口服务端 role/profile→route、PreparedModelCall、ModelCallPermit、attempt/request/route digest、expiry、budget/admission 绑定；新增 core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |

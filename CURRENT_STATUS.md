@@ -11459,3 +11459,20 @@ status change: P4-J7-13 source slice is implemented and roadmap row 390/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: protocol-specific terminal state, usage settlement, retry orchestration, recovery reconciliation and live provider behavior remain P4-J7-14+
 reviewer: Codex root implementation review plus deadline layering, arbitrary chunking, UTF-8/CRLF/multi-line SSE, NDJSON tail, body/frame bounds, Content-Type and no implicit retry boundary review; no local runtime test reviewer
+
+### P4-J7-14 normalized stream and terminal evidence (2026-09-21)
+
+source_snapshot: 29cf00ff + P4-J7-14 source slice; kiana-provider/src/response.rs; kiana-provider/src/transport.rs; kiana-domain/src/model.rs; kiana-core/tests/p4_j7_14_accumulator_guard.rs; .github/workflows/p4-j7-14-accumulator.yml; docs/roadmap/p4-j7-14-accumulator-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: One Accumulator owns all supported protocol event paths, bounded text/tool buffers and terminal validation. Tools are only emitted after complete protocol state; late deltas, duplicate finish, open blocks, early DONE and unknown required events fail closed.
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_14_accumulator_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only P4-J7-14 accumulator/terminal fixtures and core source guard in p4-j7-14-accumulator.yml
+exit_code: 0 for local format and diff checks; local tests deliberately not run; remote CI pending/not awaited
+status change: P4-J7-14 source slice is implemented and roadmap row 391/card are ✅. Protocol streams now share one normalized accumulator and explicit completion semantics.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: provider-specific codec completeness, reasoning replay, retry orchestration, usage settlement, recovery reconciliation and live model behavior remain P4-J7-15+
+reviewer: Codex root implementation review plus single-accumulator, block lifecycle, terminal identity, no-EOF-completion, no-late-delta and final tool validation boundary review; no local runtime test reviewer
