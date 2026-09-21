@@ -550,7 +550,7 @@
 | 379 | W4 | 专项 | [`PD-22`](roadmap/persistence-data-layer.md#step-pd-22) | SnapshotManifest、增量/全量 backup、文件 hash、cursor/epoch seal；`kiana-daemon`、`kiana-eventlog` | `PD-08`、`PD-09`、`PD-10`、`PD-11`、`PD-12`、`PD-13`、`PD-14`、`PD-15`、`PD-16`、`PD-17`、`PD-18`、`PD-19`、`PD-20`、`PD-21` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-22) |
 | 380 | W4 | 专项 | [`PD-24`](roadmap/persistence-data-layer.md#step-pd-24) | 有序 migration runner、preflight、lock、checksum、MigrationRecord；`kiana-domain`、`kiana-daemon` | `PD-02`、`PD-22`、`PD-03` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-24) |
 | 381 | W4 | 专项 | [`PD-25`](roadmap/persistence-data-layer.md#step-pd-25) | Retention policy、legal/audit hold、archive、bounded prune/watermark；`kiana-core`、`kiana-eventlog` | `PD-18`、`PD-22`、`PD-24` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-25) |
-| 382 | W4 | 专项 | [`INT-01`](roadmap/integrations-connectors.md#step-int-01) | 固定 Provider/Connector/MCP/A2A/Notification 术语和边界；`docs`、module map | `INT-00` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-01) |
+| 382 | W4 | 专项 | [`INT-01`](roadmap/integrations-connectors.md#step-int-01) | 固定 Provider/Connector/MCP/A2A/Notification 术语和边界；`docs`、module map | `INT-00` | ✅ | [专项卡](roadmap/integrations-connectors.md#step-int-01) |
 | 383 | W4 | 专项 | [`INT-02`](roadmap/integrations-connectors.md#step-int-02) | Domain typed IDs、definition/binding/invocation/receipt/recovery 合同 | `INT-01` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-02) |
 | 384 | W4 | 专项 | [`INT-03`](roadmap/integrations-connectors.md#step-int-03) | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | `INT-02` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-03) |
 | 385 | W4 | 专项 | [`INT-04`](roadmap/integrations-connectors.md#step-int-04) | Connector registry immutable version、hash/signature、CAS、catalog projection | `INT-02`、`INT-03` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-04) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-21 | `INT-01` Integration terminology boundary：固定 Provider/Connector/MCP/A2A/Notification 术语、相邻模块边界和唯一 ControlPlane path；新增 source/document guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-25` Retention watermark：新增有限 batch/upper-bound cursor、legal-hold+tombstone commit gate、单调 advance 与 blocked reason digest；复用 RetentionStorePort/EventLog 边界，新增 domain/core guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-24` MigrationRecord：将 ordered registry、preflight digest、verified backup snapshot、owner、version range、attempt 和 runner status 绑定；失败/quarantine/非法转移 fail-closed；新增 domain fixture、daemon guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `PD-22` SnapshotManifest：新增 full/incremental sealed backup contract，绑定 owner/store/instance、active/backup root、文件 hash、source cursor、data epoch、quiesce/WAL seal 和 manifest digest；新增 domain/daemon/eventlog guards、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |

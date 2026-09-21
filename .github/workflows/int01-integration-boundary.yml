@@ -1,0 +1,36 @@
+name: int01-integration-boundary
+
+on:
+  push:
+    paths:
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int01-terminology-boundary-baseline.md'
+      - 'kiana-core/src/connectors.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-core/tests/int01_integration_boundary_guard.rs'
+      - '.github/workflows/int01-integration-boundary.yml'
+  pull_request:
+    paths:
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int01-terminology-boundary-baseline.md'
+      - 'kiana-core/src/connectors.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-core/tests/int01_integration_boundary_guard.rs'
+      - '.github/workflows/int01-integration-boundary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  integration-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test int01_integration_boundary_guard --locked -- --test-threads=1
