@@ -11190,3 +11190,20 @@ status change: PD-17 source slice is implemented and roadmap row 374/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: legacy memory facts remain compatibility-shaped, cross-process mutation receipt recovery and durable projector restart evidence remain open, supersede/retention propagation continues in PD-18+, and no live/physical side effect is claimed
 reviewer: Codex root implementation review plus deny-first authority, scope/revision/idempotency, origin/evidence, journal-before-projection and replay boundary review; no local runtime test reviewer
+
+### PD-18 memory projection governance fence evidence (2026-09-21)
+
+source_snapshot: 352ce3fd + PD-18 working-tree slice; kiana-domain/src/memory_projection.rs; kiana-domain/src/lib.rs; kiana-domain/tests/pd18_memory_projection.rs; kiana-daemon/src/harness_memory.rs; kiana-daemon/tests/pd18_memory_projection_guard.rs; kiana-core/src/data_governance.rs; kiana-core/tests/pd18_memory_projection_guard.rs; .github/workflows/pd18-memory-projection.yml; docs/roadmap/pd18-memory-projection-baseline.md; docs/roadmap.md
+worktree_status: MemoryProjectionFence binds record identity/revision, project scope, policy revision and server data_epoch; candidate/rejected/tombstoned, stale epoch, cross-project, revoked-source and expired-retention rows are denied before ranking, while approved active rows remain searchable. Daemon memory.search applies the fence and returns the policy epoch; core governance projection rechecks the same epoch contract. Pre-existing untracked kiana-domain/src/memory_workbench.rs remains unrelated WIP and was not staged.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/memory_projection.rs kiana-domain/src/lib.rs kiana-daemon/src/harness_memory.rs kiana-core/src/data_governance.rs kiana-domain/tests/pd18_memory_projection.rs kiana-daemon/tests/pd18_memory_projection_guard.rs kiana-core/tests/pd18_memory_projection_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test pd18_memory_projection --locked -- --test-threads=1; cargo test -p kiana-daemon --test pd18_memory_projection_guard --locked -- --test-threads=1; cargo test -p kiana-core --test pd18_memory_projection_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only PD-18 domain governance fence fixtures plus daemon/core source guards in pd18-memory-projection.yml
+exit_code: 0 for rustfmt, cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: PD-18 source slice is implemented and roadmap row 375/card are ✅. Projection reads now fail closed on governance epoch, project scope, lifecycle, revocation and retention boundaries before ranking.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: existing lexical/vector/index/cache stores are not yet independently persisted or rebuilt, deletion propagation receipts remain PD-19+ / PD-21+ work, unregistered legacy sources remain compatibility-visible, and no live/physical erasure is claimed
+reviewer: Codex root implementation review plus epoch, scope, lifecycle, revocation, retention, tombstone/cache and no-second-authority boundary review; no local runtime test reviewer
