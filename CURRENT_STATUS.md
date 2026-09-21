@@ -11309,3 +11309,19 @@ status change: PD-25 source slice is implemented and roadmap row 381/card are �
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no physical archive/prune, cross-process maintenance lease, throughput bound, crash recovery or live deletion effect is claimed; those remain later PD/DEP work
 reviewer: Codex root implementation review plus hold/tombstone ordering, cursor monotonicity, upper-bound/batch limits and EventLog-only fact boundary review; no local runtime test reviewer
+
+### INT-01 integration terminology boundary evidence (2026-09-21)
+
+source_snapshot: deeab8f3 + INT-01 working-tree slice; docs/roadmap/integrations-connectors.md; docs/roadmap/int01-terminology-boundary-baseline.md; kiana-core/src/connectors.rs; kiana-daemon/src/connectors.rs; kiana-core/tests/int01_integration_boundary_guard.rs; .github/workflows/int01-integration-boundary.yml; docs/roadmap.md
+worktree_status: Provider/Connector/MCP/A2A/Notification responsibilities and non-authority boundaries are fixed in the integration design; tool lists, A2A messages, provider accounts and notification delivery cannot become authorization evidence, and all integration entries map back to ControlPlane/Broker/EventLog. Current runtime remains local-fixture/stdin-MCP only.
+command_argv:
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-core --test int01_integration_boundary_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI is the test authority and was not awaited
+fixture·cassette: GitHub-only INT-01 docs/module boundary guard in int01-integration-boundary.yml
+exit_code: 0 for cargo fmt check and git diff check; local tests deliberately not run; remote CI pending/not awaited
+status change: INT-01 source/document slice is implemented and roadmap row 382/card are ✅. Integration vocabulary and one-ControlPlane-path boundaries are explicit.
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no external connector/provider/A2A effect, OAuth, HTTP MCP, enterprise tenant or business outcome is claimed; INT-02+ contracts remain open
+reviewer: Codex root implementation review plus terminology, direct-authority, secret/remote/fake outcome and ControlPlane route-boundary review; no local runtime test reviewer
