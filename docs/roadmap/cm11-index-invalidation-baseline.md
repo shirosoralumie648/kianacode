@@ -5,8 +5,8 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CM-11`](context-memory.md#step-cm-11) |
-| feature_status | `implemented`（domain invalidation/cache-key contract + query adapter + CI-only fixtures） |
-| proof_level | `source`；本地只做格式与差异检查，GitHub Actions 运行聚焦夹具且不等待结果 |
+| feature_status | `partial`（domain invalidation/cache-key contract + query adapter；workspace snapshot type collision follow-up pending CI） |
+| proof_level | `source`；CM-36 GitHub run 35837267218 exposed 11 compiler errors in existing CM-11 source; local tests/build/check/clippy are intentionally not run |
 | canonical path | previous/current WorkspaceSnapshot → content/identity/disposition diff → Added/Changed/Removed/Renamed plan → invalidated paths/tombstones → next IndexGeneration |
 | authority | invalidation is derived index evidence; EventLog/ControlPlane and IndexGeneration remain authoritative boundaries |
 
@@ -33,3 +33,14 @@ delegates to these pure contracts; it does not mutate a cache or index itself.
 CM-11 proof ceiling is `source` plus remote CI wiring. Existing persistent builders still need full
 integration with this plan and CM-10 publication, durable tombstone/retention propagation and
 cross-process recovery remain PD/ER work; no production index freshness claim is made.
+
+## 2026-09-23 compiler follow-up
+
+GitHub run [35837267218](https://github.com/shirosoralumie648/kianacode/actions/runs/35837267218),
+head `107785c4e197f1353661728a14ead8f964aae00a`, failed while compiling `kiana-domain` before
+the CM-36 fixture ran. It reported 11 errors rooted in `WorkspaceFileSnapshot` resolving through
+ambiguous root glob re-exports instead of `workspace_snapshot::WorkspaceFileSnapshot`: three
+ambiguous-name errors, four reference/type mismatches, and four missing workspace-only fields. The
+follow-up uses explicit imports from `crate::workspace_snapshot`; remaining workspace compiler
+errors are outside this CM-11 correction. No local test/build/check/clippy was run. Remote CI
+revalidation is required before restoring the roadmap status to ✅.

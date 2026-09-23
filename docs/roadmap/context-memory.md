@@ -372,7 +372,7 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-11 · 增量更新、rename/delete 与缓存失效　✅
+##### CM-11 · 增量更新、rename/delete 与缓存失效　🔄
 
 当前 source slice 与 CI-only 证据见 [`cm11-index-invalidation-baseline.md`](cm11-index-invalidation-baseline.md)。
 

@@ -10796,6 +10796,22 @@ proof-level_change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: existing persistent index builders are not fully migrated to the plan, durable tombstone/retention propagation and cross-process recovery remain PD/ER work, and no production freshness claim is made
 reviewer: Codex root implementation review plus content/identity/disposition diff, mtime-only rejection, rename/delete/tombstone, cache-key source/algorithm binding and no-mutation query boundary review; no runtime test reviewer
 
+### CM-11 compiler follow-up evidence (2026-09-23)
+
+source_snapshot: origin/master `14046890f492d759b48ea5717640bcc47030d1bf` plus this CM-11 correction; `kiana-domain/src/index_invalidation.rs`; `docs/roadmap/cm11-index-invalidation-baseline.md`; `docs/roadmap/context-memory.md`; `docs/roadmap.md`; `CURRENT_STATUS.md`
+worktree_status: `index_invalidation.rs` now explicitly imports `WorkspaceFileSnapshot` and `WorkspaceReadDisposition` from `crate::workspace_snapshot`, while retaining `WorkspaceSnapshot` from the domain root; this selects the identity-bearing snapshot contract and removes the root glob collision responsible for CM-11's 11 compiler errors
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/index_invalidation.rs
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: dedicated `cm11-index-invalidation-ci-fix-20260923` worktree based on origin/master; stable Rust toolchain; no local test, build, check or clippy command executed
+fixture or cassette: GitHub Actions run 35837267218 at `107785c4e197f1353661728a14ead8f964aae00a` compiled `kiana-domain` for the CM-36 fixture and failed before running that fixture; it reported 11 errors in CM-11 `index_invalidation.rs` (three ambiguous type references, four resulting reference/type mismatches, and four missing workspace snapshot fields). New CM-11 CI run is triggered only after branch push and must be inspected separately
+exit_code: 0 for targeted rustfmt, `cargo fmt --all --check` and `git diff --check`; local tests/build/check/clippy deliberately not run; remote CI result not yet available
+status_change: CM-11 was reopened from ✅ to 🔄 after the compiler failure. This correction changes only type selection; no CM-37 behavior or other compiler-error files are included
+proof-level_change: remains `source`; the prior CI failure is negative compile evidence and this correction has no passing remote compile evidence yet
+limitations: other compiler errors from the same run remain outside CM-11 and will still prevent workspace/downstream CI jobs; existing persistent builders, durable tombstone/retention propagation and cross-process recovery remain open
+reviewer: static review against `workspace_snapshot::WorkspaceFileSnapshot` fields and CM-11 call sites; no test reviewer or local runtime verification
+
 ### CM-12 unified retrieval evidence (2026-09-20)
 
 source_snapshot: 9485d1e0 + CM-12 working-tree slice; kiana-domain/src/{unified_retrieval.rs,contracts.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-query/src/{unified_retrieval.rs,lib.rs}; kiana-query/Cargo.toml; Cargo.lock; kiana-protocol/src/lib.rs; kiana-daemon/src/memory_retrieval.rs; kiana-commands/src/memory.rs; kiana-domain/tests/cm12_unified_retrieval.rs; kiana-query/tests/cm12_unified_retrieval.rs; kiana-core/tests/cm12_unified_retrieval_guard.rs; .github/workflows/cm12-unified-retrieval.yml; docs/roadmap/cm12-unified-retrieval-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md

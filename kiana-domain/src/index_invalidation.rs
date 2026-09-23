@@ -4,9 +4,8 @@
 //! delete and revoke paths produce explicit invalidation/tombstone evidence for the next index
 //! generation; they do not mutate an index or create an execution authority.
 
-use crate::{
-    json_digest, SchemaVersion, WorkspaceFileSnapshot, WorkspaceReadDisposition, WorkspaceSnapshot,
-};
+use crate::workspace_snapshot::{WorkspaceFileSnapshot, WorkspaceReadDisposition};
+use crate::{json_digest, SchemaVersion, WorkspaceSnapshot};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
