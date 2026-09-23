@@ -1,6 +1,8 @@
 //! Local Connector contracts. External transports are deliberately unsupported.
 
-use crate::{is_sha256_hex, valid_extension_identifier, valid_extension_path, RiskLevel};
+use crate::{
+    is_sha256_hex, valid_extension_identifier, valid_extension_path, RiskLevel, SecretRef,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -61,6 +63,9 @@ pub struct AccountBinding {
     pub write_scopes: BTreeSet<String>,
     pub fixture_path: String,
     pub fixture_sha256: String,
+    /// Optional opaque reference resolved only by a trusted adapter at its effect boundary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_ref: Option<SecretRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -119,6 +124,24 @@ impl ConnectorBindingSnapshot {
             .any(|scope| !valid_extension_identifier(scope))
         {
             return Err("connector_scope_invalid");
+        }
+        if let Some(reference) = &binding.credential_ref {
+            if reference.validate().is_err()
+                || reference.store != "env"
+                || reference.key.is_empty()
+                || !reference
+                    .key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+                || reference.purpose != crate::CONNECTOR_CREDENTIAL_PURPOSE
+                || reference.audience
+                    != crate::connector_credential_audience(
+                        &definition.connector_id,
+                        &definition.version,
+                    )
+            {
+                return Err("connector_credential_reference_invalid");
+            }
         }
         Ok(())
     }

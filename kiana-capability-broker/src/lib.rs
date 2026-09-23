@@ -11,8 +11,9 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, CredentialLease,
-    ExtensionAdapterDescriptor, ExtensionExecutionContract,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
+    ConnectorCredentialEvidence, ConnectorCredentialInvocation, CredentialLease,
+    ExtensionAdapterDescriptor, ExtensionExecutionContract, RequestId,
 };
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
@@ -42,6 +43,28 @@ pub fn consume_credential_lease(
         )
         .map_err(PortError::Failed)?;
     lease.consume(now_unix_ms).map_err(PortError::Failed)
+}
+
+/// Consume connector credential metadata only after the current server-owned binding has been
+/// revalidated at the adapter effect boundary. Raw secret resolution remains adapter-private.
+#[allow(clippy::too_many_arguments)]
+pub fn consume_connector_credential_invocation(
+    invocation: &mut ConnectorCredentialInvocation,
+    binding: &ConnectorBindingSnapshot,
+    operation: &str,
+    invocation_id: RequestId,
+    idempotency_key: &str,
+    now_unix_ms: u64,
+) -> Result<ConnectorCredentialEvidence, PortError> {
+    invocation
+        .consume_for(
+            binding,
+            operation,
+            invocation_id,
+            idempotency_key,
+            now_unix_ms,
+        )
+        .map_err(PortError::Failed)
 }
 
 #[async_trait]
