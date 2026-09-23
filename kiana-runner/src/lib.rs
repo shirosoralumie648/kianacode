@@ -16,6 +16,7 @@ mod inbox;
 mod model;
 mod progress;
 mod protocol_runner;
+mod retry;
 mod state_driver;
 mod stream_normalizer;
 mod tools;

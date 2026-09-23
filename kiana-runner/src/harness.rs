@@ -1295,7 +1295,8 @@ impl KianaHarness {
         format: kiana_domain::ModelResponseFormat,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<ModelOutput, String> {
-        use kiana_domain::{ModelCallSpec, ModelRetryClass, RequestId};
+        use crate::retry::{is_safe_to_retry, retry_delay, MAX_PROVIDER_ATTEMPTS};
+        use kiana_domain::{ModelCallSpec, RequestId};
         let admission = self
             .model_budget
             .lock()
@@ -1333,10 +1334,12 @@ impl KianaHarness {
             .map_err(|error| format!("step_identity_invalid:{error}"))?;
         let budget_limits = self.effective_budget(run)?;
         let budget_scope = Self::budget_scope(run);
-        for attempt in 0..3u32 {
+        for attempt in 0..MAX_PROVIDER_ATTEMPTS {
             if let Some(error) = run.cancellation.error().map_err(|e| e.to_string())? {
                 return Err(error);
             }
+            let cancellation = run.cancellation.clone();
+            let cancellation_signal = cancellation.subscribe();
             let attempt_id = RequestId::new();
             let model_attempt_id = ModelAttemptId::new();
             let attempt_identity = ModelAttemptIdentity::new(
@@ -1379,25 +1382,45 @@ impl KianaHarness {
                 self.budget_ledger
                     .reserve_attempt(&budget_scope, budget_limits, budget.total)?;
             let permit = if let Some(guard) = &admission {
-                match guard.reserve_prepared(&prepared).await {
-                    Ok(permit) => Some(permit),
-                    Err(error) => {
+                let admission_remaining = remaining.saturating_sub(started.elapsed());
+                if admission_remaining.is_zero() {
+                    self.budget_ledger.release_attempt(reservation)?;
+                    return Err("model_attempt_deadline".to_owned());
+                }
+                let reserve = tokio::select! {
+                    biased;
+                    error = cancellation.cancelled() => {
+                        self.budget_ledger.release_attempt(reservation)?;
+                        return Err(error);
+                    }
+                    result = tokio::time::timeout(
+                        admission_remaining,
+                        guard.reserve_prepared(&prepared),
+                    ) => result,
+                };
+                match reserve {
+                    Ok(Ok(permit)) => Some(permit),
+                    Ok(Err(error)) => {
                         self.budget_ledger.release_attempt(reservation)?;
                         return Err(format!("model_admission_denied:{error}"));
+                    }
+                    Err(_) => {
+                        self.budget_ledger.release_attempt(reservation)?;
+                        return Err("model_attempt_deadline".to_owned());
                     }
                 }
             } else {
                 None
             };
-            let cancellation = run.cancellation.clone();
-            let cancellation_signal = cancellation.subscribe();
             let mut redactor = StreamingRedactor::new();
             let mut stream = ModelStreamAccumulator::new(model_attempt_id);
             let run_id = run.run_id;
+            let mut observed_delta = false;
             let mut callback = |delta: ModelDelta| -> Result<(), String> {
                 if let Some(error) = cancellation.error().map_err(|e| e.to_string())? {
                     return Err(error);
                 }
+                observed_delta = true;
                 let text = match &delta {
                     ModelDelta::Text { text } => text.clone(),
                     _ => String::new(),
@@ -1433,6 +1456,7 @@ impl KianaHarness {
                 result=tokio::time::timeout(remaining.saturating_sub(started.elapsed()),future)=>result.unwrap_or_else(|_|Err(kiana_domain::ModelError::transport("model_attempt_deadline",ModelRetryClass::Never,true))),
                 error=cancellation.cancelled()=>Err(kiana_domain::ModelError::invalid(error)),
             };
+            drop(callback);
             let measured = match result
                 .as_ref()
                 .ok()
@@ -1491,18 +1515,14 @@ impl KianaHarness {
                     return Ok(output);
                 }
                 Err(error)
-                    if attempt < 2
-                        && matches!(
-                            error.retry_class,
-                            ModelRetryClass::BeforeSend | ModelRetryClass::Rejected
-                        ) =>
+                    if attempt + 1 < MAX_PROVIDER_ATTEMPTS
+                        && is_safe_to_retry(&error, observed_delta) =>
                 {
-                    if matches!(error.retry_class, ModelRetryClass::Rejected) {
+                    if matches!(error.retry_class, kiana_domain::ModelRetryClass::Rejected) {
                         self.budget_ledger
                             .reserve_repair(&budget_scope, budget_limits)?;
                     }
-                    let delay =
-                        Duration::from_millis(error.retry_after_ms.unwrap_or(100u64 << attempt));
+                    let delay = retry_delay(&error, attempt, attempt_id);
                     if delay >= remaining.saturating_sub(started.elapsed()) {
                         return Err("model_retry_deadline_exceeded".to_owned());
                     }
