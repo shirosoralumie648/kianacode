@@ -287,8 +287,8 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`ollama_streams_before_model_completion`、`ollama_tool_result_continuation_uses_stable_local_ids`、`ollama_load_latency_is_distinct_from_generation_latency`。
 - **退出 / 证据**：不自动拉取、创建或删除本地模型；synthetic→native 仅针对通过实际 NDJSON 测试的能力范围。
 - **本次实现**：NDJSON 增量、done/content fail-closed、工具序号稳定 ID 与结果续接、显式 Ollama load timeout、load/generation timing 进入 ModelTurn；专属 CI workflow 已加入。
-- **CI 结果**：GitHub Actions runs `35832638463`（PR）和 `35832756821`（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失而失败，测试步骤跳过。CM-36 补齐该文件后需由后续 CI 复跑验证。
-- **状态**：保持 🔄，proof 上限为 `source`；上述两次 run 均未执行 provider fixtures，不能视作通过。
+- **CI 回执**：runs `35832638463`（PR）和 `35832756821`（合并后）在 fmt 阶段因缺失 `memory_workbench.rs` 失败。CM-36 合并后 run `35846594919` 的 fmt 通过，但首个 provider 测试编译 `kiana-domain` 时因 24 个既有模块类型错误退出 101；profile timeout 和 source guard 步骤跳过，Ollama fixtures 未执行。错误不在 CM-36 diff；没有此前完整编译通过回执，故记录为新暴露基线错误，不推断为本次回归。
+- **状态**：保持 🔄，proof 上限为 `source`；三个 run 均未完成 provider fixtures，不能视作通过。
 
 <a id="step-p4-j7-19"></a>
 

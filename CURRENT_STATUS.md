@@ -11540,13 +11540,13 @@ worktree_status: Ollama Chat uses bounded NDJSON and incremental text delivery; 
 command_argv:
   cargo fmt --all --check
   git diff --check
-  GitHub Actions runs 35832638463 (PR) and 35832756821 (post-merge): cargo fmt --all --check failed before test steps because kiana-domain/src/memory_workbench.rs was absent while lib.rs declared the module; provider tests and source guard were skipped
+  GitHub Actions runs 35832638463 (PR) and 35832756821 (post-merge) failed at cargo fmt because kiana-domain/src/memory_workbench.rs was absent; post-CM-36 run 35846594919 passed cargo fmt, then `cargo test -p kiana-provider --lib --locked -- --test-threads=1` failed compiling kiana-domain with 24 errors; later profile timeout and source guard steps were skipped
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority
-fixture·cassette: runs 35832638463 and 35832756821 stopped at cargo fmt; P4-J7-18 fixtures were not executed; CM-36 now adds the missing module and a later workflow rerun is required
-exit_code: both dedicated remote runs failed at cargo fmt and skipped tests
-status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; the missing-module blocker is addressed by CM-36, but P4-J7-18 CI evidence remains incomplete
+fixture·cassette: runs 35832638463 and 35832756821 stopped at cargo fmt; run 35846594919 stopped during kiana-domain compilation before provider fixtures; CM-36 resolved the missing-module blocker, but the newly exposed domain compiler errors still prevent this step's fixtures from executing
+exit_code: first two dedicated remote runs failed at cargo fmt; post-CM-36 run passed cargo fmt and exited 101 in the first provider test compile, skipping remaining steps
+status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; GitHub CI has not yet executed P4-J7-18 fixtures
 proof-level change: source; no local_behavior, durable, live or physical promotion
-limitations: no local Ollama endpoint/model was contacted; runs 35832638463 and 35832756821 did not reach provider tests; a post-CM-36 CI rerun is unobserved; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
+limitations: no local Ollama endpoint/model was contacted; run 35846594919 exposed 24 compile errors in modules outside the CM-36 diff, but no prior successful full compile receipt exists, so they are newly exposed baseline failures rather than proven regressions; this run did not execute provider fixtures; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
 reviewer: Codex root implementation review plus deny/done, tool identity/continuation, timeout bounds, event timing projection and local model lifecycle boundary review; no local runtime test reviewer
 
 ### P4-J7-17 OpenAI Responses evidence (2026-09-21)
