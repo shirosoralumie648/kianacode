@@ -1,0 +1,45 @@
+name: cm36-memory-workbench
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/tests/cm36_memory_workbench.rs"
+      - "kiana-core/tests/cm36_memory_workbench_guard.rs"
+      - "docs/roadmap/cm36-memory-workbench-baseline.md"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm36-memory-workbench.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/tests/cm36_memory_workbench.rs"
+      - "kiana-core/tests/cm36_memory_workbench_guard.rs"
+      - "docs/roadmap/cm36-memory-workbench-baseline.md"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm36-memory-workbench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-workbench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-36 memory workbench fixtures
+        run: cargo test -p kiana-domain --test cm36_memory_workbench --locked -- --test-threads=1
+      - name: Run CM-36 source guard
+        run: cargo test -p kiana-core --test cm36_memory_workbench_guard --locked -- --test-threads=1
