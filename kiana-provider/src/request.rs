@@ -44,6 +44,7 @@ pub(crate) fn compile(
         ));
     }
     let mut route = connection.route.clone();
+    require_gemini_streaming(&mut route);
     if let Some(assignment) = &spec.assignment {
         route.profile = assignment.profile.clone();
     }
@@ -86,7 +87,7 @@ pub(crate) fn compile(
         ModelProtocol::OpenAiResponses => body["max_output_tokens"] = json!(connection.max_output),
         ModelProtocol::OllamaChat => body["options"] = json!({"num_predict":connection.max_output}),
         ModelProtocol::GeminiInteractions => {
-            body["generation_config"] = json!({"max_output_tokens":connection.max_output})
+            gemini_generation_config(&mut body, connection.max_output);
         }
         _ => {}
     }
@@ -165,6 +166,19 @@ pub(crate) fn compile(
     prepared.seal();
     prepared.validate()?;
     Ok(prepared)
+}
+
+fn gemini_generation_config(body: &mut Value, max_output: u64) {
+    // Interactions stream events are the only supported Gemini wire dialect here.
+    body["stream"] = json!(true);
+    body["store"] = json!(false);
+    body["generation_config"] = json!({"max_output_tokens":max_output});
+}
+
+fn require_gemini_streaming(route: &mut ModelRoute) {
+    if route.protocol == ModelProtocol::GeminiInteractions {
+        route.streaming = true;
+    }
 }
 
 fn normalize_structured_request(
@@ -423,7 +437,17 @@ fn gemini_body(
                 let name = names
                     .get(id)
                     .ok_or_else(|| ModelError::invalid("model_history_orphan_tool_result"))?;
-                input.push(json!({"type":"function_result","name":name,"call_id":id,"result":[{"type":"text","text":message.text}]}));
+                let is_error = serde_json::from_str::<Value>(&message.text)
+                    .ok()
+                    .is_some_and(|value| {
+                        value["error"].is_string()
+                            || value["success"] == false
+                            || (value["schema"] == "kiana.tool-observation.v1"
+                                && value["status"]
+                                    .as_str()
+                                    .is_some_and(|status| status != "succeeded"))
+                    });
+                input.push(json!({"type":"function_result","name":name,"call_id":id,"result":[{"type":"text","text":message.text}],"is_error":is_error}));
             }
         }
     }
@@ -432,6 +456,84 @@ fn gemini_body(
         body["tools"]=json!(tools.iter().map(|tool|json!({"type":"function","name":tool["name"],"description":tool["description"],"parameters":tool["parameters"]})).collect::<Vec<_>>());
     }
     Ok(body)
+}
+
+#[cfg(test)]
+mod gemini_interactions_tests {
+    use super::*;
+
+    #[test]
+    fn gemini_interaction_parameters_are_resubmitted_each_turn() {
+        let mut body = json!({"stream":false,"store":true});
+        gemini_generation_config(&mut body, 2048);
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["store"], false);
+        assert_eq!(body["generation_config"]["max_output_tokens"], 2048);
+    }
+
+    #[test]
+    fn gemini_streaming_route_is_forced_for_sse_transport() {
+        let mut route = ModelRoute {
+            provider_id: "gemini".to_owned(),
+            protocol: ModelProtocol::GeminiInteractions,
+            connection_id: "fixture".to_owned(),
+            model_id: "gemini-2.5-flash".to_owned(),
+            profile: "default".to_owned(),
+            configuration_revision: "fixture.v1".to_owned(),
+            streaming: false,
+        };
+        require_gemini_streaming(&mut route);
+        assert!(route.streaming);
+    }
+
+    #[test]
+    fn gemini_stateless_function_result_round_trip() {
+        let tools = tool_schemas();
+        let names = ToolNameMap::from_tools(&tools, true).expect("tool name map");
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::user("check the workspace"),
+                ModelMessage {
+                    role: ModelRole::Assistant,
+                    text: String::new(),
+                    tool_call_id: None,
+                    tool_calls: vec![ModelToolCall {
+                        id: "call-gemini-1".to_owned(),
+                        name: "shell".to_owned(),
+                        arguments: json!({"command":"pwd"}),
+                    }],
+                    content: Vec::new(),
+                    continuation: None,
+                },
+                ModelMessage::tool(
+                    "call-gemini-1",
+                    "{\"schema\":\"kiana.tool-observation.v1\",\"status\":\"failed_known\",\"error_code\":\"denied\"}",
+                ),
+            ],
+            tools: tools.clone(),
+            sandbox: "read-only".to_owned(),
+        };
+        validate_model_history(&request.messages).expect("paired local function result");
+        let body = gemini_body(
+            &request,
+            "system",
+            &tool_map(&tools, &names).unwrap(),
+            &names,
+        )
+        .expect("Interactions request");
+        assert_eq!(body["store"], false);
+        assert_eq!(body["system_instruction"], "system");
+        assert_eq!(body["input"][1]["type"], "function_call");
+        assert_eq!(body["input"][1]["id"], "call-gemini-1");
+        assert_eq!(body["input"][2]["type"], "function_result");
+        assert_eq!(body["input"][2]["call_id"], "call-gemini-1");
+        assert_eq!(body["input"][2]["name"], "shell");
+        assert_eq!(body["input"][2]["is_error"], true);
+        assert_eq!(
+            body["input"][2]["result"][0]["text"],
+            request.messages[2].text
+        );
+    }
 }
 
 /// Reject unsupported schema keywords before sending; never silently weaken a contract.

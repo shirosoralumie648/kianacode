@@ -11533,6 +11533,23 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### P4-J7-19 Gemini Interactions evidence (2026-09-23)
+
+source_snapshot: base `14046890` plus isolated P4-J7-19 source slice; `kiana-provider/src/request.rs`, `kiana-provider/src/response.rs`, `kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs`, `.github/workflows/p4-j7-19-gemini-interactions.yml`, `docs/roadmap/p4-j7-19-gemini-interactions-baseline.md`, `docs/roadmap/provider.md`, `docs/roadmap.md`
+worktree_status: isolated branch `p4-j7-19-gemini-interactions-impl-20260923`; Gemini uses the official Interactions wire dialect and configured v1beta endpoint; stateless local history, terminal-gated function calls and usage checks are added without changing config/transport or introducing hosted/automatic tool execution
+command_argv:
+  rustfmt --edition 2021 --check kiana-provider/src/request.rs kiana-provider/src/response.rs kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked gemini_ -- --test-threads=1; cargo test -p kiana-core --test p4_j7_19_gemini_interactions_guard --locked -- --test-threads=1
+cwd/environment: isolated provider worktree; Linux x86_64; stable Rust toolchain; official Google Interactions API reference and overview reviewed 2026-09-23; local tests/build/check/clippy/smoke deliberately not run; GitHub CI has not run on this source branch
+fixture·cassette: GitHub-only `gemini_requires_action_is_not_run_completion`, `gemini_incomplete_function_arguments_never_dispatch`, `gemini_steps_cannot_follow_terminal_status_update`, `gemini_requires_action_status_must_match_function_steps`, `gemini_generate_content_events_are_not_accepted_as_interactions`, `gemini_stateless_function_result_round_trip`, `gemini_interaction_parameters_are_resubmitted_each_turn`, `gemini_malformed_or_inconsistent_usage_fails_closed`, `gemini_optional_step_usage_does_not_override_terminal_usage`, and Core source guard
+exit_code: 0 for targeted rustfmt --check, cargo fmt --all --check and git diff --check after final source edits; no tests were executed locally or remotely
+status change: P4-J7-19 codec slice and CI wiring are added; roadmap row 396/card remain 🔄 pending dedicated GitHub fixtures
+proof-level change: source plus CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live Gemini request or provider billing proof; protected thought/signature replay and multimodal content remain out of scope for P4-J7-20/P4-J7-22; `ModelUsage` normalizes totals and cannot retain detailed modality/thought/tool-use vectors; CI result is unobserved
+reviewer: Codex source review against official Interactions request/step/status/usage fields; no local runtime test reviewer
+
 ### P4-J7-18 Ollama NDJSON evidence (2026-09-23)
 
 source_snapshot: base d85a4a5b + staged P4-J7-18 patch; kiana-domain/src/model.rs; kiana-provider/src/config.rs; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-provider/tests/p4_j7_08_config.rs; kiana-core/tests/p4_j7_18_ollama_guard.rs; kiana-runner/src/harness.rs; .github/workflows/p4-j7-18-ollama.yml; docs/roadmap/p4-j7-18-ollama-baseline.md; docs/roadmap/provider.md; docs/roadmap.md

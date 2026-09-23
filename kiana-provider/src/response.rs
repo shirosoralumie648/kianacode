@@ -389,6 +389,9 @@ pub(crate) struct Accumulator {
     frames: usize,
     load_duration_ns: Option<u64>,
     generation_duration_ns: Option<u64>,
+    gemini_terminal_status: Option<String>,
+    gemini_step_usage: Option<ModelUsage>,
+    gemini_step_usage_complete: bool,
 }
 impl Accumulator {
     pub(crate) fn new(protocol: ModelProtocol) -> Self {
@@ -406,6 +409,9 @@ impl Accumulator {
             frames: 0,
             load_duration_ns: None,
             generation_duration_ns: None,
+            gemini_terminal_status: None,
+            gemini_step_usage: None,
+            gemini_step_usage_complete: true,
         }
     }
     pub(crate) fn push(
@@ -848,6 +854,9 @@ impl Accumulator {
                 if self.started {
                     return Err(error("provider_duplicate_message_start"));
                 }
+                if required(&value["interaction"], "status")? != "in_progress" {
+                    return Err(error("provider_unexpected_status_update"));
+                }
                 self.started = true;
                 self.id = Some(required(&value["interaction"], "id")?.to_owned());
                 self.model = value["interaction"]["model"].as_str().map(str::to_owned);
@@ -856,17 +865,32 @@ impl Accumulator {
                 if !self.started || value["interaction_id"].as_str() != self.id.as_deref() {
                     return Err(error("provider_response_id_changed"));
                 }
-                if value["status"] != "in_progress" {
-                    return Err(error("provider_unexpected_status_update"));
+                let status = required(&value, "status")?;
+                match status {
+                    "in_progress" => {
+                        if self.gemini_terminal_status.is_some() {
+                            return Err(error("provider_unexpected_status_update"));
+                        }
+                    }
+                    "requires_action" | "completed" => {
+                        if self.gemini_terminal_status.is_some() {
+                            return Err(error("provider_unexpected_status_update"));
+                        }
+                        self.gemini_terminal_status = Some(status.to_owned());
+                    }
+                    "failed" | "cancelled" | "incomplete" | "queued" | "budget_exceeded" => {
+                        return Err(error("provider_response_incomplete"));
+                    }
+                    _ => return Err(error("provider_unexpected_status_update")),
                 }
             }
             Some("step.start") => {
-                if !self.started {
-                    return Err(error("provider_block_outside_message"));
+                if !self.started || self.gemini_terminal_status.is_some() {
+                    return Err(error("provider_step_after_terminal_status"));
                 }
                 let n = index(&value, "index")?;
-                if self.blocks.contains_key(&n) {
-                    return Err(error("provider_duplicate_block"));
+                if n != self.blocks.len() {
+                    return Err(error("provider_step_index_out_of_order"));
                 }
                 let item = &value["step"];
                 match required(item, "type")? {
@@ -910,6 +934,9 @@ impl Accumulator {
                 }
             }
             Some("step.delta") => {
+                if !self.started || self.gemini_terminal_status.is_some() {
+                    return Err(error("provider_step_after_terminal_status"));
+                }
                 let n = index(&value, "index")?;
                 let block = self
                     .blocks
@@ -936,14 +963,27 @@ impl Accumulator {
                 }
             }
             Some("step.stop") => {
+                if !self.started || self.gemini_terminal_status.is_some() {
+                    return Err(error("provider_step_after_terminal_status"));
+                }
+                let n = index(&value, "index")?;
                 let block = self
                     .blocks
-                    .get_mut(&index(&value, "index")?)
+                    .get(&n)
                     .ok_or_else(|| error("provider_stop_without_block"))?;
                 if block.closed {
                     return Err(error("provider_duplicate_block_stop"));
                 }
-                block.closed = true;
+                let usage = gemini_usage(&value["step_usage"])?;
+                self.blocks
+                    .get_mut(&n)
+                    .ok_or_else(|| error("provider_stop_without_block"))?
+                    .closed = true;
+                if let Some(usage) = usage {
+                    accumulate_usage(&mut self.gemini_step_usage, usage)?;
+                } else {
+                    self.gemini_step_usage_complete = false;
+                }
             }
             Some("interaction.completed") => {
                 if !self.started || self.blocks.values().any(|b| !b.closed) {
@@ -953,18 +993,39 @@ impl Accumulator {
                 if interaction["id"].as_str() != self.id.as_deref() {
                     return Err(error("provider_response_id_changed"));
                 }
+                let status = required(interaction, "status")?;
+                if self
+                    .gemini_terminal_status
+                    .as_deref()
+                    .is_some_and(|previous| previous != status)
+                {
+                    return Err(error("provider_unexpected_status_update"));
+                }
                 self.reason = Some(
-                    match required(interaction, "status")? {
+                    match status {
                         "completed" => "end_turn",
                         "requires_action" => "tool_use",
                         _ => return Err(error("provider_response_incomplete")),
                     }
                     .to_owned(),
                 );
-                if let Some(u) = gemini_usage(&interaction["usage"])? {
+                let final_usage = gemini_usage(&interaction["usage"])?;
+                let complete_step_usage = self
+                    .gemini_step_usage_complete
+                    .then(|| self.gemini_step_usage.clone())
+                    .flatten();
+                if final_usage
+                    .as_ref()
+                    .zip(complete_step_usage.as_ref())
+                    .is_some_and(|(final_usage, step_usage)| final_usage != step_usage)
+                {
+                    return Err(error("provider_usage_total_inconsistent"));
+                }
+                if let Some(u) = final_usage.or(complete_step_usage) {
                     self.input = Some(u.input_tokens);
                     self.output = Some(u.output_tokens);
                 }
+                self.gemini_terminal_status = Some(status.to_owned());
                 self.finished = true;
             }
             Some("error" | "interaction.failed" | "interaction.cancelled") => {
@@ -1121,34 +1182,97 @@ fn verify_item(
 }
 
 fn gemini_usage(value: &Value) -> Result<Option<ModelUsage>, ModelError> {
-    let Some(mut measured) = usage(value, "total_input_tokens", "total_output_tokens")? else {
+    if value.is_null() {
         return Ok(None);
-    };
-    if let Some(thought) = value.get("total_thought_tokens") {
-        measured.output_tokens = measured
-            .output_tokens
-            .checked_add(
-                thought
-                    .as_u64()
-                    .ok_or_else(|| error("provider_usage_invalid"))?,
-            )
-            .ok_or_else(|| error("provider_usage_overflow"))?;
     }
-    if let Some(total) = value.get("total_tokens") {
-        let total = total
-            .as_u64()
-            .ok_or_else(|| error("provider_usage_invalid"))?;
-        let known = measured
-            .input_tokens
-            .checked_add(measured.output_tokens)
-            .ok_or_else(|| error("provider_usage_overflow"))?;
-        if total < known {
-            return Err(error("provider_usage_total_inconsistent"));
+    if !value.is_object() {
+        return Err(error("provider_usage_invalid"));
+    }
+    for field in [
+        "total_cached_tokens",
+        "total_thought_tokens",
+        "total_tokens",
+        "total_tool_use_tokens",
+    ] {
+        if value
+            .get(field)
+            .is_some_and(|value| value.as_u64().is_none())
+        {
+            return Err(error("provider_usage_invalid"));
         }
-        // Internal tokens omitted from visible output remain charged to this attempt.
-        measured.output_tokens = total - measured.input_tokens;
     }
-    Ok(Some(measured))
+    let (input_tokens, output_tokens) = match (
+        value.get("total_input_tokens"),
+        value.get("total_output_tokens"),
+    ) {
+        (None, None) => {
+            if [
+                "total_cached_tokens",
+                "total_thought_tokens",
+                "total_tokens",
+                "total_tool_use_tokens",
+            ]
+            .iter()
+            .any(|field| value.get(*field).is_some())
+            {
+                return Err(error("provider_usage_invalid"));
+            }
+            return Ok(None);
+        }
+        (Some(input), Some(output)) => (
+            input
+                .as_u64()
+                .ok_or_else(|| error("provider_usage_invalid"))?,
+            output
+                .as_u64()
+                .ok_or_else(|| error("provider_usage_invalid"))?,
+        ),
+        _ => return Err(error("provider_usage_invalid")),
+    };
+    let thought_tokens = value["total_thought_tokens"].as_u64().unwrap_or(0);
+    let measured = input_tokens
+        .checked_add(output_tokens)
+        .and_then(|total| total.checked_add(thought_tokens))
+        .ok_or_else(|| error("provider_usage_overflow"))?;
+    let normalized_output = match value.get("total_tokens") {
+        Some(total) => {
+            let total = total
+                .as_u64()
+                .ok_or_else(|| error("provider_usage_invalid"))?;
+            if total < measured {
+                return Err(error("provider_usage_total_inconsistent"));
+            }
+            total
+                .checked_sub(input_tokens)
+                .ok_or_else(|| error("provider_usage_total_inconsistent"))?
+        }
+        None => output_tokens
+            .checked_add(thought_tokens)
+            .ok_or_else(|| error("provider_usage_overflow"))?,
+    };
+    Ok(Some(ModelUsage {
+        input_tokens,
+        output_tokens: normalized_output,
+    }))
+}
+
+fn accumulate_usage(
+    accumulated: &mut Option<ModelUsage>,
+    next: ModelUsage,
+) -> Result<(), ModelError> {
+    let Some(current) = accumulated else {
+        *accumulated = Some(next);
+        return Ok(());
+    };
+    current.input_tokens = current
+        .input_tokens
+        .checked_add(next.input_tokens)
+        .ok_or_else(|| error("provider_usage_overflow"))?;
+    current.output_tokens = current
+        .output_tokens
+        .checked_add(next.output_tokens)
+        .ok_or_else(|| error("provider_usage_overflow"))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1505,6 +1629,211 @@ mod tests {
         prepared.route.protocol = ModelProtocol::OpenAiResponses;
         prepared.seal();
         prepared
+    }
+
+    fn gemini_prepared() -> PreparedModelCall {
+        let mut prepared = anthropic_prepared();
+        prepared.route.provider_id = "gemini".to_owned();
+        prepared.route.protocol = ModelProtocol::GeminiInteractions;
+        prepared.route.model_id = "gemini-2.5-flash".to_owned();
+        prepared.seal();
+        prepared
+    }
+
+    #[test]
+    fn gemini_requires_action_is_not_run_completion() {
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        assert!(!accumulator
+            .push(
+                r#"{"event_type":"interaction.created","interaction":{"id":"interaction-1","model":"gemini-2.5-flash","status":"in_progress"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!accumulator
+            .push(
+                r#"{"event_type":"step.start","index":0,"step":{"type":"function_call","id":"call-1","name":"shell","arguments":{}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!accumulator
+            .push(
+                r#"{"event_type":"step.delta","index":0,"delta":{"type":"arguments_delta","arguments":"{\"command\":\"pwd\"}"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!accumulator
+            .push(
+                r#"{"event_type":"step.stop","index":0,"step_usage":{"total_input_tokens":2,"total_output_tokens":3,"total_thought_tokens":0,"total_tokens":5}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!accumulator
+            .push(
+                r#"{"event_type":"interaction.status_update","interaction_id":"interaction-1","status":"requires_action"}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        assert!(!deltas
+            .iter()
+            .any(|delta| matches!(delta, ModelDelta::ToolArguments { .. })));
+        assert!(accumulator
+            .push(
+                r#"{"event_type":"interaction.completed","interaction":{"id":"interaction-1","status":"requires_action","usage":{"total_input_tokens":2,"total_output_tokens":3,"total_thought_tokens":0,"total_tokens":5}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap());
+        let reply = accumulator.finish(&prepared).unwrap();
+        assert_eq!(reply.finish, ModelFinish::ToolUse);
+        assert_eq!(reply.output.tool_calls[0].id, "call-1");
+        assert_eq!(reply.output.tool_calls[0].arguments["command"], "pwd");
+        assert_eq!(reply.output.usage.unwrap().output_tokens, 3);
+    }
+
+    #[test]
+    fn gemini_incomplete_function_arguments_never_dispatch() {
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        for frame in [
+            r#"{"event_type":"interaction.created","interaction":{"id":"interaction-2","status":"in_progress"}}"#,
+            r#"{"event_type":"step.start","index":0,"step":{"type":"function_call","id":"call-2","name":"shell","arguments":{}}}"#,
+            r#"{"event_type":"step.delta","index":0,"delta":{"type":"arguments_delta","arguments":"{\"command\":"}}"#,
+            r#"{"event_type":"step.stop","index":0}"#,
+            r#"{"event_type":"interaction.completed","interaction":{"id":"interaction-2","status":"requires_action"}}"#,
+        ] {
+            accumulator.push(frame, &mut sink(&mut deltas)).unwrap();
+        }
+        assert!(!deltas
+            .iter()
+            .any(|delta| matches!(delta, ModelDelta::ToolArguments { .. })));
+        assert_eq!(
+            accumulator.finish(&prepared).unwrap_err().code,
+            "provider_tool_json_invalid"
+        );
+    }
+
+    #[test]
+    fn gemini_steps_cannot_follow_terminal_status_update() {
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"event_type":"interaction.created","interaction":{"id":"interaction-5","status":"in_progress"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"event_type":"interaction.status_update","interaction_id":"interaction-5","status":"requires_action"}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert_eq!(
+            accumulator
+                .push(
+                    r#"{"event_type":"step.start","index":0,"step":{"type":"function_call","id":"call-late","name":"shell","arguments":{"command":"pwd"}}}"#,
+                    &mut sink(&mut deltas),
+                )
+                .unwrap_err()
+                .code,
+            "provider_step_after_terminal_status"
+        );
+        assert!(!deltas
+            .iter()
+            .any(|delta| matches!(delta, ModelDelta::ToolArguments { .. })));
+    }
+
+    #[test]
+    fn gemini_requires_action_status_must_match_function_steps() {
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        for frame in [
+            r#"{"event_type":"interaction.created","interaction":{"id":"interaction-6","status":"in_progress"}}"#,
+            r#"{"event_type":"step.start","index":0,"step":{"type":"model_output","content":[{"type":"text","text":"done"}]}}"#,
+            r#"{"event_type":"step.stop","index":0}"#,
+            r#"{"event_type":"interaction.completed","interaction":{"id":"interaction-6","status":"requires_action"}}"#,
+        ] {
+            accumulator.push(frame, &mut sink(&mut deltas)).unwrap();
+        }
+        assert_eq!(
+            accumulator.finish(&prepared).unwrap_err().code,
+            "model_stop_content_mismatch"
+        );
+    }
+
+    #[test]
+    fn gemini_generate_content_events_are_not_accepted_as_interactions() {
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        assert_eq!(
+            accumulator
+                .push(
+                    r#"{"candidates":[{"content":{"parts":[{"text":"not an Interactions event"}]}}]}"#,
+                    &mut sink(&mut deltas),
+                )
+                .unwrap_err()
+                .code,
+            "provider_unknown_required_event"
+        );
+        assert_eq!(
+            decode(
+                json!({"candidates":[{"content":{"parts":[{"text":"not an Interaction"}]}}]}),
+                &gemini_prepared(),
+            )
+            .unwrap_err()
+            .code,
+            "provider_response_incomplete"
+        );
+    }
+
+    #[test]
+    fn gemini_malformed_or_inconsistent_usage_fails_closed() {
+        let prepared = gemini_prepared();
+        for usage in [
+            json!({"total_input_tokens": 2}),
+            json!({"total_input_tokens": "2", "total_output_tokens": 1}),
+            json!({"total_input_tokens": 2, "total_output_tokens": 3, "total_thought_tokens": 1, "total_tokens": 5}),
+        ] {
+            assert_eq!(
+                decode(
+                    json!({"id":"interaction-3","status":"completed","steps":[{"type":"model_output","content":[{"type":"text","text":"ok"}]}],"usage":usage}),
+                    &prepared,
+                )
+                .unwrap_err()
+                .code,
+                if usage.get("total_input_tokens").is_some_and(|v| v.as_str().is_some()) {
+                    "provider_usage_invalid"
+                } else if usage.get("total_tokens").is_some() {
+                    "provider_usage_total_inconsistent"
+                } else {
+                    "provider_usage_invalid"
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn gemini_optional_step_usage_does_not_override_terminal_usage() {
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        for frame in [
+            r#"{"event_type":"interaction.created","interaction":{"id":"interaction-4","status":"in_progress"}}"#,
+            r#"{"event_type":"step.start","index":0,"step":{"type":"model_output","content":[]}}"#,
+            r#"{"event_type":"step.stop","index":0,"step_usage":{"total_input_tokens":1,"total_output_tokens":1,"total_tokens":2}}"#,
+            r#"{"event_type":"step.start","index":1,"step":{"type":"model_output","content":[{"type":"text","text":"ok"}]}}"#,
+            r#"{"event_type":"step.stop","index":1}"#,
+            r#"{"event_type":"interaction.completed","interaction":{"id":"interaction-4","status":"completed","usage":{"total_input_tokens":3,"total_output_tokens":4,"total_tokens":7}}}"#,
+        ] {
+            accumulator.push(frame, &mut sink(&mut deltas)).unwrap();
+        }
+        let reply = accumulator.finish(&prepared).unwrap();
+        let usage = reply.output.usage.unwrap();
+        assert_eq!(usage.input_tokens, 3);
+        assert_eq!(usage.output_tokens, 4);
     }
 
     #[test]
