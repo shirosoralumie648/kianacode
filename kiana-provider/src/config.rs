@@ -35,6 +35,8 @@ pub(crate) struct ProfileConfig {
     #[serde(default)]
     pub capabilities: Option<DeclaredCapabilities>,
     #[serde(default)]
+    pub ollama_load_timeout_ms: Option<u64>,
+    #[serde(default)]
     pub inherit_default: bool,
 }
 #[derive(Clone, Deserialize, Serialize)]
@@ -96,6 +98,22 @@ fn support(value: bool) -> CapabilitySupport {
         CapabilitySupport::Unsupported
     }
 }
+
+fn parse_ollama_load_timeout(
+    provider: &str,
+    timeout_ms: Option<u64>,
+) -> Result<Option<Duration>, ModelError> {
+    match (provider, timeout_ms) {
+        ("ollama", Some(timeout_ms)) if (1_000..=150_000).contains(&timeout_ms) => {
+            Ok(Some(Duration::from_millis(timeout_ms)))
+        }
+        ("ollama", None) => Ok(None),
+        ("ollama", Some(_)) => Err(ModelError::invalid("ollama_load_timeout_invalid")),
+        (_, Some(_)) => Err(ModelError::invalid("ollama_load_timeout_provider_mismatch")),
+        (_, None) => Ok(None),
+    }
+}
+
 pub(crate) fn connections(
     config: ProviderConfig,
 ) -> Result<(BTreeMap<String, Connection>, bool), ModelError> {
@@ -128,6 +146,7 @@ pub(crate) fn connections(
                 || value.base_url.is_some()
                 || value.api_key_env.is_some()
                 || value.capabilities.is_some()
+                || value.ollama_load_timeout_ms.is_some()
             {
                 return Err(ModelError::invalid("model_profile_inheritance_conflict"));
             }
@@ -136,6 +155,8 @@ pub(crate) fn connections(
                 .ok_or_else(|| ModelError::invalid("model_default_route_unavailable"))?
                 .clone()
         } else {
+            let ollama_load_timeout =
+                parse_ollama_load_timeout(&value.provider, value.ollama_load_timeout_ms)?;
             let key_env = if let Some(name) = value.api_key_env {
                 if name.is_empty()
                     || !name
@@ -162,6 +183,7 @@ pub(crate) fn connections(
                 },
                 value.capabilities,
                 key_env,
+                ollama_load_timeout,
             )?
         };
         item.route.profile = profile.clone();
@@ -188,12 +210,47 @@ pub(crate) fn connections(
     }
     Ok((result, true))
 }
+
+#[cfg(test)]
+mod ollama_timeout_tests {
+    use super::*;
+
+    #[test]
+    fn ollama_load_timeout_is_bounded_by_transport_total() {
+        assert_eq!(
+            parse_ollama_load_timeout("ollama", Some(1_000)).unwrap(),
+            Some(Duration::from_secs(1))
+        );
+        assert_eq!(
+            parse_ollama_load_timeout("ollama", Some(150_000)).unwrap(),
+            Some(Duration::from_secs(150))
+        );
+        assert_eq!(
+            parse_ollama_load_timeout("ollama", Some(999))
+                .unwrap_err()
+                .code,
+            "ollama_load_timeout_invalid"
+        );
+        assert_eq!(
+            parse_ollama_load_timeout("ollama", Some(150_001))
+                .unwrap_err()
+                .code,
+            "ollama_load_timeout_invalid"
+        );
+        assert_eq!(
+            parse_ollama_load_timeout("openai", Some(1_000))
+                .unwrap_err()
+                .code,
+            "ollama_load_timeout_provider_mismatch"
+        );
+    }
+}
 fn connection(
     name: &str,
     config: ProviderConfig,
     declared: Option<DeclaredCapabilities>,
 ) -> Result<Connection, ModelError> {
-    connection_with_credential_env(name, config, declared, None)
+    connection_with_credential_env(name, config, declared, None, None)
 }
 
 fn connection_with_credential_env(
@@ -201,6 +258,7 @@ fn connection_with_credential_env(
     config: ProviderConfig,
     declared: Option<DeclaredCapabilities>,
     credential_env_override: Option<String>,
+    ollama_load_timeout: Option<Duration>,
 ) -> Result<Connection, ModelError> {
     let provider = config
         .provider
@@ -337,11 +395,12 @@ fn connection_with_credential_env(
             "none".to_owned(),
         )
     };
-    let streaming = match env("KIANA_STREAMING").as_deref() {
+    let streaming_override = match env("KIANA_STREAMING").as_deref() {
         None | Some("auto" | "on" | "1" | "true" | "yes") => true,
         Some("off" | "0" | "false" | "no") => false,
         _ => return Err(ModelError::invalid("model_streaming_policy_invalid")),
     };
+    let streaming = protocol == ModelProtocol::OllamaChat || streaming_override;
     let known = match protocol {
         ModelProtocol::AnthropicMessages => matches!(
             model.as_str(),
@@ -398,7 +457,8 @@ fn connection_with_credential_env(
         };
     let revision = json_digest(
         &json!({"provider":provider,"protocol":protocol,"model":model,"origin":endpoint.as_str(),
-        "credential_revision":credential_revision,"declared":declared,"streaming":streaming}),
+        "credential_revision":credential_revision,"declared":declared,"streaming":streaming,
+        "ollama_load_timeout_ms":ollama_load_timeout.map(|value| value.as_millis())}),
     );
     let provider_account = json_digest(&json!({
         "provider": provider,
@@ -416,6 +476,7 @@ fn connection_with_credential_env(
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
+        .retry(reqwest::retry::never())
         .connect_timeout(Duration::from_secs(15))
         .pool_idle_timeout(Duration::from_secs(60))
         .build()
@@ -442,6 +503,12 @@ fn connection_with_credential_env(
     if max_concurrency == 0 || max_concurrency > 128 {
         return Err(ModelError::invalid("model_concurrency_invalid"));
     }
+    let mut limits = TransportLimits::default();
+    if protocol == ModelProtocol::OllamaChat {
+        if let Some(timeout) = ollama_load_timeout {
+            limits.first_event = timeout;
+        }
+    }
     Ok(Connection {
         route,
         capabilities,
@@ -451,7 +518,7 @@ fn connection_with_credential_env(
         credential_revision,
         credential_store,
         client,
-        limits: TransportLimits::default(),
+        limits,
         max_output,
         capacity: std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrency)),
     })

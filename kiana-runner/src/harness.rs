@@ -1472,6 +1472,7 @@ impl KianaHarness {
                 "outcome":result.as_ref().ok().map(|reply|reply.outcome()).or_else(||result.as_ref().err().map(|error|error.outcome())),
                 "retry_class":result.as_ref().err().map(|error|error.retry_class),
                 "assistant":result.as_ref().ok().map(|reply|kiana_domain::redact_value(&json!(reply.output))),
+                "provider_timing":result.as_ref().ok().and_then(|reply|reply.provider_timing.as_ref()),
                 "error":result.as_ref().err(),
             })})?;
             match result {

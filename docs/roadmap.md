@@ -564,7 +564,7 @@
 | 392 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
 | 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
 | 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
-| 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-18) |
+| 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-18) |
 | 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-19) |
 | 397 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-20) |
 | 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-21) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；本地不运行测试，静态检查通过，CI 推送后待观察 | 本提交 |
 | 2026-09-21 | `P4-J7-17` OpenAI Responses：固化 stateless instructions/input/function_call_output、store=false、output item/call_id identity、completed-only terminal 与 hosted/reasoning item 拒绝；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-16` OpenAI Chat：固化原生 Chat Completions `max_completion_tokens`、usage-only chunk、n=1、交错 tool-call index/id/name、finish/[DONE] 终态与 malformed argument 拒绝；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-15` Anthropic Messages：收口 system/content/tool_result 编码、原生 block 生命周期、message_delta 累计 usage、message_stop 严格终态与私有 replay deny；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |

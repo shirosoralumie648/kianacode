@@ -278,7 +278,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-18 Ollama 原生 NDJSON 与本地模型体验　⏳
+#### P4-J7-18 Ollama 原生 NDJSON 与本地模型体验　🔄
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
 - **改动位置**：provider/protocols/ollama、catalog、compatibility；Ollama NDJSON fixtures。
@@ -286,6 +286,8 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`ollama_eof_without_done_is_incomplete`、`ollama_same_name_tools_keep_distinct_invocations`、`ollama_unknown_tools_support_is_not_assumed`。
 - **再成功**：`ollama_streams_before_model_completion`、`ollama_tool_result_continuation_uses_stable_local_ids`、`ollama_load_latency_is_distinct_from_generation_latency`。
 - **退出 / 证据**：不自动拉取、创建或删除本地模型；synthetic→native 仅针对通过实际 NDJSON 测试的能力范围。
+- **本次实现**：NDJSON 增量、done/content fail-closed、工具序号稳定 ID 与结果续接、显式 Ollama load timeout、load/generation timing 进入 ModelTurn；专属 CI workflow 已加入。
+- **状态**：代码与 CI workflow 已准备推送；CI run 结果未核验前保持 🔄，证明上限为 `source`。
 
 <a id="step-p4-j7-19"></a>
 
