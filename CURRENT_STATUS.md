@@ -11511,6 +11511,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### P4-J7-18 Ollama NDJSON evidence (2026-09-23)
+
+source_snapshot: base d85a4a5b + staged P4-J7-18 patch; kiana-domain/src/model.rs; kiana-provider/src/config.rs; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-provider/tests/p4_j7_08_config.rs; kiana-core/tests/p4_j7_18_ollama_guard.rs; kiana-runner/src/harness.rs; .github/workflows/p4-j7-18-ollama.yml; docs/roadmap/p4-j7-18-ollama-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: Ollama Chat uses bounded NDJSON and incremental text delivery; terminal messages require assistant content and boolean done, successful completion requires done=true, stable local IDs use ModelCallId plus tool ordinal, tool results map to the original advertised tool name, unknown tools fail closed, profile load timeout is bounded to the transport total, and load/generation timing is retained in ModelTurn metadata.
+command_argv:
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-provider --test p4_j7_08_config --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_18_ollama_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority and will be started after push without waiting
+fixture·cassette: GitHub-only Ollama NDJSON deny/success fixtures, profile timeout boundaries and core source guard in p4-j7-18-ollama.yml
+exit_code: 0 for cargo fmt --all --check and git diff --check; local tests deliberately not run; remote CI result not yet observed
+status change: P4-J7-18 source and GitHub CI wiring are implemented; roadmap completion remains pending until the remote workflow result is available
+proof-level change: source; no local_behavior, durable, live or physical promotion
+limitations: no local Ollama endpoint/model was contacted; remote CI has not yet reported; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
+reviewer: Codex root implementation review plus deny/done, tool identity/continuation, timeout bounds, event timing projection and local model lifecycle boundary review; no local runtime test reviewer
+
 ### P4-J7-17 OpenAI Responses evidence (2026-09-21)
 
 source_snapshot: a82f80c4 + P4-J7-17 source slice; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-core/tests/p4_j7_17_openai_responses_guard.rs; .github/workflows/p4-j7-17-openai-responses.yml; docs/roadmap/p4-j7-17-openai-responses-baseline.md; docs/roadmap/provider.md; docs/roadmap.md

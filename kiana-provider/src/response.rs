@@ -29,6 +29,43 @@ fn usage(value: &Value, input: &str, output: &str) -> Result<Option<ModelUsage>,
     }
 }
 
+fn ollama_usage(value: &Value) -> Result<Option<ModelUsage>, ModelError> {
+    match (value.get("prompt_eval_count"), value.get("eval_count")) {
+        (None, None) => Ok(None),
+        (Some(input), Some(output)) => {
+            let input_tokens = input
+                .as_u64()
+                .ok_or_else(|| error("provider_usage_invalid"))?;
+            let output_tokens = output
+                .as_u64()
+                .ok_or_else(|| error("provider_usage_invalid"))?;
+            input_tokens
+                .checked_add(output_tokens)
+                .ok_or_else(|| error("provider_usage_overflow"))?;
+            Ok(Some(ModelUsage {
+                input_tokens,
+                output_tokens,
+            }))
+        }
+        _ => Err(error("provider_usage_invalid")),
+    }
+}
+
+fn ollama_timing(value: &Value) -> Result<Option<ProviderTiming>, ModelError> {
+    let duration = |field| match value.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| error("provider_timing_invalid")),
+    };
+    let timing = ProviderTiming {
+        load_duration_ns: duration("load_duration")?,
+        generation_duration_ns: duration("eval_duration")?,
+    };
+    Ok((!timing.is_empty()).then_some(timing))
+}
+
 fn update_monotonic(slot: &mut Option<u64>, next: u64) -> Result<(), ModelError> {
     if slot.is_some_and(|previous| next < previous) {
         return Err(error("provider_usage_regressed"));
@@ -67,6 +104,11 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
     let mut calls = Vec::new();
     let reason: String;
     let measured: Option<ModelUsage>;
+    let provider_timing = if prepared.route.protocol == ModelProtocol::OllamaChat {
+        ollama_timing(&value)?
+    } else {
+        None
+    };
     let response_id = value["id"].as_str().map(str::to_owned);
     match prepared.route.protocol {
         ModelProtocol::AnthropicMessages => {
@@ -179,11 +221,25 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             measured = usage(&value["usage"], "input_tokens", "output_tokens")?;
         }
         ModelProtocol::OllamaChat => {
-            if value["done"] != true {
+            let message = value
+                .get("message")
+                .filter(|message| message.is_object())
+                .ok_or_else(|| error("provider_message_invalid"))?;
+            if message["role"] != "assistant"
+                || !message["content"].is_string()
+                || value.get("done_reason").is_none()
+            {
+                return Err(error("provider_message_invalid"));
+            }
+            if value
+                .get("done")
+                .and_then(Value::as_bool)
+                .ok_or_else(|| error("provider_done_flag_invalid"))?
+                != true
+            {
                 return Err(error("provider_response_incomplete"));
             }
-            let message = &value["message"];
-            text = message["content"].as_str().unwrap_or("").to_owned();
+            text = message["content"].as_str().unwrap_or_default().to_owned();
             if let Some(items) = message.get("tool_calls") {
                 for (ordinal, item) in items
                     .as_array()
@@ -210,7 +266,7 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
                 raw
             }
             .to_owned();
-            measured = usage(&value, "prompt_eval_count", "eval_count")?;
+            measured = ollama_usage(&value)?;
         }
         ModelProtocol::GeminiInteractions => {
             let status = required(&value, "status")?;
@@ -305,6 +361,7 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
         replay: Vec::new(),
         provider_request_id: None,
         provider_response_id: response_id,
+        provider_timing,
     })
 }
 
@@ -330,6 +387,8 @@ pub(crate) struct Accumulator {
     id: Option<String>,
     final_value: Option<Value>,
     frames: usize,
+    load_duration_ns: Option<u64>,
+    generation_duration_ns: Option<u64>,
 }
 impl Accumulator {
     pub(crate) fn new(protocol: ModelProtocol) -> Self {
@@ -345,6 +404,8 @@ impl Accumulator {
             id: None,
             final_value: None,
             frames: 0,
+            load_duration_ns: None,
+            generation_duration_ns: None,
         }
     }
     pub(crate) fn push(
@@ -716,10 +777,18 @@ impl Accumulator {
         if value.get("error").is_some() {
             return Err(error("provider_stream_error"));
         }
-        if let Some(text) = value["message"]["content"].as_str() {
-            self.text(0, text, sink)?;
+        let message = value
+            .get("message")
+            .filter(|message| message.is_object())
+            .ok_or_else(|| error("provider_message_invalid"))?;
+        if message["role"] != "assistant" {
+            return Err(error("provider_message_invalid"));
         }
-        if let Some(items) = value["message"].get("tool_calls") {
+        let text = message["content"]
+            .as_str()
+            .ok_or_else(|| error("provider_message_invalid"))?;
+        self.text(0, text, sink)?;
+        if let Some(items) = message.get("tool_calls") {
             for item in items
                 .as_array()
                 .ok_or_else(|| error("provider_tool_calls_invalid"))?
@@ -747,10 +816,23 @@ impl Accumulator {
                 );
             }
         }
-        if value["done"] == true {
+        let done = value
+            .get("done")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| error("provider_done_flag_invalid"))?;
+        if done {
+            if value.get("done_reason").is_none() {
+                return Err(error("provider_stop_reason_missing"));
+            }
             self.reason = Some(required(&value, "done_reason")?.to_owned());
-            self.input = value["prompt_eval_count"].as_u64();
-            self.output = value["eval_count"].as_u64();
+            let usage = ollama_usage(&value)?;
+            self.input = usage.as_ref().map(|usage| usage.input_tokens);
+            self.output = usage.as_ref().map(|usage| usage.output_tokens);
+            let timing = ollama_timing(&value)?;
+            self.load_duration_ns = timing.as_ref().and_then(|timing| timing.load_duration_ns);
+            self.generation_duration_ns = timing
+                .as_ref()
+                .and_then(|timing| timing.generation_duration_ns);
             self.model = value["model"].as_str().map(str::to_owned);
             self.finished = true;
         }
@@ -927,10 +1009,13 @@ impl Accumulator {
         }
         let mut text = String::new();
         let mut tools = Vec::new();
-        for (ordinal, block) in self.blocks.into_values().enumerate() {
+        let mut tool_ordinal = 0usize;
+        for block in self.blocks.into_values() {
             if block.kind == "text" {
                 text.push_str(&block.text);
             } else {
+                let ordinal = tool_ordinal;
+                tool_ordinal += 1;
                 let input = if block.args.is_empty() {
                     block.input
                 } else {
@@ -975,6 +1060,13 @@ impl Accumulator {
             replay: Vec::new(),
             provider_request_id: None,
             provider_response_id: self.id,
+            provider_timing: match (self.load_duration_ns, self.generation_duration_ns) {
+                (None, None) => None,
+                (load_duration_ns, generation_duration_ns) => Some(ProviderTiming {
+                    load_duration_ns,
+                    generation_duration_ns,
+                }),
+            },
         };
         if result.output.tool_calls.is_empty() {
             match &prepared.spec.response_format {
@@ -1486,5 +1578,225 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(error.code, "provider_final_item_mismatch");
+    }
+
+    fn ollama_prepared() -> PreparedModelCall {
+        let mut prepared = anthropic_prepared();
+        prepared.route.provider_id = "ollama".to_owned();
+        prepared.route.protocol = ModelProtocol::OllamaChat;
+        prepared.seal();
+        prepared
+    }
+
+    #[test]
+    fn ollama_load_latency_is_distinct_from_generation_latency() {
+        let prepared = ollama_prepared();
+        let reply = decode(
+            serde_json::json!({
+                "model": "qwen-fixture",
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"function":{"name":"shell","arguments":{"command":"pwd"}}},
+                        {"function":{"name":"shell","arguments":{"command":"ls"}}}
+                    ]
+                },
+                "done": true,
+                "done_reason": "stop",
+                "prompt_eval_count": 2,
+                "eval_count": 3,
+                "load_duration": 11,
+                "eval_duration": 22
+            }),
+            &prepared,
+        )
+        .unwrap();
+        assert_eq!(reply.output.tool_calls.len(), 2);
+        assert_eq!(reply.output.tool_calls[0].name, "shell");
+        let timing = reply.provider_timing.unwrap();
+        assert_eq!(timing.load_duration_ns, Some(11));
+        assert_eq!(timing.generation_duration_ns, Some(22));
+    }
+
+    #[test]
+    fn ollama_eof_without_done_is_incomplete() {
+        let prepared = ollama_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::OllamaChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":"partial"},"done":false}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert_eq!(
+            accumulator.finish(&prepared).unwrap_err().code,
+            "provider_stream_incomplete"
+        );
+    }
+
+    #[test]
+    fn ollama_same_name_tools_keep_distinct_invocations() {
+        let prepared = ollama_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::OllamaChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"shell","arguments":{"command":"pwd"}}},{"function":{"name":"shell","arguments":{"command":"ls"}}}]},"done":true,"done_reason":"stop","load_duration":1,"eval_duration":2}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let reply = accumulator.finish(&prepared).unwrap();
+        assert_ne!(reply.output.tool_calls[0].id, reply.output.tool_calls[1].id);
+    }
+
+    #[test]
+    fn ollama_unknown_tools_support_is_not_assumed() {
+        let prepared = ollama_prepared();
+        let error = decode(
+            serde_json::json!({
+                "model": "qwen-fixture",
+                "message": {"role":"assistant","content":"","tool_calls":[{"function":{"name":"unknown","arguments":{}}}]},
+                "done": true,
+                "done_reason": "stop"
+            }),
+            &prepared,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "provider_returned_unadvertised_tool");
+    }
+
+    #[test]
+    fn ollama_streams_before_model_completion() {
+        let prepared = ollama_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::OllamaChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":"working "},"done":false}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert!(deltas
+            .iter()
+            .any(|delta| matches!(delta, ModelDelta::Text { text } if text == "working ")));
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":"now"},"done":false}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","prompt_eval_count":2,"eval_count":3}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        let reply = accumulator.finish(&prepared).unwrap();
+        assert_eq!(reply.output.text, "working now");
+    }
+
+    #[test]
+    fn ollama_tool_result_continuation_uses_stable_local_ids() {
+        let prepared = ollama_prepared();
+        let wire_reply = serde_json::json!({
+            "model": "qwen-fixture",
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function":{"name":"shell","arguments":{"command":"pwd"}}},
+                    {"function":{"name":"shell","arguments":{"command":"ls"}}}
+                ]
+            },
+            "done": true,
+            "done_reason": "stop"
+        });
+        let one_shot = decode(wire_reply.clone(), &prepared).unwrap();
+        let mut accumulator = Accumulator::new(ModelProtocol::OllamaChat);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"model":"qwen-fixture","message":{"role":"assistant","content":"prefix"},"done":false}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        accumulator
+            .push(&wire_reply.to_string(), &mut sink(&mut deltas))
+            .unwrap();
+        let streamed = accumulator.finish(&prepared).unwrap();
+        assert_eq!(
+            streamed.output.tool_calls, one_shot.output.tool_calls,
+            "text chunks must not shift Ollama's local tool ordinals"
+        );
+
+        let tools = tool_schemas();
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::assistant_with_tools("", streamed.output.tool_calls.clone()),
+                ModelMessage::tool(&streamed.output.tool_calls[0].id, "working directory"),
+                ModelMessage::tool(&streamed.output.tool_calls[1].id, "file list"),
+            ],
+            tools: tools.clone(),
+            sandbox: "read-only".to_owned(),
+        };
+        let names = ToolNameMap::from_tools(&tools, true).unwrap();
+        let body = crate::request::ollama_body(&request, "", &[], &names).unwrap();
+        assert_eq!(
+            body["messages"][0]["tool_calls"][0]["id"],
+            streamed.output.tool_calls[0].id
+        );
+        assert_eq!(body["messages"][1]["tool_name"], "shell");
+        assert_eq!(body["messages"][2]["tool_name"], "shell");
+        assert!(body["messages"][1].get("tool_call_id").is_none());
+        assert!(body["messages"][2].get("tool_call_id").is_none());
+    }
+
+    #[test]
+    fn ollama_malformed_message_and_done_flags_fail_closed() {
+        let prepared = ollama_prepared();
+        let error = decode(
+            serde_json::json!({"done":true,"done_reason":"stop"}),
+            &prepared,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "provider_message_invalid");
+
+        let mut accumulator = Accumulator::new(ModelProtocol::OllamaChat);
+        let mut deltas = Vec::new();
+        let error = accumulator
+            .push(
+                r#"{"message":{"role":"assistant","content":"hello"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "provider_done_flag_invalid");
+    }
+
+    #[test]
+    fn ollama_partial_or_malformed_observations_fail_closed() {
+        let prepared = ollama_prepared();
+        for wire_reply in [
+            serde_json::json!({
+                "message":{"role":"assistant","content":"ok"},
+                "done":true,
+                "done_reason":"stop",
+                "prompt_eval_count":2
+            }),
+            serde_json::json!({
+                "message":{"role":"assistant","content":"ok"},
+                "done":true,
+                "done_reason":"stop",
+                "eval_count":3,
+                "load_duration":"fast"
+            }),
+        ] {
+            let error = decode(wire_reply, &prepared).unwrap_err();
+            assert!(matches!(
+                error.code.as_str(),
+                "provider_usage_invalid" | "provider_timing_invalid"
+            ));
+        }
     }
 }

@@ -41,6 +41,9 @@ fn config() -> ProviderConfig {
 #[test]
 fn profile_snapshot_is_secret_free_and_changes_revision_on_route_change() {
     let _env = EnvRestore::new(&[
+        "KIANA_PROVIDER",
+        "KIANA_MODEL",
+        "KIANA_BASE_URL",
         "KIANA_MODEL_PROFILES_JSON",
         "KIANA_STREAMING",
         "KIANA_MODEL_MAX_CONCURRENCY",
@@ -101,4 +104,74 @@ fn unknown_profile_and_invalid_streaming_policy_fail_closed() {
         Err(error) => error,
     };
     assert_eq!(error.code, "model_streaming_policy_invalid");
+}
+
+#[test]
+fn ollama_load_timeout_is_provider_scoped_and_bounded() {
+    let _env = EnvRestore::new(&[
+        "KIANA_PROVIDER",
+        "KIANA_MODEL",
+        "KIANA_BASE_URL",
+        "KIANA_MODEL_PROFILES_JSON",
+        "KIANA_STREAMING",
+        "KIANA_MODEL_MAX_CONCURRENCY",
+    ]);
+    std::env::set_var("KIANA_PROVIDER", "ollama");
+    std::env::set_var("KIANA_MODEL", "default-model");
+    std::env::set_var("KIANA_BASE_URL", "http://127.0.0.1:22114");
+    std::env::set_var("KIANA_STREAMING", "off");
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        r#"{"planning":{"provider":"ollama","model":"plan-v1","base_url":"http://127.0.0.1:22115","ollama_load_timeout_ms":150000}}"#,
+    );
+    let gateway = ProviderGateway::from_env(config()).unwrap();
+    let planning = gateway.catalog();
+    let planning = planning["connections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["route"]["connection_id"] == "planning")
+        .unwrap();
+    assert_eq!(
+        planning["route"]["streaming"], true,
+        "Ollama Chat requires NDJSON streaming"
+    );
+
+    for timeout_ms in [999, 150001] {
+        std::env::set_var(
+            "KIANA_MODEL_PROFILES_JSON",
+            json!({"planning": {
+                "provider": "ollama",
+                "model": "plan-v1",
+                "base_url": "http://127.0.0.1:22115",
+                "ollama_load_timeout_ms": timeout_ms
+            }})
+            .to_string(),
+        );
+        let error = match ProviderGateway::from_env(config()) {
+            Ok(_) => panic!("out-of-range Ollama timeout must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code, "ollama_load_timeout_invalid");
+    }
+
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        r#"{"planning":{"provider":"openai","model":"gpt-4o-mini","api_key_env":"KIANA_TEST_OPENAI_KEY","ollama_load_timeout_ms":30000}}"#,
+    );
+    let error = match ProviderGateway::from_env(config()) {
+        Ok(_) => panic!("non-Ollama timeout must fail closed"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code, "ollama_load_timeout_provider_mismatch");
+
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        r#"{"planning":{"provider":"","model":"","inherit_default":true,"ollama_load_timeout_ms":30000}}"#,
+    );
+    let error = match ProviderGateway::from_env(config()) {
+        Ok(_) => panic!("inherited timeout must fail closed"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code, "model_profile_inheritance_conflict");
 }

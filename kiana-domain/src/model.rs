@@ -1034,6 +1034,20 @@ pub struct ModelReply {
     pub replay: Vec<ProtectedReplayRef>,
     pub provider_request_id: Option<String>,
     pub provider_response_id: Option<String>,
+    pub provider_timing: Option<ProviderTiming>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderTiming {
+    pub load_duration_ns: Option<u64>,
+    pub generation_duration_ns: Option<u64>,
+}
+
+impl ProviderTiming {
+    pub fn is_empty(&self) -> bool {
+        self.load_duration_ns.is_none() && self.generation_duration_ns.is_none()
+    }
 }
 impl ModelReply {
     pub fn legacy(mut output: ModelOutput) -> Result<Self, ModelError> {
@@ -1066,6 +1080,7 @@ impl ModelReply {
             replay: Vec::new(),
             provider_request_id: None,
             provider_response_id: None,
+            provider_timing: None,
         })
     }
 
