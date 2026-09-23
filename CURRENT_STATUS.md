@@ -11518,13 +11518,13 @@ worktree_status: Ollama Chat uses bounded NDJSON and incremental text delivery; 
 command_argv:
   cargo fmt --all --check
   git diff --check
-  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-provider --lib --locked -- --test-threads=1; cargo test -p kiana-provider --test p4_j7_08_config --locked -- --test-threads=1; cargo test -p kiana-core --test p4_j7_18_ollama_guard --locked -- --test-threads=1
-cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority and will be started after push without waiting
-fixture·cassette: GitHub-only Ollama NDJSON deny/success fixtures, profile timeout boundaries and core source guard in p4-j7-18-ollama.yml
-exit_code: 0 for cargo fmt --all --check and git diff --check; local tests deliberately not run; remote CI result not yet observed
-status change: P4-J7-18 source and GitHub CI wiring are implemented; roadmap completion remains pending until the remote workflow result is available
+  GitHub Actions runs 35832638463 (PR) and 35832756821 (post-merge): cargo fmt --all --check failed before test steps because kiana-domain/src/memory_workbench.rs was absent while lib.rs declared the module; provider tests and source guard were skipped
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority
+fixture·cassette: runs 35832638463 and 35832756821 stopped at cargo fmt; P4-J7-18 fixtures were not executed; CM-36 now adds the missing module and a later workflow rerun is required
+exit_code: both dedicated remote runs failed at cargo fmt and skipped tests
+status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; the missing-module blocker is addressed by CM-36, but P4-J7-18 CI evidence remains incomplete
 proof-level change: source; no local_behavior, durable, live or physical promotion
-limitations: no local Ollama endpoint/model was contacted; remote CI has not yet reported; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
+limitations: no local Ollama endpoint/model was contacted; runs 35832638463 and 35832756821 did not reach provider tests; a post-CM-36 CI rerun is unobserved; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
 reviewer: Codex root implementation review plus deny/done, tool identity/continuation, timeout bounds, event timing projection and local model lifecycle boundary review; no local runtime test reviewer
 
 ### P4-J7-17 OpenAI Responses evidence (2026-09-21)
@@ -11543,3 +11543,19 @@ status change: P4-J7-17 source slice is implemented and roadmap row 394/card are
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: reasoning replay, hosted tools, retry/usage settlement, recovery reconciliation and live OpenAI Responses effects remain open
 reviewer: Codex root implementation review plus stateless request shape, output item identity, call_id preservation, completed-only status and hosted/reasoning deny boundary review; no local runtime test reviewer
+
+### CM-36 User memory workbench and bulk operations evidence (2026-09-23)
+
+source_snapshot: 2dcb410dbec36ccb20fabc8b3584a66e82c781e8 + CM-36 isolated branch source; kiana-domain/src/memory_workbench.rs; kiana-domain/tests/cm36_memory_workbench.rs; kiana-core/tests/cm36_memory_workbench_guard.rs; .github/workflows/cm36-memory-workbench.yml; docs/roadmap/cm36-memory-workbench-baseline.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: branch cm-36-memory-workbench-20260923; domain workbench contracts provide ACL-filtered redacted lists, visible-only relations, expected-revision mutation plans, operator-only privileged operations, explicit atomic/split results and scoped redacted export. Existing ControlPlane/MemoryMutation remains the only authority path; no daemon/UI execution adapter was added.
+command_argv:
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test cm36_memory_workbench --locked -- --test-threads=1; cargo test -p kiana-core --test cm36_memory_workbench_guard --locked -- --test-threads=1
+cwd/environment: isolated worktree under .claude/worktrees/cm-36-memory-workbench-20260923; Linux x86_64; stable Rust toolchain; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and push run is not awaited
+fixture·cassette: GitHub-only CM-36 denied-scope, private-redaction, atomic/split failure, expected-revision, operator-authority, unknown-result, export-digest and source-boundary fixtures in cm36-memory-workbench.yml
+exit_code: cargo fmt --all --check and git diff --check results recorded after final static verification; remote fixture result pending/not awaited
+status change: CM-36 source slice and CI wiring are implemented; roadmap row 641/card remain 🔄 until dedicated GitHub fixtures run
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: typed list/plan/result/export contracts only; no daemon/UI adapter, mutation execution, durable atomic transaction, approval UX, receipt persistence, artifact export, recovery behavior or physical deletion is claimed. Previously failing P4-J7-18 runs 35832638463 and 35832756821 stopped at cargo fmt because this declared module file was absent; their provider tests were skipped and require a later rerun.
+reviewer: Codex source review of ACL denial, private preview/export redaction, list relation filtering, expected revisions, privileged mutation authority, atomic/split/unknown result integrity, and no direct storage/execution path; no runtime test reviewer

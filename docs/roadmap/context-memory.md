@@ -630,9 +630,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-36 · User memory workbench and bulk operations　⏳
+##### CM-36 · User memory workbench and bulk operations　🔄
 
-提供候选列表、相似记录、冲突、批准/拒绝/发布、过期、删除和导出；批量操作使用 mutation plan/expected revisions，部分失败清晰列出，不把界面删除当物理擦除完成。验收：`bulk_review_is_atomic_or_explicitly_split`、`private_memory_is_redacted_in_list`。
+当前 source slice 与 CI-only 验收见 [`cm36-memory-workbench-baseline.md`](cm36-memory-workbench-baseline.md)。领域契约覆盖 ACL 脱敏列表/相似冲突、批准/拒绝/发布/过期/删除 intents、带 expected revision 的 atomic 或 explicit-split bulk plan/result，以及 scope/recipient/redaction digest 绑定的导出；删除只表示逻辑 mutation，不表示物理擦除。GitHub workflow 尚未运行，CM-36 保持 🔄；没有 daemon/UI adapter 执行接线或 durable 行为证明。
 
 <a id="step-cm-37"></a>
 

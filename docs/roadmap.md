@@ -814,7 +814,7 @@
 | 638 | W9 | 专项 | [`CM-33`](roadmap/context-memory.md#step-cm-33) | Context / Memory · Code graph / temporal fact 后置扩展 | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-33) |
 | 639 | W9 | 专项 | [`CM-34`](roadmap/context-memory.md#step-cm-34) | Context / Memory · Local embedding package and model rotation | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-34) |
 | 640 | W9 | 专项 | [`CM-35`](roadmap/context-memory.md#step-cm-35) | Context / Memory · External context/resource adapter | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-35) |
-| 641 | W9 | 专项 | [`CM-36`](roadmap/context-memory.md#step-cm-36) | Context / Memory · User memory workbench and bulk operations | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-36) |
+| 641 | W9 | 专项 | [`CM-36`](roadmap/context-memory.md#step-cm-36) | Context / Memory · User memory workbench and bulk operations | `CM-06`、`CM-14`、`CM-28`、`CM-32` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-36) |
 | 642 | W9 | 专项 | [`CM-37`](roadmap/context-memory.md#step-cm-37) | Context / Memory · Cache, index and retention maintenance | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-37) |
 | 643 | W9 | 专项 | [`EXT-29`](roadmap/skills-plugins-hooks.md#step-ext-29) | Skills / Plugins / Hooks · 本地 fake golden | `EXT-10`、`EXT-18`、`EXT-25`、`EXT-28` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-29) |
 | 644 | W9 | 专项 | [`EXT-30`](roadmap/skills-plugins-hooks.md#step-ext-30) | Skills / Plugins / Hooks · Durable、故障注入和恢复 | `EXT-18`、`EXT-23`、`EXT-24`、`EXT-29` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-30) |
@@ -1235,7 +1235,8 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
-| 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；本地不运行测试，静态检查通过，CI 推送后待观察 | 本提交 |
+| 2026-09-23 | `CM-36` memory workbench source slice：新增 ACL 限定的脱敏列表/相似冲突、operator-only review mutation plan、CAS/epoch/idempotency bulk result、unknown/partial failure 和受 scope/recipient/redaction digest 约束的导出；添加 GitHub-only domain/core guards 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 本提交 |
+| 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；runs 35832638463（PR）与 35832756821（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失失败，后续测试步骤跳过；保持 🔄 等模块补齐后 CI 复跑 | 已提交 |
 | 2026-09-21 | `P4-J7-17` OpenAI Responses：固化 stateless instructions/input/function_call_output、store=false、output item/call_id identity、completed-only terminal 与 hosted/reasoning item 拒绝；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-16` OpenAI Chat：固化原生 Chat Completions `max_completion_tokens`、usage-only chunk、n=1、交错 tool-call index/id/name、finish/[DONE] 终态与 malformed argument 拒绝；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-21 | `P4-J7-15` Anthropic Messages：收口 system/content/tool_result 编码、原生 block 生命周期、message_delta 累计 usage、message_stop 严格终态与私有 replay deny；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
