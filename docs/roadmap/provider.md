@@ -68,7 +68,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ✅ |
 | `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ✅ |
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | ⏳ |
-| `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ⏳ |
+| `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | 🔄 |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | ⏳ |
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | ⏳ |
 | `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | ⏳ |
@@ -294,14 +294,17 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-19 Gemini Interactions 原生协议　⏳
+#### P4-J7-19 Gemini Interactions 原生协议　🔄
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
-- **改动位置**：拟新增 provider/protocols/gemini_interactions；连接/catalog 注册；官方版本绑定 fixtures。
+- **改动位置**：`kiana-provider/src/request.rs`、`kiana-provider/src/response.rs`；provider fixtures、Core source guard 与 GitHub-only workflow。
 - **步骤**：① 核对实施时采用的 API 版本，当前计划采用 Interactions 并显式 store=false；② 编码有序 input、system_instruction/tools/generation_config，每次都提交必需配置；③ 聚合 step.start/delta/stop 的函数参数与输出；④ interaction.completed 的 requires_action 映射 tool_use，completed 才是本轮正常结束；⑤ 用完整本地历史做函数结果回传，保留 thought signature 接入点。
 - **先拒绝**：`gemini_requires_action_is_not_run_completion`、`gemini_incomplete_function_arguments_never_dispatch`、`gemini_generate_content_events_are_not_accepted_as_interactions`。
 - **再成功**：`gemini_stateless_function_result_round_trip`、`gemini_interaction_parameters_are_resubmitted_each_turn`。
 - **退出 / 证据**：旧 GenerateContent 若仍有用户需求，另加 `gemini_generate_content` 协议子卡及独立 fixture；不混两套帧格式，也不调用 SDK 自动工具循环。
+- **本次实现**：请求固定为 Interactions stateless streaming；函数结果绑定本地 call_id/name 并保留可识别的 error 结果；流聚合校验连续 step index、status transition、arguments 与 step/terminal usage，一直等待 interaction.completed 才返回模型终态。
+- **拒绝与回归 fixture**：上列三条 deny；另覆盖 status update 后拒绝迟到 step、requires_action 无 function step 拒绝、stateless function result round-trip、每轮重发参数、malformed/不一致 usage。Core source guard 绑定 Interactions wire markers，专属 workflow 在 GitHub 执行 provider fixture 与 guard。
+- **CI / 状态**：当前分支尚未由 GitHub CI 执行；保持 🔄，proof 上限 `source`。本地未运行测试/build/check/clippy/smoke；未证明 live Gemini、账单或受保护 thought replay。
 
 <a id="step-p4-j7-20"></a>
 

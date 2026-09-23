@@ -565,7 +565,7 @@
 | 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
 | 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
 | 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-18) |
-| 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-19) |
+| 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-19) |
 | 397 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-20) |
 | 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-21) |
 | 399 | W5 | 专项 | [`P4-J7-22`](roadmap/provider.md#step-p4-j7-22) | Provider · 图片输入与敏感数据出站准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-22) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-23 | `P4-J7-19` Gemini Interactions：强制 stateless `store=false` 与 SSE `stream=true`，每轮重发 system/tools/generation_config；完整本地函数调用结果按 call_id/name 回传；校验 event status、step 顺序、function arguments 与 usage，GenerateContent 帧独立拒绝；新增 provider fixtures、core guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；静态检查通过，已创建本地提交并推送 feature branch，CI 尚未执行，step 保持 🔄 | `P4-J7-19` branch |
 | 2026-09-23 | `CM-36` memory workbench source slice：新增 ACL 限定的脱敏列表/相似冲突、operator-only review mutation plan、CAS/epoch/idempotency bulk result、unknown/partial failure 和受 scope/recipient/redaction digest 约束的导出；添加 GitHub-only domain/core guards 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 本提交 |
 | 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；runs 35832638463（PR）与 35832756821（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失失败，后续测试步骤跳过；保持 🔄 等模块补齐后 CI 复跑 | 已提交 |
 | 2026-09-23 | `P4-J7-23` 单层重试/绝对时限/取消：Runner 作为唯一 retry driver，按 typed pre-send/HTTP rejection 和 side-effect/delta 分类；SDK 隐式重试禁用由 P4-J7-18 client 配置提供；Retry-After 秒/日期、指数退避+jitter 与 admission/attempt/backoff 均受同一 deadline 约束，取消传到准入、attempt 和 backoff；新增 provider/runner deny 与成功 fixtures、跨 crate source guard、GitHub Actions workflow 和 baseline；集成快照格式检查通过，未运行 build/test；仅记录 CM-36 合并前 base 的 `cargo check` 失败，CI fixtures 尚待验证，状态保持 🔄 | 待本提交 |
