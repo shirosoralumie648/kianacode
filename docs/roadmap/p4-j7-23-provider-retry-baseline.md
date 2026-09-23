@@ -51,11 +51,13 @@ cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_comple
 cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test-threads=1
 ```
 
-Targeted `rustfmt --check` and `git diff --check` pass. The non-test command
-`cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` exits 101 before
-reaching these crates' changed code: `kiana-domain/src/lib.rs` declares the missing
-`memory_workbench` file and the shared domain baseline reports additional unrelated type/derive
-errors. This does not verify that P4-J7-23 compiles.
+On integrated snapshot `855aa099`, targeted `rustfmt --check`, `cargo fmt --all --check` and
+`git diff --check` pass. Before CM-36 was merged, the non-test command
+`cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` on base d85a4a5
+exited 101 before reaching these crates' changed code: `kiana-domain/src/lib.rs` declared a missing
+`memory_workbench` file and the shared domain baseline also reported unrelated type/derive errors.
+That historical failure does not verify the build on integrated snapshot `855aa099`; no check/build
+or tests were run after integration. P4-J7-23 CI fixtures have not been awaited.
 
 ## Evidence boundary
 
@@ -63,11 +65,10 @@ This is source plus remote-CI wiring only. No live provider request, durable att
 billed usage reconciliation, retry receipt projection or timing guarantee beyond the in-process
 monotonic deadline is claimed. HTTP 429/503 rejection is treated as safe to retry only when no
 response delta was exposed; provider-specific billing behavior still needs usage settlement in
-P4-J7-24. The target integration contains the P4-J7-18 SDK retry-disable setting. GitHub Actions
-currently stops at the workspace format step because
-`kiana-domain/src/lib.rs` declares `memory_workbench` while that file is untracked in the primary
-checkout and absent from `origin/master`; the missing file was not imported into this step. The
-P4-J7-23 fixtures are therefore wired but not yet executed by CI.
+P4-J7-24. The target integration contains the P4-J7-18 SDK retry-disable setting. The earlier
+workflow attempt stopped at workspace formatting before CM-36 landed its `memory_workbench` module;
+the integrated snapshot now passes `cargo fmt --all --check`. CI fixture results for P4-J7-23 remain
+unverified.
 
 Cancellation of a durable `reserve_prepared` commit has no release operation on the current
 `ModelBudgetPort`; if cancellation races with that commit, this step prevents provider dispatch but

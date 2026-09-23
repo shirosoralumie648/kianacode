@@ -6,8 +6,8 @@
 
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
-source_snapshot: base d85a4a5b plus target integration `origin/master` 2dcb410 and isolated P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
-worktree_status: independent branch `p4-j7-23-provider-retry-20260923`; primary checkout was not modified; target `origin/master` P4-J7-18 config now contains `.retry(reqwest::retry::never())`, and this slice guards that integration
+source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
+worktree_status: clean integration branch `p4-j7-23-provider-retry-integration-20260923` at `855aa099`; primary checkout was not modified; target provider config contains `.retry(reqwest::retry::never())`, and this slice guards that integration
 command_argv:
   git diff --check
   rustfmt --edition 2021 --check kiana-provider/src/transport.rs kiana-runner/src/harness.rs kiana-runner/src/lib.rs kiana-runner/src/retry.rs kiana-runner/tests/p4_j7_23_retry.rs kiana-core/tests/p4_j7_23_provider_retry_guard.rs
@@ -20,10 +20,10 @@ command_argv:
   GitHub Actions: cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test-threads=1
 cwd/environment: isolated worktree; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI not awaited
 fixture·cassette: GitHub-only retryable 429→success attempt count and distinct attempt IDs, post-send unknown deny, partial-delta no-retry, cancellation during backoff, oversized Retry-After deadline deny, injected-clock HTTP-date parsing, typed connect/TLS classification and cross-crate source guard
-exit_code: targeted `rustfmt --check` and `git diff --check` exit 0; `cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` exits 101 in pre-existing `kiana-domain` errors, first missing `kiana-domain/src/memory_workbench.rs` for the declared module plus unrelated type/derive errors; no local tests executed; GitHub workflow currently exits at global `cargo fmt --all --check` because the same module file is absent from `origin/master`; P4-J7-23 fixtures have not run in CI and this step is not build-verified
-status change: P4-J7-23 implementation and remote fixtures are wired; roadmap row 400/card remain 🔄 pending CI execution after the shared format baseline is repaired; Runner owns the only bounded retry loop, re-admission is per attempt, and unknown/partial output is not retried
+exit_code: targeted `rustfmt --check`, `cargo fmt --all --check`, and `git diff --check` exit 0 on integrated snapshot `855aa099`; historical `cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` on initial base d85a4a5 exited 101 in the pre-CM-36 `kiana-domain` baseline, first due missing `memory_workbench` and also unrelated type/derive errors; no build/check or tests were run after integration because requested verification was formatting only; P4-J7-23 CI fixtures have not been awaited
+status change: P4-J7-23 implementation and remote fixtures are wired; roadmap row 400/card remain 🔄 pending CI fixture results; Runner owns the only bounded retry loop, re-admission is per attempt, and unknown/partial output is not retried
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
-limitations: no live provider requests or durable attempt journal proof; 429/503 billing/usage reconciliation remains P4-J7-24; absolute timeout is in-process and no external timing guarantee is claimed; target integration `origin/master` 2dcb410 contains the P4-J7-18 SDK retry-disable setting; global CI format blocker from missing untracked `kiana-domain/src/memory_workbench.rs` prevents the fixtures from running; current ModelBudgetPort has no durable admission reservation release operation, so cancellation racing a prepared commit is not claimed reconciled
+limitations: no live provider requests or durable attempt journal proof; 429/503 billing/usage reconciliation remains P4-J7-24; absolute timeout is in-process and no external timing guarantee is claimed; the historical pre-CM-36 cargo check failure is not a build result for integrated snapshot `855aa099`; current ModelBudgetPort has no durable admission reservation release operation, so cancellation racing a prepared commit is not claimed reconciled
 reviewer: Codex source review; checked typed-only retry classification, no message-substring classification, attempt identity/admission regeneration, deadline coverage, cancellation propagation and CI fixture wiring; no local runtime test reviewer
 
 ### EXT-06 progressive disclosure evidence (2026-09-20)

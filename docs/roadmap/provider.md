@@ -355,7 +355,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`retryable_429_then_success_records_two_attempts`、`retry_after_http_date_uses_injected_clock`；保留已有 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`。
 - **退出 / 证据**：测试断言真实请求数、dispatch 数、终态数与资源释放；SDK 隐式重试为零；模型未知用量与工具 result_unknown 分开。
 
-- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；target integration `origin/master` 2dcb410 已含 provider SDK retry-disable 配置并由 guard 校验。全局格式检查当前被缺失且未跟踪的 `kiana-domain/src/memory_workbench.rs` 阻断，targeted cargo check 也被既有 domain 缺陷阻断；未将缺失文件纳入本切片。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
+- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。集成快照的 workspace 格式检查通过，但未运行测试或 build。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
 
 <a id="step-p4-j7-24"></a>
 
