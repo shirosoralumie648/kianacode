@@ -1,0 +1,63 @@
+name: p4-j7-23-provider-retry
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/src/transport.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/retry.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/p4_j7_23_retry.rs"
+      - "kiana-core/tests/p4_j7_23_provider_retry_guard.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "docs/roadmap/p4-j7-23-provider-retry-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-23-provider-retry.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/src/transport.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/retry.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/p4_j7_23_retry.rs"
+      - "kiana-core/tests/p4_j7_23_provider_retry_guard.rs"
+      - "kiana-ports/src/model.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-daemon/tests/daemon_host.rs"
+      - "docs/roadmap/p4-j7-23-provider-retry-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-23-provider-retry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-retry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run provider Retry-After and typed transport fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run retry, deadline and cancellation behavior fixtures
+        run: cargo test -p kiana-runner --test p4_j7_23_retry --locked -- --test-threads=1
+      - name: Run typed retry classifier fixtures
+        run: cargo test -p kiana-runner --lib --locked -- --test-threads=1
+      - name: Preserve streaming cancellation terminal race regression
+        run: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+      - name: Run provider retry source guard
+        run: cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test-threads=1

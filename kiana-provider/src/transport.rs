@@ -4,7 +4,7 @@ use crate::{
 };
 use futures::StreamExt;
 use kiana_domain::*;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 pub(crate) async fn send(
     connection: &Connection,
@@ -99,14 +99,7 @@ async fn send_inner(
             ModelError::transport("provider_headers_timeout", ModelRetryClass::Never, true)
         })?
         .map_err(|err| {
-            // TLS/unknown post-send errors are never guessed to be retryable.
-            let retry = if err.is_connect()
-                && !err.to_string().to_ascii_lowercase().contains("certificate")
-            {
-                ModelRetryClass::BeforeSend
-            } else {
-                ModelRetryClass::Never
-            };
+            let retry = classify_connect_failure(err.is_connect(), io_error_kind(&err));
             ModelError::transport(
                 "provider_connection_failed",
                 retry,
@@ -124,23 +117,12 @@ async fn send_inner(
             },
             true,
         );
+        error.side_effect_state = ModelSideEffectState::None;
         error.retry_after_ms = response
             .headers()
             .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|value| {
-                value
-                    .parse::<u64>()
-                    .ok()
-                    .and_then(|seconds| seconds.checked_mul(1000))
-                    .or_else(|| {
-                        let when = httpdate::parse_http_date(value).ok()?;
-                        let now = std::time::SystemTime::now();
-                        when.duration_since(now)
-                            .ok()
-                            .and_then(|duration| u64::try_from(duration.as_millis()).ok())
-                    })
-            });
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| parse_retry_after(value, SystemTime::now()));
         // Error bodies and authentication headers are never copied into logs or public errors.
         return Err(error);
     }
@@ -273,6 +255,47 @@ async fn send_inner(
         Ok(reply)
     }
 }
+fn parse_retry_after(value: &str, now: SystemTime) -> Option<u64> {
+    if let Ok(seconds) = value.parse::<u64>() {
+        return Some(seconds.saturating_mul(1000));
+    }
+    let when = httpdate::parse_http_date(value).ok()?;
+    let duration = when.duration_since(now).ok()?;
+    Some(duration.as_millis().min(u128::from(u64::MAX)) as u64)
+}
+
+fn io_error_kind(error: &reqwest::Error) -> Option<std::io::ErrorKind> {
+    let mut cause = Some(error as &(dyn std::error::Error + 'static));
+    while let Some(error) = cause {
+        if let Some(io_error) = error.downcast_ref::<std::io::Error>() {
+            return Some(io_error.kind());
+        }
+        cause = error.source();
+    }
+    None
+}
+
+fn classify_connect_failure(is_connect: bool, kind: Option<std::io::ErrorKind>) -> ModelRetryClass {
+    if is_connect
+        && matches!(
+            kind,
+            Some(
+                std::io::ErrorKind::ConnectionRefused
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::AddrNotAvailable
+                    | std::io::ErrorKind::NotConnected
+                    | std::io::ErrorKind::NetworkUnreachable
+                    | std::io::ErrorKind::HostUnreachable
+            )
+        )
+    {
+        ModelRetryClass::BeforeSend
+    } else {
+        ModelRetryClass::Never
+    }
+}
+
 fn is_heartbeat(data: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(data)
         .ok()
@@ -366,6 +389,54 @@ impl Framer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::UNIX_EPOCH;
+
+    #[test]
+    fn retry_after_http_date_uses_injected_clock() {
+        let now = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        let date = httpdate::fmt_http_date(now + Duration::from_secs(7));
+        assert_eq!(parse_retry_after(&date, now), Some(7_000));
+        assert_eq!(parse_retry_after(&date, now + Duration::from_secs(8)), None);
+        assert_eq!(
+            parse_retry_after("18446744073709551615", now),
+            Some(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn retry_after_large_delta_is_preserved_for_absolute_deadline_check() {
+        let now = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        assert_eq!(parse_retry_after("3600", now), Some(3_600_000));
+    }
+
+    #[test]
+    fn only_typed_network_connect_failures_are_retryable() {
+        assert_eq!(
+            classify_connect_failure(true, Some(std::io::ErrorKind::ConnectionRefused)),
+            ModelRetryClass::BeforeSend
+        );
+        assert_eq!(
+            classify_connect_failure(true, Some(std::io::ErrorKind::TimedOut)),
+            ModelRetryClass::BeforeSend
+        );
+        assert_eq!(
+            classify_connect_failure(true, Some(std::io::ErrorKind::InvalidData)),
+            ModelRetryClass::Never
+        );
+        assert_eq!(
+            classify_connect_failure(false, Some(std::io::ErrorKind::ConnectionRefused)),
+            ModelRetryClass::Never
+        );
+    }
+
+    #[test]
+    fn tls_failure_is_not_transient() {
+        assert_eq!(classify_connect_failure(true, None), ModelRetryClass::Never);
+        assert_eq!(
+            classify_connect_failure(true, Some(std::io::ErrorKind::InvalidData)),
+            ModelRetryClass::Never
+        );
+    }
 
     #[test]
     fn sse_survives_arbitrary_utf8_chunking_and_crlf() {
