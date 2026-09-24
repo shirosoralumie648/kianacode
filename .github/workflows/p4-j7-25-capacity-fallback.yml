@@ -48,4 +48,3 @@ jobs:
         run: cargo test -p kiana-core --test p4_j7_25_capacity_fallback_guard --locked -- --test-threads=1
       - name: Compile P4-J7-25 targets
         run: cargo check --workspace --tests --locked
-
