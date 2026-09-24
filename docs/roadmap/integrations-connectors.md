@@ -24,6 +24,10 @@ ConnectorDefinition + AccountBinding + OperationContract
 - `kiana-core/src/connectors.rs` 已把 `connector.manage`、`connector.invoke` 规范化后重新送入普通授权链；风险和 binding snapshot 由服务端解析。
 - `kiana-daemon/src/connectors.rs` 已有基于项目 fixture 的 bind、revoke、invoke、reconcile、速率限制和 EventStore 幂等逻辑；输出显式标记 `external_effect_performed: false`。
 - `docs/local-extensions-connectors.md` 是当前本地扩展/fixture 的使用合同；它不证明真实外部连接已经接通。
+- INT-07 source slice now supplies narrow `ConnectorAdapter`、`EffectObserver`、`CredentialProbe` and
+  `WebhookVerifier` ports with explicit capability registration and fail-closed checked wrappers.
+  The ports return only receipt/observation/health/occurrence projections; GitHub Actions remains the
+  test authority and no live transport or raw credential material is exposed.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界

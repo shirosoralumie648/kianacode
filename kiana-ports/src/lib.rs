@@ -2325,6 +2325,8 @@ pub trait ModelBudgetPort: Send + Sync {
     ) -> Result<(), PortError>;
 }
 
+mod connector;
+pub use connector::*;
 mod model;
 pub use model::*;
 

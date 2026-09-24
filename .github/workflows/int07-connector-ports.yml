@@ -1,0 +1,48 @@
+name: int07-connector-ports
+
+on:
+  push:
+    paths:
+      - "kiana-ports/src/connector.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/int07_connector_ports.rs"
+      - "kiana-core/tests/int07_connector_ports_guard.rs"
+      - ".github/workflows/int07-connector-ports.yml"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap/int07-connector-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-ports/src/connector.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/int07_connector_ports.rs"
+      - "kiana-core/tests/int07_connector_ports_guard.rs"
+      - ".github/workflows/int07-connector-ports.yml"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap/int07-connector-ports-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-ports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-07 connector port fixtures
+        run: cargo test -p kiana-ports --test int07_connector_ports --locked -- --test-threads=1
+      - name: Run INT-07 source guard
+        run: cargo test -p kiana-core --test int07_connector_ports_guard --locked -- --test-threads=1
+      - name: Compile connector port path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-core --tests --locked

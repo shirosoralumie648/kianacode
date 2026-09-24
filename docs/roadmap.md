@@ -579,7 +579,7 @@
 | 407 | W5 | 专项 | [`BQ-12`](#step-bq-12) | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | `BQ-11` | ⏳ | [专项卡](#step-bq-12) |
 | 408 | W5 | 专项 | [`BQ-13`](#step-bq-13) | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | `BQ-05`、`BQ-12` | ⏳ | [专项卡](#step-bq-13) |
 | 409 | W5 | 专项 | [`INT-06`](roadmap/integrations-connectors.md#step-int-06) | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | `CI-07`、`INT-05` | 🔄 | [专项卡](roadmap/integrations-connectors.md#step-int-06) |
-| 410 | W5 | 专项 | [`INT-07`](roadmap/integrations-connectors.md#step-int-07) | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | `INT-02`、`INT-06` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-07) |
+| 410 | W5 | 专项 | [`INT-07`](roadmap/integrations-connectors.md#step-int-07) | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | `INT-02`、`INT-06` | 🔄 | [专项卡](roadmap/integrations-connectors.md#step-int-07) |
 | 411 | W5 | 专项 | [`INT-08`](roadmap/integrations-connectors.md#step-int-08) | local_fixture schema、hash、payload matching、deterministic receipts | `INT-04`、`INT-07` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-08) |
 | 412 | W5 | 专项 | [`INT-09`](roadmap/integrations-connectors.md#step-int-09) | read-only health/probe 和状态分类；daemon/query/UI | `INT-05`、`INT-07`、`INT-08` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-09) |
 | 413 | W5 | 专项 | [`INT-10`](roadmap/integrations-connectors.md#step-int-10) | stdio MCP connector adapter 与 capability handshake | `INT-07`、`INT-09` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-10) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-25 | `INT-07` connector ports：新增 `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` 窄 ports，prepared permit/canonical payload/能力登记和缺能力拒绝；fake adapter 覆盖 known/unknown/stop/health，webhook 只返回 occurrence；新增 ports fixture、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-25 | `BQ-10` normalized provider usage source slice：新增 Anthropic/OpenAI Chat/OpenAI Responses/Ollama/Gemini/Fake 到统一 `NormalizedUsage` 的 bounded adapter；保留 requested/served model 分离，缺字段为 partial/unknown，total 不一致和 malformed/overflow 出站前拒绝；新增 provider fixture、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `UI-11` CLI JSON/TTY/exit-code presenter source slice：新增纯 presenter、稳定 lifecycle/signal exit code、JSON/TTY/quiet stdout/stderr 分流、locale/pagination/no-TTY/output bounds、warning/error redaction、client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `UI-10` CLI 命令和输出归一化源切片：新增十个 canonical command ID 与 legacy alias、workspace/session/TTY/retry/argument fence、JSON/TTY/quiet output contract、secret/ANSI/size 校验；新增 client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
