@@ -5,6 +5,7 @@
 //! adapters from drifting while leaving their storage-specific work local.
 
 use crate::audit_contract;
+use crate::governance_contract;
 use kiana_domain::RuntimeEvent;
 use kiana_ports::PortError;
 
@@ -18,6 +19,7 @@ pub(crate) enum AppendPlan {
 /// storage lock, CAS check or idempotent replay can mutate state.
 pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), PortError> {
     audit_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
+    governance_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
     kiana_domain::validate_secret_free(&event.data)
         .map_err(|error| PortError::Failed(format!("eventlog_{error}")))?;
     Ok(())

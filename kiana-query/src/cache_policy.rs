@@ -1,6 +1,6 @@
 //! Cache decisions are projections, never business facts.
 
-use kiana_domain::json_digest;
+use kiana_domain::{json_digest, DataPayloadState, DataPropagationPlan, DataPropagationTarget};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -101,5 +101,42 @@ impl ContextCacheDecision {
             "cache_read_used": self.cache_read_used,
             "business_result_from_cache": self.business_result_from_cache,
         }))
+    }
+
+    /// Governance revocation/expiry invalidates a cache before it can be used as a business
+    /// result. A cache miss/rebuild remains a query concern and cannot authorize stale payloads.
+    pub fn from_data_propagation(
+        plan: &DataPropagationPlan,
+        current_data_epoch: u64,
+        payload_state: DataPayloadState,
+    ) -> Result<Self, String> {
+        plan.validate()?;
+        let target = plan
+            .targets
+            .iter()
+            .find(|receipt| receipt.target == DataPropagationTarget::Cache)
+            .ok_or_else(|| "cache_propagation_target_missing".to_owned())?;
+        let valid = current_data_epoch >= plan.data_epoch
+            && target.state == kiana_domain::DataPropagationState::PreservedMetadata
+            && payload_state == DataPayloadState::Available;
+        let mut decision = Self {
+            schema: CONTEXT_CACHE_DECISION_SCHEMA.to_owned(),
+            status: if valid {
+                ContextCacheStatus::Hit
+            } else {
+                ContextCacheStatus::Stale
+            },
+            reason: if valid {
+                "cache_governance_current".to_owned()
+            } else {
+                "cache_governance_invalidated".to_owned()
+            },
+            cache_read_used: valid,
+            business_result_from_cache: valid,
+            decision_digest: String::new(),
+        };
+        decision.decision_digest = decision.digest();
+        decision.validate()?;
+        Ok(decision)
     }
 }

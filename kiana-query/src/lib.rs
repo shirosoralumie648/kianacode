@@ -77,7 +77,9 @@ pub use index_generation::{
     ContextIndexGenerationEnvelope, ContextIndexSourceManifest,
     CONTEXT_INDEX_GENERATION_ENVELOPE_SCHEMA, CONTEXT_INDEX_SOURCE_MANIFEST_SCHEMA,
 };
-pub use index_invalidation::plan_index_invalidation;
+pub use index_invalidation::{
+    governed_index_invalidation, index_read_allowed, plan_index_invalidation,
+};
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use repo_map_task::select_repo_map_for_task;
 pub use stop_hooks::{

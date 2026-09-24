@@ -6,8 +6,8 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    DeletionManifest, DeletionTombstone, EventCursor, LegalHoldReceipt, RequestId, RetentionScan,
-    StoreIdentityId,
+    DataPropagationPlan, DataPropagationReceipt, DeletionManifest, DeletionTombstone, EventCursor,
+    LegalHoldReceipt, RequestId, RetentionScan, StoreIdentityId,
 };
 use kiana_ports::{PortError, RetentionStorePort};
 use serde_json::json;
@@ -21,6 +21,7 @@ struct RetentionState {
     holds: BTreeMap<(StoreIdentityId, String), LegalHoldReceipt>,
     tombstones: BTreeMap<(StoreIdentityId, String), DeletionTombstone>,
     manifests: BTreeMap<(StoreIdentityId, RequestId), DeletionManifest>,
+    propagation: BTreeMap<(StoreIdentityId, String, u64), DataPropagationReceipt>,
     deletion_epochs: BTreeMap<StoreIdentityId, u64>,
 }
 
@@ -181,6 +182,80 @@ impl MemoryRetentionStore {
             .map(|(_, scan)| scan.clone())
     }
 
+    /// Append one propagation target only after its deletion manifest exists. Unknown receipts
+    /// remain queryable and are never upgraded by a cache or redaction decision.
+    pub async fn append_propagation_receipt(
+        &self,
+        store_id: StoreIdentityId,
+        plan: DataPropagationPlan,
+        receipt: DataPropagationReceipt,
+    ) -> Result<(), PortError> {
+        plan.validate()
+            .map_err(|error| PortError::Failed(format!("data_propagation_plan:{error}")))?;
+        receipt
+            .validate()
+            .map_err(|error| PortError::Failed(format!("data_propagation_receipt:{error}")))?;
+        if receipt.project_ref != plan.project_ref
+            || receipt.previous_epoch != plan.previous_epoch
+            || receipt.data_epoch != plan.data_epoch
+            || receipt.source_cursor != plan.source_cursor
+            || receipt.tombstone_digest != plan.tombstone_digest
+            || !plan
+                .targets
+                .iter()
+                .any(|target| target.target == receipt.target)
+        {
+            return Err(PortError::Conflict(
+                "data_propagation_receipt_boundary_mismatch".to_owned(),
+            ));
+        }
+        let mut state = self.state.lock().await;
+        let manifest = state
+            .manifests
+            .values()
+            .find(|manifest| {
+                manifest.project_ref == plan.project_ref
+                    && manifest.data_epoch == plan.data_epoch
+                    && manifest.source_cursor == plan.source_cursor
+            })
+            .ok_or_else(|| PortError::Unavailable("deletion_manifest_missing".to_owned()))?;
+        if manifest.tombstone_ids.is_empty() {
+            return Err(PortError::Unavailable(
+                "deletion_manifest_tombstone_missing".to_owned(),
+            ));
+        }
+        let key = (
+            store_id,
+            receipt.target.as_str().to_owned(),
+            receipt.data_epoch,
+        );
+        if let Some(existing) = state.propagation.get(&key) {
+            if existing == &receipt {
+                return Ok(());
+            }
+            return Err(PortError::Conflict(
+                "data_propagation_receipt_conflict".to_owned(),
+            ));
+        }
+        state.propagation.insert(key, receipt);
+        Ok(())
+    }
+
+    pub async fn propagation_receipts(
+        &self,
+        store_id: StoreIdentityId,
+        data_epoch: u64,
+    ) -> Vec<DataPropagationReceipt> {
+        self.state
+            .lock()
+            .await
+            .propagation
+            .iter()
+            .filter(|((id, _, epoch), _)| *id == store_id && *epoch == data_epoch)
+            .map(|(_, receipt)| receipt.clone())
+            .collect()
+    }
+
     fn check_hold(
         state: &RetentionState,
         store_id: StoreIdentityId,
@@ -247,6 +322,15 @@ impl RetentionStorePort for MemoryRetentionStore {
         manifest: DeletionManifest,
     ) -> Result<(), PortError> {
         MemoryRetentionStore::append_deletion_manifest(self, store_id, manifest).await
+    }
+
+    async fn append_propagation_receipt(
+        &self,
+        store_id: StoreIdentityId,
+        plan: DataPropagationPlan,
+        receipt: DataPropagationReceipt,
+    ) -> Result<(), PortError> {
+        MemoryRetentionStore::append_propagation_receipt(self, store_id, plan, receipt).await
     }
 
     async fn purge_tombstoned(

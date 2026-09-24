@@ -24,16 +24,16 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
     BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
     CellLifecycle, CellSpec, ClockObservation, CommunicationMessage, ConfigSnapshot,
-    CorrelationContext, CorrelationScope, DeletionManifest, DeletionTombstone, EvalCase,
-    EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor,
-    GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
-    PendingApproval, Principal, ProjectId, ProjectIdentity, QualityArtifact, QualityArtifactId,
-    QuotaReservation, QuotaReservationId, QuotaReservationState, RateCard, RateCardId,
-    RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RetrievalItem,
-    RetrievalRequest, RetrievalResult, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind,
-    SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth,
-    StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SwarmLineage, SwarmPlanId,
-    TraceSummary, WorkFingerprint,
+    CorrelationContext, CorrelationScope, DataPropagationPlan, DataPropagationReceipt,
+    DeletionManifest, DeletionTombstone, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
+    EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
+    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
+    ProjectIdentity, QualityArtifact, QualityArtifactId, QuotaReservation, QuotaReservationId,
+    QuotaReservationState, RateCard, RateCardId, RequestContext, RequestId, ResolvedAssignment,
+    RetirementRecord, RetrievalItem, RetrievalRequest, RetrievalResult, RoleAssignment, RunId,
+    RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
+    StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
+    SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -783,6 +783,21 @@ pub trait ArtifactStorePort: Send + Sync {
             "artifact_store_unsupported".to_owned(),
         ))
     }
+
+    /// Fence a committed artifact with a governance epoch. Implementations must reject reads
+    /// after this boundary and return a typed propagation receipt; physical erasure is separate.
+    async fn invalidate_artifact(
+        &self,
+        _reference: &ArtifactRef,
+        _previous_epoch: u64,
+        _data_epoch: u64,
+        _tombstone_digest: &str,
+        _observed_at_ms: u64,
+    ) -> Result<DataPropagationReceipt, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_invalidation_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Snapshot/verify/restore boundary for a StorageRoot. Backup manifests are opaque values until
@@ -889,6 +904,19 @@ pub trait RetentionStorePort: Send + Sync {
     ) -> Result<(), PortError> {
         Err(PortError::Unavailable(
             "deletion_manifest_unsupported".to_owned(),
+        ))
+    }
+
+    /// Record one target's governance propagation receipt. The source tombstone/manifest must
+    /// already be committed; an adapter must not claim completion from a redacted view alone.
+    async fn append_propagation_receipt(
+        &self,
+        _store_id: StoreIdentityId,
+        _plan: DataPropagationPlan,
+        _receipt: DataPropagationReceipt,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "data_propagation_receipt_unsupported".to_owned(),
         ))
     }
 

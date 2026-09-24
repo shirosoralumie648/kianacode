@@ -546,12 +546,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-29 — Data governance、retention 和 deletion propagation　⏳
+##### ER-29 — Data governance、retention 和 deletion propagation　🔄
 
 - **落点：** `kiana-core/data_governance.rs`、Artifact/Memory/Query stores；关联 `P2-K7-01`、`CP-25/26`。
 - **动作：** Receipt 保留审计 metadata 与 payload refs 分离；删除/撤销传播到 event projection、artifact、cache、memory/index，并记录 data epoch；原始不可变事件只按既定密级加密/封存，不直接篡改。
 - **先拒绝：** `revoked_data_is_not_returned_by_receipt`、`deletion_does_not_leave_untracked_projection_copy`、`receipt_redaction_is_not_authorization`。
 - **成功/回归：** source revoke、artifact expiry、memory deletion、cache rebuild、audit-only retention 和 restart。
+- **ER-29 baseline：** [`er29-data-governance-baseline.md`](er29-data-governance-baseline.md)；本切片声明 `feature_status=implemented`、`proof_level=source`，receipt metadata/payload refs 分离、data epoch/tombstone 传播和 immutable event seal 已接入，GitHub CI 运行拒绝夹具，不等待 CI 结果。
 
 <a id="step-er-30"></a>
 

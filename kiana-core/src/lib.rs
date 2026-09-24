@@ -99,8 +99,13 @@ pub use credential_recovery::{
     CredentialRecoveryProjectionError, CredentialRecoveryReplayRequest,
     CREDENTIAL_RECOVERY_PROJECTION_VERSION,
 };
-pub use data_governance::{project_data_governance, project_data_governance_snapshot};
-pub use deletion::plan_deletion;
+pub use data_governance::{
+    plan_data_propagation, project_data_governance, project_data_governance_snapshot,
+    receipt_data_binding_from_events, seal_governance_events,
+};
+pub use deletion::{
+    plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
+};
 pub use entrypoint_parity::{
     EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,

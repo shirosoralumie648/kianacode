@@ -304,6 +304,20 @@ pub(crate) fn receipt_from_events(
     let invocations = invocation_projection.ok();
     let typed_receipt = typed_run_receipt(context, run_id, output.clone(), events)
         .unwrap_or_else(|error| json!({"error": error, "status": "result_unknown"}));
+    let receipt_data_binding = typed_receipt
+        .get("receipt_digest")
+        .and_then(Value::as_str)
+        .and_then(|receipt_digest| {
+            crate::data_governance::receipt_data_binding_from_events(
+                receipt_digest,
+                &ControlPlane::canonical_project_root(&context.project_root),
+                &kiana_domain::DataPolicy::default(),
+                events,
+            )
+            .ok()
+            .and_then(|binding| serde_json::to_value(binding).ok())
+        })
+        .unwrap_or_else(|| json!({"state":"unknown","reason":"receipt_data_binding_unavailable"}));
     let typed_execution_receipts = typed_execution_receipts(run_id, events);
     let aggregation = aggregate_receipt_facts(run_id, events)
         .and_then(|aggregation| aggregation.to_json())
@@ -340,6 +354,7 @@ pub(crate) fn receipt_from_events(
             "invocations":invocations,
             "invocation_projection_error":invocation_error,
             "run_receipt": typed_receipt,
+            "receipt_data_binding": receipt_data_binding,
             "projection": projection_lag_from_events(events),
             "execution_receipts": typed_execution_receipts,
             "aggregation": aggregation,

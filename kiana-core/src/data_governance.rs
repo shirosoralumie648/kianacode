@@ -1,10 +1,109 @@
 use super::*;
 use kiana_domain::{
-    CapabilityErrorCode, DataGovernanceSnapshot, DataPayloadState, DataPolicy, RuntimeEvent,
+    CapabilityErrorCode, DataGovernanceSnapshot, DataPayloadState, DataPolicy, DataPropagationPlan,
+    ImmutableEventSeal, ReceiptAuditMetadata, ReceiptDataBinding, ReceiptPayloadRef, RuntimeEvent,
     MAX_SOURCE_EVENT_IDS,
 };
 use serde_json::Value;
 use std::collections::HashSet;
+
+/// Keep receipt audit metadata and payload references as separate, independently governed data.
+/// This helper only derives digest references from committed events; it never copies event or
+/// artifact bytes into a receipt.
+pub fn receipt_data_binding_from_events(
+    receipt_digest: &str,
+    project_ref: &str,
+    policy: &DataPolicy,
+    events: &[RuntimeEvent],
+) -> Result<ReceiptDataBinding, String> {
+    policy.validate()?;
+    if events.is_empty() {
+        return Err("receipt_data_source_empty".to_owned());
+    }
+    let mut source_event_ids = Vec::with_capacity(events.len().min(MAX_SOURCE_EVENT_IDS));
+    let mut seen = HashSet::new();
+    let mut payload_refs = Vec::new();
+    for event in events.iter().take(MAX_SOURCE_EVENT_IDS) {
+        if seen.insert(event.event_id) {
+            source_event_ids.push(event.event_id);
+        }
+        for reference in &event.artifact_refs {
+            if payload_refs.len() >= kiana_domain::MAX_RECEIPT_PAYLOAD_REFS {
+                return Err("receipt_payload_ref_limit".to_owned());
+            }
+            payload_refs.push(ReceiptPayloadRef {
+                object_ref: reference.clone(),
+                source_digest: kiana_domain::json_digest(&event.data),
+                data_epoch: event.data_epoch.unwrap_or(policy.data_epoch),
+                payload_digest: kiana_domain::json_digest(&event.data),
+            });
+        }
+    }
+    let source_cursor = events.len().min(u64::MAX as usize) as u64;
+    let redaction_profile = events
+        .iter()
+        .rev()
+        .find_map(|event| event.redaction_profile.clone())
+        .unwrap_or_else(|| "unredacted-source-profile".to_owned());
+    let metadata = ReceiptAuditMetadata {
+        project_ref: project_ref.to_owned(),
+        policy_revision: policy.revision.max(1),
+        data_epoch: policy.data_epoch,
+        source_cursor,
+        source_event_ids,
+        redaction_profile,
+        retained: true,
+    };
+    // A receipt reference is never an authorization grant. Without a fresh governance snapshot
+    // the payload remains Unknown even when the event was committed successfully.
+    ReceiptDataBinding::new(
+        receipt_digest,
+        metadata,
+        payload_refs,
+        DataPayloadState::Unknown,
+    )
+}
+
+/// Build the bounded propagation plan after a tombstone/epoch change. Event facts remain sealed;
+/// adapters must append target receipts before a target can be reported as complete.
+pub fn plan_data_propagation(
+    snapshot: &DataGovernanceSnapshot,
+    previous_epoch: u64,
+    kind: &str,
+    tombstone_digest: &str,
+    observed_at_ms: u64,
+) -> Result<DataPropagationPlan, String> {
+    DataPropagationPlan::from_snapshot(
+        snapshot,
+        previous_epoch,
+        kind,
+        tombstone_digest,
+        observed_at_ms,
+    )
+}
+
+/// Seal the immutable event boundary used by a governance projection. Revoke/delete/expire may
+/// invalidate projections and bytes, but they cannot rewrite or remove committed source facts.
+pub fn seal_governance_events(
+    events: &[RuntimeEvent],
+    data_epoch: u64,
+    encryption_profile: &str,
+) -> Result<ImmutableEventSeal, String> {
+    if events.is_empty() {
+        return Err("immutable_event_seal_source_empty".to_owned());
+    }
+    let source_event_ids = events
+        .iter()
+        .map(|event| event.event_id)
+        .take(MAX_SOURCE_EVENT_IDS)
+        .collect::<Vec<_>>();
+    ImmutableEventSeal::new(
+        events.len().min(u64::MAX as usize) as u64,
+        data_epoch,
+        source_event_ids,
+        encryption_profile,
+    )
+}
 
 /// Rebuild data visibility and derived-store propagation from a server-owned policy and the
 /// committed invalidation facts. This is a projection only: it never erases EventLog facts.

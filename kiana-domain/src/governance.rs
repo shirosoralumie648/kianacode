@@ -1,4 +1,4 @@
-use crate::{json_digest, EventId, SchemaVersion, MAX_SOURCE_EVENT_IDS};
+use crate::{json_digest, EventCursor, EventId, SchemaVersion, MAX_SOURCE_EVENT_IDS};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -234,6 +234,511 @@ pub enum DataPayloadState {
     Expired,
     Revoked,
     Unknown,
+}
+
+/// A receipt keeps audit metadata and payload references in separate fields.  The reference is
+/// an opaque identity/digest only; it never contains the bytes that the receipt describes.
+pub const RECEIPT_DATA_BINDING_SCHEMA: &str = "kiana.receipt-data-binding.v1";
+pub const DATA_PROPAGATION_PLAN_SCHEMA: &str = "kiana.data-propagation-plan.v1";
+pub const DATA_PROPAGATION_RECEIPT_SCHEMA: &str = "kiana.data-propagation-receipt.v1";
+pub const IMMUTABLE_EVENT_SEAL_SCHEMA: &str = "kiana.immutable-event-seal.v1";
+pub const DATA_PROPAGATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const MAX_RECEIPT_PAYLOAD_REFS: usize = 256;
+pub const MAX_PROPAGATION_TARGETS: usize = 16;
+
+fn valid_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Metadata retained for audit/replay.  No payload body or authorization decision is stored here.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptAuditMetadata {
+    pub project_ref: String,
+    pub policy_revision: u64,
+    pub data_epoch: u64,
+    pub source_cursor: EventCursor,
+    pub source_event_ids: Vec<EventId>,
+    pub redaction_profile: String,
+    pub retained: bool,
+}
+
+impl ReceiptAuditMetadata {
+    pub fn validate(&self) -> Result<(), String> {
+        nonempty(&self.project_ref, "receipt_metadata_project", 512)?;
+        if self.policy_revision == 0
+            || self.data_epoch == 0
+            || self.source_cursor == 0
+            || self.source_event_ids.is_empty()
+            || self.source_event_ids.len() > MAX_SOURCE_EVENT_IDS
+            || self.redaction_profile.trim().is_empty()
+        {
+            return Err("receipt_metadata_boundary_invalid".to_owned());
+        }
+        let mut ids = BTreeSet::new();
+        if self
+            .source_event_ids
+            .iter()
+            .any(|event_id| !ids.insert(event_id.to_string()))
+        {
+            return Err("receipt_metadata_source_duplicate".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Digest-only payload reference kept beside, rather than inside, audit metadata.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptPayloadRef {
+    pub object_ref: String,
+    pub source_digest: String,
+    pub data_epoch: u64,
+    pub payload_digest: String,
+}
+
+impl ReceiptPayloadRef {
+    pub fn validate(&self) -> Result<(), String> {
+        nonempty(&self.object_ref, "receipt_payload_object", 512)?;
+        if self.data_epoch == 0
+            || !valid_digest(&self.source_digest)
+            || !valid_digest(&self.payload_digest)
+        {
+            return Err("receipt_payload_ref_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// A server-derived receipt data fence. Redaction can remove refs from a view, but only the
+/// current policy/data epoch may authorize returning payload bytes.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptDataBinding {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub receipt_digest: String,
+    pub metadata: ReceiptAuditMetadata,
+    pub payload_refs: Vec<ReceiptPayloadRef>,
+    pub payload_state: DataPayloadState,
+    pub binding_digest: String,
+}
+
+impl ReceiptDataBinding {
+    pub fn new(
+        receipt_digest: impl Into<String>,
+        metadata: ReceiptAuditMetadata,
+        payload_refs: Vec<ReceiptPayloadRef>,
+        payload_state: DataPayloadState,
+    ) -> Result<Self, String> {
+        let mut binding = Self {
+            schema: RECEIPT_DATA_BINDING_SCHEMA.to_owned(),
+            version: DATA_PROPAGATION_VERSION,
+            receipt_digest: receipt_digest.into(),
+            metadata,
+            payload_refs,
+            payload_state,
+            binding_digest: String::new(),
+        };
+        binding.binding_digest = binding.digest();
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != RECEIPT_DATA_BINDING_SCHEMA
+            || !self.version.is_compatible_with(&DATA_PROPAGATION_VERSION)
+            || !valid_digest(&self.receipt_digest)
+            || !valid_digest(&self.binding_digest)
+            || self.payload_refs.len() > MAX_RECEIPT_PAYLOAD_REFS
+        {
+            return Err("receipt_data_binding_header_invalid".to_owned());
+        }
+        self.metadata.validate()?;
+        let mut objects = BTreeSet::new();
+        for payload_ref in &self.payload_refs {
+            payload_ref.validate()?;
+            if !objects.insert(payload_ref.object_ref.clone())
+                || payload_ref.data_epoch != self.metadata.data_epoch
+            {
+                return Err("receipt_payload_ref_boundary_invalid".to_owned());
+            }
+        }
+        if self.binding_digest != self.digest() {
+            return Err("receipt_data_binding_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// Produces a redacted view without changing the governing state or policy metadata.
+    pub fn redact_payload_refs(&self) -> Result<Self, String> {
+        self.validate()?;
+        let mut redacted = self.clone();
+        redacted.payload_refs.clear();
+        redacted.binding_digest = redacted.digest();
+        redacted.validate()?;
+        Ok(redacted)
+    }
+
+    /// Redaction is not authorization: a payload is readable only while state and epoch match.
+    pub fn authorize_payload(&self, current_data_epoch: u64) -> Result<(), String> {
+        self.validate()?;
+        if self.payload_refs.is_empty()
+            || self.payload_state != DataPayloadState::Available
+            || self.metadata.data_epoch != current_data_epoch
+        {
+            return Err("receipt_payload_authorization_denied".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "receipt_digest": self.receipt_digest,
+            "metadata": self.metadata,
+            "payload_refs": self.payload_refs,
+            "payload_state": self.payload_state,
+        }))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataPropagationTarget {
+    EventProjection,
+    Receipt,
+    Audit,
+    Artifact,
+    Memory,
+    Index,
+    Cache,
+    Checkpoint,
+    Export,
+}
+
+impl DataPropagationTarget {
+    pub const ALL: [Self; 9] = [
+        Self::EventProjection,
+        Self::Receipt,
+        Self::Audit,
+        Self::Artifact,
+        Self::Memory,
+        Self::Index,
+        Self::Cache,
+        Self::Checkpoint,
+        Self::Export,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EventProjection => "event_projection",
+            Self::Receipt => "receipt",
+            Self::Audit => "audit",
+            Self::Artifact => "artifact",
+            Self::Memory => "memory",
+            Self::Index => "index",
+            Self::Cache => "cache",
+            Self::Checkpoint => "checkpoint",
+            Self::Export => "export",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataPropagationState {
+    Unknown,
+    Invalidated,
+    PreservedMetadata,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DataPropagationReceipt {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub target: DataPropagationTarget,
+    pub state: DataPropagationState,
+    pub project_ref: String,
+    pub previous_epoch: u64,
+    pub data_epoch: u64,
+    pub source_cursor: EventCursor,
+    pub tombstone_digest: String,
+    pub receipt_digest: Option<String>,
+    pub observed_at_ms: u64,
+}
+
+impl DataPropagationReceipt {
+    pub fn unknown(
+        target: DataPropagationTarget,
+        project_ref: impl Into<String>,
+        previous_epoch: u64,
+        data_epoch: u64,
+        source_cursor: EventCursor,
+        tombstone_digest: impl Into<String>,
+        observed_at_ms: u64,
+    ) -> Self {
+        Self {
+            schema: DATA_PROPAGATION_RECEIPT_SCHEMA.to_owned(),
+            version: DATA_PROPAGATION_VERSION,
+            target,
+            state: DataPropagationState::Unknown,
+            project_ref: project_ref.into(),
+            previous_epoch,
+            data_epoch,
+            source_cursor,
+            tombstone_digest: tombstone_digest.into(),
+            receipt_digest: None,
+            observed_at_ms,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != DATA_PROPAGATION_RECEIPT_SCHEMA
+            || !self.version.is_compatible_with(&DATA_PROPAGATION_VERSION)
+            || self.previous_epoch == 0
+            || self.data_epoch <= self.previous_epoch
+            || self.source_cursor == 0
+            || self.observed_at_ms == 0
+            || self.receipt_digest.is_some() && self.state == DataPropagationState::Unknown
+            || self.state != DataPropagationState::Unknown && self.receipt_digest.is_none()
+            || !valid_digest(&self.tombstone_digest)
+        {
+            return Err("data_propagation_receipt_invalid".to_owned());
+        }
+        nonempty(&self.project_ref, "data_propagation_project", 512)?;
+        if let Some(receipt_digest) = &self.receipt_digest {
+            if !valid_digest(receipt_digest) {
+                return Err("data_propagation_receipt_digest_invalid".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DataPropagationPlan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub project_ref: String,
+    pub kind: String,
+    pub previous_epoch: u64,
+    pub data_epoch: u64,
+    pub source_cursor: EventCursor,
+    pub tombstone_digest: String,
+    pub targets: Vec<DataPropagationReceipt>,
+    pub immutable_event_seal: bool,
+    pub plan_digest: String,
+}
+
+impl DataPropagationPlan {
+    pub fn from_snapshot(
+        snapshot: &DataGovernanceSnapshot,
+        previous_epoch: u64,
+        kind: impl Into<String>,
+        tombstone_digest: impl Into<String>,
+        observed_at_ms: u64,
+    ) -> Result<Self, String> {
+        snapshot.validate()?;
+        let tombstone_digest = tombstone_digest.into();
+        let targets = DataPropagationTarget::ALL
+            .into_iter()
+            .map(|target| {
+                let state = if target == DataPropagationTarget::EventProjection
+                    || (target == DataPropagationTarget::Audit && snapshot.audit_metadata_retained)
+                {
+                    DataPropagationState::PreservedMetadata
+                } else {
+                    DataPropagationState::Unknown
+                };
+                let mut receipt = DataPropagationReceipt {
+                    schema: DATA_PROPAGATION_RECEIPT_SCHEMA.to_owned(),
+                    version: DATA_PROPAGATION_VERSION,
+                    target,
+                    state,
+                    project_ref: snapshot.project_ref.clone(),
+                    previous_epoch,
+                    data_epoch: snapshot.data_epoch,
+                    source_cursor: snapshot.source_cursor,
+                    tombstone_digest: tombstone_digest.clone(),
+                    receipt_digest: None,
+                    observed_at_ms,
+                };
+                if state == DataPropagationState::PreservedMetadata {
+                    receipt.receipt_digest = Some(json_digest(&serde_json::json!({
+                        "target": receipt.target,
+                        "project_ref": receipt.project_ref,
+                        "data_epoch": receipt.data_epoch,
+                        "source_cursor": receipt.source_cursor,
+                        "tombstone_digest": receipt.tombstone_digest,
+                    })));
+                }
+                receipt
+            })
+            .collect::<Vec<_>>();
+        let mut plan = Self {
+            schema: DATA_PROPAGATION_PLAN_SCHEMA.to_owned(),
+            version: DATA_PROPAGATION_VERSION,
+            project_ref: snapshot.project_ref.clone(),
+            kind: kind.into(),
+            previous_epoch,
+            data_epoch: snapshot.data_epoch,
+            source_cursor: snapshot.source_cursor,
+            tombstone_digest,
+            targets,
+            immutable_event_seal: true,
+            plan_digest: String::new(),
+        };
+        plan.plan_digest = plan.digest();
+        plan.validate()?;
+        Ok(plan)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != DATA_PROPAGATION_PLAN_SCHEMA
+            || !self.version.is_compatible_with(&DATA_PROPAGATION_VERSION)
+            || self.previous_epoch == 0
+            || self.data_epoch <= self.previous_epoch
+            || self.source_cursor == 0
+            || !self.immutable_event_seal
+            || self.targets.len() != DataPropagationTarget::ALL.len()
+            || self.targets.len() > MAX_PROPAGATION_TARGETS
+            || !valid_digest(&self.tombstone_digest)
+            || !valid_digest(&self.plan_digest)
+        {
+            return Err("data_propagation_plan_header_invalid".to_owned());
+        }
+        nonempty(&self.project_ref, "data_propagation_plan_project", 512)?;
+        nonempty(&self.kind, "data_propagation_plan_kind", 128)?;
+        let mut seen = BTreeSet::new();
+        for receipt in &self.targets {
+            receipt.validate()?;
+            if receipt.project_ref != self.project_ref
+                || receipt.previous_epoch != self.previous_epoch
+                || receipt.data_epoch != self.data_epoch
+                || receipt.source_cursor != self.source_cursor
+                || receipt.tombstone_digest != self.tombstone_digest
+                || !seen.insert(receipt.target)
+            {
+                return Err("data_propagation_target_boundary_invalid".to_owned());
+            }
+        }
+        if DataPropagationTarget::ALL
+            .iter()
+            .any(|target| !seen.contains(target))
+            || self.plan_digest != self.digest()
+        {
+            return Err("data_propagation_plan_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn unresolved_targets(&self) -> Vec<DataPropagationTarget> {
+        self.targets
+            .iter()
+            .filter(|receipt| receipt.state == DataPropagationState::Unknown)
+            .map(|receipt| receipt.target)
+            .collect()
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "project_ref": self.project_ref,
+            "kind": self.kind,
+            "previous_epoch": self.previous_epoch,
+            "data_epoch": self.data_epoch,
+            "source_cursor": self.source_cursor,
+            "tombstone_digest": self.tombstone_digest,
+            "targets": self.targets,
+            "immutable_event_seal": self.immutable_event_seal,
+        }))
+    }
+}
+
+/// A seal for immutable source facts. Data governance may add tombstones and projections, but it
+/// cannot rewrite the events that produced a receipt.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImmutableEventSeal {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub source_cursor: EventCursor,
+    pub data_epoch: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub encryption_profile: String,
+    pub sealed: bool,
+    pub seal_digest: String,
+}
+
+impl ImmutableEventSeal {
+    pub fn new(
+        source_cursor: EventCursor,
+        data_epoch: u64,
+        source_event_ids: Vec<EventId>,
+        encryption_profile: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut seal = Self {
+            schema: IMMUTABLE_EVENT_SEAL_SCHEMA.to_owned(),
+            version: DATA_PROPAGATION_VERSION,
+            source_cursor,
+            data_epoch,
+            source_event_ids,
+            encryption_profile: encryption_profile.into(),
+            sealed: true,
+            seal_digest: String::new(),
+        };
+        seal.seal_digest = seal.digest();
+        seal.validate()?;
+        Ok(seal)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != IMMUTABLE_EVENT_SEAL_SCHEMA
+            || !self.version.is_compatible_with(&DATA_PROPAGATION_VERSION)
+            || self.source_cursor == 0
+            || self.data_epoch == 0
+            || self.source_event_ids.is_empty()
+            || !self.sealed
+            || !valid_digest(&self.seal_digest)
+        {
+            return Err("immutable_event_seal_invalid".to_owned());
+        }
+        nonempty(
+            &self.encryption_profile,
+            "immutable_event_seal_encryption_profile",
+            128,
+        )?;
+        let mut ids = BTreeSet::new();
+        if self
+            .source_event_ids
+            .iter()
+            .any(|event_id| !ids.insert(event_id.to_string()))
+            || self.seal_digest != self.digest()
+        {
+            return Err("immutable_event_seal_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "source_cursor": self.source_cursor,
+            "data_epoch": self.data_epoch,
+            "source_event_ids": self.source_event_ids,
+            "encryption_profile": self.encryption_profile,
+            "sealed": self.sealed,
+        }))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

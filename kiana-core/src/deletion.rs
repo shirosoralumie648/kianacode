@@ -5,8 +5,9 @@
 //! `Unknown` until its own receipt is supplied by a later, authorized operation.
 
 use kiana_domain::{
-    DeleteRequest, DeletionManifest, DeletionPlan, DeletionPropagation, DeletionTombstone,
-    RetentionDisposition, RetentionScan,
+    DataGovernanceSnapshot, DataPropagationPlan, DeleteRequest, DeletionManifest, DeletionPlan,
+    DeletionPropagation, DeletionTombstone, ReceiptDataBinding, RetentionDisposition,
+    RetentionScan,
 };
 
 const DELETION_TARGETS: [&str; 9] = [
@@ -69,4 +70,46 @@ pub fn plan_deletion(
         .collect();
     let manifest = DeletionManifest::new(request, next_data_epoch, &tombstones, propagation)?;
     DeletionPlan::new(request.clone(), next_data_epoch, tombstones, manifest)
+}
+
+/// Couple the SC-23 tombstone with ER-29 target propagation. The tombstone is planned first and
+/// every derived target starts Unknown; no projection, artifact or cache is considered deleted
+/// merely because a receipt was redacted.
+pub fn plan_deletion_propagation(
+    request: &DeleteRequest,
+    scan: &RetentionScan,
+    snapshot: &DataGovernanceSnapshot,
+    tombstone_digest: &str,
+    observed_at_ms: u64,
+) -> Result<(DeletionPlan, DataPropagationPlan), String> {
+    let deletion = plan_deletion(request, scan)?;
+    snapshot.validate()?;
+    if snapshot.project_ref != request.project_ref
+        || snapshot.policy_revision != request.policy_revision
+        || snapshot.data_epoch != request.data_epoch
+        || snapshot.source_cursor != request.source_cursor
+    {
+        return Err("deletion_governance_snapshot_stale".to_owned());
+    }
+    let mut next_snapshot = snapshot.clone();
+    next_snapshot.data_epoch = deletion.next_data_epoch;
+    next_snapshot.snapshot_digest = next_snapshot.digest();
+    next_snapshot.validate()?;
+    let propagation = DataPropagationPlan::from_snapshot(
+        &next_snapshot,
+        request.data_epoch,
+        "delete",
+        tombstone_digest,
+        observed_at_ms,
+    )?;
+    Ok((deletion, propagation))
+}
+
+/// Payload redaction changes presentation only. Authorization still requires a current epoch and
+/// an Available payload state, so a redacted receipt cannot be used to bypass revocation.
+pub fn receipt_redaction_is_not_authorization(
+    binding: &ReceiptDataBinding,
+    current_data_epoch: u64,
+) -> Result<(), String> {
+    binding.authorize_payload(current_data_epoch)
 }
