@@ -74,6 +74,10 @@ const WEB_HYDRATE_SCHEMA: &str = "kiana.web-hydrate.v1";
 const WEB_HISTORY_SCHEMA: &str = "kiana.web-history-page.v1";
 const WEB_ARTIFACT_SCHEMA: &str = "kiana.web-artifact-page.v1";
 const WEB_PAGE_CURSOR_SCHEMA: &str = "kiana.web-page-cursor.v1";
+/// Additive Web lease/coordination contracts.  The authenticated daemon principal remains the
+/// authority; these values only fence tab-local mutable state and replay.
+pub const WEB_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
+pub const WEB_ACTION_SUBMISSION_SCHEMA: &str = "kiana.ui-action-submission.v1";
 const MAX_WEB_HISTORY_PAGE: usize = 64;
 const MAX_WEB_PAGE_CURSORS: usize = 256;
 const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
@@ -89,6 +93,8 @@ const MAX_WEB_SSE_REASON_BYTES: usize = 512;
 /// needed for the loopback EventSource wrapper, but both forms must agree when both are present.
 const MAX_WEB_SSE_CURSOR_BYTES: usize = 256;
 const WEB_SSE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
+const MAX_WEB_ACTION_SUBMISSIONS: usize = 512;
+const WEB_ACTION_SUBMISSION_TTL: Duration = Duration::from_secs(15 * 60);
 
 /// The stable route inventory used by the Web entrypoint and its source/CI guards.
 ///
@@ -286,11 +292,13 @@ struct WebApp {
     role: Arc<Mutex<String>>,
     sessions: Arc<Mutex<HashMap<String, WebSession>>>,
     active: Arc<Mutex<String>>,
-    web_token: String,
+    web_token: Arc<Mutex<String>>,
+    token_generation: Arc<std::sync::atomic::AtomicU64>,
     bound_addr: SocketAddr,
     rate_window: Arc<Mutex<WebRateWindow>>,
     page_cursors: Arc<Mutex<HashMap<String, WebPageCursor>>>,
     consumed_page_cursors: Arc<Mutex<HashMap<String, Instant>>>,
+    action_submissions: Arc<Mutex<HashMap<String, WebActionSubmission>>>,
     shutting_down: Arc<AtomicBool>,
     shutdown: tokio::sync::watch::Sender<bool>,
 }
@@ -302,6 +310,28 @@ struct WebSession {
     name: String,
     last: Option<TurnSummary>,
     turns: Vec<TurnView>,
+    owner_principal_id: String,
+    owner_tab_id: Option<String>,
+    lease_epoch: u64,
+    owner_active: bool,
+}
+
+#[derive(Clone, Debug)]
+struct WebActionSubmission {
+    schema: &'static str,
+    session_id: String,
+    tab_id: String,
+    principal_id: String,
+    target_id: String,
+    created_at: Instant,
+    response: Option<Value>,
+}
+
+#[derive(Clone, Debug)]
+enum WebActionClaim {
+    None,
+    New { id: String },
+    Replay(Value),
 }
 
 #[derive(Clone, Debug)]
@@ -407,6 +437,8 @@ struct EventsQuery {
     token: Option<String>,
     #[serde(default)]
     last_event_id: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -789,7 +821,8 @@ impl WebApp {
     ) -> Self {
         let session_id = new_session_id();
         let mut sessions = HashMap::new();
-        sessions.insert(session_id.clone(), WebSession::default());
+        let principal_id = host.authenticated_principal().principal_id;
+        sessions.insert(session_id.clone(), WebSession::new(principal_id));
         Self {
             host,
             workdir,
@@ -797,7 +830,6 @@ impl WebApp {
             role: Arc::new(Mutex::new(role)),
             sessions: Arc::new(Mutex::new(sessions)),
             active: Arc::new(Mutex::new(session_id)),
-            web_token: uuid::Uuid::new_v4().to_string(),
             bound_addr,
             rate_window: Arc::new(Mutex::new(WebRateWindow {
                 started: Instant::now(),
@@ -805,6 +837,9 @@ impl WebApp {
             })),
             page_cursors: Arc::new(Mutex::new(HashMap::new())),
             consumed_page_cursors: Arc::new(Mutex::new(HashMap::new())),
+            action_submissions: Arc::new(Mutex::new(HashMap::new())),
+            web_token: Arc::new(Mutex::new(uuid::Uuid::new_v4().to_string())),
+            token_generation: Arc::new(std::sync::atomic::AtomicU64::new(1)),
             shutting_down: Arc::new(AtomicBool::new(false)),
             shutdown: tokio::sync::watch::channel(false).0,
         }
@@ -941,13 +976,28 @@ impl WebApp {
         } else {
             "ready"
         };
-        let owner_id = self.host.authenticated_principal().principal_id;
+        let principal_id = self.host.authenticated_principal().principal_id;
+        let (owner_tab_id, lease_epoch, owner_active) = current
+            .as_ref()
+            .map(|session| {
+                (
+                    session.owner_tab_id.clone(),
+                    session.lease_epoch,
+                    session.owner_active,
+                )
+            })
+            .unwrap_or_else(|| (None, 1, false));
+        let token_generation = self
+            .token_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let lease_owner_tab = owner_tab_id.clone().unwrap_or_else(|| "history".to_owned());
+        let lease_disposition = if owner_active { "observer" } else { "closed" };
         let hydrate = json!({
             "schema": WEB_HYDRATE_SCHEMA,
             "instance_id": self.host.feed_instance_id(),
             "epoch": projection.cursor.epoch.clone(),
             "snapshot_cursor": projection.cursor.sequence,
-            "owner_id": owner_id,
+            "owner_id": principal_id.clone(),
             "session_id": session_id.clone(),
             "generated_at_unix_ms": web_now_unix_ms(),
             "source": "daemon_snapshot",
@@ -979,7 +1029,17 @@ impl WebApp {
             "running": running,
             "read_only": read_only,
             "resume_required": read_only,
-            "human_actions_allowed": true,
+            "human_actions_allowed": owner_active && !read_only,
+            "lease": {
+                "schema": WEB_TAB_SESSION_SCHEMA,
+                "principal_id": principal_id,
+                "session_id": session_id.clone(),
+                "owner_tab_id": lease_owner_tab,
+                "lease_epoch": lease_epoch,
+                "token_generation": token_generation,
+                "disposition": lease_disposition,
+                "feed_only": true
+            },
             "sessions": session_views,
             "threads": threads,
             "thread": thread,
@@ -1329,15 +1389,25 @@ impl WebApp {
     }
 }
 
-impl Default for WebSession {
-    fn default() -> Self {
+impl WebSession {
+    fn new(owner_principal_id: impl Into<String>) -> Self {
         Self {
             run_id: None,
             running: false,
             name: "New thread".to_owned(),
             last: None,
             turns: Vec::new(),
+            owner_principal_id: owner_principal_id.into(),
+            owner_tab_id: None,
+            lease_epoch: 1,
+            owner_active: true,
         }
+    }
+}
+
+impl Default for WebSession {
+    fn default() -> Self {
+        Self::new("unknown")
     }
 }
 
@@ -1347,7 +1417,12 @@ async fn index(
 ) -> Result<Html<String>, ApiError> {
     authorize_host(&app, &headers)?;
     Ok(Html(
-        PAGE.replace("__KIANA_WEB_TOKEN_VALUE__", &app.web_token),
+        PAGE.replace(
+            "__KIANA_WEB_TOKEN_VALUE__",
+            &app.web_token
+                .lock()
+                .map_err(|_| ApiError::fail("web_token_state_unavailable"))?,
+        ),
     ))
 }
 
@@ -1389,6 +1464,7 @@ async fn bootstrap(
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    claim_session_tab(&app, &session_id, &tab_id)?;
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_hydrate_tab(&mut snapshot, &tab_id)?;
     snapshot["bootstrap"] = json!({
@@ -1554,7 +1630,15 @@ async fn events(
     // The token is consumed only by authorize_sse.  It is never copied into an SSE id/data
     // frame, a server log, or a reconnect cursor; EventSource's query fallback is auth-only.
     authorize_sse(&app, &headers, query.token.as_deref())?;
-    let session_id = resolve_mutable_session(&app, query.session_id.as_deref()).await?;
+    let tab_id = query
+        .tab_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad("web_tab_required"))?;
+    validate_web_tab_id(tab_id)?;
+    let session_id = resolve_feed_session(&app, query.session_id.as_deref()).await?;
+    authorize_feed_tab(&app, &session_id, tab_id)?;
     let attach = stream_attach_state(&app, &session_id)?;
     // Subscribe before returning the SSE response headers. The browser waits for
     // EventSource.onopen before issuing /api/run, so the first delta is not lost.
@@ -1705,6 +1789,121 @@ fn claim_ui_headers(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// Claim one tab/session mutation after the server has resolved the session owner.  The browser
+/// generated action id is only an idempotency handle; principal, tab lease and UI cursor remain
+/// server-owned.  A replay returns the exact cached command response and never reaches a runner.
+fn claim_action_submission(
+    app: &WebApp,
+    headers: &HeaderMap,
+    session_id: &str,
+    tab_id: &str,
+) -> Result<WebActionClaim, ApiError> {
+    validate_web_session_id(session_id)?;
+    validate_web_tab_id(tab_id)?;
+    let Some(raw) = headers.get("x-kiana-action-id") else {
+        // Legacy/read-only callers may omit the optional action envelope. Mutating handlers still
+        // require the owner lease, while the ControlPlane remains the final authority.
+        return Ok(WebActionClaim::None);
+    };
+    let id = raw
+        .to_str()
+        .map(str::trim)
+        .ok()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad("ui_action_invalid"))?;
+    validate_web_opaque_id(id, "action_id")?;
+    let principal_id = app.host.authenticated_principal().principal_id;
+    let target_id = headers
+        .get("x-kiana-action-target")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(session_id);
+    if target_id != session_id && target_id != "workspace" {
+        return Err(ApiError::conflict("ui_action_target_mismatch"));
+    }
+    let now = Instant::now();
+    let mut submissions = app
+        .action_submissions
+        .lock()
+        .map_err(|_| ApiError::fail("web_action_state_unavailable"))?;
+    submissions.retain(|_, submission| {
+        now.duration_since(submission.created_at) < WEB_ACTION_SUBMISSION_TTL
+    });
+    if let Some(original) = submissions.get(id) {
+        if original.schema != WEB_ACTION_SUBMISSION_SCHEMA
+            || original.session_id != session_id
+            || original.tab_id != tab_id
+            || original.principal_id != principal_id
+            || original.target_id != target_id
+        {
+            return Err(ApiError::conflict("ui_action_owner_mismatch"));
+        }
+        if let Some(response) = &original.response {
+            return Ok(WebActionClaim::Replay(response.clone()));
+        }
+        return Err(ApiError::conflict("ui_action_in_flight"));
+    }
+    // Keep the existing daemon/UI cursor precondition. This is a display fence only; the
+    // eventual command still re-enters DaemonHost → ControlPlane → Broker.
+    claim_ui_headers(app, headers)?;
+    submissions.insert(
+        id.to_owned(),
+        WebActionSubmission {
+            schema: WEB_ACTION_SUBMISSION_SCHEMA,
+            session_id: session_id.to_owned(),
+            tab_id: tab_id.to_owned(),
+            principal_id,
+            target_id: target_id.to_owned(),
+            created_at: now,
+            response: None,
+        },
+    );
+    while submissions.len() > MAX_WEB_ACTION_SUBMISSIONS {
+        let oldest = submissions
+            .iter()
+            .min_by_key(|(_, submission)| submission.created_at)
+            .map(|(key, _)| key.clone());
+        if let Some(oldest) = oldest {
+            submissions.remove(&oldest);
+        } else {
+            break;
+        }
+    }
+    Ok(WebActionClaim::New { id: id.to_owned() })
+}
+
+fn complete_action_submission(
+    app: &WebApp,
+    claim: &WebActionClaim,
+    response: Value,
+) -> Result<(), ApiError> {
+    let WebActionClaim::New { id } = claim else {
+        return Ok(());
+    };
+    let mut submissions = app
+        .action_submissions
+        .lock()
+        .map_err(|_| ApiError::fail("web_action_state_unavailable"))?;
+    let Some(original) = submissions.get_mut(id) else {
+        return Err(ApiError::conflict("ui_action_submission_expired"));
+    };
+    original.response = Some(response);
+    Ok(())
+}
+
+/// Rotate the in-memory Web token without changing the principal or ControlPlane authority. A
+/// stale token can no longer use an existing lease; the next page must hydrate with the new token.
+fn rotate_web_token(app: &WebApp) -> Result<(), ApiError> {
+    *app.web_token
+        .lock()
+        .map_err(|_| ApiError::fail("web_token_state_unavailable"))? =
+        uuid::Uuid::new_v4().to_string();
+    app.token_generation
+        .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    Ok(())
+}
+
 fn stream_cursor_from_request(
     headers: &HeaderMap,
     query: Option<&str>,
@@ -1842,10 +2041,14 @@ async fn run_turn(
     Json(body): Json<RunBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
     let prompt = validate_web_prompt(body.prompt)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
     mark_running(&app, &session_id, true)?;
@@ -1877,6 +2080,7 @@ async fn run_turn(
             let mut payload = app.snapshot(&session_id).await?;
             attach_optional_hydrate_tab(&mut payload, &headers)?;
             payload["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
+            complete_action_submission(&app, &action_id, payload.clone())?;
             Ok(Json(payload))
         }
         Err(error) => {
@@ -1892,9 +2096,13 @@ async fn cancel_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
     let response = harness_run::cancel_envelope_on_host(
@@ -1909,6 +2117,8 @@ async fn cancel_turn(
     store_turn(&app, &session_id, "(cancel)", &response)?;
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    snapshot["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -1918,15 +2128,20 @@ async fn trust_folder(
     body: Option<Json<SessionBody>>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
     let requested = body
         .as_ref()
         .and_then(|Json(body)| body.session_id.as_deref());
     let session_id = resolve_mutable_session(&app, requested).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     write_project_trust(&app.workdir, ProjectTrust::Trusted).map_err(ApiError::fail)?;
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -1936,8 +2151,12 @@ async fn set_sandbox(
     Json(body): Json<SandboxBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    require_session_owner(&app, &body.session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &body.session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
         .map_err(|error| ApiError::bad(error.to_string()))?;
@@ -1946,6 +2165,7 @@ async fn set_sandbox(
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = sandbox;
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -1954,8 +2174,12 @@ async fn new_session(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let action_scope = lock_string(&app.active)?;
+    let action_id = claim_action_submission(&app, &headers, &action_scope, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let session_id = new_session_id();
     {
         let mut sessions = app
@@ -1963,13 +2187,18 @@ async fn new_session(
             .lock()
             .map_err(|_| ApiError::fail("web_state_poisoned"))?;
         ensure_session_capacity(&sessions)?;
-        sessions.insert(session_id.clone(), WebSession::default());
+        sessions.insert(
+            session_id.clone(),
+            WebSession::new(app.host.authenticated_principal().principal_id),
+        );
     }
+    claim_session_tab(&app, &session_id, &tab_id)?;
     *app.active
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = session_id.clone();
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -2027,12 +2256,16 @@ async fn command_action(
     Json(body): Json<CommandBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
+    let tab_id = require_web_tab(&headers)?;
     if body.name.is_empty() || body.name.len() > 128 || !body.arguments.is_object() {
         return Err(ApiError::bad("command_request_invalid"));
     }
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
-    claim_ui_headers(&app, &headers)?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let response = harness_run::command_envelope_on_host(
         app.host.clone(),
         session_id.clone(),
@@ -2044,7 +2277,9 @@ async fn command_action(
     .map_err(|error| ApiError::fail(error.to_string()))?;
     let mut state = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut state, &headers)?;
-    Ok(Json(json!({ "state": state, "response": response })))
+    let payload = json!({ "state": state, "response": response });
+    complete_action_submission(&app, &action_id, payload.clone())?;
+    Ok(Json(payload))
 }
 
 #[derive(Deserialize)]
@@ -2154,9 +2389,13 @@ async fn decide_approval(
     Json(body): Json<ApprovalBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let response = harness_run::decide_approval_envelope_on_host(
         app.host.clone(),
         session_id.clone(),
@@ -2178,6 +2417,7 @@ async fn decide_approval(
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
     snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -2187,9 +2427,13 @@ async fn resume_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let _ = optional_web_tab(&headers)?;
-    claim_ui_headers(&app, &headers)?;
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
+    let tab_id = require_web_tab(&headers)?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
     let response = harness_run::resume_envelope_on_host(
         app.host.clone(),
         session_id.clone(),
@@ -2215,7 +2459,7 @@ async fn resume_turn(
             .map_err(|_| ApiError::fail("web_state_poisoned"))?;
         if !sessions.contains_key(&session_id) {
             ensure_session_capacity(&sessions)?;
-            let mut restored = WebSession::default();
+            let mut restored = WebSession::new(app.host.authenticated_principal().principal_id);
             if let Some(thread) = previous {
                 restored.name = thread.session.name;
                 restored.run_id = RunId::parse_str(&thread.session.run_id);
@@ -2230,6 +2474,7 @@ async fn resume_turn(
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
     snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }
 
@@ -2756,6 +3001,28 @@ fn attach_hydrate_tab(snapshot: &mut Value, tab_id: &str) -> Result<(), ApiError
         .and_then(Value::as_object_mut)
         .ok_or_else(|| ApiError::fail("web_hydrate_missing"))?;
     hydrate.insert("tab_id".to_owned(), Value::String(tab_id.to_owned()));
+    if let Some(lease) = snapshot.get_mut("lease").and_then(Value::as_object_mut) {
+        let owner = lease
+            .get("owner_tab_id")
+            .and_then(Value::as_str)
+            .is_some_and(|owner| owner == tab_id);
+        lease.insert(
+            "disposition".to_owned(),
+            Value::String(if owner {
+                "owner".to_owned()
+            } else {
+                "observer".to_owned()
+            }),
+        );
+        lease.insert("feed_only".to_owned(), Value::Bool(!owner));
+        snapshot["human_actions_allowed"] = Value::Bool(
+            owner
+                && snapshot
+                    .get("read_only")
+                    .and_then(Value::as_bool)
+                    .is_none_or(|read_only| !read_only),
+        );
+    }
     Ok(())
 }
 
@@ -2853,7 +3120,11 @@ fn authorize_web_request(
     headers: &HeaderMap,
     supplied: Option<&str>,
 ) -> Result<(), ApiError> {
-    if supplied != Some(app.web_token.as_str()) {
+    let current = app
+        .web_token
+        .lock()
+        .map_err(|_| ApiError::fail("web_token_state_unavailable"))?;
+    if supplied != Some(current.as_str()) {
         return Err(ApiError::unauthorized());
     }
     authorize_host(app, headers)?;
@@ -2959,6 +3230,74 @@ async fn resolve_human_session(app: &WebApp, requested: Option<&str>) -> Result<
         return Err(ApiError::bad("session_unknown"));
     }
     Ok(id)
+}
+
+/// Bind the first bootstrap/new-session tab to the server principal. A different tab may still
+/// observe the session through the feed, but it cannot acquire or steal the mutation lease.
+fn claim_session_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<(), ApiError> {
+    validate_web_session_id(session_id)?;
+    validate_web_tab_id(tab_id)?;
+    let principal_id = app.host.authenticated_principal().principal_id;
+    let mut sessions = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+    let session = sessions
+        .get_mut(session_id)
+        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    if session.owner_principal_id != principal_id {
+        return Err(ApiError::conflict("session_principal_mismatch"));
+    }
+    match session.owner_tab_id.as_deref() {
+        None => {
+            session.owner_tab_id = Some(tab_id.to_owned());
+            session.owner_active = true;
+            session.lease_epoch = session.lease_epoch.saturating_add(1).max(1);
+            Ok(())
+        }
+        Some(owner) if owner == tab_id && session.owner_active => Ok(()),
+        Some(_) => Ok(()),
+    }
+}
+
+fn require_session_owner(app: &WebApp, session_id: &str, tab_id: &str) -> Result<(), ApiError> {
+    let principal_id = app.host.authenticated_principal().principal_id;
+    let sessions = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+    let session = sessions
+        .get(session_id)
+        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    if session.owner_principal_id != principal_id {
+        return Err(ApiError::conflict("session_principal_mismatch"));
+    }
+    if !session.owner_active || session.owner_tab_id.as_deref() != Some(tab_id) {
+        return Err(ApiError::conflict("session_owner_required"));
+    }
+    Ok(())
+}
+
+fn authorize_feed_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<(), ApiError> {
+    validate_web_tab_id(tab_id)?;
+    let principal_id = app.host.authenticated_principal().principal_id;
+    let sessions = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+    let session = sessions
+        .get(session_id)
+        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    if session.owner_principal_id != principal_id {
+        return Err(ApiError::conflict("session_principal_mismatch"));
+    }
+    // Owner and observer tabs both receive the immutable feed. Only owner tabs may submit an
+    // action; observer state never gets copied into a mutable draft or lease.
+    Ok(())
+}
+
+async fn resolve_feed_session(app: &WebApp, requested: Option<&str>) -> Result<String, ApiError> {
+    resolve_human_session(app, requested).await
 }
 
 async fn resolve_mutable_session(

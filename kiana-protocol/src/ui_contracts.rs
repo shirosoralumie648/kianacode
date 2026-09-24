@@ -5,8 +5,8 @@
 
 use crate::UiCursor;
 use kiana_domain::{
-    json_digest, validate_json_limits, ArtifactId, AuthenticatedPrincipalRef,
-    ConnectorHealthFact, ExecutionStatus, ProjectId, ReceiptId, RunId, SessionId,
+    json_digest, validate_json_limits, ArtifactId, AuthenticatedPrincipalRef, ConnectorHealthFact,
+    ExecutionStatus, ProjectId, ReceiptId, RequestId, RunId, SessionId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -27,6 +27,12 @@ pub const UI_LIVE_HOST_EVIDENCE_SCHEMA: &str = "kiana.ui-live-host-evidence.v1";
 pub const UI_EVIDENCE_CASE_SCHEMA: &str = "kiana.ui-evidence-case.v1";
 pub const UI_EVIDENCE_BUNDLE_SCHEMA: &str = "kiana.ui-evidence-bundle.v1";
 pub const UI_CONNECTOR_HEALTH_SCHEMA: &str = "kiana.ui-connector-health.v1";
+/// Versioned server-owned relationship between one browser tab and a session.  The tab value is
+/// an observation scope, never a principal credential or a new authorization authority.
+pub const UI_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
+/// Versioned client submission envelope.  The server still rechecks principal, lease, CAS and
+/// idempotency through the existing ControlPlane/UI action path.
+pub const UI_ACTION_SUBMISSION_SCHEMA: &str = "kiana.ui-action-submission.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -76,6 +82,92 @@ pub enum UiRetryDisposition {
     QueryOriginal,
     SafeRetry,
     DoNotRetry,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiTabSessionDisposition {
+    Owner,
+    Observer,
+    Revoked,
+    Closed,
+}
+
+/// A server projection used by Web and other clients to keep tab-local state separate while
+/// allowing observers to consume the same read-only feed.  `principal` is always server-owned;
+/// a wire supplied owner/principal value must never grant a mutation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiTabSessionV1 {
+    pub schema: String,
+    pub principal: AuthenticatedPrincipalRef,
+    pub session_id: SessionId,
+    pub tab_id: String,
+    pub owner_tab_id: String,
+    pub lease_epoch: u64,
+    pub token_generation: u64,
+    pub disposition: UiTabSessionDisposition,
+    pub feed_only: bool,
+}
+
+impl UiTabSessionV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_TAB_SESSION_SCHEMA
+            || self.lease_epoch == 0
+            || self.token_generation == 0
+            || self.feed_only != (self.disposition != UiTabSessionDisposition::Owner)
+        {
+            return Err("ui_tab_session_header_invalid".to_owned());
+        }
+        self.principal.validate()?;
+        required(self.session_id.as_str(), "ui_tab_session_id", 256)?;
+        required(&self.tab_id, "ui_tab_id", 256)?;
+        required(&self.owner_tab_id, "ui_owner_tab_id", 256)
+    }
+}
+
+/// Client generated submission metadata.  It deliberately carries no owner or grant fields;
+/// those are resolved from the authenticated server principal and the tab/session lease.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiActionSubmissionV1 {
+    pub schema: String,
+    pub command_id: RequestId,
+    pub idempotency_key: String,
+    pub session_id: SessionId,
+    pub tab_id: String,
+    pub expected_epoch: String,
+    pub expected_cursor: u64,
+    #[serde(default)]
+    pub expected_revision: Option<u64>,
+    pub payload_digest: String,
+    pub submitted_at_unix_ms: u64,
+}
+
+impl UiActionSubmissionV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_ACTION_SUBMISSION_SCHEMA
+            || self.command_id.as_uuid().is_nil()
+            || self.expected_cursor == 0
+            || self.expected_revision == Some(0)
+            || self.submitted_at_unix_ms == 0
+        {
+            return Err("ui_action_submission_header_invalid".to_owned());
+        }
+        required(
+            &self.idempotency_key,
+            "ui_action_submission_idempotency",
+            256,
+        )?;
+        required(
+            self.session_id.as_str(),
+            "ui_action_submission_session",
+            256,
+        )?;
+        required(&self.tab_id, "ui_action_submission_tab", 256)?;
+        required(&self.expected_epoch, "ui_action_submission_epoch", 256)?;
+        digest(&self.payload_digest, "ui_action_submission_payload_digest")
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1181,8 +1273,8 @@ impl UiFeedCursorV1 {
         if value.len() > 2_048 {
             return Err("ui_feed_cursor_too_large".to_owned());
         }
-        let cursor: Self = serde_json::from_str(value)
-            .map_err(|_| "ui_feed_cursor_decode_failed".to_owned())?;
+        let cursor: Self =
+            serde_json::from_str(value).map_err(|_| "ui_feed_cursor_decode_failed".to_owned())?;
         cursor.validate()?;
         Ok(cursor)
     }

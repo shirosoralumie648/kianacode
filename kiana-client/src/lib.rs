@@ -14,12 +14,13 @@ use kiana_protocol::{
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
-mod typed;
 mod cli_contract;
 mod cli_presenter;
 mod provider_diagnostics;
+mod typed;
 mod ui_schema_generated;
 mod ui_store;
+mod web_contract;
 
 pub use cli_contract::{
     validate_session, validate_workspace, CliCommand, CliCommandId, CliInvocation, CliOutput,
@@ -30,9 +31,7 @@ pub use cli_presenter::{
     present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
     CLI_DEFAULT_TTY_BYTES, CLI_MAX_DIAGNOSTIC_BYTES,
 };
-pub use provider_diagnostics::{
-    ProviderDiagnosticsClientError, ProviderDiagnosticsClientState,
-};
+pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
@@ -47,6 +46,10 @@ pub use ui_store::{
     UiOptimisticUpdate, UiStoreChange, UiStoreError, UiStoreEvent, UiStoreGap, UiStoreGapReason,
     UiStoreScope, UiStoreTransition, UI_ENTITY_STORE_MAX_ENTITIES, UI_ENTITY_STORE_MAX_EVENTS,
     UI_ENTITY_STORE_MAX_UNKNOWN, UI_ENTITY_STORE_SCHEMA, UI_ENTITY_STORE_SNAPSHOT_SCHEMA,
+};
+pub use web_contract::{
+    WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,
+    WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA, WEB_CLIENT_TAB_SCHEMA,
 };
 
 #[async_trait]

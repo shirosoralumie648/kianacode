@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-19 Web session ownership 与多 tab 并发（2026-09-25）
+
+source_snapshot: `3bfb9eef` 加 UI-19 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-client/src/web_contract.rs`; `kiana-protocol/src/ui_contracts.rs`; `kiana-entrypoints/tests/fixtures/ui19-session-tabs.json`; `kiana-entrypoints/tests/ui19_session_tabs.rs`; `kiana-entrypoints/tests/ui19_session_tabs_guard.rs`; `.github/workflows/ui19-session-tabs.yml`; `docs/roadmap/ui19-session-tabs-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui19`；server-owned principal/session/tab lease 与 token generation 绑定 owner；浏览器 draft/submission 仅按 tab/session 保存在进程内；observer tab 只读订阅 feed；重复 action key 返回原 command payload，stale cursor 仍由既有 UI CAS fence；关闭 tab 只断开 SSE，不提交 cancel
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui19_session_tabs --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui19_session_tabs_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: tab A 操作 tab B、stale card/CAS、重复 click 双 effect、关闭 tab 不 cancel、token rotation、owner exit、observer action、tab-local draft/submission、原 command replay 与 cross-tab feed observation；无 daemon/provider/live effect
+exit_code: 本地仅目标 rustfmt 与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: UI-19 server lease、tab/session ownership、tab-local draft/submission、duplicate replay、feed-only observer 与 close-without-cancel deny-first source contract 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web/protocol/client source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: lease/submission/token generation 是进程内 bounded memory，重启、多进程、外部浏览器 auth、真实 sleep/wake/CAS timing、provider/live、OS/network/physical 与 receipt effect correctness 未证明；原响应缓存是 HTTP projection，ControlPlane/EventLog receipt 仍为事实权威；CI 结果未等待
+reviewer: Codex UI-19 source review；检查 principal/session/tab lease、owner-only mutation、feed-only observer、stale/CAS、duplicate original response、token rotation metadata、close-without-cancel、no-second-loop/no-direct-effect；无本地 runtime test reviewer
+
 ### UI-18 Web SSE reconnect、Last-Event-ID 和 gap（2026-09-25）
 
 source_snapshot: `5abce647` 加 UI-18 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui18-web-sse.json`; `kiana-entrypoints/tests/ui18_web_sse.rs`; `kiana-entrypoints/tests/ui18_web_sse_guard.rs`; `.github/workflows/ui18-web-sse.yml`; `docs/roadmap/ui18-web-sse-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -1,0 +1,31 @@
+{
+  "schema": "kiana.ui-tab-session.v1",
+  "submission_schema": "kiana.ui-action-submission.v1",
+  "scope": ["principal", "session_id", "tab_id", "lease_epoch", "token_generation"],
+  "deny_first": [
+    "tab_a_operates_tab_b_private_session",
+    "stale_card_after_feed_revision",
+    "duplicate_click_two_effects",
+    "closed_tab_cancels_run",
+    "token_rotation_old_credential",
+    "owner_exit_without_cancel",
+    "cas_race_second_writer",
+    "cross_tab_draft_reuse",
+    "observer_tab_action"
+  ],
+  "success": [
+    "tab_local_draft_and_submission",
+    "original_command_receipt_on_replay",
+    "feed_only_cross_tab_observation",
+    "owner_tab_refresh_rehydrates",
+    "browser_sleep_reconnects_feed",
+    "owner_exit_preserves_run"
+  ],
+  "limits": {
+    "submission_entries": 512,
+    "submission_ttl_seconds": 900,
+    "draft_bytes": 65536
+  },
+  "authority": "DaemonHost -> ControlPlane -> Broker",
+  "proof_level": "source"
+}

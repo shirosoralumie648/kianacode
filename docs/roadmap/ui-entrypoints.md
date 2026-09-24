@@ -438,13 +438,18 @@ gap→snapshot hydrate；重连路径不会提交 `/api/run`、`/api/cancel` 或
 
 
 
-#### UI-19 · Web session ownership 与多 tab 并发　⏳
+#### UI-19 · Web session ownership 与多 tab 并发　🔄
 
 - 依赖：UI-04/08/16–18。代码：session lease/tab identity、action coordinator。
 - 步骤：每 tab 独立 draft/submission；服务端按 principal/session owner 授权；同一 action 的重复提交显示原 command 结果；跨 tab 通过 feed 观察而非共享可变状态。
 - 先拒绝：tab A 操作 tab B 私有 session、stale card 通过、重复 click 产生两个 effect、关闭 tab 触发 cancel。
 - 成功/回归：双 tab approve/cancel/edit、刷新、浏览器睡眠、竞态 CAS、token 轮换和 owner 退出。
 - 完成产物：多 tab e2e、tab/session 关系图和冲突文案。
+
+实现基线：[UI-19 Web session ownership and multi-tab baseline](ui19-session-tabs-baseline.md)。当前
+source slice 在既有 loopback Web 与 `DaemonHost`/ControlPlane 路径上补充 server-owned principal/session/tab
+lease、tab-local draft/submission、stale/CAS deny、重复提交原响应、跨 tab feed-only observation 与
+close-without-cancel fence；GitHub-only fixture/workflow 已接入，证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-20"></a>
 

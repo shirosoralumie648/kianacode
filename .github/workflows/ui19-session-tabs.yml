@@ -1,0 +1,52 @@
+name: UI-19 Web session ownership and multi-tab concurrency
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui19-session-tabs.json"
+      - "kiana-entrypoints/tests/ui19_session_tabs.rs"
+      - "kiana-entrypoints/tests/ui19_session_tabs_guard.rs"
+      - "kiana-client/src/web_contract.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "docs/roadmap/ui19-session-tabs-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui19-session-tabs.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui19-session-tabs.json"
+      - "kiana-entrypoints/tests/ui19_session_tabs.rs"
+      - "kiana-entrypoints/tests/ui19_session_tabs_guard.rs"
+      - "kiana-client/src/web_contract.rs"
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "docs/roadmap/ui19-session-tabs-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui19-session-tabs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui19-session-tabs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-19 contract fixture
+        run: cargo test -p kiana-entrypoints --test ui19_session_tabs --locked -- --test-threads=1
+      - name: Run UI-19 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui19_session_tabs_guard --locked -- --test-threads=1
+      - name: Compile UI-19 workspace test targets
+        run: cargo check --workspace --tests --locked

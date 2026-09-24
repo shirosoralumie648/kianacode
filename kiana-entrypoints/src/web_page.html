@@ -216,7 +216,20 @@
     const tabOwnerId = crypto.randomUUID();
     const hydrateCache = new Map();
     const historyPages = new Map();
+    const tabDrafts = new Map();
+    const submissionIds = new Map();
     let hydrateState = 'loading';
+
+    // Drafts and submission identities are scoped to this tab. A retry reuses the same identity
+    // so the server can return the original command receipt; a new tab never imports this map.
+    function tabSessionKey(session) { return tabOwnerId + ':' + (session || 'workspace'); }
+    function stableSubmissionId(path, body, explicit) {
+      if (explicit) return explicit;
+      const key = path + ':' + tabSessionKey(body && body.session_id || sessionId) + ':' +
+        JSON.stringify(body || {});
+      if (!submissionIds.has(key)) submissionIds.set(key, crypto.randomUUID());
+      return submissionIds.get(key);
+    }
 
     function setHydrateStatus(status, detail) {
       hydrateState = status;
@@ -229,6 +242,18 @@
     }
 
     function cacheKeyFor(session) { return tabOwnerId + ':' + session; }
+
+    function rememberDraft() {
+      if (!sessionId) return;
+      const text = String(promptEl.value || '');
+      if (text.length > 64 * 1024) return;
+      tabDrafts.set(tabSessionKey(sessionId), {text, revision: Date.now()});
+    }
+
+    function restoreDraft(session) {
+      const draft = tabDrafts.get(tabSessionKey(session));
+      promptEl.value = draft ? draft.text : '';
+    }
 
     function acceptHydrateSnapshot(snapshot) {
       const envelope = snapshot && snapshot.hydrate;
@@ -383,8 +408,10 @@
       if (!data.response || data.response.status !== 'completed') throw new Error((data.response && data.response.error) || '读取未完成');
       return data.response.output || {};
     }
-    async function submitCommand(name, args, requested = sessionId) {
-      const data = await api('/api/command', {session_id:requested, name, arguments:args});
+    async function submitCommand(name, args, requested = sessionId, submissionId = null) {
+      const actionId = submissionId || args.idempotency_key ||
+        stableSubmissionId('/api/command:' + name, {session_id:requested, name}, null);
+      const data = await api('/api/command', {session_id:requested, name, arguments:args}, actionId);
       if (requested === sessionId) renderState(data.state);
       if (!data.response || !['completed','awaiting_approval','waiting_for_input','running','accepted'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
       return data.response;
@@ -421,14 +448,18 @@
           button.disabled = !humanActionsAllowed || (challenge && Date.now() >= challenge.expires_at_unix_ms);
           button.onclick = async () => {
             button.disabled = true;
+            const submissionId = stableSubmissionId(
+              '/api/approvals:' + item.item_id + ':' + action.id,
+              {session_id:requested, challenge, decision:action.arguments && action.arguments.decision},
+              null);
             try {
               if (action.command === 'approval') {
                 await ensureEventStream(requested, true).catch(() => {});
-                const result = await api('/api/approvals', {session_id:requested, challenge, decision:action.arguments.decision});
+                const result = await api('/api/approvals', {session_id:requested, challenge, decision:action.arguments.decision}, submissionId);
                 if (sessionId === requested) renderState(result);
                 if (result.response && ['blocked','rejected'].includes(result.response.status)) throw new Error(result.response.error || '审批未完成');
               } else {
-                await submitCommand('human.resolve', {item_id:item.item_id, action_id:action.id, inbox_revision:output.revision, fields:fieldsInput ? JSON.parse(fieldsInput.value) : {}, idempotency_key:crypto.randomUUID()}, requested);
+                await submitCommand('human.resolve', {item_id:item.item_id, action_id:action.id, inbox_revision:output.revision, fields:fieldsInput ? JSON.parse(fieldsInput.value) : {}, idempotency_key:submissionId}, requested, submissionId);
               }
               announce('决定已提交');
             } catch (error) { reportError(error); }
@@ -487,7 +518,7 @@
       chat.appendChild(el);
       chat.scrollTop = chat.scrollHeight;
     }
-    async function api(path, body) {
+    async function api(path, body, submissionId = null) {
       const headers = {
         'x-kiana-web-token': window.__KIANA_WEB_TOKEN__,
         'x-kiana-ui-tab': tabOwnerId
@@ -497,7 +528,7 @@
         if (stateCache && stateCache.cursor) {
           headers['x-kiana-ui-epoch'] = stateCache.cursor.epoch;
           headers['x-kiana-ui-cursor'] = String(stateCache.cursor.sequence);
-          headers['x-kiana-action-id'] = crypto.randomUUID();
+          headers['x-kiana-action-id'] = stableSubmissionId(path, body, submissionId);
           headers['x-kiana-action-target'] = String((body && body.session_id) || sessionId || 'workspace');
         }
       }
@@ -711,6 +742,7 @@
         ? stateCache.projection.stream_cursor : streamCursors.get(session);
       if (nextTurn && after) streamCursors.set(session, after);
       const url = '/api/events?session_id=' + encodeURIComponent(session) +
+        '&tab_id=' + encodeURIComponent(tabOwnerId) +
         '&token=' + encodeURIComponent(window.__KIANA_WEB_TOKEN__) +
         (after ? '&last_event_id=' + encodeURIComponent(after.epoch + ':' + after.sequence) : '');
       const source = new EventSource(url);
@@ -803,9 +835,16 @@
       }
       stateCache = s;
       sessionId = s.session_id;
+      restoreDraft(sessionId);
       running = !!s.running;
       readOnly = !!s.read_only;
-      humanActionsAllowed = !!s.human_actions_allowed;
+      const lease = s.lease || {};
+      const ownsSession = lease.disposition === 'owner' && !lease.feed_only &&
+        lease.owner_tab_id === tabOwnerId;
+      humanActionsAllowed = !!s.human_actions_allowed && ownsSession;
+      if (!ownsSession && !readOnly) {
+        announce('此 tab 仅观察该 session；请在 session owner tab 中提交操作。');
+      }
       promptEl.disabled = readOnly;
       document.getElementById('send').disabled = readOnly;
       document.getElementById('cancel').disabled = readOnly;
@@ -901,6 +940,7 @@
         return;
       }
       promptEl.value = '';
+      tabDrafts.delete(tabSessionKey(sessionId));
       if (streamTerminal || streamIncomplete) clearStreamProjection();
       runPending = true;
       renderBusyStatus();
@@ -930,6 +970,7 @@
         }, 1000);
       }
     }
+    promptEl.addEventListener('input', rememberDraft);
     document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
     document.getElementById('loadHistory').onclick = () => {
       const state = historyPages.get(sessionId);
@@ -1006,7 +1047,9 @@
     window.addEventListener('unhandledrejection', event => { event.preventDefault(); reportError(event.reason || '请求失败'); });
     window.addEventListener('offline', () => setHydrateStatus('offline', 'snapshot offline · 保留服务端事实，等待恢复'));
     window.addEventListener('online', () => refresh().catch(reportError));
-    window.addEventListener('beforeunload', closeEventStream);
+    // Closing a browser tab only detaches its feed. It never submits /api/cancel and therefore
+    // cannot turn a presentation lifecycle event into an execution mutation.
+    window.addEventListener('beforeunload', () => closeEventStream());
     refresh().catch(reportError);
   </script>
 </body>
