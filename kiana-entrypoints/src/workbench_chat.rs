@@ -38,7 +38,7 @@ use crate::harness_run;
 use crate::workbench::WORKBENCH_USAGE;
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -98,6 +98,12 @@ pub enum ChatAction {
     Parity,
     /// Read a CompanyOS runtime-to-close governance projection.
     Governance(String),
+    /// Read the redacted extension visibility projection through the shared DaemonHost adapter.
+    Extensions {
+        action: String,
+        query: Option<String>,
+        extension_id: Option<String>,
+    },
     /// List pending requests and reply with the server-issued challenge.
     Approvals,
     Approval {
@@ -205,6 +211,7 @@ impl WorkbenchView {
                 "governance" if !args.trim().is_empty() => {
                     ChatAction::Governance(args.trim().to_owned())
                 }
+                "extension" | "extensions" => interpret_extensions(args),
                 "approvals" => ChatAction::Approvals,
                 "inbox" => ChatAction::Command {
                     name: "human.inbox".to_owned(),
@@ -395,6 +402,44 @@ impl WorkbenchView {
             }
         }
         self.running = false;
+    }
+}
+
+fn interpret_extensions(args: &str) -> ChatAction {
+    let trimmed = args.trim();
+    if trimmed.is_empty() {
+        return ChatAction::Extensions {
+            action: "list".to_owned(),
+            query: None,
+            extension_id: None,
+        };
+    }
+    let (action, rest) = if let Some(index) = trimmed.find(char::is_whitespace) {
+        (&trimmed[..index], trimmed[index..].trim())
+    } else {
+        (trimmed, "")
+    };
+    match action {
+        "list" if rest.is_empty() => ChatAction::Extensions {
+            action: action.to_owned(),
+            query: None,
+            extension_id: None,
+        },
+        "search" if !rest.is_empty() => ChatAction::Extensions {
+            action: action.to_owned(),
+            query: Some(rest.to_owned()),
+            extension_id: None,
+        },
+        "inspect" if !rest.is_empty() && !rest.contains(char::is_whitespace) => {
+            ChatAction::Extensions {
+                action: action.to_owned(),
+                query: None,
+                extension_id: Some(rest.to_owned()),
+            }
+        }
+        _ => ChatAction::Error(
+            "用法：/extensions [list|search <query>|inspect <extension_id>]".to_owned(),
+        ),
     }
 }
 
@@ -694,6 +739,26 @@ async fn handle_action(
             )
             .await?;
             view.push_system(serde_json::to_string_pretty(&response)?);
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::Extensions {
+            action,
+            query,
+            extension_id,
+        } => {
+            let snapshot = crate::extension_projection::extension_visibility_on_host(
+                Arc::clone(host),
+                session_id.to_owned(),
+                kiana_protocol::EntryPointKind::Workbench,
+                &action,
+                query,
+                extension_id,
+                128,
+                options,
+            )
+            .await?;
+            let projection = crate::extension_projection::visibility_json(&snapshot)?;
+            view.push_system(serde_json::to_string_pretty(&projection)?);
             Ok(LoopControl::Continue)
         }
         ChatAction::Approvals => {

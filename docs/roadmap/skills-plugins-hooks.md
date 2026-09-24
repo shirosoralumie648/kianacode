@@ -366,9 +366,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-27 · 动态可见性投影　⏳
+#### EXT-27 · 动态可见性投影　🔄
 
-CLI、Workbench、Web、Desktop 的 list/search/inspect/activate/revoke 读取同一个 `ExtensionSnapshot`；投影只展示用户有权看到的摘要、状态、来源和风险，不展示未信任正文、secret、隐藏路径或内部 command。结果带 snapshot id 和 generation，不能被 UI 缓存跨代复用。与 CAP-30 对接时，工具仍须经过受控工具集合和 Broker。
+当前 source slice 与 CI-only 证据见 [`ext27-extension-visibility-baseline.md`](ext27-extension-visibility-baseline.md)。CLI、Workbench、Web、Desktop 的 list/search/inspect/activate/revoke 读取同一个 `ExtensionVisibilitySnapshot`；投影只展示用户有权看到的摘要、状态、来源和风险，不展示未信任正文、secret、隐藏路径或内部 command。结果带 snapshot id 和 generation，`require_generation` 拒绝跨代 UI 缓存；动作只是 intent，仍须返回 ControlPlane/Broker 重检。与 CAP-30 对接时，工具仍须经过受控工具集合和 Broker。
 
 <a id="step-ext-28"></a>
 

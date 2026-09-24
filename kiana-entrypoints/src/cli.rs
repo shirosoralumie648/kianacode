@@ -99,6 +99,20 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return company_governance_main(&args, &runtime_flags).await;
     }
 
+    // Extension visibility is a read-only projection from the shared DaemonHost.  Keep the
+    // adapter before legacy/local command dispatch so `kiana extension ...` cannot accidentally
+    // fall through to the compatibility registry or grow a second execution path.
+    if matches!(
+        args.first().map(String::as_str),
+        Some("extension" | "extensions")
+    ) {
+        return crate::extension_projection::cli_main_from_args(
+            &args,
+            runtime_flags.session_id.as_deref(),
+        )
+        .await;
+    }
+
     if args.first().map(String::as_str) == Some("run") {
         return run_main(&args).await;
     }

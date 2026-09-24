@@ -7,8 +7,8 @@
 use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
-    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, TurnId,
-    UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
+    ExtensionVisibilitySnapshot, ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    RunId, TurnId, UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 
@@ -361,6 +361,51 @@ where
                 ParityRequest { entrypoint, run_id },
             ))
             .await
+    }
+
+    /// Read the server-owned extension visibility projection.  `list`, `search` and `inspect`
+    /// are metadata-only actions; the returned snapshot is never treated as a capability grant.
+    pub async fn extension_visibility(
+        &self,
+        metadata: RequestMetadata,
+        action: impl Into<String> + Send,
+        query: Option<String>,
+        extension_id: Option<String>,
+        max_results: Option<usize>,
+    ) -> Result<ExtensionVisibilitySnapshot, ClientError> {
+        let mut arguments = serde_json::Map::new();
+        arguments.insert("action".to_owned(), Value::String(action.into()));
+        if let Some(query) = query {
+            arguments.insert("query".to_owned(), Value::String(query));
+        }
+        if let Some(extension_id) = extension_id {
+            arguments.insert("extension_id".to_owned(), Value::String(extension_id));
+        }
+        if let Some(max_results) = max_results {
+            arguments.insert("max_results".to_owned(), serde_json::json!(max_results));
+        }
+        let response = self
+            .command(
+                metadata,
+                kiana_protocol::EXTENSION_MANAGE_OPERATION,
+                Value::Object(arguments),
+            )
+            .await?;
+        if response.status != kiana_protocol::ExecutionStatus::Completed {
+            return Err(ClientError::Protocol(
+                kiana_protocol::stable_error_from_response(&response)
+                    .map(|error| error.message)
+                    .unwrap_or_else(|| "extension_visibility_rejected".to_owned()),
+            ));
+        }
+        let snapshot: ExtensionVisibilitySnapshot = serde_json::from_value(
+            response.output.get("snapshot").cloned().unwrap_or(Value::Null),
+        )
+        .map_err(|error| ClientError::Protocol(format!("extension_visibility_response:{error}")))?;
+        snapshot
+            .validate()
+            .map_err(ClientError::Protocol)
+            .map(|()| snapshot)
     }
 
     /// 提交 WorkPacket 的 spawn 请求；不会在客户端本地派生 cell。

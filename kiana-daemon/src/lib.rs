@@ -159,6 +159,10 @@ pub struct DaemonHost {
     run_stream: Arc<RunStreamBus>,
     observability_queue: Arc<ObservabilityQueue>,
     workflow_service: WorkflowQueueService,
+    /// Optional registry handle used only to build read-only visibility projections. Mutation
+    /// and execution remain owned by ControlPlane/Broker; hosts constructed around an injected
+    /// core simply report the projection as unavailable.
+    extensions: Option<Arc<extensions::ExtensionRegistry>>,
 }
 
 pub trait ProjectTrustAuthority: Send + Sync {
@@ -238,6 +242,7 @@ impl DaemonHost {
                     .expect("static observability queue capacity is non-zero"),
             ),
             workflow_service: WorkflowQueueService::new(),
+            extensions: None,
         }
     }
 
@@ -612,6 +617,46 @@ impl DaemonHost {
         })
     }
 
+    /// Return the one server-owned extension visibility snapshot used by CLI, Workbench, Web and
+    /// Desktop adapters. The projection contains redacted metadata only; callers must submit any
+    /// activation/revoke intent back through `extension.manage`, where the current registry,
+    /// approval and Broker admission are checked again.
+    pub async fn extension_visibility_snapshot(
+        &self,
+        project_root: &str,
+        role_id: &str,
+        query: &str,
+        max_results: usize,
+    ) -> Result<kiana_protocol::ExtensionVisibilitySnapshot, PortError> {
+        let role = RoleSpec::lookup(role_id)
+            .ok_or_else(|| PortError::Failed("role_unknown".to_owned()))?;
+        if !self.principal.allowed_roles.contains(&role.role_id) {
+            return Err(PortError::Failed(
+                "principal_role_not_authorized".to_owned(),
+            ));
+        }
+        if project_root.trim().is_empty() {
+            return Err(PortError::Failed("project_root_required".to_owned()));
+        }
+        if query.len() > kiana_domain::MAX_EXTENSION_VISIBILITY_QUERY_BYTES
+            || query.contains('\0')
+            || max_results == 0
+            || max_results > kiana_domain::MAX_EXTENSION_VISIBILITY_ENTRIES
+        {
+            return Err(PortError::Failed(
+                "extension_visibility_query_invalid".to_owned(),
+            ));
+        }
+        let Some(extensions) = &self.extensions else {
+            return Err(PortError::Unavailable(
+                "extension_visibility_unsupported".to_owned(),
+            ));
+        };
+        extensions
+            .visibility_snapshot(project_root, &role.role_id, query, max_results)
+            .await
+    }
+
     /// Limit display history to runs bound to this authenticated local principal.
     pub async fn ui_events(&self) -> Result<Option<Vec<RuntimeEvent>>, PortError> {
         let Some(events) = self.persisted_events().await? else {
@@ -975,11 +1020,13 @@ impl DaemonHost {
         )
         .with_role_step_limits(runtime_config.max_steps_override)
         .with_workspace_checkpoints(Arc::new(workspace_checkpoints::LocalWorkspaceCheckpoints));
-        Ok(Self::with_run_stream(
+        let mut host = Self::with_run_stream(
             Arc::new(core),
             project_authority,
             run_stream,
-        ))
+        );
+        host.extensions = Some(extensions);
+        Ok(host)
     }
 
     pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {
@@ -1533,7 +1580,7 @@ fn request_may_execute(body: &RequestBody) -> bool {
             "memory.distill" | "extension.manage" | "connector.manage" | "data.governance" => {
                 !matches!(
                     command.arguments["action"].as_str(),
-                    None | Some("list" | "show" | "status" | "inspect" | "preview")
+                    None | Some("list" | "search" | "show" | "status" | "inspect" | "preview")
                 )
             }
             _ => true,

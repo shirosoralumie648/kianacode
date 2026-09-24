@@ -1,0 +1,69 @@
+name: ext27-extension-visibility
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extension_visibility.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext27_visibility.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/ext27_visibility_guard.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/extension_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext27-extension-visibility-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext27-extension-visibility.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extension_visibility.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext27_visibility.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/ext27_visibility_guard.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/extension_projection.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap/ext27-extension-visibility-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext27-extension-visibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-visibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-27 domain visibility fixture
+        run: cargo test -p kiana-domain --test ext27_visibility --locked -- --test-threads=1
+      - name: Run EXT-27 cross-surface source guard
+        run: cargo test -p kiana-core --test ext27_visibility_guard --locked -- --test-threads=1
+

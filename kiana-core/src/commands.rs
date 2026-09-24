@@ -480,6 +480,8 @@ fn normalize_extension_command(
                 | "expected_registry_version"
                 | "idempotency_key"
                 | "reason"
+                | "query"
+                | "max_results"
         )
     }) {
         return Err("extension_arguments_invalid");
@@ -490,7 +492,7 @@ fn normalize_extension_command(
         .ok_or("extension_action_invalid")?;
     if !matches!(
         action,
-        "inspect" | "list" | "install" | "upgrade" | "revoke" | "rollback"
+        "inspect" | "list" | "search" | "install" | "upgrade" | "revoke" | "rollback"
     ) {
         return Err("extension_action_invalid");
     }
@@ -499,13 +501,28 @@ fn normalize_extension_command(
     } else {
         RiskLevel::ExternalSideEffect
     };
-    if matches!(action, "inspect" | "install" | "upgrade")
+    if matches!(action, "install" | "upgrade")
         && object
             .get("package_path")
             .and_then(Value::as_str)
             .is_none_or(|s| !kiana_domain::valid_extension_path(s))
     {
         return Err("extension_package_path_must_be_project_relative");
+    }
+    if matches!(action, "search")
+        && object
+            .get("query")
+            .and_then(Value::as_str)
+            .is_some_and(|query| query.len() > 256 || query.contains('\0'))
+    {
+        return Err("extension_visibility_query_invalid");
+    }
+    if object
+        .get("max_results")
+        .and_then(Value::as_u64)
+        .is_some_and(|value| value == 0 || value > 512)
+    {
+        return Err("extension_visibility_max_results_invalid");
     }
     if risk != RiskLevel::ReadOnly {
         if object

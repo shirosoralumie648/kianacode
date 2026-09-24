@@ -588,7 +588,7 @@
 | 416 | W5 | 专项 | [`INT-13`](roadmap/integrations-connectors.md#step-int-13) | secret redaction/echo sentinel 扫描；domain/daemon/event/UI tests | `INT-06`、`INT-08`、`INT-12` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-13) |
 | **W6** | **投影与可用入口** |  |  |  |  |  |  |
 | 417 | W6 | 专项 | [`H32`](roadmap/harness.md#step-h32) | Harness · 事实流、展示流与三入口状态一致性 | `H06`、`H13`、`H18`、`H24`、`H26`、`H27` | ✅ | [专项卡](roadmap/harness.md#step-h32) |
-| 418 | W6 | 专项 | [`EXT-27`](roadmap/skills-plugins-hooks.md#step-ext-27) | Skills / Plugins / Hooks · 动态可见性投影 | `EXT-06`、`EXT-25`、`EXT-26` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-27) |
+| 418 | W6 | 专项 | [`EXT-27`](roadmap/skills-plugins-hooks.md#step-ext-27) | Skills / Plugins / Hooks · 动态可见性投影 | `EXT-06`、`EXT-25`、`EXT-26` | 🔄 | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-27) |
 | 419 | W6 | 专项 | [`EXT-28`](roadmap/skills-plugins-hooks.md#step-ext-28) | Skills / Plugins / Hooks · 命令与 UI 合同 | `EXT-22`、`EXT-23`、`EXT-27` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-28) |
 | 420 | W6 | 专项 | [`UI-04`](roadmap/ui-entrypoints.md#step-ui-04) | UI / Entrypoints · 动作 CAS、idempotency 与响应丢失 | `UI-01`、`UI-02`、`UI-03` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-04) |
 | 421 | W6 | 专项 | [`UI-05`](roadmap/ui-entrypoints.md#step-ui-05) | UI / Entrypoints · 原子 snapshot projector 与分页 | `UI-01`、`UI-02`、`UI-03`、`UI-04` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-05) |
@@ -1235,7 +1235,9 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+|---|---|---|
 | 2026-09-24 | `P4-J7-21` 结构化输出：明确 text/JSON object/JSON schema 响应选项；按能力和协议子集在发送前拒绝不支持 schema；完整终态后独立返回 `ModelOutput.structured`，区分 refusal、length、空、非法 JSON 和 schema 不匹配；工具调用与 structured 结果分离；Harness 提供显式 `OutputRepair` 调用入口，不在 Provider 内部修复循环；新增 provider fixtures、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 尚未等待，状态保持 🔄 | P4-J7-21 专用分支 |
+| 2026-09-24 | `EXT-27` 动态可见性投影：新增 server-owned `ExtensionVisibilitySnapshot`，将 trust-filtered Skill catalog 与插件 lifecycle registry 合并为同一 redacted list/search/inspect 投影；CLI、Workbench、Web、Desktop 复用共享 adapter，snapshot id/generation/digest 与 stale cache fence 保持一致，动作只作为 intent 返回 ControlPlane/Broker；新增 domain fixture、core source guard、GitHub-only workflow 与 baseline；本地不运行测试，CI 已接线且未等待，step 保持 🔄 | 待本提交 |
 | 2026-09-23 | `P4-J7-19` Gemini Interactions：强制 stateless `store=false` 与 SSE `stream=true`，每轮重发 system/tools/generation_config；完整本地函数调用结果按 call_id/name 回传；校验 event status、step 顺序、function arguments 与 usage，GenerateContent 帧独立拒绝；新增 provider fixtures、core guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；静态检查通过，已创建本地提交并推送 feature branch，CI 尚未执行，step 保持 🔄 | `P4-J7-19` branch |
 | 2026-09-23 | `CM-36` memory workbench source slice：新增 ACL 限定的脱敏列表/相似冲突、operator-only review mutation plan、CAS/epoch/idempotency bulk result、unknown/partial failure 和受 scope/recipient/redaction digest 约束的导出；添加 GitHub-only domain/core guards 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 本提交 |
 | 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；runs 35832638463（PR）与 35832756821（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失失败，后续测试步骤跳过；保持 🔄 等模块补齐后 CI 复跑 | 已提交 |

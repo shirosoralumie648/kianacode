@@ -495,6 +495,7 @@ fn router(app: WebApp) -> Router {
         .route("/api/receipt", post(read_receipt))
         .route("/api/approvals", get(list_approvals).post(decide_approval))
         .route("/api/resume", post(resume_turn))
+        .route("/api/extensions", get(extension_visibility))
         .route("/api/command", get(command_query).post(command_action))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
         .with_state(Arc::new(app))
@@ -1237,6 +1238,65 @@ struct CommandQuery {
     name: String,
     session_id: Option<String>,
     arguments: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ExtensionVisibilityQuery {
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    query: Option<String>,
+    #[serde(default)]
+    extension_id: Option<String>,
+    #[serde(default)]
+    max_results: Option<usize>,
+    /// Desktop uses the same Web router; this label only records the presenting surface.
+    #[serde(default)]
+    surface: Option<String>,
+}
+
+async fn extension_visibility(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<ExtensionVisibilityQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let action = query.action.unwrap_or_else(|| "list".to_owned());
+    if !matches!(action.as_str(), "list" | "search" | "inspect") {
+        return Err(ApiError::bad("extension_visibility_action_unsupported"));
+    }
+    let max_results = query.max_results.unwrap_or(128);
+    if max_results == 0 || max_results > kiana_protocol::MAX_EXTENSION_VISIBILITY_ENTRIES {
+        return Err(ApiError::bad("extension_visibility_max_results_invalid"));
+    }
+    let surface = match query.surface.as_deref().unwrap_or("web") {
+        "web" => kiana_protocol::EntryPointKind::Web,
+        "desktop" => kiana_protocol::EntryPointKind::Desktop,
+        _ => return Err(ApiError::bad("extension_visibility_surface_invalid")),
+    };
+    let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    let options = app.options()?;
+    let snapshot = crate::extension_projection::extension_visibility_on_host(
+        Arc::clone(&app.host),
+        session_id,
+        surface,
+        &action,
+        query.query,
+        query.extension_id,
+        max_results,
+        &options,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    let projection = crate::extension_projection::visibility_json(&snapshot)
+        .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(json!({
+        "schema": "kiana.extension-visibility-route.v1",
+        "surface": surface,
+        "snapshot": projection,
+    })))
 }
 
 async fn command_query(

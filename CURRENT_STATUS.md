@@ -11690,3 +11690,15 @@ status_change: EQ-27 source slice and CI wiring are implemented; roadmap row 473
 proof-level_change: `feature_status=implemented` (quality source + remote fixture wiring), `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: evaluator inputs/findings remain in-process caller values; no durable EvalStore, actual target execution, provider/model quality claim, baseline/candidate gate, promotion authority or live/physical evidence is established. Local workspace compilation remains blocked by inherited `kiana-domain` errors and GitHub CI has not been observed.
 reviewer: Codex root implementation review plus stable-code/evidence binding, canonical ordering, redaction/depth/size bounds, strict serde and pure no-I/O/no-runner boundary review; no local runtime test reviewer
+### EXT-27 extension visibility projection (2026-09-24)
+
+source_snapshot: `f1cce824` plus EXT-27 source slice; `kiana-domain/src/extension_visibility.rs`, `kiana-daemon/src/extensions.rs`, `kiana-core/src/commands.rs`, `kiana-client/src/lib.rs`, `kiana-entrypoints/src/{extension_projection.rs,cli.rs,web.rs,workbench_chat.rs}`, domain fixture, core source guard, GitHub workflow and roadmap baseline
+worktree_status: isolated branch `ext-27-skills-plugins-hooks-20260924` rebased onto current `origin/master=f1cce824`; unrelated changes preserved
+command_argv: `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, the domain visibility fixture and the cross-surface source guard; CI is not awaited
+cwd·environment: `/tmp/kiana-step-ext-27`; Linux; local tests, build, check, clippy and smoke commands deliberately not run
+fixture·cassette: GitHub-only `.github/workflows/ext27-extension-visibility.yml`; domain tests cover redaction/trust/identity-generation and core guard covers one adapter across CLI/Workbench/Web/Desktop and ControlPlane/Broker boundaries
+exit_code: local diff inspection only; remote CI result intentionally unobserved
+status change: EXT-27 source slice and remote CI wiring added; roadmap card/index remain 🔄 pending CI result
+proof-level change: `feature_status=implemented` for source contracts and product-path wiring; `proof_level=source` (plus CI wiring), no local_behavior/durable/live/physical promotion
+limitations: UI cache persistence and cross-process registry recovery, mutation CAS/approval UX, package signing/revocation and runtime Hook/provider effects remain later EXT/UI steps; CI compilation and fixtures are not claimed green
+reviewer: Codex source review; no local runtime test reviewer

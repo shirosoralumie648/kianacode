@@ -7,17 +7,21 @@ use kiana_domain::{
     json_digest, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
     ExtensionAdapterRegistry, ExtensionComponentKind, ExtensionConfigurationSnapshot,
     ExtensionExecutionContract, ExtensionLifecyclePhase, ExtensionManifest, ExtensionPackage,
-    ExtensionStateMigrationPlan, ExtensionStateMigrationReceipt, ExtensionStateScope,
-    ExtensionType, PromptAuthority, PromptBudgetUsage, PromptSection, RequestId, RuntimeEvent,
-    SkillPromptProvenance, VerifiedExtensionComponent, EXTENSION_MANAGE_OPERATION,
-    EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
+    ExtensionSnapshot, ExtensionSnapshotState, ExtensionStateMigrationPlan,
+    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType, ExtensionVisibilityActionKind,
+    ExtensionVisibilityEntry, ExtensionVisibilityKind, ExtensionVisibilityRisk,
+    ExtensionVisibilitySnapshot, ExtensionVisibilitySource, ExtensionVisibilityStatus,
+    ExtensionVisibilityTrust, PromptAuthority, PromptBudgetUsage, PromptSection, RequestId,
+    RuntimeEvent, SkillPromptProvenance, SourceKind, SourceRef, VerifiedExtensionComponent,
+    EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+    SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -160,10 +164,44 @@ impl ExtensionRegistry {
         }
         let (scope, history) = self.stream(project_root).await?;
         let (version, states) = fold_registry(&history)?;
-        if action == "list" {
-            return Ok(
-                json!({"schema":REGISTRY_SCHEMA,"project_root":project_root,"registry_version":version,"extensions":states}),
-            );
+        let role_id = arguments
+            .get("role_id")
+            .and_then(Value::as_str)
+            .unwrap_or("builder");
+        if action == "list" || action == "search" || (action == "inspect" && arguments["package_path"].is_null()) {
+            let query = arguments
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let max_results = arguments
+                .get("max_results")
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .unwrap_or(128);
+            let snapshot = self
+                .visibility_snapshot(project_root, role_id, query, max_results)
+                .await?;
+            if action == "inspect" {
+                let extension_id = arguments
+                    .get("extension_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| failed("extension_visibility_extension_id_required"))?;
+                let entry = snapshot
+                    .inspect(extension_id)
+                    .map_err(failed)?
+                    .ok_or_else(|| failed("extension_visibility_not_found"))?;
+                return Ok(json!({
+                    "schema": REGISTRY_SCHEMA,
+                    "registry_version": version,
+                    "snapshot": snapshot,
+                    "extension": entry,
+                }));
+            }
+            return Ok(json!({
+                "schema": REGISTRY_SCHEMA,
+                "registry_version": version,
+                "snapshot": snapshot,
+            }));
         }
         if action == "inspect" {
             let package = self.load_source(arguments).await?;
@@ -609,6 +647,200 @@ impl ExtensionRegistry {
         Ok(())
     }
 
+    /// Build the single redacted extension projection consumed by every product surface.
+    ///
+    /// This method only reads the committed registry and the already trust-filtered Skill
+    /// catalog. It never returns body text, package paths, secret values or internal entrypoints;
+    /// action labels are intents and still route through `extension.manage` and ControlPlane.
+    pub(crate) async fn visibility_snapshot(
+        &self,
+        project_root: &str,
+        role_id: &str,
+        query: &str,
+        max_results: usize,
+    ) -> Result<ExtensionVisibilitySnapshot, PortError> {
+        let project = canonical_project(project_root)?;
+        let project_trust = kiana_types::read_project_trust(&project)
+            .ok()
+            .flatten()
+            .unwrap_or(kiana_types::ProjectTrust::Unknown);
+        let skills = kiana_skills::load_all_skills_with_trust(&project, project_trust).await;
+        let skill_catalog = kiana_skills::list_skill_catalog(&skills);
+        let (registry_generation, states) = {
+            let (_, history) = self.stream(project_root).await?;
+            fold_registry(&history)?
+        };
+        let root_resolution = kiana_skills::SourceResolver::new(&project, project_trust)
+            .resolve()
+            .map_err(|error| failed(format!("extension_visibility_source_resolution:{error}")))?;
+        let mut source_refs = root_resolution.source_refs();
+        let material_digest = json_digest(&json!({
+            "project": project.to_string_lossy(),
+            "trust": project_trust,
+            "role": role_id,
+            "registry_generation": registry_generation,
+            "skills": &skill_catalog,
+            "states": &states,
+        }));
+        source_refs.push(
+            SourceRef::new(
+                "extension-registry",
+                SourceKind::Event,
+                "extension-snapshot",
+                format!("registry:{registry_generation}"),
+                material_digest.clone(),
+                None,
+                kiana_domain::EvidenceStatus::Verified,
+            )
+            .map_err(failed)?,
+        );
+        let trust_revision = json_digest(&json!({
+            "project": project.to_string_lossy(),
+            "trust": project_trust,
+        }));
+        let generation = kiana_skills::snapshot_generation()
+            .max(registry_generation.saturating_add(1));
+        let snapshot_id = stable_snapshot_id(&material_digest)?;
+        let plugins = states
+            .values()
+            .filter(|state| state.state != "uninstalled")
+            .enumerate()
+            .map(|(index, state)| {
+                kiana_domain::PluginLifecycle {
+                    schema: kiana_domain::PLUGIN_LIFECYCLE_SCHEMA.to_owned(),
+                    extension_id: kiana_domain::ExtensionId::parse_str(&stable_uuid(
+                        &state.manifest.extension_id,
+                    ))
+                    .unwrap_or_default(),
+                    version: state.manifest.version.clone(),
+                    content_hash: state.manifest.content_hash.clone(),
+                    state: lifecycle_state(&state.state),
+                    revision: registry_generation
+                        .checked_add(index as u64)
+                        .and_then(|value| value.checked_add(1))
+                        .unwrap_or(u64::MAX),
+                    reason: None,
+                }
+            })
+            .collect::<Vec<_>>();
+        let source_snapshot = ExtensionSnapshot::new(
+            snapshot_id,
+            generation,
+            source_refs,
+            Vec::new(),
+            Vec::new(),
+            plugins,
+            trust_revision,
+        )
+        .map_err(failed)?;
+
+        let mut entries = skill_catalog
+            .entries
+            .into_iter()
+            .map(|entry| {
+                let mut actions = BTreeSet::from([
+                    ExtensionVisibilityActionKind::List,
+                    ExtensionVisibilityActionKind::Search,
+                    ExtensionVisibilityActionKind::Inspect,
+                ]);
+                let status = match entry.status {
+                    kiana_skills::SkillDisclosureStatus::Eligible => {
+                        actions.insert(ExtensionVisibilityActionKind::Activate);
+                        ExtensionVisibilityStatus::Eligible
+                    }
+                    kiana_skills::SkillDisclosureStatus::Disabled => ExtensionVisibilityStatus::Disabled,
+                };
+                ExtensionVisibilityEntry::new(
+                    entry.name.clone(),
+                    format!("skill:{}", entry.name),
+                    ExtensionVisibilityKind::Skill,
+                    "legacy",
+                    kiana_domain::redact_text(&entry.description),
+                    status,
+                    ExtensionVisibilitySource::new(
+                        entry.source.source.clone(),
+                        source_trust(entry.source.trust),
+                        entry.content_digest.clone(),
+                        "skill-catalog:v1",
+                    )?,
+                    ExtensionVisibilityRisk::ReadOnly,
+                    Some(entry.package_hash),
+                    actions,
+                )
+            })
+            .collect::<Result<Vec<_>, String>>()
+            .map_err(failed)?;
+
+        for state in states.values().filter(|state| state.state != "uninstalled") {
+            if !state.manifest.supported_roles.contains(role_id) {
+                continue;
+            }
+            let mut actions = BTreeSet::from([
+                ExtensionVisibilityActionKind::List,
+                ExtensionVisibilityActionKind::Search,
+                ExtensionVisibilityActionKind::Inspect,
+            ]);
+            let status = lifecycle_visibility_status(&state.state);
+            if matches!(
+                status,
+                ExtensionVisibilityStatus::Eligible | ExtensionVisibilityStatus::Disabled
+            ) {
+                actions.insert(ExtensionVisibilityActionKind::Activate);
+            }
+            if matches!(
+                status,
+                ExtensionVisibilityStatus::Eligible
+                    | ExtensionVisibilityStatus::Active
+                    | ExtensionVisibilityStatus::Disabled
+            ) {
+                actions.insert(ExtensionVisibilityActionKind::Revoke);
+            }
+            let kind = visibility_kind(state.manifest.extension_type);
+            let source_digest = format!("sha256:{}", state.manifest.content_hash);
+            let trust = if project_trust.allows_project_resources() {
+                ExtensionVisibilityTrust::Trusted
+            } else {
+                ExtensionVisibilityTrust::Unknown
+            };
+            // Untrusted project state is intentionally visible only as a revoked/disabled
+            // diagnostic. It cannot offer activation and never exposes package internals.
+            let status = if trust != ExtensionVisibilityTrust::Trusted
+                && status != ExtensionVisibilityStatus::Revoked
+            {
+                ExtensionVisibilityStatus::Stale
+            } else {
+                status
+            };
+            if trust != ExtensionVisibilityTrust::Trusted {
+                actions.remove(&ExtensionVisibilityActionKind::Activate);
+            }
+            entries.push(ExtensionVisibilityEntry::new(
+                state.manifest.extension_id.clone(),
+                format!("{}:component", state.manifest.extension_id),
+                kind,
+                state.manifest.version.clone(),
+                format!("{} extension", kind_name(kind)),
+                status,
+                ExtensionVisibilitySource::new(
+                    format!("extension:{}", state.manifest.extension_id),
+                    trust,
+                    source_digest,
+                    format!("registry:{registry_generation}"),
+                )?,
+                extension_risk(&state.manifest),
+                Some(format!("sha256:{}", state.package_sha256)),
+                actions,
+            )?);
+        }
+        ExtensionVisibilitySnapshot::from_source_snapshot(
+            &source_snapshot,
+            entries,
+            query,
+            max_results,
+        )
+        .map_err(failed)
+    }
+
     pub(crate) async fn skill_context(
         &self,
         project_root: &str,
@@ -731,6 +963,90 @@ fn bounded_extension_prompt_body(content: &str) -> (String, PromptBudgetUsage) {
             omission_reason: None,
         },
     )
+}
+
+fn source_trust(trust: kiana_skills::SourceTrust) -> ExtensionVisibilityTrust {
+    match trust {
+        kiana_skills::SourceTrust::Trusted => ExtensionVisibilityTrust::Trusted,
+        kiana_skills::SourceTrust::Untrusted => ExtensionVisibilityTrust::Untrusted,
+        kiana_skills::SourceTrust::Unknown => ExtensionVisibilityTrust::Unknown,
+        kiana_skills::SourceTrust::Denied => ExtensionVisibilityTrust::Denied,
+    }
+}
+
+fn visibility_kind(extension_type: ExtensionType) -> ExtensionVisibilityKind {
+    match extension_type {
+        ExtensionType::Skill => ExtensionVisibilityKind::Skill,
+        ExtensionType::Capability => ExtensionVisibilityKind::Capability,
+        ExtensionType::Workflow => ExtensionVisibilityKind::Workflow,
+        ExtensionType::Memory => ExtensionVisibilityKind::Memory,
+        ExtensionType::Provider => ExtensionVisibilityKind::Provider,
+        ExtensionType::Ui => ExtensionVisibilityKind::Ui,
+    }
+}
+
+fn kind_name(kind: ExtensionVisibilityKind) -> &'static str {
+    match kind {
+        ExtensionVisibilityKind::Skill => "skill",
+        ExtensionVisibilityKind::Hook => "hook",
+        ExtensionVisibilityKind::Plugin => "plugin",
+        ExtensionVisibilityKind::Mcp => "mcp",
+        ExtensionVisibilityKind::Capability => "capability",
+        ExtensionVisibilityKind::Workflow => "workflow",
+        ExtensionVisibilityKind::Memory => "memory",
+        ExtensionVisibilityKind::Provider => "provider",
+        ExtensionVisibilityKind::Ui => "ui",
+    }
+}
+
+fn lifecycle_visibility_status(state: &str) -> ExtensionVisibilityStatus {
+    match state {
+        "enabled" => ExtensionVisibilityStatus::Active,
+        "disabled" => ExtensionVisibilityStatus::Disabled,
+        "revoked" | "uninstalled" => ExtensionVisibilityStatus::Revoked,
+        "staged" | "inspected" => ExtensionVisibilityStatus::Eligible,
+        _ => ExtensionVisibilityStatus::Stale,
+    }
+}
+
+fn lifecycle_state(state: &str) -> kiana_domain::PluginLifecycleState {
+    match state {
+        "enabled" => kiana_domain::PluginLifecycleState::Enabled,
+        "disabled" => kiana_domain::PluginLifecycleState::Disabled,
+        "revoked" => kiana_domain::PluginLifecycleState::Revoked,
+        "rolled_back" => kiana_domain::PluginLifecycleState::RolledBack,
+        _ => kiana_domain::PluginLifecycleState::Inspected,
+    }
+}
+
+fn extension_risk(manifest: &ExtensionManifest) -> ExtensionVisibilityRisk {
+    if !manifest.secret_refs.is_empty() {
+        ExtensionVisibilityRisk::Secret
+    } else if !matches!(manifest.network_policy, kiana_domain::ExtensionNetworkPolicy::Deny) {
+        ExtensionVisibilityRisk::Network
+    } else if manifest.effect == kiana_domain::ExtensionEffect::ReadWrite {
+        ExtensionVisibilityRisk::WorkspaceWrite
+    } else {
+        ExtensionVisibilityRisk::ReadOnly
+    }
+}
+
+fn stable_uuid(seed: &str) -> String {
+    let digest = json_digest(&json!({"extension": seed}));
+    let hex = digest.trim_start_matches("sha256:");
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    )
+}
+
+fn stable_snapshot_id(material_digest: &str) -> Result<kiana_domain::SnapshotId, PortError> {
+    kiana_domain::SnapshotId::parse_str(&stable_uuid(material_digest))
+        .ok_or_else(|| failed("extension_visibility_snapshot_id_invalid"))
 }
 
 #[async_trait]
