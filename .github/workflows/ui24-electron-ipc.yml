@@ -1,0 +1,51 @@
+name: UI-24 Electron IPC sender and navigation allowlist
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/ipc-security.js"
+      - "contrib/desktop/package.json"
+      - "contrib/desktop/tests/fixtures/ui24-ipc.json"
+      - "contrib/desktop/tests/ui24_ipc.test.js"
+      - "docs/roadmap/ui24-electron-ipc-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui24-electron-ipc.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/ipc-security.js"
+      - "contrib/desktop/package.json"
+      - "contrib/desktop/tests/fixtures/ui24-ipc.json"
+      - "contrib/desktop/tests/ui24_ipc.test.js"
+      - "docs/roadmap/ui24-electron-ipc-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui24-electron-ipc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui24-electron-ipc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check Electron shell sources
+        run: |
+          node --check contrib/desktop/lib/ipc-security.js
+          node --check contrib/desktop/main.js
+          node --check contrib/desktop/preload.js
+          node -e 'JSON.parse(require("fs").readFileSync("contrib/desktop/tests/fixtures/ui24-ipc.json", "utf8"))'
+      - name: Run UI-24 sender and navigation fixture
+        run: node --test contrib/desktop/tests/ui24_ipc.test.js

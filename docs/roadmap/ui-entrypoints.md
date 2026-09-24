@@ -534,13 +534,22 @@ slice 在 UI-22 typed timeline/inbox/detail/session/SSE projection 上补充 non
 
 
 
-#### UI-24 · Electron IPC sender、导航和新窗口 allowlist　⏳
+#### UI-24 · Electron IPC sender、导航和新窗口 allowlist　🔄
 
 - 依赖：UI-02/03/16/23。代码：`contrib/desktop/main.js`、`preload.js`、IPC handlers。
 - 步骤：为每个 IPC 校验 `event.senderFrame`、origin、channel、workspace binding；`will-navigate`/`setWindowOpenHandler` 只允许受信 loopback URL 和显式外部浏览器打开。
 - 先拒绝：任意 renderer 调 `workspace:*`、URL 伪造 workspace/token、未知 channel、导航到 file/javascript/data、不受控新窗口。
 - 成功/回归：合法/伪造 sender、窗口重定向、open external、preload contextIsolation/nodeIntegration、dev/prod URL 差异。
 - 完成产物：IPC allowlist、sender test、CSP/BrowserWindow 安全配置审计。
+
+实现基线：[`ui24-electron-ipc-baseline.md`](ui24-electron-ipc-baseline.md)。当前 source slice
+在 Electron 壳加入 `kiana.desktop.ipc.v1` handshake、senderFrame/origin/channel/workspace
+binding/nonce 校验，四个 workspace 调用只转换为 `kiana.desktop.intent.v1` typed intent；
+`will-navigate` 与 `setWindowOpenHandler` 仅接受绑定 loopback/welcome，显式安全 HTTP(S) 在
+系统浏览器打开，unsafe/unknown/token-bearing URL 和不受控 sender/window 拒绝。preload
+不接触 Web bearer token，BrowserWindow 固定 sandbox/contextIsolation/no-node-integration；
+fixture、source guard、CI workflow 与 baseline 已加入。真实 Electron/browser/OS、durable、live
+和 physical proof 留后续。
 
 <a id="step-ui-25"></a>
 

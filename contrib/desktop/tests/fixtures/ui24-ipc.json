@@ -1,0 +1,37 @@
+{
+  "protocol_version": "kiana.desktop.ipc.v1",
+  "intent_version": "kiana.desktop.intent.v1",
+  "channels": [
+    "desktop:handshake",
+    "workspace:state",
+    "workspace:open",
+    "workspace:new",
+    "workspace:continue"
+  ],
+  "trusted": [
+    "file:///opt/kiana/contrib/desktop/welcome.html",
+    "http://127.0.0.1:4321/",
+    "http://127.0.0.1:4321/api/state"
+  ],
+  "external_browser": [
+    "https://example.com/help",
+    "http://docs.example.test/guide"
+  ],
+  "denied": [
+    "http://127.0.0.1:4322/",
+    "http://127.0.0.1:4321/?token=web-secret",
+    "file:///tmp/attacker.html",
+    "javascript:alert(1)",
+    "data:text/html,owned"
+  ],
+  "sender_rejections": [
+    "unknown_sender",
+    "missing_sender_frame",
+    "nested_sender_frame",
+    "sender_origin_mismatch",
+    "instance_token_mismatch",
+    "workspace_binding_mismatch",
+    "nonce_mismatch",
+    "unknown_channel"
+  ]
+}

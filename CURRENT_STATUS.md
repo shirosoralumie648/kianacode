@@ -12445,6 +12445,21 @@ limitations: no browser/axe/screen-reader/real keyboard/200% zoom/device automat
 reviewer: Codex UI-23 source review; checked nonce CSP/security headers/report visibility, textContent-only DOM and sanitizer, focus trap/restore, keyboard/ARIA/responsive fallback, hidden/Unknown action disablement, stale session/epoch fences and existing DaemonHost authority; no local runtime test reviewer
 ```
 
+### UI-24 Electron IPC sender、导航和新窗口 allowlist（2026-09-25）
+
+```text
+source_snapshot: `ec5d3b38`（UI-23 plus INT-16/BQ-19 integration）加 UI-24 source slice；`contrib/desktop/{main.js,preload.js,lib/ipc-security.js}`；`contrib/desktop/tests/{fixtures/ui24-ipc.json,ui24_ipc.test.js}`；`.github/workflows/ui24-electron-ipc.yml`；`docs/roadmap/ui24-electron-ipc-baseline.md`；`docs/roadmap/ui-entrypoints.md`；`docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-ui24` on branch `ui-24-electron-ipc-20260925`; Electron main process now binds top-level sender/senderFrame, trusted origin, channel, opaque workspace binding and monotonic nonce; preload exposes only no-argument workspace methods with a short-lived desktop handshake; accepted calls become versioned `kiana.desktop.intent.v1` values and reuse existing workspace/DaemonHost path; navigation/new-window allowlist and BrowserWindow security flags are source-wired; no second execution loop or renderer authority
+command_argv: target-only `node --check contrib/desktop/lib/ipc-security.js`; `node --check contrib/desktop/main.js`; `node --check contrib/desktop/preload.js`; fixture JSON parse; `git diff --check`; GitHub Actions will run Node 20 syntax/JSON checks and `node --test contrib/desktop/tests/ui24_ipc.test.js`
+cwd·environment: `/tmp/kiana-step-ui24`; Linux/bash; local Node tests, npm test, Electron process, Cargo test/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture·cassette: `ui24-ipc.json` covers trusted welcome/loopback, explicit external browser, unknown port, token/workspace query, file/javascript/data schemes, sender/frame/origin/instance/workspace/nonce/channel rejection, intent and token-free source/security guard; no provider, filesystem, Web bearer token or external effect contacted
+exit_code: target Node syntax checks, fixture parse and `git diff --check` are the only local verification; remote Node fixture and CI exit codes are pending/unobserved
+status_change: UI-24 `kiana.desktop.ipc.v1` handshake, sender/origin/channel/workspace/nonce allowlist, `kiana.desktop.intent.v1` boundary, loopback/navigation/new-window policy, BrowserWindow security audit, deny-first fixture/source guard, workflow and baseline added; roadmap row/card advanced from `⏳` to `🔄`
+proof-level change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: no real Electron renderer/Chromium popup or OS browser automation, cross-restart/multi-process session durability, browser memory/DevTools token extraction proof, secure external auth callback, DaemonHost/ControlPlane effect or provider/live/physical proof; same-origin popup is security-configured without preload and cannot invoke workspace IPC; CI result intentionally unobserved
+reviewer: Codex UI-24 source review; checked sender identity/top frame/origin, exact channel and nonce replay fences, opaque workspace binding and intent-only boundary, no arbitrary renderer args/Web bearer token in preload/URL/log, trusted loopback/welcome navigation, explicit external browser, unsafe scheme/unknown loopback/foreign sender/new-window denial, BrowserWindow sandbox/contextIsolation/nodeIntegration/webSecurity flags and no second execution path; no local runtime test reviewer
+```
+
 ### INT-16 connector invocation reservation, command digest and idempotency/CAS evidence (2026-09-25)
 
 ```text

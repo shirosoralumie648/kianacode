@@ -9,11 +9,13 @@ const {
   ipcMain,
   nativeImage,
   net,
+  shell,
 } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { parseWebUrl } = require("./lib/parse-url");
 const { findKiana, kianaArgs } = require("./lib/find-kiana");
 const { BUTTONS, closeDecision } = require("./lib/close-policy");
@@ -22,6 +24,15 @@ const {
   createScratchWorkspace,
   isScratchWorkspace,
 } = require("./lib/workspace");
+const {
+  CHANNEL_INTENTS,
+  HANDSHAKE_CHANNEL,
+  classifyNavigation,
+  createIpcSession,
+  opaqueToken,
+  validateHandshake,
+  validateIpcRequest,
+} = require("./lib/ipc-security");
 
 let mainWindow = null;
 let tray = null;
@@ -33,6 +44,17 @@ let stopPromise = null;
 let quitPromise = null;
 let shutdownComplete = false;
 let workspaceTransition = Promise.resolve();
+let ipcSession = null;
+
+function welcomeUrl() {
+  return pathToFileURL(path.join(__dirname, "welcome.html")).href;
+}
+
+function rotateIpcSession({ origin, workspaceBinding = null }) {
+  ipcSession = createIpcSession({ origin, workspaceBinding });
+}
+
+rotateIpcSession({ origin: welcomeUrl() });
 
 function configPath() {
   return path.join(app.getPath("userData"), "desktop.json");
@@ -162,6 +184,12 @@ async function startHarness(folder) {
   try { url = await waitForUrl(proc); }
   catch (error) { await stopChild(); throw error; }
   workdir = folder;
+  // Rotate the desktop bridge with the worker instance. The opaque binding
+  // never contains the Web bearer credential or a workspace path.
+  rotateIpcSession({
+    origin: new URL(url).origin,
+    workspaceBinding: opaqueToken("workspace"),
+  });
   saveConfig({ workdir: folder });
   // Drain bounded startup pipes after readiness so a quiet UI cannot block the worker.
   proc.stdout.resume(); proc.stderr.resume();
@@ -181,6 +209,7 @@ function showWelcome() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
+  rotateIpcSession({ origin: welcomeUrl() });
   mainWindow.loadFile(path.join(__dirname, "welcome.html"));
 }
 
@@ -223,8 +252,12 @@ function createWindow() {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
     },
   });
+  installWindowSecurity(mainWindow);
   mainWindow.on("close", (event) => {
     if (quitting) {
       return;
@@ -354,10 +387,125 @@ function workspaceState() {
   };
 }
 
-ipcMain.handle("workspace:state", () => workspaceState());
-ipcMain.handle("workspace:open", () => handleOpenFolder());
-ipcMain.handle("workspace:new", () => handleNewProject());
-ipcMain.handle("workspace:continue", () => handleContinue());
+function ipcDenied(reason) {
+  const error = new Error(`desktop_ipc_denied:${reason}`);
+  error.code = "desktop_ipc_denied";
+  return error;
+}
+
+function installWindowSecurity(window) {
+  const expectedSender = window.webContents;
+  window.webContents.on("will-navigate", (event, url) => {
+    if (!ipcSession) {
+      event.preventDefault();
+      return;
+    }
+    const frame = event.senderFrame;
+    if (!event.sender || event.sender !== expectedSender || !frame || frame.parent) {
+      // The event's senderFrame is the only renderer identity accepted by the
+      // shell. A missing/foreign frame cannot navigate the bound window.
+      event.preventDefault();
+      return;
+    }
+    const decision = classifyNavigation(url, {
+      trustedOrigin: ipcSession.origin,
+      welcomeUrl: welcomeUrl(),
+    });
+    if (decision.action !== "allow-loopback") {
+      event.preventDefault();
+    }
+  });
+
+  window.webContents.setWindowOpenHandler(details => {
+    const decision = classifyNavigation(details.url, {
+      trustedOrigin: ipcSession && ipcSession.origin,
+      welcomeUrl: welcomeUrl(),
+    });
+    if (decision.action === "external") {
+      // External navigation is explicit and leaves the renderer. The URL is
+      // never put in an IPC response, query token or desktop log.
+      void shell.openExternal(decision.url).catch(() => {});
+      return { action: "deny" };
+    }
+    if (decision.action === "allow-loopback") {
+      // Keep a same-origin popup constrained to the same Chromium security
+      // posture. It has no preload bridge, so it cannot address workspace IPC.
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            sandbox: true,
+            contextIsolation: true,
+            nodeIntegration: false,
+            webSecurity: true,
+            allowRunningInsecureContent: false,
+            webviewTag: false,
+          },
+        },
+      };
+    }
+    return { action: "deny" };
+  });
+}
+
+function dispatchDesktopIntent(intent) {
+  // This is the existing desktop adapter boundary. It accepts only the typed
+  // intent emitted by the ControlPlane-facing validator; it never interprets
+  // renderer text as a command and never starts a model/agent loop.
+  switch (intent.name) {
+    case "desktop.workspace.state.v1":
+      return workspaceState();
+    case "desktop.workspace.open.v1":
+      return handleOpenFolder();
+    case "desktop.workspace.new.v1":
+      return handleNewProject();
+    case "desktop.workspace.continue.v1":
+      return handleContinue();
+    default:
+      throw ipcDenied("unknown_intent");
+  }
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle(HANDSHAKE_CHANNEL, (event, payload) => {
+    const result = validateHandshake({
+      event,
+      expectedSender: mainWindow && mainWindow.webContents,
+      session: ipcSession,
+      welcomeUrl: welcomeUrl(),
+      payload,
+    });
+    if (!result.ok) {
+      throw ipcDenied(result.reason);
+    }
+    return result.value;
+  });
+
+  for (const [channel, intentName] of Object.entries(CHANNEL_INTENTS)) {
+    ipcMain.handle(channel, async (event, envelope) => {
+      const result = validateIpcRequest({
+        event,
+        expectedSender: mainWindow && mainWindow.webContents,
+        session: ipcSession,
+        welcomeUrl: welcomeUrl(),
+        channel,
+        envelope,
+      });
+      if (!result.ok) {
+        throw ipcDenied(result.reason);
+      }
+      // `result.intent` is the only renderer-originated value admitted to the
+      // desktop action boundary. It is versioned and carries no URL, token,
+      // path or arbitrary renderer arguments.
+      if (result.intent.name !== intentName) {
+        throw ipcDenied("intent_contract_mismatch");
+      }
+      return dispatchDesktopIntent(result.intent);
+    });
+  }
+}
+
+registerIpcHandlers();
 
 app.whenReady().then(() => {
   createWindow();
