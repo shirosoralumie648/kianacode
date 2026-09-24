@@ -187,6 +187,22 @@ const LINUX_RENAME_NOREPLACE: u32 = 1;
 #[cfg(target_os = "linux")]
 const LINUX_RENAME_EXCHANGE: u32 = 2;
 
+/// Artifact receipts, manifests and lessons are textual persistence boundaries. Validate the
+/// structured representation when it is JSON so an opaque `secret_ref` can remain a legal
+/// reference, and validate non-JSON text through the same redaction marker detector used by
+/// EventLog. Reject before opening a path or creating a temporary file.
+fn validate_artifact_contents(contents: &[u8], error: &'static str) -> Result<(), &'static str> {
+    if let Ok(value) = serde_json::from_slice::<Value>(contents) {
+        kiana_domain::validate_secret_free(&value).map_err(|_| error)?;
+        return Ok(());
+    }
+    let text = std::str::from_utf8(contents).map_err(|_| error)?;
+    if kiana_domain::redact_text(text) != text {
+        return Err(error);
+    }
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn read_project_artifact(
     root: &Path,
@@ -220,6 +236,7 @@ fn write_project_artifact(
     contents: &[u8],
     error: &'static str,
 ) -> Result<(), &'static str> {
+    validate_artifact_contents(contents, error)?;
     prepare_project_artifact_linux(root, relative, contents, error)?.commit()
 }
 
@@ -230,6 +247,7 @@ fn write_project_artifact(
     contents: &[u8],
     error: &'static str,
 ) -> Result<(), &'static str> {
+    validate_artifact_contents(contents, error)?;
     let path = confined_artifact_path(root, relative, error)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|_| error)?;

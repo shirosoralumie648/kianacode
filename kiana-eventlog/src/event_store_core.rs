@@ -14,13 +14,22 @@ pub(crate) enum AppendPlan {
     Replay(RuntimeEvent),
 }
 
+/// Every persisted event crosses the same secret-free and audit-specific boundary before a
+/// storage lock, CAS check or idempotent replay can mutate state.
+pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), PortError> {
+    audit_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
+    kiana_domain::validate_secret_free(&event.data)
+        .map_err(|error| PortError::Failed(format!("eventlog_{error}")))?;
+    Ok(())
+}
+
 /// Validate a non-idempotent append before the adapter mutates storage.
 pub(crate) fn plan_append(
     events: &[RuntimeEvent],
     event: RuntimeEvent,
     expected_version: Option<u64>,
 ) -> Result<RuntimeEvent, PortError> {
-    audit_contract::validate_runtime_event(&event).map_err(PortError::Failed)?;
+    validate_event_for_storage(&event)?;
     reject_expected_version(events, &event, expected_version)?;
     reject_conflicts(events, &event)?;
     Ok(event)
@@ -31,7 +40,7 @@ pub(crate) fn plan_idempotent_append(
     event: RuntimeEvent,
     expected_version: Option<u64>,
 ) -> Result<AppendPlan, PortError> {
-    audit_contract::validate_runtime_event(&event).map_err(PortError::Failed)?;
+    validate_event_for_storage(&event)?;
     // Resolve retries before CAS so a committed request can replay after the
     // stream has advanced.
     let key = validate_idempotency_key(&event)?;

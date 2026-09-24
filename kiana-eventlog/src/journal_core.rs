@@ -1,6 +1,7 @@
 //! Shared deterministic transaction planning and complete-frame replay.
-use crate::audit_contract;
-use crate::event_store_core::{plan_append, plan_idempotent_append, AppendPlan};
+use crate::event_store_core::{
+    plan_append, plan_idempotent_append, validate_event_for_storage, AppendPlan,
+};
 use kiana_domain::*;
 use kiana_ports::{EventAppendResult, PortError};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -39,7 +40,7 @@ impl JournalState {
     ) -> Result<TransitionPlan, PortError> {
         batch.validate_identity().map_err(invalid)?;
         for event in &batch.events {
-            audit_contract::validate_runtime_event(event).map_err(invalid)?;
+            validate_event_for_storage(event)?;
         }
         if let Some(original) = self.commands.get(&batch.command_id) {
             if original.command_digest != batch.command_digest {

@@ -1,0 +1,56 @@
+name: PD-28 storage security baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/storage_security.rs"
+      - "kiana-domain/tests/pd28_storage_security.rs"
+      - "kiana-eventlog/src/event_store_core.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/tests/pd28_storage_security.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/tests/pd28_storage_security_guard.rs"
+      - "docs/roadmap/pd28-storage-security-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd28-storage-security.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/storage_security.rs"
+      - "kiana-domain/tests/pd28_storage_security.rs"
+      - "kiana-eventlog/src/event_store_core.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/tests/pd28_storage_security.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/tests/pd28_storage_security_guard.rs"
+      - "docs/roadmap/pd28-storage-security-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd28-storage-security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-28 domain fixture
+        run: cargo test -p kiana-domain --test pd28_storage_security --locked -- --test-threads=1
+      - name: Run PD-28 EventLog fixture
+        run: cargo test -p kiana-eventlog --test pd28_storage_security --locked -- --test-threads=1
+      - name: Run PD-28 Core source guard
+        run: cargo test -p kiana-core --test pd28_storage_security_guard --locked -- --test-threads=1
+      - name: Compile PD-28 targets
+        run: cargo check --workspace --tests --locked

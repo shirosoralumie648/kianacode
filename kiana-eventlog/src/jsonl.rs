@@ -94,29 +94,32 @@ impl JournalFiles {
                 if !create && e.kind() == std::io::ErrorKind::NotFound {
                     return Ok(None);
                 }
+                if e.raw_os_error() == Some(libc::ELOOP) {
+                    return Err(failed("eventlog_symlink_rejected"));
+                }
                 return Err(io_error("eventlog_open_failed", e));
             }
             let file = unsafe { File::from_raw_fd(fd) };
-            if !file
+            let metadata = file
                 .metadata()
-                .map_err(|e| io_error("eventlog_metadata_failed", e))?
-                .is_file()
-            {
-                return Err(failed("eventlog_not_regular_file"));
-            }
+                .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+            validate_unix_storage_file(&metadata)?;
             Ok(Some(file))
         }
         #[cfg(not(unix))]
         {
+            // OpenOptions has no portable no-follow flag. Check the directory entry both before
+            // and after opening, and expose the remaining race through the capability contract.
+            reject_non_unix_symlink(path)?;
             let mut options = OpenOptions::new();
             options.read(true).write(true).append(true).create(create);
             match options.open(path) {
                 Ok(file) => {
-                    if !file
+                    reject_non_unix_symlink(path)?;
+                    let metadata = file
                         .metadata()
-                        .map_err(|e| io_error("eventlog_metadata_failed", e))?
-                        .is_file()
-                    {
+                        .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+                    if !metadata.is_file() {
                         return Err(failed("eventlog_not_regular_file"));
                     }
                     Ok(Some(file))
@@ -162,7 +165,14 @@ impl JournalFiles {
         }
         #[cfg(not(unix))]
         {
-            let _ = (path, file);
+            reject_non_unix_symlink(path)?;
+            if !file
+                .metadata()
+                .map_err(|e| io_error("eventlog_metadata_failed", e))?
+                .is_file()
+            {
+                return Err(failed("eventlog_not_regular_file"));
+            }
         }
         Ok(())
     }
@@ -249,6 +259,13 @@ impl JsonlEventLog {
     }
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Report the platform-specific guarantees that protect journal and lock files. Non-Unix
+    /// adapters retain an explicit symlink check but cannot prove a race-free no-follow open or
+    /// portable hardlink identity, so those limitations remain visible to callers.
+    pub fn storage_security_capabilities(&self) -> StorageSecurityCapabilities {
+        StorageSecurityCapabilities::current()
     }
     async fn with_store<T: Send + 'static>(
         &self,
@@ -855,6 +872,33 @@ fn create_parent_directories(parent: &Path) -> Result<(), PortError> {
     }
     Ok(())
 }
+
+#[cfg(unix)]
+fn validate_unix_storage_file(metadata: &std::fs::Metadata) -> Result<(), PortError> {
+    if !metadata.is_file() {
+        return Err(failed("eventlog_not_regular_file"));
+    }
+    if metadata.nlink() > 1 {
+        return Err(failed("eventlog_hardlink_rejected"));
+    }
+    if metadata.mode() & 0o077 != 0 {
+        return Err(failed("eventlog_permissions_too_broad"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn reject_non_unix_symlink(path: &Path) -> Result<(), PortError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(failed("eventlog_symlink_rejected"))
+        }
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(io_error("eventlog_metadata_failed", e)),
+    }
+}
+
 #[cfg(unix)]
 fn open_directory(path: &Path) -> Result<File, PortError> {
     let name = std::ffi::CString::new(path.as_os_str().as_bytes())
