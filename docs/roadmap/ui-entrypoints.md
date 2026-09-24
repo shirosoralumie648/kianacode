@@ -407,13 +407,15 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 
 
 
-#### UI-17 · Web snapshot hydrate、历史和分页　⏳
+#### UI-17 · Web snapshot hydrate、历史和分页　🔄
 
 - 依赖：UI-05/08/16。代码：Web bootstrap、session/history/artifact query。
 - 步骤：首屏先 hydrate snapshot，再开启 feed；历史按 server cursor 分页，缓存带 instance/epoch/schema；loading、empty、partial、limited 状态明确。
 - 先拒绝：仅依赖 localStorage 状态、把空响应当无 session、跨 tab 复用 owner 数据、分页 cursor 重放旧 action。
 - 成功/回归：首次打开/刷新/旧缓存/分页边界/离线/恢复/多 session；重新 hydrate 后 reducer 与 CLI status 一致。
 - 完成产物：hydrate trace、分页 fixture、缓存淘汰和可见限制说明。
+
+实现基线：[UI-17 Web snapshot hydrate, history and pagination](ui17-web-hydrate-baseline.md)。
 
 <a id="step-ui-18"></a>
 

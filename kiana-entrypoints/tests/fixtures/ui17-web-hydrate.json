@@ -1,0 +1,33 @@
+{
+  "schema": "kiana.web-hydrate.v1",
+  "history_schema": "kiana.web-history-page.v1",
+  "artifact_schema": "kiana.web-artifact-page.v1",
+  "cache": {
+    "scope": ["tab_id", "session_id", "instance_id", "epoch", "schema"],
+    "storage": "memory_only",
+    "max_entries": 8,
+    "stale_action": "web_page_cursor_replayed"
+  },
+  "states": ["loading", "empty", "partial", "limited", "ready", "offline"],
+  "deny_first": [
+    "localStorage_state_only",
+    "empty_response_is_no_session",
+    "cross_tab_owner_cache_reuse",
+    "web_page_cursor_replayed",
+    "web_page_cursor_scope_mismatch",
+    "web_page_cursor_source_changed",
+    "artifact_content_client_fetch"
+  ],
+  "sequence": ["hydrate_snapshot", "install_feed_listener", "resume_or_render"],
+  "routes": [
+    {"path": "/api/bootstrap", "method": "GET", "class": "bootstrap", "token_required": true},
+    {"path": "/api/history", "method": "GET", "class": "history", "token_required": true},
+    {"path": "/api/artifact", "method": "GET", "class": "artifact", "token_required": true}
+  ],
+  "limitations": [
+    "cache_is_tab_local_and_process_local",
+    "artifact_route_returns_server_refs_without_bytes",
+    "offline_does_not_claim_execution_result",
+    "no_durable_browser_cache_or_live_provider_proof"
+  ]
+}

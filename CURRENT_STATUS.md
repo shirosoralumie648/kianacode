@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-17 Web snapshot hydrate、历史和分页（2026-09-25）
+
+source_snapshot: `e9e2d4ad` 加 UI-17 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui17-web-hydrate.json`; `kiana-entrypoints/tests/ui17_web_hydrate.rs`; `kiana-entrypoints/tests/ui17_web_hydrate_guard.rs`; `.github/workflows/ui17-web-hydrate.yml`; `docs/roadmap/ui17-web-hydrate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui17`；Web bootstrap 先返回 server-owned hydrate envelope，再允许 feed；history/artifact query 只读，页 cursor 绑定 instance/epoch/source cursor/session/tab/limit 且单次消费；浏览器缓存限定为 tab/session 作用域的进程内内存
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui17_web_hydrate --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui17_web_hydrate_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: hydrate/history/artifact schema、loading/empty/partial/limited/ready/offline、old epoch/cache eviction、cross-tab/page cursor replay/source change、server artifact ref only；无 daemon/provider/live effect
+exit_code: 本地仅目标 rustfmt 与 git diff --check；GitHub Actions 待触发/未等待
+status_change: UI-17 snapshot hydrate、server cursor history/artifact query、bounded tab cache、deny-first source fixtures/baseline/workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: cursor/cache 是 Web 进程和 tab 内存状态，重启/instance/epoch 变化需重新 hydrate；artifact 只返回 server-owned ref，不读取 bytes/path；未证明真实 HTTP/browser、跨进程 durable cache/cursor、live provider、外部效果或 physical proof
+reviewer: Codex UI-17 source review；检查 snapshot-first/feed-after-hydrate、schema/instance/epoch/session/tab scope、empty-vs-unknown、single-use cursor replay/stale/source-change、bounded cache/secret/no-second-loop；无本地 runtime test reviewer
+
 ### UI-16 Web 路由、来源校验和最小健康信息（2026-09-25）
 
 source_snapshot: `2d31a8b0` 加 UI-16 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui16-web-routes.json`; `kiana-entrypoints/tests/ui16_web_routes.rs`; `kiana-entrypoints/tests/ui16_web_routes_guard.rs`; `.github/workflows/ui16-web-routes.yml`; `docs/roadmap/ui16-web-routes-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -1,0 +1,48 @@
+name: UI-17 Web snapshot hydrate and history
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui17-web-hydrate.json"
+      - "kiana-entrypoints/tests/ui17_web_hydrate.rs"
+      - "kiana-entrypoints/tests/ui17_web_hydrate_guard.rs"
+      - "docs/roadmap/ui17-web-hydrate-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui17-web-hydrate.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui17-web-hydrate.json"
+      - "kiana-entrypoints/tests/ui17_web_hydrate.rs"
+      - "kiana-entrypoints/tests/ui17_web_hydrate_guard.rs"
+      - "docs/roadmap/ui17-web-hydrate-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui17-web-hydrate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui17-web-hydrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-17 hydrate and pagination fixtures
+        run: cargo test -p kiana-entrypoints --test ui17_web_hydrate --locked -- --test-threads=1
+      - name: Run UI-17 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui17_web_hydrate_guard --locked -- --test-threads=1
+      - name: Compile UI-17 workspace test targets
+        run: cargo check --workspace --tests --locked

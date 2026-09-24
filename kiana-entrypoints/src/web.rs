@@ -37,7 +37,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::net::TcpListener;
 
 use crate::harness_run;
@@ -70,6 +70,14 @@ const MAX_WEB_URI_BYTES: usize = 8 * 1024;
 const MAX_WEB_REQUESTS_PER_WINDOW: u32 = 120;
 const WEB_RATE_WINDOW: Duration = Duration::from_secs(1);
 const STREAM_GAP_RUN_IN_PROGRESS: &str = "subscription_attached_after_run_started";
+const WEB_HYDRATE_SCHEMA: &str = "kiana.web-hydrate.v1";
+const WEB_HISTORY_SCHEMA: &str = "kiana.web-history-page.v1";
+const WEB_ARTIFACT_SCHEMA: &str = "kiana.web-artifact-page.v1";
+const WEB_PAGE_CURSOR_SCHEMA: &str = "kiana.web-page-cursor.v1";
+const MAX_WEB_HISTORY_PAGE: usize = 64;
+const MAX_WEB_PAGE_CURSORS: usize = 256;
+const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
+const MAX_WEB_TAB_BYTES: usize = 128;
 
 /// The stable route inventory used by the Web entrypoint and its source/CI guards.
 ///
@@ -79,8 +87,11 @@ const STREAM_GAP_RUN_IN_PROGRESS: &str = "subscription_attached_after_run_starte
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebRouteClass {
     Health,
+    Bootstrap,
     State,
     Sessions,
+    History,
+    Artifact,
     Events,
     Run,
     Cancel,
@@ -112,6 +123,12 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         token_required: false,
     },
     WebRouteContract {
+        path: "/api/bootstrap",
+        method: "GET",
+        class: WebRouteClass::Bootstrap,
+        token_required: true,
+    },
+    WebRouteContract {
         path: "/api/state",
         method: "GET",
         class: WebRouteClass::State,
@@ -121,6 +138,18 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         path: "/api/sessions",
         method: "GET",
         class: WebRouteClass::Sessions,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/history",
+        method: "GET",
+        class: WebRouteClass::History,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/artifact",
+        method: "GET",
+        class: WebRouteClass::Artifact,
         token_required: true,
     },
     WebRouteContract {
@@ -249,6 +278,8 @@ struct WebApp {
     web_token: String,
     bound_addr: SocketAddr,
     rate_window: Arc<Mutex<WebRateWindow>>,
+    page_cursors: Arc<Mutex<HashMap<String, WebPageCursor>>>,
+    consumed_page_cursors: Arc<Mutex<HashMap<String, Instant>>>,
     shutting_down: Arc<AtomicBool>,
     shutdown: tokio::sync::watch::Sender<bool>,
 }
@@ -260,6 +291,45 @@ struct WebSession {
     name: String,
     last: Option<TurnSummary>,
     turns: Vec<TurnView>,
+}
+
+#[derive(Clone, Debug)]
+struct WebPageCursor {
+    schema: &'static str,
+    kind: &'static str,
+    token: String,
+    session_id: String,
+    tab_id: String,
+    instance_id: String,
+    epoch: String,
+    source_cursor: u64,
+    offset: usize,
+    limit: usize,
+    issued_at: Instant,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct HistoryQuery {
+    session_id: String,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default = "default_web_history_page")]
+    limit: usize,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ArtifactQuery {
+    session_id: String,
+    #[serde(default)]
+    artifact_id: Option<String>,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default = "default_web_history_page")]
+    limit: usize,
+}
+
+fn default_web_history_page() -> usize {
+    32
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -627,10 +697,13 @@ fn router(app: WebApp) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
+        .route("/api/bootstrap", get(bootstrap))
         .route("/api/parity", get(parity))
         .route("/api/company-governance", get(company_governance))
         .route("/api/state", get(state))
         .route("/api/sessions", get(list_sessions))
+        .route("/api/history", get(history))
+        .route("/api/artifact", get(artifact))
         .route("/api/events", get(events))
         .route("/api/run", post(run_turn))
         .route("/api/cancel", post(cancel_turn))
@@ -719,6 +792,8 @@ impl WebApp {
                 started: Instant::now(),
                 requests: 0,
             })),
+            page_cursors: Arc::new(Mutex::new(HashMap::new())),
+            consumed_page_cursors: Arc::new(Mutex::new(HashMap::new())),
             shutting_down: Arc::new(AtomicBool::new(false)),
             shutdown: tokio::sync::watch::channel(false).0,
         }
@@ -840,6 +915,36 @@ impl WebApp {
                 .and_then(|thread| serde_json::to_value(thread).ok())
                 .unwrap_or(Value::Null)
         };
+        let history_turn_count = thread
+            .get("turns")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        let history_limited = historical
+            .as_ref()
+            .is_some_and(|thread| history_thread_is_limited(&events, &thread.session.run_id))
+            || history_turn_count >= MAX_WEB_TURNS_PER_SESSION;
+        let history_status = if history_turn_count == 0 {
+            "empty"
+        } else if history_limited {
+            "limited"
+        } else {
+            "ready"
+        };
+        let owner_id = self.host.authenticated_principal().principal_id;
+        let hydrate = json!({
+            "schema": WEB_HYDRATE_SCHEMA,
+            "instance_id": self.host.feed_instance_id(),
+            "epoch": projection.cursor.epoch.clone(),
+            "snapshot_cursor": projection.cursor.sequence,
+            "owner_id": owner_id,
+            "session_id": session_id.clone(),
+            "generated_at_unix_ms": web_now_unix_ms(),
+            "source": "daemon_snapshot",
+            "feed_ready": false,
+            "cache": "memory_only",
+            "status": "ready",
+            "limitations": ["snapshot_is_disposable_projection"]
+        });
         let parity = harness_run::parity_envelope_on_host(
             Arc::clone(&self.host),
             session_id.to_owned(),
@@ -873,6 +978,18 @@ impl WebApp {
             "shape": "codex-app",
             "parity": parity.output,
             "parity_response_status": parity.status,
+            "hydrate": hydrate,
+            "history": {
+                "schema": WEB_HISTORY_SCHEMA,
+                "status": history_status,
+                "session_id": session_id,
+                "next_page": Value::Null,
+                "limitations": if history_limited {
+                    json!(["history_retention_or_memory_bound"])
+                } else {
+                    json!([])
+                }
+            }
         }))
     }
 
@@ -907,6 +1024,282 @@ impl WebApp {
         self.read_session_ledger()
             .await
             .map(|(_, sessions)| sessions)
+    }
+
+    fn page_context(&self) -> Result<(String, String, u64), ApiError> {
+        let cursor = self.host.ui_cursor();
+        if cursor.epoch.trim().is_empty() {
+            return Err(ApiError::fail("web_page_epoch_unavailable"));
+        }
+        Ok((self.host.feed_instance_id(), cursor.epoch, cursor.sequence))
+    }
+
+    async fn history_page(
+        &self,
+        session_id: &str,
+        tab_id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, ApiError> {
+        validate_web_page_limit(limit)?;
+        validate_web_tab_id(tab_id)?;
+        let (instance_id, epoch, source_cursor) = self.page_context()?;
+        let (events, sessions) = self.read_session_ledger().await?;
+        let (turns, limited) =
+            if let Some(thread) = ledger_thread_for_session(&events, &sessions, session_id) {
+                let limited = history_thread_is_limited(&events, &thread.session.run_id);
+                (thread.turns, limited)
+            } else {
+                let live = self
+                    .sessions
+                    .lock()
+                    .map_err(|_| ApiError::fail("web_state_poisoned"))?
+                    .contains_key(session_id);
+                if !live {
+                    return Err(ApiError::bad("session_unknown"));
+                }
+                (Vec::new(), false)
+            };
+        let (offset, cursor_limit) = self.consume_page_cursor(
+            after,
+            "history",
+            session_id,
+            tab_id,
+            &instance_id,
+            &epoch,
+            source_cursor,
+        )?;
+        if after.is_some() && cursor_limit != limit {
+            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
+        }
+        if offset > turns.len() {
+            return Err(ApiError::bad("web_page_cursor_offset_invalid"));
+        }
+        let end = (offset + limit).min(turns.len());
+        let entries = turns[offset..end]
+            .iter()
+            .map(|turn| serde_json::to_value(turn).unwrap_or(Value::Null))
+            .collect::<Vec<_>>();
+        let next_page = if end < turns.len() {
+            Some(self.issue_page_cursor(WebPageCursor {
+                schema: WEB_PAGE_CURSOR_SCHEMA,
+                kind: "history",
+                token: String::new(),
+                session_id: session_id.to_owned(),
+                tab_id: tab_id.to_owned(),
+                instance_id: instance_id.clone(),
+                epoch: epoch.clone(),
+                source_cursor,
+                offset: end,
+                limit,
+                issued_at: Instant::now(),
+            })?)
+        } else {
+            None
+        };
+        let status = if turns.is_empty() {
+            "empty"
+        } else if limited {
+            "limited"
+        } else if next_page.is_some() {
+            "partial"
+        } else {
+            "ready"
+        };
+        let (_, current_epoch, current_cursor) = self.page_context()?;
+        if current_epoch != epoch || current_cursor != source_cursor {
+            return Err(ApiError::conflict("web_page_source_changed"));
+        }
+        Ok(json!({
+            "schema": WEB_HISTORY_SCHEMA,
+            "instance_id": instance_id,
+            "epoch": epoch,
+            "source_cursor": source_cursor,
+            "session_id": session_id,
+            "entries": entries,
+            "next_page": next_page,
+            "status": status,
+            "cache": "memory_only",
+            "limitations": if limited {
+                json!(["history_retention_or_memory_bound"])
+            } else {
+                json!([])
+            }
+        }))
+    }
+
+    async fn artifact_page(
+        &self,
+        session_id: &str,
+        tab_id: &str,
+        artifact_id: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, ApiError> {
+        validate_web_page_limit(limit)?;
+        validate_web_tab_id(tab_id)?;
+        let (instance_id, epoch, source_cursor) = self.page_context()?;
+        let (events, sessions) = self.read_session_ledger().await?;
+        let entries =
+            if let Some(session) = sessions.iter().find(|session| session.id == session_id) {
+                events
+                    .iter()
+                    .filter(|event| {
+                        event.data.get("run_id").and_then(Value::as_str)
+                            == Some(session.run_id.as_str())
+                    })
+                    .filter_map(|event| artifact_entry(event, artifact_id))
+                    .collect::<Vec<_>>()
+            } else if self
+                .sessions
+                .lock()
+                .map_err(|_| ApiError::fail("web_state_poisoned"))?
+                .contains_key(session_id)
+            {
+                Vec::new()
+            } else {
+                return Err(ApiError::bad("session_unknown"));
+            };
+        let (offset, cursor_limit) = self.consume_page_cursor(
+            after,
+            "artifact",
+            session_id,
+            tab_id,
+            &instance_id,
+            &epoch,
+            source_cursor,
+        )?;
+        if after.is_some() && cursor_limit != limit {
+            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
+        }
+        if offset > entries.len() {
+            return Err(ApiError::bad("web_page_cursor_offset_invalid"));
+        }
+        let end = (offset + limit).min(entries.len());
+        let next_page = if end < entries.len() {
+            Some(self.issue_page_cursor(WebPageCursor {
+                schema: WEB_PAGE_CURSOR_SCHEMA,
+                kind: "artifact",
+                token: String::new(),
+                session_id: session_id.to_owned(),
+                tab_id: tab_id.to_owned(),
+                instance_id: instance_id.clone(),
+                epoch: epoch.clone(),
+                source_cursor,
+                offset: end,
+                limit,
+                issued_at: Instant::now(),
+            })?)
+        } else {
+            None
+        };
+        let status = if entries.is_empty() {
+            "empty"
+        } else if next_page.is_some() {
+            "partial"
+        } else {
+            "ready"
+        };
+        let (_, current_epoch, current_cursor) = self.page_context()?;
+        if current_epoch != epoch || current_cursor != source_cursor {
+            return Err(ApiError::conflict("web_page_source_changed"));
+        }
+        Ok(json!({
+            "schema": WEB_ARTIFACT_SCHEMA,
+            "instance_id": instance_id,
+            "epoch": epoch,
+            "source_cursor": source_cursor,
+            "session_id": session_id,
+            "artifact_id": artifact_id,
+            "entries": entries[offset..end].to_vec(),
+            "next_page": next_page,
+            "status": status,
+            "cache": "memory_only",
+            "limitations": ["artifact_content_requires_server_ref"]
+        }))
+    }
+
+    fn issue_page_cursor(&self, mut cursor: WebPageCursor) -> Result<String, ApiError> {
+        let token = uuid::Uuid::new_v4().to_string();
+        cursor.token = token.clone();
+        let mut cursors = self
+            .page_cursors
+            .lock()
+            .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?;
+        if cursors.len() >= MAX_WEB_PAGE_CURSORS {
+            if let Some(oldest) = cursors
+                .iter()
+                .min_by_key(|(_, cursor)| cursor.issued_at)
+                .map(|(token, _)| token.clone())
+            {
+                cursors.remove(&oldest);
+            }
+        }
+        cursors.insert(token.clone(), cursor);
+        Ok(token)
+    }
+
+    fn consume_page_cursor(
+        &self,
+        token: Option<&str>,
+        kind: &str,
+        session_id: &str,
+        tab_id: &str,
+        instance_id: &str,
+        epoch: &str,
+        source_cursor: u64,
+    ) -> Result<(usize, usize), ApiError> {
+        let Some(token) = token else {
+            return Ok((0, 0));
+        };
+        if token.trim().is_empty()
+            || token.len() > MAX_WEB_PAGE_CURSOR_BYTES
+            || token.chars().any(char::is_control)
+        {
+            return Err(ApiError::bad("web_page_cursor_invalid"));
+        }
+        let cursor = self
+            .page_cursors
+            .lock()
+            .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?
+            .remove(token);
+        let Some(cursor) = cursor else {
+            let replayed = self
+                .consumed_page_cursors
+                .lock()
+                .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?
+                .contains_key(token);
+            return Err(ApiError::bad(if replayed {
+                "web_page_cursor_replayed"
+            } else {
+                "web_page_cursor_unknown"
+            }));
+        };
+        if cursor.schema != WEB_PAGE_CURSOR_SCHEMA
+            || cursor.kind != kind
+            || cursor.session_id != session_id
+            || cursor.tab_id != tab_id
+            || cursor.instance_id != instance_id
+            || cursor.epoch != epoch
+            || cursor.source_cursor != source_cursor
+        {
+            return Err(ApiError::conflict("web_page_cursor_scope_mismatch"));
+        }
+        let mut consumed = self
+            .consumed_page_cursors
+            .lock()
+            .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?;
+        if consumed.len() >= MAX_WEB_PAGE_CURSORS {
+            if let Some(oldest) = consumed
+                .iter()
+                .min_by_key(|(_, issued_at)| **issued_at)
+                .map(|(token, _)| token.clone())
+            {
+                consumed.remove(&oldest);
+            }
+        }
+        consumed.insert(token.to_owned(), Instant::now());
+        Ok((cursor.offset, cursor.limit))
     }
 
     // 为每次 daemon 调用重建显式选项，避免把可变 Web 状态隐式散落到 handler 中。
@@ -975,6 +1368,28 @@ async fn health(
     Ok(Json(payload))
 }
 
+/// Bootstrap is a read-only snapshot boundary.  The browser must accept this server projection
+/// before it installs a feed listener; a browser-persisted value can never stand in for it.
+async fn bootstrap(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<SessionBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_hydrate_tab(&mut snapshot, &tab_id)?;
+    snapshot["bootstrap"] = json!({
+        "schema": WEB_HYDRATE_SCHEMA,
+        "snapshot_first": true,
+        "feed_after_hydrate": true,
+        "tab_id": tab_id,
+        "status": "ready"
+    });
+    Ok(Json(snapshot))
+}
+
 async fn parity(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
@@ -1033,6 +1448,7 @@ async fn state(
     Query(query): Query<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let tab_id = optional_web_tab(&headers)?;
     let session_id = match query
         .session_id
         .as_deref()
@@ -1042,7 +1458,11 @@ async fn state(
         Some(session_id) => session_id.to_owned(),
         None => lock_string(&app.active)?,
     };
-    Ok(Json(app.snapshot(&session_id).await?))
+    let mut snapshot = app.snapshot(&session_id).await?;
+    if let Some(tab_id) = tab_id {
+        attach_hydrate_tab(&mut snapshot, &tab_id)?;
+    }
+    Ok(Json(snapshot))
 }
 
 async fn list_sessions(
@@ -1061,6 +1481,45 @@ async fn list_sessions(
         "read_only": true,
         "sessions": sessions,
     })))
+}
+
+async fn history(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    validate_web_page_limit(query.limit)?;
+    let page = app
+        .history_page(&session_id, &tab_id, query.after.as_deref(), query.limit)
+        .await?;
+    Ok(Json(page))
+}
+
+async fn artifact(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<ArtifactQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    validate_web_page_limit(query.limit)?;
+    if let Some(artifact_id) = query.artifact_id.as_deref() {
+        validate_web_opaque_id(artifact_id, "artifact_id")?;
+    }
+    let page = app
+        .artifact_page(
+            &session_id,
+            &tab_id,
+            query.artifact_id.as_deref(),
+            query.after.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(Json(page))
 }
 
 struct EventStreamState {
@@ -1263,6 +1722,7 @@ async fn run_turn(
     Json(body): Json<RunBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let prompt = validate_web_prompt(body.prompt)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
@@ -1295,6 +1755,7 @@ async fn run_turn(
         Ok(response) => {
             store_turn(&app, &session_id, &prompt, &response)?;
             let mut payload = app.snapshot(&session_id).await?;
+            attach_optional_hydrate_tab(&mut payload, &headers)?;
             payload["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
             Ok(Json(payload))
         }
@@ -1311,6 +1772,7 @@ async fn cancel_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
@@ -1325,7 +1787,9 @@ async fn cancel_turn(
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
     store_turn(&app, &session_id, "(cancel)", &response)?;
-    Ok(Json(app.snapshot(&session_id).await?))
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    Ok(Json(snapshot))
 }
 
 async fn trust_folder(
@@ -1334,13 +1798,16 @@ async fn trust_folder(
     body: Option<Json<SessionBody>>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let requested = body
         .as_ref()
         .and_then(|Json(body)| body.session_id.as_deref());
     let session_id = resolve_mutable_session(&app, requested).await?;
     write_project_trust(&app.workdir, ProjectTrust::Trusted).map_err(ApiError::fail)?;
-    Ok(Json(app.snapshot(&session_id).await?))
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    Ok(Json(snapshot))
 }
 
 async fn set_sandbox(
@@ -1349,6 +1816,7 @@ async fn set_sandbox(
     Json(body): Json<SandboxBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
@@ -1356,7 +1824,9 @@ async fn set_sandbox(
     *app.sandbox
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = sandbox;
-    Ok(Json(app.snapshot(&session_id).await?))
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    Ok(Json(snapshot))
 }
 
 async fn new_session(
@@ -1364,6 +1834,7 @@ async fn new_session(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let session_id = new_session_id();
     {
@@ -1377,7 +1848,9 @@ async fn new_session(
     *app.active
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = session_id.clone();
-    Ok(Json(app.snapshot(&session_id).await?))
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    Ok(Json(snapshot))
 }
 
 async fn read_receipt(
@@ -1386,6 +1859,7 @@ async fn read_receipt(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     let session_id = body.session_id.unwrap_or(lock_string(&app.active)?);
     let snapshot = app.snapshot(&session_id).await?;
     let run_id = snapshot["projection"]["run_id"]
@@ -1400,8 +1874,10 @@ async fn read_receipt(
     )
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
+    let mut state = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut state, &headers)?;
     Ok(Json(json!({
-        "state": app.snapshot(&session_id).await?,
+        "state": state,
         "receipt": response,
     })))
 }
@@ -1412,6 +1888,7 @@ async fn list_approvals(
     Query(body): Query<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let response = harness_run::pending_approvals_envelope_on_host(
         app.host.clone(),
@@ -1430,6 +1907,7 @@ async fn command_action(
     Json(body): Json<CommandBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     if body.name.is_empty() || body.name.len() > 128 || !body.arguments.is_object() {
         return Err(ApiError::bad("command_request_invalid"));
     }
@@ -1444,9 +1922,9 @@ async fn command_action(
     )
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
-    Ok(Json(
-        json!({ "state": app.snapshot(&session_id).await?, "response": response }),
-    ))
+    let mut state = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut state, &headers)?;
+    Ok(Json(json!({ "state": state, "response": response })))
 }
 
 #[derive(Deserialize)]
@@ -1556,6 +2034,7 @@ async fn decide_approval(
     Json(body): Json<ApprovalBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
     let response = harness_run::decide_approval_envelope_on_host(
@@ -1577,6 +2056,7 @@ async fn decide_approval(
         store_turn(&app, &session_id, "(approval)", &response)?;
     }
     let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
     snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
     Ok(Json(snapshot))
 }
@@ -1587,6 +2067,7 @@ async fn resume_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let _ = optional_web_tab(&headers)?;
     claim_ui_headers(&app, &headers)?;
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let response = harness_run::resume_envelope_on_host(
@@ -1627,6 +2108,7 @@ async fn resume_turn(
         store_turn(&app, &session_id, "(resume)", &response)?;
     }
     let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
     snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
     Ok(Json(snapshot))
 }
@@ -2108,6 +2590,116 @@ fn validate_web_session_id(value: &str) -> Result<(), ApiError> {
         return Err(ApiError::bad("session_invalid"));
     }
     Ok(())
+}
+
+fn validate_web_opaque_id(value: &str, field: &str) -> Result<(), ApiError> {
+    if value.trim().is_empty()
+        || value.len() > 256
+        || value.contains('/')
+        || value.contains('\\')
+        || value.chars().any(char::is_control)
+    {
+        return Err(ApiError::bad(format!("{field}_invalid")));
+    }
+    Ok(())
+}
+
+fn validate_web_tab_id(value: &str) -> Result<(), ApiError> {
+    if value.trim().is_empty()
+        || value.len() > MAX_WEB_TAB_BYTES
+        || value.contains('/')
+        || value.contains('\\')
+        || value.chars().any(char::is_control)
+    {
+        return Err(ApiError::bad("web_tab_invalid"));
+    }
+    Ok(())
+}
+
+fn optional_web_tab(headers: &HeaderMap) -> Result<Option<String>, ApiError> {
+    let value = single_header(headers, "x-kiana-ui-tab")?;
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    validate_web_tab_id(value)?;
+    Ok(Some(value.to_owned()))
+}
+
+fn require_web_tab(headers: &HeaderMap) -> Result<String, ApiError> {
+    optional_web_tab(headers)?.ok_or_else(|| ApiError::bad("web_tab_required"))
+}
+
+fn attach_hydrate_tab(snapshot: &mut Value, tab_id: &str) -> Result<(), ApiError> {
+    validate_web_tab_id(tab_id)?;
+    let hydrate = snapshot
+        .get_mut("hydrate")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| ApiError::fail("web_hydrate_missing"))?;
+    hydrate.insert("tab_id".to_owned(), Value::String(tab_id.to_owned()));
+    Ok(())
+}
+
+fn attach_optional_hydrate_tab(snapshot: &mut Value, headers: &HeaderMap) -> Result<(), ApiError> {
+    if let Some(tab_id) = optional_web_tab(headers)? {
+        attach_hydrate_tab(snapshot, &tab_id)?;
+    }
+    Ok(())
+}
+
+fn validate_web_page_limit(limit: usize) -> Result<(), ApiError> {
+    if limit == 0 || limit > MAX_WEB_HISTORY_PAGE {
+        return Err(ApiError::bad("web_page_limit_invalid"));
+    }
+    Ok(())
+}
+
+fn web_now_unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
+fn history_thread_is_limited(events: &[LedgerEvent], run_id: &str) -> bool {
+    events
+        .iter()
+        .filter(|event| {
+            event.kind == "run.prompt"
+                && event.data.get("run_id").and_then(Value::as_str) == Some(run_id)
+        })
+        .count()
+        > MAX_WEB_TURNS_PER_SESSION
+}
+
+fn artifact_entry(event: &LedgerEvent, requested: Option<&str>) -> Option<Value> {
+    let object = event
+        .data
+        .get("artifact_ref")
+        .filter(|value| value.is_object());
+    let id = event
+        .data
+        .get("artifact_id")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            object
+                .and_then(|value| value.get("artifact_id"))
+                .and_then(Value::as_str)
+        })?;
+    if requested.is_some_and(|requested| requested != id) {
+        return None;
+    }
+    Some(json!({
+        "artifact_id": id,
+        "source_event_id": event.event_id,
+        "source_sequence": event.sequence,
+        "schema": event.data.get("artifact_schema").cloned().unwrap_or(Value::Null),
+        "digest": event.data.get("content_hash")
+            .or_else(|| event.data.get("artifact_digest"))
+            .cloned()
+            .or_else(|| object.and_then(|value| value.get("content_hash")).cloned())
+            .unwrap_or(Value::Null),
+        "content": Value::Null
+    }))
 }
 
 fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {

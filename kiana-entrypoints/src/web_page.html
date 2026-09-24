@@ -75,6 +75,7 @@
       <div class="muted">本地工作区与任务</div>
       <div class="folder" id="folder">…</div>
       <div><span class="pill" id="trust">untrusted</span> <span class="pill" id="status" role="status" aria-live="polite">idle</span></div>
+      <div class="muted" id="hydrateStatus" role="status" aria-live="polite">snapshot loading…</div>
       <div class="banner" id="trustBanner">未信任此文件夹时不能修改文件。请先核实工作区，再选择「信任此文件夹」。</div>
       <div class="row">
         <button id="trustBtn">信任此文件夹</button>
@@ -102,6 +103,10 @@
             <button data-prompt="create a file named GOLDEN_PATH.txt containing hello">黄金路径写盘</button>
           </div>
         </div>
+      </div>
+      <div class="row" style="padding:0 24px;">
+        <button id="loadHistory" disabled>加载更早历史</button>
+        <span class="muted" id="historyStatus">history loading…</span>
       </div>
       <div class="composer">
         <label for="prompt" class="sr-only">发送给 Kiana 的任务</label>
@@ -193,6 +198,120 @@
     let humanInboxViewKey = '';
     let previousFocus = null;
     const runtimeEvents = [];
+    const WEB_HYDRATE_SCHEMA = 'kiana.web-hydrate.v1';
+    const WEB_HISTORY_SCHEMA = 'kiana.web-history-page.v1';
+    const MAX_HYDRATE_CACHE = 8;
+    const MAX_HISTORY_CACHE_ENTRIES = 256;
+    const tabOwnerId = crypto.randomUUID();
+    const hydrateCache = new Map();
+    const historyPages = new Map();
+    let hydrateState = 'loading';
+
+    function setHydrateStatus(status, detail) {
+      hydrateState = status;
+      const value = detail || ('snapshot ' + status);
+      document.getElementById('hydrateStatus').textContent = value;
+      const history = historyPages.get(sessionId);
+      if (history && history.status) {
+        document.getElementById('historyStatus').textContent = 'history ' + history.status;
+      }
+    }
+
+    function cacheKeyFor(session) { return tabOwnerId + ':' + session; }
+
+    function acceptHydrateSnapshot(snapshot) {
+      const envelope = snapshot && snapshot.hydrate;
+      if (!envelope || envelope.schema !== WEB_HYDRATE_SCHEMA || !envelope.instance_id ||
+        !envelope.epoch || !envelope.session_id || envelope.session_id !== snapshot.session_id ||
+        envelope.tab_id && envelope.tab_id !== tabOwnerId) {
+        throw new Error('hydrate_snapshot_invalid');
+      }
+      if (snapshot.read_only && !snapshot.thread) throw new Error('hydrate_session_missing');
+      const key = cacheKeyFor(snapshot.session_id);
+      const previous = hydrateCache.get(key);
+      if (previous && (previous.instance_id !== envelope.instance_id || previous.epoch !== envelope.epoch)) {
+        historyPages.delete(snapshot.session_id);
+        streamCursors.delete(snapshot.session_id);
+        if (sessionId === snapshot.session_id) clearStreamProjection();
+      }
+      hydrateCache.delete(key);
+      hydrateCache.set(key, {
+        schema: envelope.schema,
+        instance_id: envelope.instance_id,
+        epoch: envelope.epoch,
+        snapshot_cursor: envelope.snapshot_cursor,
+        session_id: envelope.session_id,
+        tab_id: tabOwnerId,
+        generated_at_unix_ms: envelope.generated_at_unix_ms || 0
+      });
+      while (hydrateCache.size > MAX_HYDRATE_CACHE) hydrateCache.delete(hydrateCache.keys().next().value);
+      const turns = snapshot.thread && snapshot.thread.turns || [];
+      const history = snapshot.history || {};
+      const status = history.status || (turns.length ? 'ready' : 'empty');
+      setHydrateStatus(status === 'ready' ? 'ready' : status, 'snapshot ' + status + ' · server cursor ' + envelope.snapshot_cursor);
+      if (snapshot.parity_response_status && snapshot.parity_response_status !== 'completed') {
+        setHydrateStatus('partial', 'snapshot partial · CLI parity unavailable');
+      }
+      return true;
+    }
+
+    function assertHistoryPage(page, requested) {
+      if (!page || page.schema !== WEB_HISTORY_SCHEMA || page.session_id !== requested ||
+        !page.instance_id || !page.epoch || page.cache !== 'memory_only') {
+        throw new Error('history_page_invalid');
+      }
+      const cache = hydrateCache.get(cacheKeyFor(requested));
+      if (!cache || cache.instance_id !== page.instance_id || cache.epoch !== page.epoch) {
+        throw new Error('history_page_scope_mismatch');
+      }
+      if (page.source_cursor !== cache.snapshot_cursor) throw new Error('history_page_cursor_stale');
+      if (!Array.isArray(page.entries)) throw new Error('history_page_entries_invalid');
+      return page;
+    }
+
+    async function loadHistoryPage(after = null) {
+      const requested = sessionId;
+      if (!requested) return;
+      const state = historyPages.get(requested) || {status:'loading', next_page:null};
+      if (after === null && state.loaded) return state;
+      if (state.requested) return state;
+      if (after && state.next_page !== after) throw new Error('history_cursor_replayed');
+      state.status = 'loading';
+      state.requested = true;
+      historyPages.set(requested, state);
+      document.getElementById('historyStatus').textContent = 'history loading…';
+      const query = '/api/history?session_id=' + encodeURIComponent(requested) + '&limit=32' +
+        (after ? '&after=' + encodeURIComponent(after) : '');
+      let page;
+      try {
+        page = assertHistoryPage(await api(query), requested);
+      } catch (error) {
+        state.requested = false;
+        state.status = 'offline';
+        historyPages.set(requested, state);
+        throw error;
+      }
+      if (requested !== sessionId) return page;
+      state.status = page.status;
+      state.loaded = true;
+      state.requested = false;
+      state.next_page = page.next_page || null;
+      state.pages = (state.pages || 0) + 1;
+      state.entries = (state.entries || []).concat(page.entries || []);
+      state.entries = state.entries.filter((entry, index, all) =>
+        all.findIndex(candidate => candidate.id === entry.id) === index);
+      if (state.entries.length > MAX_HISTORY_CACHE_ENTRIES) {
+        state.entries = state.entries.slice(-MAX_HISTORY_CACHE_ENTRIES);
+      }
+      historyPages.set(requested, state);
+      document.getElementById('historyStatus').textContent = 'history ' + page.status +
+        ' · ' + state.entries.length + ' items' +
+        (page.limitations && page.limitations.length ? ' · limited' : '');
+      const button = document.getElementById('loadHistory');
+      button.disabled = !state.next_page;
+      if (page.status === 'empty') announce('此会话没有历史 Turn');
+      return page;
+    }
 
     function announce(text) { document.getElementById('announcer').textContent = text; }
     function reportError(error) { addItem({kind:'error',title:'操作未完成',body:String(error.message || error)}); announce(String(error.message || error)); }
@@ -335,7 +454,10 @@
       chat.scrollTop = chat.scrollHeight;
     }
     async function api(path, body) {
-      const headers = {'x-kiana-web-token': window.__KIANA_WEB_TOKEN__};
+      const headers = {
+        'x-kiana-web-token': window.__KIANA_WEB_TOKEN__,
+        'x-kiana-ui-tab': tabOwnerId
+      };
       if (body !== undefined) {
         headers['content-type'] = 'application/json';
         if (stateCache && stateCache.cursor) {
@@ -575,6 +697,12 @@
       }
     }
     function renderState(s) {
+      try {
+        acceptHydrateSnapshot(s);
+      } catch (error) {
+        setHydrateStatus('partial', 'snapshot rejected · ' + String(error.message || error));
+        return;
+      }
       if (s.cursor) {
         if (stateCache && stateCache.cursor && stateCache.cursor.epoch === s.cursor.epoch &&
           s.cursor.sequence < Math.max(stateCache.cursor.sequence, observedUiCursor)) return;
@@ -642,15 +770,30 @@
       renderThread(s);
       if (!atBottom) chat.scrollTop = scroll;
       if (running && !readOnly && !eventSource) ensureEventStream(sessionId).catch(() => {});
+      loadHistoryPage().catch(error => {
+        const state = historyPages.get(sessionId) || {};
+        state.requested = false;
+        state.status = 'offline';
+        historyPages.set(sessionId, state);
+        document.getElementById('historyStatus').textContent = 'history offline · ' + String(error.message || error);
+      });
       syncPolling();
     }
     async function refresh() {
       const requested = sessionId;
       const request = ++refreshIssued;
-      const path = requested
+      setHydrateStatus('loading', 'snapshot loading…');
+      const cached = requested && hydrateCache.get(cacheKeyFor(requested));
+      const path = (requested && cached)
         ? '/api/state?session_id=' + encodeURIComponent(requested)
-        : '/api/state';
-      const data = await api(path);
+        : '/api/bootstrap' + (requested ? '?session_id=' + encodeURIComponent(requested) : '');
+      let data;
+      try {
+        data = await api(path);
+      } catch (error) {
+        setHydrateStatus('offline', 'snapshot offline · ' + String(error.message || error));
+        throw error;
+      }
       if (sessionId === requested && request >= refreshApplied) {
         refreshApplied = request; renderState(data); refreshApprovals().catch(() => {});
       }
@@ -697,6 +840,10 @@
       }
     }
     document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
+    document.getElementById('loadHistory').onclick = () => {
+      const state = historyPages.get(sessionId);
+      if (state && state.next_page) loadHistoryPage(state.next_page).catch(reportError);
+    };
     document.getElementById('listCheckpoints').onclick = () => listCheckpoints().catch(reportError);
     document.getElementById('createCheckpoint').onclick = async () => {
       try { await submitCommand('workspace.checkpoint.create',{paths:document.getElementById('checkpointPaths').value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean)}); await listCheckpoints(); }
@@ -766,6 +913,8 @@
       if (event.key === 'Tab') { event.preventDefault(); document.getElementById('coachOk').focus(); }
     });
     window.addEventListener('unhandledrejection', event => { event.preventDefault(); reportError(event.reason || '请求失败'); });
+    window.addEventListener('offline', () => setHydrateStatus('offline', 'snapshot offline · 保留服务端事实，等待恢复'));
+    window.addEventListener('online', () => refresh().catch(reportError));
     window.addEventListener('beforeunload', closeEventStream);
     refresh().catch(reportError);
   </script>
