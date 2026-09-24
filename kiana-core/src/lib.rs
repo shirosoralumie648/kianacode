@@ -28,6 +28,7 @@ mod effect_usage_projection;
 mod eval;
 mod events;
 mod fault_injection;
+mod fallback_admission;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
 mod health;
@@ -125,6 +126,7 @@ pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
 };
+pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };

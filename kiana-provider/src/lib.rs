@@ -1,6 +1,7 @@
 //! One admitted model attempt. No Agent loop, tool execution, hidden retries or legacy runtime edges.
 mod capacity;
 mod config;
+mod fallback;
 mod credentials;
 mod oauth;
 mod request;
@@ -12,6 +13,7 @@ mod usage;
 mod usage_adapters;
 use async_trait::async_trait;
 pub use config::ProviderConfig;
+pub use fallback::{validate_fallback_attempt, FALLBACK_PROVIDER_BOUNDARY_SCHEMA};
 use kiana_domain::*;
 use kiana_ports::{ModelBudgetPort, ModelClient};
 pub use resolver::{
