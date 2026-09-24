@@ -1080,6 +1080,9 @@ impl UiFeedCursorV1 {
                 "ui_feed_cursor_snapshot_epoch",
                 256,
             )?;
+            if self.snapshot_cursor.epoch != self.authority_epoch {
+                return Err("ui_feed_cursor_snapshot_epoch_mismatch".to_owned());
+            }
         } else if !self.snapshot_cursor.epoch.is_empty() {
             return Err("ui_feed_cursor_snapshot_invalid".to_owned());
         }

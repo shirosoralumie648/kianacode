@@ -71,4 +71,18 @@ fn feed_cursor_digest_and_terminal_boundary_fail_closed() {
         frame.validate().unwrap_err(),
         "ui_feed_frame_terminal_mismatch"
     );
+
+    let mismatched_snapshot = UiFeedCursorV1::new(
+        "instance-1",
+        "epoch-1",
+        1,
+        UiCursor {
+            epoch: "other-epoch".to_owned(),
+            sequence: 1,
+        },
+    );
+    assert_eq!(
+        mismatched_snapshot.unwrap_err(),
+        "ui_feed_cursor_snapshot_epoch_mismatch"
+    );
 }
