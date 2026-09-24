@@ -1,0 +1,48 @@
+name: UI-10 CLI command and output normalization
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/cli_contract.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui10_cli_contract.rs"
+      - "kiana-entrypoints/tests/ui10_cli_boundary_guard.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "docs/roadmap/ui10-cli-contract-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui10-cli-contract.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/cli_contract.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui10_cli_contract.rs"
+      - "kiana-entrypoints/tests/ui10_cli_boundary_guard.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "docs/roadmap/ui10-cli-contract-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui10-cli-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui10-cli-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-10 command and output fixtures
+        run: cargo test -p kiana-client --test ui10_cli_contract --locked -- --test-threads=1
+      - name: Run UI-10 entrypoint boundary guard
+        run: cargo test -p kiana-entrypoints --test ui10_cli_boundary_guard --locked -- --test-threads=1
+      - name: Compile UI-10 workspace test targets
+        run: cargo check --workspace --tests --locked

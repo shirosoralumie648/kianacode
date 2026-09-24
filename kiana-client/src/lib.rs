@@ -15,9 +15,15 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 mod typed;
+mod cli_contract;
 mod ui_schema_generated;
 mod ui_store;
 
+pub use cli_contract::{
+    validate_session, validate_workspace, CliCommand, CliCommandId, CliInvocation, CliOutput,
+    CliOutputMode, CLI_COMMAND_SCHEMA, CLI_MAX_ARGUMENT_BYTES, CLI_MAX_OUTPUT_BYTES,
+    CLI_MAX_SESSION_BYTES, CLI_MAX_WORKSPACE_BYTES, CLI_OUTPUT_SCHEMA,
+};
 pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,

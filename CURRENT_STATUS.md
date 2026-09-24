@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-10 CLI 命令和输出归一化（2026-09-24）
+
+source_snapshot: `2c21ef57`（最新 `origin/master`，提交后绑定本提交）；`kiana-client/src/cli_contract.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui10_cli_contract.rs`; `kiana-entrypoints/tests/ui10_cli_boundary_guard.rs`; `.github/workflows/ui10-cli-contract.yml`; `docs/roadmap/ui10-cli-contract-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui10`；新增十个 canonical CLI command IDs、legacy alias 解析、`CliInvocation` workspace/session/TTY/retry/argument fence 和 `CliOutput` JSON/TTY/quiet、secret/ANSI/size 校验；未拆 `kiana-entrypoints/src/cli.rs`，入口仍通过 `KianaClient` facade，未触碰无关 WIP
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui10_cli_contract --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui10_cli_boundary_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: canonical/alias/wire-name mapping、缺 workspace/session、无 TTY 交互、mutation implicit retry、敏感参数/输出、JSON ANSI 和 source boundary guard；无 daemon/provider/live effect
+exit_code: 本地只做源码审阅与 `git diff --check`；GitHub Actions 待触发/未等待
+status change: UI-10 CLI command/output source contract 与 GitHub-only fixtures 已接入，roadmap row 426/card 状态由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（source contracts + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 尚未迁移冻结的旧 `cli.rs` 所有 legacy 分支，未知 session/命令执行结果仍由服务端返回；未证明跨进程 protocol、CLI presenter parity、durable session recovery、provider/live timing 或 physical proof
+reviewer: Codex UI-10 source review；检查 canonical ten commands/aliases、workspace/session and TTY/retry fences、secret/ANSI/size redaction、client-facade boundary、无第二执行循环；无本地 runtime test reviewer
+
 ### UI-07 typed client query/feed/action API（2026-09-24）
 
 source_snapshot: `45e66545`（UI-07 分支基线，提交后绑定本提交）；`kiana-client/src/lib.rs`; `kiana-client/src/typed.rs`; `kiana-client/tests/ui07_typed_clients.rs`; `kiana-protocol/src/lib.rs`; `kiana-core/tests/ui07_typed_client_guard.rs`; `kiana-daemon/tests/ui07_typed_client_guard.rs`; `.github/workflows/ui07-typed-client.yml`; `docs/roadmap/ui07-typed-client-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

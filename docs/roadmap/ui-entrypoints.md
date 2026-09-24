@@ -281,13 +281,17 @@ UiActionResult {
 
 
 
-#### UI-10 · CLI 命令和输出归一化　⏳
+#### UI-10 · CLI 命令和输出归一化　🔄
 
 - 依赖：UI-07–09。代码：`kiana-entrypoints/src/cli.rs`（可按用户本节约定拆分）、command registry/dispatcher。
 - 步骤：统一 `run/status/events/approve/deny/cancel/resume/receipt/export/session` 的参数、workspace/session 解析和 command ID；每个命令只调用 client facade。
 - 先拒绝：缺 workspace、未知 session、没有 TTY 却请求交互、不可恢复命令使用隐式 retry、输出混入 token/secret。
 - 成功/回归：旧 CLI 参数兼容或给迁移错误；命令到 protocol 的映射表覆盖 JSON、TTY、静默模式。
 - 完成产物：CLI command contract、参数错误目录、帮助文本和迁移 fixture。
+- 已接入 `kiana-client` 的 versioned `CliInvocation`/`CliOutput` contract、十个 canonical
+  command IDs、legacy aliases、workspace/session/TTY/retry/redaction bounds，以及 GitHub-only
+  fixtures/source guard；见 [UI-10 baseline](ui10-cli-contract-baseline.md)。证明等级为
+  `source`，CI 结果未等待。
 
 <a id="step-ui-11"></a>
 
