@@ -1632,7 +1632,8 @@ fn request_may_execute(body: &RequestBody) -> bool {
             | "memory.proposals"
             | "workspace.checkpoint.list"
             | "workspace.checkpoint.preview" => false,
-            "memory.distill" | "extension.manage" | "connector.manage" | "data.governance" => {
+            "memory.distill" | "extension.manage" | "connector.manage" | "connector.health"
+            | "data.governance" => {
                 !matches!(
                     command.arguments["action"].as_str(),
                     None | Some("list" | "search" | "show" | "status" | "inspect" | "preview")

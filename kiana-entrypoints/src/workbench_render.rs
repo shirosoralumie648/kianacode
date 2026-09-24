@@ -5,7 +5,8 @@
 //! Cursor/epoch checks are retained at this boundary so a display gap cannot look like success.
 
 use kiana_protocol::{
-    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiCursor, PROTOCOL_SCHEMA,
+    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiConnectorHealthProjection,
+    UiCursor, PROTOCOL_SCHEMA,
 };
 use serde_json::Value;
 
@@ -15,6 +16,41 @@ pub const MAX_TIMELINE_ITEM_BYTES: usize = 32 * 1024;
 pub const MAX_TIMELINE_JSON_BYTES: usize = 16 * 1024;
 const TIMELINE_LIMIT_BODY: &str = "render limit reached; additional stream content is hidden";
 const MAX_TIMELINE_SCAN_BYTES: usize = MAX_TIMELINE_ITEM_BYTES + 1024;
+
+/// Bounded display row for a connector probe. UI code receives only typed, redacted projection
+/// data; it never formats provider response bodies, paths or credential references.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectorHealthRenderRow {
+    pub binding_id: String,
+    pub connector_id: String,
+    pub status: String,
+    pub stale: bool,
+    pub limitations: Vec<String>,
+}
+
+pub fn render_connector_health(value: &Value) -> Result<Vec<ConnectorHealthRenderRow>, String> {
+    let projection: UiConnectorHealthProjection = serde_json::from_value(value.clone())
+        .map_err(|error| format!("connector_health_ui_decode:{error}"))?;
+    projection.validate()?;
+    if serde_json::to_vec(&projection)
+        .map_err(|_| "connector_health_ui_encode".to_owned())?
+        .len()
+        > 256 * 1024
+    {
+        return Err("connector_health_ui_too_large".to_owned());
+    }
+    Ok(projection
+        .entries
+        .into_iter()
+        .map(|entry| ConnectorHealthRenderRow {
+            binding_id: entry.health.binding_id,
+            connector_id: entry.health.connector_id,
+            status: entry.health.status.as_str().to_owned(),
+            stale: entry.stale,
+            limitations: entry.limitations,
+        })
+        .collect())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimelineItemKind {

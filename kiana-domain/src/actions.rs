@@ -36,6 +36,7 @@ pub const ACTION_OPERATIONS: &[&str] = &[
     "extension.manage",
     "connector.manage",
     "connector.invoke",
+    "connector.health",
     "workspace.checkpoint.restore",
     "workspace.transaction",
     "local.package",
@@ -191,6 +192,12 @@ pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionD
                 &["binding_snapshot", "operation"],
                 "binding_declared_effect",
             ),
+            "connector.health" => (
+                CapabilityKind::Tool,
+                RiskLevel::ReadOnly,
+                &["binding_snapshot", "probe_kind"],
+                "connector_read_only_probe",
+            ),
             "workspace.checkpoint.restore" => (
                 CapabilityKind::Filesystem,
                 RiskLevel::Critical,
@@ -232,6 +239,7 @@ pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionD
                 "payload",
                 "idempotency_key",
             ],
+            "connector.health" => &["binding_snapshot", "probe_kind"],
             "workspace.checkpoint.restore" => &["snapshot"],
             "workspace.transaction" => &["action"],
             "local.package" => &["package_id", "destination", "manifest", "sources"],
@@ -449,6 +457,7 @@ pub fn capability_action_contract(request: &CapabilityRequest) -> Result<RiskLev
             CapabilityKind::Tool,
             crate::connector_invocation_risk(request)?,
         ),
+        "connector.health" => (CapabilityKind::Tool, RiskLevel::ReadOnly),
         _ => (
             CapabilityKind::Query,
             if operation.ends_with(".write") {

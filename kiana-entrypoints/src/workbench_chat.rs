@@ -43,7 +43,7 @@ use crate::workbench::WORKBENCH_USAGE;
 use crate::workbench_render::{TimelineItemKind, TimelineRenderer};
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /connector-health <binding_id>  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -216,6 +216,12 @@ impl WorkbenchView {
                 "sandbox" => interpret_sandbox(args),
                 "receipt" => ChatAction::Receipt,
                 "parity" => ChatAction::Parity,
+                "connector-health" | "connector_health" if !args.trim().is_empty() => {
+                    ChatAction::Command {
+                        name: "connector.health".to_owned(),
+                        arguments: serde_json::json!({"binding_id":args.trim()}),
+                    }
+                }
                 "governance" if !args.trim().is_empty() => {
                     ChatAction::Governance(args.trim().to_owned())
                 }
@@ -847,6 +853,7 @@ async fn handle_action(
             Ok(LoopControl::Continue)
         }
         ChatAction::Command { name, arguments } => {
+            let is_connector_health = name == "connector.health";
             let response = harness_run::command_envelope_on_host(
                 host.clone(),
                 session_id,
@@ -855,7 +862,37 @@ async fn handle_action(
                 options,
             )
             .await?;
-            view.push_system(serde_json::to_string_pretty(&response)?);
+            if is_connector_health {
+                if response.status == ExecutionStatus::Completed && response.error.is_none() {
+                    let rows = crate::workbench_render::render_connector_health(
+                        &response.output["health_projection"],
+                    )?;
+                    if rows.is_empty() {
+                        view.push_system("connector health: not observed".to_owned());
+                    }
+                    for row in rows {
+                        let state = if row.stale {
+                            format!("{} (stale)", row.status)
+                        } else {
+                            row.status.clone()
+                        };
+                        view.push_system(format!(
+                            "connector {} / binding {}: {}; {}",
+                            row.connector_id,
+                            row.binding_id,
+                            state,
+                            row.limitations.join(", ")
+                        ));
+                    }
+                } else {
+                    let message = kiana_protocol::stable_error_from_response(&response)
+                        .map(|error| error.message)
+                        .unwrap_or_else(|| "Connector health is unavailable".to_owned());
+                    view.push_system(message);
+                }
+            } else {
+                view.push_system(serde_json::to_string_pretty(&response)?);
+            }
             Ok(LoopControl::Continue)
         }
         ChatAction::Approval { id, approve } => {

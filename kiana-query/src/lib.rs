@@ -14,6 +14,7 @@
 pub mod cache_policy;
 pub mod chunker;
 pub mod config;
+pub mod connector_health;
 pub mod context_inputs;
 pub mod context_manifest;
 pub mod data_boundary;
@@ -36,6 +37,10 @@ pub mod workspace_snapshot;
 pub use cache_policy::{ContextCacheDecision, ContextCacheStatus, CONTEXT_CACHE_DECISION_SCHEMA};
 pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
+pub use connector_health::{
+    project_connector_health, ConnectorHealthProjection, ConnectorHealthProjectionEntry,
+    CONNECTOR_HEALTH_PROJECTION_VERSION,
+};
 pub use context_inputs::repo_map_candidate;
 pub use context_manifest::{
     read_context_material_manifest, write_context_material_manifest_atomic,

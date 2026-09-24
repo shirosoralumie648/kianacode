@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
+pub use kiana_domain::ConnectorHealthStatus;
+
 pub const CONNECTOR_PORT_CONTRACT_SCHEMA: &str = "kiana.connector-port-contract.v1";
 pub const CONNECTOR_PREPARED_PERMIT_SCHEMA: &str = "kiana.connector-prepared-permit.v1";
 pub const CONNECTOR_PAYLOAD_SCHEMA: &str = "kiana.connector-canonical-payload.v1";
@@ -304,18 +306,6 @@ impl ConnectorPreparedPermit {
             .validate_at(self.issued_at_unix_ms)
             .map_err(|error| PortError::Conflict(format!("connector_credential_lease:{error}")))
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ConnectorHealthStatus {
-    Verified,
-    ConnectivityOnly,
-    CredentialInvalid,
-    ScopeInsufficient,
-    EndpointUnreachable,
-    ProviderError,
-    Unsupported,
 }
 
 /// Health is a redacted status projection.  Provider response bodies and credential material do

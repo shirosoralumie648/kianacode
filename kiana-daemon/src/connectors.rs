@@ -8,9 +8,10 @@ use kiana_capability_broker::{
 use kiana_domain::{
     connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
-    ConnectorCredentialInvocation, ConnectorFixture, EffectObservation, ExecutionId, InvocationId,
-    ProviderOutcome, ProviderReceipt, RuntimeEvent, CONNECTOR_CREDENTIAL_MAX_TTL_MS,
-    CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
+    ConnectorCredentialInvocation, ConnectorFixture, ConnectorHealthFact, ConnectorHealthStatus,
+    EffectObservation, ExecutionId, InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent,
+    CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND,
+    CONNECTOR_HEALTH_OPERATION, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
     CONNECTOR_STREAM,
 };
 use kiana_ports::{EventStorePort, PortError};
@@ -29,6 +30,11 @@ pub(crate) fn register(
         CONNECTOR_MANAGE_OPERATION,
         registry.clone(),
     )?;
+    broker.register_static(
+        CapabilityKind::Tool,
+        CONNECTOR_HEALTH_OPERATION,
+        registry.clone(),
+    )?;
     broker.register_static(CapabilityKind::Tool, CONNECTOR_INVOKE_OPERATION, registry)
 }
 
@@ -37,6 +43,170 @@ struct ConnectorRegistry {
 }
 
 impl ConnectorRegistry {
+    async fn handle_health(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        args: &Value,
+        project: &str,
+        actor: &str,
+        history: &[RuntimeEvent],
+        bindings: &std::collections::BTreeMap<String, ConnectorBindingSnapshot>,
+    ) -> Result<Value, PortError> {
+        if request.request.cell_id.is_some()
+            || args["operator_authorized"] != true
+            || args["binding_authorized"] != true
+        {
+            return Err(failed("connector_operator_required"));
+        }
+        let binding_id = string(args, "binding_id")?;
+        let snapshot: ConnectorBindingSnapshot =
+            serde_json::from_value(args["binding_snapshot"].clone())
+                .map_err(|_| failed("connector_binding_snapshot_required"))?;
+        if snapshot.project_root != project
+            || snapshot.binding.binding_id != binding_id
+            || bindings.get(binding_id) != Some(&snapshot)
+        {
+            return Err(failed("connector_binding_snapshot_changed"));
+        }
+        if snapshot.status != "active" {
+            return Err(failed("connector_binding_revoked"));
+        }
+
+        let now = now_ms()?;
+        let read_only_operation = snapshot
+            .definition
+            .operations
+            .iter()
+            .find(|(_, operation)| operation.effect == kiana_domain::ConnectorEffect::ReadOnly)
+            .map(|(name, _)| name.clone());
+        let (status, error_code, limitations) = match read_only_operation.as_deref() {
+            None => (
+                ConnectorHealthStatus::ScopeInsufficient,
+                Some("connector_read_only_operation_missing".to_owned()),
+                vec!["read_only_probe_contract_missing".to_owned()],
+            ),
+            Some(operation) if snapshot.operation(operation).is_err() => (
+                ConnectorHealthStatus::ScopeInsufficient,
+                Some("connector_account_scope_denied".to_owned()),
+                vec!["required_scope_not_granted".to_owned()],
+            ),
+            _ => match load_fixture(&snapshot).await {
+                Ok(_) => (
+                    ConnectorHealthStatus::ConnectivityOnly,
+                    None,
+                    vec![
+                        "local_fixture_only".to_owned(),
+                        "external_provider_not_probed".to_owned(),
+                    ],
+                ),
+                Err(error) => {
+                    let code = error.to_string();
+                    let status = classify_probe_error(&code);
+                    (
+                        status,
+                        Some(code),
+                        vec![
+                            "local_fixture_only".to_owned(),
+                            "probe_error_redacted".to_owned(),
+                        ],
+                    )
+                }
+            },
+        };
+        let mut limitations = limitations;
+        limitations.truncate(kiana_domain::CONNECTOR_HEALTH_MAX_LIMITATIONS);
+        let evidence_digest = Some(kiana_domain::json_digest(&json!({
+            "connector_id": &snapshot.definition.connector_id,
+            "binding_id": &snapshot.binding.binding_id,
+            "fixture_sha256": &snapshot.binding.fixture_sha256,
+            "status": status,
+        })));
+        let fact = ConnectorHealthFact::new(
+            snapshot.definition.connector_id.clone(),
+            snapshot.binding.binding_id.clone(),
+            status,
+            "read_only",
+            now,
+            evidence_digest,
+            error_code.map(|code| redacted_health_code(&code)),
+            snapshot.revision,
+            snapshot
+                .binding
+                .credential_ref
+                .as_ref()
+                .map(|reference| reference.generation),
+            kiana_domain::CONNECTOR_FIXTURE_SOURCE,
+            limitations,
+        )
+        .map_err(failed)?;
+        let next_version = history
+            .last()
+            .and_then(|event| event.stream_version)
+            .unwrap_or_default()
+            .checked_add(1)
+            .ok_or_else(|| failed("connector_registry_version_exhausted"))?;
+        let request_fingerprint = sha256(
+            &serde_json::to_vec(&kiana_domain::canonical_json(args.clone()))
+                .map_err(|error| failed(error.to_string()))?,
+        );
+        let key = format!(
+            "connector-health:{}:{}:{}",
+            sha256(project.as_bytes()),
+            binding_id,
+            request.request.request_id
+        );
+        let data = json!({
+            "schema":"kiana.connector-health-event.v1",
+            "request_id":request.request.request_id,
+            "connector_id":&fact.connector_id,
+            "binding_id":&fact.binding_id,
+            "status":fact.status,
+            "probe_kind":&fact.probe_kind,
+            "checked_at_unix_ms":fact.checked_at_unix_ms,
+            "health":fact,
+            "project_root":project,
+            "actor_id":actor,
+            "authorization_id":request.authorization_id,
+            "request_fingerprint":request_fingerprint,
+        });
+        let event = RuntimeEvent::new(
+            request.request.request_id,
+            1,
+            CONNECTOR_HEALTH_EVENT_KIND,
+            data,
+        )
+        .map_err(|error| failed(error.to_string()))?
+        .with_stream_metadata(CONNECTOR_STREAM, project, next_version)
+        .with_idempotency_key(key);
+        let appended = self
+            .events
+            .append_idempotent_expected(event, Some(next_version - 1))
+            .await
+            .map_err(|error| match error {
+                PortError::Conflict(_) => error,
+                other => failed(format!("result_unknown:connector_health_persist:{other}")),
+            })?;
+        let health = appended.event.data["health"].clone();
+        let replayed = appended.replayed;
+        let mut projection_events = history.to_vec();
+        if !replayed {
+            projection_events.push(appended.event.clone());
+        }
+        let health_projection =
+            kiana_query::project_connector_health(&projection_events).map_err(failed)?;
+        Ok(json!({
+            "schema":"kiana.connector-health-result.v1",
+            "health":health,
+            "health_projection":health_projection,
+            "source_cursor":next_version,
+            "projection_version":"connector-health.v1",
+            "stale":false,
+            "proof_level":"source",
+            "event_id":appended.event.event_id,
+            "replayed":replayed,
+        }))
+    }
+
     async fn handle(&self, request: &AuthorizedCapabilityRequest) -> Result<Value, PortError> {
         let args = &request.request.arguments;
         if request.request.cell_id.is_some() || args["operator_authorized"] != true {
@@ -48,6 +218,8 @@ impl ConnectorRegistry {
         let (version, bindings) = connector_bindings(&history).map_err(failed)?;
         let action = if request.request.operation == CONNECTOR_INVOKE_OPERATION {
             "invoke"
+        } else if request.request.operation == CONNECTOR_HEALTH_OPERATION {
+            "health"
         } else {
             string(args, "action")?
         };
@@ -64,9 +236,19 @@ impl ConnectorRegistry {
                 })
                 .map(|event| json!({"event_id":event.event_id,"receipt":event.data["receipt"]}))
                 .collect::<Vec<_>>();
-            return Ok(
-                json!({"schema":"kiana.connector-registry.v1","registry_version":version,"bindings":bindings,"unresolved":unresolved}),
-            );
+            let health = kiana_query::project_connector_health(&history).map_err(failed)?;
+            return Ok(json!({
+                "schema":"kiana.connector-registry.v1",
+                "registry_version":version,
+                "bindings":bindings,
+                "unresolved":unresolved,
+                "health":health,
+            }));
+        }
+        if action == "health" {
+            return self
+                .handle_health(&request, args, project, actor, &history, &bindings)
+                .await;
         }
         if !matches!(action, "bind" | "revoke" | "reconcile" | "invoke") {
             return Err(failed("connector_action_invalid"));
@@ -356,7 +538,9 @@ impl CapabilityHandler for ConnectorRegistry {
         if request.request.capability != CapabilityKind::Tool
             || !matches!(
                 request.request.operation.as_str(),
-                CONNECTOR_INVOKE_OPERATION | CONNECTOR_MANAGE_OPERATION
+                CONNECTOR_INVOKE_OPERATION
+                    | CONNECTOR_MANAGE_OPERATION
+                    | CONNECTOR_HEALTH_OPERATION
             )
         {
             return Err(failed("connector_operation_mismatch"));
@@ -450,6 +634,33 @@ async fn read_project_file(
     })
     .await
     .map_err(|e| failed(format!("connector_fixture_join_failed:{e}")))?
+}
+
+fn classify_probe_error(code: &str) -> ConnectorHealthStatus {
+    let stable_code = redacted_health_code(code);
+    match stable_code.as_str() {
+        "connector_fixture_hash_mismatch"
+        | "connector_evidence_path_invalid"
+        | "connector_fixture_join_failed"
+        | "connector_project_invalid" => ConnectorHealthStatus::EndpointUnreachable,
+        "connector_fixture_external_effect_denied" => ConnectorHealthStatus::Unsupported,
+        _ => kiana_domain::classify_connector_health_error(&stable_code),
+    }
+}
+
+fn redacted_health_code(code: &str) -> String {
+    let normalized = code.split(':').next().unwrap_or(code).trim().to_owned();
+    if normalized.is_empty() {
+        "connector_probe_failed".to_owned()
+    } else if normalized.len() > 128
+        || !normalized
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+    {
+        "connector_probe_failed".to_owned()
+    } else {
+        normalized
+    }
 }
 
 fn now_ms() -> Result<u64, PortError> {

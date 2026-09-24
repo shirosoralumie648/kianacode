@@ -640,6 +640,7 @@ impl ControlPlane {
                     | "extension.manage"
                     | "connector.manage"
                     | "connector.invoke"
+                    | "connector.health"
                     | "workspace.checkpoint.restore"
             )
         {

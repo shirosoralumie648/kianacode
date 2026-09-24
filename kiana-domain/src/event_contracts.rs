@@ -310,6 +310,21 @@ const MODEL_EVENT_FIELDS: &[&str] = &[
     "model_request_id",
     "request_hash",
 ];
+const CONNECTOR_HEALTH_IDS: &[&str] = &["request_id", "connector_id", "binding_id"];
+const CONNECTOR_HEALTH_FIELDS: &[&str] = &[
+    "schema",
+    "request_id",
+    "connector_id",
+    "binding_id",
+    "status",
+    "health",
+    "probe_kind",
+    "checked_at_unix_ms",
+    "project_root",
+    "actor_id",
+    "authorization_id",
+    "request_fingerprint",
+];
 const MODEL_ATTEMPT_LIFECYCLE_FIELDS: &[&str] = &[
     "schema",
     "version",
@@ -577,6 +592,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "quality",
         QUALITY_IDS,
         QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "connector.health_checked",
+        "connector",
+        CONNECTOR_HEALTH_IDS,
+        CONNECTOR_HEALTH_FIELDS,
         false,
         None
     ),

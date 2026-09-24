@@ -279,7 +279,9 @@ impl ControlPlane {
         }
         if matches!(
             intent.name.as_str(),
-            kiana_domain::CONNECTOR_MANAGE_OPERATION | kiana_domain::CONNECTOR_INVOKE_OPERATION
+            kiana_domain::CONNECTOR_MANAGE_OPERATION
+                | kiana_domain::CONNECTOR_INVOKE_OPERATION
+                | kiana_domain::CONNECTOR_HEALTH_OPERATION
         ) {
             return self.handle_connector_command(context, intent).await;
         }

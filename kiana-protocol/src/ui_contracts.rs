@@ -5,8 +5,8 @@
 
 use crate::UiCursor;
 use kiana_domain::{
-    json_digest, validate_json_limits, ArtifactId, AuthenticatedPrincipalRef, ExecutionStatus,
-    ProjectId, ReceiptId, RunId, SessionId,
+    json_digest, validate_json_limits, ArtifactId, AuthenticatedPrincipalRef,
+    ConnectorHealthFact, ExecutionStatus, ProjectId, ReceiptId, RunId, SessionId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -26,6 +26,7 @@ pub const UI_HOST_CAPABILITY_SCHEMA: &str = "kiana.ui-host-capability.v1";
 pub const UI_LIVE_HOST_EVIDENCE_SCHEMA: &str = "kiana.ui-live-host-evidence.v1";
 pub const UI_EVIDENCE_CASE_SCHEMA: &str = "kiana.ui-evidence-case.v1";
 pub const UI_EVIDENCE_BUNDLE_SCHEMA: &str = "kiana.ui-evidence-bundle.v1";
+pub const UI_CONNECTOR_HEALTH_SCHEMA: &str = "kiana.ui-connector-health.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -133,6 +134,84 @@ impl UiError {
             return Err("ui_error_schema_invalid".to_owned());
         }
         required(&self.message, "ui_error_message", 2_048)
+    }
+}
+
+/// Secret-free connector health row consumed by CLI/Web/Workbench projections.
+/// `stale=true` is retained when the binding revision changed after the last probe; clients must
+/// not turn a stale or connectivity-only row into a verified claim.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiConnectorHealth {
+    pub health: ConnectorHealthFact,
+    pub source_cursor: u64,
+    pub projection_version: String,
+    pub binding_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_epoch: Option<u64>,
+    pub stale: bool,
+    pub proof_level: String,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiConnectorHealth {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.health.validate().is_err()
+            || self.source_cursor == 0
+            || required(&self.projection_version, "ui_connector_projection", 128).is_err()
+            || self.binding_revision == 0
+            || self.credential_generation == Some(0)
+            || self.proof_level != "source"
+            || self.limitations.len() > 16
+            || self
+                .limitations
+                .iter()
+                .any(|value| value.trim().is_empty() || value.len() > 256 || value.contains('\0'))
+            || self.binding_revision != self.health.binding_revision
+            || self.credential_generation != self.health.credential_generation
+        {
+            return Err("ui_connector_health_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiConnectorHealthProjection {
+    pub schema: String,
+    pub source_cursor: u64,
+    pub projection_version: String,
+    #[serde(default)]
+    pub entries: Vec<UiConnectorHealth>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiConnectorHealthProjection {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != "kiana.connector-health-projection.v1"
+            || self.source_cursor == 0
+            || self.projection_version.trim().is_empty()
+            || self.entries.len() > 256
+            || self.limitations.len() > 16
+        {
+            return Err("ui_connector_health_projection_invalid".to_owned());
+        }
+        for entry in &self.entries {
+            entry.validate()?;
+        }
+        if self
+            .limitations
+            .iter()
+            .any(|value| value.trim().is_empty() || value.len() > 256 || value.contains('\0'))
+        {
+            return Err("ui_connector_health_projection_limitation_invalid".to_owned());
+        }
+        Ok(())
     }
 }
 

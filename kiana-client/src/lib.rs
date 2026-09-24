@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
     ExtensionCommandRequest, ExtensionVisibilitySnapshot, ParityRequest, RequestEnvelope,
-    RequestMetadata, ResponseEnvelope, RunId, TurnId, UiHandshakeRequest, UiHandshakeResponse,
-    UiHealth, WorkPacket,
+    RequestMetadata, ResponseEnvelope, RunId, TurnId, UiConnectorHealthProjection,
+    UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -145,6 +145,42 @@ where
         }
         let health: UiHealth = serde_json::from_value(response.output)
             .map_err(|error| ClientError::Protocol(format!("ui_health_response:{error}")))?;
+        health.validate().map_err(ClientError::Protocol)?;
+        Ok(health)
+    }
+
+    /// Read the same secret-free connector health projection used by the Workbench and Web
+    /// surfaces. The command is read-only; the server still rechecks project trust and binding
+    /// scope before recording the probe fact.
+    pub async fn connector_health(
+        &self,
+        metadata: RequestMetadata,
+        binding_id: impl Into<String> + Send,
+    ) -> Result<UiConnectorHealthProjection, ClientError> {
+        let response = self
+            .transport
+            .send(RequestEnvelope::command(
+                metadata,
+                "connector.health",
+                serde_json::json!({"binding_id": binding_id.into()}),
+            ))
+            .await?;
+        if response.status != kiana_protocol::ExecutionStatus::Completed {
+            return Err(ClientError::Protocol(
+                kiana_protocol::stable_error_from_response(&response)
+                    .map(|error| error.message)
+                    .unwrap_or_else(|| "connector_health_unavailable".to_owned()),
+            ));
+        }
+        let health = response
+            .output
+            .get("health_projection")
+            .cloned()
+            .ok_or_else(|| {
+                ClientError::Protocol("connector_health_projection_missing".to_owned())
+            })?;
+        let health: UiConnectorHealthProjection = serde_json::from_value(health)
+            .map_err(|error| ClientError::Protocol(format!("connector_health_response:{error}")))?;
         health.validate().map_err(ClientError::Protocol)?;
         Ok(health)
     }
