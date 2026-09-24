@@ -371,14 +371,28 @@ impl ConnectorRegistry {
             &serde_json::to_vec(&kiana_domain::canonical_json(args.clone()))
                 .map_err(|e| failed(e.to_string()))?,
         );
+        // Server-owned canonical command identity used by INT-16 replay/CAS. Keep the legacy
+        // request fingerprint for compatibility with pre-reservation connector events.
+        let command_digest = kiana_domain::json_digest(&kiana_domain::canonical_json(args.clone()));
         let key = format!("connector:{}:{idempotency}", sha256(project.as_bytes()));
         if let Some(previous) = history
             .iter()
             .find(|event| event.idempotency_key.as_deref() == Some(key.as_str()))
         {
-            if previous.data["request_fingerprint"] != request_fingerprint {
+            let previous_digest = previous.data["command_digest"]
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    previous.data["request_fingerprint"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned()
+                });
+            if previous_digest != command_digest
+                && previous.data["request_fingerprint"] != request_fingerprint
+            {
                 return Err(PortError::Conflict(
-                    "connector_idempotency_payload_mismatch".to_owned(),
+                    "connector_idempotency_command_digest_conflict".to_owned(),
                 ));
             }
             let mut output = previous.data["output"].clone();
@@ -502,6 +516,23 @@ impl ConnectorRegistry {
                 let payload = args
                     .get("payload")
                     .ok_or_else(|| failed("connector_final_payload_required"))?;
+                if let (Some(reservation), Some(permit)) = (
+                    args.get("connector_reservation"),
+                    args.get("connector_permit"),
+                ) {
+                    let reservation: kiana_domain::ConnectorInvocationReservation =
+                        serde_json::from_value(reservation.clone())
+                            .map_err(|_| failed("connector_reservation_invalid"))?;
+                    let permit: kiana_domain::ConnectorInvocationPermit =
+                        serde_json::from_value(permit.clone())
+                            .map_err(|_| failed("connector_permit_invalid"))?;
+                    kiana_domain::connector_effect_admission(&reservation, &permit, now)
+                        .map_err(failed)?;
+                } else if args.get("connector_reservation").is_some()
+                    || args.get("connector_permit").is_some()
+                {
+                    return Err(failed("connector_permit_required"));
+                }
                 let payload_bytes =
                     serde_json::to_vec(&kiana_domain::canonical_json(payload.clone()))
                         .map_err(|e| failed(e.to_string()))?;
@@ -618,6 +649,7 @@ impl ConnectorRegistry {
         data["authorization_id"] = json!(request.authorization_id);
         data["reason"] = json!(args["reason"].as_str().map(kiana_domain::redact_text));
         data["request_fingerprint"] = json!(request_fingerprint);
+        data["command_digest"] = json!(command_digest);
         data["output"] = output;
         let event = RuntimeEvent::new(request.request.request_id, 1, kind, data)
             .map_err(|e| failed(e.to_string()))?

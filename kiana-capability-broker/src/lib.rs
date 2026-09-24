@@ -18,7 +18,7 @@ use kiana_domain::{
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 type HandlerKey = (CapabilityKind, String);
@@ -451,6 +451,44 @@ fn validate_network_observation(
     Ok(())
 }
 
+/// Revalidate the optional connector reservation envelope immediately before the existing
+/// ExecutionPermitVerifier/handler boundary.  The Broker cannot mint or commit a reservation; an
+/// uncommitted reservation, stale permit, lease/fence drift or expiry therefore produces zero
+/// adapter effect.  Legacy connector requests without the additive envelope continue through the
+/// pre-INT-16 compatibility path until ControlPlane emits the reservation event.
+pub fn validate_connector_effect_boundary(
+    request: &AuthorizedCapabilityRequest,
+    now_unix_ms: u64,
+) -> Result<(), PortError> {
+    if request.request.operation != kiana_domain::CONNECTOR_INVOKE_OPERATION {
+        return Ok(());
+    }
+    let Some(reservation) = request.request.arguments.get("connector_reservation") else {
+        return Ok(());
+    };
+    let permit = request
+        .request
+        .arguments
+        .get("connector_permit")
+        .ok_or_else(|| PortError::Conflict("connector_permit_required".to_owned()))?;
+    let reservation: kiana_domain::ConnectorInvocationReservation =
+        serde_json::from_value(reservation.clone())
+            .map_err(|_| PortError::Conflict("connector_reservation_invalid".to_owned()))?;
+    let permit: kiana_domain::ConnectorInvocationPermit = serde_json::from_value(permit.clone())
+        .map_err(|_| PortError::Conflict("connector_permit_invalid".to_owned()))?;
+    kiana_domain::connector_effect_admission(&reservation, &permit, now_unix_ms)
+        .map_err(PortError::Conflict)
+}
+
+fn connector_now_unix_ms() -> Result<u64, PortError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| PortError::Failed("connector_clock_untrusted".to_owned()))?
+        .as_millis()
+        .try_into()
+        .map_err(|_| PortError::Failed("connector_clock_overflow".to_owned()))
+}
+
 /// Validate optional handler-produced BQ-15 usage evidence at the Broker boundary. The handler
 /// may report bytes and timing, but it cannot choose a different run, owner, lease, resource or
 /// attempt. Rejected/not-started results must carry no effect and cannot be upgraded to success.
@@ -606,6 +644,7 @@ impl CapabilityBrokerPort for CapabilityBroker {
         if *cancellation.borrow() {
             return Err(PortError::Failed("cancelled:before_broker".to_owned()));
         }
+        validate_connector_effect_boundary(&request, connector_now_unix_ms()?)?;
         self.permit_verifier
             .as_ref()
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
@@ -641,6 +680,7 @@ impl CapabilityBrokerPort for CapabilityBroker {
                 key.0, key.1
             )));
         };
+        validate_connector_effect_boundary(&request, connector_now_unix_ms()?)?;
         self.permit_verifier
             .as_ref()
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?

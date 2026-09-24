@@ -1,0 +1,64 @@
+name: int16-connector-reservation
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_reservation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int16_connector_reservation.rs"
+      - "kiana-core/src/connector_reservation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/int16_connector_reservation_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/int16_connector_reservation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int16_connector_reservation_guard.rs"
+      - ".github/workflows/int16-connector-reservation.yml"
+      - "docs/roadmap/int16-connector-reservation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_reservation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int16_connector_reservation.rs"
+      - "kiana-core/src/connector_reservation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/int16_connector_reservation_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/int16_connector_reservation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int16_connector_reservation_guard.rs"
+      - ".github/workflows/int16-connector-reservation.yml"
+      - "docs/roadmap/int16-connector-reservation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-reservation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-16 domain reservation and CAS fixtures
+        run: cargo test -p kiana-domain --test int16_connector_reservation --locked -- --test-threads=1
+      - name: Run INT-16 ControlPlane source guard
+        run: cargo test -p kiana-core --test int16_connector_reservation_guard --locked -- --test-threads=1
+      - name: Run INT-16 Broker source guard
+        run: cargo test -p kiana-capability-broker --test int16_connector_reservation_guard --locked -- --test-threads=1
+      - name: Run INT-16 daemon source guard
+        run: cargo test -p kiana-daemon --test int16_connector_reservation_guard --locked -- --test-threads=1
+      - name: Compile INT-16 workspace targets
+        run: cargo check --workspace --tests --locked
