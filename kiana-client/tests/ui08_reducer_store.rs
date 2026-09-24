@@ -154,15 +154,7 @@ fn optimistic_state_rolls_back_and_protected_entries_block_eviction() {
     let command_id = update.command_id;
     store.apply(UiStoreEvent::Optimistic(update)).unwrap();
     assert_eq!(store.pending_count(), 1);
-    let mut boundary = frame(1, "boundary-1", 1);
-    boundary.kind = UiFeedFrameKind::SnapshotBoundary;
-    boundary.event = None;
-    let boundary_scope = store.scope().clone();
-    store
-        .apply(UiStoreEvent::feed(boundary_scope, boundary))
-        .unwrap();
-    let store_scope = store.scope().clone();
-    let result = store.apply(UiStoreEvent::feed(store_scope, frame(2, "event-1", 1)));
+    let result = store.apply(UiStoreEvent::Optimistic(optimistic("command-2", u64::MAX)));
     assert_eq!(result, Err(UiStoreError::CacheFullProtected));
     let result_scope = store.scope().clone();
     store
