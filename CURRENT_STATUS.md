@@ -11672,3 +11672,21 @@ status change: UI-04 源码与 CI wiring 已提交，roadmap row 420/card 状态
 proof-level change: `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
 limitations: CI 未观察；未实现 UI-05 snapshot projector/feed、跨进程 socket/read-state、外部 effect receipt、人工 auth 或真实 live/physical proof；Unknown 只能原 key 查询，禁止换 ID 重做
 reviewer: Codex UI-04 source review，覆盖 deny、owner/scope/CAS、重复 key effect-count、ACK 丢失/Unknown、EventStore 原子边界与无第二执行循环；无本地 runtime test reviewer
+
+### EQ-27 deterministic evaluator 与 finding schema evidence (2026-09-24)
+
+source_snapshot: `530099ad` + EQ-27 isolated source slice; `kiana-quality/src/{evaluator.rs,lib.rs}`; `kiana-quality/tests/{eq27_evaluator.rs,eq27_evaluator_guard.rs}`; `.github/workflows/eq27-evaluator.yml`; `docs/roadmap/evaluation-evaluator-baseline.md`; `docs/roadmap.md`
+worktree_status: `eq27-deterministic-evaluator-20260924` rebased onto current `master=530099ad`; `Finding` enforces `kiana.quality-finding.v1`, stable lower-case code, bounded canonical expected/actual values, redaction-safe message and evidence_ref, strict unknown-field rejection and digest binding. `DeterministicEvaluator` is an object-safe value-only trait; `EvaluatorRegistry` runs IDs in sorted order, validates every finding and returns canonical finding order. No provider, Broker, Runner, EventLog, filesystem or second execution loop was added; unrelated WIP files are preserved outside this isolated branch.
+command_argv:
+  `rustfmt --edition 2021 kiana-quality/src/evaluator.rs kiana-quality/src/lib.rs kiana-quality/tests/eq27_evaluator.rs kiana-quality/tests/eq27_evaluator_guard.rs`
+  `cargo fmt --all --check`
+  `git diff --check`
+  `cargo check -p kiana-quality --lib --locked --offline` (attempted static compile; inherited `kiana-domain` baseline errors stopped compilation before this crate)
+  GitHub Actions: `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-quality --test eq27_evaluator --locked -- --test-threads=1`; `cargo test -p kiana-quality --test eq27_evaluator_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: `/tmp/kiana-step-eq27`; Linux x86_64; stable Rust; local tests deliberately not run; GitHub Actions is the test authority and CI was not awaited
+fixture·cassette: GitHub-only EQ-27 finding/schema, registry ordering, redaction/bounds and source-guard fixtures in `eq27-evaluator.yml`; no provider or external effect cassette
+exit_code: targeted rustfmt and `git diff --check` exited 0; local `cargo check` exited 101 on pre-existing unrelated `kiana-domain` errors (`WorkspaceFileSnapshot` ambiguity and other inherited type/derive failures); no local test command was run; remote CI result pending/not awaited
+status_change: EQ-27 source slice and CI wiring are implemented; roadmap row 473/card are 🔄 pending dedicated GitHub fixtures. Every emitted finding is required to carry a stable code and evidence_ref before registry evaluation returns.
+proof-level_change: `feature_status=implemented` (quality source + remote fixture wiring), `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: evaluator inputs/findings remain in-process caller values; no durable EvalStore, actual target execution, provider/model quality claim, baseline/candidate gate, promotion authority or live/physical evidence is established. Local workspace compilation remains blocked by inherited `kiana-domain` errors and GitHub CI has not been observed.
+reviewer: Codex root implementation review plus stable-code/evidence binding, canonical ordering, redaction/depth/size bounds, strict serde and pure no-I/O/no-runner boundary review; no local runtime test reviewer

@@ -1,0 +1,38 @@
+name: EQ-27 deterministic evaluator
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-evaluator-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq27-evaluator.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-evaluator-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq27-evaluator.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-27 evaluator fixtures
+        run: cargo test -p kiana-quality --test eq27_evaluator --locked -- --test-threads=1
+      - name: Run EQ-27 source guard
+        run: cargo test -p kiana-quality --test eq27_evaluator_guard --locked -- --test-threads=1
+      - name: Compile EQ-27 targets
+        run: cargo check --workspace --tests --locked
