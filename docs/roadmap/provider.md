@@ -310,14 +310,15 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-20 推理签名、续接资料与短期保护存储　⏳
+#### P4-J7-20 推理签名、续接资料与短期保护存储　🔄
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25`。
 - **改动位置**：各 codec、domain replay 引用、provider replay 编解码、daemon 受保护 Artifact 适配、history/compaction 边界。
 - **步骤**：① 分开可公开 summary 与协议要求的私有续接材料；② 按 API 原样关联 Anthropic signature、Responses items、DeepSeek reasoning_content、Gemini signature；③ 进程内有界缓冲，持久恢复使用加密短期 artifact，EventLog 仅记 ref/hash；④ 绑定 connection/protocol/model/effort/prompt/tool/data revision 和 TTL；⑤ 过期/撤销/模型切换时明确失效，压缩只处理允许压缩的内容。
 - **先拒绝**：`replay_material_cannot_cross_connection_or_model_scope`、`missing_reasoning_material_blocks_resume`、`reasoning_payload_never_enters_receipt_memory_or_logs`。
 - **再成功**：`signed_reasoning_survives_tool_continuation_byte_for_byte`、`replay_payload_deletion_invalidates_resume`。
-- **退出 / 证据**：没有受保护存储的部署仅声明进程内支持；不把脱敏后的内容当作无损恢复；不在 repo/.env/事件里存加密密钥。
+- **本次实现**：`kiana-domain::ProtectedReplayStore` 提供 bounded in-process bytes、scope/TTL 校验和删除失效；`ProtectedReplayRef` 只含 artifact/digest/scope 元数据，provider 编译器在缺少受保护 artifact adapter 时拒绝出站。GitHub-only fixtures/guard 已接线，CI 未等待。
+- **退出 / 证据**：没有受保护存储的部署仅声明进程内支持；不把脱敏后的内容当作无损恢复；不在 repo/.env/事件里存加密密钥。持久加密 artifact、各 provider signature codec 与跨进程 resume 仍为后续增量。
 
 <a id="step-p4-j7-21"></a>
 

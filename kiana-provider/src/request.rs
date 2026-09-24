@@ -38,15 +38,19 @@ pub(crate) fn compile(
     if let ModelResponseFormat::JsonSchema { schema, .. } = &spec.response_format {
         check_schema(schema, 0)?;
     }
-    if !spec.replay.is_empty() {
-        return Err(ModelError::invalid(
-            "model_replay_requires_protected_material",
-        ));
-    }
     let mut route = connection.route.clone();
     require_gemini_streaming(&mut route);
     if let Some(assignment) = &spec.assignment {
         route.profile = assignment.profile.clone();
+    }
+    if !spec.replay.is_empty() {
+        for reference in &spec.replay {
+            reference.validate_for_call(&route, spec.call_id, spec.deadline_unix_ms)?;
+        }
+        // The provider crate only receives reference metadata. A deployment without a protected
+        // artifact adapter must refuse before network dispatch rather than guessing at a replay
+        // payload or persisting private reasoning in the request/receipt.
+        return Err(ModelError::invalid("model_replay_storage_unavailable"));
     }
     let request = normalize_structured_request(request, &route, connection)?;
     let context = ModelRequestContext::for_request(&request);

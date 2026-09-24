@@ -676,6 +676,21 @@ pub struct ProtectedReplayRef {
     pub route_digest: String,
     pub source_call_id: RequestId,
     pub expires_at_unix_ms: u64,
+    /// Explicit connection and model scope prevents replay through an equivalent route.
+    #[serde(default)]
+    pub connection_id: String,
+    #[serde(default)]
+    pub protocol: Option<ModelProtocol>,
+    #[serde(default)]
+    pub model_id: String,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub prompt_digest: String,
+    #[serde(default)]
+    pub tool_catalog_digest: String,
+    #[serde(default)]
+    pub data_revision: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,0 +1,48 @@
+name: P4-J7-20 protected provider replay
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/protected_replay.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_20_protected_replay.rs"
+      - "kiana-core/tests/p4_j7_20_protected_replay_guard.rs"
+      - "kiana-provider/src/request.rs"
+      - "docs/roadmap/p4-j7-20-protected-replay-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-20-protected-replay.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/protected_replay.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_20_protected_replay.rs"
+      - "kiana-core/tests/p4_j7_20_protected_replay_guard.rs"
+      - "kiana-provider/src/request.rs"
+      - "docs/roadmap/p4-j7-20-protected-replay-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-20-protected-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protected-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run protected replay domain fixtures
+        run: cargo test -p kiana-domain --test p4_j7_20_protected_replay --locked -- --test-threads=1
+      - name: Run protected replay source guard
+        run: cargo test -p kiana-core --test p4_j7_20_protected_replay_guard --locked -- --test-threads=1
