@@ -24,9 +24,9 @@ use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
-    derived_request_id, redact_text, CapabilityResult, InputId, ModelAttemptId,
-    ModelAttemptIdentity, PromptBundle, RequestId, RunId, StepId, StepIdentity, StreamingRedactor,
-    ToolObservation, ToolObservationStatus, TurnId,
+    derived_request_id, redact_text, scan_secret_sentinels, CapabilityResult, InputId,
+    ModelAttemptId, ModelAttemptIdentity, PromptBundle, RequestId, RunId, SecretScanChannel,
+    StepId, StepIdentity, StreamingRedactor, ToolObservation, ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -627,6 +627,7 @@ impl KianaHarness {
             instructions,
             max_steps_per_turn,
         } = input;
+        let prompt = safe_channel_text(SecretScanChannel::Prompt, &prompt);
         if max_steps_per_turn == 0 {
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
@@ -870,6 +871,7 @@ impl KianaHarness {
         prompt: String,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
+        let prompt = safe_channel_text(SecretScanChannel::Prompt, &prompt);
         if prompt.trim().is_empty() {
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
@@ -1150,7 +1152,7 @@ impl KianaHarness {
             return Ok(StepProgress::Finished);
         }
         if !output.text.is_empty() {
-            let redacted_text = redact_text(&output.text);
+            let redacted_text = safe_channel_text(SecretScanChannel::Transcript, &output.text);
             run.last_text = redacted_text.clone();
             if !emitted_delta {
                 emitter.emit_event(RunnerEvent::Delta {
@@ -1161,7 +1163,7 @@ impl KianaHarness {
         }
         if !output.text.is_empty() || !output.tool_calls.is_empty() {
             run.messages.push(ModelMessage::assistant_with_tools(
-                redact_text(&output.text),
+                safe_channel_text(SecretScanChannel::Transcript, &output.text),
                 output.tool_calls.clone(),
             ));
         }
@@ -1729,6 +1731,15 @@ impl KianaHarness {
         };
         (count >= self.repeated_tool_call_threshold)
             .then(|| format!("repeated_tool_call:{}", call.name))
+    }
+}
+
+fn safe_channel_text(channel: SecretScanChannel, text: &str) -> String {
+    let redacted = redact_text(text);
+    if scan_secret_sentinels(channel, &redacted).is_ok() {
+        redacted
+    } else {
+        "[REDACTED]".to_owned()
     }
 }
 

@@ -5,8 +5,8 @@
 //! Cursor/epoch checks are retained at this boundary so a display gap cannot look like success.
 
 use kiana_protocol::{
-    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiConnectorHealthProjection,
-    UiCursor, PROTOCOL_SCHEMA,
+    redact_text, scan_secret_sentinels, ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent,
+    SecretScanChannel, UiConnectorHealthProjection, UiCursor, PROTOCOL_SCHEMA,
 };
 use serde_json::Value;
 
@@ -498,6 +498,10 @@ fn redact_and_strip_controls(value: &str) -> String {
         }
         redacted.push_str("[REDACTED]");
         cursor = value_end;
+    }
+    let redacted = redact_text(&redacted);
+    if scan_secret_sentinels(SecretScanChannel::Transcript, &redacted).is_err() {
+        return "[REDACTED]".to_owned();
     }
     redacted
 }

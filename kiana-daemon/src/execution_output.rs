@@ -102,6 +102,10 @@ pub(crate) async fn drain_capped(
 /// Redact before terminal-control filtering so secrets split across input chunks are never
 /// reintroduced by the display projection.
 pub(crate) fn safe_output_text(text: &str) -> String {
+    safe_output_text_for(kiana_domain::SecretScanChannel::Stdout, text)
+}
+
+pub(crate) fn safe_output_text_for(channel: kiana_domain::SecretScanChannel, text: &str) -> String {
     let text = kiana_domain::redact_text(text);
     let mut output = String::new();
     let mut state = 0u8;
@@ -121,11 +125,29 @@ pub(crate) fn safe_output_text(text: &str) -> String {
             _ => {}
         }
     }
-    output
+    if kiana_domain::scan_secret_sentinels(channel, &output).is_ok() {
+        output
+    } else {
+        "[REDACTED]".to_owned()
+    }
 }
 
 pub(crate) fn render_capped(bytes: &[u8], truncated: bool, preview_max_bytes: usize) -> String {
-    let mut text = safe_output_text(&String::from_utf8_lossy(bytes));
+    render_capped_for(
+        kiana_domain::SecretScanChannel::Stdout,
+        bytes,
+        truncated,
+        preview_max_bytes,
+    )
+}
+
+pub(crate) fn render_capped_for(
+    channel: kiana_domain::SecretScanChannel,
+    bytes: &[u8],
+    truncated: bool,
+    preview_max_bytes: usize,
+) -> String {
+    let mut text = safe_output_text_for(channel, &String::from_utf8_lossy(bytes));
     if text.len() > preview_max_bytes {
         let mut end = preview_max_bytes.min(text.len());
         while !text.is_char_boundary(end) {

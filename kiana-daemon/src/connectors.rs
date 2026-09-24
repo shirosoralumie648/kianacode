@@ -760,6 +760,11 @@ fn classify_probe_error(code: &str) -> ConnectorHealthStatus {
 }
 
 fn redacted_health_code(code: &str) -> String {
+    let projection =
+        kiana_domain::project_redacted_error(kiana_domain::SecretScanChannel::Event, code);
+    if projection.redacted {
+        return "connector_probe_failed".to_owned();
+    }
     let normalized = code.split(':').next().unwrap_or(code).trim().to_owned();
     if normalized.is_empty() {
         "connector_probe_failed".to_owned()

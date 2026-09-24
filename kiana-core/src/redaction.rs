@@ -5,15 +5,37 @@ pub(crate) use kiana_domain::{
 };
 
 pub(crate) fn redact_capability_result(result: CapabilityResult) -> CapabilityResult {
+    let output = redact_event_value(&result.output);
+    let output_safe =
+        kiana_domain::scan_secret_value(kiana_domain::SecretScanChannel::Receipt, &output)
+            .is_ok();
+    let output = if output_safe {
+        output
+    } else {
+        serde_json::json!({"error":"secret_redaction_failed"})
+    };
+    let evidence_refs = result
+        .evidence_refs
+        .iter()
+        .map(|reference| {
+            let redacted = redact_event_text(reference);
+            if kiana_domain::scan_secret_sentinels(
+                kiana_domain::SecretScanChannel::Receipt,
+                &redacted,
+            )
+            .is_ok()
+            {
+                redacted
+            } else {
+                "[REDACTED]".to_owned()
+            }
+        })
+        .collect();
     CapabilityResult {
         request_id: result.request_id,
-        success: result.success,
-        output: redact_event_value(&result.output),
-        evidence_refs: result
-            .evidence_refs
-            .iter()
-            .map(|reference| redact_event_text(reference))
-            .collect(),
+        success: result.success && output_safe,
+        output,
+        evidence_refs,
     }
 }
 #[cfg(test)]

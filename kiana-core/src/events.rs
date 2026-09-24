@@ -168,6 +168,8 @@ fn prepare_event_payload(
     if redact_event_value(&redacted) != redacted {
         return Err(PortError::Failed("event_redaction_not_stable".to_owned()).into());
     }
+    kiana_domain::scan_secret_value(kiana_domain::SecretScanChannel::Event, &redacted)
+        .map_err(|finding| PortError::Failed(finding.to_string()))?;
     let data_epoch = match redacted.get("data_epoch") {
         None | Some(Value::Null) => None,
         Some(value) => Some(

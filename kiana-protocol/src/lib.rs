@@ -30,7 +30,9 @@ pub use kiana_domain::{
     COST_LEDGER_VERSION,
 };
 pub use kiana_domain::{
-    normalize_role_path, redact_text, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
+    normalize_role_path, project_redacted_error, redact_text, scan_secret_channels,
+    scan_secret_sentinels, scan_secret_value, ActionRef, ActionRefId, AdapterCommitState,
+    AdapterResult,
     AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
     ApprovalId, ApprovalMaterialState, ApprovalPlanPreview, ArtifactId, ArtifactProvenance,
@@ -119,7 +121,8 @@ pub use kiana_domain::{
     RetrievalResult, RetrievalSafetyMetrics, RetrievalSourceKind, ReviewPacket, ReviewerCitation,
     RiskLevel, RoleAssignment, RoleAssignmentStatus, RoleCatalog, RoleDescriptor, RoleSpec,
     RunCancellationFact, RunCancellationState, RunId, RunReceipt, RuntimeEvent, ScopeSet,
-    SecretRef, SecretRefId, SecurityContextId, SecurityDecisionId, SecurityEventEnvelope,
+    SecretRef, SecretRefId, SecretScanChannel, SecretSentinelFinding, SecretSentinelKind,
+    SecurityContextId, SecurityDecisionId, SecurityEventEnvelope,
     SecurityEventId, SecurityObjectEnvelope, SecurityObjectKind, SecurityPolicyId, SecurityReason,
     SecurityReasonClass, SecurityReasonCode, SecurityReasonPolicy, SecurityRegistryId,
     SecurityRemediation, SecurityRetryability, SecuritySchemaEntry, SecuritySchemaRegistry,

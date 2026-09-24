@@ -3115,6 +3115,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.secret-sentinel-scan.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.redacted-error-projection.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.health-snapshot.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,

@@ -12320,6 +12320,19 @@ status_change: INT-12 provider redirect/origin fence, metadata-only OAuth accoun
 proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: provider exchange remains closure-backed; account store is in-process and not cross-process durable, browser callback listener/real IdP/token endpoint/keyring/HSM/provider receipt/reconcile and external/live/physical connector effect are not exercised; raw tokens remain provider-side only and query/EventLog/UI contracts expose no token material
 reviewer: Codex INT-12 source review; checked PKCE S256/state/one-time callback/origin, strict token response/scope and single-flight generation CAS reuse, account SecretRef digest/audience binding, CAS reauth/revoke fencing, redacted query boundary and no second execution path; no local runtime test reviewer
+
+### INT-13 secret redaction and echo sentinel evidence (2026-09-25)
+
+source_snapshot: `b15470fa` plus INT-13 source slice; `kiana-domain/src/{redaction,contracts}.rs`; `kiana-protocol/src/lib.rs`; `kiana-runner/src/harness.rs`; `kiana-core/src/{events,redaction}.rs`; `kiana-daemon/src/{connectors,execution_output,harness_capabilities}.rs`; `kiana-entrypoints/src/workbench_render.rs`; domain/daemon/core/UI fixtures and source guards; `.github/workflows/int13-secret-redaction.yml`; `docs/roadmap/int13-secret-redaction-baseline.md`; `docs/roadmap/integrations-connectors.md`; `docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-int13` on branch `feat/int13-secret-redaction`; shared domain scanner classifies token/API-key/header/JWT/URL-userinfo/credential-lease/provider raw error shapes without retaining candidate values; Runner prompt/transcript, EventLog/Receipt, daemon health/stdout/stderr and UI projection paths add deny-first scans and bounded error/UI fallback; unrelated WIP remains outside this step
+command_argv: target-only `rustfmt --edition 2021` on INT-13 Rust files; `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, domain echo/sentinel fixtures, core Event/Receipt guard, daemon process-channel guard, Workbench/UI guard and `cargo check --workspace --tests --locked`
+cwd_environment: `/tmp/kiana-step-int13`; Linux x86_64; stable Rust; local Cargo test/build/check/clippy/smoke commands deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture_cassette: domain fixture scans prompt/transcript/event/receipt/stdout/stderr/argv/env/cache and explicit echo sentinel propagation; URL userinfo, header, JWT, raw credential lease and provider error projections fail closed; source guards assert the existing DaemonHost→ControlPlane→Broker/EventLog spine and no UI authority
+exit_code: target-only rustfmt and `git diff --check` are the only local verification; remote fixture and workspace compile exit codes are pending/unobserved
+status_change: INT-13 source slice is implemented; roadmap row/card advanced from `⏳` to `🔄` pending GitHub evidence
+proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: scanner covers known secret shapes and explicit fixture sentinels only; process memory, arbitrary unmarked high-entropy values, already emitted external logs, durable cross-process cache deletion, real provider response truth and external/live/physical effect remain outside this slice; redaction failure returns only a stable code/digest or `[REDACTED]`
+reviewer: Codex INT-13 source review; checked nine-channel scanner coverage, URL/header/JWT/lease/provider-error fail-closed projection, EventLog/Receipt/daemon/UI integration and no second execution/authorization path; no local runtime test reviewer
 ```
 ### BQ-16 provider capacity, RPM/TPM and bounded fair queue evidence (2026-09-25)
 

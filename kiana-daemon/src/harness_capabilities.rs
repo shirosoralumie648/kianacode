@@ -4,7 +4,7 @@
 //! The runner never executes these tools.
 
 use crate::apply_patch::{apply_codex_patch, preview_codex_patch};
-use crate::execution_output::{drain_capped, metadata, read_capped, render_capped};
+use crate::execution_output::{drain_capped, metadata, read_capped, render_capped_for};
 use crate::process_supervisor::ProcessSupervisor;
 use crate::shell_plan::ShellCommandPlan;
 use async_trait::async_trait;
@@ -459,8 +459,8 @@ pub(crate) async fn run_confined_cancellable(
         timeout.as_millis().min(u128::from(u64::MAX)) as u64,
     );
     Ok(json!({
-        "stdout": render_capped(&stdout.bytes, stdout.truncated, output_budget.preview_max_bytes),
-        "stderr": render_capped(&stderr.bytes, stderr.truncated, output_budget.preview_max_bytes),
+        "stdout": render_capped_for(kiana_domain::SecretScanChannel::Stdout, &stdout.bytes, stdout.truncated, output_budget.preview_max_bytes),
+        "stderr": render_capped_for(kiana_domain::SecretScanChannel::Stderr, &stderr.bytes, stderr.truncated, output_budget.preview_max_bytes),
         "exit_code": exit_code,
         "timed_out": timed_out,
         "cancelled": cancelled,

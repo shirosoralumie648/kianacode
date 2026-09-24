@@ -1,6 +1,7 @@
 use crate::{check_schema_compatibility, json_digest, DataClass, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 
 const REDACTED: &str = "[REDACTED]";
 
@@ -9,6 +10,144 @@ pub const REDACTION_PROFILE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1
 pub const MAX_REDACTION_DEPTH: usize = 32;
 pub const MAX_REDACTION_VALUE_BYTES: usize = 64 * 1024;
 pub const MAX_REDACTION_PROFILE_BYTES: usize = 256 * 1024;
+
+/// Secret egress scanning is deliberately independent from a producer's redaction profile.
+/// Profiles make values safe where possible; this scan is the final deny-first fence for every
+/// projection channel (prompt, transcript, EventLog, receipt, process output and cache).
+pub const SECRET_SENTINEL_SCAN_SCHEMA: &str = "kiana.secret-sentinel-scan.v1";
+pub const MAX_SECRET_SENTINEL_SCAN_BYTES: usize = 64 * 1024;
+pub const MAX_SECRET_SENTINELS: usize = 64;
+pub const REDACTED_ERROR_PROJECTION_SCHEMA: &str = "kiana.redacted-error-projection.v1";
+
+/// Destination being checked by the shared secret scanner.  Keeping this vocabulary in the
+/// domain crate prevents a daemon, event or UI adapter from silently inventing an unscanned sink.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretScanChannel {
+    Prompt,
+    Transcript,
+    Event,
+    Receipt,
+    Stdout,
+    Stderr,
+    Argv,
+    Env,
+    Cache,
+}
+
+impl SecretScanChannel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Prompt => "prompt",
+            Self::Transcript => "transcript",
+            Self::Event => "event",
+            Self::Receipt => "receipt",
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+            Self::Argv => "argv",
+            Self::Env => "env",
+            Self::Cache => "cache",
+        }
+    }
+}
+
+/// Shape which caused a candidate to be rejected.  Findings never carry the value itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretSentinelKind {
+    Token,
+    ApiKey,
+    Header,
+    Jwt,
+    UrlUserinfo,
+    CredentialLease,
+    ProviderRawError,
+    Echo,
+}
+
+impl SecretSentinelKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Token => "token",
+            Self::ApiKey => "api_key",
+            Self::Header => "header",
+            Self::Jwt => "jwt",
+            Self::UrlUserinfo => "url_userinfo",
+            Self::CredentialLease => "credential_lease",
+            Self::ProviderRawError => "provider_raw_error",
+            Self::Echo => "echo",
+        }
+    }
+}
+
+/// A bounded, secret-free scan failure.  The marker digest is useful for grouping incidents but
+/// is not reversible to the candidate secret.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SecretSentinelFinding {
+    pub schema: String,
+    pub channel: SecretScanChannel,
+    pub kind: SecretSentinelKind,
+    pub marker_digest: String,
+}
+
+impl SecretSentinelFinding {
+    fn new(channel: SecretScanChannel, kind: SecretSentinelKind, marker: &str) -> Self {
+        Self {
+            schema: SECRET_SENTINEL_SCAN_SCHEMA.to_owned(),
+            channel,
+            kind,
+            marker_digest: json_digest(&serde_json::json!({
+                "channel": channel.as_str(),
+                "kind": kind.as_str(),
+                "marker": marker,
+            })),
+        }
+    }
+}
+
+impl fmt::Display for SecretSentinelFinding {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "secret_sentinel_detected:{}:{}",
+            self.channel.as_str(),
+            self.kind.as_str()
+        )
+    }
+}
+
+impl std::error::Error for SecretSentinelFinding {}
+
+/// A projection for raw provider/transport errors.  Deliberately excludes the original message;
+/// callers can persist this object in an Event/Receipt or return it to UI safely.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedactedErrorProjection {
+    pub schema: String,
+    pub channel: SecretScanChannel,
+    pub code: String,
+    pub error_digest: String,
+    pub redacted: bool,
+}
+
+impl RedactedErrorProjection {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != REDACTED_ERROR_PROJECTION_SCHEMA
+            || self.code.trim().is_empty()
+            || self.code.len() > 128
+            || !self
+                .code
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+            || !self.error_digest.starts_with("sha256:")
+            || self.error_digest.len() != 71
+        {
+            return Err("redacted_error_projection_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
 
 /// Streaming redaction retains at most this many bytes of already-emitted text as overlap so a
 /// sensitive marker split across chunks can still be recognized. The value is deliberately larger
@@ -153,6 +292,8 @@ pub fn encode_bounded_value(
     if contains_unredacted_secret(&redacted) {
         return Err("redaction_secret_sentinel_detected".to_owned());
     }
+    scan_secret_value(SecretScanChannel::Event, &redacted)
+        .map_err(|_| "redaction_secret_sentinel_detected".to_owned())?;
     let encoded =
         serde_json::to_vec(&redacted).map_err(|_| "redaction_encode_failed".to_owned())?;
     if encoded.len() > profile.max_bytes || encoded.len() > MAX_REDACTION_PROFILE_BYTES {
@@ -178,6 +319,8 @@ pub fn encode_bounded_text(
     if redact_text(&redacted) != redacted || contains_text_secret_marker(&redacted) {
         return Err("redaction_secret_sentinel_detected".to_owned());
     }
+    scan_secret_sentinels(SecretScanChannel::Transcript, &redacted)
+        .map_err(|_| "redaction_secret_sentinel_detected".to_owned())?;
     let encoded_bytes = redacted.len();
     if encoded_bytes > profile.max_bytes || encoded_bytes > MAX_REDACTION_PROFILE_BYTES {
         return Err("redaction_text_too_large".to_owned());
@@ -196,6 +339,157 @@ pub fn redact_with_profile(profile: &RedactionProfile, value: &Value) -> Result<
 
 pub fn redact_text_with_profile(profile: &RedactionProfile, text: &str) -> Result<String, String> {
     encode_bounded_text(profile, text).map(|encoded| encoded.text)
+}
+
+/// Scan one complete text value for secret shapes.  This is a deny-first check: callers must
+/// redact first and then call the scanner, while raw provider errors use
+/// [`project_redacted_error`] instead of returning their text.
+pub fn scan_secret_sentinels(
+    channel: SecretScanChannel,
+    text: &str,
+) -> Result<(), SecretSentinelFinding> {
+    if text.len() > MAX_SECRET_SENTINEL_SCAN_BYTES || text.as_bytes().contains(&0) {
+        return Err(SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::ProviderRawError,
+            "bounded_or_nul_input",
+        ));
+    }
+    let lowered = text.to_ascii_lowercase();
+    for (kind, marker) in [
+        (SecretSentinelKind::Header, "authorization: bearer "),
+        (SecretSentinelKind::Header, "authorization: basic "),
+        (SecretSentinelKind::Header, "proxy-authorization: "),
+        (SecretSentinelKind::Header, "x-api-key:"),
+        (SecretSentinelKind::ApiKey, "api_key="),
+        (SecretSentinelKind::ApiKey, "api_key:"),
+        (SecretSentinelKind::ApiKey, "api-key="),
+        (SecretSentinelKind::ApiKey, "api-key:"),
+        (SecretSentinelKind::ApiKey, "access_key="),
+        (SecretSentinelKind::ApiKey, "access_key:"),
+        (SecretSentinelKind::ApiKey, "client_secret="),
+        (SecretSentinelKind::ApiKey, "client_secret:"),
+        (SecretSentinelKind::Token, "access_token="),
+        (SecretSentinelKind::Token, "access_token:"),
+        (SecretSentinelKind::Token, "refresh_token="),
+        (SecretSentinelKind::Token, "refresh_token:"),
+        (SecretSentinelKind::Token, "id_token="),
+        (SecretSentinelKind::Token, "id_token:"),
+        (SecretSentinelKind::Token, "token="),
+        (SecretSentinelKind::Token, "token:"),
+        (SecretSentinelKind::Token, "password="),
+        (SecretSentinelKind::Token, "password:"),
+        (SecretSentinelKind::Token, "secret="),
+        (SecretSentinelKind::Token, "secret:"),
+        (SecretSentinelKind::Token, "private_key="),
+        (SecretSentinelKind::Token, "private_key:"),
+    ] {
+        if marker_has_unredacted_value(&lowered, marker) {
+            return Err(SecretSentinelFinding::new(channel, kind, marker));
+        }
+    }
+    if contains_json_secret_key(text) {
+        return Err(SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::CredentialLease,
+            "json_secret_key",
+        ));
+    }
+    if contains_url_userinfo(text) {
+        return Err(SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::UrlUserinfo,
+            "url_userinfo",
+        ));
+    }
+    if contains_jwt_shape(text) {
+        return Err(SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::Jwt,
+            "jwt_shape",
+        ));
+    }
+    Ok(())
+}
+
+/// Structured counterpart used before EventLog/Receipt/cache serialization.  SecretRef metadata
+/// remains valid, but raw values under secret-like fields fail closed.
+pub fn scan_secret_value(
+    channel: SecretScanChannel,
+    value: &Value,
+) -> Result<(), SecretSentinelFinding> {
+    let encoded = serde_json::to_vec(value).map_err(|_| {
+        SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::ProviderRawError,
+            "encode_failed",
+        )
+    })?;
+    if encoded.len() > MAX_SECRET_SENTINEL_SCAN_BYTES {
+        return Err(SecretSentinelFinding::new(
+            channel,
+            SecretSentinelKind::ProviderRawError,
+            "value_too_large",
+        ));
+    }
+    scan_secret_value_inner(channel, value)
+}
+
+/// Scan a bounded set of candidate channels and explicit echo sentinels.  It is intended for
+/// fixtures and CI gates that replay one secret through every possible projection sink.
+pub fn scan_secret_channels(
+    channels: &[(SecretScanChannel, &str)],
+    echo_sentinels: &[&str],
+) -> Result<(), SecretSentinelFinding> {
+    if echo_sentinels.len() > MAX_SECRET_SENTINELS
+        || echo_sentinels
+            .iter()
+            .any(|sentinel| sentinel.is_empty() || sentinel.len() > 512)
+    {
+        return Err(SecretSentinelFinding::new(
+            SecretScanChannel::Cache,
+            SecretSentinelKind::Echo,
+            "sentinel_set_invalid",
+        ));
+    }
+    for &(channel, text) in channels {
+        scan_secret_sentinels(channel, text)?;
+        let lowered = text.to_ascii_lowercase();
+        for sentinel in echo_sentinels {
+            if lowered.contains(&sentinel.to_ascii_lowercase()) {
+                return Err(SecretSentinelFinding::new(
+                    channel,
+                    SecretSentinelKind::Echo,
+                    sentinel,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Safe projection for a provider/transport error.  No provider message or URL/header material
+/// crosses this return boundary, even when the input was malformed or contained a secret.
+pub fn project_redacted_error(channel: SecretScanChannel, error: &str) -> RedactedErrorProjection {
+    let original_scan = scan_secret_sentinels(channel, error).is_err();
+    let redacted = redact_text(error);
+    let error_digest = json_digest(&serde_json::json!({
+        "channel": channel.as_str(),
+        "error": redacted,
+    }));
+    let projection = RedactedErrorProjection {
+        schema: REDACTED_ERROR_PROJECTION_SCHEMA.to_owned(),
+        channel,
+        code: if original_scan {
+            "provider_error_redacted".to_owned()
+        } else {
+            "provider_error".to_owned()
+        },
+        error_digest,
+        redacted: original_scan,
+    };
+    debug_assert!(projection.validate().is_ok());
+    projection
 }
 
 fn validate_value_shape(value: &Value, depth: usize, max_depth: usize) -> Result<(), String> {
@@ -224,17 +518,184 @@ fn validate_value_shape(value: &Value, depth: usize, max_depth: usize) -> Result
     Ok(())
 }
 
+fn marker_has_unredacted_value(lowered: &str, marker: &str) -> bool {
+    let mut offset = 0;
+    while let Some(relative) = lowered[offset..].find(marker) {
+        let value_start = offset + relative + marker.len();
+        let value = lowered[value_start..].trim_start_matches([' ', '\t']);
+        if !value.starts_with("[redacted]") {
+            return true;
+        }
+        offset = value_start;
+    }
+    false
+}
+
+fn contains_json_secret_key(text: &str) -> bool {
+    let trimmed = text.trim();
+    let Ok(value) = serde_json::from_str::<Value>(trimmed) else {
+        return false;
+    };
+    fn visit(value: &Value) -> bool {
+        match value {
+            Value::Array(items) => items.iter().any(visit),
+            Value::Object(fields) => fields.iter().any(|(key, value)| {
+                let normalized = key.to_ascii_lowercase();
+                (secret_field_key(&normalized, value)
+                    && !value.is_null()
+                    && !matches!(value, Value::String(text) if text == REDACTED))
+                    || visit(value)
+            }),
+            _ => false,
+        }
+    }
+    visit(&value)
+}
+
+fn scan_secret_value_inner(
+    channel: SecretScanChannel,
+    value: &Value,
+) -> Result<(), SecretSentinelFinding> {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                scan_secret_value_inner(channel, item)?;
+            }
+        }
+        Value::Object(fields) => {
+            for (key, item) in fields {
+                let normalized = key.to_ascii_lowercase();
+                if secret_field_key(&normalized, item)
+                    && !item.is_null()
+                    && !matches!(item, Value::String(text) if text == REDACTED)
+                {
+                    return Err(SecretSentinelFinding::new(
+                        channel,
+                        SecretSentinelKind::CredentialLease,
+                        &normalized,
+                    ));
+                }
+                scan_secret_value_inner(channel, item)?;
+            }
+        }
+        Value::String(text) => scan_secret_sentinels(channel, text)?,
+        _ => {}
+    }
+    Ok(())
+}
+
+fn secret_field_key(key: &str, value: &Value) -> bool {
+    if key == "secret_ref" || key == "credential_ref" {
+        return false;
+    }
+    let token_metric = matches!(
+        key,
+        "reserved_tokens"
+            | "tokens"
+            | "charged_tokens"
+            | "reported_tokens"
+            | "charged_and_reserved_tokens"
+            | "tokens_before"
+            | "tokens_after"
+            | "input_tokens"
+            | "output_tokens"
+            | "total_tokens"
+            | "tokens_used"
+            | "cached_tokens"
+            | "reasoning_tokens"
+            | "max_tokens"
+            | "min_tokens"
+            | "token_count"
+            | "token_budget"
+            | "estimated_tokens"
+            | "token_overlap"
+    ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null);
+    !token_metric
+        && (key.contains("token")
+            || key.contains("password")
+            || key.contains("api_key")
+            || key.contains("access_key")
+            || key.contains("private_key")
+            || key == "authorization"
+            || key == "proxy_authorization"
+            || key == "x_api_key"
+            || key == "secret"
+            || key == "credential"
+            || (key.contains("credential") && !key.ends_with("_generation")))
+}
+
+fn contains_url_userinfo(text: &str) -> bool {
+    let mut cursor = 0;
+    while let Some(relative) = text[cursor..].find("://") {
+        let scheme_end = cursor + relative;
+        let authority_start = scheme_end + 3;
+        let authority_end = text[authority_start..]
+            .find(|character: char| matches!(character, '/' | '?' | '#' | ' ' | '\n' | '\r'))
+            .map_or(text.len(), |offset| authority_start + offset);
+        let authority = &text[authority_start..authority_end];
+        if let Some(at) = authority.rfind('@') {
+            if at > 0 && !authority[..at].eq_ignore_ascii_case("[redacted]") {
+                return true;
+            }
+        }
+        cursor = authority_end;
+    }
+    false
+}
+
+fn contains_jwt_shape(text: &str) -> bool {
+    text.split(|character: char| {
+        character.is_whitespace()
+            || matches!(character, '"' | '\'' | ',' | ';' | '(' | ')' | '[' | ']')
+    })
+    .any(looks_like_jwt)
+}
+
+fn looks_like_jwt(candidate: &str) -> bool {
+    let candidate = candidate
+        .rsplit_once('=')
+        .map_or(candidate, |(_, value)| value);
+    let candidate = candidate
+        .rsplit_once(':')
+        .map_or(candidate, |(_, value)| value);
+    let candidate = candidate.trim_matches(|character: char| {
+        matches!(character, '.' | ':' | '=' | '&' | '?' | '/' | '{' | '}')
+    });
+    let mut segments = candidate.split('.');
+    let (Some(header), Some(payload), Some(signature), None) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
+        return false;
+    };
+    header.starts_with("eyJ")
+        && header.len() >= 8
+        && payload.len() >= 8
+        && signature.len() >= 8
+        && [header, payload, signature].iter().all(|segment| {
+            segment
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+        })
+}
+
 fn contains_unredacted_secret(value: &Value) -> bool {
     match value {
         Value::Array(items) => items.iter().any(contains_unredacted_secret),
         Value::Object(object) => object.iter().any(|(key, value)| {
             let normalized = key.to_ascii_lowercase();
             let sensitive = normalized != "secret_ref"
+                && normalized != "credential_ref"
                 && (normalized.contains("token")
                     || normalized.contains("password")
                     || normalized.contains("api_key")
                     || normalized.contains("access_key")
                     || normalized.contains("private_key")
+                    || normalized == "authorization"
+                    || normalized == "proxy_authorization"
+                    || normalized == "x_api_key"
                     || normalized.contains("secret"));
             (sensitive && !matches!(value, Value::String(text) if text == REDACTED))
                 || contains_unredacted_secret(value)
@@ -274,7 +735,27 @@ const SENSITIVE_MARKERS: &[SensitiveMarker] = &[
         quoted_value: false,
     },
     SensitiveMarker {
+        literal: "token:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "access_token:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "refresh_token:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "id_token:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
         literal: "password=",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "password:",
         quoted_value: false,
     },
     SensitiveMarker {
@@ -282,7 +763,23 @@ const SENSITIVE_MARKERS: &[SensitiveMarker] = &[
         quoted_value: false,
     },
     SensitiveMarker {
+        literal: "api_key:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "api-key=",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "api-key:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
         literal: "access_key=",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "access_key:",
         quoted_value: false,
     },
     SensitiveMarker {
@@ -290,7 +787,15 @@ const SENSITIVE_MARKERS: &[SensitiveMarker] = &[
         quoted_value: false,
     },
     SensitiveMarker {
+        literal: "private_key:",
+        quoted_value: false,
+    },
+    SensitiveMarker {
         literal: "secret=",
+        quoted_value: false,
+    },
+    SensitiveMarker {
+        literal: "secret:",
         quoted_value: false,
     },
     SensitiveMarker {
@@ -387,7 +892,64 @@ pub fn redact_text(text: &str) -> String {
             search_from = value_start + REDACTED.len();
         }
     }
+    redacted = redact_url_userinfo(&redacted);
+    redacted = redact_jwt_shapes(&redacted);
     redacted
+}
+
+fn redact_url_userinfo(text: &str) -> String {
+    let mut output = text.to_owned();
+    let mut cursor = 0;
+    while let Some(relative) = output[cursor..].find("://") {
+        let scheme_end = cursor + relative;
+        let authority_start = scheme_end + 3;
+        let authority_end = output[authority_start..]
+            .find(|character: char| matches!(character, '/' | '?' | '#' | ' ' | '\n' | '\r'))
+            .map_or(output.len(), |offset| authority_start + offset);
+        let authority = &output[authority_start..authority_end];
+        let Some(at) = authority.rfind('@') else {
+            cursor = authority_end;
+            continue;
+        };
+        if at > 0 && !authority[..at].eq_ignore_ascii_case("[redacted]") {
+            output.replace_range(authority_start..authority_start + at, "[REDACTED]");
+            cursor = authority_start + "[REDACTED]".len();
+        } else {
+            cursor = authority_end;
+        }
+    }
+    output
+}
+
+fn redact_jwt_shapes(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for (index, character) in text.char_indices() {
+        let boundary = character.is_whitespace()
+            || matches!(character, '"' | '\'' | ',' | ';' | '(' | ')' | '[' | ']');
+        if !boundary {
+            continue;
+        }
+        if index > cursor {
+            let token = &text[cursor..index];
+            if looks_like_jwt(token) {
+                output.push_str("[REDACTED]");
+            } else {
+                output.push_str(token);
+            }
+        }
+        output.push(character);
+        cursor = index + character.len_utf8();
+    }
+    if cursor < text.len() {
+        let token = &text[cursor..];
+        if looks_like_jwt(token) {
+            output.push_str("[REDACTED]");
+        } else {
+            output.push_str(token);
+        }
+    }
+    output
 }
 
 /// Redact sensitive object keys and text values recursively.
@@ -423,11 +985,15 @@ pub fn redact_value(value: &Value) -> Value {
                                 | "token_overlap"
                         ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null);
                     let sensitive = normalized != "secret_ref"
+                        && normalized != "credential_ref"
                         && ((normalized.contains("token") && !token_metric)
                             || normalized.contains("password")
                             || normalized.contains("api_key")
                             || normalized.contains("access_key")
                             || normalized.contains("private_key")
+                            || normalized == "authorization"
+                            || normalized == "proxy_authorization"
+                            || normalized == "x_api_key"
                             || normalized.contains("secret"));
                     let value = if sensitive {
                         Value::String(REDACTED.to_owned())
