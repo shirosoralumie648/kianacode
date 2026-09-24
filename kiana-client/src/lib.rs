@@ -20,6 +20,7 @@ mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
 mod ui_store;
+mod web_accessibility;
 mod web_contract;
 mod web_detail;
 mod web_inbox;
@@ -49,6 +50,10 @@ pub use ui_store::{
     UiOptimisticUpdate, UiStoreChange, UiStoreError, UiStoreEvent, UiStoreGap, UiStoreGapReason,
     UiStoreScope, UiStoreTransition, UI_ENTITY_STORE_MAX_ENTITIES, UI_ENTITY_STORE_MAX_EVENTS,
     UI_ENTITY_STORE_MAX_UNKNOWN, UI_ENTITY_STORE_SCHEMA, UI_ENTITY_STORE_SNAPSHOT_SCHEMA,
+};
+pub use web_accessibility::{
+    sanitize_text_only, validate_text_only, WebAccessibilityState, WebFocusScope,
+    WEB_ACCESSIBILITY_SCHEMA, WEB_FOCUS_SCOPE_SCHEMA, WEB_MAX_TEXT_BYTES,
 };
 pub use web_contract::{
     WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,

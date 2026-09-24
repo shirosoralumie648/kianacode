@@ -12429,3 +12429,18 @@ proof-level_change: `feature_status=implemented`; `proof_level=source`; no local
 limitations: grant/approval consumption, reservation/CAS and effect-time epoch fencing remain in-process source contracts for this step; durable cross-process authority, provider receipts, external transport and live/physical connector outcomes remain later INT/CP/ER/PD work; operation-name classification is conservative for the legacy binding projection and CI result is intentionally unobserved
 reviewer: Codex INT-15 source review; checked R0/R1 read-only, R2 data grant intersection, R3 exact final payload/once approval, R4 default deny, zero-Broker rejection and reuse of the INT-14 normalized ControlPlane path; no local runtime test reviewer
 ```
+
+### UI-23 Web accessibility, focus and content security evidence (2026-09-25)
+
+```text
+source_snapshot: `61d390ff` (UI-22 plus INT-15 integration) plus UI-23 source slice; `kiana-client/src/{lib.rs,web_accessibility.rs}`; `kiana-entrypoints/src/{web.rs,web_page.html}`; UI-23 fixture/source guards; `.github/workflows/ui23-web-accessibility.yml`; `docs/roadmap/ui23-web-accessibility-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-ui23` on branch `ui23-web-a11y`; typed WebFocusScope and text-only validation bind return focus to session/tab/epoch and reject control/ANSI/OSC/executable URL content; Web page adds nonce CSP/report endpoint, visible CSP violation state, reusable focus trap/restore, keyboard/ARIA/live/narrow/high-contrast/reduced-motion rules and DOM text-only rendering while reusing existing timeline/inbox/detail/session/SSE projections; no second execution or authorization path
+command_argv: target-only `rustfmt --edition 2021` on UI-23 Rust files; `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, UI-23 fixture/guard and `cargo check --workspace --tests --locked`
+cwd_environment: `/tmp/kiana-step-ui23`; Linux/bash; local Cargo test/build/check/clippy/smoke commands deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture_cassette: `kiana-entrypoints/tests/fixtures/ui23-web-accessibility.json`; focus escape/restore, hidden or Unknown action, stale session/epoch, XSS/innerHTML, HTML/SVG/Markdown, executable URL, ANSI/OSC, secret/raw content and CSP report cases; no provider, filesystem or external effect contacted
+exit_code: target-only rustfmt and `git diff --check` are the only local verification; remote fixture, workspace compile and CI exit codes are pending/unobserved
+status_change: UI-23 source slice is implemented; roadmap row/card advanced from `⏳` to `🔄` pending GitHub evidence
+proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: no browser/axe/screen-reader/real keyboard/200% zoom/device automation, screenshot/golden, actual CSP report delivery, cross-process session lease race, durable projection, provider/Broker effect or live/physical proof; nonce and CSP report sink are process-local and Web remains a presentation projection
+reviewer: Codex UI-23 source review; checked nonce CSP/security headers/report visibility, textContent-only DOM and sanitizer, focus trap/restore, keyboard/ARIA/responsive fallback, hidden/Unknown action disablement, stale session/epoch fences and existing DaemonHost authority; no local runtime test reviewer
+```

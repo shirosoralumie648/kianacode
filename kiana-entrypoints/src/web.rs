@@ -12,6 +12,7 @@
 //! run/continue/cancel 等变更路径。
 
 use anyhow::{anyhow, Context, Result};
+use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
@@ -103,7 +104,7 @@ const WEB_ACTION_SUBMISSION_TTL: Duration = Duration::from_secs(15 * 60);
 
 /// The stable route inventory used by the Web entrypoint and its source/CI guards.
 ///
-/// Every API route is either host-only (`health`) or token protected.  The root page is
+/// Every API route is either host-only (`health`/`csp-report`) or token protected.  The root page is
 /// deliberately host-only so a fresh browser can obtain the in-memory token; it never exposes
 /// runtime state.  The inventory is descriptive and does not create a second dispatch path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -145,6 +146,12 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         path: "/api/health",
         method: "GET",
         class: WebRouteClass::Health,
+        token_required: false,
+    },
+    WebRouteContract {
+        path: "/api/csp-report",
+        method: "POST",
+        class: WebRouteClass::Diagnostics,
         token_required: false,
     },
     WebRouteContract {
@@ -319,6 +326,9 @@ struct WebApp {
     sessions: Arc<Mutex<HashMap<String, WebSession>>>,
     active: Arc<Mutex<String>>,
     web_token: Arc<Mutex<String>>,
+    /// Per-process nonce shared by the embedded page and the response CSP.  The nonce is not an
+    /// authorization value and is never exposed through API projections.
+    csp_nonce: Arc<String>,
     token_generation: Arc<std::sync::atomic::AtomicU64>,
     bound_addr: SocketAddr,
     rate_window: Arc<Mutex<WebRateWindow>>,
@@ -795,6 +805,7 @@ fn router(app: WebApp) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
+        .route("/api/csp-report", post(csp_report))
         .route("/api/bootstrap", get(bootstrap))
         .route("/api/parity", get(parity))
         .route("/api/company-governance", get(company_governance))
@@ -823,7 +834,10 @@ fn router(app: WebApp) -> Router {
         ))
         // Keep response hardening outermost so URI/rate/body rejection responses carry the
         // same security headers as handler responses.
-        .layer(middleware::from_fn(security_headers))
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&shared_state),
+            security_headers,
+        ))
         .with_state(shared_state)
 }
 
@@ -851,19 +865,22 @@ async fn enforce_request_bounds(
     next.run(request).await
 }
 
-async fn security_headers(request: Request, next: Next) -> Response {
+async fn security_headers(
+    State(app): State<Arc<WebApp>>,
+    request: Request,
+    next: Next,
+) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     headers.insert("x-content-type-options", "nosniff".parse().unwrap());
     headers.insert("cache-control", "no-store".parse().unwrap());
     headers.insert("referrer-policy", "no-referrer".parse().unwrap());
     headers.insert("x-frame-options", "DENY".parse().unwrap());
-    headers.insert(
-        "content-security-policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-            .parse()
-            .unwrap(),
+    let csp = format!(
+        "default-src 'self'; script-src 'nonce-{}'; style-src 'nonce-{}'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report",
+        app.csp_nonce, app.csp_nonce
     );
+    headers.insert("content-security-policy", csp.parse().unwrap());
     response
 }
 
@@ -888,6 +905,7 @@ impl WebApp {
             role: Arc::new(Mutex::new(role)),
             sessions: Arc::new(Mutex::new(sessions)),
             active: Arc::new(Mutex::new(session_id)),
+            csp_nonce: Arc::new(uuid::Uuid::new_v4().simple().to_string()),
             bound_addr,
             rate_window: Arc::new(Mutex::new(WebRateWindow {
                 started: Instant::now(),
@@ -1727,14 +1745,14 @@ async fn index(
     headers: HeaderMap,
 ) -> Result<Html<String>, ApiError> {
     authorize_host(&app, &headers)?;
-    Ok(Html(
-        PAGE.replace(
-            "__KIANA_WEB_TOKEN_VALUE__",
-            &app.web_token
-                .lock()
-                .map_err(|_| ApiError::fail("web_token_state_unavailable"))?,
-        ),
-    ))
+    let token = app
+        .web_token
+        .lock()
+        .map_err(|_| ApiError::fail("web_token_state_unavailable"))?;
+    let page = PAGE
+        .replace("__KIANA_WEB_TOKEN_VALUE__", &token)
+        .replace("__KIANA_CSP_NONCE__", &app.csp_nonce);
+    Ok(Html(page))
 }
 
 async fn health(
@@ -1763,6 +1781,18 @@ async fn health(
         }
     }
     Ok(Json(payload))
+}
+
+/// Accept a bounded browser CSP report without turning the report body into runtime authority.
+/// The page also exposes a visible `securitypolicyviolation` state; this endpoint is only a
+/// diagnostic sink and deliberately does not echo blocked URLs, source paths or report details.
+async fn csp_report(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    _report: Bytes,
+) -> Result<StatusCode, ApiError> {
+    authorize_host(&app, &headers)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Bootstrap is a read-only snapshot boundary.  The browser must accept this server projection

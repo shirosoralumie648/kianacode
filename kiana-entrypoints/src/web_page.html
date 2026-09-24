@@ -4,13 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kiana</title>
-  <style>
+  <style nonce="__KIANA_CSP_NONCE__">
     :root {
       --bg:#0b0d10; --sidebar:#12151a; --panel:#161a21; --border:#2a313c;
       --text:#e7ecf3; --muted:#8b93a1; --accent:#4c8dff; --user:#1c3a5f;
       --ok:#3dd68c; --warn:#f5a524; --err:#ff6b6b;
     }
     * { box-sizing: border-box; }
+    html { min-height:100%; }
     html, body { height:100%; margin:0; background:var(--bg); color:var(--text);
       font:14px/1.45 ui-sans-serif, system-ui, sans-serif; }
     .frame { display:grid; grid-template-columns:260px 1fr 320px; height:100%; }
@@ -32,6 +33,7 @@
     .banner { margin:10px 0; padding:10px; border-radius:8px; border:1px solid var(--warn); color:var(--warn); font-size:12px; display:none; }
     .banner.show { display:block; }
     .center > .banner { margin:10px 24px 0; }
+    .security-banner { border-color:var(--err); color:var(--err); }
     .chat { flex:1; overflow:auto; padding:20px 24px; }
     .item { max-width:760px; margin:0 auto 12px; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel); white-space:pre-wrap; }
     .item.userMessage { background:var(--user); }
@@ -61,7 +63,11 @@
     .coach.show { display:flex; }
     .coach .card { width:min(560px,92vw); background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; }
     .coach ol { color:var(--muted); }
+    .coach-heading { font-size:22px; margin:8px 0; }
+    .history-row { padding:0 24px; }
     :focus-visible { outline:3px solid var(--warn); outline-offset:3px; }
+    :where(button, input, select, textarea, summary, a):focus-visible { outline:3px solid var(--warn); outline-offset:3px; }
+    [aria-busy="true"] { cursor:progress; }
     button:disabled { cursor:not-allowed; opacity:.65; }
     .skip-link { position:fixed; top:-60px; left:12px; z-index:20; background:var(--panel); color:var(--text); padding:12px; }
     .skip-link:focus { top:8px; }
@@ -70,7 +76,8 @@
     .approval button { margin:4px; }
     .center, .details, .sidebar, pre { overflow-wrap:anywhere; }
     @media (max-width:1100px) { .frame { grid-template-columns:220px minmax(0,1fr); } .details { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); } }
-    @media (max-width:650px) { html,body { height:auto; min-height:100%; } .frame { display:flex; flex-direction:column; height:auto; } .sidebar { border-right:0; border-bottom:1px solid var(--border); } .center { min-height:65vh; } .chat { max-height:65vh; padding:12px; } .sessions { max-height:150px; overflow:auto; } .row { flex-wrap:wrap; } .coach .card { max-height:90vh; overflow:auto; } }
+    @media (max-width:650px) { html,body { height:auto; min-height:100%; } .frame { display:flex; flex-direction:column; height:auto; } .sidebar { border-right:0; border-bottom:1px solid var(--border); } .center { min-height:65vh; } .chat { max-height:65vh; padding:12px; } .sessions { max-height:150px; overflow:auto; } .row { flex-wrap:wrap; } .history-row { padding:0 12px; } .composer { padding:12px; } .details { border-left:0; border-top:1px solid var(--border); } .coach .card { max-height:90vh; overflow:auto; } }
+    @media (max-width:400px) { body { font-size:16px; } .frame { display:flex; } .sidebar, .details { padding:12px; } .chat { max-height:none; } .item, .timeline-state, .guide { max-width:none; } button, select, input { min-height:44px; } textarea { min-height:100px; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
     @media (prefers-contrast:more) { :root { --muted:#dce3ee; --border:#aab6c7; --accent:#2460be; } button,select,textarea { border-width:2px; } }
     @media (forced-colors:active) { .pill,.banner,.approval { border:1px solid CanvasText; } button.primary { border:2px solid ButtonText; } :focus-visible { outline-color:Highlight; } }
@@ -101,8 +108,10 @@
       <h2>Threads</h2>
       <div class="sessions" id="sessions"></div>
     </aside>
-    <main class="center" aria-label="对话">
-      <div class="banner" id="streamBanner" role="status" aria-live="polite">正在重连…</div>
+    <main class="center" aria-labelledby="conversationTitle">
+      <h1 id="conversationTitle" class="sr-only">Kiana 对话</h1>
+      <div class="banner" id="streamBanner" role="status" aria-live="polite" aria-atomic="true">正在重连…</div>
+      <div class="banner security-banner" id="cspBanner" role="alert" aria-live="assertive" aria-atomic="true" hidden></div>
       <div class="chat" id="chat" role="region" aria-label="对话记录" tabindex="0">
         <div class="timeline-state" id="timelineState" data-state="loading" role="status" aria-live="polite">时间线 loading…</div>
         <div class="guide" id="emptyGuide">
@@ -115,16 +124,16 @@
           </div>
         </div>
       </div>
-      <div class="row" style="padding:0 24px;">
+      <div class="row history-row">
         <button id="loadHistory" disabled>加载更早历史</button>
         <span class="muted" id="historyStatus">history loading…</span>
       </div>
-      <div class="composer">
+      <div class="composer" aria-label="发送任务">
         <label for="prompt" class="sr-only">发送给 Kiana 的任务</label>
-        <textarea aria-describedby="promptHelp" id="prompt" placeholder="Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。"></textarea>
+        <textarea aria-describedby="promptHelp" aria-keyshortcuts="Control+Enter Escape" id="prompt" placeholder="Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。"></textarea>
         <div class="row">
           <button class="primary" id="send">发送 Turn</button>
-          <button id="cancel">打断 Turn</button>
+          <button id="cancel" aria-keyshortcuts="Escape">打断 Turn</button>
         </div>
         <div class="muted" id="promptHelp">Ctrl+Enter 发送；Esc 取消当前运行。审批需要你明确选择批准或拒绝。</div>
       </div>
@@ -136,7 +145,7 @@
       <button id="resume">恢复此会话</button>
       <button id="receiptBtn">查看回执</button>
       <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
-      <h2>Artifact / Diff detail</h2>
+      <h2 id="detailTitle">Artifact / Diff detail</h2>
       <label for="artifactId">服务端 Artifact ref</label>
       <input id="artifactId" autocomplete="off" placeholder="artifact id" />
       <div class="row">
@@ -176,9 +185,9 @@
     </aside>
   </div>
   <div class="coach" id="coach" role="dialog" aria-modal="true" aria-labelledby="coachTitle" aria-hidden="true">
-    <div class="card">
+    <div class="card" tabindex="-1">
       <div class="brand" id="coachTitle">开始使用 Kiana</div>
-      <h1 style="font-size:22px;margin:8px 0;">Thread → Turn → Item</h1>
+      <h1 class="coach-heading">Thread → Turn → Item</h1>
       <ol>
         <li>左边选或新建 Thread（一次对话）。工作区不对就打开文件夹 / 新建 ~/.kiana 项目。</li>
         <li>信任当前文件夹。Codex 用审批弹窗；Kiana 用 ProjectTrust，未过门不能写盘。</li>
@@ -187,7 +196,7 @@
       <button class="primary" id="coachOk">开始</button>
     </div>
   </div>
-  <script>
+  <script nonce="__KIANA_CSP_NONCE__">
     window.__KIANA_WEB_TOKEN__ = '__KIANA_WEB_TOKEN_VALUE__';
     const chat = document.getElementById('chat');
     const promptEl = document.getElementById('prompt');
@@ -233,6 +242,8 @@
     let approvalRequest = 0;
     let humanInboxViewKey = '';
     let previousFocus = null;
+    let focusTrapState = null;
+    let cspViolationCount = 0;
     const runtimeEvents = [];
     const WEB_HYDRATE_SCHEMA = 'kiana.web-hydrate.v1';
     const WEB_HISTORY_SCHEMA = 'kiana.web-history-page.v1';
@@ -282,7 +293,7 @@
 
     function setHydrateStatus(status, detail) {
       hydrateState = status;
-      const value = detail || ('snapshot ' + status);
+      const value = sanitizeDisplayText(detail || ('snapshot ' + status), 2048);
       document.getElementById('hydrateStatus').textContent = value;
       if (['loading', 'partial', 'offline'].includes(status)) setTimelineState(status, '时间线 ' + status + ' · ' + value);
       const history = historyPages.get(sessionId);
@@ -399,7 +410,66 @@
       return page;
     }
 
-    function announce(text) { document.getElementById('announcer').textContent = text; }
+    function announce(text) { document.getElementById('announcer').textContent = sanitizeDisplayText(text, 2048); }
+    const EXECUTABLE_URL_RE = /(?:^|[\s([\"'])\s*(?:javascript|vbscript):|(?:^|[\s([\"'])\s*data:(?:text\/html|application\/xhtml\+xml)/i;
+    const CONTROL_SEQUENCE_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u001b]/;
+    const OSC_SEQUENCE_RE = /\u001b\][\s\S]*?(?:\u0007|\u001b\\)/;
+    function sanitizeUntrustedContent(value, maxBytes = TIMELINE_MAX_BODY_BYTES) {
+      const text = String(value == null ? '' : value);
+      if (text.length > maxBytes) return text.slice(0, maxBytes) + '\n…内容已截断…';
+      if (CONTROL_SEQUENCE_RE.test(text) || OSC_SEQUENCE_RE.test(text) || EXECUTABLE_URL_RE.test(text)) {
+        throw new Error('web_untrusted_content_denied');
+      }
+      return text.replace(/\r\n?/g, '\n');
+    }
+    function sanitizeDisplayText(value, maxBytes = TIMELINE_MAX_BODY_BYTES) {
+      try { return sanitizeUntrustedContent(value, maxBytes); }
+      catch (_) { return '内容已隐藏：未通过 text-only 安全检查。'; }
+    }
+    function sanitizeUrl(value) {
+      const text = String(value || '').trim();
+      if (!text || EXECUTABLE_URL_RE.test(text) || /^data:/i.test(text)) throw new Error('web_url_denied');
+      return text;
+    }
+    function assertServerScope(payload, requested = sessionId) {
+      if (!payload || typeof payload !== 'object') throw new Error('web_scope_payload_invalid');
+      const scope = payload.scope || payload.hydrate || payload.projection || {};
+      const suppliedSession = payload.session_id || scope.session_id;
+      if (requested && suppliedSession && String(suppliedSession) !== String(requested)) {
+        throw new Error('stale_session');
+      }
+      const suppliedEpoch = payload.epoch || scope.epoch || (payload.cursor && payload.cursor.epoch);
+      const cache = requested && hydrateCache.get(cacheKeyFor(requested));
+      if (cache && suppliedEpoch && String(suppliedEpoch) !== String(cache.epoch)) {
+        throw new Error('stale_epoch');
+      }
+      return payload;
+    }
+    function assertProjectionScope(payload, requested = sessionId) {
+      assertServerScope(payload, requested);
+      const scope = payload && payload.scope;
+      if (scope && (!scope.session_id || !scope.epoch || scope.session_id !== requested)) {
+        throw new Error('stale_projection_scope');
+      }
+      return payload;
+    }
+    function cspViolationMessage(event) {
+      const directive = sanitizeDisplayText(event && event.effectiveDirective || 'unknown', 128);
+      const blocked = event && event.blockedURI ? 'blocked' : 'policy';
+      return 'CSP violation ' + blocked + ' · ' + directive;
+    }
+    function reportCspViolation(event) {
+      cspViolationCount += 1;
+      const message = cspViolationMessage(event);
+      const banner = document.getElementById('cspBanner');
+      banner.textContent = message + '；已阻止内容，不会执行。';
+      banner.hidden = false;
+      banner.classList.add('show');
+      announce(message);
+      runtimeEvents.push(message);
+      while (runtimeEvents.length > 12) runtimeEvents.shift();
+      document.getElementById('runtimeEvents').textContent = runtimeEvents.join('\n');
+    }
     function reportError(error) {
       reportTimelineError(error);
       announce(String(error && (error.message || error) || '请求失败'));
@@ -461,7 +531,7 @@
         body: boundedTimelineText(JSON.stringify(data)),
         pending: itemKind === 'approval', sequence: envelope.sequence
       }, itemKind === 'unknown' ? 'partial' : null);
-      runtimeEvents.push(event.type + ': ' + (data.operation || data.error || data.approval_id || JSON.stringify(data)));
+      runtimeEvents.push(sanitizeDisplayText(event.type + ': ' + (data.operation || data.error || data.approval_id || JSON.stringify(data)), 2048));
       while (runtimeEvents.length > 12) runtimeEvents.shift();
       document.getElementById('runtimeEvents').textContent = runtimeEvents.join('\n');
       if (event.type === 'approval_requested') { announce('有新的待审批请求'); refreshApprovals().catch(reportError); }
@@ -481,12 +551,23 @@
     }
     function humanActionCardFor(item, action, inboxRevision) {
       const cards = Array.isArray(item && item.action_cards) ? item.action_cards : [];
+      if (!action || typeof action !== 'object' || !action.id) return null;
       const card = cards.find(candidate => candidate && candidate.item_id === item.item_id && candidate.action_id === action.id);
       if (!card || card.schema !== HUMAN_ACTION_CARD_SCHEMA || !card.item_id || !card.action_id ||
           !card.command || !card.reason || !card.scope || !card.payload_digest ||
-          !Array.isArray(card.fields) || !Array.isArray(card.allowed_decisions)) return null;
+          !Array.isArray(card.fields) || !Array.isArray(card.allowed_decisions) ||
+          !card.allowed_decisions.includes(action.id)) return null;
       // The server card, rather than button text or action.arguments, drives the form.
       return Object.freeze(Object.assign({}, card, {inbox_revision: inboxRevision}));
+    }
+    function humanActionAllowed(card, action) {
+      if (!card || !action || card.schema !== HUMAN_ACTION_CARD_SCHEMA) return false;
+      if (!Array.isArray(card.allowed_decisions) || !card.allowed_decisions.includes(action.id)) return false;
+      if (!humanActionsAllowed || humanActionExpired(card)) return false;
+      const projectionStatus = stateCache && stateCache.projection && stateCache.projection.status;
+      if (projectionStatus === 'unknown' || projectionStatus === 'result_unknown') return false;
+      const scope = card.scope || {};
+      return !!scope.session_id ? scope.session_id === sessionId : true;
     }
     function humanActionExpired(card) {
       return card.revoked === true ||
@@ -513,8 +594,8 @@
     function renderHumanActionResult(response) {
       const box = document.getElementById('humanActionResult');
       if (!box) return;
-      const status = String((response && response.status) || 'unknown');
-      const resultClass = String((response && response.web_result_class) || 'unknown');
+      const status = sanitizeDisplayText((response && response.status) || 'unknown', 128);
+      const resultClass = sanitizeDisplayText((response && response.web_result_class) || 'unknown', 128);
       const output = response && response.output && typeof response.output === 'object' ? response.output : {};
       const error = response && (response.error || response.message || (response.error_detail && response.error_detail.code));
       const incident = output.incident || (response && response.incident) || null;
@@ -524,9 +605,9 @@
       if (resultClass === 'unknown' || status === 'unknown' || status === 'result_unknown') {
         lines.push('结果未知；请查询原 command，不能自动重试。');
       }
-      if (error) lines.push('原因：' + String(error));
-      if (incident) lines.push('incident：' + JSON.stringify(incident));
-      if (limitations.length) lines.push('限制：' + limitations.map(String).join('；'));
+      if (error) lines.push('原因：' + sanitizeDisplayText(error, 2048));
+      if (incident) lines.push('incident：' + sanitizeDisplayText(JSON.stringify(incident), 2048));
+      if (limitations.length) lines.push('限制：' + sanitizeDisplayText(limitations.map(String).join('；'), 2048));
       box.textContent = lines.join('\n');
     }
     async function submitHumanAction(item, action, card, fields, inboxRevision, requested) {
@@ -568,21 +649,21 @@
       const names = {question:'澄清', approval:'审批', review:'复核', acceptance:'验收', incident:'异常', reconciliation:'对账', feedback:'改进建议'};
       items.forEach(item => {
         const card = document.createElement('section'); card.className = 'approval';
-        const title = document.createElement('strong'); title.textContent = (names[item.kind] || item.kind) + ' · ' + item.title; card.appendChild(title);
+        const title = document.createElement('strong'); title.textContent = sanitizeDisplayText((names[item.kind] || item.kind) + ' · ' + item.title, 1024); card.appendChild(title);
         const limitation = output.limitations && output.limitations.length ? output.limitations.join('；') : '';
         const metadata = document.createElement('p'); metadata.className = 'muted';
-        metadata.textContent = 'revision ' + String(output.revision || 'unknown') + (limitation ? ' · limitation: ' + limitation : '');
+        metadata.textContent = sanitizeDisplayText('revision ' + String(output.revision || 'unknown') + (limitation ? ' · limitation: ' + limitation : ''), 2048);
         card.appendChild(metadata);
         const detail = document.createElement('pre'); detail.textContent = JSON.stringify(item.detail || {}, null, 2); card.appendChild(detail);
         (item.actions || []).forEach(action => {
           const actionCard = humanActionCardFor(item, action, output.revision);
           if (!actionCard) {
-            const invalid = document.createElement('p'); invalid.textContent = action.label + ' · action card unavailable'; card.appendChild(invalid); return;
+            const invalid = document.createElement('p'); invalid.textContent = sanitizeDisplayText(action.label + ' · action card unavailable or decision denied', 1024); card.appendChild(invalid); return;
           }
           const reason = document.createElement('p');
-          reason.textContent = '理由：' + actionCard.reason + ' · 范围：' + actionCard.scope.summary +
+          reason.textContent = sanitizeDisplayText('理由：' + actionCard.reason + ' · 范围：' + actionCard.scope.summary +
             (actionCard.expires_at_unix_ms ? ' · expiry: ' + new Date(Number(actionCard.expires_at_unix_ms)).toISOString() : '') +
-            ' · allowed: ' + actionCard.allowed_decisions.join(', ');
+            ' · allowed: ' + actionCard.allowed_decisions.join(', '), 4096);
           card.appendChild(reason);
           let fieldsInput = null;
           if ((actionCard.fields || []).length) {
@@ -594,7 +675,9 @@
             fieldsInput.value = JSON.stringify(fields, null, 2); label.appendChild(fieldsInput); card.appendChild(label);
           }
           const button = document.createElement('button'); button.textContent = action.label;
-          button.disabled = !humanActionsAllowed || humanActionExpired(actionCard) || !actionCard.allowed_decisions.includes(action.id);
+          const actionAllowed = humanActionAllowed(actionCard, action);
+          button.disabled = !actionAllowed;
+          button.setAttribute('aria-disabled', String(!actionAllowed));
           button.onclick = async () => {
             button.disabled = true;
             try {
@@ -602,7 +685,7 @@
               await submitHumanAction(item, action, actionCard, fields, output.revision, requested);
               announce('决定已提交');
             } catch (error) { reportError(error); }
-            finally { button.disabled = !humanActionsAllowed || humanActionExpired(actionCard); await refresh().catch(reportError); }
+            finally { button.disabled = !humanActionAllowed(actionCard, action); await refresh().catch(reportError); }
           };
           card.appendChild(button);
         });
@@ -639,17 +722,60 @@
       });
       if (!box.children.length) box.textContent='此会话还没有编辑快照';
     }
+    const FOCUSABLE_SELECTOR = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
+    function focusableIn(container) {
+      return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(node =>
+        !node.hidden && node.getAttribute('aria-hidden') !== 'true' && node.offsetParent !== null);
+    }
+    function focusTrapKeydown(event) {
+      if (!focusTrapState || event.key !== 'Tab') return;
+      const focusable = focusableIn(focusTrapState.container);
+      if (!focusable.length) { event.preventDefault(); focusTrapState.container.focus(); return; }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    }
+    function currentUiEpoch() {
+      return (stateCache && stateCache.cursor && stateCache.cursor.epoch) ||
+        (sessionId && hydrateCache.get(cacheKeyFor(sessionId)) || {}).epoch || null;
+    }
     function setCoach(open) {
-      coach.classList.toggle('show', open); coach.setAttribute('aria-hidden', String(!open));
-      document.querySelector('.frame').inert = open;
-      if (open) { previousFocus = document.activeElement; document.getElementById('coachOk').focus(); }
-      else if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      const frame = document.querySelector('.frame');
+      coach.classList.toggle('show', open);
+      coach.hidden = !open;
+      coach.setAttribute('aria-hidden', String(!open));
+      frame.inert = open;
+      if (open) {
+        previousFocus = document.activeElement;
+        focusTrapState = {
+          container: coach,
+          restore: previousFocus,
+          focusScope: {session_id: sessionId, epoch: currentUiEpoch()}
+        };
+        const first = focusableIn(coach)[0] || coach.querySelector('.card');
+        if (first) first.focus();
+      } else {
+        const restore = focusTrapState && focusTrapState.restore;
+        const scope = focusTrapState && focusTrapState.focusScope;
+        const sameSession = !scope || !scope.session_id || scope.session_id === sessionId;
+        const sameEpoch = !scope || !scope.epoch || scope.epoch === currentUiEpoch();
+        focusTrapState = null;
+        if (sameSession && sameEpoch && restore && restore.isConnected && !restore.hidden) {
+          restore.focus();
+        } else if (!sameSession || !sameEpoch) {
+          announce('焦点回收被拒绝：stale_session 或 stale_epoch；请重新选择当前控件。');
+          promptEl.focus();
+        }
+        previousFocus = null;
+      }
     }
 
     function boundedTimelineText(value) {
-      const text = String(value == null ? '' : value);
-      if (text.length <= TIMELINE_MAX_BODY_BYTES) return text;
-      return text.slice(0, TIMELINE_MAX_BODY_BYTES) + '\n…truncated…';
+      return sanitizeDisplayText(value, TIMELINE_MAX_BODY_BYTES);
     }
     function timelineStableKey(item) {
       const explicit = item && (item.id || item.event_id || item.key);
@@ -665,8 +791,8 @@
         schema: WEB_TIMELINE_ITEM_SCHEMA,
         id: timelineStableKey(item),
         kind,
-        status: String(item && item.status || 'unknown'),
-        title: String(item && item.title || kind),
+        status: sanitizeDisplayText(item && item.status || 'unknown', 128),
+        title: sanitizeDisplayText(item && item.title || kind, 512),
         body: boundedTimelineText(item && item.body),
         pending,
         replay: !!(item && item.replay),
@@ -720,7 +846,7 @@
       timelineProjection.replay = timelineProjection.state === 'replay';
       const node = document.getElementById('timelineState');
       node.dataset.state = timelineProjection.state;
-      node.textContent = detail || ('时间线 ' + timelineProjection.state);
+      node.textContent = sanitizeDisplayText(detail || ('时间线 ' + timelineProjection.state), 2048);
       node.hidden = timelineProjection.state === 'ready' && timelineProjection.items.size === 0;
     }
     function trimTimelineProjection() {
@@ -1133,7 +1259,7 @@
       promptEl.placeholder = readOnly
         ? '继续执行前请先恢复此会话；人工待办和编辑恢复可直接处理。'
         : 'Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。';
-      document.getElementById('folder').textContent = s.folder;
+      document.getElementById('folder').textContent = sanitizeDisplayText(s.folder, 2048);
       const trust = document.getElementById('trust');
       trust.textContent = s.trusted ? 'trusted' : 'untrusted';
       trust.className = 'pill ' + (s.trusted ? 'ok' : 'bad');
@@ -1141,7 +1267,7 @@
       renderBusyStatus();
       document.getElementById('sandbox').value = s.sandbox;
       const files = (s.last && s.last.files_changed) || [];
-      document.getElementById('files').textContent = files.length ? files.join('\n') : '还没有 fileChange。';
+      document.getElementById('files').textContent = sanitizeDisplayText(files.length ? files.join('\n') : '还没有 fileChange。', 16 * 1024);
       const thread = s.thread || { turns: [], name: 'New thread' };
       const lastTurn = (thread.turns || []).slice(-1)[0];
       const lastTurnStatus = streamIncomplete && streamRunId && lastTurn && lastTurn.id === streamRunId
@@ -1202,6 +1328,10 @@
       } catch (error) {
         setHydrateStatus('offline', 'snapshot offline · ' + String(error.message || error));
         throw error;
+      }
+      if (requested && data && data.session_id && data.session_id !== requested) {
+        setHydrateStatus('partial', 'snapshot rejected · stale_session');
+        throw new Error('stale_session');
       }
       if (sessionId === requested && request >= refreshApplied) {
         refreshApplied = request; renderState(data); refreshApprovals().catch(() => {});
@@ -1290,6 +1420,7 @@
     };
     async function loadReceiptDetail() {
       const data = await api('/api/receipt/detail?session_id=' + encodeURIComponent(sessionId) + '&limit=32');
+      assertProjectionScope(data, sessionId);
       const status = String(data.status || 'unknown');
       const unknown = data.unknown === true || status === 'unknown' || status === 'result_unknown';
       document.getElementById('receiptDetail').textContent = JSON.stringify({
@@ -1310,6 +1441,7 @@
       if (!artifactId) throw new Error('artifact_id_required');
       const data = await api('/api/artifact/detail?session_id=' + encodeURIComponent(sessionId) +
         '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
+      assertProjectionScope(data, sessionId);
       document.getElementById('artifactDetail').textContent = JSON.stringify({
         schema: data.schema, scope: data.scope, artifact_page: data.artifact_page,
         status: data.status, limitations: data.limitations || []
@@ -1322,6 +1454,7 @@
       if (!artifactId) throw new Error('artifact_id_required');
       const data = await api('/api/diff?session_id=' + encodeURIComponent(sessionId) +
         '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
+      assertProjectionScope(data, sessionId);
       document.getElementById('diffDetail').textContent = JSON.stringify({
         schema: data.schema, scope: data.scope, diff: data.diff,
         status: data.status, limitations: data.limitations || []
@@ -1363,9 +1496,10 @@
     });
     try { if (!localStorage.getItem('kiana.guide.v2')) setCoach(true); } catch (_) { setCoach(true); }
     coach.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { event.preventDefault(); setCoach(false); }
-      if (event.key === 'Tab') { event.preventDefault(); document.getElementById('coachOk').focus(); }
+      if (event.key === 'Escape') { event.preventDefault(); setCoach(false); return; }
+      focusTrapKeydown(event);
     });
+    window.addEventListener('securitypolicyviolation', reportCspViolation);
     window.addEventListener('unhandledrejection', event => { event.preventDefault(); reportError(event.reason || '请求失败'); });
     window.addEventListener('offline', () => setHydrateStatus('offline', 'snapshot offline · 保留服务端事实，等待恢复'));
     window.addEventListener('online', () => refresh().catch(reportError));

@@ -514,13 +514,19 @@ detail renderer。坏 digest、stale ref、跨会话枚举、HTML/SVG/ANSI/raw p
 
 
 
-#### UI-23 · Web 可访问性、焦点和内容安全　⏳
+#### UI-23 · Web 可访问性、焦点和内容安全　🔄
 
 - 依赖：UI-16–22。代码：CSS/DOM/ARIA/CSP、keyboard focus manager、sanitizer。
 - 步骤：定义 landmark/live region、焦点回收、键盘顺序、缩放/对比度/减少动画；严格 CSP、无 eval/inline script（迁移期有例外要登记）、sanitize markdown/HTML。
 - 先拒绝：仅用 aria 属性宣称达标、键盘无法处理 approval/cancel、焦点跳出 modal、用户/工具输出执行脚本、CSP 报错被吞掉。
 - 成功/回归：键盘/读屏/200% zoom/窄屏、恶意 markdown/URL/OSC、CSP violation、prefers-reduced-motion。
 - 完成产物：WCAG 2.2 检查表、axe/手工证据、CSP report 和无障碍回归截图。
+
+实现基线：[`ui23-web-accessibility-baseline.md`](ui23-web-accessibility-baseline.md)。当前 source
+slice 在 UI-22 typed timeline/inbox/detail/session/SSE projection 上补充 nonce CSP/安全响应头、
+可见 CSP violation、text-only sanitizer、session/tab/epoch-bound focus trap、键盘/ARIA/窄屏/
+高对比/减少动画回退和 deny-first fixture/source guard/workflow；浏览器 axe/读屏/真实键盘、
+200% zoom 截图、跨进程 lease race、durable/live/physical proof 留后续。
 
 ### 27.4 Electron/Desktop 与 IDE
 

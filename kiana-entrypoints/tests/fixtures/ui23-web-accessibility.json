@@ -1,0 +1,41 @@
+{
+  "schema": "kiana.web-accessibility.v1",
+  "focus_scope_schema": "kiana.web-focus-scope.v1",
+  "states": ["loading", "ready", "partial", "unknown", "offline"],
+  "text_sink": "textContent-only",
+  "csp": {
+    "script": "per-response nonce",
+    "style": "per-response nonce",
+    "unsafe_inline": false,
+    "report": "/api/csp-report"
+  },
+  "deny_first": [
+    "focus_escape_from_modal",
+    "focus_return_to_stale_session",
+    "focus_return_to_stale_epoch",
+    "hidden_action_or_unknown_decision_enabled",
+    "xss_innerHTML_or_inline_handler",
+    "html_svg_markdown_execution",
+    "javascript_or_data_url",
+    "ansi_osc_control_sequence",
+    "secret_or_raw_content_leakage",
+    "stale_session_projection",
+    "stale_epoch_projection",
+    "csp_violation_swallowed",
+    "unknown_result_auto_retry"
+  ],
+  "keyboard": {
+    "focus_visible": true,
+    "skip_link": true,
+    "approval_cancel": ["Enter", "Escape", "Control+Enter"],
+    "focus_restore": true,
+    "modal_trap": true
+  },
+  "responsive": {
+    "narrow_max_width_px": 650,
+    "zoom_reflow_max_width_px": 400,
+    "high_contrast": true,
+    "forced_colors": true,
+    "reduced_motion": true
+  }
+}

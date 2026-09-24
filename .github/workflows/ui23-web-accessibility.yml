@@ -1,0 +1,52 @@
+name: UI-23 Web accessibility and content security
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_accessibility.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui23-web-accessibility.json"
+      - "kiana-entrypoints/tests/ui23_web_accessibility.rs"
+      - "kiana-entrypoints/tests/ui23_web_accessibility_guard.rs"
+      - "docs/roadmap/ui23-web-accessibility-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui23-web-accessibility.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_accessibility.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui23-web-accessibility.json"
+      - "kiana-entrypoints/tests/ui23_web_accessibility.rs"
+      - "kiana-entrypoints/tests/ui23_web_accessibility_guard.rs"
+      - "docs/roadmap/ui23-web-accessibility-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui23-web-accessibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui23-web-accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-23 accessibility and CSP fixture
+        run: cargo test -p kiana-entrypoints --test ui23_web_accessibility --locked -- --test-threads=1
+      - name: Run UI-23 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui23_web_accessibility_guard --locked -- --test-threads=1
+      - name: Compile UI-23 workspace test targets
+        run: cargo check --workspace --tests --locked
