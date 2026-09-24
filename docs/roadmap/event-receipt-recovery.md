@@ -558,12 +558,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-30 — Health、metrics、trace correlation and operator evidence　⏳
+##### ER-30 — Health、metrics、trace correlation and operator evidence　🔄
 
 - **落点：** `kiana-core` observability、daemon health、Receipt metadata；关联 `P1-J8-01`、`CAP-34`。
 - **动作：** 记录 append/flush/projector/recovery latency、queue depth、last durable cursor、unknown count、orphan count、stop confirmation、artifact bytes；trace/span 只引用 correlation/causation，不写秘密。
 - **先拒绝：** `metrics_cannot_claim_effect_success`、`health_unknown_is_not_healthy`、`telemetry_secret_scan_blocks_publish`。
 - **成功/回归：** normal、slow disk、projector lag、unknown、recovery and operator query 均有可解释指标和限制。
+- **ER-30 baseline：** [`er30-observability-baseline.md`](er30-observability-baseline.md)；`OperatorEvidenceSnapshot` 绑定同一 EventLog cursor 的 Metric/Health digest、trace correlation digest 和低基数 causation/correlation refs；只读 ControlPlane/DaemonHost bridge 记录 latency、queue depth、durable cursor、Unknown/orphan、stop confirmation 与 artifact bytes。当前仅声明 `feature_status=implemented`、`proof_level=source`，GitHub Actions 运行拒绝/成功夹具，不等待 CI；没有 durable checkpoint、外部 telemetry backend、provider/business health 或 physical/live 证明。
 
 #### F. 故障矩阵和交付门
 

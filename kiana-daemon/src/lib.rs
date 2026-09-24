@@ -45,9 +45,9 @@ pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
-    IdentityMigration, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
-    project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
-    UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
+    IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
+    ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
+    RuntimeEvent, UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -916,6 +916,19 @@ impl DaemonHost {
 
     pub async fn startup_health(&self) -> Result<HealthSnapshot, PortError> {
         self.health_snapshot(HealthProbeKind::Startup).await
+    }
+
+    /// Read-only operator evidence bound to the same EventLog projection as health and metrics.
+    /// Queue depth is an observation only; it cannot authorize work or claim an effect succeeded.
+    pub async fn operator_evidence(
+        &self,
+        probe: HealthProbeKind,
+    ) -> Result<OperatorEvidenceSnapshot, PortError> {
+        let queue_depth = self.observability_queue.stats().depth as u64;
+        self.core
+            .operator_evidence_with_queue(probe, Some(queue_depth))
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
     pub fn local() -> Result<Self, PortError> {

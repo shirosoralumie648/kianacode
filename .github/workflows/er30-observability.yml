@@ -1,0 +1,50 @@
+name: er30-observability
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/observability.rs'
+      - 'kiana-domain/src/contracts.rs'
+      - 'kiana-core/src/operator_evidence.rs'
+      - 'kiana-core/src/receipts.rs'
+      - 'kiana-core/src/lib.rs'
+      - 'kiana-core/tests/er30_operator_evidence.rs'
+      - 'kiana-core/tests/er30_operator_evidence_guard.rs'
+      - 'kiana-daemon/src/lib.rs'
+      - '.github/workflows/er30-observability.yml'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/observability.rs'
+      - 'kiana-domain/src/contracts.rs'
+      - 'kiana-core/src/operator_evidence.rs'
+      - 'kiana-core/src/receipts.rs'
+      - 'kiana-core/src/lib.rs'
+      - 'kiana-core/tests/er30_operator_evidence.rs'
+      - 'kiana-core/tests/er30_operator_evidence_guard.rs'
+      - 'kiana-daemon/src/lib.rs'
+      - '.github/workflows/er30-observability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  er30-source-and-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: format and diff guards
+        run: |
+          cargo fmt --all --check
+          git diff --check
+      - name: operator evidence fixtures
+        run: |
+          cargo test -p kiana-core --test er30_operator_evidence --locked --offline -- --test-threads=1
+          cargo test -p kiana-core --test er30_operator_evidence_guard --locked --offline -- --test-threads=1
+      - name: compile workspace test targets
+        run: cargo check --workspace --tests --locked --offline

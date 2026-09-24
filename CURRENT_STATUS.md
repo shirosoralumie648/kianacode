@@ -11961,3 +11961,20 @@ status change: `feature_status=implemented` for ER-29 source contracts, propagat
 proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: in-memory retention/artifact/governance adapters are non-durable; no physical JSONL/body erasure, durable index rebuild, backup/external replica deletion, cross-process projector recovery, encryption/key management, live provider effect or compliance certification is claimed; Unknown propagation targets remain unresolved
 reviewer: Codex source review of receipt metadata/payload separation, deny-first epoch/tombstone propagation, immutable EventLog boundary and no second execution loop; no local runtime test reviewer
+
+### ER-30 Health、metrics、trace correlation and operator evidence (2026-09-24)
+
+```text
+source_snapshot: 2f1e7229; kiana-domain/src/{observability,contracts}.rs; kiana-core/src/{operator_evidence,receipts,health,metrics,lib}.rs; kiana-daemon/src/lib.rs; kiana-core/tests/{er30_operator_evidence,er30_operator_evidence_guard}.rs; .github/workflows/er30-observability.yml; docs/roadmap/er30-observability-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: isolated `er-30-observability-20260924` worktree; OperatorEvidenceSnapshot contract, committed-fact reducer, ControlPlane/DaemonHost read-only bridges, Receipt metadata pointer, focused fixtures, workflow, baseline and roadmap/status overlays are scoped to this step; unrelated WIP preserved
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/observability.rs kiana-domain/src/contracts.rs kiana-core/src/operator_evidence.rs kiana-core/src/lib.rs kiana-core/tests/er30_operator_evidence.rs kiana-daemon/src/lib.rs
+  git diff --check
+cwd/environment: /tmp/kiana-step-er30; Linux; stable Rust toolchain; source/static inspection only; no local test, build, check, clippy or smoke command
+fixture or cassette: kiana-core/tests/er30_operator_evidence.rs and er30_operator_evidence_guard.rs; normal/slow-latency queue evidence, projector lag, Unknown effect, unconfirmed stop, correlation/causation digest and telemetry secret sentinel refusal plus read-only/source-boundary guard; GitHub Actions only
+exit_code: 0 for target rustfmt and git diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-30 workflow is triggered by push and is not awaited
+status_change: ER-30 source slice is implemented. `kiana.operator-evidence.v1` binds Metric/Health snapshots and trace correlation at one EventLog cursor, exposes append/flush/projector/recovery latency, queue depth, durable cursor, Unknown/orphan, stop confirmation and artifact bytes, and keeps `effect_success_claim=false`; `health_unknown_is_not_healthy` and `telemetry_secret_scan_blocks_publish` are fail-closed. Receipt observability metadata carries a non-authorizing pointer; DaemonHost adds process-local queue depth only.
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: CI result intentionally not awaited; no durable metric/health/operator checkpoint, external telemetry exporter, provider/Broker/business health or cross-process queue evidence; receipt pointer is not a complete HealthSnapshot and metrics never prove external effect success
+reviewer: Codex root implementation review plus ER-30 domain/core/daemon static-boundary review; no runtime test reviewer
+```

@@ -758,7 +758,7 @@
 | 584 | W7 | 专项 | [`INT-29`](roadmap/integrations-connectors.md#step-int-29) | restart/recovery、projection rebuild、stale worker/lease fencing | `INT-16`、`INT-19`、`INT-22`、`INT-23`、`INT-26` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-29) |
 | **W8** | **并行、治理与复用** |  |  |  |  |  |  |
 | 585 | W8 | 专项 | [`ER-29`](roadmap/event-receipt-recovery.md#step-er-29) | Event / Receipt / Recovery · Data governance、retention 和 deletion propagation | `ER-28` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-29) · [baseline](roadmap/er29-data-governance-baseline.md) |
-| 586 | W8 | 专项 | [`ER-30`](roadmap/event-receipt-recovery.md#step-er-30) | Event / Receipt / Recovery · Health、metrics、trace correlation and operator evidence | `ER-29` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-30) |
+| 586 | W8 | 专项 | [`ER-30`](roadmap/event-receipt-recovery.md#step-er-30) | Event / Receipt / Recovery · Health、metrics、trace correlation and operator evidence | `ER-29` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-30) · [baseline](roadmap/er30-observability-baseline.md) |
 | 587 | W8 | 专项 | [`H31`](roadmap/harness.md#step-h31) | Harness · 受控子 Agent 的 Harness 接缝 | `H07`、`H09`、`H13`、`H24`、`H27`、`H30` | ✅ | [专项卡](roadmap/harness.md#step-h31) |
 | 588 | W8 | 专项 | [`H33`](roadmap/harness.md#step-h33) | Harness · 运行资源、关闭和异常退出的完整清理 | `H08`、`H17`、`H24`、`H31`、`H32` | ✅ | [专项卡](roadmap/harness.md#step-h33) |
 | 589 | W8 | 专项 | [`H34`](roadmap/harness.md#step-h34) | Harness · 旧协议、cassette 与入口迁移 | `H02`、`H04`、`H19`、`H24`、`H27`、`H32`、`H33` | ✅ | [专项卡](roadmap/harness.md#step-h34) |

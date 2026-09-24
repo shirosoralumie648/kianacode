@@ -33,6 +33,7 @@ pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
 pub const METRIC_SNAPSHOT_SCHEMA: &str = "kiana.metric-snapshot.v1";
 pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
+pub const OPERATOR_EVIDENCE_SCHEMA: &str = "kiana.operator-evidence.v1";
 pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -52,6 +53,7 @@ pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const OPERATOR_EVIDENCE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MODEL_ATTEMPT_SCHEMA: &str = "kiana.model-attempt.v1";
 pub const MODEL_ATTEMPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -76,6 +78,7 @@ pub const MAX_REPLAY_DIAGNOSTICS: usize = 256;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
+pub const MAX_OPERATOR_EVIDENCE_REFS: usize = 64;
 pub const MAX_MODEL_PROVIDER_BYTES: usize = 128;
 pub const MAX_MODEL_ID_BYTES: usize = 256;
 pub const MAX_MODEL_ERROR_CODE_BYTES: usize = 128;
@@ -3179,6 +3182,193 @@ impl HealthSnapshot {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "snapshot_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// A bounded operator-facing evidence projection assembled from committed facts.
+///
+/// This contract intentionally carries measurements and limitations, never an effect outcome.
+/// In particular, `effect_success_claim` is permanently false: a metric or health observation
+/// cannot turn an invocation with an unknown effect into a success. Correlation and causation
+/// references are metadata-only and are checked by the same secret sentinel as other telemetry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperatorEvidenceSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub status: SignalStatus,
+    pub health_status: SignalStatus,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub metric_snapshot_digest: String,
+    pub health_snapshot_digest: String,
+    #[serde(default)]
+    pub trace_correlation_digests: Vec<String>,
+    #[serde(default)]
+    pub append_latency_ms: Option<u64>,
+    #[serde(default)]
+    pub flush_latency_ms: Option<u64>,
+    #[serde(default)]
+    pub projector_latency_ms: Option<u64>,
+    #[serde(default)]
+    pub recovery_latency_ms: Option<u64>,
+    #[serde(default)]
+    pub queue_depth: Option<u64>,
+    pub last_durable_cursor: u64,
+    pub unknown_count: u64,
+    pub orphan_count: u64,
+    pub stop_unconfirmed_count: u64,
+    pub artifact_bytes: u64,
+    #[serde(default)]
+    pub correlation_refs: Vec<String>,
+    #[serde(default)]
+    pub causation_refs: Vec<String>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    /// Always false. This field is explicit so consumers cannot infer effect success from health.
+    pub effect_success_claim: bool,
+    pub evidence_digest: String,
+}
+
+impl OperatorEvidenceSnapshot {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        status: SignalStatus,
+        health_status: SignalStatus,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        metric_snapshot_digest: impl Into<String>,
+        health_snapshot_digest: impl Into<String>,
+        trace_correlation_digests: Vec<String>,
+        append_latency_ms: Option<u64>,
+        flush_latency_ms: Option<u64>,
+        projector_latency_ms: Option<u64>,
+        recovery_latency_ms: Option<u64>,
+        queue_depth: Option<u64>,
+        last_durable_cursor: u64,
+        unknown_count: u64,
+        orphan_count: u64,
+        stop_unconfirmed_count: u64,
+        artifact_bytes: u64,
+        correlation_refs: Vec<String>,
+        causation_refs: Vec<String>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: OPERATOR_EVIDENCE_SCHEMA.to_owned(),
+            version: OPERATOR_EVIDENCE_SCHEMA_VERSION,
+            status,
+            health_status,
+            source_cursor,
+            source_event_ids,
+            metric_snapshot_digest: metric_snapshot_digest.into(),
+            health_snapshot_digest: health_snapshot_digest.into(),
+            trace_correlation_digests,
+            append_latency_ms,
+            flush_latency_ms,
+            projector_latency_ms,
+            recovery_latency_ms,
+            queue_depth,
+            last_durable_cursor,
+            unknown_count,
+            orphan_count,
+            stop_unconfirmed_count,
+            artifact_bytes,
+            correlation_refs,
+            causation_refs,
+            limitations,
+            effect_success_claim: false,
+            evidence_digest: String::new(),
+        };
+        snapshot.evidence_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    fn validate_ref_list(values: &[String], field: &str) -> Result<(), String> {
+        if values.len() > MAX_OPERATOR_EVIDENCE_REFS {
+            return Err(format!("{field}_limit"));
+        }
+        let mut unique = BTreeSet::new();
+        for value in values {
+            validate_nonempty(value, field, MAX_ATTRIBUTE_VALUE_BYTES)?;
+            crate::validate_secret_free_text(value, field)
+                .map_err(|_| "telemetry_secret_scan_blocks_publish".to_owned())?;
+            if !unique.insert(value) {
+                return Err(format!("{field}_duplicate"));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            OPERATOR_EVIDENCE_SCHEMA,
+            OPERATOR_EVIDENCE_SCHEMA_VERSION,
+        )?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.last_durable_cursor == 0 || self.last_durable_cursor > self.source_cursor {
+            return Err("operator_last_durable_cursor_invalid".to_owned());
+        }
+        validate_digest(
+            &self.metric_snapshot_digest,
+            "operator_metric_snapshot_digest",
+        )?;
+        validate_digest(
+            &self.health_snapshot_digest,
+            "operator_health_snapshot_digest",
+        )?;
+        if self.trace_correlation_digests.len() > MAX_OPERATOR_EVIDENCE_REFS {
+            return Err("operator_trace_correlation_digest_limit".to_owned());
+        }
+        for digest in &self.trace_correlation_digests {
+            validate_digest(digest, "operator_trace_correlation_digest")?;
+        }
+        if self.health_status != SignalStatus::Ok && self.status == SignalStatus::Ok {
+            return Err(if self.health_status == SignalStatus::Unknown {
+                "health_unknown_is_not_healthy".to_owned()
+            } else {
+                "operator_health_not_ok".to_owned()
+            });
+        }
+        if self.unknown_count > 0 || self.orphan_count > 0 || self.stop_unconfirmed_count > 0 {
+            if self.status == SignalStatus::Ok {
+                return Err("metrics_cannot_claim_effect_success".to_owned());
+            }
+        }
+        if self.effect_success_claim {
+            return Err("metrics_cannot_claim_effect_success".to_owned());
+        }
+        Self::validate_ref_list(&self.correlation_refs, "operator_correlation_ref")?;
+        Self::validate_ref_list(&self.causation_refs, "operator_causation_ref")?;
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("operator_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(limitation, "operator_limitation", MAX_ATTRIBUTE_VALUE_BYTES)?;
+            crate::validate_secret_free_text(limitation, "operator_limitation")
+                .map_err(|_| "telemetry_secret_scan_blocks_publish".to_owned())?;
+        }
+        if !self.limitations.is_empty() && self.status == SignalStatus::Ok {
+            return Err("operator_limitations_require_degraded".to_owned());
+        }
+        validate_digest(&self.evidence_digest, "operator_evidence_digest")?;
+        if self.evidence_digest != self.digest() {
+            return Err("operator_evidence_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "evidence_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

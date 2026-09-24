@@ -813,3 +813,19 @@ rotation/cleanup 和证据块模板。远端 workflow 只运行 domain manifest/
 format checks，不连接外部服务；本地只执行静态检查和 test-target 编译，不执行测试二进制。当前四类目标仍
 分别保持 `not_supported` 或 `source`，直到真实环境、独立账户、人工批准、provider/connector/OTLP/physical
 receipt、回滚/补偿、保留/清理和事故证据逐目标提交；本切片不提升 live 或 physical proof。
+
+## ER-30 叠加说明
+
+ER-30 新增 `kiana.operator-evidence.v1` 与 `OperatorEvidenceSnapshot`。Core 只读 reducer 将
+committed EventLog 的 MetricSnapshot、HealthSnapshot 和 trace/correlation metadata 绑定到同一
+source cursor，记录 append/flush/projector/recovery latency、queue depth、last durable cursor、
+Unknown/orphan、stop confirmation 与 artifact bytes。指标永远不能声明 effect success；Unknown health
+不会被投影为 healthy；secret sentinel 命中会以 `telemetry_secret_scan_blocks_publish` 拒绝发布。
+Run Receipt 的 observability metadata 只携带同 cursor 的 non-authorizing evidence pointer；完整
+snapshot 仍通过 read-only query 获取。DaemonHost 只补充 process-local observability queue depth，不
+创建授权或执行路径。
+
+当前 ER-30 证据等级为 `feature_status=implemented`、`proof_level=source`。GitHub Actions 的
+`er30-observability` workflow 负责 focused fixtures 和 workspace test-target 编译；没有 durable
+checkpoint、外部 telemetry backend、provider/business health 或 physical/live 证明，且不把 CI 结果
+当作本次实现的阻塞条件。

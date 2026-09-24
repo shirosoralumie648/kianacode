@@ -1113,6 +1113,16 @@ fn observability_from_events(run_id: RunId, events: &[RuntimeEvent]) -> Value {
         .ok()
         .and_then(|records| serde_json::to_value(records).ok())
         .unwrap_or_else(|| json!([]));
+    // Receipt metadata may point at operator evidence, but it cannot manufacture a health probe
+    // or claim an external effect succeeded. The full bounded projection is exposed through the
+    // read-only ControlPlane/DaemonHost operator-evidence query.
+    let operator_evidence = json!({
+        "schema": kiana_domain::OPERATOR_EVIDENCE_SCHEMA,
+        "source_cursor": source_cursor,
+        "source_event_ids": source_event_ids,
+        "effect_success_claim": false,
+        "limitations": ["receipt_projection_requires_health_probe"],
+    });
     json!({
         "schema": kiana_domain::OBSERVABILITY_SCHEMA,
         "source_cursor": source_cursor,
@@ -1123,6 +1133,7 @@ fn observability_from_events(run_id: RunId, events: &[RuntimeEvent]) -> Value {
         "span_lifecycle": span_lifecycle,
         "policy_decisions": policy_observations_from_events(events),
         "cancellations": cancellation_observations_from_events(events),
+        "operator_evidence": operator_evidence,
     })
 }
 
