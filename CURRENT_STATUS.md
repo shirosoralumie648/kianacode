@@ -11729,3 +11729,16 @@ status change: EXT-27 source slice and remote CI wiring added; roadmap card/inde
 proof-level change: `feature_status=implemented` for source contracts and product-path wiring; `proof_level=source` (plus CI wiring), no local_behavior/durable/live/physical promotion
 limitations: UI cache persistence and cross-process registry recovery, mutation CAS/approval UX, package signing/revocation and runtime Hook/provider effects remain later EXT/UI steps; CI compilation and fixtures are not claimed green
 reviewer: Codex source review; no local runtime test reviewer
+
+### NM-06 notification materializer and HumanTask bridge (2026-09-24)
+
+source_snapshot: current master snapshot plus NM-06 source slice; `kiana-domain/src/platform.rs`; `kiana-core/src/notification_materializer.rs`; `kiana-core/src/platform.rs`; `kiana-core/tests/nm06_notification_materializer.rs`; `kiana-core/tests/nm06_notification_materializer_guard.rs`; `.github/workflows/nm06-notification-materializer.yml`; `docs/roadmap/nm06-notification-materializer-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `nm-06-notification-materializer-20260924`; committed EventLog source, event/cursor and digest checks, redacted summary/evidence/action/due/expiry contracts, server recipient/decider filtering and stable display-only inbox projection; HumanTask status remains owned by the source object; roadmap row 463/card remain 🔄 pending GitHub CI
+command_argv: `rustfmt --edition 2021 kiana-domain/src/platform.rs kiana-core/src/notification_materializer.rs kiana-core/src/platform.rs kiana-core/tests/nm06_notification_materializer.rs kiana-core/tests/nm06_notification_materializer_guard.rs`; `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, NM-06 fixtures/source guard and `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-nm06`; Linux x86_64; local tests, build, check, clippy and smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only committed-source, source/cursor/evidence/due denial, replay/conflict, redaction, recipient/decider and projection-only guard fixtures in `nm06-notification-materializer.yml`
+exit_code: local targeted rustfmt and `git diff --check` are the only local commands; tests/build/check/clippy/smoke not run; GitHub CI pending/not awaited
+status change: NM-06 source slice and CI wiring are implemented; roadmap row 463/card remain 🔄 until dedicated GitHub evidence is observed
+proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical proof
+limitations: no durable NotificationStore or HumanTask store, outbox, DeliveryWorker, Broker, provider, external notification channel, cross-process replay or task-status mutation is claimed
+reviewer: Codex source review of committed-only materialization, cursor/digest replay, redaction/evidence/due bounds, exact server recipient/decider filtering and no-second-loop boundary; no local runtime test reviewer

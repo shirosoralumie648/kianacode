@@ -8,6 +8,18 @@ use kiana_domain::{
 
 const PLATFORM_STREAM: &str = "human_operations";
 
+/// Bridge the committed notification projection to the existing display-only inbox DTO.  The
+/// materializer owns no action execution; callers still submit an action through the original
+/// ControlPlane authority after rechecking the source HumanTask.
+pub(crate) fn materialize_notification_inbox(
+    materializer: &NotificationMaterializer,
+    server_recipient_id: &str,
+) -> Result<Vec<HumanInboxItem>, CoreError> {
+    materializer
+        .human_inbox_items(server_recipient_id)
+        .map_err(|reason| platform_error(&reason))
+}
+
 impl ControlPlane {
     pub(crate) async fn handle_platform_command(
         &self,

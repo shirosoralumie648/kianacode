@@ -42,6 +42,7 @@ mod memory_proposals;
 mod metrics;
 mod model_attempt_projection;
 mod notification_projector;
+mod notification_materializer;
 mod notification_resolver;
 mod parity;
 mod performance;
@@ -122,6 +123,7 @@ pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };
 pub use notification_projector::NotificationProjection;
+pub use notification_materializer::NotificationMaterializer;
 pub use notification_resolver::resolve_notification_subscriptions;
 pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use performance::{

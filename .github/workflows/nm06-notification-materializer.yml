@@ -1,0 +1,48 @@
+name: NM-06 notification materializer
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm06_notification_materializer.rs"
+      - "kiana-core/tests/nm06_notification_materializer_guard.rs"
+      - "docs/roadmap/nm06-notification-materializer-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm06-notification-materializer.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm06_notification_materializer.rs"
+      - "kiana-core/tests/nm06_notification_materializer_guard.rs"
+      - "docs/roadmap/nm06-notification-materializer-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm06-notification-materializer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-materializer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run materializer fixtures
+        run: cargo test -p kiana-core --test nm06_notification_materializer --locked -- --test-threads=1
+      - name: Run materializer source guard
+        run: cargo test -p kiana-core --test nm06_notification_materializer_guard --locked -- --test-threads=1
+      - name: Compile NM-06 targets
+        run: cargo check --workspace --tests --locked
