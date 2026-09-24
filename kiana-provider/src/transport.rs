@@ -54,6 +54,7 @@ fn trips_circuit(error: &ModelError) -> bool {
         && matches!(
             error.code.as_str(),
             "provider_http_429"
+                | "provider_http_408"
                 | "provider_http_503"
                 | "provider_connection_failed"
                 | "provider_headers_timeout"
@@ -185,7 +186,7 @@ async fn send_inner_attempt(
     if !status.is_success() {
         let mut error = ModelError::transport(
             &format!("provider_http_{}", status.as_u16()),
-            if matches!(status.as_u16(), 429 | 503) {
+            if matches!(status.as_u16(), 429 | 408) {
                 ModelRetryClass::Rejected
             } else {
                 ModelRetryClass::Never

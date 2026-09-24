@@ -294,7 +294,7 @@ fn parse_retry_class(data: &Value, error_code: Option<&str>) -> (Option<ModelRet
         return (parsed, parsed.is_none());
     }
     let derived = error_code.and_then(|code| {
-        if code.contains("provider_http_429") || code.contains("provider_http_503") {
+        if code.contains("provider_http_429") || code.contains("provider_http_408") {
             Some(ModelRetryClass::Rejected)
         } else {
             None

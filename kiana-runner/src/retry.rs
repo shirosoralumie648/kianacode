@@ -1,25 +1,56 @@
-use kiana_domain::{ModelError, ModelRetryClass, ModelSideEffectState, RequestId};
+use kiana_domain::{
+    ModelError, ModelRetryClass, ModelSideEffectState, RequestId, RetryDecision, RetryObservation,
+    RetryPolicy,
+};
 use std::time::Duration;
 
 pub(crate) const MAX_PROVIDER_ATTEMPTS: u32 = 3;
 
 pub(crate) fn is_safe_to_retry(error: &ModelError, observed_delta: bool) -> bool {
-    !observed_delta
-        && error.phase == "transport"
-        && match error.retry_class {
-            ModelRetryClass::BeforeSend => {
-                !error.request_sent && error.side_effect_state == ModelSideEffectState::None
-            }
-            ModelRetryClass::Rejected => {
-                error.request_sent
-                    && error.side_effect_state == ModelSideEffectState::None
-                    && matches!(
-                        error.code.as_str(),
-                        "provider_http_429" | "provider_http_503"
-                    )
-            }
-            ModelRetryClass::Never => false,
-        }
+    error.phase == "transport"
+        && RetryPolicy::new(
+            MAX_PROVIDER_ATTEMPTS,
+            MAX_PROVIDER_ATTEMPTS,
+            5_000,
+            u64::MAX,
+        )
+        .ok()
+        .and_then(|policy| {
+            policy
+                .classify(
+                    1,
+                    1,
+                    1,
+                    &RetryObservation::from_model_error(error, observed_delta, true),
+                )
+                .ok()
+        })
+        .is_some_and(|decision| decision.retry)
+}
+
+/// Apply the shared domain classifier with the same absolute deadline used by admission and
+/// transport.  The Runner owns the only loop; this helper only returns a decision value.
+pub(crate) fn classify_retry(
+    error: &ModelError,
+    observed_delta: bool,
+    attempt: u32,
+    request_count: u32,
+    now_unix_ms: u64,
+    deadline_unix_ms: u64,
+    idempotent: bool,
+) -> Result<RetryDecision, String> {
+    let policy = RetryPolicy::new(
+        MAX_PROVIDER_ATTEMPTS,
+        MAX_PROVIDER_ATTEMPTS,
+        5_000,
+        deadline_unix_ms,
+    )?;
+    policy.classify(
+        attempt,
+        request_count,
+        now_unix_ms,
+        &RetryObservation::from_model_error(error, observed_delta, idempotent),
+    )
 }
 
 pub(crate) fn retry_delay(error: &ModelError, retry_index: u32, attempt_id: RequestId) -> Duration {

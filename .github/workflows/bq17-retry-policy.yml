@@ -1,0 +1,64 @@
+name: BQ-17 retry policy
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/retry_policy.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq17_retry_policy.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/tests/bq17_retry_policy.rs"
+      - "kiana-runner/src/retry.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/bq17_retry_policy_guard.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-core/tests/bq17_retry_policy_guard.rs"
+      - "docs/roadmap/bq17-retry-policy-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq17-retry-policy.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/retry_policy.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq17_retry_policy.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/tests/bq17_retry_policy.rs"
+      - "kiana-runner/src/retry.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/tests/bq17_retry_policy_guard.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-core/tests/bq17_retry_policy_guard.rs"
+      - "docs/roadmap/bq17-retry-policy-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq17-retry-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retry-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-17 domain retry fixtures
+        run: cargo test -p kiana-domain --test bq17_retry_policy --locked -- --test-threads=1
+      - name: Run BQ-17 provider source fixtures
+        run: cargo test -p kiana-provider --test bq17_retry_policy --locked -- --test-threads=1
+      - name: Run provider Retry-After parser fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run BQ-17 runner source fixtures
+        run: cargo test -p kiana-runner --test bq17_retry_policy_guard --locked -- --test-threads=1
+      - name: Run BQ-17 core source guards
+        run: cargo test -p kiana-core --test bq17_retry_policy_guard --locked -- --test-threads=1
+      - name: Compile BQ-17 test targets
+        run: cargo check --workspace --tests --locked

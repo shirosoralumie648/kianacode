@@ -24,9 +24,10 @@ use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
-    derived_request_id, redact_text, scan_secret_sentinels, CapabilityResult, InputId,
-    ModelAttemptId, ModelAttemptIdentity, PromptBundle, RequestId, RunId, SecretScanChannel,
-    StepId, StepIdentity, StreamingRedactor, ToolObservation, ToolObservationStatus, TurnId,
+    derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
+    CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
+    QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StepId,
+    StepIdentity, StreamingRedactor, ToolObservation, ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -1322,8 +1323,8 @@ impl KianaHarness {
         format: kiana_domain::ModelResponseFormat,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<ModelOutput, String> {
-        use crate::retry::{is_safe_to_retry, retry_delay, MAX_PROVIDER_ATTEMPTS};
-        use kiana_domain::{ModelCallSpec, RequestId};
+        use crate::retry::{classify_retry, is_safe_to_retry, retry_delay, MAX_PROVIDER_ATTEMPTS};
+        use kiana_domain::{ModelCallSpec, ModelRetryClass, RequestId};
         let admission = self
             .model_budget
             .lock()
@@ -1439,6 +1440,25 @@ impl KianaHarness {
             } else {
                 None
             };
+            let admission_lease_digest = permit.as_ref().map(|permit| {
+                json_digest(&json!({
+                    "permit_id": permit.permit_id,
+                    "attempt_id": permit.attempt_id,
+                    "request_hash": permit.request_hash,
+                }))
+            });
+            let mut attempt_reservation = RetryAttemptReservation::new(
+                QuotaReservationId::new(),
+                run.run_id,
+                AttemptId::from_uuid(attempt_id.as_uuid()),
+                attempt + 1,
+                budget.total,
+                deadline,
+                admission_lease_digest,
+            )?;
+            // The reservation is the per-attempt fence.  It is marked before entering the
+            // existing ModelClient boundary and can only reach one terminal state below.
+            attempt_reservation.dispatch()?;
             let mut redactor = StreamingRedactor::new();
             let mut stream = ModelStreamAccumulator::new(model_attempt_id);
             let run_id = run.run_id;
@@ -1497,6 +1517,17 @@ impl KianaHarness {
                 ),
                 None => None,
             };
+            let cancellation_requested = cancellation.error().map_err(|e| e.to_string())?.is_some();
+            if cancellation_requested
+                || result.as_ref().err().is_some_and(|error| {
+                    error.request_sent
+                        || error.side_effect_state == kiana_domain::ModelSideEffectState::Unknown
+                })
+            {
+                attempt_reservation.mark_unknown(measured)?;
+            } else {
+                attempt_reservation.settle(measured)?;
+            }
             self.budget_ledger.settle_attempt(reservation, measured)?;
             if let Some(guard) = &admission {
                 guard
@@ -1508,6 +1539,28 @@ impl KianaHarness {
                 .as_ref()
                 .ok()
                 .and_then(|reply| reply.output.usage.as_ref());
+            let retry_reservation = attempt_reservation.clone();
+            let retry_decision = result
+                .as_ref()
+                .err()
+                .map(|error| {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_err(|_| "model_clock_untrusted".to_owned())?
+                        .as_millis()
+                        .min(u128::from(u64::MAX)) as u64;
+                    classify_retry(
+                        error,
+                        observed_delta,
+                        attempt + 1,
+                        attempt + 1,
+                        now,
+                        deadline,
+                        error.side_effect_state == kiana_domain::ModelSideEffectState::None
+                            && !observed_delta,
+                    )
+                })
+                .transpose()?;
             let budget_usage = self.budget_ledger.snapshot(&budget_scope)?;
             emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
                 "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"model_attempt_id":model_attempt_id,
@@ -1520,6 +1573,7 @@ impl KianaHarness {
                 "provider_request_id_status":if result.as_ref().ok().and_then(|reply|reply.provider_request_id.as_ref()).is_some() {"known"} else {"unknown"},
                 "provider_response_id_status":if result.as_ref().ok().and_then(|reply|reply.provider_response_id.as_ref()).is_some() {"known"} else {"unknown"},
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
+                "retry_reservation":retry_reservation,
                 "harness_budget":{"schema":crate::budget::HARNESS_BUDGET_SCHEMA,"scope":budget_scope,"source":budget_limits.source.as_str(),"max_model_steps_per_turn":budget_limits.max_model_steps_per_turn,"max_attempts_per_task":budget_limits.max_attempts_per_task,"max_tool_calls_per_task":budget_limits.max_tool_calls_per_task,"max_repairs_per_task":budget_limits.max_repairs_per_task,"max_compactions_per_task":budget_limits.max_compactions_per_task,"max_tokens_per_task":budget_limits.max_tokens_per_task,"model_attempts":budget_usage.model_attempts,"tool_calls":budget_usage.tool_calls,"repairs":budget_usage.repairs,"compactions":budget_usage.compactions,"reserved_tokens":budget_usage.reserved_tokens,"charged_tokens":budget_usage.charged_tokens,"unknown_attempts":budget_usage.unknown_attempts},
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
@@ -1548,6 +1602,9 @@ impl KianaHarness {
                 }
                 Err(error)
                     if attempt + 1 < MAX_PROVIDER_ATTEMPTS
+                        && retry_decision
+                            .as_ref()
+                            .is_some_and(|decision| decision.retry)
                         && is_safe_to_retry(&error, observed_delta) =>
                 {
                     if matches!(error.retry_class, kiana_domain::ModelRetryClass::Rejected) {
