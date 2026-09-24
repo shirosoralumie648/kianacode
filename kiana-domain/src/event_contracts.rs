@@ -40,6 +40,7 @@ const MODEL_ATTEMPT_LIFECYCLE_IDS: &[&str] = &[
 ];
 const SETTLEMENT_FOLD_IDS: &[&str] =
     &["run_id", "model_attempt_id", "attempt_id", "reservation_id"];
+const COST_IDS: &[&str] = &["run_id", "attempt_id", "usage_digest"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -365,6 +366,19 @@ const SETTLEMENT_FOLD_FIELDS: &[&str] = &[
     "source_refs",
     "revision",
     "event_digest",
+];
+const COST_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "run_id",
+    "attempt_id",
+    "usage_digest",
+    "usage_confidence",
+    "rate_card_id",
+    "rate_card_version",
+    "kind",
+    "lines",
+    "breakdown_digest",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
     "approval_id",
@@ -865,6 +879,30 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         SETTLEMENT_FOLD_IDS,
         SETTLEMENT_FOLD_FIELDS,
         true,
+        None
+    ),
+    spec!(
+        "usage.cost_estimated",
+        "billing_attempt",
+        COST_IDS,
+        COST_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "usage.cost_measured",
+        "billing_attempt",
+        COST_IDS,
+        COST_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "usage.cost_unknown",
+        "billing_attempt",
+        COST_IDS,
+        COST_FIELDS,
+        false,
         None
     ),
     spec!(

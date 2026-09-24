@@ -17,6 +17,7 @@ pub mod config;
 pub mod connector_health;
 pub mod context_inputs;
 pub mod context_manifest;
+pub mod cost_projector;
 pub mod data_boundary;
 pub mod deps;
 pub mod hook_cancellation;
@@ -45,6 +46,10 @@ pub use context_inputs::repo_map_candidate;
 pub use context_manifest::{
     read_context_material_manifest, write_context_material_manifest_atomic,
     ContextMaterialManifest, CONTEXT_MATERIAL_MANIFEST_SCHEMA,
+};
+pub use cost_projector::{
+    project_cost_receipt, project_receipt_cost, CostQueryProjectionError, CostReceiptProjection,
+    COST_QUERY_PROJECTION_SCHEMA, COST_QUERY_PROJECTION_VERSION,
 };
 pub use data_boundary::{QueryDataBoundary, QueryDataDisposition, QUERY_DATA_BOUNDARY_SCHEMA};
 pub use deps::QueryDeps;

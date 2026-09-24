@@ -38,6 +38,8 @@ pub struct ReceiptAggregation {
     pub memory_hits: u64,
     pub evidence_ref_digests: Vec<String>,
     pub provider_receipt_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_breakdown: Option<crate::ReceiptCostBreakdown>,
     pub verification: AggregationVerification,
     pub aggregation_digest: String,
 }
@@ -82,12 +84,60 @@ impl ReceiptAggregation {
             memory_hits,
             evidence_ref_digests,
             provider_receipt_refs,
+            cost_breakdown: None,
             verification,
             aggregation_digest: String::new(),
         };
         aggregation.aggregation_digest = aggregation.digest();
         aggregation.validate()?;
         Ok(aggregation)
+    }
+
+    /// Attach the BQ-13 cost projection while preserving this legacy aggregation's JSON shape for
+    /// callers that have no cost facts.  The breakdown is still a read-only projection and cannot
+    /// authorize a budget or mutate a ledger.
+    pub fn with_cost_breakdown(
+        mut self,
+        cost_breakdown: crate::ReceiptCostBreakdown,
+    ) -> Result<Self, String> {
+        cost_breakdown.validate()?;
+        self.cost_breakdown = Some(cost_breakdown);
+        let (estimated, measured) = self
+            .cost_breakdown
+            .as_ref()
+            .map(|breakdown| {
+                (
+                    breakdown.estimated_total.as_ref(),
+                    breakdown.measured_total.as_ref(),
+                )
+            })
+            .unwrap_or((None, None));
+        if self
+            .cost_breakdown
+            .as_ref()
+            .is_some_and(|breakdown| breakdown.has_unknown())
+        {
+            self.cost_micros = None;
+            self.cost_estimated = false;
+        } else {
+            match (estimated, measured) {
+                (Some(amount), None) => {
+                    self.cost_micros = u64::try_from(amount.micros).ok();
+                    self.cost_estimated = self.cost_micros.is_some();
+                }
+                (None, Some(amount)) => {
+                    self.cost_micros = u64::try_from(amount.micros).ok();
+                    self.cost_estimated = false;
+                }
+                _ => {
+                    self.cost_micros = None;
+                    self.cost_estimated = false;
+                }
+            }
+        }
+        self.aggregation_digest = self.digest();
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn from_json(value: &Value) -> Result<Self, String> {
@@ -130,6 +180,12 @@ impl ReceiptAggregation {
         if self.aggregation_digest != self.digest() {
             return Err("receipt_aggregation_digest_mismatch".to_owned());
         }
+        if let Some(cost_breakdown) = &self.cost_breakdown {
+            cost_breakdown.validate()?;
+            if cost_breakdown.has_unknown() && self.cost_micros.is_some() {
+                return Err("receipt_cost_unknown_must_remain_visible".to_owned());
+            }
+        }
         Ok(())
     }
 
@@ -150,6 +206,7 @@ impl ReceiptAggregation {
             "memory_hits": self.memory_hits,
             "evidence_ref_digests": self.evidence_ref_digests,
             "provider_receipt_refs": self.provider_receipt_refs,
+            "cost_breakdown": self.cost_breakdown,
             "verification": self.verification,
         }))
     }

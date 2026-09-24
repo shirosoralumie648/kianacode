@@ -322,6 +322,10 @@ pub(crate) fn receipt_from_events(
     let aggregation = aggregate_receipt_facts(run_id, events)
         .and_then(|aggregation| aggregation.to_json())
         .unwrap_or_else(|error| json!({"error": error, "verification": "unknown"}));
+    let cost_breakdown = aggregation
+        .get("cost_breakdown")
+        .cloned()
+        .unwrap_or(Value::Null);
     let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -358,6 +362,7 @@ pub(crate) fn receipt_from_events(
             "projection": projection_lag_from_events(events),
             "execution_receipts": typed_execution_receipts,
             "aggregation": aggregation,
+            "cost_breakdown": cost_breakdown,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "observability": observability_from_events(run_id, events),
@@ -604,7 +609,7 @@ pub fn aggregate_receipt_facts(
         .rev()
         .take(kiana_domain::MAX_SOURCE_EVENT_IDS)
         .collect();
-    kiana_domain::ReceiptAggregation::new(
+    let mut aggregation = kiana_domain::ReceiptAggregation::new(
         source_cursor,
         source_event_ids,
         model_turns,
@@ -619,7 +624,13 @@ pub fn aggregate_receipt_facts(
         evidence_ref_digests,
         provider_receipt_refs,
         verification,
-    )
+    )?;
+    if let Some(cost_breakdown) = kiana_domain::project_receipt_cost_breakdown(run_id, &events)
+        .map_err(|reason| format!("receipt_cost_projection:{reason}"))?
+    {
+        aggregation = aggregation.with_cost_breakdown(cost_breakdown)?;
+    }
+    Ok(aggregation)
 }
 pub(crate) fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestContext) -> bool {
     let Some(identity) = events.iter().find(|event| event.kind == "run.authorized") else {

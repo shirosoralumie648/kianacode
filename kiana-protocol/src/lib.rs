@@ -18,6 +18,11 @@ pub use kiana_domain::{
     MODEL_ATTEMPT_EVENT_VERSION, MODEL_ATTEMPT_LIFECYCLE_SCHEMA, MODEL_ATTEMPT_LIFECYCLE_VERSION,
 };
 pub use kiana_domain::{
+    CostBreakdown, CostBreakdownKind, CostLine, ReceiptCostBreakdown, COST_BREAKDOWN_SCHEMA,
+    COST_BREAKDOWN_VERSION, COST_EVENT_ESTIMATED, COST_EVENT_MEASURED, COST_EVENT_UNKNOWN,
+    RECEIPT_COST_BREAKDOWN_SCHEMA,
+};
+pub use kiana_domain::{
     normalize_role_path, redact_text, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
     AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
