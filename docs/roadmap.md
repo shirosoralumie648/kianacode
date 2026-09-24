@@ -676,7 +676,7 @@
 | 503 | W6 | 专项 | [`SC-30`](roadmap/security-compliance.md#step-sc-30) | provider/model/prompt-pack/MCP route attestation | `SC-17`、`SC-26`、`SC-29` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-30) |
 | 504 | W6 | 专项 | [`SC-31`](roadmap/security-compliance.md#step-sc-31) | kiana-protocol/kiana-eventlog AuditRecord schema | `SC-02`、`SC-03`、`SC-05`、`SC-20` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-31) |
 | **W7** | **CompanyOS 业务闭环** |  |  |  |  |  |  |
-| 505 | W7 | 专项 | [`CP-23`](roadmap/control-plane.md#step-cp-23) | ControlPlane · Company 命令也使用控制面事务 | `CP-04`、`CP-07`、`CP-08`、`CP-13` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-23) |
+| 505 | W7 | 专项 | [`CP-23`](roadmap/control-plane.md#step-cp-23) | ControlPlane · Company 命令也使用控制面事务 | `CP-04`、`CP-07`、`CP-08`、`CP-13` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-23) |
 | 506 | W7 | 专项 | [`CP-24`](roadmap/control-plane.md#step-cp-24) | ControlPlane · 调度、WorkPacket、委派与 Workflow | `CP-11`、`CP-12`、`CP-17`、`CP-23` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-24) |
 | 507 | W7 | 专项 | [`ER-28`](roadmap/event-receipt-recovery.md#step-er-28) | Event / Receipt / Recovery · CompanyOS / Workflow / Artifact 业务引用 | `ER-27` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-28) |
 | 508 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | ⏳ | [专项卡](roadmap/companyos.md#step-co-09) |

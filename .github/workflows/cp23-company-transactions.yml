@@ -1,0 +1,51 @@
+name: CP-23 Company transactions
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/tests/cp23_company_policy.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/tests/cp23_company_transaction_guard.rs"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap/cp23-company-transactions-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp23-company-transactions.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/tests/cp23_company_policy.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/tests/cp23_company_transaction_guard.rs"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap/cp23-company-transactions-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp23-company-transactions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-transactions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run Company decision binding fixtures
+        run: cargo test -p kiana-domain --test cp23_company_policy --locked -- --test-threads=1
+      - name: Run Company transaction source guard
+        run: cargo test -p kiana-core --test cp23_company_transaction_guard --locked -- --test-threads=1
+      - name: Compile Company transaction targets
+        run: cargo check --workspace --tests --locked
+

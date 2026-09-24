@@ -11769,3 +11769,16 @@ status change: SC-31 source slice and CI wiring implemented; roadmap row 504/car
 proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: no audit projector/query/export, durable projection checkpoint, incident workflow, external effect or live/physical audit proof is claimed; EventLog remains the sole fact source
 reviewer: Codex source review of deny-first audit-kind filtering, strict envelope/digest/source binding, redaction metadata, idempotency binding and no-write boundary; no local runtime test reviewer
+
+### CP-23 Company command transaction evidence (2026-09-24)
+
+source_snapshot: origin/master `0cc07fd6` plus isolated CP-23 source slice; `kiana-domain/src/company_policy.rs`; `kiana-core/src/company.rs`; `kiana-core/src/authority.rs`; `kiana-domain/tests/cp23_company_policy.rs`; `kiana-core/tests/cp23_company_transaction_guard.rs`; `.github/workflows/cp23-company-transactions.yml`; `docs/roadmap/cp23-company-transactions-baseline.md`; `docs/roadmap/control-plane.md`; `docs/roadmap.md`
+worktree_status: CP-23 Company mutations now revalidate the server-created human decision against actor, role, session, command digest, expected revision, authority scope and expiry before `CompanyState::transition`; the existing protected commit builds a Company/authority `TransitionBatch`, and the receipt is created after commit; no unrelated WIP was changed
+command_argv: `rustfmt --edition 2021 kiana-domain/src/company_policy.rs kiana-core/src/company.rs kiana-domain/tests/cp23_company_policy.rs kiana-core/tests/cp23_company_transaction_guard.rs`; `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-domain --test cp23_company_policy --locked -- --test-threads=1`; `cargo test -p kiana-core --test cp23_company_transaction_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: isolated CP-23 worktree `/tmp/kiana-step-cp23`; Linux x86_64; stable Rust; local tests, build, check, clippy and smoke commands deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture·cassette: GitHub-only decision binding deny/acceptance fixtures and Company transaction source guard; no provider, Broker or external business-effect cassette
+exit_code: local rustfmt and `git diff --check` are the only planned verification commands; local runtime/test/build/check/clippy/smoke commands are intentionally unrun; remote CI result pending and unobserved
+status change: `feature_status=implemented` for the CP-23 source slice and GitHub fixture wiring; roadmap row 505/card remain 🔄 pending dedicated CI evidence
+proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no claim of a cross-process durable Company transaction, physical power-loss recovery, external business-effect correctness, live provider effect, or physical proof; receipt remains a committed server projection and CI has not been observed
+reviewer: Codex source review of human-decision binding, Company/authority transaction ordering, post-commit receipt creation, strict request boundary and no second execution loop; no local runtime test reviewer

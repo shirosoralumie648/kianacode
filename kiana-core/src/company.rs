@@ -335,6 +335,15 @@ impl ControlPlane {
             }
             Err(error) => return Err(error.into()),
         };
+        if let Err(reason) = request.command.policy().validate_decision_for(
+            proof.human_decision(),
+            &context,
+            &request.command,
+            state.revision,
+            company_now(),
+        ) {
+            return self.reject_company(&context, &reason).await;
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,

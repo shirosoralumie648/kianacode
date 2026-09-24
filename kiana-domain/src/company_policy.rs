@@ -257,6 +257,58 @@ impl CompanyCommandPolicy {
         .map(Some)
     }
 
+    /// Revalidate the server-created human decision at the Company transaction boundary.
+    ///
+    /// A decision is an input to authorization, not a receipt that a caller may copy into a
+    /// command payload. Binding the command digest, expected revision, authenticated scope and
+    /// expiry here keeps approval and acceptance subjects separate from the business transition.
+    pub fn validate_decision_for(
+        &self,
+        decision: Option<&HumanDecision>,
+        context: &RequestContext,
+        command: &CompanyCommand,
+        expected_revision: u64,
+        now_unix_ms: u64,
+    ) -> Result<(), String> {
+        self.validate()?;
+        let Some(decision) = decision else {
+            return if self.purpose.requires_human() {
+                Err("company_human_decision_missing".to_owned())
+            } else {
+                Ok(())
+            };
+        };
+        if !self.purpose.requires_human() {
+            return Err("company_unexpected_human_decision".to_owned());
+        }
+        decision.validate()?;
+        let actor = context
+            .actor_id
+            .as_deref()
+            .filter(|actor| !actor.trim().is_empty())
+            .ok_or_else(|| "company_human_decision_actor_missing".to_owned())?;
+        let expected_scope = json_digest(&json!({
+            "actor": actor,
+            "project_root": context.project_root,
+            "role_id": context.role_id,
+            "department_id": context.department_id,
+            "session_id": context.session_id,
+        }));
+        if decision.decider_principal_id != actor
+            || decision.actor_kind != DecisionActorKind::Human
+            || decision.role_id != context.role_id
+            || decision.session_id != context.session_id
+            || decision.command_name != command.event_name()
+            || decision.target_revision != expected_revision
+            || decision.target_digest != json_digest(&json!(command))
+            || decision.scope_digest != expected_scope
+            || !decision.active_at(now_unix_ms)
+        {
+            return Err("company_human_decision_binding_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
