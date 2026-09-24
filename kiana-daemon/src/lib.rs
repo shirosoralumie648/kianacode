@@ -46,7 +46,8 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
     IdentityMigration, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
-    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
+    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent, UiActionCommand,
+    UiActionRecord,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -487,6 +488,64 @@ impl DaemonHost {
     /// A UI precondition only: the command still passes through ControlPlane authorization.
     pub fn claim_ui_action(&self, action: &UiAction) -> Result<UiCursor, PortError> {
         self.run_stream.claim_ui_action(action)
+    }
+
+    /// Persist a UI action admission through the ControlPlane journal.  The legacy cursor claim
+    /// above remains a cheap display precondition; it never replaces this durable authority.
+    pub async fn admit_ui_action(
+        &self,
+        action: &UiActionCommand,
+        authority: &kiana_core::UiActionAuthoritySnapshot,
+        now_unix_ms: u64,
+    ) -> Result<UiActionRecord, PortError> {
+        self.core
+            .admit_ui_action(action, authority, now_unix_ms)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn apply_ui_action(
+        &self,
+        action: &UiActionCommand,
+        receipt_digest: &str,
+        now_unix_ms: u64,
+    ) -> Result<UiActionRecord, PortError> {
+        self.core
+            .apply_ui_action(action, receipt_digest, now_unix_ms)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn reject_ui_action(
+        &self,
+        action: &UiActionCommand,
+        reason: &str,
+    ) -> Result<UiActionRecord, PortError> {
+        self.core
+            .reject_ui_action(action, reason)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn mark_ui_action_unknown(
+        &self,
+        action: &UiActionCommand,
+        reason: &str,
+    ) -> Result<UiActionRecord, PortError> {
+        self.core
+            .mark_ui_action_unknown(action, reason)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    pub async fn query_original_ui_action(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<UiActionRecord>, PortError> {
+        self.core
+            .query_original_ui_action(idempotency_key)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
     /// Build a disposable UI snapshot exclusively from this principal's event facts.
