@@ -41,6 +41,7 @@ fn snapshot(status: &str) -> ConnectorBindingSnapshot {
         write_scopes: BTreeSet::from(["write".to_owned()]),
         fixture_path: "fixtures/connector.json".to_owned(),
         fixture_sha256: format!("sha256:{}", "a".repeat(64)),
+        credential_ref: None,
     };
     ConnectorBindingSnapshot {
         definition,

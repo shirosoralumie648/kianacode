@@ -2,12 +2,14 @@
 
 use crate::local_packages::{failed, sha256, LocalDir};
 use async_trait::async_trait;
-use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
+use kiana_capability_broker::{
+    consume_connector_credential_invocation, CapabilityBroker, CapabilityHandler,
+};
 use kiana_domain::{
     connector_bindings, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    ConnectorBindingSnapshot, EffectObservation, ExecutionId, InvocationId, ProviderOutcome,
-    ProviderReceipt, RuntimeEvent, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
-    CONNECTOR_STREAM,
+    ConnectorBindingSnapshot, ConnectorCredentialInvocation, EffectObservation, ExecutionId,
+    InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent, CONNECTOR_CREDENTIAL_MAX_TTL_MS,
+    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_STREAM,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde::Deserialize;
@@ -243,6 +245,29 @@ impl ConnectorRegistry {
                     .iter()
                     .find(|case| &case.payload == payload)
                     .ok_or_else(|| failed("connector_fixture_payload_mismatch"))?;
+                let credential_evidence = if let Some(secret_ref) = &snapshot.binding.credential_ref
+                {
+                    let mut credential = ConnectorCredentialInvocation::issue(
+                        &snapshot,
+                        operation,
+                        request.request.request_id,
+                        &idempotency,
+                        secret_ref,
+                        now,
+                        CONNECTOR_CREDENTIAL_MAX_TTL_MS,
+                    )
+                    .map_err(failed)?;
+                    Some(consume_connector_credential_invocation(
+                        &mut credential,
+                        &snapshot,
+                        operation,
+                        request.request.request_id,
+                        &idempotency,
+                        now,
+                    )?)
+                } else {
+                    None
+                };
                 let receipt = ProviderReceipt {
                     schema: "kiana.provider-receipt.v1".to_owned(),
                     connector_id: snapshot.definition.connector_id.clone(),
@@ -258,11 +283,15 @@ impl ConnectorRegistry {
                 };
                 let observation = effect_observation_for(&receipt, request, project, actor, now)?;
                 let mut output = receipt_output(&receipt, next_version);
+                if let Some(evidence) = &credential_evidence {
+                    output["credential_evidence"] = serde_json::to_value(evidence)
+                        .map_err(|_| failed("connector_credential_evidence_encode_failed"))?;
+                }
                 output["effect_observation"] = serde_json::to_value(&observation)
                     .map_err(|_| failed("effect_observation_encode_failed"))?;
                 (
                     "connector.invoked",
-                    json!({"receipt":receipt,"effect_observation":observation,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
+                    json!({"receipt":receipt,"credential_evidence":credential_evidence,"effect_observation":observation,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
                     output,
                 )
             }

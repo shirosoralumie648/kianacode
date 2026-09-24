@@ -11598,3 +11598,36 @@ status change: CM-36 source slice and CI wiring are implemented; roadmap row 641
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: typed list/plan/result/export contracts only; no daemon/UI adapter, mutation execution, durable atomic transaction, approval UX, receipt persistence, artifact export, recovery behavior or physical deletion is claimed. Previously failing P4-J7-18 runs 35832638463 and 35832756821 stopped at cargo fmt because this declared module file was absent; their provider tests were skipped and require a later rerun.
 reviewer: Codex source review of ACL denial, private preview/export redaction, list relation filtering, expected revisions, privileged mutation authority, atomic/split/unknown result integrity, and no direct storage/execution path; no runtime test reviewer
+
+### INT-06 connector credential binding evidence (2026-09-23)
+
+source_snapshot: origin/master 14046890 + INT-06 source commit 05339cae + operator-boundary follow-up; kiana-domain/src/{connector_credentials.rs,connectors.rs,contracts.rs,lib.rs}; kiana-domain/tests/{int06_connector_credential.rs,p4_k8_01_connector.rs}; kiana-capability-broker/src/lib.rs; kiana-capability-broker/tests/int06_connector_credential.rs; kiana-daemon/src/connectors.rs; kiana-core/tests/int06_connector_credential_guard.rs; .github/workflows/int06-connector-credential.yml; docs/roadmap/int06-connector-credential-baseline.md; docs/roadmap/integrations-connectors.md; docs/roadmap.md
+worktree_status: Added an optional opaque env SecretRef to AccountBinding with environment-variable-name validation. Only the separately authorized connector.manage bind action can set it; bind requires operator mutation fields, validates the typed binding, and carries ExternalSideEffect risk before normal authorization. The connector.invoke allowlist accepts no SecretRef, credential_ref, lease, or credential override. A strict metadata-only invocation contract binds CI-07 CredentialLease to connector/version, full binding digest/revision, account, operation, invocation id, idempotency digest, exact SecretRef generation and local-fixture target digest. Daemon invokes the Broker consume helper after fixture payload matching and before appending the invocation fact; current local-fixture execution never resolves raw credential material.
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/connector_credentials.rs kiana-domain/src/connectors.rs kiana-domain/src/contracts.rs kiana-domain/tests/int06_connector_credential.rs kiana-domain/tests/p4_k8_01_connector.rs kiana-capability-broker/src/lib.rs kiana-capability-broker/tests/int06_connector_credential.rs kiana-daemon/src/connectors.rs kiana-core/tests/int06_connector_credential_guard.rs
+  cargo fmt --all --check
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test int06_connector_credential --locked -- --test-threads=1; cargo test -p kiana-capability-broker --test int06_connector_credential --locked -- --test-threads=1; cargo test -p kiana-core --test int06_connector_credential_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd/environment: independent worktree `.claude/worktrees/int-06-credential-binding-20260923-cm36` based on `origin/master` 14046890; Linux x86_64; stable Rust; local tests/build/check/clippy deliberately not run; GitHub CI is the test authority
+fixture·cassette: GitHub-only domain and Broker fixtures cover exact binding/success, wrong account/operation/idempotency/purpose/audience/target, non-reference env key, expiry, mutable non-one-shot and overlong lease rejection, same-object replay and strict unknown-field rejection; core/daemon source guard covers command argument exclusion of invocation-level credentials and broker consume wiring
+exit_code: 0 for targeted rustfmt, `cargo fmt --all --check`, and `git diff --check`; no local tests/build/check/clippy run. GitHub CI not run or awaited; INT-06 remains 🔄 pending CI evidence.
+status change: INT-06 metadata contract and CI wiring are implemented in this branch; roadmap row 409 is 🔄 pending integration and CI evidence
+proof-level change: source plus CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: connector local_fixture does not resolve credential material or make external requests; real adapter resolution/effect wiring remains INT-07/INT-11. The inherited mutable in-process lease only proves repeated consumption of the same object, not durable/cross-process replay prevention; a later external adapter needs atomic lease-id fencing. No tests/build were run locally, and GitHub CI is pending/not awaited.
+reviewer: Codex implementation/source review plus explicit invoke allowlist exclusion and operator bind typed-validation/ExternalSideEffect guard review; no runtime test reviewer
+
+### INT-06 operator bind boundary follow-up (2026-09-23)
+
+source_snapshot: origin/master 14046890 + INT-06 05339cae + follow-up source/documentation changes; kiana-core/tests/int06_connector_credential_guard.rs; docs/roadmap/int06-connector-credential-baseline.md; docs/roadmap.md; CURRENT_STATUS.md
+worktree_status: Clarified that invoke rejects caller-provided SecretRef/credential_ref/lease overrides, while only the separately authorized operator `connector.manage` `bind` action may set a typed, validated opaque reference. The source guard now checks protected operator/project-trust preconditions, invoke allowlist exclusion, bind mutation fields, `AccountBinding` decode/validation and `ExternalSideEffect` risk. No production source changed.
+command_argv:
+  rustfmt --edition 2021 kiana-core/tests/int06_connector_credential_guard.rs
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: fresh worktree `.claude/worktrees/int06-operator-boundary-followup-20260923` based on `origin/master` 14046890; Linux x86_64; stable Rust
+fixture·cassette: expanded GitHub-only core source guard; not executed locally
+exit_code: 0 for targeted rustfmt, `cargo fmt --all --check`, and `git diff --check`; local tests/build/check/clippy deliberately not run; GitHub CI not run or awaited
+status change: documentation and source guard now distinguish operator bind configuration from invocation inputs; INT-06 remains 🔄 pending GitHub CI evidence
+proof-level change: source/documentation review only; no local_behavior, durable, live or physical promotion
+limitations: source guard assertions have not run; no tests or build were run locally; raw-secret resolution and external connector effects remain deferred
+reviewer: Codex source review of ControlPlane operator/project-trust checks, invoke field allowlist, bind typed validation and risk classification
