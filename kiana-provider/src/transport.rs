@@ -66,12 +66,31 @@ async fn send_inner_attempt(
     prepared: PreparedModelCall,
     sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
 ) -> Result<ModelReply, ModelError> {
+    // Capacity policy is immutable, server-owned state bound to the provider/origin/credential
+    // quota group.  Validate the same policy before touching a waiter or active semaphore so a
+    // profile alias, credential revision or model switch cannot bypass RPM/TPM admission.
+    connection
+        .capacity_policy
+        .validate()
+        .map_err(ModelError::invalid)?;
+    let requested_tokens = prepared.budget.total.max(1);
+    if requested_tokens > connection.capacity_policy.tokens_per_minute {
+        return Err(ModelError::transport(
+            "provider_capacity_tpm_exceeded",
+            ModelRetryClass::Never,
+            false,
+        ));
+    }
     let queue_slot = connection
         .queue_slots
         .clone()
         .try_acquire_owned()
         .map_err(|_| {
-            ModelError::transport("provider_capacity_queue_full", ModelRetryClass::Never, false)
+            ModelError::transport(
+                "provider_capacity_queue_full",
+                ModelRetryClass::Never,
+                false,
+            )
         })?;
     let _capacity = connection
         .capacity
@@ -86,6 +105,16 @@ async fn send_inner_attempt(
     if lease_now >= prepared.spec.deadline_unix_ms {
         return Err(ModelError::invalid("model_deadline_expired"));
     }
+    connection
+        .capacity_window
+        .reserve(&connection.capacity_policy, lease_now, requested_tokens)
+        .map_err(|reason| {
+            if reason == "provider_capacity_quota_exhausted" {
+                ModelError::transport(reason, ModelRetryClass::Rejected, false)
+            } else {
+                ModelError::invalid(reason)
+            }
+        })?;
     let endpoint_digest = json_digest(&serde_json::json!(connection.endpoint.as_str()));
     let mut material = connection
         .credential_ref

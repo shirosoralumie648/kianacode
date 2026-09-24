@@ -4,14 +4,18 @@
 //! ControlPlane permit or perform a provider request.  A durable quota adapter may persist the
 //! same identities, while the in-memory fair queue below is intentionally bounded and disposable.
 
-use crate::{json_digest, AttemptId, CapabilitySupport, ModelCapabilities, ModelRoute, QuotaGroupKey,
-    RunId, SchemaVersion};
+use crate::{
+    json_digest, AttemptId, CapabilitySupport, ModelCapabilities, ModelRoute, QuotaGroupKey, RunId,
+    SchemaVersion,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
 pub const PROVIDER_CAPACITY_POLICY_SCHEMA: &str = "kiana.provider-capacity-policy.v1";
 pub const PROVIDER_CAPACITY_USAGE_SCHEMA: &str = "kiana.provider-capacity-usage.v1";
 pub const PROVIDER_CAPACITY_ENTRY_SCHEMA: &str = "kiana.provider-capacity-entry.v1";
+pub const PROVIDER_CAPACITY_ADMISSION_SCHEMA: &str = "kiana.provider-capacity-admission.v1";
+pub const PROVIDER_CAPACITY_LEASE_SCHEMA: &str = "kiana.provider-capacity-lease.v1";
 pub const PROVIDER_CIRCUIT_SCHEMA: &str = "kiana.provider-circuit.v1";
 pub const PROVIDER_FALLBACK_SCHEMA: &str = "kiana.provider-fallback.v1";
 pub const PROVIDER_CAPACITY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -20,6 +24,7 @@ pub const MAX_CAPACITY_QUEUE: u32 = 16_384;
 pub const MAX_CAPACITY_CONCURRENCY: u32 = 4_096;
 pub const MAX_CAPACITY_WINDOW_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 pub const MAX_ROUTE_ALLOWLIST: usize = 256;
+pub const MAX_CAPACITY_OWNER: usize = 256;
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains(['\0', '\r', '\n']) {
@@ -96,7 +101,11 @@ impl ProviderCapacityPolicy {
             return Err("provider_capacity_policy_invalid".to_owned());
         }
         self.group.validate()?;
-        required(&self.config_revision, "provider_capacity_config_revision", 256)?;
+        required(
+            &self.config_revision,
+            "provider_capacity_config_revision",
+            256,
+        )?;
         digest(&self.policy_digest, "provider_capacity_policy_digest")
     }
 
@@ -259,8 +268,7 @@ impl ProviderCapacityQueueEntry {
             entry_digest: String::new(),
         };
         entry.entry_digest = entry.digest();
-        entry.validate(false)
-            .map_err(|error| error.to_owned())?;
+        entry.validate(false).map_err(|error| error.to_owned())?;
         Ok(entry)
     }
 
@@ -342,9 +350,7 @@ impl ProviderCapacityQueue {
     }
 
     pub fn enqueue(&mut self, mut entry: ProviderCapacityQueueEntry) -> Result<u64, String> {
-        entry
-            .validate(false)
-            .map_err(|error| error.to_owned())?;
+        entry.validate(false).map_err(|error| error.to_owned())?;
         if self.queued >= self.policy.max_queue as usize {
             return Err("provider_capacity_queue_full".to_owned());
         }
@@ -362,9 +368,7 @@ impl ProviderCapacityQueue {
             .checked_add(1)
             .ok_or_else(|| "provider_capacity_queue_ticket_overflow".to_owned())?;
         entry.assign_ticket(ticket)?;
-        entry
-            .validate(true)
-            .map_err(|error| error.to_owned())?;
+        entry.validate(true).map_err(|error| error.to_owned())?;
         let session = entry.session_id.clone();
         let queue = self.entries.entry(session.clone()).or_default();
         if queue.is_empty() {
@@ -407,6 +411,585 @@ impl ProviderCapacityQueue {
             }
         }
         removed
+    }
+
+    /// Remove a queued attempt before it can be handed to a provider.  The returned entry is
+    /// retained by the caller so cancellation can append a fact without dispatching anything.
+    pub fn cancel_entry(&mut self, attempt_id: AttemptId) -> Option<ProviderCapacityQueueEntry> {
+        let sessions = self.entries.keys().cloned().collect::<Vec<_>>();
+        for session in sessions {
+            let Some(queue) = self.entries.get_mut(&session) else {
+                continue;
+            };
+            let Some(index) = queue
+                .iter()
+                .position(|entry| entry.attempt_id == attempt_id)
+            else {
+                continue;
+            };
+            let entry = queue.remove(index)?;
+            self.queued = self.queued.saturating_sub(1);
+            if queue.is_empty() {
+                self.entries.remove(&session);
+                self.rotation.retain(|queued| queued != &session);
+            }
+            return Some(entry);
+        }
+        None
+    }
+}
+
+/// The four typed outcomes at the provider capacity boundary.  They describe admission only;
+/// none of them invokes a provider or grants a ControlPlane capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderCapacityOutcomeKind {
+    Accept,
+    Queue,
+    Delay,
+    Reject,
+}
+
+impl ProviderCapacityOutcomeKind {
+    pub fn is_dispatchable(self) -> bool {
+        self == Self::Accept
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCapacityRequest {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub session_id: String,
+    pub run_id: RunId,
+    pub attempt_id: AttemptId,
+    pub group: QuotaGroupKey,
+    pub window: QuotaWindow,
+    pub requested_tokens: u64,
+    pub requested_at_unix_ms: u64,
+    pub deadline_unix_ms: u64,
+    pub request_digest: String,
+}
+
+impl ProviderCapacityRequest {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        session_id: impl Into<String>,
+        run_id: RunId,
+        attempt_id: AttemptId,
+        group: QuotaGroupKey,
+        window: QuotaWindow,
+        requested_tokens: u64,
+        requested_at_unix_ms: u64,
+        deadline_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let mut request = Self {
+            schema: PROVIDER_CAPACITY_ADMISSION_SCHEMA.to_owned(),
+            version: PROVIDER_CAPACITY_VERSION,
+            session_id: session_id.into(),
+            run_id,
+            attempt_id,
+            group,
+            window,
+            requested_tokens,
+            requested_at_unix_ms,
+            deadline_unix_ms,
+            request_digest: String::new(),
+        };
+        request.request_digest = request.digest();
+        request.validate()?;
+        Ok(request)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CAPACITY_ADMISSION_SCHEMA
+            || !self.version.is_compatible_with(&PROVIDER_CAPACITY_VERSION)
+            || self.session_id.trim().is_empty()
+            || self.session_id.len() > MAX_CAPACITY_OWNER
+            || self.session_id.contains(['\0', '\r', '\n'])
+            || self.run_id.as_uuid().is_nil()
+            || self.attempt_id.as_uuid().is_nil()
+            || self.requested_tokens == 0
+            || self.requested_at_unix_ms == 0
+            || self.deadline_unix_ms <= self.requested_at_unix_ms
+            || self.request_digest != self.digest()
+            || digest(&self.request_digest, "provider_capacity_request_digest").is_err()
+        {
+            return Err("provider_capacity_request_invalid".to_owned());
+        }
+        self.group.validate()?;
+        self.window.validate()?;
+        if self.requested_at_unix_ms < self.window.start_unix_ms {
+            return Err("provider_capacity_clock_rollback".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "session_id": self.session_id,
+            "run_id": self.run_id,
+            "attempt_id": self.attempt_id,
+            "group": self.group,
+            "window": self.window,
+            "requested_tokens": self.requested_tokens,
+            "requested_at_unix_ms": self.requested_at_unix_ms,
+            "deadline_unix_ms": self.deadline_unix_ms,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCapacityOutcome {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub kind: ProviderCapacityOutcomeKind,
+    pub attempt_id: AttemptId,
+    pub group_digest: String,
+    pub window_digest: String,
+    pub policy_digest: String,
+    pub queue_ticket: Option<u64>,
+    pub queue_wait_ms: Option<u64>,
+    pub retry_after_ms: Option<u64>,
+    pub reason: Option<String>,
+    pub outcome_digest: String,
+}
+
+impl ProviderCapacityOutcome {
+    fn new(
+        kind: ProviderCapacityOutcomeKind,
+        request: &ProviderCapacityRequest,
+        policy: &ProviderCapacityPolicy,
+        queue_ticket: Option<u64>,
+        queue_wait_ms: Option<u64>,
+        retry_after_ms: Option<u64>,
+        reason: Option<String>,
+    ) -> Result<Self, String> {
+        let mut outcome = Self {
+            schema: PROVIDER_CAPACITY_ADMISSION_SCHEMA.to_owned(),
+            version: PROVIDER_CAPACITY_VERSION,
+            kind,
+            attempt_id: request.attempt_id,
+            group_digest: request.group.group_digest.clone(),
+            window_digest: request.window.window_digest.clone(),
+            policy_digest: policy.policy_digest.clone(),
+            queue_ticket,
+            queue_wait_ms,
+            retry_after_ms,
+            reason,
+            outcome_digest: String::new(),
+        };
+        outcome.outcome_digest = outcome.digest();
+        outcome.validate()?;
+        Ok(outcome)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CAPACITY_ADMISSION_SCHEMA
+            || !self.version.is_compatible_with(&PROVIDER_CAPACITY_VERSION)
+            || self.attempt_id.as_uuid().is_nil()
+            || digest(&self.group_digest, "provider_capacity_outcome_group").is_err()
+            || digest(&self.window_digest, "provider_capacity_outcome_window").is_err()
+            || digest(&self.policy_digest, "provider_capacity_outcome_policy").is_err()
+            || self.queue_ticket == Some(0)
+            || self.retry_after_ms == Some(0)
+            || self.queue_wait_ms == Some(0)
+            || self.reason.as_deref().is_some_and(|reason| {
+                reason.trim().is_empty()
+                    || reason.len() > 256
+                    || reason.contains(['\0', '\r', '\n'])
+            })
+            || self.outcome_digest != self.digest()
+            || digest(&self.outcome_digest, "provider_capacity_outcome_digest").is_err()
+        {
+            return Err("provider_capacity_outcome_invalid".to_owned());
+        }
+        match self.kind {
+            ProviderCapacityOutcomeKind::Accept => {
+                if self.queue_ticket.is_some() || self.retry_after_ms.is_some() {
+                    return Err("provider_capacity_accept_fields_invalid".to_owned());
+                }
+            }
+            ProviderCapacityOutcomeKind::Queue => {
+                if self.queue_ticket.is_none() || self.retry_after_ms.is_some() {
+                    return Err("provider_capacity_queue_fields_invalid".to_owned());
+                }
+            }
+            ProviderCapacityOutcomeKind::Delay | ProviderCapacityOutcomeKind::Reject => {
+                if self.retry_after_ms.is_none() {
+                    return Err("provider_capacity_retry_after_missing".to_owned());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "kind": self.kind,
+            "attempt_id": self.attempt_id,
+            "group_digest": self.group_digest,
+            "window_digest": self.window_digest,
+            "policy_digest": self.policy_digest,
+            "queue_ticket": self.queue_ticket,
+            "queue_wait_ms": self.queue_wait_ms,
+            "retry_after_ms": self.retry_after_ms,
+            "reason": self.reason,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCapacityLease {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub lease_id: u64,
+    pub owner: String,
+    pub attempt_id: AttemptId,
+    pub group_digest: String,
+    pub window_digest: String,
+    pub policy_digest: String,
+    pub acquired_at_unix_ms: u64,
+    pub lease_digest: String,
+}
+
+impl ProviderCapacityLease {
+    fn new(
+        lease_id: u64,
+        owner: impl Into<String>,
+        request: &ProviderCapacityRequest,
+        policy: &ProviderCapacityPolicy,
+    ) -> Result<Self, String> {
+        let mut lease = Self {
+            schema: PROVIDER_CAPACITY_LEASE_SCHEMA.to_owned(),
+            version: PROVIDER_CAPACITY_VERSION,
+            lease_id,
+            owner: owner.into(),
+            attempt_id: request.attempt_id,
+            group_digest: request.group.group_digest.clone(),
+            window_digest: request.window.window_digest.clone(),
+            policy_digest: policy.policy_digest.clone(),
+            acquired_at_unix_ms: request.requested_at_unix_ms,
+            lease_digest: String::new(),
+        };
+        lease.lease_digest = lease.digest();
+        lease.validate()?;
+        Ok(lease)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CAPACITY_LEASE_SCHEMA
+            || !self.version.is_compatible_with(&PROVIDER_CAPACITY_VERSION)
+            || self.lease_id == 0
+            || self.owner.trim().is_empty()
+            || self.owner.len() > MAX_CAPACITY_OWNER
+            || self.owner.contains(['\0', '\r', '\n'])
+            || self.attempt_id.as_uuid().is_nil()
+            || self.acquired_at_unix_ms == 0
+            || digest(&self.group_digest, "provider_capacity_lease_group").is_err()
+            || digest(&self.window_digest, "provider_capacity_lease_window").is_err()
+            || digest(&self.policy_digest, "provider_capacity_lease_policy").is_err()
+            || self.lease_digest != self.digest()
+            || digest(&self.lease_digest, "provider_capacity_lease_digest").is_err()
+        {
+            return Err("provider_capacity_lease_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "lease_id": self.lease_id,
+            "owner": self.owner,
+            "attempt_id": self.attempt_id,
+            "group_digest": self.group_digest,
+            "window_digest": self.window_digest,
+            "policy_digest": self.policy_digest,
+            "acquired_at_unix_ms": self.acquired_at_unix_ms,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProviderCapacityDecision {
+    pub outcome: ProviderCapacityOutcome,
+    pub lease: Option<ProviderCapacityLease>,
+}
+
+/// Process-local capacity authority used by adapters.  It owns only reservation/queue state;
+/// ControlPlane still decides whether the model attempt is authorized and the provider transport
+/// remains the sole place that may send a request.
+#[derive(Debug)]
+pub struct ProviderCapacityController {
+    policy: ProviderCapacityPolicy,
+    window: QuotaWindow,
+    usage: ProviderCapacityUsage,
+    queue: ProviderCapacityQueue,
+    active: BTreeMap<u64, ProviderCapacityLease>,
+    next_lease_id: u64,
+}
+
+impl ProviderCapacityController {
+    pub fn new(policy: ProviderCapacityPolicy, window: QuotaWindow) -> Result<Self, String> {
+        policy.validate()?;
+        window.validate()?;
+        let usage = ProviderCapacityUsage::new(window.start_unix_ms, window.end_unix_ms)?;
+        Ok(Self {
+            queue: ProviderCapacityQueue::new(policy.clone())?,
+            policy,
+            window,
+            usage,
+            active: BTreeMap::new(),
+            next_lease_id: 1,
+        })
+    }
+
+    pub fn policy(&self) -> &ProviderCapacityPolicy {
+        &self.policy
+    }
+
+    pub fn window(&self) -> &QuotaWindow {
+        &self.window
+    }
+
+    pub fn usage(&self) -> &ProviderCapacityUsage {
+        &self.usage
+    }
+
+    pub fn queue_len(&self) -> usize {
+        self.queue.len()
+    }
+
+    pub fn active_len(&self) -> usize {
+        self.active.len()
+    }
+
+    pub fn admit(
+        &mut self,
+        request: ProviderCapacityRequest,
+    ) -> Result<ProviderCapacityDecision, String> {
+        request.validate()?;
+        self.validate_scope(&request)?;
+        if request.requested_at_unix_ms >= request.deadline_unix_ms {
+            return self.decision(
+                ProviderCapacityOutcomeKind::Reject,
+                &request,
+                None,
+                Some(1),
+                Some("provider_capacity_deadline_expired".to_owned()),
+            );
+        }
+        if self.active.len() >= self.policy.max_concurrency as usize {
+            return self.enqueue_or_reject(request, "provider_capacity_concurrency_full");
+        }
+        if let Err(error) = self.usage.can_admit(&self.policy, request.requested_tokens) {
+            if error == "provider_capacity_quota_exhausted" {
+                let retry_after = self.window.retry_after_ms(request.requested_at_unix_ms)?;
+                return self.decision(
+                    ProviderCapacityOutcomeKind::Delay,
+                    &request,
+                    None,
+                    Some(retry_after.max(1)),
+                    Some("provider_capacity_quota_window_exhausted".to_owned()),
+                );
+            }
+            return Err(error);
+        }
+        self.accept(request)
+    }
+
+    fn validate_scope(&self, request: &ProviderCapacityRequest) -> Result<(), String> {
+        if request.group.group_digest != self.policy.group.group_digest {
+            return Err("provider_capacity_quota_group_mismatch".to_owned());
+        }
+        if request.window.window_digest != self.window.window_digest {
+            return Err("provider_capacity_window_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    fn enqueue_or_reject(
+        &mut self,
+        request: ProviderCapacityRequest,
+        reason: &str,
+    ) -> Result<ProviderCapacityDecision, String> {
+        if self.queue.len() >= self.policy.max_queue as usize {
+            let retry_after = self
+                .window
+                .retry_after_ms(request.requested_at_unix_ms)?
+                .max(1);
+            return self.decision(
+                ProviderCapacityOutcomeKind::Reject,
+                &request,
+                None,
+                Some(retry_after),
+                Some("provider_capacity_queue_full".to_owned()),
+            );
+        }
+        let mut entry = ProviderCapacityQueueEntry::new(
+            request.session_id.clone(),
+            request.run_id,
+            request.attempt_id,
+            request.requested_tokens,
+            request.requested_at_unix_ms,
+        )?;
+        let ticket = self.queue.enqueue(entry.clone())?;
+        entry.queue_ticket = ticket;
+        self.decision(
+            ProviderCapacityOutcomeKind::Queue,
+            &request,
+            Some(ticket),
+            None,
+            Some(reason.to_owned()),
+        )
+    }
+
+    fn accept(
+        &mut self,
+        request: ProviderCapacityRequest,
+    ) -> Result<ProviderCapacityDecision, String> {
+        self.accept_with_queue_wait(request, None)
+    }
+
+    fn accept_with_queue_wait(
+        &mut self,
+        request: ProviderCapacityRequest,
+        queue_wait_ms: Option<u64>,
+    ) -> Result<ProviderCapacityDecision, String> {
+        self.usage.reserve(&self.policy, request.requested_tokens)?;
+        let lease_id = self.next_lease_id;
+        self.next_lease_id = self
+            .next_lease_id
+            .checked_add(1)
+            .ok_or_else(|| "provider_capacity_lease_overflow".to_owned())?;
+        let lease = ProviderCapacityLease::new(
+            lease_id,
+            request.session_id.clone(),
+            &request,
+            &self.policy,
+        )?;
+        self.active.insert(lease_id, lease.clone());
+        let outcome = ProviderCapacityOutcome::new(
+            ProviderCapacityOutcomeKind::Accept,
+            &request,
+            &self.policy,
+            None,
+            queue_wait_ms,
+            None,
+            None,
+        )?;
+        Ok(ProviderCapacityDecision {
+            outcome,
+            lease: Some(lease),
+        })
+    }
+
+    fn decision(
+        &self,
+        kind: ProviderCapacityOutcomeKind,
+        request: &ProviderCapacityRequest,
+        queue_ticket: Option<u64>,
+        retry_after_ms: Option<u64>,
+        reason: Option<String>,
+    ) -> Result<ProviderCapacityDecision, String> {
+        Ok(ProviderCapacityDecision {
+            outcome: ProviderCapacityOutcome::new(
+                kind,
+                request,
+                &self.policy,
+                queue_ticket,
+                None,
+                retry_after_ms,
+                reason,
+            )?,
+            lease: None,
+        })
+    }
+
+    /// Dispatch the next fair queued item when a slot is available.  Delay leaves the item in the
+    /// queue and never consumes active capacity; an expired/cancelled item is removed first.
+    pub fn dispatch_next(
+        &mut self,
+        now_unix_ms: u64,
+    ) -> Result<Option<ProviderCapacityDecision>, String> {
+        if self.active.len() >= self.policy.max_concurrency as usize || self.queue.is_empty() {
+            return Ok(None);
+        }
+        let Some(entry) = self.queue.dequeue() else {
+            return Ok(None);
+        };
+        let request = ProviderCapacityRequest::new(
+            entry.session_id.clone(),
+            entry.run_id,
+            entry.attempt_id,
+            self.policy.group.clone(),
+            self.window.clone(),
+            entry.requested_tokens,
+            now_unix_ms.max(entry.enqueued_at_unix_ms),
+            now_unix_ms.saturating_add(self.policy.max_queue_wait_ms),
+        )?;
+        if request.requested_at_unix_ms >= request.deadline_unix_ms {
+            return self
+                .decision(
+                    ProviderCapacityOutcomeKind::Reject,
+                    &request,
+                    Some(entry.queue_ticket),
+                    Some(1),
+                    Some("provider_capacity_queue_wait_expired".to_owned()),
+                )
+                .map(Some);
+        }
+        if self
+            .usage
+            .can_admit(&self.policy, request.requested_tokens)
+            .is_err()
+        {
+            // Put the entry back in its fair session position.  No active slot or request quota
+            // is consumed while waiting for the UTC window to roll.
+            let _ = self.queue.enqueue(entry);
+            let retry_after = self.window.retry_after_ms(now_unix_ms)?.max(1);
+            return self
+                .decision(
+                    ProviderCapacityOutcomeKind::Delay,
+                    &request,
+                    None,
+                    Some(retry_after),
+                    Some("provider_capacity_quota_window_exhausted".to_owned()),
+                )
+                .map(Some);
+        }
+        self.accept_with_queue_wait(
+            request,
+            Some(now_unix_ms.saturating_sub(entry.enqueued_at_unix_ms).max(1)),
+        )
+        .map(Some)
+    }
+
+    pub fn cancel(&mut self, attempt_id: AttemptId) -> bool {
+        // Cancellation only removes queued work.  A leased attempt requires the ControlPlane's
+        // cancellation/fencing path and is never silently recycled here.
+        self.queue.cancel_entry(attempt_id).is_some()
+    }
+
+    pub fn release(&mut self, lease_id: u64, owner: &str) -> Result<(), String> {
+        let lease = self
+            .active
+            .get(&lease_id)
+            .ok_or_else(|| "provider_capacity_lease_unknown".to_owned())?;
+        if lease.owner != owner {
+            return Err("provider_capacity_lease_owner_mismatch".to_owned());
+        }
+        self.active.remove(&lease_id);
+        self.usage.release()
     }
 }
 
@@ -476,7 +1059,11 @@ impl ProviderCircuitBreaker {
         {
             return Err("provider_circuit_invalid".to_owned());
         }
-        required(&self.config_revision, "provider_circuit_config_revision", 256)?;
+        required(
+            &self.config_revision,
+            "provider_circuit_config_revision",
+            256,
+        )?;
         digest(&self.health_digest, "provider_circuit_digest")
     }
 
@@ -587,7 +1174,10 @@ impl FallbackRequirements {
         digest(&self.context_scope_digest, "fallback_context_scope_digest")?;
         digest(&self.data_boundary_digest, "fallback_data_boundary_digest")?;
         digest(&self.budget_digest, "fallback_budget_digest")?;
-        digest(&self.original_permit_digest, "fallback_original_permit_digest")?;
+        digest(
+            &self.original_permit_digest,
+            "fallback_original_permit_digest",
+        )?;
         if self.min_context_window == 0 || self.min_output_tokens == 0 {
             return Err("fallback_capability_requirement_invalid".to_owned());
         }
@@ -617,8 +1207,14 @@ impl FallbackCandidate {
             "fallback_configuration_revision",
             256,
         )?;
-        digest(&self.context_scope_digest, "fallback_candidate_context_scope_digest")?;
-        digest(&self.data_boundary_digest, "fallback_candidate_data_boundary_digest")?;
+        digest(
+            &self.context_scope_digest,
+            "fallback_candidate_context_scope_digest",
+        )?;
+        digest(
+            &self.data_boundary_digest,
+            "fallback_candidate_data_boundary_digest",
+        )?;
         digest(&self.budget_digest, "fallback_candidate_budget_digest")?;
         digest(&self.permit_digest, "fallback_candidate_permit_digest")?;
         let credential = self
@@ -661,12 +1257,24 @@ impl FallbackRoutePlan {
         {
             return Err("fallback_route_plan_invalid".to_owned());
         }
-        digest(&self.original_route_digest, "fallback_original_route_digest")?;
+        digest(
+            &self.original_route_digest,
+            "fallback_original_route_digest",
+        )?;
         digest(&self.fallback_route_digest, "fallback_route_digest")?;
-        digest(&self.context_scope_digest, "fallback_plan_context_scope_digest")?;
-        digest(&self.data_boundary_digest, "fallback_plan_data_boundary_digest")?;
+        digest(
+            &self.context_scope_digest,
+            "fallback_plan_context_scope_digest",
+        )?;
+        digest(
+            &self.data_boundary_digest,
+            "fallback_plan_data_boundary_digest",
+        )?;
         digest(&self.budget_digest, "fallback_plan_budget_digest")?;
-        digest(&self.credential_revision, "fallback_plan_credential_revision")?;
+        digest(
+            &self.credential_revision,
+            "fallback_plan_credential_revision",
+        )?;
         digest(&self.permit_digest, "fallback_plan_permit_digest")?;
         digest(&self.plan_digest, "fallback_plan_digest")
     }
@@ -711,7 +1319,10 @@ pub fn admit_fallback(
     }
     let original_route_digest = original_route.digest();
     let fallback_route_digest = candidate.route.digest();
-    if !allowlist.iter().any(|route| route == &fallback_route_digest) {
+    if !allowlist
+        .iter()
+        .any(|route| route == &fallback_route_digest)
+    {
         return Err("fallback_route_not_allowlisted".to_owned());
     }
     if original_route_digest == fallback_route_digest {
@@ -732,7 +1343,8 @@ pub fn admit_fallback(
     if requirements.require_tools && candidate.capabilities.tools != CapabilitySupport::Supported {
         return Err("fallback_cannot_reduce_required_capabilities".to_owned());
     }
-    if requirements.require_images && candidate.capabilities.images != CapabilitySupport::Supported {
+    if requirements.require_images && candidate.capabilities.images != CapabilitySupport::Supported
+    {
         return Err("fallback_cannot_reduce_required_capabilities".to_owned());
     }
     if requirements.require_structured_output

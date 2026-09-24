@@ -62,6 +62,10 @@ pub(crate) struct Connection {
     pub client: reqwest::Client,
     pub limits: TransportLimits,
     pub max_output: u64,
+    /// Immutable server-owned RPM/TPM/concurrency identity. Profile aliases share this policy
+    /// when provider/origin/credential scope is identical; a profile name cannot widen quota.
+    pub capacity_policy: std::sync::Arc<ProviderCapacityPolicy>,
+    pub capacity_window: std::sync::Arc<crate::capacity::CapacityWindow>,
     pub capacity: std::sync::Arc<tokio::sync::Semaphore>,
     pub queue_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub circuit: std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
@@ -200,6 +204,8 @@ pub(crate) fn connections(
     let mut capacities: BTreeMap<
         String,
         (
+            std::sync::Arc<ProviderCapacityPolicy>,
+            std::sync::Arc<crate::capacity::CapacityWindow>,
             std::sync::Arc<tokio::sync::Semaphore>,
             std::sync::Arc<tokio::sync::Semaphore>,
             std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
@@ -211,10 +217,12 @@ pub(crate) fn connections(
             "origin":connection.endpoint.as_str(),
             "credential":connection.credential_ref.as_ref().map(|reference|reference.reference_digest.clone()),
         }));
-        let (capacity, queue_slots, circuit) = capacities
+        let (capacity_policy, capacity_window, capacity, queue_slots, circuit) = capacities
             .entry(scope)
             .or_insert_with(|| {
                 (
+                    connection.capacity_policy.clone(),
+                    connection.capacity_window.clone(),
                     connection.capacity.clone(),
                     connection.queue_slots.clone(),
                     connection.circuit.clone(),
@@ -222,6 +230,8 @@ pub(crate) fn connections(
             })
             .clone();
         connection.capacity = capacity;
+        connection.capacity_policy = capacity_policy;
+        connection.capacity_window = capacity_window;
         connection.queue_slots = queue_slots;
         connection.circuit = circuit;
     }
@@ -548,8 +558,8 @@ fn connection_with_credential_env(
         revision.clone(),
     )
     .map_err(ModelError::invalid)?;
-    let circuit = ProviderCircuitBreaker::new(revision.clone(), 3, 30_000)
-        .map_err(ModelError::invalid)?;
+    let circuit =
+        ProviderCircuitBreaker::new(revision.clone(), 3, 30_000).map_err(ModelError::invalid)?;
     let mut limits = TransportLimits::default();
     if protocol == ModelProtocol::OllamaChat {
         if let Some(timeout) = ollama_load_timeout {
@@ -567,6 +577,8 @@ fn connection_with_credential_env(
         client,
         limits,
         max_output,
+        capacity_policy: std::sync::Arc::new(capacity_policy),
+        capacity_window: std::sync::Arc::new(crate::capacity::CapacityWindow::default()),
         capacity: std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrency)),
         queue_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(queue_limit)),
         circuit: std::sync::Arc::new(std::sync::Mutex::new(circuit)),

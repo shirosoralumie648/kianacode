@@ -1,0 +1,56 @@
+name: BQ-16 provider capacity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/provider_capacity.rs"
+      - "kiana-domain/tests/bq16_provider_capacity.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/capacity.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/tests/bq16_provider_capacity.rs"
+      - "kiana-core/tests/bq16_provider_capacity_guard.rs"
+      - "kiana-daemon/tests/bq16_provider_capacity_guard.rs"
+      - "docs/roadmap/bq16-provider-capacity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq16-provider-capacity.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/provider_capacity.rs"
+      - "kiana-domain/tests/bq16_provider_capacity.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/capacity.rs"
+      - "kiana-provider/src/transport.rs"
+      - "kiana-provider/tests/bq16_provider_capacity.rs"
+      - "kiana-core/tests/bq16_provider_capacity_guard.rs"
+      - "kiana-daemon/tests/bq16_provider_capacity_guard.rs"
+      - "docs/roadmap/bq16-provider-capacity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq16-provider-capacity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-capacity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-16 domain capacity fixtures
+        run: cargo test -p kiana-domain --test bq16_provider_capacity --locked -- --test-threads=1
+      - name: Run BQ-16 provider source fixture
+        run: cargo test -p kiana-provider --test bq16_provider_capacity --locked -- --test-threads=1
+      - name: Run BQ-16 core and daemon source guards
+        run: |
+          cargo test -p kiana-core --test bq16_provider_capacity_guard --locked -- --test-threads=1
+          cargo test -p kiana-daemon --test bq16_provider_capacity_guard --locked -- --test-threads=1
+      - name: Compile BQ-16 test targets
+        run: cargo check --workspace --tests --locked
