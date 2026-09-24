@@ -63,4 +63,3 @@ frozen `kiana-entrypoints/src/cli.rs`, own OS signal/write handling, spawn a pag
 cross-process protocol transport, server authorization, durable session recovery, Web parity,
 provider/live timing or physical effects. Receipt correctness remains EventLog/ControlPlane-owned;
 an exit code only reports the server-provided response classification.
-

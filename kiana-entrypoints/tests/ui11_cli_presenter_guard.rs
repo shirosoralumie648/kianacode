@@ -40,4 +40,3 @@ fn cli_presenter_is_a_pure_projection_and_keeps_authority_in_the_client_server_p
         );
     }
 }
-
