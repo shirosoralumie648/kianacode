@@ -278,7 +278,7 @@ impl ConnectorPreparedPermit {
         }))
     }
 
-    fn validate_for_binding(
+    pub(crate) fn validate_for_binding(
         &self,
         binding: &ConnectorBindingSnapshot,
         payload: &CanonicalConnectorPayload,
@@ -866,7 +866,7 @@ pub trait WebhookVerifier: Send + Sync {
     }
 }
 
-fn validate_receipt_for_permit(
+pub(crate) fn validate_receipt_for_permit(
     receipt: &ProviderReceipt,
     binding: &ConnectorBindingSnapshot,
     permit: &ConnectorPreparedPermit,

@@ -2327,6 +2327,8 @@ pub trait ModelBudgetPort: Send + Sync {
 
 mod connector;
 pub use connector::*;
+mod connector_https;
+pub use connector_https::*;
 mod model;
 pub use model::*;
 

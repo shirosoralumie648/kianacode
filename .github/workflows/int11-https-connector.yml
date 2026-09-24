@@ -1,0 +1,62 @@
+name: int11-https-connector
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_https.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int11_https_connector.rs"
+      - "kiana-ports/src/connector.rs"
+      - "kiana-ports/src/connector_https.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/int11_https_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/int11_https_connector_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int11-https-connector.yml"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap/int11-https-connector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_https.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int11_https_connector.rs"
+      - "kiana-ports/src/connector.rs"
+      - "kiana-ports/src/connector_https.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/int11_https_connector.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/int11_https_connector_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int11-https-connector.yml"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap/int11-https-connector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  https-connector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-11 domain HTTPS deny-first fixtures
+        run: cargo test -p kiana-domain --test int11_https_connector --locked -- --test-threads=1
+      - name: Run INT-11 port fake transport fixtures
+        run: cargo test -p kiana-ports --test int11_https_connector --locked -- --test-threads=1
+      - name: Run INT-11 source boundary guard
+        run: cargo test -p kiana-core --test int11_https_connector_guard --locked -- --test-threads=1
+      - name: Compile connector HTTPS contract path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-core -p kiana-daemon --tests --locked
