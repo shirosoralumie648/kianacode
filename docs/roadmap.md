@@ -661,7 +661,7 @@
 | 488 | W6 | 专项 | [`BQ-18`](#step-bq-18) | 白名单 fallback 与 route/authority/data/price 重新准入 | `BQ-05`、`BQ-08`、`BQ-10`、`BQ-17` | 🔄 | [专项卡](#step-bq-18) · [baseline](roadmap/bq18-fallback-admission-baseline.md) |
 | 489 | W6 | 专项 | [`BQ-19`](#step-bq-19) | project/org/workflow/cell/run allocation；避免父子/多维重复相加 | `BQ-13`、`BQ-14`、`BQ-15` | ⏳ | [专项卡](#step-bq-19) |
 | 490 | W6 | 专项 | [`BQ-20`](#step-bq-20) | EventLog ledger projector、source cursor、projection version、daily/window rollups | `PD-05`、`BQ-11`、`BQ-14`、`BQ-19` | ⏳ | [专项卡](#step-bq-20) |
-| 491 | W6 | 专项 | [`INT-14`](roadmap/integrations-connectors.md#step-int-14) | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | `INT-03`、`INT-05`、`INT-07` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-14) |
+| 491 | W6 | 专项 | [`INT-14`](roadmap/integrations-connectors.md#step-int-14) | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | `INT-03`、`INT-05`、`INT-07` | 🔄 | [专项卡](roadmap/integrations-connectors.md#step-int-14) · [baseline](roadmap/int14-connector-protocol-baseline.md) |
 | 492 | W6 | 专项 | [`INT-15`](roadmap/integrations-connectors.md#step-int-15) | operation risk→policy/gate/approval 映射 | `INT-03`、`INT-14` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-15) |
 | 493 | W6 | 专项 | [`INT-16`](roadmap/integrations-connectors.md#step-int-16) | invocation reservation、command digest、idempotency/CAS | `CP-13`、`ER-07`、`INT-04`、`INT-05`、`INT-14`、`INT-15` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-16) |
 | 494 | W6 | 专项 | [`INT-17`](roadmap/integrations-connectors.md#step-int-17) | connector/account/project rate、concurrency、budget reservation | `BQ-08`、`INT-16` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-17) |

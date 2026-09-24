@@ -245,6 +245,16 @@ pub use ui_contracts::*;
 pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole};
 
 pub use kiana_domain::{
+    normalize_connector_intent, ConnectorCommand, ConnectorCommandRequest,
+    ConnectorDataBoundary, ConnectorManageAction, ConnectorNormalizedIntent,
+    ConnectorProtocolError, ConnectorProtocolErrorCode, CONNECTOR_COMMAND_SCHEMA,
+    CONNECTOR_COMMAND_VERSION, CONNECTOR_DATA_BOUNDARY_SCHEMA,
+    CONNECTOR_NORMALIZED_INTENT_SCHEMA, CONNECTOR_PROTOCOL_ERROR_SCHEMA,
+    CONNECTOR_PROTOCOL_MAX_IDEMPOTENCY_BYTES, CONNECTOR_PROTOCOL_MAX_PAYLOAD_BYTES,
+    CONNECTOR_PROTOCOL_MAX_REASON_BYTES,
+};
+
+pub use kiana_domain::{
     AuditRecordEvent, AUDIT_EVENT_KIND, AUDIT_EVENT_SCHEMA, AUDIT_EVENT_SCHEMA_VERSION,
 };
 
@@ -545,6 +555,18 @@ impl RequestEnvelope {
             request.command.as_str(),
             request.arguments,
         ))
+    }
+
+    /// Construct a typed connector command through the same versioned route used by every
+    /// surface. This helper only validates/encodes the wire DTO; trust, binding lookup, policy,
+    /// approval and Broker dispatch remain server-owned ControlPlane work.
+    pub fn connector_command(
+        metadata: RequestMetadata,
+        request: ConnectorCommandRequest,
+    ) -> Result<Self, String> {
+        let name = request.command.wire_name();
+        let arguments = request.to_arguments()?;
+        Ok(Self::command(metadata, name, arguments))
     }
 
     /// 构造不带证明的审批决定 envelope。

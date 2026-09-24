@@ -49,6 +49,36 @@ impl ControlPlane {
         context: &RequestContext,
         intent: &CommandIntent,
     ) -> Result<(Value, RiskLevel), String> {
+        // Typed connector requests are normalized once at the shared protocol boundary. Legacy
+        // untyped arguments remain readable for compatibility, but still pass the same server
+        // binding/risk/approval checks below. Reconciliation maps to the existing management
+        // handler so it cannot create a second execution path.
+        let mut intent = intent.clone();
+        if intent
+            .arguments
+            .get("schema")
+            .and_then(Value::as_str)
+            .is_some_and(|schema| schema == kiana_domain::CONNECTOR_COMMAND_SCHEMA)
+        {
+            let normalized = kiana_domain::normalize_connector_intent(
+                &intent.name,
+                intent.arguments.clone(),
+                context,
+            )
+            .map_err(|error| error.reason)?;
+            let normalized_command = normalized.command;
+            intent.name = normalized.route;
+            intent.arguments = normalized.arguments;
+            if intent.name == CONNECTOR_MANAGE_OPERATION
+                && normalized_command == kiana_domain::ConnectorCommand::Reconcile
+            {
+                intent
+                    .arguments
+                    .as_object_mut()
+                    .ok_or("connector_arguments_invalid")?
+                    .insert("action".to_owned(), json!("reconcile"));
+            }
+        }
         if context.cell_id.is_some()
             || context
                 .actor_id
@@ -67,7 +97,12 @@ impl ControlPlane {
             .cloned()
             .ok_or("connector_arguments_invalid")?;
         let risk = if intent.name == CONNECTOR_HEALTH_OPERATION {
-            if arguments.keys().any(|key| key != "binding_id") {
+            if arguments.keys().any(|key| {
+                !matches!(
+                    key.as_str(),
+                    "schema" | "version" | "command" | "binding_id"
+                )
+            }) {
                 return Err("connector_health_arguments_invalid".to_owned());
             }
             let binding_id = arguments
@@ -144,7 +179,13 @@ impl ControlPlane {
             if arguments.keys().any(|key| {
                 !matches!(
                     key.as_str(),
-                    "binding_id" | "operation" | "payload" | "idempotency_key"
+                    "schema"
+                        | "version"
+                        | "command"
+                        | "binding_id"
+                        | "operation"
+                        | "payload"
+                        | "idempotency_key"
                 )
             }) || !arguments.contains_key("payload")
             {
@@ -180,7 +221,10 @@ impl ControlPlane {
             if arguments.keys().any(|key| {
                 !matches!(
                     key.as_str(),
-                    "action"
+                    "schema"
+                        | "version"
+                        | "command"
+                        | "action"
                         | "definition"
                         | "binding"
                         | "binding_id"

@@ -6,10 +6,10 @@
 
 use async_trait::async_trait;
 use kiana_protocol::{
-    ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
-    ExtensionCommandRequest, ExtensionVisibilitySnapshot, ParityRequest, RequestEnvelope,
-    RequestMetadata, ResponseEnvelope, RunId, TurnId, UiConnectorHealthProjection,
-    UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
+    ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, ConnectorCommand,
+    ConnectorCommandRequest, EntryPointKind, ExtensionCommandRequest, ExtensionVisibilitySnapshot,
+    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, TurnId,
+    UiConnectorHealthProjection, UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -170,14 +170,11 @@ where
         metadata: RequestMetadata,
         binding_id: impl Into<String> + Send,
     ) -> Result<UiConnectorHealthProjection, ClientError> {
-        let response = self
-            .transport
-            .send(RequestEnvelope::command(
-                metadata,
-                "connector.health",
-                serde_json::json!({"binding_id": binding_id.into()}),
-            ))
-            .await?;
+        let mut request = ConnectorCommandRequest::new(ConnectorCommand::Health);
+        request.binding_id = Some(binding_id.into());
+        let envelope =
+            RequestEnvelope::connector_command(metadata, request).map_err(ClientError::Protocol)?;
+        let response = self.transport.send(envelope).await?;
         if response.status != kiana_protocol::ExecutionStatus::Completed {
             return Err(ClientError::Protocol(
                 kiana_protocol::stable_error_from_response(&response)
@@ -196,6 +193,19 @@ where
             .map_err(|error| ClientError::Protocol(format!("connector_health_response:{error}")))?;
         health.validate().map_err(ClientError::Protocol)?;
         Ok(health)
+    }
+
+    /// Send any typed connector command through the shared protocol normalizer. This method only
+    /// transports the request; the daemon still derives actor/role/risk/binding/endpoint and
+    /// performs all trust, policy, approval and Broker checks.
+    pub async fn connector_command(
+        &self,
+        metadata: RequestMetadata,
+        request: ConnectorCommandRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        let envelope =
+            RequestEnvelope::connector_command(metadata, request).map_err(ClientError::Protocol)?;
+        self.transport.send(envelope).await
     }
 
     /// 使用给定传输端口创建客户端。

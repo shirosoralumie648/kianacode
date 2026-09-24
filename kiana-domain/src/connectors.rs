@@ -11,6 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const CONNECTOR_MANAGE_OPERATION: &str = "connector.manage";
 pub const CONNECTOR_INVOKE_OPERATION: &str = "connector.invoke";
+/// Public typed reconciliation command. Core maps it to the existing management handler with
+/// `action=reconcile`; no second Broker or adapter path is introduced.
+pub const CONNECTOR_RECONCILE_OPERATION: &str = "connector.reconcile";
 /// Read-only binding health command. The command only authorizes an adapter probe; it never
 /// grants an invocation permit or performs an external effect.
 pub const CONNECTOR_HEALTH_OPERATION: &str = "connector.health";
