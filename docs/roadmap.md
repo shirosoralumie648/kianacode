@@ -571,7 +571,7 @@
 | 399 | W5 | 专项 | [`P4-J7-22`](roadmap/provider.md#step-p4-j7-22) | Provider · 图片输入与敏感数据出站准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-22) |
 | 400 | W5 | 专项 | [`P4-J7-23`](roadmap/provider.md#step-p4-j7-23) | Provider · 单层重试、绝对时限和取消传递 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-23) |
 | 401 | W5 | 专项 | [`P4-J7-24`](roadmap/provider.md#step-p4-j7-24) | Provider · Provider 用量、价格快照与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-24) · [baseline](roadmap/provider/p4-j7-24-usage-settlement-baseline.md) |
-| 402 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-25) |
+| 402 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-25) · [baseline](roadmap/p4-j7-25-capacity-fallback-baseline.md) |
 | 403 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-26) |
 | 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-27) |
 | 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | ⏳ | [专项卡](#step-bq-10) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-24 | `P4-J7-25` Provider 容量/熔断/fallback 源切片：连接别名按 provider/origin/credential 共享有界 waiter、semaphore 与 breaker；队列溢出在网络前拒绝，取消释放槽位；typed transport/rejection 才记录熔断；fallback 重新校验 capability/data/budget digest；新增 domain/provider guards、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `P4-J7-24` Provider 用量/价格快照/预算结算源切片：新增 attempt/run/route/model 绑定的 `ProviderUsageSettlement`、unknown/estimated/measured 成本分层、RateCard 版本与 ProviderReceipt 引用、attempt-local 幂等 ledger；Provider adapter 将缺失用量保留为 unknown 且不授予预算或写 EventLog；新增 domain/Core fixtures、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `DEP-00` 部署/运维/迁移基线：盘点 module map、CURRENT_STATUS、DaemonHost、EventLog、schema/migration、release scripts 与 legacy/WIP 边界；固定 source snapshot、单执行脊柱检查、缺口分类、CI-only fixture、proof ceiling 与限制；新增 deployment inventory baseline、Core source guard、GitHub-only workflow；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `PD-28` 存储安全边界：新增 owner/namespace/purpose 绑定的 opaque 加密引用、文件身份 digest 与平台能力限制；EventLog journal/lock 拒绝 secret sentinel、symlink/hardlink 和过宽权限，artifact receipt/manifest/lessons 写入在路径打开前执行 secret-free 校验；新增 domain/EventLog fixtures、core source guard、GitHub-only workflow 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 待本提交 |

@@ -11898,6 +11898,19 @@ proof-level change: `feature_status=implemented`, `proof_level=source`; no local
 limitations: no local runtime tests were run and CI has not been observed; durable package install/recovery, approval UX, Hook/provider effects, external connector receipts and physical proof remain later slices
 reviewer: Codex source review of versioned DTO bounds, deny-first mutation fields, lifecycle CAS/idempotency, receipt-only UI projection and no second execution loop; no local runtime test reviewer
 
+### P4-J7-25 provider capacity/circuit/fallback evidence (2026-09-24)
+
+source_snapshot: `2f1e7229` plus P4-J7-25 source slice; `kiana-domain/src/provider_capacity.rs`; `kiana-provider/src/{config.rs,transport.rs}`; `kiana-domain/tests/p4_j7_25_capacity_fallback.rs`; `kiana-core/tests/p4_j7_25_capacity_fallback_guard.rs`; `.github/workflows/p4-j7-25-capacity-fallback.yml`; `docs/roadmap/p4-j7-25-capacity-fallback-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`
+worktree_status: isolated branch `p4-j7-25-capacity-fallback-20260924`; aliases sharing provider/origin/credential scope now share bounded waiter/capacity/breaker state; typed circuit closed/open/half-open transitions and one probe are explicit; fallback candidates require fresh capability/data/budget digests; no fallback executor or second authority was added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-domain --test p4_j7_25_capacity_fallback --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_25_capacity_fallback_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: isolated `/tmp/kiana-step-p4j725`; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only queue overflow, typed breaker transition, half-open single probe, alias sharing and fallback digest drift fixtures; no provider or external route was contacted
+exit_code: local verification limited to diff review; remote fixture and compile exit codes are pending and unobserved
+status change: `P4-J7-25` capacity policy, bounded transport queue, circuit breaker, fallback admission contracts, guards, workflow and baseline are implemented; roadmap row 402/card remain 🔄 pending CI evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no durable cross-process breaker/queue, distributed fair scheduling, automatic fallback selection, provider invoice/capacity telemetry or live/physical external effect proof; future fallback execution must be a new ControlPlane-admitted attempt
+reviewer: Codex source review of bounded waiter ordering, cancellation release, alias scope sharing, typed breaker failures and fresh fallback capability/data/budget re-admission; no local runtime test reviewer
+
 ### P4-J7-24 provider usage/price snapshot/settlement evidence (2026-09-24)
 
 source_snapshot: `0ed70bb1` plus P4-J7-24 source slice; `kiana-domain/src/provider_usage_settlement.rs`; `kiana-provider/src/usage.rs`; `kiana-domain/tests/p4_j7_24_usage_settlement.rs`; `kiana-core/tests/p4_j7_24_usage_settlement_guard.rs`; `.github/workflows/p4-j7-24-usage-settlement.yml`; `docs/roadmap/p4-j7-24-usage-settlement-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`

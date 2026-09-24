@@ -63,6 +63,8 @@ pub(crate) struct Connection {
     pub limits: TransportLimits,
     pub max_output: u64,
     pub capacity: std::sync::Arc<tokio::sync::Semaphore>,
+    pub queue_slots: std::sync::Arc<tokio::sync::Semaphore>,
+    pub circuit: std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
 }
 #[derive(Clone)]
 pub(crate) struct TransportLimits {
@@ -195,18 +197,33 @@ pub(crate) fn connections(
     // Connection aliases that point at the same credential and origin share one
     // semaphore. A profile name is a routing label, not a way to bypass the
     // provider's connection-level capacity limit.
-    let mut capacities: BTreeMap<String, std::sync::Arc<tokio::sync::Semaphore>> = BTreeMap::new();
+    let mut capacities: BTreeMap<
+        String,
+        (
+            std::sync::Arc<tokio::sync::Semaphore>,
+            std::sync::Arc<tokio::sync::Semaphore>,
+            std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
+        ),
+    > = BTreeMap::new();
     for connection in result.values_mut() {
         let scope = json_digest(&json!({
             "provider":connection.route.provider_id,
             "origin":connection.endpoint.as_str(),
             "credential":connection.credential_ref.as_ref().map(|reference|reference.reference_digest.clone()),
         }));
-        let capacity = capacities
+        let (capacity, queue_slots, circuit) = capacities
             .entry(scope)
-            .or_insert_with(|| connection.capacity.clone())
+            .or_insert_with(|| {
+                (
+                    connection.capacity.clone(),
+                    connection.queue_slots.clone(),
+                    connection.circuit.clone(),
+                )
+            })
             .clone();
         connection.capacity = capacity;
+        connection.queue_slots = queue_slots;
+        connection.circuit = circuit;
     }
     Ok((result, true))
 }
@@ -503,6 +520,25 @@ fn connection_with_credential_env(
     if max_concurrency == 0 || max_concurrency > 128 {
         return Err(ModelError::invalid("model_concurrency_invalid"));
     }
+    let queue_limit = env("KIANA_MODEL_QUEUE_LIMIT")
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .map_err(|_| ModelError::invalid("model_queue_limit_invalid"))
+        })
+        .transpose()?
+        .unwrap_or(128);
+    if queue_limit == 0 || queue_limit > 1_024 {
+        return Err(ModelError::invalid("model_queue_limit_invalid"));
+    }
+    let capacity_policy = ProviderCapacityPolicy::new(
+        max_concurrency as u32,
+        queue_limit as u32,
+        3,
+        30_000,
+    )
+    .map_err(ModelError::invalid)?;
+    let circuit = ProviderCircuitBreaker::new(capacity_policy).map_err(ModelError::invalid)?;
     let mut limits = TransportLimits::default();
     if protocol == ModelProtocol::OllamaChat {
         if let Some(timeout) = ollama_load_timeout {
@@ -521,6 +557,8 @@ fn connection_with_credential_env(
         limits,
         max_output,
         capacity: std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrency)),
+        queue_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(queue_limit)),
+        circuit: std::sync::Arc::new(std::sync::Mutex::new(circuit)),
     })
 }
 

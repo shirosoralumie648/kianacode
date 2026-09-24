@@ -28,6 +28,57 @@ async fn send_inner(
     prepared: PreparedModelCall,
     sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
 ) -> Result<ModelReply, ModelError> {
+    let now = unix_ms()?;
+    {
+        let mut circuit = connection
+            .circuit
+            .lock()
+            .map_err(|_| ModelError::invalid("provider_circuit_lock_poisoned"))?;
+        if !circuit.allow(now).map_err(ModelError::invalid)? {
+            return Err(ModelError::transport(
+                "provider_circuit_open",
+                ModelRetryClass::Never,
+                false,
+            ));
+        }
+    }
+    let result = send_inner_attempt(connection, prepared, sink).await;
+    let observed_at = unix_ms().unwrap_or(now);
+    if let Ok(mut circuit) = connection.circuit.lock() {
+        if result.is_ok() {
+            let _ = circuit.record_success();
+        } else if result.as_ref().err().is_some_and(trips_circuit) {
+            let _ = circuit.record_failure(observed_at);
+        }
+    }
+    result
+}
+
+fn trips_circuit(error: &ModelError) -> bool {
+    error.phase == "transport"
+        && error.request_sent
+        && matches!(
+            error.code.as_str(),
+            "provider_http_429"
+                | "provider_http_503"
+                | "provider_connection_failed"
+                | "provider_headers_timeout"
+                | "provider_read_idle_timeout"
+        )
+}
+
+async fn send_inner_attempt(
+    connection: &Connection,
+    prepared: PreparedModelCall,
+    sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+) -> Result<ModelReply, ModelError> {
+    let queue_slot = connection
+        .queue_slots
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| {
+            ModelError::transport("provider_capacity_queue_full", ModelRetryClass::Never, false)
+        })?;
     let _capacity = connection
         .capacity
         .clone()
@@ -36,6 +87,7 @@ async fn send_inner(
         .map_err(|_| {
             ModelError::transport("provider_capacity_closed", ModelRetryClass::Never, false)
         })?;
+    drop(queue_slot);
     let lease_now = unix_ms()?;
     if lease_now >= prepared.spec.deadline_unix_ms {
         return Err(ModelError::invalid("model_deadline_expired"));
