@@ -5,6 +5,7 @@
 //! those fields become presence-only values and token-shaped text is redacted before it leaves an
 //! entrypoint.  This is a display boundary, not an authorization decision.
 
+use kiana_protocol::{ProviderDiagnosticsSnapshot, ProviderTerminalReplay};
 use serde_json::{Map, Value};
 
 const MAX_DIAGNOSTIC_DEPTH: usize = 32;
@@ -25,6 +26,25 @@ pub fn sanitize_command_output(command: &str, output: &str) -> String {
             .unwrap_or_else(|_| kiana_protocol::redact_text(output)),
         Err(_) => kiana_protocol::redact_text(output),
     }
+}
+
+/// Render one server-owned provider diagnostics snapshot for CLI, Workbench, Web and Desktop.
+/// Validation happens before serialization; this helper never performs a provider request.
+pub fn render_provider_diagnostics(
+    snapshot: &ProviderDiagnosticsSnapshot,
+) -> Result<Value, String> {
+    snapshot.validate()?;
+    serde_json::to_value(snapshot).map_err(|_| "provider_diagnostics_encode_failed".to_owned())
+}
+
+/// Render a committed terminal replay for a late subscriber without creating another model call.
+pub fn render_provider_terminal_replay(
+    snapshot: &ProviderDiagnosticsSnapshot,
+    after_sequence: u64,
+) -> Result<Option<ProviderTerminalReplay>, String> {
+    snapshot
+        .terminal_after(after_sequence)
+        .map(|terminal| terminal.cloned())
 }
 
 fn scrub(value: &Value, depth: usize) -> Value {

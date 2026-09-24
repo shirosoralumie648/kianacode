@@ -1,0 +1,58 @@
+name: P4-J7-28 provider diagnostics
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/provider_diagnostics.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_28_provider_diagnostics.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/provider_diagnostics.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-core/src/provider_diagnostics.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/p4_j7_28_provider_diagnostics_guard.rs"
+      - "docs/roadmap/p4-j7-28-provider-diagnostics-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-28-provider-diagnostics.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/provider_diagnostics.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_28_provider_diagnostics.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/provider_diagnostics.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-entrypoints/src/provider_diagnostics.rs"
+      - "kiana-core/src/provider_diagnostics.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/p4_j7_28_provider_diagnostics_guard.rs"
+      - "docs/roadmap/p4-j7-28-provider-diagnostics-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-28-provider-diagnostics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run provider diagnostics domain fixtures
+        run: cargo test -p kiana-domain --test p4_j7_28_provider_diagnostics --locked -- --test-threads=1
+      - name: Run provider diagnostics source guard
+        run: cargo test -p kiana-core --test p4_j7_28_provider_diagnostics_guard --locked -- --test-threads=1
+      - name: Compile provider diagnostics clients and projection
+        run: cargo check -p kiana-client -p kiana-core -p kiana-entrypoints -p kiana-protocol --tests --locked

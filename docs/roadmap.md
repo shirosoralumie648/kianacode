@@ -623,7 +623,7 @@
 | 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m3-01) |
 | 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m4-01) |
 | 452 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m5-01) |
-| 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
+| 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-28) · [baseline](roadmap/p4-j7-28-provider-diagnostics-baseline.md) |
 | 454 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m7-01) |
 | 455 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ✅ | [基础卡](#step-p4-m6-01) |
 | 456 | W6 | 专项 | [`OA-16`](#step-oa-16) | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | `CP-21`、`CP-22`、`OA-15` | ✅ | [专项卡](#step-oa-16) |
@@ -6340,3 +6340,4 @@ limitations / reviewer
 本节只新增设计，不改变现状。authenticated principal、完整 Secret redaction/TOCTOU、durable audit projector、跨进程恢复、供应链验证、删除传播和真实连接器回执仍需逐卡验收。外部调研依据包括 [MCP Authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)、[NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework)、[OWASP GenAI Top 10](https://genai.owasp.org/llm-top-10/)、[W3C Trace Context](https://www.w3.org/TR/trace-context/)、[OpenTelemetry sensitive data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/)、[SLSA](https://slsa.dev/spec/v1.2/) 和 [Sigstore security model](https://docs.sigstore.dev/about/security/)。
 
 | 2026-09-25 | `P4-J7-27` provider complete-round recovery: added bounded resume binding, committed model/tool history projection, invalid remote continuation fallback to complete local replay, in-flight model/capability reconciliation and CI-only source guards/baseline; local tests/build/check/clippy/smoke not run; durable cross-process reopen and live/physical proof remain pending | 待本提交 |
+| 2026-09-25 | `P4-J7-28` provider selection/diagnostics: added shared secret-free catalog/configuration snapshot, native/synthetic/buffered display state, queue/retry/cancel/error/unknown-usage diagnostics, explicit gateway test request, epoch-bound cursor and terminal receipt replay; local tests/build/check/clippy/smoke not run; live three-surface transport and durable projection remain pending | 待本提交 |

@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 mod typed;
 mod cli_contract;
 mod cli_presenter;
+mod provider_diagnostics;
 mod ui_schema_generated;
 mod ui_store;
 
@@ -28,6 +29,9 @@ pub use cli_contract::{
 pub use cli_presenter::{
     present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
     CLI_DEFAULT_TTY_BYTES, CLI_MAX_DIAGNOSTIC_BYTES,
+};
+pub use provider_diagnostics::{
+    ProviderDiagnosticsClientError, ProviderDiagnosticsClientState,
 };
 pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,

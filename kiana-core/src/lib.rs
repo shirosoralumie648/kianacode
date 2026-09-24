@@ -44,6 +44,7 @@ mod model_attempt_projection;
 mod notification_projector;
 mod notification_materializer;
 mod operator_evidence;
+mod provider_diagnostics;
 mod notification_resolver;
 mod parity;
 mod performance;
@@ -131,6 +132,9 @@ pub use model_attempt_projection::{
 pub use notification_projector::NotificationProjection;
 pub use notification_materializer::NotificationMaterializer;
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
+pub use provider_diagnostics::{
+    project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
+};
 pub use notification_resolver::resolve_notification_subscriptions;
 pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use performance::{
