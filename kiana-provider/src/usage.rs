@@ -4,8 +4,8 @@
 //! charge a project, reserve a permit, retry a request or append an EventLog fact.
 
 use kiana_domain::{
-    json_digest, AttemptId, ModelReply, NormalizedUsage, PreparedModelCall, UsageConfidence,
-    UsageObservation, UsageSource, UsageVector, UsageId, BillingUnknownReason,
+    json_digest, AttemptId, BillingUnknownReason, ModelReply, NormalizedUsage, PreparedModelCall,
+    UsageConfidence, UsageId, UsageObservation, UsageSource, UsageVector,
 };
 use serde_json::json;
 
@@ -21,10 +21,13 @@ pub fn normalize_model_reply(
     attempt_id: AttemptId,
     run_id: kiana_domain::RunId,
 ) -> Result<NormalizedUsage, String> {
-    prepared
-        .validate()
-        .map_err(|error| error.to_string())?;
-    if prepared.spec.assignment.as_ref().is_some_and(|assignment| assignment.run_id != run_id) {
+    prepared.validate().map_err(|error| error.to_string())?;
+    if prepared
+        .spec
+        .assignment
+        .as_ref()
+        .is_some_and(|assignment| assignment.run_id != run_id)
+    {
         return Err("provider_usage_run_mismatch".to_owned());
     }
     let (input_tokens, output_tokens, confidence, unknown_reason) = match &reply.output.usage {
@@ -45,7 +48,17 @@ pub fn normalize_model_reply(
         schema: kiana_domain::USAGE_VECTOR_SCHEMA.to_owned(),
         input_tokens,
         output_tokens,
-        ..UsageVector::zero()
+        cache_read_tokens: None,
+        cache_write_tokens: None,
+        reasoning_output_tokens: None,
+        audio_input_tokens: None,
+        audio_output_tokens: None,
+        tool_calls: 0,
+        effect_count: 0,
+        wall_time_ms: 0,
+        output_bytes: 0,
+        artifact_bytes: 0,
+        storage_bytes: 0,
     };
     let raw_digest = json_digest(&json!({
         "provider": prepared.route.provider_id,
@@ -71,11 +84,9 @@ pub fn normalize_model_reply(
         format!("provider:{}", protocol_name(prepared.route.protocol)),
         raw_digest,
     )?;
-    normalized.served_model_id = reply
-        .output
-        .model_id
-        .clone()
-        .or_else(|| Some(prepared.route.model_id.clone()));
+    // A provider that omits its served model has not proven that it served the requested model.
+    // Keep the observation unknown instead of collapsing requested and served identities.
+    normalized.served_model_id = reply.output.model_id.clone();
     normalized.retry_ordinal = 0;
     normalized.usage_digest = normalized.digest();
     normalized.validate()?;

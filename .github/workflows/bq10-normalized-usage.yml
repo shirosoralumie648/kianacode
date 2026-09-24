@@ -1,0 +1,46 @@
+name: BQ-10 normalized provider usage
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/src/usage.rs"
+      - "kiana-provider/src/usage_adapters.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/tests/bq10_normalized_usage.rs"
+      - "kiana-core/tests/bq10_normalized_usage_guard.rs"
+      - "docs/roadmap/bq10-normalized-usage-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq10-normalized-usage.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/src/usage.rs"
+      - "kiana-provider/src/usage_adapters.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/tests/bq10_normalized_usage.rs"
+      - "kiana-core/tests/bq10_normalized_usage_guard.rs"
+      - "docs/roadmap/bq10-normalized-usage-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq10-normalized-usage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bq10-normalized-usage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run normalized provider usage fixtures
+        run: cargo test -p kiana-provider --test bq10_normalized_usage --locked -- --test-threads=1
+      - name: Run billing usage source guard
+        run: cargo test -p kiana-core --test bq10_normalized_usage_guard --locked -- --test-threads=1
+      - name: Compile BQ-10 workspace test targets
+        run: cargo check --workspace --tests --locked

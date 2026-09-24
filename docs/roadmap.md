@@ -574,7 +574,7 @@
 | 402 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-25) · [baseline](roadmap/p4-j7-25-capacity-fallback-baseline.md) |
 | 403 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-26) · [baseline](roadmap/p4-j7-26-model-events-baseline.md) |
 | 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-27) · [baseline](roadmap/p4-j7-27-provider-recovery-baseline.md) |
-| 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | ⏳ | [专项卡](#step-bq-10) |
+| 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | 🔄 | [专项卡](#step-bq-10) · [baseline](roadmap/bq10-normalized-usage-baseline.md) |
 | 406 | W5 | 专项 | [`BQ-11`](#step-bq-11) | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | `BQ-08`、`BQ-10` | ⏳ | [专项卡](#step-bq-11) |
 | 407 | W5 | 专项 | [`BQ-12`](#step-bq-12) | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | `BQ-11` | ⏳ | [专项卡](#step-bq-12) |
 | 408 | W5 | 专项 | [`BQ-13`](#step-bq-13) | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | `BQ-05`、`BQ-12` | ⏳ | [专项卡](#step-bq-13) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-25 | `BQ-10` normalized provider usage source slice：新增 Anthropic/OpenAI Chat/OpenAI Responses/Ollama/Gemini/Fake 到统一 `NormalizedUsage` 的 bounded adapter；保留 requested/served model 分离，缺字段为 partial/unknown，total 不一致和 malformed/overflow 出站前拒绝；新增 provider fixture、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `UI-11` CLI JSON/TTY/exit-code presenter source slice：新增纯 presenter、稳定 lifecycle/signal exit code、JSON/TTY/quiet stdout/stderr 分流、locale/pagination/no-TTY/output bounds、warning/error redaction、client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `UI-10` CLI 命令和输出归一化源切片：新增十个 canonical command ID 与 legacy alias、workspace/session/TTY/retry/argument fence、JSON/TTY/quiet output contract、secret/ANSI/size 校验；新增 client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `P4-J7-25` Provider 容量/熔断/fallback 源切片：连接别名按 provider/origin/credential 共享有界 waiter、semaphore 与 breaker；队列溢出在网络前拒绝，取消释放槽位；typed transport/rejection 才记录熔断；fallback 重新校验 capability/data/budget digest；新增 domain/provider guards、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |

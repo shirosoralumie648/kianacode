@@ -16,6 +16,18 @@ status_change: UI-12 TTY 输入状态机 source contract、Workbench adapter、d
 proof-level change: `feature_status=implemented`（bounded parser/state source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
 limitations: decoder 是确定性 PTY chunk source fixture，不是 OS-backed PTY/terminal emulator；终端 IME 组合通过 adapter API 暴露，具体候选行为依 terminal；未声称完整光标编辑、进程外 durable history、协议 transport、ControlPlane authorization、receipt truth、跨入口 parity、provider/live timing 或 physical proof
 reviewer: Codex UI-12 source review；检查 partial escape/UTF-8 不执行、paste 纯文本、IME/Ctrl-C 优先级、immutable commit、history/resize/EOF/SIGINT/NonTty fence、原子 bounds reject、Workbench 无第二执行循环；无本地 runtime test reviewer
+### BQ-10 normalized provider usage adapters（2026-09-25）
+
+source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated worktree `/tmp/kiana-step-bq10`; protocol-specific Anthropic/OpenAI/Ollama/Gemini/Fake response fields map into one bounded `NormalizedUsage` vector; requested model and run/attempt identity remain server-owned, served model is an observation, and missing usage is retained as partial/unknown
+command_argv: GitHub Actions will run `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-provider --test bq10_normalized_usage --locked -- --test-threads=1`; `cargo test -p kiana-core --test bq10_normalized_usage_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: protocol field mapping, missing/partial usage, malformed numeric fields, overflow/contradictory totals, requested-vs-served model separation and source boundary; no permit, EventLog, Broker, network or settlement authority
+exit_code: 本地仅静态审阅与 `git diff --check`；GitHub Actions 待触发/未等待
+status change: BQ-10 normalized usage adapter source contract and GitHub-only fixtures wired; roadmap row/card advanced from ⏳ to 🔄
+proof-level change: `feature_status=implemented` for bounded provider/domain source contracts; `proof_level=source`, no local_behavior/durable/live/physical promotion
+limitations: response decoder remains responsible for wire syntax and stream accumulation; no provider billing truth, durable settlement, invoice reconciliation, live protocol, crash recovery or external effect proof; BQ-11+ owns attempt lifecycle and settlement integration
+reviewer: Codex BQ-10 source review；检查 protocol mapping、unknown/partial semantics、requested/served model boundary、total consistency、numeric bounds and no execution authority；无本地 runtime test reviewer
 
 ### UI-11 CLI JSON/TTY/exit-code presenter（2026-09-24）
 
