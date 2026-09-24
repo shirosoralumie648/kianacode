@@ -54,7 +54,11 @@ fn provenance(subject: &ReleaseManifest) -> ReleaseProvenance {
     .expect("provenance fixture")
 }
 
-fn signature(subject: &ReleaseManifest, verified: bool, transparency: &str) -> ReleaseSignatureAttestation {
+fn signature(
+    subject: &ReleaseManifest,
+    verified: bool,
+    transparency: &str,
+) -> ReleaseSignatureAttestation {
     ReleaseSignatureAttestation::new(
         ReleaseSignatureAlgorithm::Sigstore,
         "release-signer",

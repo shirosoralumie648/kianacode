@@ -408,7 +408,8 @@ impl ReleaseVerificationReport {
             || provenance.source_revision != expected_source_revision
         {
             "release_verification_source_revision_mismatch"
-        } else if manifest.builder_id != expected_builder_id || provenance.builder_id != expected_builder_id
+        } else if manifest.builder_id != expected_builder_id
+            || provenance.builder_id != expected_builder_id
         {
             "release_verification_builder_mismatch"
         } else if manifest.toolchain_digest != expected_toolchain_digest
