@@ -1625,6 +1625,7 @@ fn request_may_execute(body: &RequestBody) -> bool {
                     None | Some("list" | "search" | "show" | "status" | "inspect" | "preview")
                 )
             }
+            "extension.list" | "extension.inspect" => false,
             _ => true,
         },
         _ => true,

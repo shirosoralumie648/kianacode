@@ -42,9 +42,11 @@ pub use kiana_domain::{
     EvalDataset, EvalDatasetId, EvalSplit, EvalSuite, EvalSuiteId, EvalSuiteStatus, EventKindSpec,
     EventStoreHealth, EvidenceId, EvidenceRef, EvidenceRefId, EvidenceStatus, ExecutionId,
     ExecutionOutputBudget, ExecutionOutputRef, ExecutionReceipt, ExecutionScope, ExecutionStatus,
-    ExtensionCatalog, ExtensionEffect, ExtensionError, ExtensionErrorCode, ExtensionExecutionScope,
-    ExtensionId, ExtensionManifest, ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires,
-    ExtensionSignature, ExtensionSnapshot, ExtensionSnapshotState, ExtensionType,
+    ExtensionCatalog, ExtensionCommand, ExtensionCommandError, ExtensionCommandErrorCode,
+    ExtensionCommandReceipt, ExtensionCommandRequest, ExtensionCommandResponse, ExtensionEffect,
+    ExtensionError, ExtensionErrorCode, ExtensionExecutionScope, ExtensionId, ExtensionManifest,
+    ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires, ExtensionSignature,
+    ExtensionSnapshot, ExtensionSnapshotState, ExtensionType,
     ExtensionVisibilityAction, ExtensionVisibilityActionKind, ExtensionVisibilityEntry,
     ExtensionVisibilityKind, ExtensionVisibilityRisk, ExtensionVisibilitySnapshot,
     ExtensionVisibilitySource, ExtensionVisibilityStatus, ExtensionVisibilityTrust,
@@ -139,7 +141,9 @@ pub use kiana_domain::{
     EVENT_STORE_HEALTH_SCHEMA, EVENT_STORE_HEALTH_VERSION, EVIDENCE_REF_SCHEMA,
     EXECUTION_IDENTITY_SCHEMA_VERSION, EXECUTION_OUTPUT_BUDGET_SCHEMA, EXECUTION_OUTPUT_REF_SCHEMA,
     EXECUTION_RECEIPT_SCHEMA, EXECUTION_SCOPE_SCHEMA, EXECUTION_SCOPE_SCHEMA_VERSION,
-    EXTENSION_CATALOG_SCHEMA, EXTENSION_ERROR_SCHEMA, EXTENSION_MANAGE_OPERATION,
+    EXTENSION_CATALOG_SCHEMA, EXTENSION_COMMAND_ERROR_SCHEMA, EXTENSION_COMMAND_RECEIPT_SCHEMA,
+    EXTENSION_COMMAND_SCHEMA, EXTENSION_COMMAND_VERSION, EXTENSION_ERROR_SCHEMA,
+    EXTENSION_MANAGE_OPERATION,
     EXTENSION_MANIFEST_SCHEMA, EXTENSION_PACKAGE_SCHEMA, EXTENSION_SNAPSHOT_CACHE_ENTRY_SCHEMA,
     EXTENSION_SNAPSHOT_CACHE_KEY_SCHEMA, EXTENSION_SNAPSHOT_SCHEMA,
     EXTENSION_SOURCE_RESOLUTION_SCHEMA, EXTERNAL_RESOURCE_REQUEST_SCHEMA,
@@ -458,6 +462,18 @@ impl RequestEnvelope {
                 arguments,
             }),
         }
+    }
+
+    /// Construct a typed extension command through the shared `DaemonHost → ControlPlane`
+    /// route. Validation only checks the wire contract; authorization and lifecycle mutation
+    /// remain server-owned.
+    pub fn extension_command(
+        metadata: RequestMetadata,
+        request: ExtensionCommandRequest,
+    ) -> Result<Self, String> {
+        let name = request.command.wire_name();
+        let arguments = request.to_arguments()?;
+        Ok(Self::command(metadata, name, arguments))
     }
 
     /// Construct one of the registered evaluation/quality commands through the normal daemon

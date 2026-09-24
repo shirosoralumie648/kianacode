@@ -7,8 +7,9 @@
 use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
-    ExtensionVisibilitySnapshot, ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope,
-    RunId, TurnId, UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
+    ExtensionCommandRequest, ExtensionVisibilitySnapshot, ParityRequest, RequestEnvelope,
+    RequestMetadata, ResponseEnvelope, RunId, TurnId, UiHandshakeRequest, UiHandshakeResponse,
+    UiHealth, WorkPacket,
 };
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -479,6 +480,19 @@ where
             .validate()
             .map_err(ClientError::Protocol)
             .map(|()| snapshot)
+    }
+
+    /// Submit a typed extension command.  The client validates only the versioned DTO and
+    /// forwards the intent; it never installs, enables, disables, revokes or rolls back locally.
+    pub async fn extension_command(
+        &self,
+        metadata: RequestMetadata,
+        request: ExtensionCommandRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        request.validate().map_err(ClientError::Protocol)?;
+        let envelope = RequestEnvelope::extension_command(metadata, request)
+            .map_err(ClientError::Protocol)?;
+        self.transport.send(envelope).await
     }
 
     /// 提交 WorkPacket 的 spawn 请求；不会在客户端本地派生 cell。

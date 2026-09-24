@@ -11871,3 +11871,16 @@ status change: PD-28 storage security source slice, CI wiring and baseline are i
 proof-level change: `feature_status=implemented` (domain/core/eventlog source plus remote fixture wiring), `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: encryption remains metadata-only and does not resolve/decrypt key material; non-Unix no-follow/hardlink race-free guarantees are explicitly limited; no power-loss, cross-host/network-FS, external key-provider, physical deletion or cross-process artifact/projector proof is claimed; CI result is unobserved
 reviewer: Codex source review of deny-before-write ordering, secret-free JSON/text validation with opaque reference exception, Unix identity/mode/link checks, non-Unix capability disclosure and no-fact-on-deny; no local runtime test reviewer
+
+### EXT-28 extension command and UI contract evidence (2026-09-24)
+
+source_snapshot: `4e70396a` plus isolated EXT-28 source slice; `kiana-domain/src/extension_commands.rs`; `kiana-protocol/src/lib.rs`; `kiana-client/src/lib.rs`; `kiana-core/src/commands.rs`; `kiana-daemon/src/{extensions,lib}.rs`; `kiana-entrypoints/src/extension_projection.rs`; domain/protocol/core fixtures; `.github/workflows/ext28-extension-command.yml`; `docs/roadmap/ext28-extension-command-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `ext-28-extension-commands-20260924`; versioned list/inspect/install/enable/disable/revoke/rollback DTOs, structured error/receipt contracts, shared ControlPlane command aliases and enable/disable lifecycle CAS are scoped to this step; unrelated user WIP remains outside the branch
+command_argv: `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, EXT-28 domain/protocol fixtures, core source guard and `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-ext28`; Linux x86_64; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only DTO deny/allow/strict-serde fixtures, generic command-envelope round-trip and source guard proving UI adapters do not execute packages or Hooks
+exit_code: local diff inspection only; remote CI result intentionally unobserved
+status change: EXT-28 source slice and CI wiring are implemented; read-only commands omit mutation authority, mutations bind actor/reason/idempotency/expected registry version, and every UI surface forwards through the shared adapter; roadmap row/card remain 🔄 pending CI evidence
+proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no local runtime tests were run and CI has not been observed; durable package install/recovery, approval UX, Hook/provider effects, external connector receipts and physical proof remain later slices
+reviewer: Codex source review of versioned DTO bounds, deny-first mutation fields, lifecycle CAS/idempotency, receipt-only UI projection and no second execution loop; no local runtime test reviewer

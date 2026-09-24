@@ -158,8 +158,14 @@ impl ExtensionRegistry {
         let arguments = &request.request.arguments;
         let action = string(arguments, "action")?;
         let project_root = string(arguments, "project_root")?;
-        let actor = string(arguments, "actor_id")?;
-        if request.request.cell_id.is_some() || arguments["operator_authorized"] != true {
+        let actor = arguments
+            .get("actor_id")
+            .and_then(Value::as_str)
+            .unwrap_or("readonly");
+        if arguments["operator_authorized"] != true
+            || (request.request.cell_id.is_some()
+                && request.request.risk != kiana_domain::RiskLevel::ReadOnly)
+        {
             return Err(failed("extension_operator_required"));
         }
         let (scope, history) = self.stream(project_root).await?;
@@ -226,7 +232,7 @@ impl ExtensionRegistry {
         }
         if !matches!(
             action,
-            "install" | "upgrade" | "revoke" | "rollback" | "uninstall"
+            "install" | "upgrade" | "enable" | "disable" | "revoke" | "rollback" | "uninstall"
         ) {
             return Err(failed("extension_action_invalid"));
         }
@@ -298,6 +304,27 @@ impl ExtensionRegistry {
                 // Uninstall is an append-only lifecycle fact. Cleanup is adapter-owned and is
                 // represented by the receipt; the cache is not silently erased here.
                 next.state = "uninstalled".to_owned();
+                next.installed_by = actor.to_owned();
+                next.source_request_id = request.request.request_id;
+                (next, None)
+            }
+            "enable" | "disable" => {
+                let current = current.ok_or_else(|| failed("extension_not_installed"))?;
+                if matches!(current.state.as_str(), "revoked" | "uninstalled") {
+                    return Err(failed("extension_lifecycle_state_invalid"));
+                }
+                if action == "enable" && current.state == "enabled" {
+                    return Err(failed("extension_already_enabled"));
+                }
+                if action == "disable" && current.state != "enabled" {
+                    return Err(failed("extension_not_enabled"));
+                }
+                let mut next = current.clone();
+                next.state = if action == "enable" {
+                    "enabled".to_owned()
+                } else {
+                    "disabled".to_owned()
+                };
                 next.installed_by = actor.to_owned();
                 next.source_request_id = request.request.request_id;
                 (next, None)
@@ -462,6 +489,18 @@ impl ExtensionRegistry {
             })?;
         let mut output = appended.event.data["receipt"].clone();
         output["event_id"] = json!(appended.event.event_id);
+        output["command_receipt"] = json!({
+            "schema": kiana_domain::EXTENSION_COMMAND_RECEIPT_SCHEMA,
+            "command": action,
+            "extension_id": extension_id,
+            "actor_id": actor,
+            "reason": kiana_domain::redact_text(reason),
+            "idempotency_key": key,
+            "expected_registry_version": expected,
+            "registry_version": next_version,
+            "event_id": appended.event.event_id,
+            "replayed": false,
+        });
         Ok(output)
     }
 
@@ -1160,7 +1199,7 @@ fn fold_registry(
         state.manifest.validate().map_err(failed)?;
         if !matches!(
             state.state.as_str(),
-            "enabled" | "staged" | "revoked" | "uninstalled"
+            "enabled" | "staged" | "disabled" | "rolled_back" | "revoked" | "uninstalled"
         ) || !kiana_domain::is_sha256_hex(&state.package_sha256)
         {
             return Err(failed("extension_registry_event_invalid"));

@@ -283,9 +283,11 @@ impl ControlPlane {
         ) {
             return self.handle_connector_command(context, intent).await;
         }
-        if intent.name == kiana_domain::EXTENSION_MANAGE_OPERATION {
+        if intent.name == kiana_domain::EXTENSION_MANAGE_OPERATION
+            || kiana_domain::ExtensionCommand::from_wire_name(&intent.name).is_some()
+        {
             return self
-                .handle_extension_management(context, intent.arguments)
+                .handle_extension_management(&intent.name, context, intent.arguments)
                 .await;
         }
         if intent.name == CONTEXT_QUERY_COMMAND {
@@ -419,10 +421,11 @@ impl ControlPlane {
 
     async fn handle_extension_management(
         &self,
+        command_name: &str,
         context: RequestContext,
         arguments: Value,
     ) -> Result<CoreResponse, CoreError> {
-        let normalized = normalize_extension_command(&context, arguments);
+        let normalized = normalize_extension_command(command_name, &context, arguments);
         let (arguments, risk) = match normalized {
             Ok(value) => value,
             Err(reason) => {
@@ -455,17 +458,10 @@ impl ControlPlane {
 }
 
 fn normalize_extension_command(
+    command_name: &str,
     context: &RequestContext,
     arguments: Value,
 ) -> Result<(Value, RiskLevel), &'static str> {
-    if context.cell_id.is_some()
-        || context
-            .actor_id
-            .as_deref()
-            .is_none_or(|s| s.trim().is_empty())
-    {
-        return Err("extension_operator_required");
-    }
     let mut object = arguments
         .as_object()
         .cloned()
@@ -474,6 +470,8 @@ fn normalize_extension_command(
         !matches!(
             key.as_str(),
             "action"
+                | "schema"
+                | "version"
                 | "extension_id"
                 | "package_path"
                 | "package_sha256"
@@ -486,22 +484,44 @@ fn normalize_extension_command(
     }) {
         return Err("extension_arguments_invalid");
     }
-    let action = object
-        .get("action")
-        .and_then(Value::as_str)
-        .ok_or("extension_action_invalid")?;
+    if let Some(schema) = object.get("schema").and_then(Value::as_str) {
+        if schema != kiana_domain::EXTENSION_COMMAND_SCHEMA {
+            return Err("extension_command_schema_invalid");
+        }
+    }
+    if object.get("version").is_some_and(|version| {
+        serde_json::from_value::<kiana_domain::SchemaVersion>(version.clone())
+            .map(|version| !version.is_compatible_with(&kiana_domain::EXTENSION_COMMAND_VERSION))
+            .unwrap_or(true)
+    }) {
+        return Err("extension_command_version_invalid");
+    }
+    let action = kiana_domain::ExtensionCommand::from_wire_name(command_name)
+        .map(kiana_domain::ExtensionCommand::action)
+        .or_else(|| object.get("action").and_then(Value::as_str))
+        .ok_or("extension_action_invalid")?
+        .to_owned();
+    object.insert("action".to_owned(), json!(&action));
     if !matches!(
-        action,
-        "inspect" | "list" | "search" | "install" | "upgrade" | "revoke" | "rollback"
+        action.as_str(),
+        "inspect"
+            | "list"
+            | "search"
+            | "install"
+            | "upgrade"
+            | "enable"
+            | "disable"
+            | "revoke"
+            | "rollback"
     ) {
         return Err("extension_action_invalid");
     }
-    let risk = if matches!(action, "list" | "inspect") {
+    let risk = if matches!(action.as_str(), "list" | "inspect") {
         RiskLevel::ReadOnly
     } else {
         RiskLevel::ExternalSideEffect
     };
-    if matches!(action, "install" | "upgrade")
+    if matches!(action.as_str(), "install" | "upgrade")
         && object
             .get("package_path")
             .and_then(Value::as_str)
@@ -509,7 +529,7 @@ fn normalize_extension_command(
     {
         return Err("extension_package_path_must_be_project_relative");
     }
-    if matches!(action, "search")
+    if matches!(action.as_str(), "search")
         && object
             .get("query")
             .and_then(Value::as_str)
@@ -525,6 +545,14 @@ fn normalize_extension_command(
         return Err("extension_visibility_max_results_invalid");
     }
     if risk != RiskLevel::ReadOnly {
+        if context.cell_id.is_some()
+            || context
+                .actor_id
+                .as_deref()
+                .is_none_or(|s| s.trim().is_empty())
+        {
+            return Err("extension_operator_required");
+        }
         if object
             .get("extension_id")
             .and_then(Value::as_str)
@@ -544,7 +572,7 @@ fn normalize_extension_command(
         {
             return Err("extension_mutation_fields_required");
         }
-        if action != "revoke"
+        if matches!(action.as_str(), "install" | "upgrade" | "rollback")
             && object
                 .get("package_sha256")
                 .and_then(Value::as_str)

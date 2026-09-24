@@ -8,8 +8,8 @@
 use anyhow::{anyhow, Result};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    EntryPointKind, ExtensionVisibilityAction, ExtensionVisibilityActionKind,
-    ExtensionVisibilitySnapshot,
+    EntryPointKind, ExtensionCommandRequest, ExtensionVisibilityAction, ExtensionVisibilityActionKind,
+    ExtensionVisibilitySnapshot, ResponseEnvelope,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -37,6 +37,23 @@ pub async fn extension_visibility_on_host(
             extension_id,
             Some(max_results),
         )
+        .await
+        .map_err(|error| anyhow!(error.to_string()))
+}
+
+/// Forward an extension lifecycle intent from any UI surface.  The adapter returns the shared
+/// response/receipt projection and never parses packages, executes hooks or decides approval.
+pub async fn extension_command_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    surface: EntryPointKind,
+    request: ExtensionCommandRequest,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, mut metadata) = crate::harness_run::client_on_host(host, session_id, options)?;
+    metadata.entrypoint = Some(surface);
+    client
+        .extension_command(metadata, request)
         .await
         .map_err(|error| anyhow!(error.to_string()))
 }

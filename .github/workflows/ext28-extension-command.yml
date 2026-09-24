@@ -1,0 +1,62 @@
+name: EXT-28 extension command and UI contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/extension_commands.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext28_extension_commands.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ext28_extension_command_wire.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/ext28_extension_command_guard.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/extension_projection.rs"
+      - "docs/roadmap/ext28-extension-command-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext28-extension-command.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/extension_commands.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext28_extension_commands.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ext28_extension_command_wire.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/ext28_extension_command_guard.rs"
+      - "kiana-daemon/src/extensions.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/extension_projection.rs"
+      - "docs/roadmap/ext28-extension-command-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext28-extension-command.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-command-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-28 domain contract fixture
+        run: cargo test -p kiana-domain --test ext28_extension_commands --locked -- --test-threads=1
+      - name: Run EXT-28 protocol wire fixture
+        run: cargo test -p kiana-protocol --test ext28_extension_command_wire --locked -- --test-threads=1
+      - name: Run EXT-28 source boundary guard
+        run: cargo test -p kiana-core --test ext28_extension_command_guard --locked -- --test-threads=1
+      - name: Compile EXT-28 targets
+        run: cargo check --workspace --tests --locked

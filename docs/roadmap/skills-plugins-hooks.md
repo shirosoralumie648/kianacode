@@ -374,7 +374,9 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-28 · 命令与 UI 合同　⏳
+#### EXT-28 · 命令与 UI 合同　🔄
+
+当前 source slice 与 CI-only 证据见 [`ext28-extension-command-baseline.md`](ext28-extension-command-baseline.md)。
 
 为 `extension.list`、`extension.inspect`、`extension.install`、`extension.enable`、`extension.disable`、`extension.revoke`、`extension.rollback` 定义 versioned protocol DTO、结构化错误和权限边界；只读 inspect 不需要 mutation approval，状态改变都要 actor/reason/idempotency/expected version。Workbench/Web/Desktop 只投影事件和 receipt，不在前端执行 Hook、解析包或自行决定 scope。
 
