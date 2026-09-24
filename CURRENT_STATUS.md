@@ -12117,7 +12117,6 @@ status change: UI-14 pure controller/keymap/session-switcher/command-palette sou
 proof-level change: `feature_status=implemented` for source contract and CI wiring; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: controller state is process-local and not a wired Workbench event loop or durable session projector; typed client must compute/validate canonical payload digest before sending `UiActionV1`; no server authorization, EventLog append, response-loss reconnect, SIGTERM/OS close, cross-process recovery, provider/tool effect, receipt correctness or physical/live proof is claimed
 reviewer: Codex UI-14 source review; checked intent-to-action CAS fields, stale/duplicate/capability denials, session draft boundary, separate submission/run state, safe close and no second execution path; no local runtime test reviewer
-
 ### INT-08 local fixture schema, hash and deterministic receipt evidence (2026-09-25)
 
 ```text
@@ -12135,3 +12134,16 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: fixtures are local observations and never prove external provider delivery, exactly-once business effect, durable cross-process registry/lease recovery or live/physical outcome; external HTTP/OAuth/MCP transports, provider query receipts and cross-process fencing remain later INT steps
 reviewer: Codex sub-agent source review of fixture bounds/hash/canonical matching/external-effect denial, deterministic receipt redaction, ControlPlane/Broker/EventStore path and no-network/no-second-loop boundary; no runtime test reviewer
 ```
+
+### UI-15 Workbench inbox, Diff and Receipt (2026-09-25)
+
+source_snapshot: `88959eb5` (`origin/master` after UI-14); UI-15 source slice `kiana-entrypoints/src/workbench_review.rs`, module export, inbox/diff/receipt fixture and guards, GitHub workflow, baseline and roadmap overlays
+worktree_status: isolated `/tmp/kiana-step-ui15` on branch `ui-15-workbench-inbox-receipt-20260925`; only UI-15 owned files are intended for this step; unrelated worktree changes are preserved
+command_argv: target-only `rustfmt --edition 2021 kiana-entrypoints/src/workbench_review.rs kiana-entrypoints/src/lib.rs kiana-entrypoints/tests/ui15_workbench_review.rs kiana-entrypoints/tests/ui15_workbench_review_guard.rs`; `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, `cargo test -p kiana-entrypoints --test ui15_workbench_review --locked -- --test-threads=1`, `cargo test -p kiana-entrypoints --test ui15_workbench_review_guard --locked -- --test-threads=1`, and `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-ui15`; Linux; stable Rust; local Cargo test/build/check/clippy/smoke commands deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: `ui15-workbench-review.json` and deny-first tests cover reason/scope/expiry/fields/allowed decisions, duplicate inbox cards, expired/revoked approval, revision mismatch, client payload mutation, server ArtifactRef page/content/revision digest fencing, pagination assembly, files/cost/limitations/provenance and ResultUnknown non-green receipt; source guard verifies display-only boundary
+exit_code: local target rustfmt exited 0; `git diff --check` is the only remaining local verification; remote fixture, workspace compile and CI exit codes are pending/unobserved
+status_change: UI-15 bounded inbox/review, server-artifact diff viewer, receipt display contract and GitHub-only evidence wiring implemented; roadmap card/row advanced from `⏳` to `🔄`
+proof-level_change: `feature_status=implemented` for source contract and CI wiring; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: inbox/receipt remain process-local projections; artifact pages are synthetic and do not prove a durable artifact store, cross-process replay, real filesystem state, provider cost, external effect or reconciliation; no Web/Desktop/IDE adapter, browser rendering, live provider, physical PTY or second execution path is claimed; CI result intentionally not observed
+reviewer: Codex UI-15 source review; checked server-owned payload/reason/scope/revision/expiry boundary, artifact ref/page/content digest and pagination fencing, unknown receipt visibility, cost-known consistency and no second execution path; no local runtime test reviewer

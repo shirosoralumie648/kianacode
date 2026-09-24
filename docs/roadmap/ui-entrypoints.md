@@ -371,13 +371,21 @@ draft 并递增 revision；stale draft、重复提交、Unknown 未对账、无 
 
 
 
-#### UI-15 · Workbench inbox、Diff 和 Receipt　⏳
+#### UI-15 · Workbench inbox、Diff 和 Receipt　🔄
 
 - 依赖：UI-05/08/13/14、Event/Receipt §23。代码：inbox panel、artifact viewer、receipt view。
 - 步骤：展示 reason/scope/expiry/fields/allowed decisions；Diff 由服务端 Artifact ref 提供并校验 digest/revision；Receipt 显示 files/cost/unknown/limitations/provenance。
 - 先拒绝：过期 approval、revision mismatch、客户端自行改审批 payload、artifact digest 错、ResultUnknown 画成绿色完成。
 - 成功/回归：approve/deny/edit/restore、部分文件、分页 artifact、撤销、receipt 重算和终态回放。
 - 完成产物：Workbench UX fixture、receipt golden、审阅错误恢复说明。
+
+已接入纯 `WorkbenchInboxCard`/`WorkbenchInbox`、`ArtifactPage`/`ArtifactViewer` 与
+`WorkbenchReceipt` source contract：inbox 保留服务端 reason/scope/expiry/fields/allowed
+decisions/payload，过期/撤销审批、revision mismatch、客户端 payload mutation 和重复卡片
+fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content digest、revision、分页
+边界与完整 artifact digest；Receipt 显示 files/cost/unknown/limitations/provenance，
+`ResultUnknown` 永不画成绿色完成。fixture、source guard 和 GitHub-only workflow 已接入；见
+[UI-15 baseline](ui15-workbench-inbox-receipt-baseline.md)。证明等级为 `source`，CI 结果未等待。
 
 ### 27.3 Web、SSE 和多标签页
 

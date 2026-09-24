@@ -1,0 +1,48 @@
+name: UI-15 Workbench inbox, Diff and Receipt
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_review.rs"
+      - "kiana-entrypoints/tests/fixtures/ui15-workbench-review.json"
+      - "kiana-entrypoints/tests/ui15_workbench_review.rs"
+      - "kiana-entrypoints/tests/ui15_workbench_review_guard.rs"
+      - "docs/roadmap/ui15-workbench-inbox-receipt-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui15-workbench-inbox-receipt.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_review.rs"
+      - "kiana-entrypoints/tests/fixtures/ui15-workbench-review.json"
+      - "kiana-entrypoints/tests/ui15_workbench_review.rs"
+      - "kiana-entrypoints/tests/ui15_workbench_review_guard.rs"
+      - "docs/roadmap/ui15-workbench-inbox-receipt-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui15-workbench-inbox-receipt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui15-workbench-inbox-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-15 inbox, diff and receipt fixtures
+        run: cargo test -p kiana-entrypoints --test ui15_workbench_review --locked -- --test-threads=1
+      - name: Run UI-15 display boundary guard
+        run: cargo test -p kiana-entrypoints --test ui15_workbench_review_guard --locked -- --test-threads=1
+      - name: Compile UI-15 workspace test targets
+        run: cargo check --workspace --tests --locked

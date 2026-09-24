@@ -1,0 +1,41 @@
+{
+  "schema": "kiana.workbench-review.v1",
+  "deny_first": [
+    "approval_expired",
+    "approval_revoked",
+    "approval_revision_mismatch",
+    "client_payload_mutation",
+    "artifact_digest_mismatch",
+    "artifact_revision_mismatch",
+    "result_unknown_not_green"
+  ],
+  "inbox": {
+    "action_id": "approval-15",
+    "command": "approval.decide",
+    "target_id": "run-15",
+    "reason": "The requested write needs operator review.",
+    "scope": {
+      "scope_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "summary": "workspace files under src/",
+      "paths": ["src/main.rs"]
+    },
+    "expiry_ms": 2000,
+    "fields": [
+      {"name": "comment", "label": "Review comment", "field_type": "text", "required": true}
+    ],
+    "allowed_decisions": ["approve", "deny", "edit", "restore", "continue"],
+    "payload": {"decision": "approve", "scope": "src/"},
+    "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "diff": {
+    "source": "server_artifact_ref",
+    "checks": ["digest", "revision", "page_bounds"]
+  },
+  "receipt": {
+    "files": ["src/main.rs"],
+    "cost": {"currency": "USD", "amount_micros": 1200},
+    "unknown": true,
+    "limitations": ["provider_receipt_pending"],
+    "provenance": {"source_cursor": 15, "source_event_ids": ["event-15"]}
+  }
+}

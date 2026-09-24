@@ -31,6 +31,7 @@ pub mod workbench;
 mod workbench_chat;
 pub mod workbench_controller;
 pub mod workbench_render;
+pub mod workbench_review;
 
 #[cfg(test)]
 pub(crate) mod test_support {
