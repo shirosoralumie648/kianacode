@@ -14,12 +14,19 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 mod typed;
+mod ui_store;
 
 pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
     UiCommandStatusV1, UiHistoryV1,
+};
+pub use ui_store::{
+    UiEntity, UiEntityKey, UiEntityKind, UiEntityLifecycle, UiEntityStore, UiEntityStoreSnapshot,
+    UiOptimisticUpdate, UiStoreChange, UiStoreError, UiStoreEvent, UiStoreGap, UiStoreGapReason,
+    UiStoreScope, UiStoreTransition, UI_ENTITY_STORE_MAX_ENTITIES, UI_ENTITY_STORE_MAX_EVENTS,
+    UI_ENTITY_STORE_MAX_UNKNOWN, UI_ENTITY_STORE_SCHEMA, UI_ENTITY_STORE_SNAPSHOT_SCHEMA,
 };
 
 #[async_trait]

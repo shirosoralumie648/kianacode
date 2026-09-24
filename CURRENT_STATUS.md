@@ -17,6 +17,19 @@ proof-level change: `feature_status=implemented`（typed facade + lifecycle chec
 limitations: generic command routes remain protocol contracts until later daemon/entrypoint wiring；listener registry 仅进程内，非 durable subscription inbox；未证明跨进程 socket/SSE、artifact blob delivery、provider/live timing 或 physical proof；UI-08 reducer、UI-18 reconnect 和 UI-33 crash recovery 仍未完成
 reviewer: Codex UI-07 source review；检查 initialize/workspace/schema/request ID fence、deadline/cancel、feed listener generation、Unknown 原 key 查询、Accepted/Applied 分离及 client 无 Broker/模型循环；无本地 runtime test reviewer
 
+### UI-08 共享 reducer/entity store（2026-09-24）
+
+source_snapshot: `a2309009`（UI-08 分支基线，提交后绑定本提交）；`kiana-client/src/ui_store.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui08_reducer_store.rs`; `kiana-core/tests/ui08_reducer_store_guard.rs`; `kiana-entrypoints/tests/ui08_store_boundary_guard.rs`; `.github/workflows/ui08-reducer-store.yml`; `docs/roadmap/ui08-reducer-store-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-08-reducer-20260924`，已基于 `origin/master=a2309009` 重放；共享 `UiEntityStore` 按 workspace/session/tab scope 绑定 run/connection/submission/draft/inbox/artifact，保留主工作树用户 WIP 不动
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui08_reducer_store --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui08_reducer_store_guard --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui08_store_boundary_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: reducer 旧 revision、duplicate/gap、epoch reset、tab isolation、optimistic rollback/expiry、Applied/Rejected/Unknown、cache protected eviction、hydrate/dehydrate digest；core/entrypoints source guard 覆盖无 ControlPlane/Broker/模型循环和无第二 entity store
+exit_code: 本地未执行上述测试/构建/检查；GitHub Actions 待触发/未等待
+status change: UI-08 共享纯 reducer/entity store 与 GitHub-only fixtures 已接入，roadmap row 424/card 状态为 🔄
+proof-level change: `feature_status=implemented`（bounded source reducer + lifecycle/recovery contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: store 是进程内 presentation projection，未证明 durable/cross-process replay、SSE/socket、presenter 全量迁移、provider/live timing 或 physical proof；UI-18 reconnect 与 UI-33 crash recovery 仍未完成
+reviewer: Codex UI-08 source review；检查 scope/revision/event/epoch fences、pending/unknown protection、Accepted 保留 optimistic、Applied/Rejected/Unknown settlement、snapshot digest 和无第二执行循环；无本地 runtime test reviewer
+
 ### UI-06 feed cursor、gap、replay 与背压（2026-09-24）
 
 source_snapshot: `0cc07fd6`（最新 master）+ UI-06 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui06_feed_contract.rs`; `kiana-daemon/src/run_stream.rs`; `kiana-daemon/src/lib.rs`; `kiana-core/tests/ui06_feed_replay_guard.rs`; `.github/workflows/ui06-feed-replay.yml`; `docs/roadmap/ui06-feed-replay-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

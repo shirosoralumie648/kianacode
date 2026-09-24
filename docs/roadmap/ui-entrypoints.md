@@ -255,13 +255,13 @@ UiActionResult {
 
 
 
-#### UI-08 · 共享 reducer/entity store　⏳
+#### UI-08 · 共享 reducer/entity store　🔄
 
 - 依赖：UI-05–07。代码：`kiana-entrypoints` 或共享 adapter 的纯函数 reducer/store。
 - 步骤：按 entity ID/revision 合并 snapshot/feed；分别存 run、connection、submission、draft、inbox、artifact viewer；固定 optimistic 状态只能短暂存在且可回滚。
 - 先拒绝：旧 revision 覆盖新值、跨 session 串数据、event duplicate 产生两条 item、cache eviction 丢 pending/unknown、乐观成功掩盖服务端拒绝。
 - 成功/回归：乱序/重复/gap/epoch reset、tab isolation、hydrate/dehydrate、内存上限和 reducer purity 测试。
-- 完成产物：共享 store、状态图、fixture reducer trace；presenter 不再自建事实状态。
+- 完成产物：共享 store、状态图、fixture reducer trace；presenter 不再自建事实状态。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-09"></a>
 
