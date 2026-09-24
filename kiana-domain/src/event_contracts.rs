@@ -41,6 +41,13 @@ const MODEL_ATTEMPT_LIFECYCLE_IDS: &[&str] = &[
 const SETTLEMENT_FOLD_IDS: &[&str] =
     &["run_id", "model_attempt_id", "attempt_id", "reservation_id"];
 const COST_IDS: &[&str] = &["run_id", "attempt_id", "usage_digest"];
+const COST_LEDGER_IDS: &[&str] = &["run_id", "entry_id", "source_event_id"];
+const COST_CORRECTION_IDS: &[&str] = &[
+    "run_id",
+    "correction_id",
+    "target_entry_id",
+    "target_entry_digest",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -379,6 +386,56 @@ const COST_FIELDS: &[&str] = &[
     "kind",
     "lines",
     "breakdown_digest",
+];
+const COST_LEDGER_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "entry_id",
+    "kind",
+    "run_id",
+    "attempt_id",
+    "usage_ref",
+    "reservation_ref",
+    "allocation_ref",
+    "amount",
+    "estimated_cost",
+    "measured_cost",
+    "currency",
+    "rate_card_id",
+    "rate_card_version",
+    "provider_receipt_ref",
+    "created_at_unix_ms",
+    "source_event_id",
+    "source_cursor",
+    "revision",
+    "source_digest",
+    "entry_digest",
+];
+const COST_CORRECTION_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "correction_id",
+    "command_id",
+    "command_digest",
+    "target_entry_id",
+    "target_entry_digest",
+    "target_run_id",
+    "target_attempt_id",
+    "target_source_cursor",
+    "target_revision",
+    "delta_estimated",
+    "delta_measured",
+    "reason",
+    "evidence_refs",
+    "requested_by",
+    "idempotency_key",
+    "approval_id",
+    "approver_id",
+    "approved_at_unix_ms",
+    "approval_digest",
+    "created_at_unix_ms",
+    "correction_digest",
+    "run_id",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
     "approval_id",
@@ -906,6 +963,22 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         None
     ),
     spec!(
+        "cost.ledger_entry",
+        "cost_ledger",
+        COST_LEDGER_IDS,
+        COST_LEDGER_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "cost.corrected",
+        "cost_ledger",
+        COST_CORRECTION_IDS,
+        COST_CORRECTION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
         "run.snapshot",
         "run",
         RUN_IDS,
@@ -1144,6 +1217,7 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "recovery.",
         "model.",
         "usage.",
+        "cost.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))

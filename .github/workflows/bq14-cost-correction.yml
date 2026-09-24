@@ -1,0 +1,70 @@
+name: BQ-14 append-only cost correction
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_ledger.rs"
+      - "kiana-domain/src/cost_correction.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq14_cost_correction.rs"
+      - "kiana-core/src/cost_correction.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq14_cost_correction.rs"
+      - "kiana-core/tests/bq14_cost_correction_guard.rs"
+      - "kiana-query/src/cost_ledger_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq14_cost_ledger_projector.rs"
+      - "kiana-query/tests/bq14_cost_ledger_projector_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq14-cost-correction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq14-cost-correction.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_ledger.rs"
+      - "kiana-domain/src/cost_correction.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq14_cost_correction.rs"
+      - "kiana-core/src/cost_correction.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq14_cost_correction.rs"
+      - "kiana-core/tests/bq14_cost_correction_guard.rs"
+      - "kiana-query/src/cost_ledger_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq14_cost_ledger_projector.rs"
+      - "kiana-query/tests/bq14_cost_ledger_projector_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq14-cost-correction-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq14-cost-correction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cost-correction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-14 domain fixtures
+        run: cargo test -p kiana-domain --test bq14_cost_correction --locked -- --test-threads=1
+      - name: Run BQ-14 core admission fixtures
+        run: cargo test -p kiana-core --test bq14_cost_correction --locked -- --test-threads=1
+      - name: Run BQ-14 core source guard
+        run: cargo test -p kiana-core --test bq14_cost_correction_guard --locked -- --test-threads=1
+      - name: Run BQ-14 query projector fixtures
+        run: cargo test -p kiana-query --test bq14_cost_ledger_projector --locked -- --test-threads=1
+      - name: Run BQ-14 query source guard
+        run: cargo test -p kiana-query --test bq14_cost_ledger_projector_guard --locked -- --test-threads=1
+      - name: Compile BQ-14 targets
+        run: cargo check --workspace --tests --locked

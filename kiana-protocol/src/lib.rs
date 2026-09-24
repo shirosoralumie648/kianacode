@@ -23,6 +23,13 @@ pub use kiana_domain::{
     RECEIPT_COST_BREAKDOWN_SCHEMA,
 };
 pub use kiana_domain::{
+    CostCorrection, CostCorrectionApproval, CostCorrectionAppendOutcome, CostCorrectionCommand,
+    CostLedger, CostLedgerEntry, CostLedgerEntryKind, CostLedgerView, COST_CORRECTION_APPROVAL_SCHEMA,
+    COST_CORRECTION_COMMAND, COST_CORRECTION_COMMAND_SCHEMA, COST_CORRECTION_EVENT,
+    COST_CORRECTION_SCHEMA, COST_LEDGER_ENTRY_EVENT, COST_LEDGER_ENTRY_SCHEMA,
+    COST_LEDGER_VERSION,
+};
+pub use kiana_domain::{
     normalize_role_path, redact_text, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
     AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
@@ -243,6 +250,11 @@ pub use kiana_domain::{
 };
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
+pub const COST_CORRECTION_COMMAND_NAME: &str = "cost.correction";
+pub const COST_CORRECTION_COMMAND_REQUEST_SCHEMA: &str =
+    "kiana.cost-correction-command-request.v1";
+pub const COST_CORRECTION_COMMAND_RESPONSE_SCHEMA: &str =
+    "kiana.cost-correction-command-response.v1";
 pub const AUDIT_QUERY_SCHEMA: &str = "kiana.audit-query.v1";
 pub const QUALITY_COMMAND_SCHEMA: &str = "kiana.quality-command.v1";
 pub const QUALITY_COMMAND_KINDS: &[&str] = &[
@@ -485,6 +497,24 @@ impl RequestEnvelope {
                 arguments,
             }),
         }
+    }
+
+    /// Submit a correction through the normal versioned command route. This helper only encodes
+    /// the command; authorization, approval consumption and EventLog append remain ControlPlane
+    /// responsibilities.
+    pub fn cost_correction_command(
+        metadata: RequestMetadata,
+        command: CostCorrectionCommand,
+    ) -> Result<Self, String> {
+        let request = CostCorrectionCommandRequest::new(command);
+        request.validate()?;
+        let arguments = serde_json::to_value(request)
+            .map_err(|_| "cost_correction_command_encode_failed".to_owned())?;
+        Ok(Self::command(
+            metadata,
+            COST_CORRECTION_COMMAND_NAME,
+            arguments,
+        ))
     }
 
     /// Construct a typed extension command through the shared `DaemonHost → ControlPlane`
@@ -845,6 +875,69 @@ pub struct CommandRequest {
     pub name: String,
     /// 命令参数。
     pub arguments: Value,
+}
+
+/// Typed wire request for the append-only cost correction command. The daemon resolves the
+/// server-owned target and approval context; callers cannot submit a replacement ledger value.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CostCorrectionCommandRequest {
+    pub schema: String,
+    pub command: CostCorrectionCommand,
+}
+
+impl CostCorrectionCommandRequest {
+    pub fn new(command: CostCorrectionCommand) -> Self {
+        Self {
+            schema: COST_CORRECTION_COMMAND_REQUEST_SCHEMA.to_owned(),
+            command,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != COST_CORRECTION_COMMAND_REQUEST_SCHEMA {
+            return Err("cost_correction_command_request_schema_invalid".to_owned());
+        }
+        self.command.validate()
+    }
+}
+
+/// Server response shape for a committed or replayed correction. The receipt/digest is a
+/// projection of EventLog facts; it does not claim an external invoice was paid.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CostCorrectionCommandResponse {
+    pub schema: String,
+    pub command_id: RequestId,
+    pub correction_id: kiana_domain::CostCorrectionId,
+    pub correction_digest: String,
+    pub target_entry_digest: String,
+    pub source_cursor: u64,
+    pub replayed: bool,
+}
+
+impl CostCorrectionCommandResponse {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != COST_CORRECTION_COMMAND_RESPONSE_SCHEMA
+            || self.command_id.as_uuid().is_nil()
+            || self.correction_id.as_uuid().is_nil()
+            || self.source_cursor == 0
+        {
+            return Err("cost_correction_command_response_invalid".to_owned());
+        }
+        for (field, value) in [
+            ("correction_digest", &self.correction_digest),
+            ("target_entry_digest", &self.target_entry_digest),
+        ] {
+            let Some(hex) = value.strip_prefix("sha256:") else {
+                return Err(format!("cost_correction_{field}_invalid"));
+            };
+            if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(format!("cost_correction_{field}_invalid"));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Read-only provider credential probe request.  The request carries only a secret reference;

@@ -17,6 +17,7 @@ pub mod config;
 pub mod connector_health;
 pub mod context_inputs;
 pub mod context_manifest;
+pub mod cost_ledger_projector;
 pub mod cost_projector;
 pub mod data_boundary;
 pub mod deps;
@@ -46,6 +47,10 @@ pub use context_inputs::repo_map_candidate;
 pub use context_manifest::{
     read_context_material_manifest, write_context_material_manifest_atomic,
     ContextMaterialManifest, CONTEXT_MATERIAL_MANIFEST_SCHEMA,
+};
+pub use cost_ledger_projector::{
+    project_cost_ledger, CostLedgerProjection, CostLedgerProjectionError,
+    COST_LEDGER_PROJECTION_SCHEMA, COST_LEDGER_PROJECTION_VERSION,
 };
 pub use cost_projector::{
     project_cost_receipt, project_receipt_cost, CostQueryProjectionError, CostReceiptProjection,

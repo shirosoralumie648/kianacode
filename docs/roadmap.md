@@ -654,7 +654,7 @@
 | 481 | W6 | 专项 | [`EQ-35`](#step-eq-35) | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `EQ-34` | ⏳ | [专项卡](#step-eq-35) |
 | 482 | W6 | 专项 | [`EQ-36`](#step-eq-36) | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `EQ-35` | ⏳ | [专项卡](#step-eq-36) |
 | 483 | W6 | 专项 | [`EQ-37`](#step-eq-37) | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `EQ-36` | ⏳ | [专项卡](#step-eq-37) |
-| 484 | W6 | 专项 | [`BQ-14`](#step-bq-14) | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | `CP-11`、`ER-12`、`BQ-13` | ⏳ | [专项卡](#step-bq-14) |
+| 484 | W6 | 专项 | [`BQ-14`](#step-bq-14) | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | `CP-11`、`ER-12`、`BQ-13` | 🔄 | [专项卡](#step-bq-14) · [baseline](roadmap/bq14-cost-correction-baseline.md) |
 | 485 | W6 | 专项 | [`BQ-15`](#step-bq-15) | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | `CAP-17`、`BQ-06`、`BQ-08`、`BQ-11` | ⏳ | [专项卡](#step-bq-15) |
 | 486 | W6 | 专项 | [`BQ-16`](#step-bq-16) | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | `BQ-07`、`BQ-08`、`BQ-15` | ⏳ | [专项卡](#step-bq-16) |
 | 487 | W6 | 专项 | [`BQ-17`](#step-bq-17) | Retry classifier、attempt reservation、Retry-After 和 cancellation | `P4-J7-23`、`BQ-11`、`BQ-12`、`BQ-16` | ⏳ | [专项卡](#step-bq-17) |
@@ -5699,7 +5699,7 @@ CostCorrection { correction_id, target_entry_ref, delta_estimated?, delta_measur
 | <a id="step-bq-11"></a>`BQ-11` | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | BQ-08,BQ-10 | 未 prepared、无 permit、同 attempt 多次 settle、append 未 flush 却 dispatch 全拒绝 | `run→turn→attempt→usage→receipt` 关联完整；失败 attempt 也留 usage/error |
 | <a id="step-bq-12"></a>`BQ-12` | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | BQ-11 | cancel/timeout/EOF 自动归零、unknown 自动释放、已知 usage 退款、重复 settle 双扣全拒绝 | known/partial/unknown 三路得到确定性账本；reconcile 前保守占用 · [baseline](roadmap/bq12-settlement-fold-baseline.md) |
 | <a id="step-bq-13"></a>`BQ-13` | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | BQ-05,BQ-12 | 无 RateCard/不完整 usage 写 measured、估算进入 FinancialBudget、cost=0 伪造全拒绝 | estimate 引用 rate-card version；measured 只带 provider receipt；unknown 显示原因 · [baseline](roadmap/bq13-cost-receipt-baseline.md) |
-| <a id="step-bq-14"></a>`BQ-14` | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | BQ-13,CP-11,ER-12 | 原地 UPDATE/DELETE、模型文本改账、无 evidence/approval、target digest 不匹配全拒绝 | correction 只追加且可重放；原始/修正值和 approver 可追溯 |
+| <a id="step-bq-14"></a>`BQ-14` | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | BQ-13,CP-11,ER-12 | 原地 UPDATE/DELETE、模型文本改账、无 evidence/approval、target digest 不匹配全拒绝 | correction 只追加且可重放；原始/修正值和 approver 可追溯 · [baseline](bq14-cost-correction-baseline.md) |
 | <a id="step-bq-15"></a>`BQ-15` | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | BQ-06,BQ-08,BQ-11 | 被拒绝声明计 effect、未启动工具计成功、路径/owner/lease 漂移、输出洪泛绕过 quota 全拒绝 | model/tool/effect 账目分层；实际启动数、字节和 wall time 与 Receipt 对齐 |
 | <a id="step-bq-16"></a>`BQ-16` | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | BQ-07,BQ-08,BQ-15 | 无界队列、取消后仍发送、退避占槽、别名绕过 quota、释放非 owner 许可全拒绝 | Accept/Queue/Delay/Reject 可观测；公平性、queue wait、RAII release 有测试 |
 | <a id="step-bq-17"></a>`BQ-17` | Retry classifier、attempt reservation、Retry-After 和 cancellation | BQ-11,BQ-12,BQ-16,P4-J7-23 | post-send unknown 自动 retry、TLS/auth 永久错误重试、retry 超过 budget、cancel race 双终态全拒绝 | pre-send 429/408 按 bounded policy 新 attempt；实际请求数与账目一致 |

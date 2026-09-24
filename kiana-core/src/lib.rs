@@ -19,6 +19,7 @@ mod company;
 mod company_governance;
 mod connectors;
 mod context_query;
+mod cost_correction;
 mod credential_recovery;
 mod data_governance;
 mod deletion;
@@ -102,6 +103,7 @@ pub use clarification::{
 };
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
+pub use cost_correction::{CostCorrectionAdmission, CostCorrectionAdmissionError};
 pub use credential_recovery::{
     explicit_re_admit_credential_recovery, project_credential_recovery,
     CredentialRecoveryProjectionError, CredentialRecoveryReplayRequest,
