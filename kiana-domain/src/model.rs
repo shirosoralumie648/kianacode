@@ -259,6 +259,9 @@ impl ModelMessage {
                     media_type,
                     digest,
                 } => {
+                    if let Err(code) = crate::validate_image_attachment_ref(artifact_ref) {
+                        return Err(ModelError::invalid(code));
+                    }
                     if !artifact_ref.starts_with("artifact:")
                         || artifact_ref.len() > 512
                         || media_type.trim().is_empty()

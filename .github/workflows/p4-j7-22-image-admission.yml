@@ -1,0 +1,57 @@
+name: p4-j7-22-image-admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/image_input.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_22_image_admission.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-core/tests/p4_j7_22_image_admission_guard.rs"
+      - "docs/roadmap/p4-j7-22-image-admission-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-22-image-admission.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/image_input.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_22_image_admission.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-core/tests/p4_j7_22_image_admission_guard.rs"
+      - "docs/roadmap/p4-j7-22-image-admission-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-22-image-admission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-22 domain image admission fixtures
+        run: cargo test -p kiana-domain --test p4_j7_22_image_admission --locked -- --test-threads=1
+      - name: Run P4-J7-22 provider image fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-22 source guard
+        run: cargo test -p kiana-core --test p4_j7_22_image_admission_guard --locked -- --test-threads=1
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

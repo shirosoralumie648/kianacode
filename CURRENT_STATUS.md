@@ -97,6 +97,19 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: protocol-specific structured dialects remain limited to the supported request shapes; no live provider/schema compatibility or automatic repair behavior is claimed
 reviewer: Codex source review; no local runtime test reviewer
 
+### P4-J7-22 image input and sensitive-data admission evidence (2026-09-24)
+
+source_snapshot: current isolated `sc30-route-attestation-20260924` worktree plus P4-J7-22 source slice; `kiana-domain/src/image_input.rs`; `kiana-domain/src/model.rs`; `kiana-provider/src/{request.rs,lib.rs}`; `kiana-domain/tests/p4_j7_22_image_admission.rs`; `kiana-core/tests/p4_j7_22_image_admission_guard.rs`; `.github/workflows/p4-j7-22-image-admission.yml`; `docs/roadmap/p4-j7-22-image-admission-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`
+worktree_status: `ImageInputAdmission` is a non-serializable, short-lived boundary that binds controlled Artifact bytes to `ArtifactRef`, `ProcessingGrant`, source path/hash, MIME, retention/revocation, policy digest/revision/data epoch, purpose/data-class scope, route and vision capability; `ProviderGateway::prepare_call_with_images` is the only image-enabled compiler entry and provider code has no filesystem or URL fetch path
+command_argv: GitHub Actions will run `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-domain --test p4_j7_22_image_admission --locked -- --test-threads=1`; `cargo test -p kiana-provider --lib --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_22_image_admission_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner, Linux x86_64, Rust 1.97.1; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: domain deny/success fixtures for untrusted path, revoked grant, remote URL, capability/scope and hash binding; provider base64-after-encoding limit fixture; Core source guard and GitHub-only workflow
+exit_code: `git diff --check` is the only local verification; remote CI result intentionally unobserved
+status change: P4-J7-22 source contract, protocol encoders, fixtures, baseline and CI wiring added; roadmap row/card set to 🔄 pending dedicated GitHub fixtures
+proof-level change: `feature_status=implemented` for source contracts and provider wiring; `proof_level=source`, no local_behavior/durable/live/physical promotion
+limitations: no real provider dispatch, ArtifactStore durable recovery, post-compile revocation checkpoint, document upload, URL fetch, audio/video, image generation, external outcome or live/physical proof is claimed
+reviewer: Codex source review; no local runtime test reviewer
+
 ### SC-28 Dependency, license, advisory and SBOM scanner (2026-09-24)
 
 source_snapshot: `f5f732da` plus SC-28 source slice; `scripts/supply-chain-scan.sh`; `scripts/supply-chain-scan.py`; `scripts/validate-sc28-supply-chain.sh`; `deny.toml`; `kiana-core/tests/sc28_supply_chain_guard.rs`; `.github/workflows/sc28-supply-chain.yml`; `docs/roadmap/sc28-supply-chain-baseline.md`; `docs/roadmap.md`

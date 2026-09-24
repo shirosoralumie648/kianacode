@@ -105,6 +105,19 @@ impl ProviderGateway {
             .get("default")
             .ok_or_else(|| ModelError::invalid("model_default_route_unavailable"))
     }
+
+    /// Prepare a request with explicitly admitted image artifacts.  The bytes are supplied by the
+    /// caller's Artifact/data-governance adapter; this method never resolves a path or fetches a
+    /// URL.  A normal `prepare_call` remains deny-first for AttachmentRef values without this
+    /// admission list.
+    pub fn prepare_call_with_images(
+        &self,
+        request: ModelRequest,
+        spec: ModelCallSpec,
+        images: Vec<ImageInputAdmission>,
+    ) -> Result<PreparedModelCall, ModelError> {
+        request::compile_with_images(self.connection(&spec)?, request, spec, &images)
+    }
 }
 #[async_trait]
 impl ModelClient for ProviderGateway {

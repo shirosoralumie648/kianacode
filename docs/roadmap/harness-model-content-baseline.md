@@ -39,7 +39,7 @@ hash 只用于 H04 源码漂移复核，不构成真实网络请求、Provider r
 
 ## 3. Provider boundary
 
-Provider compiler 先验证旧/新消息历史，再按最终 route 归一化 structured content。文本、工具调用和工具结果可无损落入现有各协议 mapper；AttachmentRef 在当前无明确 wire 映射时拒绝，ProviderOpaque/Continuation 若 provider、protocol 或 route digest 不匹配返回 `opaque_item_cannot_cross_provider`，即使匹配当前 provider 也不会猜测其内部形状。Provider-specific raw response、headers、secret 和 opaque bytes 不进入普通消息或 telemetry。
+Provider compiler 先验证旧/新消息历史，再按最终 route 归一化 structured content。文本、工具调用和工具结果可无损落入现有各协议 mapper；普通 `prepare_call` 对没有 P4-J7-22 `ImageInputAdmission` 的 AttachmentRef 仍在 wire 映射前拒绝，显式图片准入入口才允许受控 bytes 编码。ProviderOpaque/Continuation 若 provider、protocol 或 route digest 不匹配返回 `opaque_item_cannot_cross_provider`，即使匹配当前 provider 也不会猜测其内部形状。Provider-specific raw response、headers、secret 和 opaque bytes 不进入普通消息或 telemetry。
 
 Daemon 的 legacy fixture adapter 继续走同一 ModelMessage/ModelOutput 兼容形状；生产模型路径仍是 `DaemonHost → ProviderGateway`，没有新增第二模型循环。
 

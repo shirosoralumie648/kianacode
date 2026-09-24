@@ -71,7 +71,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | 🔄 |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | 🔄 |
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | 🔄 |
-| `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | ⏳ |
+| `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | 🔄 |
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | ⏳ |
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
@@ -340,14 +340,17 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-22 图片输入与敏感数据出站准入　⏳
+#### P4-J7-22 图片输入与敏感数据出站准入　🔄
 
 - **依赖**：`P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25`。
-- **改动位置**：domain ContentBlock/Artifact 引用、daemon 数据装配、provider modality 编码/预算、用户附件 DTO。
+- **改动位置**：domain `ImageInputAdmission`/Artifact 引用、provider modality 编码/预算、ProviderGateway 显式准入入口；daemon/用户附件 DTO 仍只通过受控 admission 交接。
 - **步骤**：① 从用户已选定或已授权的 Artifact 取得数据，复用路径和 ProcessingGrant；② 校验 MIME、尺寸、字节数、hash、保留期与所选连接数据范围；③ 按协议编码图片，计算真实编码后体积和上下文预算；④ tool 返回图片复用同一通道；⑤ 对未实现的文档上传/URL抓取/音视频给出准确的 unsupported。
 - **先拒绝**：`untrusted_image_path_never_reaches_provider`、`revoked_artifact_grant_blocks_send`、`image_payload_limit_applies_after_encoding`、`remote_image_url_is_not_fetched_implicitly`。
 - **再成功**：`authorized_image_input_reaches_vision_capable_provider`、`image_hash_matches_admitted_payload`。
 - **退出 / 证据**：Provider 不持有任意文件读取能力；图片输入验证不扩张为生成、上传或远端文件生命周期已实现。
+- **本次实现**：新增不可序列化的 `ImageInputAdmission`，将 `ArtifactRef`、`ProcessingGrant`、策略 digest/revision、data epoch、purpose/data-class scope、route 和 image capability 绑定到已读 bytes；普通 `AttachmentRef` 没有 admission 时在发送前拒绝。`ProviderGateway::prepare_call_with_images` 仅接受该 admission，按 Anthropic/OpenAI Chat/OpenAI Responses/Ollama/Gemini 的图片块协议编码，base64 后重新校验编码体积和最终 body 预算。
+- **拒绝与回归 fixture**：`untrusted_image_path_never_reaches_provider`、`revoked_artifact_grant_blocks_send`、`image_payload_limit_applies_after_encoding`、`remote_image_url_is_not_fetched_implicitly`、`authorized_image_input_reaches_vision_capable_provider`、`image_hash_matches_admitted_payload`；Core source guard 固定 provider 无文件读取/URL 抓取边界，专属 workflow 在 GitHub 执行。
+- **CI / 状态**：源码、domain/provider fixtures、Core guard、GitHub workflow、baseline 与状态账本已加入，保持 🔄，proof 上限 `source`；本地未运行测试/build/check/clippy/smoke，CI 结果未等待。
 
 <a id="step-p4-j7-23"></a>
 

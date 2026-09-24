@@ -1,4 +1,5 @@
 use crate::config::Connection;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use kiana_domain::*;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -23,6 +24,20 @@ pub(crate) fn compile(
     connection: &Connection,
     request: ModelRequest,
     spec: ModelCallSpec,
+) -> Result<PreparedModelCall, ModelError> {
+    compile_with_images(connection, request, spec, &[])
+}
+
+/// Compile a request carrying only image admissions created by the Artifact/data-governance
+/// boundary.  The ordinary ModelClient path calls `compile` and therefore rejects an
+/// AttachmentRef that has no matching admission.  This explicit entry point keeps image bytes
+/// out of arbitrary path handling while allowing a caller with a valid ProcessingGrant to use the
+/// same provider request and budget machinery.
+pub(crate) fn compile_with_images(
+    connection: &Connection,
+    request: ModelRequest,
+    spec: ModelCallSpec,
+    images: &[ImageInputAdmission],
 ) -> Result<PreparedModelCall, ModelError> {
     spec.response_format.validate()?;
     validate_model_history(&request.messages)?;
@@ -53,7 +68,9 @@ pub(crate) fn compile(
         // payload or persisting private reasoning in the request/receipt.
         return Err(ModelError::invalid("model_replay_storage_unavailable"));
     }
-    let request = normalize_structured_request(request, &route, connection)?;
+    validate_image_admissions(&request, &route, connection, images)?;
+    let original_request = request.clone();
+    let request = normalize_structured_request(request, &route, connection, images)?;
     let context = ModelRequestContext::for_request(&request);
     let tool_names = ToolNameMap::from_tools(&request.tools, true)?;
     let tools = tool_map(&request.tools, &tool_names)?;
@@ -79,6 +96,13 @@ pub(crate) fn compile(
             ))
         }
     }?;
+    inject_admitted_images(
+        &mut body,
+        &route,
+        &original_request,
+        images,
+        connection.limits.max_body,
+    )?;
     body["model"] = json!(route.model_id);
     body["stream"] = json!(route.streaming);
     match route.protocol {
@@ -179,6 +203,234 @@ pub(crate) fn compile(
     Ok(prepared)
 }
 
+fn validate_image_admissions(
+    request: &ModelRequest,
+    route: &ModelRoute,
+    connection: &Connection,
+    images: &[ImageInputAdmission],
+) -> Result<(), ModelError> {
+    let mut attachments = Vec::new();
+    for message in &request.messages {
+        for block in message.content_blocks()? {
+            if let ModelContent::AttachmentRef {
+                artifact_ref,
+                media_type,
+                digest,
+            } = block
+            {
+                attachments.push((artifact_ref, media_type, digest));
+            }
+        }
+    }
+    if attachments.is_empty() {
+        if !images.is_empty() {
+            return Err(ModelError::invalid("image_admission_without_attachment"));
+        }
+        return Ok(());
+    }
+    if connection.capabilities.images != CapabilitySupport::Supported {
+        return Err(ModelError::invalid(
+            "unsupported_content_block_fails_before_request",
+        ));
+    }
+    if images.len() > 32 {
+        return Err(ModelError::invalid("image_admission_count_limit"));
+    }
+    let limits = ImagePayloadLimits::for_request(connection.limits.max_body);
+    for image in images {
+        image.validate_for_route(
+            route,
+            &connection.capabilities,
+            image.admitted_at_unix_ms,
+            &limits,
+        )?;
+        if !attachments
+            .iter()
+            .any(|(artifact_ref, media_type, digest)| {
+                image.matches_attachment(artifact_ref, media_type, digest)
+            })
+        {
+            return Err(ModelError::invalid("image_admission_unreferenced"));
+        }
+    }
+    for (artifact_ref, media_type, digest) in attachments {
+        if !images
+            .iter()
+            .any(|image| image.matches_attachment(&artifact_ref, &media_type, &digest))
+        {
+            return Err(ModelError::invalid("image_admission_required"));
+        }
+    }
+    Ok(())
+}
+
+fn image_data(
+    image: &ImageInputAdmission,
+    max_request_bytes: usize,
+) -> Result<(String, String, String), ModelError> {
+    let limits = ImagePayloadLimits::for_request(max_request_bytes);
+    if image.source_digest() != image.artifact.content_hash {
+        return Err(ModelError::invalid("image_artifact_hash_mismatch"));
+    }
+    let encoded = STANDARD.encode(image.payload_bytes());
+    if encoded.len() > limits.max_encoded_bytes {
+        return Err(ModelError::invalid("image_payload_limit_applies_after_encoding"));
+    }
+    let data_url = format!("data:{};base64,{}", image.media_type, encoded);
+    if data_url.len() > limits.max_request_bytes {
+        return Err(ModelError::invalid("image_payload_limit_applies_after_encoding"));
+    }
+    Ok((encoded, data_url, image.media_type.clone()))
+}
+
+fn push_text_and_images(
+    content: &mut Value,
+    images: &[(String, String, String)],
+    kind: &str,
+) -> Result<(), ModelError> {
+    if content.is_string() {
+        let text = content.take();
+        *content = json!([{"type":"text","text":text}]);
+    }
+    let values = content
+        .as_array_mut()
+        .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+    for (encoded, data_url, _) in images {
+        values.push(match kind {
+            "anthropic" => json!({
+                "type":"image",
+                "source":{"type":"base64","media_type":"","data":encoded}
+            }),
+            "chat" => json!({"type":"image_url","image_url":{"url":data_url}}),
+            "responses" => json!({"type":"input_image","image_url":data_url}),
+            _ => return Err(ModelError::invalid("image_wire_protocol_unsupported")),
+        });
+    }
+    Ok(())
+}
+
+fn inject_admitted_images(
+    body: &mut Value,
+    route: &ModelRoute,
+    original_request: &ModelRequest,
+    images: &[ImageInputAdmission],
+    max_request_bytes: usize,
+) -> Result<(), ModelError> {
+    if images.is_empty() {
+        return Ok(());
+    }
+    let mut selected = Vec::new();
+    for image in images {
+        let referenced = original_request.messages.iter().any(|message| {
+            message.content_blocks().ok().is_some_and(|blocks| {
+                blocks.iter().any(|block| {
+                    matches!(
+                        block,
+                        ModelContent::AttachmentRef {
+                            artifact_ref,
+                            media_type,
+                            digest,
+                        } if image.matches_attachment(artifact_ref, media_type, digest)
+                    )
+                })
+            })
+        });
+        if referenced {
+            selected.push(image_data(image, max_request_bytes)?);
+        }
+    }
+    if selected.is_empty() {
+        return Err(ModelError::invalid("image_admission_unreferenced"));
+    }
+    match route.protocol {
+        ModelProtocol::AnthropicMessages => {
+            let messages = body["messages"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            let index = messages
+                .iter()
+                .position(|message| message["role"] == "user")
+                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+            let content = &mut messages[index]["content"];
+            if content.is_string() {
+                let text = content.take();
+                *content = json!([{"type":"text","text":text}]);
+            }
+            let values = content
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            for (encoded, _, media_type) in &selected {
+                values.push(json!({
+                    "type":"image",
+                    "source":{"type":"base64","media_type":media_type,"data":encoded}
+                }));
+            }
+        }
+        ModelProtocol::OpenAiChat => {
+            let messages = body["messages"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            let index = messages
+                .iter()
+                .position(|message| message["role"] == "user")
+                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+            push_text_and_images(&mut messages[index]["content"], &selected, "chat")?;
+        }
+        ModelProtocol::OpenAiResponses => {
+            let input = body["input"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            let index = input
+                .iter()
+                .position(|item| item["role"] == "user")
+                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+            push_text_and_images(&mut input[index]["content"], &selected, "responses")?;
+        }
+        ModelProtocol::OllamaChat => {
+            let messages = body["messages"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            let index = messages
+                .iter()
+                .position(|message| message["role"] == "user")
+                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+            let values = messages[index]
+                .as_object_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
+                .entry("images")
+                .or_insert_with(|| json!([]));
+            let values = values
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            for (encoded, _, _) in &selected {
+                values.push(json!(encoded));
+            }
+        }
+        ModelProtocol::GeminiInteractions => {
+            let input = body["input"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            let index = input
+                .iter()
+                .position(|item| item["type"] == "user_input")
+                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+            let values = input[index]["content"]
+                .as_array_mut()
+                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
+            for (encoded, _, media_type) in &selected {
+                values.push(json!({
+                    "type":"inline_data",
+                    "inline_data":{"mime_type":media_type,"data":encoded}
+                }));
+            }
+        }
+        ModelProtocol::Legacy => {
+            return Err(ModelError::invalid("image_wire_protocol_unsupported"));
+        }
+    }
+    Ok(())
+}
+
 fn gemini_generation_config(body: &mut Value, max_output: u64) {
     // Interactions stream events are the only supported Gemini wire dialect here.
     body["stream"] = json!(true);
@@ -196,6 +448,7 @@ fn normalize_structured_request(
     mut request: ModelRequest,
     route: &ModelRoute,
     connection: &Connection,
+    images: &[ImageInputAdmission],
 ) -> Result<ModelRequest, ModelError> {
     for message in &mut request.messages {
         if message.content.is_empty() && message.continuation.is_none() {
@@ -215,15 +468,22 @@ fn normalize_structured_request(
                     tool_call_id = Some(call_id);
                     text = content;
                 }
-                ModelContent::AttachmentRef { .. } => {
+                ModelContent::AttachmentRef {
+                    artifact_ref,
+                    media_type,
+                    digest,
+                } => {
                     if connection.capabilities.images != CapabilitySupport::Supported {
                         return Err(ModelError::invalid(
                             "unsupported_content_block_fails_before_request",
                         ));
                     }
-                    return Err(ModelError::invalid(
-                        "model_attachment_wire_mapping_unsupported",
-                    ));
+                    if !images
+                        .iter()
+                        .any(|image| image.matches_attachment(&artifact_ref, &media_type, &digest))
+                    {
+                        return Err(ModelError::invalid("image_admission_required"));
+                    }
                 }
                 ModelContent::ProviderOpaque {
                     provider_id,
@@ -730,5 +990,96 @@ mod p4_j7_21_structured_output_tests {
                 .unwrap()["answer"],
             "ok"
         );
+    }
+}
+
+#[cfg(test)]
+mod p4_j7_22_image_input_tests {
+    use super::*;
+
+    fn admitted() -> ImageInputAdmission {
+        let payload = b"fixture-image-payload".to_vec();
+        let digest = image_payload_digest(&payload);
+        let route = ModelRoute {
+            provider_id: "fixture-provider".to_owned(),
+            protocol: ModelProtocol::OpenAiChat,
+            connection_id: "fixture-connection".to_owned(),
+            model_id: "vision-model".to_owned(),
+            profile: "default".to_owned(),
+            configuration_revision: "fixture.v1".to_owned(),
+            streaming: true,
+        };
+        let artifact = ArtifactRef {
+            schema: "kiana.artifact-ref.v1".to_owned(),
+            artifact_id: ArtifactId::new(),
+            version: 1,
+            artifact_schema: "image/png".to_owned(),
+            content_hash: digest.clone(),
+            scope_digest: format!("sha256:{}", "b".repeat(64)),
+            provenance: ArtifactProvenance {
+                producer_kind: "fixture".to_owned(),
+                producer_id: "image-fixture".to_owned(),
+                source_event_id: None,
+                source_run_id: None,
+                recorded_by: "fixture".to_owned(),
+            },
+        };
+        let grant = ProcessingGrant {
+            id: "grant-image".to_owned(),
+            source_path: "assets/image.png".to_owned(),
+            content_hash: digest,
+            class: DataClass::Restricted,
+            purpose: Purpose {
+                id: "vision-review".to_owned(),
+                description: "fixture vision review".to_owned(),
+            },
+            retention: Retention {
+                expires_at_ms: Some(10_000),
+                retain_audit_metadata: true,
+            },
+            parent_ids: Vec::new(),
+            created_by: "principal:fixture".to_owned(),
+            revoked: false,
+        };
+        let capabilities = ModelCapabilities {
+            tools: CapabilitySupport::Supported,
+            streaming: CapabilitySupport::Supported,
+            structured_output: CapabilitySupport::Supported,
+            images: CapabilitySupport::Supported,
+            reasoning_replay: CapabilitySupport::Unsupported,
+            context_window: 16_384,
+            max_output: 1_024,
+            source: "fixture".to_owned(),
+            revision: "fixture.v1".to_owned(),
+        };
+        ImageInputAdmission::new(
+            artifact,
+            grant,
+            "assets/image.png",
+            "image/png",
+            payload,
+            route,
+            capabilities,
+            format!("sha256:{}", "c".repeat(64)),
+            1,
+            1,
+            "vision-review",
+            vec![DataClass::Restricted],
+            100,
+        )
+        .expect("image fixture")
+    }
+
+    #[test]
+    fn image_payload_limit_applies_after_encoding() {
+        let error = image_data(&admitted(), 4).unwrap_err();
+        assert_eq!(error.code, "image_payload_limit_applies_after_encoding");
+    }
+
+    #[test]
+    fn admitted_image_wire_data_is_base64_and_never_a_path() {
+        let (encoded, data_url, _) = image_data(&admitted(), 4096).expect("encoded image");
+        assert!(!encoded.contains("assets/image.png"));
+        assert!(data_url.starts_with("data:image/png;base64,"));
     }
 }
