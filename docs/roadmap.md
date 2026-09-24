@@ -573,7 +573,7 @@
 | 401 | W5 | 专项 | [`P4-J7-24`](roadmap/provider.md#step-p4-j7-24) | Provider · Provider 用量、价格快照与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-24) · [baseline](roadmap/provider/p4-j7-24-usage-settlement-baseline.md) |
 | 402 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-25) · [baseline](roadmap/p4-j7-25-capacity-fallback-baseline.md) |
 | 403 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-26) · [baseline](roadmap/p4-j7-26-model-events-baseline.md) |
-| 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-27) |
+| 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-27) · [baseline](roadmap/p4-j7-27-provider-recovery-baseline.md) |
 | 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | ⏳ | [专项卡](#step-bq-10) |
 | 406 | W5 | 专项 | [`BQ-11`](#step-bq-11) | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | `BQ-08`、`BQ-10` | ⏳ | [专项卡](#step-bq-11) |
 | 407 | W5 | 专项 | [`BQ-12`](#step-bq-12) | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | `BQ-11` | ⏳ | [专项卡](#step-bq-12) |
@@ -6337,3 +6337,5 @@ limitations / reviewer
 ~~~
 
 本节只新增设计，不改变现状。authenticated principal、完整 Secret redaction/TOCTOU、durable audit projector、跨进程恢复、供应链验证、删除传播和真实连接器回执仍需逐卡验收。外部调研依据包括 [MCP Authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)、[NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework)、[OWASP GenAI Top 10](https://genai.owasp.org/llm-top-10/)、[W3C Trace Context](https://www.w3.org/TR/trace-context/)、[OpenTelemetry sensitive data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/)、[SLSA](https://slsa.dev/spec/v1.2/) 和 [Sigstore security model](https://docs.sigstore.dev/about/security/)。
+
+| 2026-09-25 | `P4-J7-27` provider complete-round recovery: added bounded resume binding, committed model/tool history projection, invalid remote continuation fallback to complete local replay, in-flight model/capability reconciliation and CI-only source guards/baseline; local tests/build/check/clippy/smoke not run; durable cross-process reopen and live/physical proof remain pending | 待本提交 |

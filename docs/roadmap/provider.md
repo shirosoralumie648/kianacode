@@ -76,7 +76,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
 | `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | 🔄 |
-| `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | ⏳ |
+| `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | 🔄 |
 | `P4-J7-28` | 三界面配置和诊断 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 同一目录/状态/错误；迟到终态与重连无需重新执行 | ⏳ |
 | `P4-J7-29` | 离线协议一致性矩阵 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | 每个支持的协议/能力通过相同合同及其特有故障用例 | ⏳ |
 | `P4-J7-30` | 产品链与四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | 模型→受控工具→事件→Receipt；CLI/TTY/Web/Desktop 终态一致 | ⏳ |
@@ -419,7 +419,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-27 完整轮次恢复与 in-flight 对账　⏳
+#### P4-J7-27 完整轮次恢复与 in-flight 对账　🔄
 
 - **依赖**：`P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20`。
 - **改动位置**：core/history/recovery/invocation_projection、daemon replay artifact 读取、runner 原有 resume 路径、Provider continuation 编码。
@@ -427,6 +427,10 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`restart_with_missing_replay_material_fails_closed`、`stale_route_authority_cannot_resume`、`inflight_model_attempt_is_not_resubmitted_on_restart`。
 - **再成功**：`fresh_process_resumes_completed_model_turn_with_tool_history`、`resume_never_reexecutes_completed_invocation`。
 - **退出 / 证据**：独立进程 crash/reopen 证据才支持 durable；UI transcript 不作恢复来源，partial response 不伪装完整 assistant turn。
+
+  当前 source slice 与 CI-only 验收见 [`p4-j7-27-provider-recovery-baseline.md`](p4-j7-27-provider-recovery-baseline.md)。
+  `ProviderResumeBinding`、提交事实 history projection 和 in-flight model/capability 对账分类已登记；
+  EventStore/artifact durable reopen、真实 provider continuation 和 live/physical effect evidence 仍保留在后续步骤。
 
 <a id="step-p4-j7-28"></a>
 
