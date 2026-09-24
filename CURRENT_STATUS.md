@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-22 Web artifact/diff/receipt detail（2026-09-25）
+
+source_snapshot: `b74e7332`（UI-21）加 UI-22 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-client/src/{lib.rs,web_detail.rs}`; `kiana-entrypoints/src/{web.rs,web_page.html}`; `kiana-entrypoints/tests/fixtures/ui22-web-detail.json`; `kiana-entrypoints/tests/ui22_web_detail.rs`; `kiana-entrypoints/tests/ui22_web_detail_guard.rs`; `.github/workflows/ui22-web-detail.yml`; `docs/roadmap/ui22-web-detail-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui22`；server-owned ArtifactRef/page/detail、server diff stats、receipt cross-links、revision/digest/MIME、pagination cursor、session/tab owner fence 与 browser text-only detail renderer 已接入；不新增执行循环，事实仍来自 `DaemonHost`/EventLog/Receipt
+command_argv: 本地仅目标 `rustfmt --edition 2021` 与 `git diff --check`；GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; UI-22 fixture/source guard；`cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-ui22`; Linux/bash；本地 Cargo test/build/check/clippy/smoke deliberately not run；GitHub Actions 是测试权威且不等待
+fixture·cassette: `kiana-entrypoints/tests/fixtures/ui22-web-detail.json`；client payload mutation、stale artifact revision、bad digest、cross-session/tab/cursor、Unknown/result_unknown、raw secret/path、HTML/SVG/ANSI、arbitrary URL、client diff cases；无 provider、filesystem 或 external effect
+exit_code: 目标 rustfmt 与 `git diff --check`；远程 fixture/workspace compile/CI exit code pending/unobserved
+status_change: UI-22 typed artifact/diff/receipt detail projection、bounded server routes、deny-first fixture/source guard/workflow/baseline 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web/client/protocol source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 无浏览器 E2E、截图/golden、真实 HTTP/session lease race、durable cross-process artifact/diff store、完整 diff index、receipt entry reconstruction、binary content serving、provider/Broker effect、approval identity authentication 或 live/physical proof；缺失/矛盾/Unknown 保持保守状态；CI 结果未等待
+reviewer: Codex UI-22 source review；检查 server-owned ref/page/revision/digest/MIME/stats、pagination/cursor/session/tab scope、cross-location links、raw content/URL/client diff/second loop denial 与 Unknown visibility；无本地 runtime test reviewer
+
 ### UI-20 Web 时间线组件迁移（2026-09-25）
 
 source_snapshot: `c162ecaa`（UI-19）加 UI-20 source slice；`kiana-client/src/web_timeline.rs`; `kiana-client/src/lib.rs`; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_thread.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui20-web-timeline.json`; `kiana-entrypoints/tests/ui20_web_timeline.rs`; `kiana-entrypoints/tests/ui20_web_timeline_guard.rs`; `.github/workflows/ui20-web-timeline.yml`; `docs/roadmap/ui20-web-timeline-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

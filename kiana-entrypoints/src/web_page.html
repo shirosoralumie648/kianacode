@@ -136,6 +136,15 @@
       <button id="resume">恢复此会话</button>
       <button id="receiptBtn">查看回执</button>
       <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
+      <h2>Artifact / Diff detail</h2>
+      <label for="artifactId">服务端 Artifact ref</label>
+      <input id="artifactId" autocomplete="off" placeholder="artifact id" />
+      <div class="row">
+        <button id="artifactBtn">查看 Artifact</button>
+        <button id="diffBtn">查看 Diff</button>
+      </div>
+      <pre id="artifactDetail" tabindex="0" aria-label="Artifact detail"></pre>
+      <pre id="diffDetail" tabindex="0" aria-label="Diff detail"></pre>
       <button id="parityBtn">查看入口一致性</button>
       <pre id="parityDetail" tabindex="0" aria-label="入口一致性快照"></pre>
       <details><summary>编辑快照与恢复</summary>
@@ -1279,6 +1288,49 @@
       try { const data = await api('/api/receipt', {session_id:sessionId}); document.getElementById('receiptDetail').textContent = JSON.stringify(data.receipt, null, 2); document.getElementById('receiptDetail').focus(); }
       catch (error) { reportError(error); }
     };
+    async function loadReceiptDetail() {
+      const data = await api('/api/receipt/detail?session_id=' + encodeURIComponent(sessionId) + '&limit=32');
+      const status = String(data.status || 'unknown');
+      const unknown = data.unknown === true || status === 'unknown' || status === 'result_unknown';
+      document.getElementById('receiptDetail').textContent = JSON.stringify({
+        schema: data.schema, status, unknown,
+        receipt_digest: data.receipt_digest,
+        source_cursor: data.source_cursor,
+        artifact_ids: data.artifact_ids || [],
+        timeline_ids: data.timeline_ids || [],
+        inbox_ids: data.inbox_ids || [],
+        limitations: data.limitations || [],
+        receipt: data.receipt
+      }, null, 2) + (unknown ? '\n结果未知；请查询原始回执，不能自动重试。' : '');
+      document.getElementById('receiptDetail').focus();
+      return data;
+    }
+    async function loadArtifactDetail() {
+      const artifactId = String(document.getElementById('artifactId').value || '').trim();
+      if (!artifactId) throw new Error('artifact_id_required');
+      const data = await api('/api/artifact/detail?session_id=' + encodeURIComponent(sessionId) +
+        '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
+      document.getElementById('artifactDetail').textContent = JSON.stringify({
+        schema: data.schema, scope: data.scope, artifact_page: data.artifact_page,
+        status: data.status, limitations: data.limitations || []
+      }, null, 2);
+      document.getElementById('artifactDetail').focus();
+      return data;
+    }
+    async function loadDiffDetail() {
+      const artifactId = String(document.getElementById('artifactId').value || '').trim();
+      if (!artifactId) throw new Error('artifact_id_required');
+      const data = await api('/api/diff?session_id=' + encodeURIComponent(sessionId) +
+        '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
+      document.getElementById('diffDetail').textContent = JSON.stringify({
+        schema: data.schema, scope: data.scope, diff: data.diff,
+        status: data.status, limitations: data.limitations || []
+      }, null, 2);
+      document.getElementById('diffDetail').focus();
+      return data;
+    }
+    document.getElementById('artifactBtn').onclick = () => loadArtifactDetail().catch(reportError);
+    document.getElementById('diffBtn').onclick = () => loadDiffDetail().catch(reportError);
     document.getElementById('parityBtn').onclick = async () => {
       try {
         const entrypoint = window.kianaDesktop ? 'desktop' : 'web';

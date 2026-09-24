@@ -21,6 +21,7 @@ mod typed;
 mod ui_schema_generated;
 mod ui_store;
 mod web_contract;
+mod web_detail;
 mod web_inbox;
 mod web_timeline;
 
@@ -52,6 +53,13 @@ pub use ui_store::{
 pub use web_contract::{
     WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,
     WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA, WEB_CLIENT_TAB_SCHEMA,
+};
+pub use web_detail::{
+    WebArtifactPage, WebArtifactRef, WebArtifactViewer, WebDetailCursor, WebDetailProjection,
+    WebDetailRequest, WebDetailStatus, WebDiffDetail, WebReceiptDetail, WEB_ARTIFACT_DETAIL_SCHEMA,
+    WEB_ARTIFACT_PAGE_SCHEMA, WEB_DETAIL_CURSOR_SCHEMA, WEB_DETAIL_MAX_PAGES,
+    WEB_DETAIL_MAX_PAGE_BYTES, WEB_DETAIL_SCHEMA, WEB_DIFF_DETAIL_SCHEMA,
+    WEB_RECEIPT_DETAIL_SCHEMA,
 };
 pub use web_inbox::{
     WebHumanInbox, WEB_HUMAN_INBOX_SCHEMA, WEB_HUMAN_MAX_CARDS, WEB_HUMAN_MAX_FIELD_BYTES,

@@ -38,6 +38,15 @@ pub const UI_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
 /// Versioned client submission envelope.  The server still rechecks principal, lease, CAS and
 /// idempotency through the existing ControlPlane/UI action path.
 pub const UI_ACTION_SUBMISSION_SCHEMA: &str = "kiana.ui-action-submission.v1";
+/// Read-only Web artifact/detail projections.  These schemas carry server-owned references and
+/// bounded pages only; they never grant a browser a filesystem path, URL fetch or capability.
+pub const UI_ARTIFACT_DETAIL_SCHEMA: &str = "kiana.ui-artifact-detail.v1";
+pub const UI_ARTIFACT_REF_SCHEMA: &str = "kiana.ui-artifact-ref.v1";
+pub const UI_ARTIFACT_PAGE_SCHEMA: &str = "kiana.ui-artifact-page.v2";
+pub const UI_DIFF_DETAIL_SCHEMA: &str = "kiana.ui-diff-detail.v1";
+pub const UI_RECEIPT_DETAIL_SCHEMA: &str = "kiana.ui-receipt-detail.v1";
+pub const UI_DETAIL_SCOPE_SCHEMA: &str = "kiana.ui-detail-scope.v1";
+pub const UI_DETAIL_LINK_SCHEMA: &str = "kiana.ui-detail-link.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -1197,6 +1206,411 @@ impl UiHumanActionIntentV1 {
             .any(|key| key.trim().is_empty() || key.len() > 128)
         {
             return Err("ui_human_intent_field_name_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+const UI_DETAIL_MAX_ITEMS: usize = 512;
+const UI_DETAIL_MAX_LINKS: usize = 256;
+const UI_DETAIL_MAX_PAGE_BYTES: usize = 64 * 1024;
+const UI_DETAIL_MAX_DIFF_BYTES: usize = 256 * 1024;
+const UI_DETAIL_MAX_LIMITATIONS: usize = 32;
+
+fn bounded_detail_text(value: &str, field: &str, max: usize) -> Result<(), String> {
+    if value.len() > max || value.contains('\0') {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
+
+fn valid_mime(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && value.len() <= 128
+        && !value.contains('\0')
+        && !matches!(
+            value,
+            "text/html" | "application/xhtml+xml" | "image/svg+xml"
+        )
+}
+
+/// Scope and cursor supplied by the server for every detail page.  The browser may use it to
+/// discard stale data, but cannot turn a different tab/session into an owner or a new authority.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiDetailScopeV1 {
+    pub schema: String,
+    pub session_id: SessionId,
+    pub tab_id: String,
+    pub owner_tab_id: String,
+    pub instance_id: String,
+    pub epoch: String,
+    pub source_cursor: u64,
+    pub revision: u64,
+}
+
+impl UiDetailScopeV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_DETAIL_SCOPE_SCHEMA || self.source_cursor == 0 || self.revision == 0 {
+            return Err("ui_detail_scope_header_invalid".to_owned());
+        }
+        required(self.session_id.as_str(), "ui_detail_scope_session", 256)?;
+        required(&self.tab_id, "ui_detail_scope_tab", 256)?;
+        required(&self.owner_tab_id, "ui_detail_scope_owner_tab", 256)?;
+        required(&self.instance_id, "ui_detail_scope_instance", 256)?;
+        required(&self.epoch, "ui_detail_scope_epoch", 256)
+    }
+
+    pub fn matches_session_tab(&self, session_id: &SessionId, tab_id: &str) -> bool {
+        &self.session_id == session_id && self.tab_id == tab_id
+    }
+}
+
+/// A typed cross-location link.  All links are identifiers in the same server session; they are
+/// never URLs or paths and do not cause the browser to fetch another origin.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiDetailLinkV1 {
+    pub schema: String,
+    pub kind: String,
+    pub id: String,
+    pub session_id: SessionId,
+}
+
+impl UiDetailLinkV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_DETAIL_LINK_SCHEMA {
+            return Err("ui_detail_link_schema_invalid".to_owned());
+        }
+        required(&self.kind, "ui_detail_link_kind", 64)?;
+        required(&self.id, "ui_detail_link_id", 512)?;
+        required(self.session_id.as_str(), "ui_detail_link_session", 256)
+    }
+}
+
+/// Server-owned artifact metadata.  `content_hash` is the immutable artifact digest; `revision`
+/// fences a view against a replacement projection and is never chosen by the client.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiArtifactRefV1 {
+    pub schema: String,
+    pub artifact_id: ArtifactId,
+    pub version: u64,
+    pub artifact_schema: String,
+    pub mime: String,
+    pub size_bytes: u64,
+    pub content_hash: String,
+    pub scope_digest: String,
+    pub revision: u64,
+    pub session_id: SessionId,
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+    pub provenance: String,
+    #[serde(default)]
+    pub links: Vec<UiDetailLinkV1>,
+}
+
+impl UiArtifactRefV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_ARTIFACT_REF_SCHEMA || self.version == 0 || self.revision == 0 {
+            return Err("ui_artifact_ref_header_invalid".to_owned());
+        }
+        required(self.artifact_id.as_str(), "ui_artifact_ref_id", 256)?;
+        required(&self.artifact_schema, "ui_artifact_ref_schema", 128)?;
+        if !valid_mime(&self.mime) {
+            return Err("ui_artifact_ref_mime_invalid".to_owned());
+        }
+        digest_value(&self.content_hash, "ui_artifact_ref_content_hash")?;
+        digest_value(&self.scope_digest, "ui_artifact_ref_scope_digest")?;
+        required(self.session_id.as_str(), "ui_artifact_ref_session", 256)?;
+        bounded_detail_text(&self.provenance, "ui_artifact_ref_provenance", 4_096)?;
+        if self.links.len() > UI_DETAIL_MAX_LINKS {
+            return Err("ui_artifact_ref_links_limit".to_owned());
+        }
+        for link in &self.links {
+            link.validate()?;
+            if link.session_id != self.session_id {
+                return Err("ui_artifact_ref_cross_session_link".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+/// One server-provided artifact page.  Content is optional for binary, redacted or unavailable
+/// artifacts; a missing page is a limitation/Unknown state, never a successful empty artifact.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiArtifactPageV1 {
+    pub schema: String,
+    pub scope: UiDetailScopeV1,
+    pub artifact: UiArtifactRefV1,
+    pub revision: u64,
+    pub page_index: u32,
+    pub page_count: u32,
+    pub page_digest: String,
+    pub content_encoding: String,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub truncated: bool,
+    #[serde(default)]
+    pub next_cursor: Option<String>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiArtifactPageV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_ARTIFACT_PAGE_SCHEMA
+            || self.revision == 0
+            || self.page_count == 0
+            || self.page_index >= self.page_count
+            || self.limitations.len() > UI_DETAIL_MAX_LIMITATIONS
+        {
+            return Err("ui_artifact_page_header_invalid".to_owned());
+        }
+        self.scope.validate()?;
+        self.artifact.validate()?;
+        if self.scope.session_id != self.artifact.session_id
+            || self.revision != self.artifact.revision
+            || self.scope.revision != self.revision
+        {
+            return Err("ui_artifact_page_revision_scope_mismatch".to_owned());
+        }
+        digest_value(&self.page_digest, "ui_artifact_page_digest")?;
+        required(&self.content_encoding, "ui_artifact_page_encoding", 32)?;
+        if self.content_encoding != "text"
+            && self.content_encoding != "base64"
+            && self.content_encoding != "none"
+        {
+            return Err("ui_artifact_page_encoding_invalid".to_owned());
+        }
+        if self.content_encoding == "none" && self.content.is_some() {
+            return Err("ui_artifact_page_content_encoding_mismatch".to_owned());
+        }
+        if self.content.as_deref().is_some_and(|content| {
+            content.len() > UI_DETAIL_MAX_PAGE_BYTES || content.contains('\0')
+        }) {
+            return Err("ui_artifact_page_content_limit".to_owned());
+        }
+        if self.next_cursor.as_deref().is_some_and(|cursor| {
+            cursor.trim().is_empty() || cursor.len() > 512 || cursor.contains('\0')
+        }) {
+            return Err("ui_artifact_page_cursor_invalid".to_owned());
+        }
+        if self
+            .limitations
+            .iter()
+            .any(|value| value.trim().is_empty() || value.len() > 512 || value.contains('\0'))
+        {
+            return Err("ui_artifact_page_limitations_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiDiffFileV1 {
+    pub path_display: String,
+    pub status: String,
+    pub additions: u64,
+    pub deletions: u64,
+    pub patch_digest: String,
+    #[serde(default)]
+    pub patch: Option<String>,
+}
+
+impl UiDiffFileV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        required(&self.path_display, "ui_diff_file_path", 1_024)?;
+        if self.path_display.contains('\0') || self.path_display.starts_with("http") {
+            return Err("ui_diff_file_path_invalid".to_owned());
+        }
+        required(&self.status, "ui_diff_file_status", 64)?;
+        digest_value(&self.patch_digest, "ui_diff_file_patch_digest")?;
+        if self
+            .patch
+            .as_deref()
+            .is_some_and(|patch| patch.len() > UI_DETAIL_MAX_DIFF_BYTES || patch.contains('\0'))
+        {
+            return Err("ui_diff_file_patch_limit".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Diff statistics and file status are calculated server-side.  The browser only renders these
+/// values and never computes a patch, reads a path or treats a file list as authorization.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiDiffDetailV1 {
+    pub schema: String,
+    pub scope: UiDetailScopeV1,
+    pub artifact: UiArtifactRefV1,
+    pub base_revision: u64,
+    pub target_revision: u64,
+    pub status: String,
+    pub total_additions: u64,
+    pub total_deletions: u64,
+    pub files: Vec<UiDiffFileV1>,
+    #[serde(default)]
+    pub links: Vec<UiDetailLinkV1>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiDiffDetailV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_DIFF_DETAIL_SCHEMA
+            || self.base_revision == 0
+            || self.target_revision == 0
+            || self.files.len() > UI_DETAIL_MAX_ITEMS
+            || self.limitations.len() > UI_DETAIL_MAX_LIMITATIONS
+        {
+            return Err("ui_diff_detail_header_invalid".to_owned());
+        }
+        self.scope.validate()?;
+        self.artifact.validate()?;
+        if self.scope.session_id != self.artifact.session_id {
+            return Err("ui_diff_detail_scope_mismatch".to_owned());
+        }
+        for file in &self.files {
+            file.validate()?;
+        }
+        for link in &self.links {
+            link.validate()?;
+            if link.session_id != self.scope.session_id {
+                return Err("ui_diff_detail_cross_session_link".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiReceiptEntryV1 {
+    pub entry_id: String,
+    pub status: String,
+    pub effect_known: bool,
+    #[serde(default)]
+    pub result_digest: Option<String>,
+    pub source_cursor: u64,
+    #[serde(default)]
+    pub artifact_ids: Vec<ArtifactId>,
+}
+
+impl UiReceiptEntryV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        required(&self.entry_id, "ui_receipt_entry_id", 256)?;
+        required(&self.status, "ui_receipt_entry_status", 64)?;
+        if self.source_cursor == 0 || self.artifact_ids.len() > UI_DETAIL_MAX_ITEMS {
+            return Err("ui_receipt_entry_bounds_invalid".to_owned());
+        }
+        if let Some(digest) = &self.result_digest {
+            digest_value(digest, "ui_receipt_entry_result_digest")?;
+        }
+        Ok(())
+    }
+}
+
+/// Redacted receipt detail projection.  `unknown` is explicit and must stay visible in the page;
+/// a missing effect/result is never rendered as a green success state.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiReceiptDetailV1 {
+    pub schema: String,
+    pub scope: UiDetailScopeV1,
+    pub receipt_id: ReceiptId,
+    pub run_id: RunId,
+    pub session_id: SessionId,
+    pub receipt_digest: String,
+    pub status: String,
+    pub unknown: bool,
+    pub source_cursor: u64,
+    pub entries: Vec<UiReceiptEntryV1>,
+    #[serde(default)]
+    pub artifact_ids: Vec<ArtifactId>,
+    #[serde(default)]
+    pub timeline_ids: Vec<String>,
+    #[serde(default)]
+    pub inbox_ids: Vec<String>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiReceiptDetailV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_RECEIPT_DETAIL_SCHEMA
+            || self.run_id.as_uuid().is_nil()
+            || self.session_id.is_empty()
+            || self.source_cursor == 0
+            || self.entries.len() > UI_DETAIL_MAX_ITEMS
+            || self.artifact_ids.len() > UI_DETAIL_MAX_ITEMS
+            || self.timeline_ids.len() > UI_DETAIL_MAX_LINKS
+            || self.inbox_ids.len() > UI_DETAIL_MAX_LINKS
+            || self.limitations.len() > UI_DETAIL_MAX_LIMITATIONS
+        {
+            return Err("ui_receipt_detail_header_invalid".to_owned());
+        }
+        self.scope.validate()?;
+        if self.scope.session_id != self.session_id {
+            return Err("ui_receipt_detail_scope_mismatch".to_owned());
+        }
+        digest_value(&self.receipt_digest, "ui_receipt_detail_digest")?;
+        for entry in &self.entries {
+            entry.validate()?;
+        }
+        if self.unknown && self.status == "completed" {
+            return Err("ui_receipt_unknown_completed_conflict".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Aggregate read-only detail used by deep links.  Each child projection repeats the scope so a
+/// browser cannot combine an artifact, diff and receipt from different sessions or revisions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiArtifactDetailV1 {
+    pub schema: String,
+    pub scope: UiDetailScopeV1,
+    pub artifact_page: UiArtifactPageV1,
+    #[serde(default)]
+    pub diff: Option<UiDiffDetailV1>,
+    #[serde(default)]
+    pub receipt: Option<UiReceiptDetailV1>,
+    pub status: String,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiArtifactDetailV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_ARTIFACT_DETAIL_SCHEMA
+            || self.limitations.len() > UI_DETAIL_MAX_LIMITATIONS
+        {
+            return Err("ui_artifact_detail_header_invalid".to_owned());
+        }
+        self.scope.validate()?;
+        self.artifact_page.validate()?;
+        if self.artifact_page.scope != self.scope {
+            return Err("ui_artifact_detail_scope_mismatch".to_owned());
+        }
+        if let Some(diff) = &self.diff {
+            diff.validate()?;
+            if diff.scope != self.scope {
+                return Err("ui_artifact_detail_diff_scope_mismatch".to_owned());
+            }
+        }
+        if let Some(receipt) = &self.receipt {
+            receipt.validate()?;
+            if receipt.scope.session_id != self.scope.session_id {
+                return Err("ui_artifact_detail_receipt_scope_mismatch".to_owned());
+            }
         }
         Ok(())
     }

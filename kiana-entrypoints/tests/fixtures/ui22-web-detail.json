@@ -1,0 +1,48 @@
+{
+  "schema": "kiana.web-artifact-detail.v1",
+  "scope_schema": "kiana.ui-detail-scope.v1",
+  "artifact_ref_schema": "kiana.ui-artifact-ref.v1",
+  "artifact_page_schema": "kiana.ui-artifact-page.v2",
+  "diff_schema": "kiana.web-diff-detail.v1",
+  "receipt_schema": "kiana.web-receipt-detail.v1",
+  "server_fields": [
+    "artifact_id",
+    "version",
+    "content_hash",
+    "mime",
+    "size_bytes",
+    "revision",
+    "provenance",
+    "page_digest",
+    "total_additions",
+    "total_deletions",
+    "receipt_digest",
+    "limitations"
+  ],
+  "deny_first": [
+    "client_payload_mutation",
+    "stale_artifact_revision",
+    "page_digest_mismatch",
+    "cross_session_artifact_enumeration",
+    "cross_tab_cursor_scope",
+    "cursor_replay",
+    "unknown_result_green_success",
+    "result_unknown_auto_retry",
+    "raw_secret_leak",
+    "raw_path_leak",
+    "html_svg_ansi_injection",
+    "client_computed_diff",
+    "arbitrary_url_fetch"
+  ],
+  "success": [
+    "server_artifact_ref",
+    "bounded_page_cursor",
+    "server_diff_stats",
+    "timeline_diff_receipt_links",
+    "receipt_digest_projection",
+    "partial_binary_redacted_page",
+    "unknown_visible"
+  ],
+  "authority": "Web read-only projection -> DaemonHost -> EventLog/Receipt facts",
+  "proof_level": "source"
+}

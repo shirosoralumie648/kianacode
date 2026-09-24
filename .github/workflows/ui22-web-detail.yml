@@ -1,0 +1,54 @@
+name: UI-22 Web artifact diff receipt detail
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_detail.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui22-web-detail.json"
+      - "kiana-entrypoints/tests/ui22_web_detail.rs"
+      - "kiana-entrypoints/tests/ui22_web_detail_guard.rs"
+      - "docs/roadmap/ui22-web-detail-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui22-web-detail.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_detail.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui22-web-detail.json"
+      - "kiana-entrypoints/tests/ui22_web_detail.rs"
+      - "kiana-entrypoints/tests/ui22_web_detail_guard.rs"
+      - "docs/roadmap/ui22-web-detail-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui22-web-detail.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui22-web-detail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-22 detail fixture
+        run: cargo test -p kiana-entrypoints --test ui22_web_detail --locked -- --test-threads=1
+      - name: Run UI-22 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui22_web_detail_guard --locked -- --test-threads=1
+      - name: Compile UI-22 workspace test targets
+        run: cargo check --workspace --tests --locked

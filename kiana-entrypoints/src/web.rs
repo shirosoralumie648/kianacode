@@ -73,6 +73,11 @@ const STREAM_GAP_RUN_IN_PROGRESS: &str = "subscription_attached_after_run_starte
 const WEB_HYDRATE_SCHEMA: &str = "kiana.web-hydrate.v1";
 const WEB_HISTORY_SCHEMA: &str = "kiana.web-history-page.v1";
 const WEB_ARTIFACT_SCHEMA: &str = "kiana.web-artifact-page.v1";
+const WEB_ARTIFACT_DETAIL_SCHEMA: &str = "kiana.web-artifact-detail.v1";
+const WEB_DIFF_DETAIL_SCHEMA: &str = "kiana.web-diff-detail.v1";
+const WEB_RECEIPT_DETAIL_SCHEMA: &str = "kiana.web-receipt-detail.v1";
+const WEB_DETAIL_SCOPE_SCHEMA: &str = "kiana.ui-detail-scope.v1";
+const WEB_DETAIL_LINK_SCHEMA: &str = "kiana.ui-detail-link.v1";
 const WEB_PAGE_CURSOR_SCHEMA: &str = "kiana.web-page-cursor.v1";
 /// Additive Web lease/coordination contracts.  The authenticated daemon principal remains the
 /// authority; these values only fence tab-local mutable state and replay.
@@ -109,6 +114,8 @@ pub enum WebRouteClass {
     Sessions,
     History,
     Artifact,
+    ArtifactDetail,
+    Diff,
     Events,
     Run,
     Cancel,
@@ -116,6 +123,7 @@ pub enum WebRouteClass {
     Sandbox,
     Session,
     Receipt,
+    ReceiptDetail,
     Approval,
     Resume,
     Command,
@@ -170,6 +178,18 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         token_required: true,
     },
     WebRouteContract {
+        path: "/api/artifact/detail",
+        method: "GET",
+        class: WebRouteClass::ArtifactDetail,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/diff",
+        method: "GET",
+        class: WebRouteClass::Diff,
+        token_required: true,
+    },
+    WebRouteContract {
         path: "/api/events",
         method: "GET",
         class: WebRouteClass::Events,
@@ -209,6 +229,12 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         path: "/api/receipt",
         method: "POST",
         class: WebRouteClass::Receipt,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/receipt/detail",
+        method: "GET",
+        class: WebRouteClass::ReceiptDetail,
         token_required: true,
     },
     WebRouteContract {
@@ -363,6 +389,35 @@ struct ArtifactQuery {
     session_id: String,
     #[serde(default)]
     artifact_id: Option<String>,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default = "default_web_history_page")]
+    limit: usize,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ArtifactDetailQuery {
+    session_id: String,
+    artifact_id: String,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default = "default_web_history_page")]
+    limit: usize,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DiffQuery {
+    session_id: String,
+    artifact_id: String,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default = "default_web_history_page")]
+    limit: usize,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ReceiptDetailQuery {
+    session_id: String,
     #[serde(default)]
     after: Option<String>,
     #[serde(default = "default_web_history_page")]
@@ -747,6 +802,8 @@ fn router(app: WebApp) -> Router {
         .route("/api/sessions", get(list_sessions))
         .route("/api/history", get(history))
         .route("/api/artifact", get(artifact))
+        .route("/api/artifact/detail", get(artifact_detail))
+        .route("/api/diff", get(diff_detail))
         .route("/api/events", get(events))
         .route("/api/run", post(run_turn))
         .route("/api/cancel", post(cancel_turn))
@@ -754,6 +811,7 @@ fn router(app: WebApp) -> Router {
         .route("/api/sandbox", post(set_sandbox))
         .route("/api/session", post(new_session))
         .route("/api/receipt", post(read_receipt))
+        .route("/api/receipt/detail", get(receipt_detail))
         .route("/api/approvals", get(list_approvals).post(decide_approval))
         .route("/api/resume", post(resume_turn))
         .route("/api/extensions", get(extension_visibility))
@@ -1290,6 +1348,259 @@ impl WebApp {
         }))
     }
 
+    /// Build the aggregate server-owned artifact projection used by deep links.  The browser gets
+    /// references and an optional text page only; it never receives a path/URL that it can fetch.
+    async fn artifact_detail_page(
+        &self,
+        session_id: &str,
+        tab_id: &str,
+        artifact_id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, ApiError> {
+        validate_web_page_limit(limit)?;
+        validate_web_tab_id(tab_id)?;
+        validate_web_opaque_id(artifact_id, "artifact_id")?;
+        let (instance_id, epoch, source_cursor) = self.page_context()?;
+        let (events, sessions) = self.read_session_ledger().await?;
+        let Some(session) = sessions.iter().find(|session| session.id == session_id) else {
+            if !self
+                .sessions
+                .lock()
+                .map_err(|_| ApiError::fail("web_state_poisoned"))?
+                .contains_key(session_id)
+            {
+                return Err(ApiError::bad("session_unknown"));
+            }
+            return Err(ApiError::bad("artifact_not_found"));
+        };
+        let entries = events
+            .iter()
+            .filter(|event| {
+                event.data.get("run_id").and_then(Value::as_str) == Some(session.run_id.as_str())
+            })
+            .filter_map(|event| artifact_entry(event, Some(artifact_id)))
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            // Do not turn a private/nonexistent reference into an enumerable empty page.
+            return Err(ApiError::bad("artifact_not_found"));
+        }
+        let (offset, cursor_limit) = self.consume_page_cursor(
+            after,
+            "artifact_detail",
+            session_id,
+            tab_id,
+            &instance_id,
+            &epoch,
+            source_cursor,
+        )?;
+        if after.is_some() && cursor_limit != limit {
+            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
+        }
+        if offset > entries.len() {
+            return Err(ApiError::bad("web_page_cursor_offset_invalid"));
+        }
+        let end = (offset + limit).min(entries.len());
+        let page_entries = &entries[offset..end];
+        let revision = page_entries
+            .last()
+            .and_then(|entry| entry.get("source_sequence"))
+            .and_then(Value::as_u64)
+            .unwrap_or(source_cursor)
+            .max(1);
+        let next_cursor = if end < entries.len() {
+            Some(self.issue_page_cursor(WebPageCursor {
+                schema: WEB_PAGE_CURSOR_SCHEMA,
+                kind: "artifact_detail",
+                token: String::new(),
+                session_id: session_id.to_owned(),
+                tab_id: tab_id.to_owned(),
+                instance_id: instance_id.clone(),
+                epoch: epoch.clone(),
+                source_cursor,
+                offset: end,
+                limit,
+                issued_at: Instant::now(),
+            })?)
+        } else {
+            None
+        };
+        let first = page_entries
+            .first()
+            .ok_or_else(|| ApiError::bad("artifact_not_found"))?;
+        let digest = first
+            .get("digest")
+            .and_then(Value::as_str)
+            .filter(|value| value.starts_with("sha256:"))
+            .unwrap_or("sha256:0000000000000000000000000000000000000000000000000000000000000000");
+        let owner_tab_id = self
+            .sessions
+            .lock()
+            .map_err(|_| ApiError::fail("web_state_poisoned"))?
+            .get(session_id)
+            .and_then(|session| session.owner_tab_id.clone())
+            .unwrap_or_else(|| "historical".to_owned());
+        let scope = json!({
+            "schema": WEB_DETAIL_SCOPE_SCHEMA,
+            "session_id": session_id,
+            "tab_id": tab_id,
+            "owner_tab_id": owner_tab_id,
+            "instance_id": instance_id,
+            "epoch": epoch,
+            "source_cursor": source_cursor,
+            "revision": revision
+        });
+        let artifact = json!({
+            "schema": "kiana.ui-artifact-ref.v1",
+            "artifact_id": artifact_id,
+            "version": 1,
+            "artifact_schema": first.get("schema").cloned().unwrap_or_else(|| json!("unknown")),
+            "mime": "text/plain",
+            "size_bytes": 0,
+            "content_hash": digest,
+            "scope_digest": digest,
+            "revision": revision,
+            "session_id": session_id,
+            "run_id": session.run_id,
+            "provenance": "event_log_projection",
+            "links": [{"schema": WEB_DETAIL_LINK_SCHEMA, "kind": "timeline", "id": first.get("source_event_id").cloned().unwrap_or(Value::Null), "session_id": session_id}]
+        });
+        let page = json!({
+            "schema": "kiana.ui-artifact-page.v2",
+            "scope": scope,
+            "artifact": artifact,
+            "revision": revision,
+            "page_index": 0,
+            "page_count": 1,
+            "page_digest": digest,
+            "content_encoding": "none",
+            "content": Value::Null,
+            "truncated": false,
+            "next_cursor": next_cursor,
+            "limitations": ["artifact_content_requires_authorized_server_page"]
+        });
+        let (_, current_epoch, current_cursor) = self.page_context()?;
+        if current_epoch != epoch || current_cursor != source_cursor {
+            return Err(ApiError::conflict("web_page_source_changed"));
+        }
+        Ok(json!({
+            "schema": WEB_ARTIFACT_DETAIL_SCHEMA,
+            "scope": page["scope"],
+            "artifact_page": page,
+            "diff": Value::Null,
+            "receipt": Value::Null,
+            "status": "partial",
+            "limitations": ["artifact_content_requires_authorized_server_page", "diff_requires_server_projection"]
+        }))
+    }
+
+    async fn diff_detail_page(
+        &self,
+        session_id: &str,
+        tab_id: &str,
+        artifact_id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, ApiError> {
+        let mut detail = self
+            .artifact_detail_page(session_id, tab_id, artifact_id, after, limit)
+            .await?;
+        let scope = detail["scope"].clone();
+        detail["schema"] = json!(WEB_DIFF_DETAIL_SCHEMA);
+        detail["diff"] = json!({
+            "schema": WEB_DIFF_DETAIL_SCHEMA,
+            "scope": scope,
+            "artifact": detail["artifact_page"]["artifact"],
+            "base_revision": detail["artifact_page"]["revision"],
+            "target_revision": detail["artifact_page"]["revision"],
+            "status": "unknown",
+            "total_additions": 0,
+            "total_deletions": 0,
+            "files": [],
+            "links": [],
+            "limitations": ["server_diff_not_available"]
+        });
+        detail["status"] = json!("unknown");
+        detail["limitations"] = json!(["server_diff_not_available"]);
+        Ok(detail)
+    }
+
+    async fn receipt_detail_page(
+        &self,
+        session_id: &str,
+        tab_id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, ApiError> {
+        validate_web_page_limit(limit)?;
+        validate_web_tab_id(tab_id)?;
+        if after.is_some() {
+            return Err(ApiError::bad("web_receipt_cursor_not_supported"));
+        }
+        let session_id = resolve_human_session(self, Some(session_id)).await?;
+        let snapshot = self.snapshot(&session_id).await?;
+        let run_id = snapshot["projection"]["run_id"]
+            .as_str()
+            .and_then(RunId::parse_str)
+            .ok_or_else(|| ApiError::bad("receipt_not_found"))?;
+        let owner_tab_id = self
+            .sessions
+            .lock()
+            .map_err(|_| ApiError::fail("web_state_poisoned"))?
+            .get(&session_id)
+            .and_then(|session| session.owner_tab_id.clone())
+            .unwrap_or_else(|| "historical".to_owned());
+        let (instance_id, epoch, source_cursor) = self.page_context()?;
+        let receipt = harness_run::receipt_envelope_on_host(
+            Arc::clone(&self.host),
+            session_id.clone(),
+            Some(run_id),
+            &self.options()?,
+        )
+        .await
+        .map_err(|error| ApiError::fail(error.to_string()))?;
+        let receipt_value = serde_json::to_value(&receipt)
+            .map_err(|error| ApiError::fail(format!("receipt_encode:{error}")))?;
+        let status = receipt_value
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let unknown =
+            matches!(status, "unknown" | "result_unknown") || receipt_value.get("error").is_some();
+        let digest = receipt_value
+            .get("output")
+            .and_then(|output| output.get("receipt_digest"))
+            .and_then(Value::as_str)
+            .filter(|digest| digest.starts_with("sha256:"))
+            .unwrap_or("sha256:0000000000000000000000000000000000000000000000000000000000000000");
+        Ok(json!({
+            "schema": WEB_RECEIPT_DETAIL_SCHEMA,
+            "scope": {
+                "schema": WEB_DETAIL_SCOPE_SCHEMA,
+                "session_id": session_id,
+                "tab_id": tab_id,
+                "owner_tab_id": owner_tab_id,
+                "instance_id": instance_id,
+                "epoch": epoch,
+                "source_cursor": source_cursor,
+                "revision": source_cursor
+            },
+            "receipt_id": receipt_value.get("output").and_then(|output| output.get("receipt_id")).cloned().unwrap_or(Value::Null),
+            "run_id": run_id,
+            "session_id": session_id,
+            "receipt_digest": digest,
+            "status": status,
+            "unknown": unknown,
+            "source_cursor": source_cursor,
+            "entries": [],
+            "artifact_ids": [],
+            "timeline_ids": [],
+            "inbox_ids": [],
+            "limitations": if unknown { json!(["receipt_result_unknown_or_error; query original receipt"]) } else { json!(["detail_entries_are_server_projection_only"]) },
+            "receipt": receipt_value
+        }))
+    }
+
     fn issue_page_cursor(&self, mut cursor: WebPageCursor) -> Result<String, ApiError> {
         let token = uuid::Uuid::new_v4().to_string();
         cursor.token = token.clone();
@@ -1607,6 +1918,63 @@ async fn artifact(
         )
         .await?;
     Ok(Json(page))
+}
+
+async fn artifact_detail(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<ArtifactDetailQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    authorize_feed_tab(&app, &session_id, &tab_id)?;
+    let page = app
+        .artifact_detail_page(
+            &session_id,
+            &tab_id,
+            &query.artifact_id,
+            query.after.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(Json(page))
+}
+
+async fn diff_detail(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<DiffQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    authorize_feed_tab(&app, &session_id, &tab_id)?;
+    let page = app
+        .diff_detail_page(
+            &session_id,
+            &tab_id,
+            &query.artifact_id,
+            query.after.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(Json(page))
+}
+
+async fn receipt_detail(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<ReceiptDetailQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    authorize_feed_tab(&app, &session_id, &tab_id)?;
+    Ok(Json(
+        app.receipt_detail_page(&session_id, &tab_id, query.after.as_deref(), query.limit)
+            .await?,
+    ))
 }
 
 struct EventStreamState {
@@ -3308,9 +3676,11 @@ fn authorize_feed_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<()
         .sessions
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-    let session = sessions
-        .get(session_id)
-        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    let Some(session) = sessions.get(session_id) else {
+        // Historical sessions have already been filtered through the authenticated EventLog
+        // projection in resolve_human_session; they have no mutable in-memory tab lease.
+        return Ok(());
+    };
     if session.owner_principal_id != principal_id {
         return Err(ApiError::conflict("session_principal_mismatch"));
     }

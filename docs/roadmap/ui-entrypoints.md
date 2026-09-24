@@ -495,13 +495,20 @@ guard 与 workflow 已接入；浏览器 E2E、durable/live/physical proof 留�
 
 
 
-#### UI-22 · Web artifact/diff/receipt detail　⏳
+#### UI-22 · Web artifact/diff/receipt detail　🔄
 
 - 依赖：UI-05/15/20/21。代码：artifact API、diff viewer、receipt page。
 - 步骤：按 ref 分页拉取文本/patch/metadata，校验 digest、MIME、revision、size；展示 server stats、file status、provenance、limitations 和 unknown。
 - 先拒绝：任意 URL fetch、SVG/HTML/ANSI 注入、digest mismatch 继续预览、客户端 diff 代替授权载荷、私有 artifact 出现在列表。
 - 成功/回归：大文件/二进制/截断/坏 digest/过期 ref、部分文件审批、receipt 从新进程重算。
 - 完成产物：artifact viewer、content policy、diff/receipt golden 与大小上限。
+
+实现基线：[UI-22 Web artifact, diff and receipt detail](ui22-web-detail-baseline.md)。当前 source
+slice 在 UI-21 server-owned card/session projection 上补充 typed ArtifactRef/page/detail、server
+diff statistics、receipt cross-links、bounded cursor/revision/session/tab fencing 与 text-only
+detail renderer。坏 digest、stale ref、跨会话枚举、HTML/SVG/ANSI/raw path/secret、任意 URL fetch、
+客户端 diff 与 Unknown 绿色成功均 fail-closed；GitHub-only fixture/source guard/workflow 已接入，
+浏览器 E2E、完整 durable artifact/diff index、跨进程 receipt 重算与 live/physical proof 留后续。
 
 <a id="step-ui-23"></a>
 
