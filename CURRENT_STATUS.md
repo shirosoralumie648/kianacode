@@ -99,6 +99,19 @@ proof-level change: `feature_status=implemented` for source contracts and CI wir
 limitations: no production signer/key custody, cryptographic verification service, transparency registry, reproducible build proof, live GitHub release or physical artifact distribution is claimed; verifier is read-only and external signature status remains an input; SC-41 owns final release-gate integration
 reviewer: Codex source review of strict schema/digest binding, deny-first tag/source/builder/toolchain/subject checks, unknown transparency/unverified handling, artifact path/size/hash checks and no-I/O/no-network verifier boundary; no local runtime test reviewer
 
+### SC-30 Provider/model/prompt-pack/MCP route attestation (2026-09-24)
+
+source_snapshot: `a2309009` plus SC-30 source slice; `kiana-domain/src/route_attestation.rs`; `kiana-domain/tests/sc30_route_attestation.rs`; `kiana-core/tests/sc30_route_attestation_guard.rs`; `scripts/verify-route-attestation.py`; `.github/workflows/sc30-route-attestation.yml`; `docs/roadmap/sc30-route-attestation-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `sc30-route-attestation-20260924` rebased onto `origin/master=a2309009`; server-owned route/context binds provider/model/protocol/profile/configuration, prompt provenance, optional MCP route, data/use policy, opaque credential/account/audience identities and SC-29 release digests; unrelated WIP remains untouched
+command_argv: `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, the deterministic Python verifier self-test, SC-30 domain fixture, core source guard and `cargo check --workspace --tests --locked`; local tests/build/check/clippy/smoke deliberately not run and CI is not awaited
+cwd·environment: `/tmp/kiana-step-pd28`; Linux x86_64; local test authority disabled by user instruction; GitHub Actions is the test authority
+fixture·cassette: GitHub-only workflow; domain fixture covers exact provider/model/prompt/policy/MCP binding, provider claim and route drift, untrusted/unknown/unverified states, credential/account/audience drift, HTTP MCP denial, strict serde and digest fences; Python fixture mirrors canonical JSON checks and forged provider/model claim rejection; source guard ensures no provider/network client
+exit_code: `git diff --check` is the only local verification; remote CI result intentionally unobserved
+status change: SC-30 route attestation source contracts, offline verifier, source guard, workflow and baseline added; roadmap row 503/card remain 🔄 pending GitHub CI evidence
+proof-level change: `feature_status=implemented` for source contracts and CI wiring; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no production provider signature or model identity verification, credential resolution, live MCP/provider effect, prompt-pack publication, durable route snapshot/recovery, reproducible release bytes or physical proof is claimed; external provider verification remains an input; SC-41 owns final release-gate integration
+reviewer: Codex source review of deny-first provider/model claim binding, prompt trust, HTTP MCP refusal, exact data/use policy and credential/account/audience/release fences, strict offline verifier and no-I/O/no-network boundary; no local runtime test reviewer
+
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
 source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
