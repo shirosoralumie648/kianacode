@@ -643,11 +643,13 @@ fn router(app: WebApp) -> Router {
         .route("/api/extensions", get(extension_visibility))
         .route("/api/command", get(command_query).post(command_action))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
-        .layer(middleware::from_fn(security_headers))
         .layer(middleware::from_fn_with_state(
             Arc::clone(&shared_state),
             enforce_request_bounds,
         ))
+        // Keep response hardening outermost so URI/rate/body rejection responses carry the
+        // same security headers as handler responses.
+        .layer(middleware::from_fn(security_headers))
         .with_state(shared_state)
 }
 
