@@ -764,7 +764,7 @@ pub fn apply_model_attempt_event(
             return Err("model_attempt_flush_regression".to_owned());
         }
         next.source_event_ids = current.source_event_ids;
-        if !next.source_event_ids.contains(&event.event_id) {
+        if source_event_id.is_none() && !next.source_event_ids.contains(&event.event_id) {
             next.source_event_ids.push(event.event_id);
         }
     }
