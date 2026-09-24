@@ -10,6 +10,7 @@ mod capture;
 mod catalog;
 mod diff;
 mod digest;
+mod evaluator;
 mod fixtures;
 mod normalize;
 mod scenario;
@@ -36,6 +37,14 @@ pub use diff::{TraceDiff, TraceDiffClass, TraceDivergence, TRACE_DIFF_SCHEMA};
 pub use digest::{
     artifact_digest, event_digest, receipt_digest, trace_digest, DigestError, DigestKind,
     VersionedEvidenceDigest, DIGEST_SCHEMA,
+};
+pub use evaluator::{
+    canonical_findings, digest_findings, findings_digest, sort_findings, validate_finding,
+    DeterministicEvaluator, EvaluationInput, EvaluationResult, Evaluator, EvaluatorError,
+    EvaluatorRegistry, Finding, FindingError, EVALUATION_RESULT_SCHEMA, EVALUATOR_INPUT_SCHEMA,
+    FINDING_SCHEMA, MAX_EVALUATORS, MAX_EVALUATOR_INPUT_BYTES, MAX_FINDINGS,
+    MAX_FINDING_CODE_BYTES, MAX_FINDING_EVIDENCE_REF_BYTES, MAX_FINDING_MESSAGE_BYTES,
+    MAX_FINDING_VALUE_BYTES, MAX_FINDING_VALUE_DEPTH,
 };
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
