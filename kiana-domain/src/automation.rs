@@ -165,6 +165,11 @@ pub struct WorkflowNodeExecution {
     pub output_recorded: bool,
     pub error_code: Option<String>,
     pub evidence_refs: Vec<String>,
+    /// Server-derived runtime receipt; business acceptance is intentionally separate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_receipt: Option<crate::RuntimeReceiptRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incident_id: Option<String>,
     pub child_instance_id: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -502,6 +507,9 @@ pub struct AutomationState {
     pub definitions: BTreeMap<String, WorkflowDefinition>,
     pub instances: BTreeMap<String, WorkflowInstance>,
     pub triggers: BTreeMap<String, DurableTrigger>,
+    /// Unknown runtime outcomes are retained as explicit workflow incidents.
+    #[serde(default)]
+    pub incidents: BTreeMap<String, crate::WorkflowIncident>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AutomationAuthority {
@@ -515,6 +523,12 @@ pub struct AutomationProof {
     pub response: Option<CoreResponse>,
     pub evidence_refs: Vec<String>,
     pub event_kind: Option<String>,
+    /// ControlPlane-derived receipt for a terminal runtime observation.
+    #[serde(default)]
+    pub runtime_receipt: Option<crate::RuntimeReceiptRef>,
+    /// Required when a runtime observation is ResultUnknown.
+    #[serde(default)]
+    pub incident: Option<crate::WorkflowIncident>,
 }
 
 /// Canonical envelope for a committed workflow command fact.  RuntimeEvent remains the source of

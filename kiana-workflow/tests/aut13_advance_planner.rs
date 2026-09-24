@@ -71,6 +71,8 @@ fn output(value: serde_json::Value) -> WorkflowNodeExecution {
         output: value,
         error_code: None,
         evidence_refs: vec!["event:result".to_owned()],
+        runtime_receipt: None,
+        incident_id: None,
         child_instance_id: None,
     }
 }

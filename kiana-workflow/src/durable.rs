@@ -661,6 +661,7 @@ fn observe(
     node_id: &str,
     a: &AutomationAuthority,
     p: &AutomationProof,
+    incidents: &mut BTreeMap<String, WorkflowIncident>,
 ) -> Result<()> {
     let response = p
         .response
@@ -678,6 +679,46 @@ fn observe(
         !p.evidence_refs.is_empty() || response.status == ExecutionStatus::ResultUnknown,
         "workflow_evidence_required",
     )?;
+    if response.status.is_terminal() {
+        let receipt = p
+            .runtime_receipt
+            .as_ref()
+            .ok_or("workflow_runtime_receipt_required")?;
+        receipt
+            .validate()
+            .map_err(|_| "workflow_runtime_receipt_invalid")?;
+        require(
+            receipt.request_id == response.request_id
+                && receipt.status == response.status
+                && receipt.event_refs == p.evidence_refs,
+            "workflow_runtime_receipt_binding_mismatch",
+        )?;
+    } else {
+        require(
+            p.runtime_receipt.is_none(),
+            "workflow_runtime_receipt_terminal_required",
+        )?;
+    }
+    if response.status == ExecutionStatus::ResultUnknown {
+        let incident = p.incident.as_ref().ok_or("workflow_incident_required")?;
+        incident
+            .validate()
+            .map_err(|_| "workflow_incident_invalid")?;
+        require(
+            incident.instance_id == instance.instance_id
+                && incident.node_id == node_id
+                && incident.request_id == response.request_id
+                && incident.evidence_refs == p.evidence_refs,
+            "workflow_incident_binding_mismatch",
+        )?;
+        if let Some(existing) = incidents.get(&incident.incident_id) {
+            require(existing == incident, "workflow_incident_conflict")?;
+        } else {
+            incidents.insert(incident.incident_id.clone(), incident.clone());
+        }
+    } else {
+        require(p.incident.is_none(), "workflow_incident_unknown_only")?;
+    }
     node.status = match response.status {
         ExecutionStatus::Completed => WorkflowNodeStatus::Succeeded,
         ExecutionStatus::Failed | ExecutionStatus::Blocked | ExecutionStatus::Denied => {
@@ -693,6 +734,11 @@ fn observe(
     node.output_recorded = true;
     node.error_code = response.error.clone();
     node.evidence_refs = p.evidence_refs.clone();
+    node.runtime_receipt = p.runtime_receipt.clone();
+    node.incident_id = p
+        .incident
+        .as_ref()
+        .map(|incident| incident.incident_id.clone());
     if node.status.terminal() {
         node.ended_at = Some(a.now_ms);
     }
@@ -950,9 +996,15 @@ pub fn plan_command(
             node_id,
         } => {
             let instance = next.instances.get_mut(instance_id).unwrap();
-            let definition = &next.definitions
-                [&definition_key(&instance.definition_id, instance.definition_version)];
-            observe(instance, definition, node_id, a, p)?;
+            let definition = next
+                .definitions
+                .get(&definition_key(
+                    &instance.definition_id,
+                    instance.definition_version,
+                ))
+                .ok_or("workflow_definition_not_found")?
+                .clone();
+            observe(instance, &definition, node_id, a, p, &mut next.incidents)?;
         }
         AutomationCommand::Decide {
             instance_id,

@@ -1,6 +1,8 @@
 //! Versioned Company business contracts. State is rebuilt exclusively from committed events.
 //! This module is deterministic: clocks, identity and observed runtime evidence are inputs.
-use crate::{ExecutionStatus, RequestId, RunId, SessionId, WorkPacket, WorkPacketStatus};
+use crate::{
+    ExecutionStatus, RequestId, RunId, RuntimeReceiptRef, SessionId, WorkPacket, WorkPacketStatus,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -36,6 +38,18 @@ fn list(values: &[String]) -> CompanyResult<()> {
         return Err("company_duplicate_reference");
     }
     Ok(())
+}
+
+fn runtime_receipt_matches(run: &CompanyRun, evidence_refs: &[String]) -> bool {
+    run.runtime_receipt.as_ref().is_some_and(|receipt| {
+        receipt.validate().is_ok()
+            && receipt.request_id == run.execution_request_id
+            && receipt.status == run.status
+            && receipt
+                .event_refs
+                .iter()
+                .all(|reference| evidence_refs.contains(reference))
+    })
 }
 fn ensure(condition: bool, reason: &'static str) -> CompanyResult<()> {
     if condition {
@@ -541,6 +555,9 @@ pub struct CompanyRun {
     pub run_id: Option<RunId>,
     pub status: ExecutionStatus,
     pub evidence_refs: Vec<String>,
+    /// ControlPlane-derived runtime terminal; business acceptance remains separate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_receipt: Option<RuntimeReceiptRef>,
     pub incident_id: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1814,6 +1831,7 @@ impl CompanyState {
                         run_id: None,
                         status: ExecutionStatus::Accepted,
                         evidence_refs: Vec::new(),
+                        runtime_receipt: None,
                         incident_id: None,
                     },
                 );
@@ -1890,6 +1908,10 @@ impl CompanyState {
                     observed.packet_id == *packet_id
                         && observed.status == ExecutionStatus::Completed,
                     "acceptance_run_not_completed",
+                )?;
+                ensure(
+                    runtime_receipt_matches(observed, &observed.evidence_refs),
+                    "acceptance_runtime_receipt_required",
                 )?;
                 ensure(
                     self.runs
@@ -2004,6 +2026,19 @@ impl CompanyState {
                 ensure(
                     !self.reviews.contains_key(review_id),
                     "review_already_exists",
+                )?;
+                let acceptance_view = self
+                    .acceptances
+                    .get(acceptance_id)
+                    .ok_or("acceptance_not_found")?;
+                let author_run = self
+                    .runs
+                    .values()
+                    .find(|run| run.run_id == Some(acceptance_view.author_run_id))
+                    .ok_or("acceptance_runtime_run_missing")?;
+                ensure(
+                    runtime_receipt_matches(author_run, &acceptance_view.evidence_refs),
+                    "review_runtime_receipt_required",
                 )?;
                 let acceptance = self
                     .acceptances
@@ -2152,6 +2187,15 @@ impl CompanyState {
                     .acceptances
                     .get(&delivery.acceptance_id)
                     .ok_or("acceptance_not_found")?;
+                let author_run = self
+                    .runs
+                    .values()
+                    .find(|run| run.run_id == Some(acceptance.author_run_id))
+                    .ok_or("delivery_runtime_run_missing")?;
+                ensure(
+                    runtime_receipt_matches(author_run, &acceptance.evidence_refs),
+                    "delivery_runtime_receipt_required",
+                )?;
                 ensure(
                     acceptance.project_id == delivery.project_id
                         && acceptance.status == AcceptanceStatus::Accepted,
@@ -2181,6 +2225,23 @@ impl CompanyState {
                 evidence_refs,
             } => {
                 Self::evidence(p, evidence_refs)?;
+                let delivery_view = self
+                    .deliveries
+                    .get(delivery_id)
+                    .ok_or("delivery_not_found")?;
+                let acceptance = self
+                    .acceptances
+                    .get(&delivery_view.acceptance_id)
+                    .ok_or("acceptance_not_found")?;
+                let author_run = self
+                    .runs
+                    .values()
+                    .find(|run| run.run_id == Some(acceptance.author_run_id))
+                    .ok_or("delivery_runtime_run_missing")?;
+                ensure(
+                    runtime_receipt_matches(author_run, &acceptance.evidence_refs),
+                    "delivery_runtime_receipt_required",
+                )?;
                 let d = self
                     .deliveries
                     .get_mut(delivery_id)
@@ -2198,6 +2259,23 @@ impl CompanyState {
                 handoff_receipt_ref,
             } => {
                 Self::evidence(p, &[handoff_receipt_ref.clone()])?;
+                let delivery_view = self
+                    .deliveries
+                    .get(delivery_id)
+                    .ok_or("delivery_not_found")?;
+                let acceptance = self
+                    .acceptances
+                    .get(&delivery_view.acceptance_id)
+                    .ok_or("acceptance_not_found")?;
+                let author_run = self
+                    .runs
+                    .values()
+                    .find(|run| run.run_id == Some(acceptance.author_run_id))
+                    .ok_or("delivery_runtime_run_missing")?;
+                ensure(
+                    runtime_receipt_matches(author_run, &acceptance.evidence_refs),
+                    "delivery_runtime_receipt_required",
+                )?;
                 let d = self
                     .deliveries
                     .get_mut(delivery_id)
@@ -2288,6 +2366,16 @@ impl CompanyState {
                     .get(delivery_id)
                     .ok_or("delivery_not_found")?
                     .clone();
+                let author_run = self
+                    .runs
+                    .values()
+                    .find(|run| run.run_id == Some(acceptance.author_run_id))
+                    .ok_or("closing_runtime_run_missing")?;
+                ensure(
+                    runtime_receipt_matches(author_run, &acceptance.evidence_refs)
+                        && runtime_receipt_matches(author_run, evidence_refs),
+                    "closing_runtime_receipt_required",
+                )?;
                 ensure(
                     delivery.project_id == *project_id
                         && delivery.acceptance_id == acceptance.acceptance_id

@@ -25,6 +25,20 @@ fn verified(refs: &[String], proof: &CompanyProof) -> Result<()> {
     )
 }
 
+fn runtime_bundle_valid(bundle: &EvidenceBundle) -> bool {
+    let Some(receipt) = bundle.runtime_receipt.as_ref() else {
+        return false;
+    };
+    let Some(runtime_evidence) = bundle.runtime_evidence.as_ref() else {
+        return false;
+    };
+    receipt.validate().is_ok()
+        && receipt.event_refs == bundle.event_refs
+        && runtime_evidence.validate().is_ok()
+        && runtime_evidence.receipt == *receipt
+        && runtime_evidence.artifact_refs == bundle.artifact_refs
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeliveryManifestEntry {
@@ -463,6 +477,15 @@ impl CompanyState {
                     residual_obligations.len() <= 128,
                     "business_delivery_obligations_limit",
                 )?;
+                require(
+                    ac.bundle_ids.iter().all(|id| {
+                        self.business
+                            .bundles
+                            .get(id)
+                            .is_some_and(runtime_bundle_valid)
+                    }),
+                    "business_delivery_runtime_evidence_missing",
+                )?;
                 let ids = ac
                     .bundle_ids
                     .iter()
@@ -853,6 +876,14 @@ impl CompanyState {
                         ac.project_id == *project_id && ac.baseline_version == baseline.version
                     })
                     .collect::<Vec<_>>();
+                require(
+                    self.business
+                        .bundles
+                        .values()
+                        .filter(|bundle| bundle.project_id == *project_id)
+                        .all(runtime_bundle_valid),
+                    "business_closing_runtime_evidence_missing",
+                )?;
                 match close_kind {
                     BusinessCloseKind::Success => {
                         require(

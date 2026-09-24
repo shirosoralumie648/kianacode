@@ -25,6 +25,78 @@ fn now_ms() -> u64 {
         .map(|v| v.as_millis().min(u128::from(u64::MAX)) as u64)
         .unwrap_or(0)
 }
+
+fn execution_event_refs(
+    events: &[RuntimeEvent],
+    execution_id: RequestId,
+    allow_reservation_fallback: bool,
+) -> Vec<String> {
+    let execution_text = execution_id.to_string();
+    let mut refs = events
+        .iter()
+        .filter(|event| event.request_id == execution_id)
+        .map(|event| format!("event:{}", event.event_id))
+        .collect::<Vec<_>>();
+    if refs.is_empty() && allow_reservation_fallback {
+        refs = events
+            .iter()
+            .filter(|event| {
+                event
+                    .data
+                    .pointer("/authority/execution_id")
+                    .and_then(Value::as_str)
+                    == Some(execution_text.as_str())
+            })
+            .map(|event| format!("event:{}", event.event_id))
+            .collect();
+    }
+    refs
+}
+
+fn workflow_runtime_proof(
+    instance_id: &str,
+    node_id: &str,
+    response: CoreResponse,
+    evidence_refs: Vec<String>,
+    events: &[RuntimeEvent],
+) -> Result<AutomationProof, CoreError> {
+    let mut evidence_refs = evidence_refs;
+    if evidence_refs.is_empty() && response.status == ExecutionStatus::ResultUnknown {
+        evidence_refs = execution_event_refs(events, response.request_id, true);
+    }
+    let mut proof = AutomationProof {
+        response: Some(response.clone()),
+        evidence_refs: evidence_refs.clone(),
+        event_kind: None,
+        runtime_receipt: None,
+        incident: None,
+    };
+    if response.status.is_terminal() {
+        let receipt =
+            RuntimeReceiptRef::new(response.request_id, response.status, evidence_refs.clone())
+                .map_err(|_| automation_error("workflow_runtime_receipt_invalid"))?;
+        if response.status == ExecutionStatus::ResultUnknown {
+            let identity_digest = json_digest(&json!({
+                "instance_id": instance_id,
+                "node_id": node_id,
+                "request_id": response.request_id,
+            }));
+            let incident = WorkflowIncident::new(
+                format!("workflow-unknown:{identity_digest}"),
+                instance_id,
+                node_id,
+                response.request_id,
+                "workflow_runtime_result_unknown",
+                evidence_refs,
+            )
+            .map_err(|_| automation_error("workflow_incident_invalid"))?;
+            proof.incident = Some(incident);
+        }
+        proof.runtime_receipt = Some(receipt);
+    }
+    Ok(proof)
+}
+
 fn authority(context: &RequestContext) -> AutomationAuthority {
     AutomationAuthority {
         context: context.clone(),
@@ -225,15 +297,13 @@ impl ControlPlane {
                 error: Some(error.to_string()),
             });
             let events = self.events.read_all().await?;
-            let proof = AutomationProof {
-                response: Some(response),
-                evidence_refs: events
-                    .iter()
-                    .filter(|e| e.request_id == execution_id)
-                    .map(|e| format!("event:{}", e.event_id))
-                    .collect(),
-                event_kind: None,
-            };
+            let proof = workflow_runtime_proof(
+                &instance_id,
+                &node_id,
+                response,
+                execution_event_refs(&events, execution_id, false),
+                &events,
+            )?;
             match self
                 .record_workflow_observation(&context, &instance_id, &node_id, proof)
                 .await
@@ -507,13 +577,24 @@ impl ControlPlane {
                         {
                             return Err(automation_error("workflow_run_identity_mismatch"));
                         }
-                        let observed = super::company::observe_company_run(run, context, &all)
-                            .map_err(CoreError::from)?;
-                        response.status = observed.status;
-                        response.output = serde_json::to_value(&observed)
-                            .map_err(|_| automation_error("workflow_run_encode_failed"))?;
-                        response.error = None;
-                        proof.evidence_refs = observed.evidence_refs;
+                        match super::company::observe_company_run(run, context, &all) {
+                            Ok(observed) => {
+                                response.status = observed.status;
+                                response.output = serde_json::to_value(&observed)
+                                    .map_err(|_| automation_error("workflow_run_encode_failed"))?;
+                                response.error = None;
+                                proof.evidence_refs = observed.evidence_refs;
+                            }
+                            Err(PortError::Conflict(reason))
+                                if reason == "company_run_reconciliation_unavailable" =>
+                            {
+                                response.status = ExecutionStatus::ResultUnknown;
+                                response.error = Some(reason);
+                                proof.evidence_refs =
+                                    execution_event_refs(&all, node.execution_id, true);
+                            }
+                            Err(error) => return Err(CoreError::from(error)),
+                        }
                     }
                 }
                 WorkflowNodeKind::Capability { .. } => {
@@ -590,7 +671,8 @@ impl ControlPlane {
                 response.status = ExecutionStatus::ResultUnknown;
                 response.error = Some("workflow_execution_lease_expired".into());
             }
-            proof.response = Some(response);
+            proof =
+                workflow_runtime_proof(instance_id, node_id, response, proof.evidence_refs, &all)?;
         }
         Ok(proof)
     }

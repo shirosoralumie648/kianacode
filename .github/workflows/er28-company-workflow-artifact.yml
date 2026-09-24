@@ -1,0 +1,63 @@
+name: er28-company-workflow-artifact
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/runtime_evidence.rs"
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er28_runtime_evidence.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/tests/er28_company_workflow_artifact_guard.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut13_advance_planner.rs"
+      - "kiana-workflow/tests/er28_workflow_observation.rs"
+      - "docs/roadmap/er28-company-workflow-artifact-baseline.md"
+      - ".github/workflows/er28-company-workflow-artifact.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/runtime_evidence.rs"
+      - "kiana-domain/src/automation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er28_runtime_evidence.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/tests/er28_company_workflow_artifact_guard.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_closeout.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "kiana-workflow/tests/aut13_advance_planner.rs"
+      - "kiana-workflow/tests/er28_workflow_observation.rs"
+      - "docs/roadmap/er28-company-workflow-artifact-baseline.md"
+      - ".github/workflows/er28-company-workflow-artifact.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  er28:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: runtime evidence fixtures
+        run: cargo test -p kiana-domain --test er28_runtime_evidence --locked -- --test-threads=1
+      - name: workflow observation regression
+        run: cargo test -p kiana-workflow --test aut13_advance_planner --locked -- --test-threads=1
+      - name: workflow unknown incident fixture
+        run: cargo test -p kiana-workflow --test er28_workflow_observation --locked -- --test-threads=1
+      - name: company workflow artifact source guard
+        run: cargo test -p kiana-core --test er28_company_workflow_artifact_guard --locked -- --test-threads=1
+      - name: workspace test target compile
+        run: cargo check --workspace --tests --locked

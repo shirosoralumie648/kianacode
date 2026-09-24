@@ -33,6 +33,20 @@ fn refs(values: &[String]) -> Result<()> {
     )
 }
 
+fn runtime_evidence_valid(bundle: &EvidenceBundle) -> bool {
+    let Some(receipt) = bundle.runtime_receipt.as_ref() else {
+        return false;
+    };
+    let Some(evidence) = bundle.runtime_evidence.as_ref() else {
+        return false;
+    };
+    receipt.validate().is_ok()
+        && receipt.event_refs == bundle.event_refs
+        && evidence.validate().is_ok()
+        && evidence.receipt == *receipt
+        && evidence.artifact_refs == bundle.artifact_refs
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BusinessOrganization {
@@ -153,6 +167,12 @@ pub struct EvidenceBundle {
     pub authors: Vec<BusinessAuthor>,
     pub artifact_refs: Vec<String>,
     pub event_refs: Vec<String>,
+    /// Runtime terminal evidence; business acceptance remains a separate decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_receipt: Option<RuntimeReceiptRef>,
+    /// Optional artifact-bound runtime bundle; legacy bundles without it fail closed at use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_evidence: Option<RuntimeEvidenceBundle>,
     pub digest: String,
     pub created_at: u64,
 }
@@ -1014,6 +1034,13 @@ impl CompanyState {
                 let digest = json_digest(
                     &serde_json::json!({"packet":packet,"baseline":baseline.version,"run":run,"artifacts":artifact_refs,"authors":authors}),
                 );
+                let runtime_receipt = run
+                    .runtime_receipt
+                    .clone()
+                    .ok_or("business_runtime_receipt_missing")?;
+                let runtime_evidence =
+                    RuntimeEvidenceBundle::new(runtime_receipt.clone(), artifact_refs.clone())
+                        .map_err(|_| "business_runtime_evidence_invalid")?;
                 self.business.bundles.insert(
                     bundle_id.clone(),
                     EvidenceBundle {
@@ -1026,6 +1053,8 @@ impl CompanyState {
                         authors,
                         artifact_refs: artifact_refs.clone(),
                         event_refs: run.evidence_refs.clone(),
+                        runtime_receipt: Some(runtime_receipt),
+                        runtime_evidence: Some(runtime_evidence),
                         digest,
                         created_at: a.now_ms,
                     },
@@ -1119,6 +1148,10 @@ impl CompanyState {
                         .bundles
                         .get(id)
                         .ok_or("business_evidence_bundle_missing")?;
+                    check(
+                        runtime_evidence_valid(bundle),
+                        "business_runtime_evidence_invalid",
+                    )?;
                     check(
                         bundle.project_id == project_id
                             && bundle.baseline_version == baseline.version

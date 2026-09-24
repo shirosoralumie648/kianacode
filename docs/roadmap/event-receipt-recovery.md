@@ -534,12 +534,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-28 — CompanyOS / Workflow / Artifact 业务引用　⏳
+##### ER-28 — CompanyOS / Workflow / Artifact 业务引用　🔄
 
 - **落点：** `kiana-workflow/durable.rs`、`kiana-core/company*.rs`、`artifacts.rs`；关联 `P2-J5`、`P3-I-03..06`、`CO-24..42`。
 - **动作：** Company command、Workflow node、Review、Delivery、ClosingReceipt 只引用运行时 Receipt/EvidenceBundle；业务验收和 runtime terminal 分开，workflow node 的 Unknown 升级 Incident。
 - **先拒绝：** `company_success_cannot_be_inferred_from_run_completed`、`workflow_replay_does_not_execute_effect`、`closing_without_evidence_is_denied`。
 - **成功/回归：** Builder→Review→Acceptance→Delivery→Close 的每个跨边界引用可从事件和 artifact 重建。
+- **ER-28 baseline：** [`er28-company-workflow-artifact-baseline.md`](er28-company-workflow-artifact-baseline.md)；本切片只声明 `feature_status=implemented`、`proof_level=source`，receipt/evidence/incident 由 ControlPlane 派生并绑定 EventLog，GitHub CI 运行拒绝夹具，不等待 CI 结果。
 
 <a id="step-er-29"></a>
 

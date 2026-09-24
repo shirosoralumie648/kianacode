@@ -433,6 +433,7 @@ impl ControlPlane {
                                 .filter(|e| e.request_id == child.dispatch_request_id)
                                 .map(|e| format!("event:{}", e.event_id))
                                 .collect(),
+                            runtime_receipt: None,
                             incident_id: None,
                         }
                     };

@@ -4,7 +4,8 @@ use super::*;
 use kiana_domain::{
     CompanyAuthority, CompanyBusinessAction, CompanyCommand, CompanyCommandReceipt,
     CompanyCommandRequest, CompanyEvent, CompanyProof, CompanyRun, CompanyState, DecisionActorKind,
-    DispatchIntent, COMPANY_COMMAND_SCHEMA, COMPANY_EVENT_SCHEMA, COMPANY_STATE_SCHEMA,
+    DispatchIntent, RuntimeReceiptRef, COMPANY_COMMAND_SCHEMA, COMPANY_EVENT_SCHEMA,
+    COMPANY_STATE_SCHEMA,
 };
 
 const COMPANY_AGGREGATE: &str = "company";
@@ -1290,6 +1291,18 @@ pub(crate) fn observe_company_run(
             .map(|e| format!("event:{}", e.event_id))
             .collect();
     }
+    observed.runtime_receipt = if observed.status.is_terminal() {
+        Some(
+            RuntimeReceiptRef::new(
+                observed.execution_request_id,
+                observed.status,
+                observed.evidence_refs.clone(),
+            )
+            .map_err(|_| company_conflict("company_runtime_receipt_invalid"))?,
+        )
+    } else {
+        None
+    };
     Ok(observed)
 }
 

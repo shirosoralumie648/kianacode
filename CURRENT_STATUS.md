@@ -29,7 +29,18 @@ status change: UI-08 共享纯 reducer/entity store 与 GitHub-only fixtures 已
 proof-level change: `feature_status=implemented`（bounded source reducer + lifecycle/recovery contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
 limitations: store 是进程内 presentation projection，未证明 durable/cross-process replay、SSE/socket、presenter 全量迁移、provider/live timing 或 physical proof；UI-18 reconnect 与 UI-33 crash recovery 仍未完成
 reviewer: Codex UI-08 source review；检查 scope/revision/event/epoch fences、pending/unknown protection、Accepted 保留 optimistic、Applied/Rejected/Unknown settlement、snapshot digest 和无第二执行循环；无本地 runtime test reviewer
+### ER-28 CompanyOS / Workflow / Artifact 业务引用（2026-09-24）
 
+source_snapshot: `origin/master=69394fb1` 重放后的 `er-28-company-workflow-artifact-20260924` source slice；`kiana-domain/src/runtime_evidence.rs`; `kiana-domain/src/automation.rs`; `kiana-domain/src/company.rs`; `kiana-domain/src/company_business.rs`; `kiana-domain/src/company_closeout.rs`; `kiana-workflow/src/durable.rs`; `kiana-core/src/automation.rs`; `kiana-core/src/company.rs`; `kiana-domain/tests/er28_runtime_evidence.rs`; `kiana-core/tests/er28_company_workflow_artifact_guard.rs`; `.github/workflows/er28-company-workflow-artifact.yml`; `docs/roadmap/er28-company-workflow-artifact-baseline.md`
+worktree_status: 隔离分支；runtime receipt/evidence bundle/unknown incident contracts 已接入 domain，Company EvidenceBundle 绑定 runtime receipt/evidence，workflow terminal observation 校验 request/status/event refs 并将 ResultUnknown 写入 incidents；ControlPlane dispatch 与 reconcile 都从 EventLog 派生 receipt/incident；未触碰无关 dirty files
+command_argv: `git diff --check`; `rustfmt --edition 2021` 目标文件；GitHub Actions 将运行 `cargo fmt --all --check`、ER-28 domain/workflow/core fixtures 和 `cargo check --workspace --tests --locked`；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+cwd·environment: `/tmp/kiana-step-er28`; Linux；stable Rust；本地测试权威按用户指示关闭
+fixture·cassette: runtime receipt terminal/digest/request binding、EvidenceBundle artifact boundary、WorkflowIncident binding、workflow unknown-without-incident deny、workflow/company source guard；无外部 provider/effect；无 live/durable/physical cassette
+exit_code: 本地只观察 diff/格式命令；GitHub CI 尚未触发或等待
+status change: ER-28 从 `⏳` 推进为 `🔄`；Company runtime terminal 与业务 acceptance/review/delivery/closing 分离，workflow replay 继续走 EventLog/plan_command，不重新 dispatch
+proof-level change: `feature_status=implemented`（source contracts + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明跨进程 incident projection、artifact 内容持久化、external delivery/provider reconciliation、崩溃/断电恢复或现实业务效果；runtime Completed 不能单独推出业务成功；未观察 CI
+reviewer: Codex ER-28 source review；覆盖 deny-first terminal receipt、event/request binding、unknown→incident、artifact/evidence boundary、replay/no-dispatch 和无第二执行循环；无本地 runtime test reviewer
 ### UI-06 feed cursor、gap、replay 与背压（2026-09-24）
 
 source_snapshot: `0cc07fd6`（最新 master）+ UI-06 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui06_feed_contract.rs`; `kiana-daemon/src/run_stream.rs`; `kiana-daemon/src/lib.rs`; `kiana-core/tests/ui06_feed_replay_guard.rs`; `.github/workflows/ui06-feed-replay.yml`; `docs/roadmap/ui06-feed-replay-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

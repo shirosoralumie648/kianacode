@@ -38,6 +38,7 @@ fn completed_run() -> CompanyRun {
         run_id: Some(RunId::new()),
         status: ExecutionStatus::Completed,
         evidence_refs: vec!["event:run".to_owned()],
+        runtime_receipt: None,
         incident_id: None,
     }
 }
