@@ -86,6 +86,19 @@ proof-level change: `feature_status=implemented` for source scripts and CI wirin
 limitations: scanner metadata cannot prove signed release artifacts, transparent registry provenance, production advisory freshness, runtime effect integrity or regulatory compliance; cargo-audit/cargo-deny tool installation and CI results remain unobserved; SC-29 and SC-41 remain subsequent steps
 reviewer: Codex source review of lockfile digest/drift, deterministic SPDX/CycloneDX generation, license/advisory thresholds, fail-closed scanner/quarantine and read-only CI permissions; no local runtime test reviewer
 
+### SC-29 Release artifact provenance and signature verifier (2026-09-24)
+
+source_snapshot: `bc4c7518` plus SC-29 source slice; `kiana-domain/src/release_attestation.rs`; `kiana-domain/tests/sc29_release_attestation.rs`; `kiana-core/tests/sc29_release_attestation_guard.rs`; `scripts/verify-release-provenance.py`; `.github/workflows/sc29-release-provenance.yml`; `docs/roadmap/sc29-release-provenance-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `sc29-release-provenance-20260924` rebased onto `origin/master=bc4c7518`; `ReleaseManifest`, SLSA-style provenance and external signature attestation bind tag/source/builder/toolchain/subject/transparency digests; unrelated WIP remains untouched
+command_argv: `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, the deterministic Python verifier self-test, SC-29 domain fixture, core source guard and `cargo check --workspace --tests --locked`; local tests/build/check/clippy/smoke deliberately not run and CI is not awaited
+cwd·environment: `/tmp/kiana-step-pd28`; Linux x86_64; local test authority disabled by user instruction; GitHub Actions is the test authority
+fixture·cassette: GitHub-only workflow; domain fixture covers exact manifest/provenance/signature/transparency binding, tag/builder/toolchain/subject drift, unknown status, strict serde and artifact path/digest checks; Python fixture verifies actual bytes and forged-tag rejection; source guard ensures no network client
+exit_code: `git diff --check` is the only local verification; remote CI result intentionally unobserved
+status change: SC-29 release provenance source contracts, offline artifact verifier, source guard, workflow and baseline added; roadmap row 502/card remain 🔄 pending GitHub CI evidence
+proof-level change: `feature_status=implemented` for source contracts and CI wiring; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no production signer/key custody, cryptographic verification service, transparency registry, reproducible build proof, live GitHub release or physical artifact distribution is claimed; verifier is read-only and external signature status remains an input; SC-41 owns final release-gate integration
+reviewer: Codex source review of strict schema/digest binding, deny-first tag/source/builder/toolchain/subject checks, unknown transparency/unverified handling, artifact path/size/hash checks and no-I/O/no-network verifier boundary; no local runtime test reviewer
+
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
 source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow

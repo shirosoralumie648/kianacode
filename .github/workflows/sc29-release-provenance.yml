@@ -1,0 +1,48 @@
+name: SC-29 release artifact provenance verifier
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/release_attestation.rs"
+      - "kiana-domain/tests/sc29_release_attestation.rs"
+      - "kiana-core/tests/sc29_release_attestation_guard.rs"
+      - "scripts/verify-release-provenance.py"
+      - "docs/roadmap/sc29-release-provenance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc29-release-provenance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/release_attestation.rs"
+      - "kiana-domain/tests/sc29_release_attestation.rs"
+      - "kiana-core/tests/sc29_release_attestation_guard.rs"
+      - "scripts/verify-release-provenance.py"
+      - "docs/roadmap/sc29-release-provenance-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc29-release-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run deterministic provenance verifier fixture
+        run: python3 scripts/verify-release-provenance.py --self-test
+      - name: Run SC-29 domain fixture
+        run: cargo test -p kiana-domain --test sc29_release_attestation --locked -- --test-threads=1
+      - name: Run SC-29 source guard
+        run: cargo test -p kiana-core --test sc29_release_attestation_guard --locked -- --test-threads=1
+      - name: Compile SC-29 targets
+        run: cargo check --workspace --tests --locked
