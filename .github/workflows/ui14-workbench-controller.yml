@@ -1,0 +1,48 @@
+name: UI-14 Workbench controller and command palette
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_controller.rs"
+      - "kiana-entrypoints/tests/fixtures/ui14-controller-actions.json"
+      - "kiana-entrypoints/tests/ui14_workbench_controller.rs"
+      - "kiana-entrypoints/tests/ui14_workbench_controller_guard.rs"
+      - "docs/roadmap/ui14-workbench-controller-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui14-workbench-controller.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_controller.rs"
+      - "kiana-entrypoints/tests/fixtures/ui14-controller-actions.json"
+      - "kiana-entrypoints/tests/ui14_workbench_controller.rs"
+      - "kiana-entrypoints/tests/ui14_workbench_controller_guard.rs"
+      - "docs/roadmap/ui14-workbench-controller-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui14-workbench-controller.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui14-workbench-controller:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-14 controller, keymap and session fixtures
+        run: cargo test -p kiana-entrypoints --test ui14_workbench_controller --locked -- --test-threads=1
+      - name: Run UI-14 controller boundary guard
+        run: cargo test -p kiana-entrypoints --test ui14_workbench_controller_guard --locked -- --test-threads=1
+      - name: Compile UI-14 workspace test targets
+        run: cargo check --workspace --tests --locked

@@ -1,0 +1,31 @@
+{
+  "schema": "kiana.workbench-controller.v1",
+  "commands": [
+    "workbench.open",
+    "workbench.attach",
+    "workbench.new",
+    "workbench.continue",
+    "workbench.status",
+    "workbench.run",
+    "workbench.cancel",
+    "workbench.resume",
+    "workbench.receipt"
+  ],
+  "keymap": [
+    {"shortcut": "Ctrl+o", "command": "workbench.open"},
+    {"shortcut": "Ctrl+a", "command": "workbench.attach"},
+    {"shortcut": "Ctrl+n", "command": "workbench.new"},
+    {"shortcut": "Ctrl+k", "command": "workbench.status"},
+    {"shortcut": "Ctrl+r", "command": "workbench.run"},
+    {"shortcut": "Ctrl+c", "command": "workbench.cancel"},
+    {"shortcut": "Ctrl+u", "command": "workbench.resume"},
+    {"shortcut": "Ctrl+e", "command": "workbench.receipt"}
+  ],
+  "deny_first": [
+    "stale_draft",
+    "duplicate_shortcut",
+    "duplicate_submission",
+    "window_close_no_cancel_or_resume",
+    "capability_unavailable"
+  ]
+}

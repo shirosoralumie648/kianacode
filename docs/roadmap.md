@@ -600,7 +600,7 @@
 | 427 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) · [baseline](roadmap/ui11-cli-presenter-baseline.md) |
 | 428 | W6 | 专项 | [`UI-12`](roadmap/ui-entrypoints.md#step-ui-12) | UI / Entrypoints · TTY 输入状态机 | `UI-08`、`UI-10` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-12) · [baseline](roadmap/ui12-tty-input-baseline.md) |
 | 429 | W6 | 专项 | [`UI-13`](roadmap/ui-entrypoints.md#step-ui-13) | UI / Entrypoints · Workbench 时间线与结果渲染 | `UI-06`、`UI-08`、`UI-12` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-13) · [baseline](roadmap/ui13-workbench-render-baseline.md) |
-| 430 | W6 | 专项 | [`UI-14`](roadmap/ui-entrypoints.md#step-ui-14) | UI / Entrypoints · Workbench controller 与命令面板 | `UI-07`、`UI-08`、`UI-10`、`UI-11`、`UI-12`、`UI-13` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-14) |
+| 430 | W6 | 专项 | [`UI-14`](roadmap/ui-entrypoints.md#step-ui-14) | UI / Entrypoints · Workbench controller 与命令面板 | `UI-07`、`UI-08`、`UI-10`、`UI-11`、`UI-12`、`UI-13` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-14) · [baseline](roadmap/ui14-workbench-controller-baseline.md) |
 | 431 | W6 | 专项 | [`UI-15`](roadmap/ui-entrypoints.md#step-ui-15) | UI / Entrypoints · Workbench inbox、Diff 和 Receipt | `UI-05`、`UI-08`、`UI-13`、`UI-14` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-15) |
 | 432 | W6 | 专项 | [`UI-16`](roadmap/ui-entrypoints.md#step-ui-16) | UI / Entrypoints · Web 路由、来源校验和最小健康信息 | `UI-03`、`UI-07`、`UI-11` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-16) |
 | 433 | W6 | 专项 | [`UI-17`](roadmap/ui-entrypoints.md#step-ui-17) | UI / Entrypoints · Web snapshot hydrate、历史和分页 | `UI-05`、`UI-08`、`UI-16` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-17) |

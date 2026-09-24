@@ -351,13 +351,21 @@ gap、terminal 后事件、foreign run 和超限内容均 fail-closed 或显式�
 
 
 
-#### UI-14 · Workbench controller 与命令面板　⏳
+#### UI-14 · Workbench controller 与命令面板　🔄
 
 - 依赖：UI-07/08/10–13。代码：controller、keymap、session switcher、command palette。
 - 步骤：实现 open/attach/new/continue/status/run/cancel/resume/receipt；controller 只把用户意图翻译成 UiAction，提交状态与 run 状态分离。
 - 先拒绝：切换 session 误提交旧草稿、重复快捷键产生两个 command、关闭窗口自动 cancel/resume、无 capability 显示 action。
 - 成功/回归：多 session、重复 submit、断线、响应丢失、stale card、SIGTERM 和重启后恢复测试。
 - 完成产物：controller state machine、keymap 文档、action audit trace。
+
+已接入纯 `WorkbenchController` source contract：open/attach/new/continue/status/run/cancel/resume/
+receipt intent 映射为带 target、epoch/cursor/revision、command ID 和 idempotency key 的
+`WorkbenchUiAction`，再由 typed client 边界补齐 `UiActionV1` payload digest。`Keymap` 拒绝重复
+快捷键，`CommandPalette` 按 enabled `UiCapability` 过滤，`SessionSwitcher` 在切换时清空旧
+draft 并递增 revision；stale draft、重复提交、Unknown 未对账、无 capability 和 window close
+不自动 cancel/resume 均 deny-first。fixture、source guard 和 GitHub-only workflow 已接入；见
+[UI-14 baseline](ui14-workbench-controller-baseline.md)。证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-15"></a>
 

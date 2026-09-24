@@ -29,6 +29,7 @@ mod web_thread;
 mod web_ui;
 pub mod workbench;
 mod workbench_chat;
+pub mod workbench_controller;
 pub mod workbench_render;
 
 #[cfg(test)]
