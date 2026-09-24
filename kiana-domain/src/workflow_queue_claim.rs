@@ -97,6 +97,57 @@ impl WorkflowQueueClaimContract {
         self.status == WorkflowQueueClaimStatus::Ready
     }
 
+    /// Rebind a queue claim to the immutable packet and parent snapshot before a lease can be
+    /// handed to a worker.  The queue may not trust caller-provided digests or treat a wider child
+    /// scope/budget as a valid subset.
+    pub fn validate_packet_binding(
+        &self,
+        packet: &WorkPacket,
+        parent: &WorkPacket,
+    ) -> Result<(), String> {
+        packet.validate().map_err(str::to_owned)?;
+        parent.validate().map_err(str::to_owned)?;
+        if packet
+            .parent_packet_id
+            .as_deref()
+            .is_some_and(|id| id != parent.id)
+            || (packet.parent_packet_id.is_none() && packet.id != parent.id)
+        {
+            return Err("workflow_queue_parent_packet_mismatch".to_owned());
+        }
+        if !packet.workflow_queue_scope_is_subset_of(parent) {
+            return Err("workflow_queue_scope_intersection_invalid".to_owned());
+        }
+        if !packet.workflow_queue_budget_is_subset_of(parent) {
+            return Err("workflow_queue_budget_subset_invalid".to_owned());
+        }
+        let packet_digest = packet.workflow_queue_packet_digest();
+        if self.work_packet_digest != packet_digest {
+            return Err("workflow_queue_packet_digest_mismatch".to_owned());
+        }
+        let parent_scope_digest = parent.workflow_queue_scope_digest();
+        if self.parent_scope_digest.as_deref() != Some(parent_scope_digest.as_str()) {
+            return Err("workflow_queue_parent_scope_digest_mismatch".to_owned());
+        }
+        let item_scope_digest = packet.workflow_queue_scope_digest();
+        if self.item_scope_digest != item_scope_digest {
+            return Err("workflow_queue_item_scope_digest_mismatch".to_owned());
+        }
+        let parent_budget_digest = parent.workflow_queue_budget_digest();
+        if self.parent_budget_digest.as_deref() != Some(parent_budget_digest.as_str()) {
+            return Err("workflow_queue_parent_budget_digest_mismatch".to_owned());
+        }
+        let item_budget_digest = packet.workflow_queue_budget_digest();
+        if self.item_budget_digest != item_budget_digest {
+            return Err("workflow_queue_item_budget_digest_mismatch".to_owned());
+        }
+        let path_lock_digest = packet.workflow_queue_path_lock_digest();
+        if self.path_lock_digest != path_lock_digest {
+            return Err("workflow_queue_path_lock_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         item_id: impl Into<String>,

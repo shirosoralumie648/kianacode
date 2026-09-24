@@ -1,0 +1,62 @@
+name: CP-24 scheduler and workflow transactions
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/workflow_queue_lease.rs"
+      - "kiana-domain/tests/cp24_scheduler_transaction.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp24_scheduler_transaction.rs"
+      - "kiana-core/tests/cp24_scheduler_transaction_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/cp24-scheduler-workflow-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp24-scheduler-workflow.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/workflow_queue_claim.rs"
+      - "kiana-domain/src/work_packets.rs"
+      - "kiana-domain/src/workflow_queue_lease.rs"
+      - "kiana-domain/tests/cp24_scheduler_transaction.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp24_scheduler_transaction.rs"
+      - "kiana-core/tests/cp24_scheduler_transaction_guard.rs"
+      - "kiana-ports/src/lib.rs"
+      - "docs/roadmap/cp24-scheduler-workflow-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp24-scheduler-workflow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scheduler-workflow-transactions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run scheduler transaction domain fixtures
+        run: cargo test -p kiana-domain --test cp24_scheduler_transaction --locked -- --test-threads=1
+      - name: Run scheduler transaction core fixtures
+        run: cargo test -p kiana-core --test cp24_scheduler_transaction --locked -- --test-threads=1
+      - name: Run scheduler/workflow source guard
+        run: cargo test -p kiana-core --test cp24_scheduler_transaction_guard --locked -- --test-threads=1
+      - name: Compile scheduler and workflow targets
+        run: cargo check --workspace --tests --locked

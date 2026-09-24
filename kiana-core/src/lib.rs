@@ -153,7 +153,7 @@ pub use turn_outcome::{annotate_output, propose_turn_outcome, TURN_OUTCOME_CORE_
 pub use ui_actions::UiActionAuthoritySnapshot;
 pub use workflow_queue::{
     project_workflow_queue_ready, validate_workflow_queue_dispatch,
-    workflow_queue_requires_recovery, WorkflowQueueReadyView,
+    validate_workflow_queue_transaction, workflow_queue_requires_recovery, WorkflowQueueReadyView,
 };
 
 use capability_scheduler::CapabilityAdmissionScheduler;

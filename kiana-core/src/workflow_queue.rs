@@ -108,6 +108,48 @@ pub fn validate_workflow_queue_dispatch(
     lease.is_dispatchable(owner_id, fence_token, authority_epoch, now_unix_ms)
 }
 
+/// Validate the complete scheduler handoff immediately before an existing ControlPlane command
+/// path receives a claimed packet.  This is still a pure gate: it creates no lease, calls no
+/// Broker and starts no Runner.  The ready view, immutable packet/parent snapshot and lease must
+/// all describe the same item and authority tuple.
+#[allow(clippy::too_many_arguments)]
+pub fn validate_workflow_queue_transaction(
+    ready: &WorkflowQueueReadyView,
+    claim: &WorkflowQueueClaimContract,
+    packet: &WorkPacket,
+    parent: &WorkPacket,
+    lease: &WorkflowQueueLease,
+    owner_id: &str,
+    fence_token: u64,
+    authority_epoch: u64,
+    now_unix_ms: u64,
+) -> Result<(), String> {
+    ready.validate()?;
+    claim.validate()?;
+    claim.validate_packet_binding(packet, parent)?;
+    if !claim.is_ready_packet() {
+        return Err("workflow_queue_claim_not_ready".to_owned());
+    }
+    let listed = ready
+        .claims
+        .iter()
+        .find(|candidate| candidate.item_id == claim.item_id)
+        .ok_or_else(|| "workflow_queue_ready_snapshot_mismatch".to_owned())?;
+    if listed != claim {
+        return Err("workflow_queue_ready_snapshot_mismatch".to_owned());
+    }
+    if lease.item_id != claim.item_id || lease.claim_digest != claim.claim_digest {
+        return Err("workflow_queue_lease_claim_mismatch".to_owned());
+    }
+    if packet
+        .deadline_unix_ms
+        .is_some_and(|deadline| lease.expires_at_unix_ms > deadline)
+    {
+        return Err("workflow_queue_deadline_exceeded".to_owned());
+    }
+    validate_workflow_queue_dispatch(lease, owner_id, fence_token, authority_epoch, now_unix_ms)
+}
+
 /// Unknown effect is a recovery state, never a reclaimable ready item.
 pub fn workflow_queue_requires_recovery(lease: &WorkflowQueueLease) -> bool {
     lease.status == WorkflowQueueLeaseStatus::ResultUnknown
