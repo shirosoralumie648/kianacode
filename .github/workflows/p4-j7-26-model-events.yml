@@ -1,0 +1,50 @@
+name: P4-J7-26 model events and redaction
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model_event.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_26_model_events.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/tests/p4_j7_26_model_events_guard.rs"
+      - "docs/roadmap/p4-j7-26-model-events-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-26-model-events.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model_event.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_26_model_events.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/tests/p4_j7_26_model_events_guard.rs"
+      - "docs/roadmap/p4-j7-26-model-events-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-26-model-events.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  model-events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run model event and redaction fixtures
+        run: cargo test -p kiana-domain --test p4_j7_26_model_events --locked -- --test-threads=1
+      - name: Run model event source guard
+        run: cargo test -p kiana-core --test p4_j7_26_model_events_guard --locked -- --test-threads=1
+      - name: Compile P4-J7-26 targets
+        run: cargo check --workspace --tests --locked

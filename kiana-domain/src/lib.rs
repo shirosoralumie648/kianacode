@@ -504,8 +504,10 @@ pub use company_business::*;
 
 mod model;
 mod model_catalog;
+mod model_event;
 pub use model::*;
 pub use model_catalog::*;
+pub use model_event::*;
 mod observability;
 pub use observability::*;
 mod correlation;

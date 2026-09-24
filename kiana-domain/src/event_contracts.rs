@@ -23,6 +23,14 @@ const COMMUNICATION_LIFECYCLE_IDS: &[&str] = &["message_id"];
 const SWARM_TRANSITION_IDS: &[&str] = &["swarm_plan_id"];
 const QUALITY_IDS: &[&str] = &["request_id"];
 const RECOVERY_IDS: &[&str] = &["run_id"];
+const MODEL_EVENT_IDS: &[&str] = &[
+    "run_id",
+    "session_id",
+    "turn_id",
+    "step_id",
+    "model_call_id",
+    "model_attempt_id",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -220,6 +228,11 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "schema",
     "provider_id",
     "model_id",
+    "configuration_revision",
+    "provider_request_id",
+    "provider_response_id",
+    "provider_request_id_status",
+    "provider_response_id_status",
     "prepared",
     "route_digest",
     "prompt_version",
@@ -237,6 +250,42 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "assistant",
     "error",
     "cache_usage",
+];
+const MODEL_EVENT_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "kind",
+    "session_id",
+    "run_id",
+    "turn_id",
+    "step_id",
+    "model_call_id",
+    "model_attempt_id",
+    "attempt",
+    "invocation_id",
+    "execution_id",
+    "tool_call_id",
+    "tool_name",
+    "provider_id",
+    "actual_model_id",
+    "configuration_revision",
+    "prompt_digest",
+    "schema_digest",
+    "route_digest",
+    "config_digest",
+    "tool_catalog_digest",
+    "provider_request",
+    "provider_response",
+    "retry",
+    "finish",
+    "usage",
+    "usage_correction",
+    "trace",
+    "sequences",
+    "correlation",
+    "source_event_id",
+    "source_cursor",
+    "event_digest",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
     "approval_id",
@@ -612,6 +661,54 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         Some("legacy_run_event_v0_to_v1")
     ),
     spec!(
+        "model.prepared",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.denied",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        true,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.attempt_started",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.retry_scheduled",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.finished",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        true,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.usage_correction",
+        "model_call",
+        MODEL_EVENT_IDS,
+        MODEL_EVENT_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
         "run.snapshot",
         "run",
         RUN_IDS,
@@ -848,6 +945,7 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "eval.",
         "quality.",
         "recovery.",
+        "model.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))

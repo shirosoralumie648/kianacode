@@ -75,7 +75,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | ⏳ |
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
-| `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | ⏳ |
+| `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | 🔄 |
 | `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | ⏳ |
 | `P4-J7-28` | 三界面配置和诊断 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 同一目录/状态/错误；迟到终态与重连无需重新执行 | ⏳ |
 | `P4-J7-29` | 离线协议一致性矩阵 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | 每个支持的协议/能力通过相同合同及其特有故障用例 | ⏳ |
@@ -401,7 +401,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-26 模型事件、脱敏和完整关联链　⏳
+#### P4-J7-26 模型事件、脱敏和完整关联链　🔄
 
 - **依赖**：`P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26`。
 - **改动位置**：既有 RunnerEvent::ModelTurn、RuntimeEvent、schema registry、core events/receipts、daemon projections/redactor。
@@ -409,6 +409,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`provider_secrets_split_across_deltas_are_redacted`、`provider_error_body_cannot_leak_authorization`、`model_fact_persistence_failure_prevents_tool_dispatch`。
 - **再成功**：`model_attempt_to_invocation_receipt_chain_is_complete`、`provider_trace_records_actual_model_and_config_version`、`provider_delta_ledger_granularity_remains_bounded`。
 - **退出 / 证据**：元数据缺 provider request id 时明确 unknown；UI sequence、上游 sequence 和 durable sequence 不混用；不打印完整 prompt/key。
+
+  当前 source slice 与 CI-only 验收见 [`p4-j7-26-model-events-baseline.md`](p4-j7-26-model-events-baseline.md)。
+  `ModelEvent`、provider trace/delta redaction、append commitment 和
+  ModelCall→Invocation→Receipt digest link 已登记；EventStore writer 接线、跨进程恢复和
+  live/physical provider evidence 仍保留在后续步骤。
 
 <a id="step-p4-j7-27"></a>
 
