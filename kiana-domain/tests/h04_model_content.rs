@@ -46,6 +46,7 @@ fn legacy_cassette_and_typed_items_roundtrip() {
             text: "typed".to_owned(),
         }],
         continuation: None,
+        structured: None,
     };
     assert_eq!(output.content_blocks().unwrap().len(), 1);
     assert_eq!(MODEL_CONTENT_SCHEMA, "kiana.model-content.v1");

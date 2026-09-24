@@ -1173,6 +1173,7 @@ impl KianaHarness {
                     usage,
                     stop_reason,
                     model_id,
+                    structured,
                     ..
                 } = output;
                 let mut completed_output = json!({
@@ -1193,6 +1194,9 @@ impl KianaHarness {
                 }
                 if let Some(model_id) = model_id {
                     completed.insert("model_id".to_owned(), json!(model_id));
+                }
+                if let Some(structured) = structured {
+                    completed.insert("structured".to_owned(), structured);
                 }
                 run.driver
                     .model_output(0, true)
@@ -1285,6 +1289,27 @@ impl KianaHarness {
             )?,
         }
         Ok(StepProgress::Finished)
+    }
+
+    /// A caller that elects to repair malformed structured output must call this entry point
+    /// explicitly. The provider parser never loops internally; this purpose is budgeted as a
+    /// separate model attempt and remains visible in the committed model-turn metadata.
+    #[allow(dead_code)]
+    async fn invoke_output_repair(
+        &self,
+        run: &mut ActiveRun,
+        request: ModelRequest,
+        format: kiana_domain::ModelResponseFormat,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<ModelOutput, String> {
+        self.invoke_model(
+            run,
+            request,
+            kiana_domain::ModelPurpose::OutputRepair,
+            format,
+            emitter,
+        )
+        .await
     }
 
     async fn invoke_model(

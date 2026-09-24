@@ -24,13 +24,14 @@ pub(crate) fn compile(
     request: ModelRequest,
     spec: ModelCallSpec,
 ) -> Result<PreparedModelCall, ModelError> {
+    spec.response_format.validate()?;
     validate_model_history(&request.messages)?;
     if !request.tools.is_empty() && connection.capabilities.tools != CapabilitySupport::Supported {
         return Err(ModelError::invalid(
             "model_tool_capability_unknown_or_unsupported",
         ));
     }
-    if spec.response_format != ModelResponseFormat::Text
+    if spec.response_format.is_structured()
         && connection.capabilities.structured_output != CapabilitySupport::Supported
     {
         return Err(ModelError::invalid("model_structured_output_unsupported"));
@@ -109,6 +110,9 @@ pub(crate) fn compile(
             ModelProtocol::AnthropicMessages => {
                 return Err(ModelError::invalid("anthropic_json_object_requires_schema"))
             }
+            ModelProtocol::Legacy => {
+                return Err(ModelError::invalid("model_structured_output_protocol_unsupported"))
+            }
             _ => {}
         },
         ModelResponseFormat::JsonSchema { name, schema } => match route.protocol {
@@ -125,6 +129,9 @@ pub(crate) fn compile(
             ModelProtocol::GeminiInteractions => {
                 body["response_format"] =
                     json!({"type":"text","mime_type":"application/json","schema":schema})
+            }
+            ModelProtocol::Legacy => {
+                return Err(ModelError::invalid("model_structured_output_protocol_unsupported"))
             }
             _ => {}
         },
@@ -650,4 +657,78 @@ pub(crate) fn validate_output(schema: &Value, value: &Value) -> Result<(), Model
         }
     }
     Ok(())
+}
+
+/// Parse and validate one complete structured response. This helper deliberately has no repair
+/// loop: malformed, empty and schema-invalid output are returned to the Harness as separate
+/// failures so any follow-up call is an explicit budgeted `OutputRepair` invocation.
+pub(crate) fn parse_structured_output(
+    format: &ModelResponseFormat,
+    text: &str,
+) -> Result<Option<Value>, ModelError> {
+    let value = match format {
+        ModelResponseFormat::Text => return Ok(None),
+        _ if text.trim().is_empty() => {
+            return Err(ModelError::invalid("model_structured_output_empty"))
+        }
+        _ => serde_json::from_str(text)
+            .map_err(|_| ModelError::invalid("model_structured_output_invalid_json"))?,
+    };
+    match format {
+        ModelResponseFormat::Text => unreachable!(),
+        ModelResponseFormat::JsonObject => {
+            if !value.is_object() {
+                return Err(ModelError::invalid("model_structured_output_object_required"));
+            }
+        }
+        ModelResponseFormat::JsonSchema { schema, .. } => validate_output(schema, &value)?,
+    }
+    Ok(Some(value))
+}
+
+#[cfg(test)]
+mod p4_j7_21_structured_output_tests {
+    use super::*;
+
+    #[test]
+    fn response_format_metadata_rejects_empty_schema_names() {
+        let format = ModelResponseFormat::JsonSchema {
+            name: " ".to_owned(),
+            schema: json!({"type":"object"}),
+        };
+        assert_eq!(
+            format.validate().unwrap_err().code,
+            "model_response_schema_invalid"
+        );
+    }
+
+    #[test]
+    fn structured_parser_has_no_implicit_repair_path() {
+        let format = ModelResponseFormat::JsonSchema {
+            name: "answer".to_owned(),
+            schema: json!({
+                "type":"object",
+                "properties":{"answer":{"type":"string"}},
+                "required":["answer"]
+            }),
+        };
+        assert_eq!(
+            parse_structured_output(&format, "")
+                .unwrap_err()
+                .code,
+            "model_structured_output_empty"
+        );
+        assert_eq!(
+            parse_structured_output(&format, "{\"answer\":")
+                .unwrap_err()
+                .code,
+            "model_structured_output_invalid_json"
+        );
+        assert_eq!(
+            parse_structured_output(&format, "{\"answer\":\"ok\"}")
+                .unwrap()
+                .unwrap()["answer"],
+            "ok"
+        );
+    }
 }

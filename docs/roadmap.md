@@ -567,7 +567,7 @@
 | 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-18) |
 | 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-19) |
 | 397 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-20) |
-| 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-21) |
+| 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-21) |
 | 399 | W5 | 专项 | [`P4-J7-22`](roadmap/provider.md#step-p4-j7-22) | Provider · 图片输入与敏感数据出站准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-22) |
 | 400 | W5 | 专项 | [`P4-J7-23`](roadmap/provider.md#step-p4-j7-23) | Provider · 单层重试、绝对时限和取消传递 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-23) |
 | 401 | W5 | 专项 | [`P4-J7-24`](roadmap/provider.md#step-p4-j7-24) | Provider · Provider 用量、价格快照与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-24) |
@@ -1235,6 +1235,7 @@
 ## 3. 变更日志
 
 | 日期 | 做了什么 | 提交 |
+| 2026-09-24 | `P4-J7-21` 结构化输出：明确 text/JSON object/JSON schema 响应选项；按能力和协议子集在发送前拒绝不支持 schema；完整终态后独立返回 `ModelOutput.structured`，区分 refusal、length、空、非法 JSON 和 schema 不匹配；工具调用与 structured 结果分离；Harness 提供显式 `OutputRepair` 调用入口，不在 Provider 内部修复循环；新增 provider fixtures、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 尚未等待，状态保持 🔄 | P4-J7-21 专用分支 |
 | 2026-09-23 | `P4-J7-19` Gemini Interactions：强制 stateless `store=false` 与 SSE `stream=true`，每轮重发 system/tools/generation_config；完整本地函数调用结果按 call_id/name 回传；校验 event status、step 顺序、function arguments 与 usage，GenerateContent 帧独立拒绝；新增 provider fixtures、core guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；静态检查通过，已创建本地提交并推送 feature branch，CI 尚未执行，step 保持 🔄 | `P4-J7-19` branch |
 | 2026-09-23 | `CM-36` memory workbench source slice：新增 ACL 限定的脱敏列表/相似冲突、operator-only review mutation plan、CAS/epoch/idempotency bulk result、unknown/partial failure 和受 scope/recipient/redaction digest 约束的导出；添加 GitHub-only domain/core guards 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 本提交 |
 | 2026-09-23 | `P4-J7-18` Ollama NDJSON：增量文本、done/content fail-closed、稳定 synthetic tool ID/结果续接、profile load timeout 和 load/generation timing 投影；新增 provider fixtures、core source guard、GitHub Actions workflow 与 baseline；runs 35832638463（PR）与 35832756821（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失失败，后续测试步骤跳过；保持 🔄 等模块补齐后 CI 复跑 | 已提交 |

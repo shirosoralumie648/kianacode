@@ -410,6 +410,12 @@ pub struct ModelOutput {
     pub content: Vec<ModelContent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub continuation: Option<ProviderContinuation>,
+    /// Parsed structured output for a requested JSON object/schema response.
+    ///
+    /// This remains separate from text and tool calls so a JSON response cannot be
+    /// mistaken for a tool invocation or silently flattened into transcript text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structured: Option<Value>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -436,6 +442,7 @@ impl ModelOutput {
             model_id: None,
             content: Vec::new(),
             continuation: None,
+            structured: None,
         }
     }
 
@@ -453,6 +460,7 @@ impl ModelOutput {
             model_id: None,
             content: Vec::new(),
             continuation: None,
+            structured: None,
         }
     }
 
@@ -665,6 +673,27 @@ pub enum ModelResponseFormat {
 impl Default for ModelResponseFormat {
     fn default() -> Self {
         Self::Text
+    }
+}
+
+impl ModelResponseFormat {
+    pub fn is_structured(&self) -> bool {
+        !matches!(self, Self::Text)
+    }
+
+    /// Validate caller supplied response-format metadata before a provider request is built.
+    /// Provider-specific schema keyword support is checked by the provider compiler; this
+    /// boundary rejects malformed names and values that cannot be bound to a request.
+    pub fn validate(&self) -> Result<(), ModelError> {
+        match self {
+            Self::Text | Self::JsonObject => Ok(()),
+            Self::JsonSchema { name, schema } => {
+                if name.trim().is_empty() || name.len() > 128 || !schema.is_object() {
+                    return Err(ModelError::invalid("model_response_schema_invalid"));
+                }
+                Ok(())
+            }
+        }
     }
 }
 

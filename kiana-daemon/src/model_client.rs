@@ -779,6 +779,7 @@ mod legacy_fixtures {
             model_id,
             content: Vec::new(),
             continuation: None,
+            structured: None,
         })
     }
 
@@ -1070,6 +1071,7 @@ mod legacy_fixtures {
             model_id: Some(response.model.clone()),
             content: Vec::new(),
             continuation: None,
+            structured: None,
         })
     }
 

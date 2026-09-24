@@ -324,20 +324,7 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             if !calls.is_empty() {
                 None
             } else {
-                let parsed: Value = serde_json::from_str(&text)
-                    .map_err(|_| error("model_structured_output_invalid_json"))?;
-                match format {
-                    ModelResponseFormat::JsonObject => {
-                        if !parsed.is_object() {
-                            return Err(error("model_structured_output_object_required"));
-                        }
-                    }
-                    ModelResponseFormat::JsonSchema { schema, .. } => {
-                        crate::request::validate_output(schema, &parsed)?
-                    }
-                    _ => {}
-                }
-                Some(parsed)
+                crate::request::parse_structured_output(format, &text)?
             }
         }
     };
@@ -355,6 +342,7 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             ),
             content: Vec::new(),
             continuation: None,
+            structured: structured.clone(),
         },
         finish,
         structured,
@@ -1113,6 +1101,7 @@ impl Accumulator {
             model_id: self.model.or_else(|| Some(prepared.route.model_id.clone())),
             content: Vec::new(),
             continuation: None,
+            structured: None,
         };
         let mut result = ModelReply {
             output,
@@ -1133,20 +1122,12 @@ impl Accumulator {
             match &prepared.spec.response_format {
                 ModelResponseFormat::Text => {}
                 format => {
-                    let value: Value = serde_json::from_str(&result.output.text)
-                        .map_err(|_| error("model_structured_output_invalid_json"))?;
-                    match format {
-                        ModelResponseFormat::JsonObject => {
-                            if !value.is_object() {
-                                return Err(error("model_structured_output_object_required"));
-                            }
-                        }
-                        ModelResponseFormat::JsonSchema { schema, .. } => {
-                            crate::request::validate_output(schema, &value)?
-                        }
-                        _ => {}
-                    }
-                    result.structured = Some(value);
+                    let value = crate::request::parse_structured_output(
+                        format,
+                        &result.output.text,
+                    )?;
+                    result.output.structured = value.clone();
+                    result.structured = value;
                 }
             }
         }
@@ -2127,5 +2108,82 @@ mod tests {
                 "provider_usage_invalid" | "provider_timing_invalid"
             ));
         }
+    }
+
+    fn structured_prepared(format: ModelResponseFormat) -> PreparedModelCall {
+        let mut prepared = anthropic_prepared();
+        prepared.route.protocol = ModelProtocol::OpenAiChat;
+        prepared.spec.response_format = format;
+        prepared.seal();
+        prepared
+    }
+
+    #[test]
+    fn structured_output_validates_and_is_exposed_separately() {
+        let prepared = structured_prepared(ModelResponseFormat::JsonSchema {
+            name: "answer".to_owned(),
+            schema: serde_json::json!({
+                "type":"object",
+                "properties":{"answer":{"type":"string"}},
+                "required":["answer"],
+                "additionalProperties":false
+            }),
+        });
+        let reply = decode(
+            serde_json::json!({
+                "id":"response-1",
+                "choices":[{"index":0,"message":{"role":"assistant","content":"{\"answer\":\"ok\"}"},"finish_reason":"stop"}]
+            }),
+            &prepared,
+        )
+        .unwrap();
+        assert_eq!(reply.structured, Some(serde_json::json!({"answer":"ok"})));
+        assert_eq!(reply.output.structured, reply.structured);
+        assert!(reply.output.tool_calls.is_empty());
+    }
+
+    #[test]
+    fn refusal_length_empty_and_invalid_json_are_distinct() {
+        let cases = [
+            (
+                serde_json::json!({"choices":[{"index":0,"message":{"role":"assistant","refusal":"no"},"finish_reason":"stop"}]}),
+                ModelResponseFormat::JsonObject,
+                "model_refused",
+            ),
+            (
+                serde_json::json!({"choices":[{"index":0,"message":{"role":"assistant","content":"{\"a\":"},"finish_reason":"length"}]}),
+                ModelResponseFormat::JsonObject,
+                "model_output_truncated",
+            ),
+            (
+                serde_json::json!({"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}),
+                ModelResponseFormat::JsonObject,
+                "model_structured_output_empty",
+            ),
+            (
+                serde_json::json!({"choices":[{"index":0,"message":{"role":"assistant","content":"{bad"},"finish_reason":"stop"}]}),
+                ModelResponseFormat::JsonObject,
+                "model_structured_output_invalid_json",
+            ),
+        ];
+        for (wire, format, expected) in cases {
+            let error = decode(wire, &structured_prepared(format)).unwrap_err();
+            assert_eq!(error.code, expected);
+        }
+    }
+
+    #[test]
+    fn structured_output_and_tool_calls_are_distinct() {
+        let prepared = structured_prepared(ModelResponseFormat::JsonObject);
+        let reply = decode(
+            serde_json::json!({
+                "choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"shell","arguments":"{\"command\":\"pwd\"}"}}]},"finish_reason":"tool_calls"}]
+            }),
+            &prepared,
+        )
+        .unwrap();
+        assert!(reply.structured.is_none());
+        assert_eq!(reply.output.tool_calls.len(), 1);
+        assert!(reply.output.structured.is_none());
     }
 }

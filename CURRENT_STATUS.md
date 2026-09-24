@@ -18,6 +18,20 @@ proof-level change: source plus CI wiring; no local_behavior, durable, live or p
 limitations: private provider signatures/thoughts are not decoded into wire-specific payloads yet; no encrypted durable artifact adapter or cross-process resume; absence of adapter intentionally fails closed; no secrets or private bytes enter EventLog, receipts or repository
 reviewer: Codex source review; verified scope binding, bounded memory, explicit expiry/deletion failure and provider pre-dispatch refusal; CI not awaited
 
+### P4-J7-21 structured output evidence (2026-09-24)
+
+source_snapshot: master `39a43b4b` plus isolated P4-J7-21 slice; `kiana-domain/src/model.rs`, `kiana-provider/src/request.rs`, `kiana-provider/src/response.rs`, `kiana-runner/src/harness.rs`, `kiana-core/tests/p4_j7_21_structured_output_guard.rs`, `.github/workflows/p4-j7-21-structured-output.yml`, `docs/roadmap/p4-j7-21-structured-output-baseline.md`
+worktree_status: dedicated worktree `/tmp/kiana-step-p4-j7-21` on branch `p4-j7-21-structured-output`; text, JSON object and named JSON schema are independent response formats; complete structured values are returned in `ModelOutput.structured`; tool calls remain separate
+command_argv:
+  GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-provider --lib --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_21_structured_output_guard --locked -- --test-threads=1`
+cwd/environment: GitHub Actions ubuntu-latest with Rust 1.97.1; local tests/build/check/clippy/smoke deliberately not run
+fixture·cassette: GitHub-only structured schema validation, refusal/length/empty/invalid JSON distinction, tool separation, explicit repair entry point and Core source guard in `p4-j7-21-structured-output.yml`
+exit_code: not observed locally; GitHub CI not run or awaited
+status change: P4-J7-21 source and CI wiring added; roadmap row/card set to 🔄 pending dedicated GitHub fixtures
+proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: protocol-specific structured dialects remain limited to the supported request shapes; no live provider/schema compatibility or automatic repair behavior is claimed
+reviewer: Codex source review; no local runtime test reviewer
+
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
 source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
