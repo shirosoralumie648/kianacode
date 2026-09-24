@@ -657,18 +657,6 @@ where
         })
     }
 
-    fn unregister(&self, token: &FeedListenerToken) {
-        if let Ok(mut state) = self.state.lock() {
-            let remove = state
-                .listeners
-                .get(&token.listener_id)
-                .is_some_and(|record| record.generation == token.generation);
-            if remove {
-                state.listeners.remove(&token.listener_id);
-            }
-        }
-    }
-
     fn assert_active(&self, token: &FeedListenerToken) -> Result<(), ClientError> {
         let state = self
             .state
@@ -680,6 +668,20 @@ where
             .filter(|record| record.generation == token.generation)
             .map(|_| ())
             .ok_or(ClientError::ListenerInactive)
+    }
+}
+
+impl<T> FeedClient<T> {
+    fn unregister(&self, token: &FeedListenerToken) {
+        if let Ok(mut state) = self.state.lock() {
+            let remove = state
+                .listeners
+                .get(&token.listener_id)
+                .is_some_and(|record| record.generation == token.generation);
+            if remove {
+                state.listeners.remove(&token.listener_id);
+            }
+        }
     }
 }
 
