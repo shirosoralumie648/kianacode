@@ -1,0 +1,50 @@
+name: UI-13 Workbench timeline and result rendering
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_render.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/fixtures/ui13-render-snapshot.json"
+      - "kiana-entrypoints/tests/ui13_workbench_render.rs"
+      - "kiana-entrypoints/tests/ui13_workbench_render_guard.rs"
+      - "docs/roadmap/ui13-workbench-render-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui13-workbench-render.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_render.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/fixtures/ui13-render-snapshot.json"
+      - "kiana-entrypoints/tests/ui13_workbench_render.rs"
+      - "kiana-entrypoints/tests/ui13_workbench_render_guard.rs"
+      - "docs/roadmap/ui13-workbench-render-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui13-workbench-render.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui13-workbench-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-13 Workbench render fixtures
+        run: cargo test -p kiana-entrypoints --test ui13_workbench_render --locked -- --test-threads=1
+      - name: Run UI-13 renderer boundary guard
+        run: cargo test -p kiana-entrypoints --test ui13_workbench_render_guard --locked -- --test-threads=1
+      - name: Compile UI-13 workspace test targets
+        run: cargo check --workspace --tests --locked

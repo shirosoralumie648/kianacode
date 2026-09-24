@@ -332,13 +332,20 @@ SIGINT/bounds fixtures、source guard 和 GitHub-only workflow 已接入；见 [
 
 
 
-#### UI-13 · Workbench 时间线与结果渲染　⏳
+#### UI-13 · Workbench 时间线与结果渲染　🔄
 
 - 依赖：UI-06/08/12。代码：`workbench_chat.rs`、`stream_render.rs` 及 presenter。
 - 步骤：将 Delta/Terminal/Usage/ToolCall/Approval/Artifact/Error 映射为稳定 Item；实现折叠、展开、加载、未知和限制标记；过滤 ANSI/OSC 和不可信 markdown。
 - 先拒绝：按到达时间覆盖事实、tool result 伪装 assistant text、错误被清屏、无限 delta/JSON/diff 渲染。
 - 成功/回归：乱序/重复/gap、超长输出、二进制 MIME、terminal、approval 和 terminal 后 event；渲染性能与内存有界。
 - 完成产物：Workbench render snapshots、item kind 表和结果截断策略。
+
+已接入有界 typed `TimelineRenderer`：RunStreamEnvelope 先做 run/epoch/cursor 校验，再将
+Delta/Terminal/Usage/ToolCall/Approval/Artifact/Error/Unknown 投影为稳定 item；重复、乱序、
+gap、terminal 后事件、foreign run 和超限内容均 fail-closed 或显式标记。ANSI/OSC/control
+序列与常见 secret 值在纯文本边界处理，Workbench 只把展示投影映射为兼容 ChatMessage，不
+新增执行或授权路径。deny-first fixture、source guard 和 GitHub-only workflow 已接入；见
+[UI-13 baseline](ui13-workbench-render-baseline.md)。证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-14"></a>
 

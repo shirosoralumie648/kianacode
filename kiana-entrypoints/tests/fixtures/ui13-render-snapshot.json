@@ -1,0 +1,100 @@
+{
+  "run_id": "00000000-0000-0000-0000-000000000013",
+  "epoch": "daemon-ui13",
+  "events": [
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 1,
+      "ui_cursor": 1,
+      "event": {
+        "type": "delta",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "text": "hello"
+      }
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 2,
+      "ui_cursor": 2,
+      "event": {
+        "type": "usage",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "data": {"input_tokens": 12, "output_tokens": 4}
+      }
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 3,
+      "ui_cursor": 3,
+      "event": {
+        "type": "tool_call",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "data": {"tool": "shell", "result": "recorded"}
+      }
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 4,
+      "ui_cursor": 4,
+      "event": {
+        "type": "approval_requested",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "data": {"approval_id": "approval-13", "scope": "workspace"}
+      }
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 5,
+      "ui_cursor": 5,
+      "event": {
+        "type": "error",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "data": {"code": "provider_timeout", "retry": false}
+      }
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 6,
+      "ui_cursor": 6,
+      "event": {"type": "future_event"}
+    },
+    {
+      "schema": "kiana.protocol.v1",
+      "epoch": "daemon-ui13",
+      "sequence": 7,
+      "ui_cursor": 7,
+      "event": {
+        "type": "terminal",
+        "run_id": "00000000-0000-0000-0000-000000000013",
+        "response": {
+          "schema": "kiana.protocol.v1",
+          "request_id": "00000000-0000-0000-0000-000000000014",
+          "status": "completed",
+          "output": {
+            "output": {"text": "done"},
+            "files_changed": ["src/main.rs"],
+            "artifacts": [{"id": "artifact-13", "mime": "text/plain"}]
+          },
+          "error": null
+        }
+      }
+    }
+  ],
+  "expected_kinds": [
+    "Delta",
+    "Usage",
+    "ToolCall",
+    "Approval",
+    "Error",
+    "Unknown",
+    "Terminal",
+    "Artifact",
+    "Artifact"
+  ]
+}

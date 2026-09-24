@@ -40,6 +40,7 @@ use tokio::sync::mpsc;
 use crate::harness_run;
 use crate::tty_input::{InputTransition, TtyInputState};
 use crate::workbench::WORKBENCH_USAGE;
+use crate::workbench_render::{TimelineItemKind, TimelineRenderer};
 
 const SLASH_HELP: &str =
     "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
@@ -142,6 +143,8 @@ pub struct WorkbenchView {
     pub input: String,
     /// 用于绘制对话尾部的展示消息集合。
     pub messages: Vec<ChatMessage>,
+    /// Bounded typed timeline projection; messages remain a disposable compatibility view.
+    pub timeline: TimelineRenderer,
     /// 当前正在增量展示的 turn；终态到达后清空。
     stream_turn: Option<StreamTurn>,
     /// 最近一次已应用的终态，用于忽略同一响应的重复投递。
@@ -161,6 +164,7 @@ impl WorkbenchView {
             running: false,
             input: String::new(),
             messages: Vec::new(),
+            timeline: TimelineRenderer::new(RunId::new()),
             stream_turn: None,
             last_terminal: None,
             last_status: None,
@@ -263,11 +267,46 @@ impl WorkbenchView {
         });
     }
 
+    fn display_messages(&self) -> Vec<ChatMessage> {
+        if self.timeline.items().is_empty() {
+            return self.messages.clone();
+        }
+        let mut messages: Vec<ChatMessage> = self
+            .messages
+            .iter()
+            .filter(|message| matches!(message.role, ChatRole::User | ChatRole::System))
+            .cloned()
+            .collect();
+        for item in self.timeline.items() {
+            let role = match item.kind {
+                TimelineItemKind::Artifact => ChatRole::Changed,
+                TimelineItemKind::Delta | TimelineItemKind::Terminal => ChatRole::Assistant,
+                TimelineItemKind::Approval
+                | TimelineItemKind::Error
+                | TimelineItemKind::Gap
+                | TimelineItemKind::Limit
+                | TimelineItemKind::ToolCall
+                | TimelineItemKind::Unknown
+                | TimelineItemKind::Usage => ChatRole::System,
+            };
+            let mut text = item.body.clone();
+            if item.loading {
+                text.push_str(" … loading");
+            }
+            if item.collapsed {
+                text.push_str(" [collapsed]");
+            }
+            messages.push(ChatMessage { role, text });
+        }
+        messages
+    }
+
     /// 为即将启动的 turn 建立增量展示状态。
     ///
     /// 调用方必须已经完成 [`DaemonHost::subscribe_run`] 订阅；该方法本身不发起 daemon
     /// 请求，也不会把“开始展示”当成运行已经开始。
     fn begin_stream(&mut self, run_id: RunId) {
+        self.timeline.reset(run_id);
         self.stream_turn = Some(StreamTurn {
             run_id,
             text: String::new(),
@@ -285,6 +324,17 @@ impl WorkbenchView {
         let Some(active_run_id) = self.stream_turn.as_ref().map(|stream| stream.run_id) else {
             return Ok(None);
         };
+        let timeline_apply = self
+            .timeline
+            .apply_event(event.clone())
+            .map_err(anyhow::Error::msg)?;
+        if matches!(
+            timeline_apply,
+            crate::workbench_render::TimelineApply::IgnoredAfterTerminal
+                | crate::workbench_render::TimelineApply::GapRequiresSnapshot
+        ) {
+            return Ok(None);
+        }
         match event {
             RunStreamEvent::Delta { run_id, text } => {
                 if run_id != active_run_id {
@@ -341,6 +391,15 @@ impl WorkbenchView {
     pub fn apply_response(&mut self, response: &ResponseEnvelope) {
         self.last_status = Some(response.status);
         let response_run_id = run_id_from(response);
+        if let Some(run_id) = response_run_id {
+            if self.timeline.items().is_empty() && self.timeline.run_id() != run_id {
+                self.timeline.reset(run_id);
+            }
+            let _ = self.timeline.apply_event(RunStreamEvent::Terminal {
+                run_id,
+                response: response.clone(),
+            });
+        }
         if response.status.is_terminal() {
             if let Some(run_id) = response_run_id {
                 if self.last_terminal == Some((run_id, response.status)) {
@@ -1013,7 +1072,8 @@ fn draw(frame: &mut ratatui::Frame, view: &WorkbenchView) {
         .split(frame.area());
 
     let list_height = chunks[0].height.saturating_sub(2) as usize;
-    let items: Vec<ListItem> = visible_messages(&view.messages, list_height)
+    let display_messages = view.display_messages();
+    let items: Vec<ListItem> = visible_messages(&display_messages, list_height)
         .iter()
         .map(|message| {
             let (label, color) = match message.role {
