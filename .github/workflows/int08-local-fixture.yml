@@ -1,0 +1,52 @@
+name: int08-local-fixture
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/connector_fixture.rs'
+      - 'kiana-domain/src/connectors.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/int08_local_fixture.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-core/tests/int08_local_fixture_guard.rs'
+      - '.github/workflows/int08-local-fixture.yml'
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int08-local-fixture-baseline.md'
+      - 'docs/roadmap.md'
+      - 'CURRENT_STATUS.md'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/connector_fixture.rs'
+      - 'kiana-domain/src/connectors.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/int08_local_fixture.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-core/tests/int08_local_fixture_guard.rs'
+      - '.github/workflows/int08-local-fixture.yml'
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int08-local-fixture-baseline.md'
+      - 'docs/roadmap.md'
+      - 'CURRENT_STATUS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-08 local fixture contract
+        run: cargo test -p kiana-domain --test int08_local_fixture --locked -- --test-threads=1
+      - name: Run INT-08 source boundary guard
+        run: cargo test -p kiana-core --test int08_local_fixture_guard --locked -- --test-threads=1
+      - name: Compile local fixture path
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

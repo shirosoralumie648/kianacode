@@ -6,20 +6,18 @@ use kiana_capability_broker::{
     consume_connector_credential_invocation, CapabilityBroker, CapabilityHandler,
 };
 use kiana_domain::{
-    connector_bindings, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    ConnectorBindingSnapshot, ConnectorCredentialInvocation, EffectObservation, ExecutionId,
-    InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent, CONNECTOR_CREDENTIAL_MAX_TTL_MS,
-    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_STREAM,
+    connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
+    ConnectorCredentialInvocation, ConnectorFixture, EffectObservation, ExecutionId, InvocationId,
+    ProviderOutcome, ProviderReceipt, RuntimeEvent, CONNECTOR_CREDENTIAL_MAX_TTL_MS,
+    CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
+    CONNECTOR_STREAM,
 };
 use kiana_ports::{EventStorePort, PortError};
-use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const MAX_FIXTURE_BYTES: usize = 1024 * 1024;
 
 pub(crate) fn register(
     broker: &mut CapabilityBroker,
@@ -36,24 +34,6 @@ pub(crate) fn register(
 
 struct ConnectorRegistry {
     events: Arc<dyn EventStorePort>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConnectorFixture {
-    schema: String,
-    connector_id: String,
-    account_id: String,
-    operations: BTreeMap<String, Vec<FixtureCase>>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FixtureCase {
-    payload: Value,
-    outcome: ProviderOutcome,
-    receipt_id: String,
-    result: Value,
 }
 
 impl ConnectorRegistry {
@@ -237,14 +217,9 @@ impl ConnectorRegistry {
                     return Err(failed("connector_payload_too_large"));
                 }
                 let fixture = load_fixture(&snapshot).await?;
-                let cases = fixture
-                    .operations
-                    .get(operation)
-                    .ok_or_else(|| failed("connector_fixture_operation_missing"))?;
-                let case = cases
-                    .iter()
-                    .find(|case| &case.payload == payload)
-                    .ok_or_else(|| failed("connector_fixture_payload_mismatch"))?;
+                // Validate operation and canonical payload before consuming a one-shot
+                // credential lease. A malformed fixture request must have no effect boundary.
+                fixture.find_case(operation, payload).map_err(failed)?;
                 let credential_evidence = if let Some(secret_ref) = &snapshot.binding.credential_ref
                 {
                     let mut credential = ConnectorCredentialInvocation::issue(
@@ -268,19 +243,9 @@ impl ConnectorRegistry {
                 } else {
                     None
                 };
-                let receipt = ProviderReceipt {
-                    schema: "kiana.provider-receipt.v1".to_owned(),
-                    connector_id: snapshot.definition.connector_id.clone(),
-                    binding_id: snapshot.binding.binding_id.clone(),
-                    account_id: snapshot.binding.account_id.clone(),
-                    operation: operation.to_owned(),
-                    idempotency_key: idempotency.to_owned(),
-                    final_payload_sha256: sha256(&payload_bytes),
-                    provider_receipt_id: case.receipt_id.clone(),
-                    outcome: case.outcome,
-                    source: "local_fixture".to_owned(),
-                    result: kiana_domain::redact_value(&case.result),
-                };
+                let receipt = fixture
+                    .provider_receipt(&snapshot, operation, &idempotency, payload)
+                    .map_err(failed)?;
                 let observation = effect_observation_for(&receipt, request, project, actor, now)?;
                 let mut output = receipt_output(&receipt, next_version);
                 if let Some(evidence) = &credential_evidence {
@@ -459,34 +424,8 @@ async fn load_fixture(binding: &ConnectorBindingSnapshot) -> Result<ConnectorFix
         &binding.binding.fixture_sha256,
     )
     .await?;
-    let fixture: ConnectorFixture =
-        serde_json::from_slice(&bytes).map_err(|_| failed("connector_fixture_invalid"))?;
-    if fixture.schema != "kiana.connector-fixture.v1"
-        || fixture.connector_id != binding.definition.connector_id
-        || fixture.account_id != binding.binding.account_id
-        || fixture.operations.len() > 32
-    {
-        return Err(failed("connector_fixture_identity_mismatch"));
-    }
-    for cases in fixture.operations.values() {
-        if cases.is_empty()
-            || cases.len() > 128
-            || cases
-                .iter()
-                .any(|case| !kiana_domain::valid_extension_identifier(&case.receipt_id))
-        {
-            return Err(failed("connector_fixture_invalid"));
-        }
-        for (index, case) in cases.iter().enumerate() {
-            if cases[..index]
-                .iter()
-                .any(|prior| prior.payload == case.payload)
-            {
-                return Err(failed("connector_fixture_payload_duplicate"));
-            }
-        }
-    }
-    Ok(fixture)
+    let fixture = ConnectorFixture::from_bytes(&bytes).map_err(failed)?;
+    fixture.validate_for_binding(binding).map_err(failed)
 }
 
 async fn read_project_file(
@@ -494,7 +433,7 @@ async fn read_project_file(
     path: &str,
     expected_sha256: &str,
 ) -> Result<Vec<u8>, PortError> {
-    if !kiana_domain::valid_extension_path(path) || !kiana_domain::is_sha256_hex(expected_sha256) {
+    if !kiana_domain::valid_extension_path(path) || !connector_fixture_hash_valid(expected_sha256) {
         return Err(failed("connector_evidence_path_invalid"));
     }
     let project = Path::new(project)
@@ -503,8 +442,8 @@ async fn read_project_file(
     let path = path.to_owned();
     let expected_sha256 = expected_sha256.to_owned();
     tokio::task::spawn_blocking(move || {
-        let bytes = LocalDir::open(&project, false)?.read(&path, MAX_FIXTURE_BYTES)?;
-        if sha256(&bytes) != expected_sha256 {
+        let bytes = LocalDir::open(&project, false)?.read(&path, CONNECTOR_FIXTURE_MAX_BYTES)?;
+        if !connector_fixture_hash_matches(&expected_sha256, &bytes) {
             return Err(failed("connector_fixture_hash_mismatch"));
         }
         Ok(bytes)

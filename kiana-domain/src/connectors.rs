@@ -1,7 +1,8 @@
 //! Local Connector contracts. External transports are deliberately unsupported.
 
 use crate::{
-    is_sha256_hex, valid_extension_identifier, valid_extension_path, RiskLevel, SecretRef,
+    connector_fixture_hash_valid, valid_extension_identifier, valid_extension_path, RiskLevel,
+    SecretRef,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -95,7 +96,7 @@ impl ConnectorBindingSnapshot {
             .into_iter()
             .any(|id| !valid_extension_identifier(id))
             || !valid_extension_path(&binding.fixture_path)
-            || !is_sha256_hex(&binding.fixture_sha256)
+            || !connector_fixture_hash_valid(&binding.fixture_sha256)
             || self.project_root.trim().is_empty()
             || !matches!(self.status.as_str(), "active" | "revoked")
         {

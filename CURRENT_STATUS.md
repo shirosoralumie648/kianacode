@@ -12117,3 +12117,21 @@ status change: UI-14 pure controller/keymap/session-switcher/command-palette sou
 proof-level change: `feature_status=implemented` for source contract and CI wiring; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: controller state is process-local and not a wired Workbench event loop or durable session projector; typed client must compute/validate canonical payload digest before sending `UiActionV1`; no server authorization, EventLog append, response-loss reconnect, SIGTERM/OS close, cross-process recovery, provider/tool effect, receipt correctness or physical/live proof is claimed
 reviewer: Codex UI-14 source review; checked intent-to-action CAS fields, stale/duplicate/capability denials, session draft boundary, separate submission/run state, safe close and no second execution path; no local runtime test reviewer
+
+### INT-08 local fixture schema, hash and deterministic receipt evidence (2026-09-25)
+
+```text
+source_snapshot: 2de40e2f plus INT-08 source slice; kiana-domain/src/{connector_fixture.rs,connectors.rs,lib.rs}; kiana-daemon/src/connectors.rs; kiana-domain/tests/int08_local_fixture.rs; kiana-core/tests/int08_local_fixture_guard.rs; .github/workflows/int08-local-fixture.yml; docs/roadmap/int08-local-fixture-baseline.md; docs/roadmap/integrations-connectors.md; docs/roadmap.md
+worktree_status: domain-owned kiana.connector-fixture.v1 now enforces bounded bytes/operations/cases, hash-pinned loading, canonical payload matching, duplicate and external-effect denial, and deterministic redacted ProviderReceipt projection; daemon bind/invoke/replay/reconcile continues through ControlPlane, Broker and EventStore CAS; unrelated WIP is preserved
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/connector_fixture.rs kiana-domain/src/connectors.rs kiana-domain/src/lib.rs kiana-domain/tests/int08_local_fixture.rs kiana-daemon/src/connectors.rs kiana-core/tests/int08_local_fixture_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check; cargo test -p kiana-domain --test int08_local_fixture --locked -- --test-threads=1; cargo test -p kiana-core --test int08_local_fixture_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd/environment: /tmp/kiana-step-int08; Linux x86_64; stable Rust toolchain; local cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture·cassette: int08_local_fixture covers schema/size bounds, replacement hash, canonical key ordering, duplicate payload, unknown operation, external_effect=true and deterministic succeeded receipt; source guard covers daemon fixture loading, bind/invoke/replay/reconcile, EventStore CAS, no network/provider gateway and no domain authority dependency
+exit_code: target-only rustfmt and git diff checks are the only local verification; remote fixture and compile exit codes are pending/unobserved
+status_change: INT-08 source contract, daemon integration, deny-first fixtures, source guard, workflow and baseline are implemented; roadmap row 411/card are advanced from ⏳ to 🔄 pending GitHub evidence
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: fixtures are local observations and never prove external provider delivery, exactly-once business effect, durable cross-process registry/lease recovery or live/physical outcome; external HTTP/OAuth/MCP transports, provider query receipts and cross-process fencing remain later INT steps
+reviewer: Codex sub-agent source review of fixture bounds/hash/canonical matching/external-effect denial, deterministic receipt redaction, ControlPlane/Broker/EventStore path and no-network/no-second-loop boundary; no runtime test reviewer
+```

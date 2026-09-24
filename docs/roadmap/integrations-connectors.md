@@ -28,6 +28,10 @@ ConnectorDefinition + AccountBinding + OperationContract
   `WebhookVerifier` ports with explicit capability registration and fail-closed checked wrappers.
   The ports return only receipt/observation/health/occurrence projections; GitHub Actions remains the
   test authority and no live transport or raw credential material is exposed.
+- INT-08 source slice now owns the `kiana.connector-fixture.v1` schema in the domain layer. Fixture
+  bytes are bounded and hash-pinned, operation cases match canonical payloads with duplicate and
+  unknown-operation rejection, and deterministic `ProviderReceipt` projections always carry
+  `source=local_fixture` with no external effect. GitHub Actions remains the test authority.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界
