@@ -623,7 +623,7 @@ async fn wait_for_shutdown_signal() {
 }
 
 fn router(app: WebApp) -> Router {
-    let state = Arc::new(app);
+    let shared_state = Arc::new(app);
     Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
@@ -645,10 +645,10 @@ fn router(app: WebApp) -> Router {
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
         .layer(middleware::from_fn(security_headers))
         .layer(middleware::from_fn_with_state(
-            Arc::clone(&state),
+            Arc::clone(&shared_state),
             enforce_request_bounds,
         ))
-        .with_state(state)
+        .with_state(shared_state)
 }
 
 /// Reject unbounded request targets before a query extractor or a mutating handler runs.
