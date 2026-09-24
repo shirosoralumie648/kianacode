@@ -1,0 +1,66 @@
+name: int18-effect-permit
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_effect_permit.rs"
+      - "kiana-domain/src/connector_reservation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int18_effect_permit.rs"
+      - "kiana-core/src/connector_reservation.rs"
+      - "kiana-core/tests/int18_effect_permit_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/int18_effect_permit_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int18_effect_permit_guard.rs"
+      - ".github/workflows/int18-effect-permit.yml"
+      - "docs/roadmap/int18-effect-permit-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_effect_permit.rs"
+      - "kiana-domain/src/connector_reservation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int18_effect_permit.rs"
+      - "kiana-core/src/connector_reservation.rs"
+      - "kiana-core/tests/int18_effect_permit_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/int18_effect_permit_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int18_effect_permit_guard.rs"
+      - ".github/workflows/int18-effect-permit.yml"
+      - "docs/roadmap/int18-effect-permit-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-effect-permit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-18 domain effect permit fixtures
+        run: cargo test -p kiana-domain --test int18_effect_permit --locked -- --test-threads=1
+      - name: Run INT-18 ControlPlane source guard
+        run: cargo test -p kiana-core --test int18_effect_permit_guard --locked -- --test-threads=1
+      - name: Run INT-18 Broker source guard
+        run: cargo test -p kiana-capability-broker --test int18_effect_permit_guard --locked -- --test-threads=1
+      - name: Run INT-18 daemon source guard
+        run: cargo test -p kiana-daemon --test int18_effect_permit_guard --locked -- --test-threads=1
+      - name: Compile INT-18 workspace targets
+        run: cargo check --workspace --tests --locked

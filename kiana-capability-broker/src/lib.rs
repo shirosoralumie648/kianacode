@@ -463,20 +463,84 @@ pub fn validate_connector_effect_boundary(
     if request.request.operation != kiana_domain::CONNECTOR_INVOKE_OPERATION {
         return Ok(());
     }
-    let Some(reservation) = request.request.arguments.get("connector_reservation") else {
+    let Some(reservation_value) = request.request.arguments.get("connector_reservation") else {
         return Ok(());
     };
-    let permit = request
+    let permit_value = request
         .request
         .arguments
         .get("connector_permit")
         .ok_or_else(|| PortError::Conflict("connector_permit_required".to_owned()))?;
     let reservation: kiana_domain::ConnectorInvocationReservation =
-        serde_json::from_value(reservation.clone())
+        serde_json::from_value(reservation_value.clone())
             .map_err(|_| PortError::Conflict("connector_reservation_invalid".to_owned()))?;
-    let permit: kiana_domain::ConnectorInvocationPermit = serde_json::from_value(permit.clone())
-        .map_err(|_| PortError::Conflict("connector_permit_invalid".to_owned()))?;
+    let permit: kiana_domain::ConnectorInvocationPermit =
+        serde_json::from_value(permit_value.clone())
+            .map_err(|_| PortError::Conflict("connector_permit_invalid".to_owned()))?;
     kiana_domain::connector_effect_admission(&reservation, &permit, now_unix_ms)
+        .map_err(PortError::Conflict)?;
+
+    // INT-18 is the final server-owned check. A reservation/legacy permit can never substitute
+    // for an effect permit: the latter binds scope, command/payload digests, epochs and expiry.
+    let effect_permit_value = request
+        .request
+        .arguments
+        .get("connector_effect_permit")
+        .ok_or_else(|| PortError::Conflict("connector_effect_permit_required".to_owned()))?;
+    let effect_permit: kiana_domain::ConnectorEffectPermit =
+        serde_json::from_value(effect_permit_value.clone())
+            .map_err(|_| PortError::Conflict("connector_effect_permit_invalid".to_owned()))?;
+    let binding_value = request
+        .request
+        .arguments
+        .get("binding_snapshot")
+        .ok_or_else(|| PortError::Conflict("connector_binding_snapshot_required".to_owned()))?;
+    let binding: kiana_domain::ConnectorBindingSnapshot =
+        serde_json::from_value(binding_value.clone())
+            .map_err(|_| PortError::Conflict("connector_binding_snapshot_invalid".to_owned()))?;
+    let scope = request
+        .request
+        .execution_scope
+        .as_ref()
+        .ok_or_else(|| PortError::Conflict("connector_effect_scope_required".to_owned()))?;
+    let configuration_epoch = request
+        .request
+        .arguments
+        .get("connector_configuration_epoch")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| PortError::Conflict("connector_configuration_epoch_required".to_owned()))?;
+    let policy_epoch = request
+        .request
+        .arguments
+        .get("connector_policy_epoch")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| PortError::Conflict("connector_policy_epoch_required".to_owned()))?;
+    let credential_epoch = request
+        .request
+        .arguments
+        .get("connector_credential_epoch")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_else(|| {
+            binding
+                .binding
+                .credential_ref
+                .as_ref()
+                .map_or(0, |reference| reference.generation)
+        });
+    let current_scope_digest =
+        kiana_domain::connector_effect_scope_digest(&binding, &effect_permit.operation)
+            .map_err(PortError::Conflict)?;
+    let current = kiana_domain::ConnectorEffectFence::new(
+        current_scope_digest,
+        scope.authority_epoch,
+        configuration_epoch,
+        policy_epoch,
+        credential_epoch,
+        scope.data_epoch,
+    )
+    .map_err(PortError::Conflict)?;
+    effect_permit
+        .validate_for_effect(&reservation, &binding, &current, now_unix_ms)
         .map_err(PortError::Conflict)
 }
 
@@ -492,8 +556,14 @@ pub fn validate_connector_quota_boundary(
         return Ok(());
     }
     let reservation = request.request.arguments.get("connector_quota_reservation");
-    let has_claim = request.request.arguments.contains_key("connector_quota_claim");
-    let has_policy = request.request.arguments.contains_key("connector_quota_policy");
+    let has_claim = request
+        .request
+        .arguments
+        .contains_key("connector_quota_claim");
+    let has_policy = request
+        .request
+        .arguments
+        .contains_key("connector_quota_policy");
     if reservation.is_none() {
         if has_claim || has_policy {
             return Err(PortError::Conflict(

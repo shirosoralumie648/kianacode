@@ -547,6 +547,60 @@ impl ConnectorRegistry {
                         },
                     )?;
                 }
+                // INT-18 effect-time fence: the adapter sees no fixture bytes until the
+                // server-owned permit is checked against a fresh binding/epoch snapshot.
+                if args.get("connector_reservation").is_some() {
+                    let reservation: kiana_domain::ConnectorInvocationReservation =
+                        serde_json::from_value(args["connector_reservation"].clone())
+                            .map_err(|_| failed("connector_reservation_invalid"))?;
+                    let effect_permit: kiana_domain::ConnectorEffectPermit =
+                        serde_json::from_value(
+                            args.get("connector_effect_permit")
+                                .cloned()
+                                .ok_or_else(|| failed("connector_effect_permit_required"))?,
+                        )
+                        .map_err(|_| failed("connector_effect_permit_invalid"))?;
+                    let scope = request
+                        .request
+                        .execution_scope
+                        .as_ref()
+                        .ok_or_else(|| failed("connector_effect_scope_required"))?;
+                    let configuration_epoch = args
+                        .get("connector_configuration_epoch")
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| failed("connector_configuration_epoch_required"))?;
+                    let policy_epoch = args
+                        .get("connector_policy_epoch")
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| failed("connector_policy_epoch_required"))?;
+                    let credential_epoch = args
+                        .get("connector_credential_epoch")
+                        .and_then(Value::as_u64)
+                        .unwrap_or_else(|| {
+                            snapshot
+                                .binding
+                                .credential_ref
+                                .as_ref()
+                                .map_or(0, |reference| reference.generation)
+                        });
+                    let current_scope_digest = kiana_domain::connector_effect_scope_digest(
+                        &snapshot,
+                        &effect_permit.operation,
+                    )
+                    .map_err(failed)?;
+                    let current = kiana_domain::ConnectorEffectFence::new(
+                        current_scope_digest,
+                        scope.authority_epoch,
+                        configuration_epoch,
+                        policy_epoch,
+                        credential_epoch,
+                        scope.data_epoch,
+                    )
+                    .map_err(failed)?;
+                    effect_permit
+                        .validate_for_effect(&reservation, &snapshot, &current, now)
+                        .map_err(failed)?;
+                }
                 let payload_bytes =
                     serde_json::to_vec(&kiana_domain::canonical_json(payload.clone()))
                         .map_err(|e| failed(e.to_string()))?;

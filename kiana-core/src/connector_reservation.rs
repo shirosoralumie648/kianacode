@@ -6,9 +6,10 @@
 
 use super::*;
 use kiana_domain::{
-    connector_effect_admission, ConnectorInvocationCommand, ConnectorInvocationPermit,
-    ConnectorInvocationReservation, ConnectorReservationLease, ConnectorReservationOutcome,
-    ConnectorReservationState, CONNECTOR_RESERVATION_EVENT_RESERVED, CONNECTOR_RESERVATION_STREAM,
+    connector_effect_admission, ConnectorEffectFence, ConnectorEffectPermit,
+    ConnectorInvocationCommand, ConnectorInvocationPermit, ConnectorInvocationReservation,
+    ConnectorReservationLease, ConnectorReservationOutcome, ConnectorReservationState,
+    CONNECTOR_RESERVATION_EVENT_RESERVED, CONNECTOR_RESERVATION_STREAM,
 };
 
 pub struct ControlPlaneConnectorReservation;
@@ -63,6 +64,38 @@ impl ControlPlaneConnectorReservation {
         now_unix_ms: u64,
     ) -> Result<(), String> {
         connector_effect_admission(reservation, permit, now_unix_ms)
+    }
+
+    /// Issue the short-lived permit consumed at the Broker effect boundary. The caller must pass
+    /// a fence read from the current ControlPlane snapshot; this helper never refreshes or widens
+    /// a stale reservation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn issue_effect_permit(
+        reservation: &ConnectorInvocationReservation,
+        binding: &kiana_domain::ConnectorBindingSnapshot,
+        fence: &ConnectorEffectFence,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+    ) -> Result<ConnectorEffectPermit, String> {
+        ConnectorEffectPermit::issue(
+            reservation,
+            binding,
+            fence,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+        )
+    }
+
+    /// Effect-time recheck used by Broker/daemon adapters. No adapter dispatch is permitted when
+    /// any scope, digest, epoch or lease value is stale.
+    pub fn admit_effect_permit(
+        permit: &ConnectorEffectPermit,
+        reservation: &ConnectorInvocationReservation,
+        binding: &kiana_domain::ConnectorBindingSnapshot,
+        current: &ConnectorEffectFence,
+        now_unix_ms: u64,
+    ) -> Result<(), String> {
+        permit.validate_for_effect(reservation, binding, current, now_unix_ms)
     }
 }
 
