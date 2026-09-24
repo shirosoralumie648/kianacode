@@ -21,6 +21,7 @@ pub mod context_inputs;
 pub mod context_manifest;
 pub mod cost_ledger_projector;
 pub mod cost_projector;
+pub mod billing_ledger_projector;
 pub mod data_boundary;
 pub mod deps;
 pub mod hook_cancellation;
@@ -68,6 +69,12 @@ pub use cost_ledger_projector::{
 pub use cost_projector::{
     project_cost_receipt, project_receipt_cost, CostQueryProjectionError, CostReceiptProjection,
     COST_QUERY_PROJECTION_SCHEMA, COST_QUERY_PROJECTION_VERSION,
+};
+pub use billing_ledger_projector::{
+    billing_source_is_rebuildable, project_billing_ledger, BillingLedgerProjectionError,
+    BillingLedgerProjector, BillingSourceEvent, BILLING_LEDGER_PROJECTOR_IS_READ_ONLY,
+    BILLING_LEDGER_PROJECTOR_SCHEMA, BILLING_LEDGER_PROJECTOR_VERSION,
+    BILLING_PROJECTOR_NO_FACT_WRITES,
 };
 pub use data_boundary::{QueryDataBoundary, QueryDataDisposition, QUERY_DATA_BOUNDARY_SCHEMA};
 pub use deps::QueryDeps;

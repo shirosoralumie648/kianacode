@@ -1,0 +1,68 @@
+name: BQ-20 ledger projector
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_projection.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq20_ledger_projection.rs"
+      - "kiana-core/src/billing_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq20_ledger_projector_guard.rs"
+      - "kiana-eventlog/src/ledger_source.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/tests/bq20_ledger_source.rs"
+      - "kiana-query/src/billing_ledger_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq20_ledger_projector.rs"
+      - "kiana-query/tests/bq20_ledger_projector_guard.rs"
+      - "docs/roadmap/bq20-ledger-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq20-ledger-projector.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_projection.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq20_ledger_projection.rs"
+      - "kiana-core/src/billing_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq20_ledger_projector_guard.rs"
+      - "kiana-eventlog/src/ledger_source.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/tests/bq20_ledger_source.rs"
+      - "kiana-query/src/billing_ledger_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq20_ledger_projector.rs"
+      - "kiana-query/tests/bq20_ledger_projector_guard.rs"
+      - "docs/roadmap/bq20-ledger-projector-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq20-ledger-projector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ledger-projector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-20 domain fixtures
+        run: cargo test -p kiana-domain --test bq20_ledger_projection --locked -- --test-threads=1
+      - name: Run BQ-20 core fixtures and guard
+        run: cargo test -p kiana-core --test bq20_ledger_projector_guard --locked -- --test-threads=1
+      - name: Run BQ-20 EventLog source fixtures
+        run: cargo test -p kiana-eventlog --test bq20_ledger_source --locked -- --test-threads=1
+      - name: Run BQ-20 query fixtures
+        run: cargo test -p kiana-query --test bq20_ledger_projector --locked -- --test-threads=1
+      - name: Run BQ-20 query source guard
+        run: cargo test -p kiana-query --test bq20_ledger_projector_guard --locked -- --test-threads=1
+      - name: Compile BQ-20 targets
+        run: cargo check --workspace --tests --locked
