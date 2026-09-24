@@ -25,6 +25,7 @@ mod stream_render;
 pub mod tty_input;
 pub mod tui;
 pub mod web;
+pub(crate) mod web_inbox;
 mod web_thread;
 mod web_ui;
 pub mod workbench;

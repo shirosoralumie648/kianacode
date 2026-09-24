@@ -1,0 +1,41 @@
+{
+  "schema": "kiana.ui-human-inbox.v1",
+  "card_schema": "kiana.ui-human-action-card.v1",
+  "intent_schema": "kiana.ui-human-action-intent.v1",
+  "server_fields": [
+    "reason",
+    "scope",
+    "expires_at_unix_ms",
+    "expected_revision",
+    "fields",
+    "allowed_decisions",
+    "payload_digest"
+  ],
+  "deny_first": [
+    "duplicate_card",
+    "expired_approval",
+    "revoked_approval",
+    "stale_inbox_revision",
+    "stale_card_revision",
+    "tab_owner_mismatch",
+    "observer_tab_action",
+    "hidden_field_scope_expansion",
+    "payload_digest_mutation",
+    "idempotency_replay_new_effect",
+    "response_unknown_auto_retry",
+    "close_tab_cancels_run",
+    "incident_or_limitation_hidden"
+  ],
+  "success": [
+    "approve",
+    "deny",
+    "edit",
+    "restore",
+    "continue",
+    "required_fields_from_server_card",
+    "original_command_result_on_replay",
+    "unknown_visible_with_query_original"
+  ],
+  "authority": "Web typed intent -> DaemonHost -> ControlPlane -> Broker",
+  "proof_level": "source"
+}

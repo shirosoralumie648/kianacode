@@ -2260,12 +2260,17 @@ async fn command_action(
     if body.name.is_empty() || body.name.len() > 128 || !body.arguments.is_object() {
         return Err(ApiError::bad("command_request_invalid"));
     }
+    // Human Inbox actions cross the Web boundary as a typed intent.  Validate before claiming
+    // the idempotency slot so malformed/forged cards cannot consume a replay key.
+    crate::web_inbox::validate_human_action_command(&body.name, &body.arguments)
+        .map_err(ApiError::bad)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
     let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
+    let human_resolve = body.name == crate::web_inbox::WEB_HUMAN_RESOLVE_COMMAND;
     let response = harness_run::command_envelope_on_host(
         app.host.clone(),
         session_id.clone(),
@@ -2275,9 +2280,15 @@ async fn command_action(
     )
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
+    let mut response_value = serde_json::to_value(&response)
+        .map_err(|_| ApiError::fail("web_human_action_response_encode"))?;
+    if human_resolve {
+        let result_class = crate::web_inbox::human_result_class(&response_value);
+        response_value["web_result_class"] = json!(result_class);
+    }
     let mut state = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut state, &headers)?;
-    let payload = json!({ "state": state, "response": response });
+    let payload = json!({ "state": state, "response": response_value });
     complete_action_submission(&app, &action_id, payload.clone())?;
     Ok(Json(payload))
 }
@@ -2371,6 +2382,7 @@ async fn command_query(
     }
     let arguments: Value =
         serde_json::from_str(&arguments).map_err(|_| ApiError::bad("command_arguments_invalid"))?;
+    let human_inbox_query = query.name == "human.inbox";
     let response = harness_run::command_envelope_on_host(
         app.host.clone(),
         session_id,
@@ -2380,6 +2392,11 @@ async fn command_query(
     )
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
+    let mut response =
+        serde_json::to_value(response).map_err(|_| ApiError::fail("web_human_response_encode"))?;
+    if human_inbox_query {
+        crate::web_inbox::annotate_human_inbox_response(&mut response);
+    }
     Ok(Json(json!({"response":response})))
 }
 

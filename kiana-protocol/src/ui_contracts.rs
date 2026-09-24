@@ -27,6 +27,11 @@ pub const UI_LIVE_HOST_EVIDENCE_SCHEMA: &str = "kiana.ui-live-host-evidence.v1";
 pub const UI_EVIDENCE_CASE_SCHEMA: &str = "kiana.ui-evidence-case.v1";
 pub const UI_EVIDENCE_BUNDLE_SCHEMA: &str = "kiana.ui-evidence-bundle.v1";
 pub const UI_CONNECTOR_HEALTH_SCHEMA: &str = "kiana.ui-connector-health.v1";
+/// Versioned server-owned Web Human Inbox projection.  The projection is read-only; an action
+/// intent carries only the item/action identity and CAS material back to ControlPlane.
+pub const UI_HUMAN_INBOX_SCHEMA: &str = "kiana.ui-human-inbox.v1";
+pub const UI_HUMAN_ACTION_CARD_SCHEMA: &str = "kiana.ui-human-action-card.v1";
+pub const UI_HUMAN_ACTION_INTENT_SCHEMA: &str = "kiana.ui-human-action-intent.v1";
 /// Versioned server-owned relationship between one browser tab and a session.  The tab value is
 /// an observation scope, never a principal credential or a new authorization authority.
 pub const UI_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
@@ -49,6 +54,12 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
         return Err(format!("{field}_invalid"));
     }
     Ok(())
+}
+
+// Explicit name for new UI contracts so field names such as `scope.digest` do not shadow the
+// validation helper in presenter code.
+fn digest_value(value: &str, field: &str) -> Result<(), String> {
+    digest(value, field)
 }
 
 fn cursor_valid(epoch: &str, sequence: u64) -> Result<(), String> {
@@ -961,6 +972,234 @@ pub struct HumanActionCard {
     pub expires_at_unix_ms: Option<u64>,
     pub allowed_decisions: Vec<String>,
     pub payload_digest: String,
+}
+
+const UI_HUMAN_MAX_ITEMS: usize = 256;
+const UI_HUMAN_MAX_FIELDS: usize = 32;
+const UI_HUMAN_MAX_DECISIONS: usize = 16;
+const UI_HUMAN_MAX_PATHS: usize = 256;
+const UI_HUMAN_MAX_FIELD_VALUE_BYTES: usize = 64 * 1024;
+
+/// Redacted scope metadata displayed by a Web action card.  It is a projection and never grants
+/// the browser permission to add paths or widen a write set.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHumanActionScopeV1 {
+    pub summary: String,
+    #[serde(default)]
+    pub digest: Option<String>,
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+impl UiHumanActionScopeV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        required(&self.summary, "ui_human_scope_summary", 4_096)?;
+        if let Some(digest) = &self.digest {
+            digest_value(digest, "ui_human_scope_digest")?;
+        }
+        if self.paths.len() > UI_HUMAN_MAX_PATHS
+            || self.paths.iter().any(|path| {
+                path.trim().is_empty()
+                    || path.len() > 1_024
+                    || path.contains('\0')
+                    || path.starts_with("http://")
+                    || path.starts_with("https://")
+            })
+        {
+            return Err("ui_human_scope_paths_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// A server-supplied form field.  Allowed values and requiredness are display/validation hints;
+/// ControlPlane remains the authority for the action and its effect scope.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHumanActionFieldV1 {
+    pub name: String,
+    pub label: String,
+    pub field_type: String,
+    pub required: bool,
+    #[serde(default)]
+    pub allowed_values: Vec<String>,
+}
+
+impl UiHumanActionFieldV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        required(&self.name, "ui_human_field_name", 128)?;
+        required(&self.label, "ui_human_field_label", 512)?;
+        required(&self.field_type, "ui_human_field_type", 64)?;
+        if self.allowed_values.len() > UI_HUMAN_MAX_DECISIONS
+            || self
+                .allowed_values
+                .iter()
+                .any(|value| value.trim().is_empty() || value.len() > 256)
+        {
+            return Err("ui_human_field_values_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Complete Web Human Inbox action card.  `payload_digest` binds the opaque server payload
+/// without exposing it as a browser-editable scope or actor field.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHumanActionCardV1 {
+    pub schema: String,
+    pub item_id: String,
+    pub action_id: String,
+    pub command: String,
+    pub target_id: String,
+    pub reason: String,
+    pub scope: UiHumanActionScopeV1,
+    #[serde(default)]
+    pub expires_at_unix_ms: Option<u64>,
+    #[serde(default)]
+    pub revoked: bool,
+    #[serde(default)]
+    pub expected_revision: Option<u64>,
+    pub fields: Vec<UiHumanActionFieldV1>,
+    pub allowed_decisions: Vec<String>,
+    pub payload_digest: String,
+}
+
+impl UiHumanActionCardV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HUMAN_ACTION_CARD_SCHEMA {
+            return Err("ui_human_card_schema_invalid".to_owned());
+        }
+        required(&self.item_id, "ui_human_item_id", 256)?;
+        required(&self.action_id, "ui_human_action_id", 256)?;
+        required(&self.command, "ui_human_command", 128)?;
+        required(&self.target_id, "ui_human_target_id", 256)?;
+        required(&self.reason, "ui_human_reason", 4_096)?;
+        self.scope.validate()?;
+        if self.expires_at_unix_ms == Some(0) || self.expected_revision == Some(0) {
+            return Err("ui_human_card_revision_invalid".to_owned());
+        }
+        if self.fields.len() > UI_HUMAN_MAX_FIELDS {
+            return Err("ui_human_card_fields_limit".to_owned());
+        }
+        let mut names = BTreeSet::new();
+        for field in &self.fields {
+            field.validate()?;
+            if !names.insert(&field.name) {
+                return Err("ui_human_card_field_duplicate".to_owned());
+            }
+        }
+        if self.allowed_decisions.is_empty()
+            || self.allowed_decisions.len() > UI_HUMAN_MAX_DECISIONS
+        {
+            return Err("ui_human_card_decisions_invalid".to_owned());
+        }
+        let mut decisions = BTreeSet::new();
+        for decision in &self.allowed_decisions {
+            required(decision, "ui_human_decision", 64)?;
+            if !decisions.insert(decision) {
+                return Err("ui_human_card_decision_duplicate".to_owned());
+            }
+        }
+        digest_value(&self.payload_digest, "ui_human_payload_digest")
+    }
+
+    pub fn is_expired(&self, now_unix_ms: u64) -> bool {
+        self.expires_at_unix_ms
+            .is_some_and(|expires_at| now_unix_ms >= expires_at)
+    }
+
+    pub fn allows(&self, decision: &str) -> bool {
+        self.allowed_decisions.iter().any(|item| item == decision)
+    }
+}
+
+/// Read-only Web inbox projection.  `revision` is the server digest used for action CAS.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHumanInboxV1 {
+    pub schema: String,
+    pub revision: String,
+    pub items: Vec<UiHumanActionCardV1>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+impl UiHumanInboxV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HUMAN_INBOX_SCHEMA {
+            return Err("ui_human_inbox_schema_invalid".to_owned());
+        }
+        digest_value(&self.revision, "ui_human_inbox_revision")?;
+        if self.items.len() > UI_HUMAN_MAX_ITEMS || self.limitations.len() > 32 {
+            return Err("ui_human_inbox_limit".to_owned());
+        }
+        let mut ids = BTreeSet::new();
+        for item in &self.items {
+            item.validate()?;
+            if !ids.insert(format!("{}:{}", item.item_id, item.action_id)) {
+                return Err("ui_human_inbox_duplicate".to_owned());
+            }
+        }
+        if self
+            .limitations
+            .iter()
+            .any(|limitation| limitation.trim().is_empty() || limitation.len() > 512)
+        {
+            return Err("ui_human_inbox_limitations_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Versioned intent emitted by the Web form.  It contains no actor, approval grant or scope;
+/// those are recovered and rechecked by the server from `item_id`/`action_id`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHumanActionIntentV1 {
+    pub schema: String,
+    pub item_id: String,
+    pub action_id: String,
+    pub inbox_revision: String,
+    #[serde(default)]
+    pub expected_revision: Option<u64>,
+    pub fields: Value,
+    pub idempotency_key: String,
+    pub payload_digest: String,
+}
+
+impl UiHumanActionIntentV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HUMAN_ACTION_INTENT_SCHEMA {
+            return Err("ui_human_intent_schema_invalid".to_owned());
+        }
+        required(&self.item_id, "ui_human_intent_item_id", 256)?;
+        required(&self.action_id, "ui_human_intent_action_id", 256)?;
+        digest_value(&self.inbox_revision, "ui_human_intent_revision")?;
+        if self.expected_revision == Some(0) {
+            return Err("ui_human_intent_expected_revision_invalid".to_owned());
+        }
+        required(&self.idempotency_key, "ui_human_intent_idempotency", 256)?;
+        digest_value(&self.payload_digest, "ui_human_intent_payload_digest")?;
+        let Some(fields) = self.fields.as_object() else {
+            return Err("ui_human_intent_fields_object_required".to_owned());
+        };
+        if fields.len() > UI_HUMAN_MAX_FIELDS
+            || serde_json::to_vec(&self.fields)
+                .map(|bytes| bytes.len() > UI_HUMAN_MAX_FIELD_VALUE_BYTES)
+                .unwrap_or(true)
+        {
+            return Err("ui_human_intent_fields_limit".to_owned());
+        }
+        if fields
+            .keys()
+            .any(|key| key.trim().is_empty() || key.len() > 128)
+        {
+            return Err("ui_human_intent_field_name_invalid".to_owned());
+        }
+        Ok(())
+    }
 }
 
 impl HumanActionCard {

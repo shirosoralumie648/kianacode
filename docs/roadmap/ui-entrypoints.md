@@ -475,13 +475,21 @@ proof 留后续。
 
 
 
-#### UI-21 · Web Human Inbox 与审批动作卡　⏳
+#### UI-21 · Web Human Inbox 与审批动作卡　🔄
 
 - 依赖：UI-02/04/05/15/20。代码：approval/inbox cards、form schema、action submitter。
 - 步骤：表单字段、范围、理由、expiry、allowed decision 由 HumanActionCard 驱动；危险动作默认折叠并显示 effect scope；提交后显示 command status。
 - 先拒绝：客户端添加隐藏字段扩大 scope、审批过期仍可 click、deny 需要重新执行 tool、Unknown 自动显示 retry。
 - 成功/回归：approve/deny/edit/restore/continue、必填/非法值、过期/撤销/CAS conflict、重复 click 和响应丢失。
 - 完成产物：inbox schema renderer、deny/happy fixtures、审计事件映射。
+
+实现基线：[UI-21 Web Human Inbox and approval action cards](ui21-web-human-inbox-baseline.md)。当前
+source slice 在 UI-15 server-owned inbox/review、UI-04 action CAS 和 UI-19 tab/session ownership
+上补充 `UiHumanInboxV1`/`UiHumanActionCardV1`/`UiHumanActionIntentV1`，Web 响应附带只读卡片
+元数据，表单字段由卡片驱动并以稳定 idempotency key 提交 `human.resolve`。过期/撤销、旧
+inbox/card revision、owner/tab mismatch、重复卡、隐藏字段/载荷 digest 变更和 Unknown 自动
+重试均 fail-closed；incident/limitation/Unknown 在结果面板可见。GitHub-only fixture、source
+guard 与 workflow 已接入；浏览器 E2E、durable/live/physical proof 留后续。
 
 <a id="step-ui-22"></a>
 

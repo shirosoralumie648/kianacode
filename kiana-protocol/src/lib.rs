@@ -5,7 +5,8 @@
 //! gate、审批和生命周期。新增字段优先使用 `serde(default)` 保持旧客户端可读取，但这
 //! 只是兼容性策略，不代表缺失字段自动安全或自动允许。
 
-use kiana_domain::{canonical_scopes, json_digest, CoreResponse};
+use kiana_domain::{canonical_scopes, CoreResponse};
+pub use kiana_domain::json_digest;
 pub use kiana_domain::{
     apply_settlement_fold_event, ConsumedUnits, ReservationUnits, SettlementFoldApplyOutcome,
     SettlementFoldEvent, SettlementFoldEventKind, SettlementFoldLedger, SettlementFoldRecord,

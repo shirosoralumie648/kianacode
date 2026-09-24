@@ -21,6 +21,7 @@ mod typed;
 mod ui_schema_generated;
 mod ui_store;
 mod web_contract;
+mod web_inbox;
 mod web_timeline;
 
 pub use cli_contract::{
@@ -51,6 +52,9 @@ pub use ui_store::{
 pub use web_contract::{
     WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,
     WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA, WEB_CLIENT_TAB_SCHEMA,
+};
+pub use web_inbox::{
+    WebHumanInbox, WEB_HUMAN_INBOX_SCHEMA, WEB_HUMAN_MAX_CARDS, WEB_HUMAN_MAX_FIELD_BYTES,
 };
 pub use web_timeline::{
     WebTimelineItem, WebTimelineItemKind, WebTimelineViewState, WebTimelineWindow,

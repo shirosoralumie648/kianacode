@@ -132,6 +132,7 @@
     <aside class="details" aria-label="运行详情与人工操作">
       <h2 id="approvalsTitle">人工待办</h2>
       <div id="approvals" role="region" aria-labelledby="approvalsTitle">正在读取…</div>
+      <pre id="humanActionResult" tabindex="0" aria-label="人工操作结果"></pre>
       <button id="resume">恢复此会话</button>
       <button id="receiptBtn">查看回执</button>
       <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
@@ -206,6 +207,10 @@
     const SSE_RECONNECT_MAX_MS = 8000;
     const SSE_MAX_RECONNECTS = 6;
     const MAX_STREAM_TEXT_BYTES = 256 * 1024;
+    const HUMAN_INBOX_SCHEMA = 'kiana.ui-human-inbox.v1';
+    const HUMAN_ACTION_CARD_SCHEMA = 'kiana.ui-human-action-card.v1';
+    const HUMAN_ACTION_INTENT_SCHEMA = 'kiana.ui-human-action-intent.v1';
+    const HUMAN_ACTION_MAX_FIELDS = 32;
     // Native EventSource sends Last-Event-ID automatically; the explicit query mirrors it for
     // loopback reconnects created by this wrapper without ever placing the token in event data.
     let sseReconnectAttempts = 0;
@@ -462,8 +467,79 @@
         stableSubmissionId('/api/command:' + name, {session_id:requested, name}, null);
       const data = await api('/api/command', {session_id:requested, name, arguments:args}, actionId);
       if (requested === sessionId) renderState(data.state);
-      if (!data.response || !['completed','awaiting_approval','waiting_for_input','running','accepted'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
+      if (!data.response || !['completed','awaiting_approval','waiting_for_input','running','accepted','unknown','result_unknown','blocked','rejected'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
       return data.response;
+    }
+    function humanActionCardFor(item, action, inboxRevision) {
+      const cards = Array.isArray(item && item.action_cards) ? item.action_cards : [];
+      const card = cards.find(candidate => candidate && candidate.item_id === item.item_id && candidate.action_id === action.id);
+      if (!card || card.schema !== HUMAN_ACTION_CARD_SCHEMA || !card.item_id || !card.action_id ||
+          !card.command || !card.reason || !card.scope || !card.payload_digest ||
+          !Array.isArray(card.fields) || !Array.isArray(card.allowed_decisions)) return null;
+      // The server card, rather than button text or action.arguments, drives the form.
+      return Object.freeze(Object.assign({}, card, {inbox_revision: inboxRevision}));
+    }
+    function humanActionExpired(card) {
+      return card.revoked === true ||
+        (card.expires_at_unix_ms !== null && card.expires_at_unix_ms !== undefined &&
+          Date.now() >= Number(card.expires_at_unix_ms));
+    }
+    function validateHumanActionFields(card, fields) {
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('人工操作字段必须是对象');
+      const descriptors = Array.isArray(card.fields) ? card.fields : [];
+      if (descriptors.length > HUMAN_ACTION_MAX_FIELDS || Object.keys(fields).length > HUMAN_ACTION_MAX_FIELDS) {
+        throw new Error('人工操作字段超出上限');
+      }
+      const allowed = new Set(descriptors.map(field => String(field.name || '')));
+      for (const key of Object.keys(fields)) {
+        if (!allowed.has(key)) throw new Error('human_action_field_denied');
+      }
+      for (const field of descriptors) {
+        if (field.required && !Object.prototype.hasOwnProperty.call(fields, field.name)) {
+          throw new Error('human_action_required_field_missing');
+        }
+      }
+      return fields;
+    }
+    function renderHumanActionResult(response) {
+      const box = document.getElementById('humanActionResult');
+      if (!box) return;
+      const status = String((response && response.status) || 'unknown');
+      const resultClass = String((response && response.web_result_class) || 'unknown');
+      const output = response && response.output && typeof response.output === 'object' ? response.output : {};
+      const error = response && (response.error || response.message || (response.error_detail && response.error_detail.code));
+      const incident = output.incident || (response && response.incident) || null;
+      const limitations = Array.isArray(output.limitations) ? output.limitations :
+        (Array.isArray(response && response.limitations) ? response.limitations : []);
+      const lines = ['人工操作状态：' + status + ' · ' + resultClass];
+      if (resultClass === 'unknown' || status === 'unknown' || status === 'result_unknown') {
+        lines.push('结果未知；请查询原 command，不能自动重试。');
+      }
+      if (error) lines.push('原因：' + String(error));
+      if (incident) lines.push('incident：' + JSON.stringify(incident));
+      if (limitations.length) lines.push('限制：' + limitations.map(String).join('；'));
+      box.textContent = lines.join('\n');
+    }
+    async function submitHumanAction(item, action, card, fields, inboxRevision, requested) {
+      if (!card || card.schema !== HUMAN_ACTION_CARD_SCHEMA) throw new Error('human_action_card_invalid');
+      if (humanActionExpired(card)) throw new Error(card.revoked ? 'approval_revoked' : 'approval_expired');
+      const normalizedFields = validateHumanActionFields(card, fields || {});
+      const submissionId = stableSubmissionId(
+        '/api/command:human.resolve:' + item.item_id + ':' + action.id,
+        {session_id:requested, inbox_revision:inboxRevision, fields:normalizedFields}, null);
+      const intent = {
+        schema: HUMAN_ACTION_INTENT_SCHEMA,
+        item_id: item.item_id,
+        action_id: action.id,
+        inbox_revision: inboxRevision,
+        expected_revision: card.expected_revision === undefined ? null : card.expected_revision,
+        fields: normalizedFields,
+        idempotency_key: submissionId,
+        payload_digest: card.payload_digest
+      };
+      const response = await submitCommand('human.resolve', intent, requested, submissionId);
+      renderHumanActionResult(response);
+      return response;
     }
     async function refreshApprovals() {
       const requested = sessionId;
@@ -471,6 +547,9 @@
       const request = ++approvalRequest;
       const output = await queryCommand('human.inbox', {}, requested);
       if (requested !== sessionId || request !== approvalRequest) return;
+      if (output.schema && output.schema !== HUMAN_INBOX_SCHEMA) {
+        throw new Error('human_inbox_schema_invalid');
+      }
       const viewKey = requested + ':' + output.revision + ':' + humanActionsAllowed;
       if (humanInboxViewKey === viewKey) return;
       humanInboxViewKey = viewKey;
@@ -481,38 +560,40 @@
       items.forEach(item => {
         const card = document.createElement('section'); card.className = 'approval';
         const title = document.createElement('strong'); title.textContent = (names[item.kind] || item.kind) + ' · ' + item.title; card.appendChild(title);
+        const limitation = output.limitations && output.limitations.length ? output.limitations.join('；') : '';
+        const metadata = document.createElement('p'); metadata.className = 'muted';
+        metadata.textContent = 'revision ' + String(output.revision || 'unknown') + (limitation ? ' · limitation: ' + limitation : '');
+        card.appendChild(metadata);
         const detail = document.createElement('pre'); detail.textContent = JSON.stringify(item.detail || {}, null, 2); card.appendChild(detail);
         (item.actions || []).forEach(action => {
+          const actionCard = humanActionCardFor(item, action, output.revision);
+          if (!actionCard) {
+            const invalid = document.createElement('p'); invalid.textContent = action.label + ' · action card unavailable'; card.appendChild(invalid); return;
+          }
+          const reason = document.createElement('p');
+          reason.textContent = '理由：' + actionCard.reason + ' · 范围：' + actionCard.scope.summary +
+            (actionCard.expires_at_unix_ms ? ' · expiry: ' + new Date(Number(actionCard.expires_at_unix_ms)).toISOString() : '') +
+            ' · allowed: ' + actionCard.allowed_decisions.join(', ');
+          card.appendChild(reason);
           let fieldsInput = null;
-          if ((action.required_fields || []).length) {
+          if ((actionCard.fields || []).length) {
             const label = document.createElement('label'); label.textContent = item.kind === 'question' ? action.label + '：输入回答（JSON）' : action.label + '：补充证据与决定（JSON）';
             fieldsInput = document.createElement('textarea');
             fieldsInput.setAttribute('aria-label', item.title + ' ' + action.label + ' 补充信息');
             const fields = {};
-            action.required_fields.forEach(key => { fields[key] = ['evidence_refs','reasons'].includes(key) ? [] : key === 'criterion_results' ? {} : key === 'waiver_ref' ? null : ''; });
+            actionCard.fields.forEach(field => { const key = field.name; fields[key] = ['evidence_refs','reasons'].includes(key) ? [] : key === 'criterion_results' ? {} : key === 'waiver_ref' ? null : ''; });
             fieldsInput.value = JSON.stringify(fields, null, 2); label.appendChild(fieldsInput); card.appendChild(label);
           }
           const button = document.createElement('button'); button.textContent = action.label;
-          const challenge = item.detail && item.detail.challenge;
-          button.disabled = !humanActionsAllowed || (challenge && Date.now() >= challenge.expires_at_unix_ms);
+          button.disabled = !humanActionsAllowed || humanActionExpired(actionCard) || !actionCard.allowed_decisions.includes(action.id);
           button.onclick = async () => {
             button.disabled = true;
-            const submissionId = stableSubmissionId(
-              '/api/approvals:' + item.item_id + ':' + action.id,
-              {session_id:requested, challenge, decision:action.arguments && action.arguments.decision},
-              null);
             try {
-              if (action.command === 'approval') {
-                await ensureEventStream(requested, true).catch(() => {});
-                const result = await api('/api/approvals', {session_id:requested, challenge, decision:action.arguments.decision}, submissionId);
-                if (sessionId === requested) renderState(result);
-                if (result.response && ['blocked','rejected'].includes(result.response.status)) throw new Error(result.response.error || '审批未完成');
-              } else {
-                await submitCommand('human.resolve', {item_id:item.item_id, action_id:action.id, inbox_revision:output.revision, fields:fieldsInput ? JSON.parse(fieldsInput.value) : {}, idempotency_key:submissionId}, requested, submissionId);
-              }
+              const fields = fieldsInput ? JSON.parse(fieldsInput.value) : {};
+              await submitHumanAction(item, action, actionCard, fields, output.revision, requested);
               announce('决定已提交');
             } catch (error) { reportError(error); }
-            finally { button.disabled = !humanActionsAllowed || (challenge && Date.now() >= challenge.expires_at_unix_ms); await refresh().catch(reportError); }
+            finally { button.disabled = !humanActionsAllowed || humanActionExpired(actionCard); await refresh().catch(reportError); }
           };
           card.appendChild(button);
         });

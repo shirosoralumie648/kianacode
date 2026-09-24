@@ -12359,3 +12359,18 @@ status_change: BQ-17 typed retry policy, bounded Retry-After/deadline, per-attem
 proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: retry reservation is an in-process value contract and does not append/flush durable EventLog facts or expose a provider billing receipt; capacity lease is an opaque adapter-supplied digest, cross-process CAS/recovery, invoice reconciliation, live provider behavior and external/physical outcomes remain open; CI result intentionally unobserved
 reviewer: Codex BQ-17 source review; checked typed 429/408/pre-send classifier, unknown/delta/TLS/auth/non-idempotent fences, Retry-After/deadline bound, fresh attempt/reservation/lease binding, one-request/one-terminal cancellation state, BQ-15/BQ-16 accounting markers, ControlPlane-only authority and no second retry loop; no local runtime test reviewer
+
+### UI-21 Web Human Inbox and approval action cards evidence (2026-09-25)
+
+```text
+source_snapshot: `e44434bf` (latest integrated UI-20/INT-13/BQ-17 base) plus UI-21 source slice; `kiana-protocol/src/{lib.rs,ui_contracts.rs}`; `kiana-client/src/{lib.rs,web_inbox.rs}`; `kiana-core/src/platform.rs` and UI-21 Core guard; `kiana-entrypoints/src/{web.rs,web_inbox.rs,web_page.html}`; UI-21 fixtures/source guards; `.github/workflows/ui21-web-human-inbox.yml`; `docs/roadmap/ui21-web-human-inbox-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-ui21` on branch `feat/ui21-human-inbox`; server-owned card metadata is additive to `human.inbox`, Web forms emit only `UiHumanActionIntentV1`, malformed intents are rejected before idempotency claim, and existing `DaemonHost → ControlPlane → Broker`/human authority path is reused
+command_argv: target-only `rustfmt --edition 2021` on UI-21 Rust files; `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, UI-21 entrypoint/Core fixtures and source guards, and `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-ui21`; Linux/bash; local Cargo test/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture·cassette: `kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json`; duplicate card, expired/revoked approval, stale inbox/card revision, owner/tab mismatch, hidden field/scope expansion, payload digest mutation, idempotency replay, close/refresh, Unknown, incident and limitation visibility; no provider, filesystem or external effect contacted
+exit_code: target-only rustfmt and `git diff --check` are the only local verification; remote fixtures, workspace compile and CI exit codes are pending/unobserved
+status_change: UI-21 typed protocol/client/server inbox/card/intent contracts, bounded Web card renderer, deny-first fixture/source guard, baseline and GitHub workflow implemented; roadmap row/card advanced from `⏳` to `🔄`
+proof-level change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: no browser E2E/screenshot, real lease race, durable cross-process inbox or EventLog replay, approval identity authentication, provider/Broker effect, incident reconciliation or live/physical proof; browser card remains a projection and final authorization stays server-owned; CI result intentionally unobserved
+reviewer: Codex UI-21 source review; checked server card reason/scope/expiry/allowed decisions/digest, owner/CAS/idempotency and hidden-field denial, Unknown/incident/limitation visibility and no second execution loop; no local runtime test reviewer
+```

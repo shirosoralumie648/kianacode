@@ -1170,6 +1170,37 @@ impl ControlPlane {
                 "human_action_unavailable",
             ));
         };
+        // A typed Web intent binds the opaque server action payload and card revision.  Older
+        // Workbench callers may omit these additive fields, but a supplied value must match the
+        // authoritative action before any company/approval/failure authority is reached.
+        if let Some(payload_digest) = arguments.get("payload_digest").and_then(Value::as_str) {
+            if payload_digest != json_digest(&action.arguments) {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "human_action_payload_digest_mismatch",
+                ));
+            }
+        }
+        if let Some(expected_revision) = arguments.get("expected_revision").and_then(Value::as_u64)
+        {
+            let authoritative_revision = action
+                .arguments
+                .get("expected_revision")
+                .and_then(Value::as_u64)
+                .or_else(|| {
+                    action
+                        .arguments
+                        .get("expected_version")
+                        .and_then(Value::as_u64)
+                })
+                .or_else(|| item.detail.get("company_revision").and_then(Value::as_u64));
+            if authoritative_revision != Some(expected_revision) {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "human_action_revision_mismatch",
+                ));
+            }
+        }
         let mut resolved = action.arguments.clone();
         if let Some(extra) = arguments["fields"].as_object() {
             for (key, value) in extra {

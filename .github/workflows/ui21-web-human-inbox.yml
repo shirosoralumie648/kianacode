@@ -1,0 +1,62 @@
+name: UI-21 Web Human Inbox and approval action cards
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_inbox.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_inbox.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json"
+      - "kiana-entrypoints/tests/ui21_web_human_inbox.rs"
+      - "kiana-entrypoints/tests/ui21_web_human_inbox_guard.rs"
+      - "docs/roadmap/ui21-web-human-inbox-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui21-web-human-inbox.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_inbox.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_inbox.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json"
+      - "kiana-entrypoints/tests/ui21_web_human_inbox.rs"
+      - "kiana-entrypoints/tests/ui21_web_human_inbox_guard.rs"
+      - "docs/roadmap/ui21-web-human-inbox-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui21-web-human-inbox.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui21-web-human-inbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-21 Human Inbox contract fixture
+        run: cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked -- --test-threads=1
+      - name: Run UI-21 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked -- --test-threads=1
+      - name: Run UI-21 ControlPlane payload/revision guard
+        run: cargo test -p kiana-core --test ui21_human_inbox_guard --locked -- --test-threads=1
+      - name: Compile UI-21 workspace test targets
+        run: cargo check --workspace --tests --locked
