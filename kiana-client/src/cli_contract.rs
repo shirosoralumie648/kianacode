@@ -217,6 +217,9 @@ pub struct CliOutput {
     pub payload: Value,
     #[serde(default)]
     pub error: Option<String>,
+    /// Non-fatal diagnostics are part of the DTO but are routed to stderr by the presenter.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 impl CliOutput {
@@ -234,7 +237,14 @@ impl CliOutput {
             status,
             payload,
             error,
+            warnings: Vec::new(),
         }
+    }
+
+    /// Attach bounded, non-fatal diagnostics without changing command identity or payload.
+    pub fn with_warnings(mut self, warnings: impl IntoIterator<Item = String>) -> Self {
+        self.warnings = warnings.into_iter().collect();
+        self
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -250,9 +260,22 @@ impl CliOutput {
             return Err("cli_json_ansi_forbidden".to_owned());
         }
         if self.error.as_deref().is_some_and(|value| {
-            value.trim().is_empty() || value.len() > 512 || contains_secret_text(value)
+            value.trim().is_empty()
+                || value.len() > 512
+                || contains_secret_text(value)
+                || (self.mode == CliOutputMode::Json && value.contains('\u{1b}'))
         }) {
             return Err("cli_output_error_invalid".to_owned());
+        }
+        if self.warnings.len() > 32
+            || self.warnings.iter().any(|warning| {
+                warning.trim().is_empty()
+                    || warning.len() > 512
+                    || contains_secret_text(warning)
+                    || (self.mode == CliOutputMode::Json && warning.contains('\u{1b}'))
+            })
+        {
+            return Err("cli_output_warning_invalid".to_owned());
         }
         Ok(())
     }

@@ -1,0 +1,50 @@
+name: UI-11 CLI JSON TTY presenter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/cli_contract.rs"
+      - "kiana-client/src/cli_presenter.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui11_cli_presenter.rs"
+      - "kiana-entrypoints/tests/ui11_cli_presenter_guard.rs"
+      - "USER.md"
+      - "docs/roadmap/ui11-cli-presenter-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui11-cli-presenter.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/cli_contract.rs"
+      - "kiana-client/src/cli_presenter.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui11_cli_presenter.rs"
+      - "kiana-entrypoints/tests/ui11_cli_presenter_guard.rs"
+      - "USER.md"
+      - "docs/roadmap/ui11-cli-presenter-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui11-cli-presenter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui11-cli-presenter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-11 presenter fixtures
+        run: cargo test -p kiana-client --test ui11_cli_presenter --locked -- --test-threads=1
+      - name: Run UI-11 presenter boundary guard
+        run: cargo test -p kiana-entrypoints --test ui11_cli_presenter_guard --locked -- --test-threads=1
+      - name: Compile UI-11 workspace test targets
+        run: cargo check --workspace --tests --locked

@@ -297,13 +297,18 @@ UiActionResult {
 
 
 
-#### UI-11 · CLI JSON/TTY/exit code presenter　⏳
+#### UI-11 · CLI JSON/TTY/exit code presenter　🔄
 
 - 依赖：UI-02/10。代码：CLI presenter、稳定 exit code 和 stderr/stdout 分流。
 - 步骤：JSON 输出只写 schema DTO；TTY 输出可读但不成为事实；错误/警告/receipt 分流；Unknown、Cancelled、PolicyDenied 各有稳定 code。
 - 先拒绝：JSON 中混 ANSI、stdout 打日志破坏管道、Unknown 返回 0、结构化 error 被字符串吞掉、超长 artifact 无界打印。
 - 成功/回归：pipe/no-TTY、locale、SIGINT、broken pipe、分页、输出上限和 shell exit-code 测试；相同 action 在 Web/CLI 结果一致。
 - 完成产物：golden outputs、exit-code 表和 `--json/--quiet` 文档。
+
+已接入 `kiana-client::present_cli_output`、稳定 lifecycle/signal exit-code 表、JSON/TTY/quiet
+stdout/stderr 分流、locale/pagination/no-TTY fences、warning/error bounds，以及 GitHub-only
+deny-first fixtures/source guard；见 [UI-11 baseline](ui11-cli-presenter-baseline.md)。证明等级为
+`source`，CI 结果未等待。
 
 <a id="step-ui-12"></a>
 

@@ -85,6 +85,11 @@ export OPENAI_MODEL=gpt-4.1
 产品路径是 `DaemonHost`，不是 parked 的 `kiana tui`。进目录就能干活；GUI 只负责选文件夹。
 TTY 是对话区 + 输入框 + 状态行。模型增量会逐块渲染；`--json` 仍是脚本/cassette 路径。
 
+CLI 输出约定：`--json` 在成功时只向 stdout 写一个 `kiana.cli-output.v1` JSON DTO，结构化
+错误写 stderr；`--quiet` 不写 stdout，警告和错误仍写 stderr。服务端返回的
+`result_unknown`、取消和策略拒绝分别使用稳定退出码 8、130、3；SIGINT 为 130，broken pipe
+为 141。TTY 文本是可丢弃的展示视图，有界且不会替代 receipt/EventLog 事实。
+
 ```bash
 # 文件管理器：在项目目录打开终端，然后
 kiana trust .

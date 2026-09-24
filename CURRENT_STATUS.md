@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-11 CLI JSON/TTY/exit-code presenter（2026-09-24）
+
+source_snapshot: `566b7db4` plus UI-11 source slice; `kiana-client/src/cli_contract.rs`; `kiana-client/src/cli_presenter.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui11_cli_presenter.rs`; `kiana-entrypoints/tests/ui11_cli_presenter_guard.rs`; `.github/workflows/ui11-cli-presenter.yml`; `USER.md`; `docs/roadmap/ui11-cli-presenter-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui11`；新增纯 `present_cli_output` presenter、lifecycle/signal 稳定 exit code、JSON/TTY/quiet stdout/stderr 分流、locale/pagination/no-TTY/output bounds 与 warning/error redaction；presenter 只消费 UI-10 `CliOutput`，未拆冻结的 `kiana-entrypoints/src/cli.rs`，未触碰无关 WIP
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui11_cli_presenter --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui11_cli_presenter_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: lifecycle exit table、Unknown/Cancelled/PolicyDenied、JSON pipe/no-TTY、structured stderr errors、locale/pagination、SIGINT/broken pipe、quiet mode、bounded artifact、ANSI/secret/oversized warning deny、entrypoint source guard；无 daemon/provider/live effect
+exit_code: 本地仅静态审阅与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: UI-11 CLI JSON/TTY/exit-code presenter source contract 与 GitHub-only fixtures 已接入，roadmap row 427/card 状态由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（pure presenter + source contracts + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: OS signal/write/broken-pipe 处理仍由调用 adapter 负责；未迁移冻结 `cli.rs` 的所有 legacy 分支；未证明跨进程 protocol、server authorization、durable session recovery、Web parity、provider/live timing 或 physical proof；exit code 只反映服务端 response 分类，receipt 事实仍由 EventLog/ControlPlane 提供
+reviewer: Codex UI-11 source review；检查 JSON schema DTO-only、stderr/stdout 隔离、Unknown 非零、Cancelled/PolicyDenied 稳定 code、TTY/pager/no-TTY fence、有界渲染、warning/error redaction 和无第二执行循环；无本地 runtime test reviewer
+
 ### UI-10 CLI 命令和输出归一化（2026-09-24）
 
 source_snapshot: `2c21ef57`（最新 `origin/master`，提交后绑定本提交）；`kiana-client/src/cli_contract.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui10_cli_contract.rs`; `kiana-entrypoints/tests/ui10_cli_boundary_guard.rs`; `.github/workflows/ui10-cli-contract.yml`; `docs/roadmap/ui10-cli-contract-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

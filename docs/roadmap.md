@@ -597,7 +597,7 @@
 | 424 | W6 | 专项 | [`UI-08`](roadmap/ui-entrypoints.md#step-ui-08) | UI / Entrypoints · 共享 reducer/entity store | `UI-05`、`UI-06`、`UI-07` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-08) |
 | 425 | W6 | 专项 | [`UI-09`](roadmap/ui-entrypoints.md#step-ui-09) | UI / Entrypoints · schema 资产、生成和兼容门 | `UI-01`、`UI-07`、`UI-08` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-09) |
 | 426 | W6 | 专项 | [`UI-10`](roadmap/ui-entrypoints.md#step-ui-10) | UI / Entrypoints · CLI 命令和输出归一化 | `UI-07`、`UI-08`、`UI-09` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-10) · [baseline](roadmap/ui10-cli-contract-baseline.md) |
-| 427 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) |
+| 427 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) · [baseline](roadmap/ui11-cli-presenter-baseline.md) |
 | 428 | W6 | 专项 | [`UI-12`](roadmap/ui-entrypoints.md#step-ui-12) | UI / Entrypoints · TTY 输入状态机 | `UI-08`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-12) |
 | 429 | W6 | 专项 | [`UI-13`](roadmap/ui-entrypoints.md#step-ui-13) | UI / Entrypoints · Workbench 时间线与结果渲染 | `UI-06`、`UI-08`、`UI-12` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-13) |
 | 430 | W6 | 专项 | [`UI-14`](roadmap/ui-entrypoints.md#step-ui-14) | UI / Entrypoints · Workbench controller 与命令面板 | `UI-07`、`UI-08`、`UI-10`、`UI-11`、`UI-12`、`UI-13` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-14) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-24 | `UI-11` CLI JSON/TTY/exit-code presenter source slice：新增纯 presenter、稳定 lifecycle/signal exit code、JSON/TTY/quiet stdout/stderr 分流、locale/pagination/no-TTY/output bounds、warning/error redaction、client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `UI-10` CLI 命令和输出归一化源切片：新增十个 canonical command ID 与 legacy alias、workspace/session/TTY/retry/argument fence、JSON/TTY/quiet output contract、secret/ANSI/size 校验；新增 client fixtures、entrypoint source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `P4-J7-25` Provider 容量/熔断/fallback 源切片：连接别名按 provider/origin/credential 共享有界 waiter、semaphore 与 breaker；队列溢出在网络前拒绝，取消释放槽位；typed transport/rejection 才记录熔断；fallback 重新校验 capability/data/budget digest；新增 domain/provider guards、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `P4-J7-24` Provider 用量/价格快照/预算结算源切片：新增 attempt/run/route/model 绑定的 `ProviderUsageSettlement`、unknown/estimated/measured 成本分层、RateCard 版本与 ProviderReceipt 引用、attempt-local 幂等 ledger；Provider adapter 将缺失用量保留为 unknown 且不授予预算或写 EventLog；新增 domain/Core fixtures、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
