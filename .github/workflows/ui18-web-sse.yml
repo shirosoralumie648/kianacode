@@ -1,0 +1,48 @@
+name: UI-18 Web SSE reconnect and gap
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui18-web-sse.json"
+      - "kiana-entrypoints/tests/ui18_web_sse.rs"
+      - "kiana-entrypoints/tests/ui18_web_sse_guard.rs"
+      - "docs/roadmap/ui18-web-sse-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui18-web-sse.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/tests/fixtures/ui18-web-sse.json"
+      - "kiana-entrypoints/tests/ui18_web_sse.rs"
+      - "kiana-entrypoints/tests/ui18_web_sse_guard.rs"
+      - "docs/roadmap/ui18-web-sse-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui18-web-sse.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui18-web-sse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-18 SSE contract fixture
+        run: cargo test -p kiana-entrypoints --test ui18_web_sse --locked -- --test-threads=1
+      - name: Run UI-18 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui18_web_sse_guard --locked -- --test-threads=1
+      - name: Compile UI-18 workspace test targets
+        run: cargo check --workspace --tests --locked

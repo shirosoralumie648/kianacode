@@ -1,0 +1,43 @@
+{
+  "schema": "kiana.web-sse.v1",
+  "transport": "sse",
+  "event_fields": ["id", "event", "schema", "epoch", "sequence"],
+  "last_event_id": {
+    "header": "Last-Event-ID",
+    "query_fallback": "last_event_id",
+    "max_bytes": 256,
+    "conflict": "stream_cursor_conflict"
+  },
+  "limits": {
+    "frame_bytes": 262144,
+    "browser_text_bytes": 262144,
+    "reconnect_max_attempts": 6,
+    "reconnect_backoff_ms": [250, 8000],
+    "browser_buffer": "bounded_stream_projection"
+  },
+  "events": ["delta", "usage", "tool_call", "approval_requested", "runtime_error", "heartbeat", "stream_gap", "stream_error", "terminal"],
+  "lifecycle": ["listener_before_command", "last_event_id_resume", "heartbeat", "bounded_backoff", "gap_to_hydrate", "terminal_to_receipt"],
+  "deny_first": [
+    "duplicate_sequence",
+    "sequence_gap",
+    "old_epoch",
+    "cursor_conflict",
+    "oversized_frame",
+    "sse_token_in_payload_or_log",
+    "reconnect_resubmits_command",
+    "terminal_then_delta"
+  ],
+  "source_boundary": {
+    "authority": "DaemonHost.ControlPlane",
+    "mode": "read_only_display_projection",
+    "gap_action": "snapshot_hydrate",
+    "command_retry": "never"
+  },
+  "limitations": [
+    "sse_cursor_and_reconnect_state_are_process_local",
+    "eventsource_delivery_is_best_effort",
+    "terminal_and_receipt_remain_authoritative",
+    "no_durable_cross_process_browser_subscription",
+    "no_live_provider_or_physical_network_proof"
+  ]
+}

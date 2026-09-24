@@ -78,6 +78,17 @@ const MAX_WEB_HISTORY_PAGE: usize = 64;
 const MAX_WEB_PAGE_CURSORS: usize = 256;
 const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
 const MAX_WEB_TAB_BYTES: usize = 128;
+/// Schema for transport-only SSE control events.  Run deltas retain the versioned
+/// `kiana.protocol.v1` envelope; heartbeat/gap/error frames use this additive wrapper.
+pub const WEB_SSE_SCHEMA: &str = "kiana.web-sse.v1";
+/// SSE is a disposable display projection.  Keep each encoded frame bounded even when a
+/// provider or a malformed cassette attempts to send an unexpectedly large delta.
+pub const MAX_WEB_SSE_EVENT_BYTES: usize = 256 * 1024;
+const MAX_WEB_SSE_REASON_BYTES: usize = 512;
+/// The browser supplies a Last-Event-ID header on a native reconnect.  The query fallback is
+/// needed for the loopback EventSource wrapper, but both forms must agree when both are present.
+const MAX_WEB_SSE_CURSOR_BYTES: usize = 256;
+const WEB_SSE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 
 /// The stable route inventory used by the Web entrypoint and its source/CI guards.
 ///
@@ -1527,6 +1538,7 @@ struct EventStreamState {
     gap: Option<Event>,
     done: bool,
     shutdown: tokio::sync::watch::Receiver<bool>,
+    last_cursor: UiCursor,
 }
 
 struct StreamAttachState {
@@ -1539,6 +1551,8 @@ async fn events(
     headers: HeaderMap,
     Query(query): Query<EventsQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>> + Send + 'static>, ApiError> {
+    // The token is consumed only by authorize_sse.  It is never copied into an SSE id/data
+    // frame, a server log, or a reconnect cursor; EventSource's query fallback is auth-only.
     authorize_sse(&app, &headers, query.token.as_deref())?;
     let session_id = resolve_mutable_session(&app, query.session_id.as_deref()).await?;
     let attach = stream_attach_state(&app, &session_id)?;
@@ -1546,13 +1560,30 @@ async fn events(
     // EventSource.onopen before issuing /api/run, so the first delta is not lost.
     let after = stream_cursor_from_request(&headers, query.last_event_id.as_deref())?;
     let subscription = app.host.subscribe_run_after(attach.run_id, after.as_ref());
+    let initial_cursor = after
+        .clone()
+        .unwrap_or_else(|| subscription.cursor().clone());
+    let gap_cursor = app.host.run_stream_cursor(attach.run_id);
     let gap = if subscription.has_gap() || (after.is_none() && attach.gap_reason.is_some()) {
-        Some(stream_gap_sse_event(
+        let reason = if after.is_none() {
+            attach
+                .gap_reason
+                .unwrap_or("snapshot_required_after_stream_gap")
+        } else {
+            "snapshot_required_after_stream_gap"
+        };
+        Some(stream_gap_sse_event_with_cursor(
             attach.run_id,
-            "snapshot_required_after_stream_gap",
+            reason,
+            &gap_cursor,
         ))
     } else {
         None
+    };
+    let initial_cursor = if gap.is_some() {
+        gap_cursor.clone()
+    } else {
+        initial_cursor
     };
     let stream = stream::unfold(
         EventStreamState {
@@ -1560,6 +1591,7 @@ async fn events(
             gap,
             done: false,
             shutdown: app.shutdown.subscribe(),
+            last_cursor: initial_cursor,
         },
         |mut state| async move {
             if state.done {
@@ -1573,7 +1605,10 @@ async fn events(
                     biased;
                     _ = state.shutdown.changed() => {
                         state.done = true;
-                        return Some((Ok(stream_error_sse_event("web_shutdown")), state));
+                        return Some((Ok(stream_error_sse_event_with_cursor("web_shutdown", &state.last_cursor)), state));
+                    }
+                    _ = tokio::time::sleep(WEB_SSE_HEARTBEAT_INTERVAL) => {
+                        return Some((Ok(stream_heartbeat_sse_event(&state.last_cursor)), state));
                     }
                     received = state.subscription.recv() => received,
                 };
@@ -1590,22 +1625,30 @@ async fn events(
                             RunStreamEvent::Error { .. } => ("runtime_error", false),
                             RunStreamEvent::Unknown => continue,
                         };
+                        state.last_cursor = UiCursor {
+                            epoch: envelope.epoch.clone(),
+                            sequence: envelope.sequence,
+                        };
                         state.done = terminal;
                         return Some((Ok(run_stream_sse_event(name, &envelope)), state));
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                         state.done = true;
                         return Some((
-                            Ok(stream_error_sse_event(&format!(
-                                "stream_subscription_lagged:{skipped}"
-                            ))),
+                            Ok(stream_error_sse_event_with_cursor(
+                                &format!("stream_subscription_lagged:{skipped}"),
+                                &state.last_cursor,
+                            )),
                             state,
                         ));
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         state.done = true;
                         return Some((
-                            Ok(stream_error_sse_event("stream_closed_before_terminal")),
+                            Ok(stream_error_sse_event_with_cursor(
+                                "stream_closed_before_terminal",
+                                &state.last_cursor,
+                            )),
                             state,
                         ));
                     }
@@ -1666,20 +1709,33 @@ fn stream_cursor_from_request(
     headers: &HeaderMap,
     query: Option<&str>,
 ) -> Result<Option<UiCursor>, ApiError> {
-    let raw = headers
+    let header = headers
         .get("last-event-id")
         .and_then(|value| value.to_str().ok())
-        .or(query);
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let query = query.map(str::trim).filter(|value| !value.is_empty());
+    if header.is_some() && query.is_some() && header != query {
+        return Err(ApiError::bad("stream_cursor_conflict"));
+    }
+    let raw = header.or(query);
     let Some(raw) = raw else {
         return Ok(None);
     };
-    if raw.len() > 128 {
+    if raw.len() > MAX_WEB_SSE_CURSOR_BYTES
+        || raw.chars().filter(|character| *character == ':').count() != 1
+    {
         return Err(ApiError::bad("stream_cursor_invalid"));
     }
     let (epoch, sequence) = raw
         .rsplit_once(':')
         .ok_or_else(|| ApiError::bad("stream_cursor_invalid"))?;
-    if epoch.is_empty() {
+    if epoch.is_empty()
+        || epoch.len() > 128
+        || epoch
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+    {
         return Err(ApiError::bad("stream_cursor_invalid"));
     }
     Ok(Some(UiCursor {
@@ -1691,9 +1747,7 @@ fn stream_cursor_from_request(
 }
 
 fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
-    let data = serde_json::to_string(envelope).unwrap_or_else(|error| {
-        json!({ "error": format!("stream_serialize_failed:{error}") }).to_string()
-    });
+    let data = bounded_sse_data(serde_json::to_string(envelope), "stream_serialize_failed");
     Event::default()
         .id(format!("{}:{}", envelope.epoch, envelope.sequence))
         .event(name)
@@ -1701,19 +1755,85 @@ fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
 }
 
 fn stream_gap_sse_event(run_id: RunId, reason: &str) -> Event {
-    Event::default().event("stream_gap").data(
+    stream_gap_sse_event_with_cursor(run_id, reason, &UiCursor::default())
+}
+
+fn stream_error_sse_event(error: &str) -> Event {
+    stream_error_sse_event_with_cursor(error, &UiCursor::default())
+}
+
+fn stream_gap_sse_event_with_cursor(run_id: RunId, reason: &str, cursor: &UiCursor) -> Event {
+    let id = stream_event_id(cursor);
+    let reason = bounded_sse_reason(reason);
+    Event::default().id(id).event("stream_gap").data(
         json!({
+            "schema": WEB_SSE_SCHEMA,
+            "epoch": cursor.epoch.clone(),
+            "sequence": cursor.sequence,
             "run_id": run_id.to_string(),
             "reason": reason,
+            "snapshot_required": true,
+            "hydrate": true,
         })
         .to_string(),
     )
 }
 
-fn stream_error_sse_event(error: &str) -> Event {
+fn stream_error_sse_event_with_cursor(error: &str, cursor: &UiCursor) -> Event {
+    let error = bounded_sse_reason(error);
     Event::default()
+        .id(stream_event_id(cursor))
         .event("stream_error")
-        .data(json!({ "error": error }).to_string())
+        .data(
+            json!({
+                "schema": WEB_SSE_SCHEMA,
+                "epoch": cursor.epoch.clone(),
+                "sequence": cursor.sequence,
+                "error": error,
+                "hydrate": true,
+            })
+            .to_string(),
+        )
+}
+
+fn bounded_sse_reason(value: &str) -> String {
+    value.chars().take(MAX_WEB_SSE_REASON_BYTES).collect()
+}
+
+fn stream_heartbeat_sse_event(cursor: &UiCursor) -> Event {
+    Event::default()
+        .id(stream_event_id(cursor))
+        .event("heartbeat")
+        .data(
+            json!({
+                "schema": WEB_SSE_SCHEMA,
+                "epoch": cursor.epoch.clone(),
+                "sequence": cursor.sequence,
+                "kind": "heartbeat",
+            })
+            .to_string(),
+        )
+}
+
+fn stream_event_id(cursor: &UiCursor) -> String {
+    if cursor.epoch.is_empty() {
+        "0:0".to_owned()
+    } else {
+        format!("{}:{}", cursor.epoch, cursor.sequence)
+    }
+}
+
+fn bounded_sse_data(serialized: Result<String, serde_json::Error>, error_prefix: &str) -> String {
+    match serialized {
+        Ok(data) if data.len() <= MAX_WEB_SSE_EVENT_BYTES => data,
+        Ok(_) => json!({
+            "schema": WEB_SSE_SCHEMA,
+            "error": "stream_payload_too_large",
+            "hydrate": true,
+        })
+        .to_string(),
+        Err(error) => json!({ "schema": WEB_SSE_SCHEMA, "error": format!("{error_prefix}:{error}"), "hydrate": true }).to_string(),
+    }
 }
 
 async fn run_turn(

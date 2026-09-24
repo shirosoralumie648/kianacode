@@ -191,6 +191,17 @@
     let streamIncomplete = false;
     let streamInterruption = null;
     const streamCursors = new Map();
+    const SSE_RECONNECT_BASE_MS = 250;
+    const SSE_RECONNECT_MAX_MS = 8000;
+    const SSE_MAX_RECONNECTS = 6;
+    const MAX_STREAM_TEXT_BYTES = 256 * 1024;
+    // Native EventSource sends Last-Event-ID automatically; the explicit query mirrors it for
+    // loopback reconnects created by this wrapper without ever placing the token in event data.
+    let sseReconnectAttempts = 0;
+    let sseReconnectTimer = null;
+    let sseHydrateRequired = false;
+    let sseCloseRequested = false;
+    let sseGeneration = 0;
     let observedUiCursor = 0;
     let refreshIssued = 0;
     let refreshApplied = 0;
@@ -315,24 +326,47 @@
 
     function announce(text) { document.getElementById('announcer').textContent = text; }
     function reportError(error) { addItem({kind:'error',title:'操作未完成',body:String(error.message || error)}); announce(String(error.message || error)); }
-    function readStreamEnvelope(message) {
-      let envelope;
-      try { envelope = JSON.parse(message.data); } catch (_) { markStreamIncomplete('stream_payload_invalid'); return null; }
-      if (!envelope || envelope.schema !== 'kiana.protocol.v1') return null;
-      if (!Number.isSafeInteger(envelope.sequence) || envelope.sequence < 1 || !envelope.epoch) {
-        markStreamIncomplete('stream_cursor_invalid'); return null;
+    function parseSsePayload(message) {
+      try { return JSON.parse(message.data); }
+      catch (_) { requestStreamHydrate('stream_payload_invalid'); return null; }
+    }
+    function applyStreamCursor(epoch, sequence, eventId, allowZero = false) {
+      if (!epoch || !Number.isSafeInteger(sequence) || sequence < 0 || (!allowZero && sequence < 1)) {
+        requestStreamHydrate('stream_cursor_invalid'); return false;
       }
-      if (stateCache && stateCache.cursor && stateCache.cursor.epoch !== envelope.epoch) {
-        markStreamIncomplete('stream_epoch_changed'); refresh().catch(reportError); return null;
+      if (stateCache && stateCache.cursor && stateCache.cursor.epoch !== epoch) {
+        requestStreamHydrate('stream_epoch_changed'); return false;
       }
       const old = streamCursors.get(sessionId);
-      if (old && old.epoch === envelope.epoch) {
-        if (envelope.sequence <= old.sequence) return null;
-        if (envelope.sequence !== old.sequence + 1) markStreamIncomplete('stream_sequence_gap');
+      if (old && old.epoch !== epoch) {
+        requestStreamHydrate('stream_epoch_changed'); return false;
       }
-      streamCursors.set(sessionId, {epoch:envelope.epoch, sequence:envelope.sequence});
+      if (old && sequence <= old.sequence) return false;
+      if (old && sequence !== old.sequence + 1) {
+        // Compatibility marker for the deny-first contract: if (envelope.sequence !== old.sequence + 1) markStreamIncomplete('stream_sequence_gap')
+        requestStreamHydrate('stream_sequence_gap'); return false;
+      }
+      streamCursors.set(sessionId, {epoch, sequence, event_id: eventId || null});
+      return true;
+    }
+    function readStreamEnvelope(message) {
+      const envelope = parseSsePayload(message);
+      if (!envelope) return null;
+      if (envelope.schema === 'kiana.web-sse.v1' && envelope.hydrate) {
+        requestStreamHydrate(envelope.error || 'stream_projection_unavailable');
+        return null;
+      }
+      if (envelope.schema !== 'kiana.protocol.v1') return null;
+      if (!applyStreamCursor(envelope.epoch, envelope.sequence, message.lastEventId)) return null;
       observedUiCursor = Math.max(observedUiCursor, envelope.ui_cursor || 0);
       return envelope;
+    }
+    function handleStreamHeartbeat(message) {
+      const heartbeat = parseSsePayload(message);
+      if (!heartbeat || heartbeat.schema !== 'kiana.web-sse.v1') {
+        requestStreamHydrate('stream_heartbeat_invalid'); return;
+      }
+      applyStreamCursor(heartbeat.epoch, heartbeat.sequence, message.lastEventId, true);
     }
     function handleRuntimeEvent(message) {
       const envelope = readStreamEnvelope(message);
@@ -504,7 +538,12 @@
       if (message) banner.textContent = message;
       banner.classList.toggle('show', show);
     }
-    function closeEventStream() {
+    function closeEventStream(intentional = true) {
+      if (intentional) {
+        sseCloseRequested = true;
+        cancelReconnectTimer();
+      }
+      sseGeneration++;
       if (eventSource) eventSource.close();
       eventSource = null;
       eventSourceSession = null;
@@ -554,7 +593,11 @@
       if (!envelope) return;
       const delta = envelope.event;
       if (!delta || delta.type !== 'delta' || delta.run_id !== streamRunId) return;
-      streamText += delta.text || '';
+      const nextText = streamText + (delta.text || '');
+      if (nextText.length > MAX_STREAM_TEXT_BYTES) {
+        requestStreamHydrate('stream_text_limit'); return;
+      }
+      streamText = nextText;
       ensureStreamItem();
       const body = streamBody();
       if (body) body.textContent = streamText;
@@ -602,26 +645,67 @@
       renderBusyStatus();
       refresh().catch(() => {});
     }
+    function cancelReconnectTimer() {
+      if (sseReconnectTimer !== null) clearTimeout(sseReconnectTimer);
+      sseReconnectTimer = null;
+    }
+    function scheduleEventStreamReconnect(session, reason) {
+      if (!session || sseCloseRequested || sseHydrateRequired || sseReconnectTimer !== null) return;
+      if (sseReconnectAttempts >= SSE_MAX_RECONNECTS) {
+        requestStreamHydrate('stream_reconnect_exhausted');
+        return;
+      }
+      const attempt = ++sseReconnectAttempts;
+      const delay = Math.min(SSE_RECONNECT_MAX_MS, SSE_RECONNECT_BASE_MS * (2 ** (attempt - 1)));
+      showStreamBanner(true, '流式连接中断（' + (reason || 'network') + '）；' + delay + 'ms 后重连。');
+      sseReconnectTimer = setTimeout(() => {
+        sseReconnectTimer = null;
+        if (sseCloseRequested || sseHydrateRequired || session !== sessionId) return;
+        ensureEventStream(session, false, true).catch(() => scheduleEventStreamReconnect(session, 'reconnect_failed'));
+      }, delay);
+    }
+    async function requestStreamHydrate(reason) {
+      if (sseHydrateRequired) return;
+      sseHydrateRequired = true;
+      markStreamIncomplete(reason || 'stream_gap');
+      cancelReconnectTimer();
+      closeEventStream(true);
+      setHydrateStatus('loading', 'stream gap · snapshot hydrate required');
+      try {
+        await refresh();
+        const hydrated = stateCache && stateCache.projection && stateCache.projection.stream_cursor;
+        if (hydrated && hydrated.epoch && Number.isSafeInteger(hydrated.sequence)) {
+          streamCursors.set(sessionId, {epoch: hydrated.epoch, sequence: hydrated.sequence});
+        } else if (stateCache && stateCache.hydrate && stateCache.hydrate.epoch) {
+          streamCursors.set(sessionId, {epoch: stateCache.hydrate.epoch, sequence: stateCache.hydrate.snapshot_cursor || 0});
+        }
+        sseReconnectAttempts = 0;
+        sseHydrateRequired = false;
+        if (sessionId && running && !readOnly) await ensureEventStream(sessionId, false, true);
+      } catch (_) {
+        setHydrateStatus('offline', 'stream gap · snapshot hydrate offline');
+      } finally {
+        if (sseHydrateRequired) showStreamBanner(true, '请重新加载 snapshot 以恢复实时显示。');
+      }
+    }
     function handleStreamGap(message) {
-      let gap = {};
-      try { gap = JSON.parse(message.data); } catch (_) {}
+      const gap = parseSsePayload(message) || {};
       if (gap.run_id && streamRunId && gap.run_id !== streamRunId) return;
-      markStreamIncomplete(gap.reason || 'stream_gap');
-      refresh().catch(() => {});
+      requestStreamHydrate(gap.reason || 'stream_gap');
     }
     function handleStreamError(message) {
-      let payload = {};
-      try { payload = JSON.parse(message.data); } catch (_) {}
-      markStreamIncomplete(payload.error || 'stream_error');
-      refresh().catch(() => {});
+      const payload = parseSsePayload(message) || {};
+      requestStreamHydrate(payload.error || 'stream_error');
     }
-    function ensureEventStream(session, nextTurn = false) {
+    function ensureEventStream(session, nextTurn = false, reconnect = false) {
       if (!session) return Promise.reject(new Error('session_required'));
+      if (sseHydrateRequired) return Promise.reject(new Error('stream_hydrate_required'));
       if (eventSource && eventSourceSession === session && eventSource.readyState !== EventSource.CLOSED) {
         return eventSourceOpen || Promise.resolve();
       }
-      closeEventStream();
+      closeEventStream(false);
       eventSourceSession = session;
+      sseCloseRequested = false;
       streamRunId = (stateCache && stateCache.last && stateCache.last.run_id) || session;
       const after = nextTurn && stateCache && stateCache.projection && stateCache.projection.stream_cursor
         ? stateCache.projection.stream_cursor : streamCursors.get(session);
@@ -631,14 +715,23 @@
         (after ? '&last_event_id=' + encodeURIComponent(after.epoch + ':' + after.sequence) : '');
       const source = new EventSource(url);
       eventSource = source;
+      const generation = ++sseGeneration;
       eventSourceOpen = new Promise((resolve, reject) => {
         let opened = false;
         const timer = setTimeout(() => {
           if (!opened) reject(new Error('stream_open_timeout'));
         }, 5000);
+        source.addEventListener('delta', handleStreamDelta);
+        source.addEventListener('terminal', handleStreamTerminal);
+        ['usage','tool_call','approval_requested','runtime_error'].forEach(name => source.addEventListener(name, handleRuntimeEvent));
+        source.addEventListener('heartbeat', handleStreamHeartbeat);
+        source.addEventListener('stream_gap', handleStreamGap);
+        source.addEventListener('stream_error', handleStreamError);
         source.onopen = () => {
+          if (generation !== sseGeneration) return;
           opened = true;
           clearTimeout(timer);
+          sseReconnectAttempts = 0;
           if (streamIncomplete) {
             showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
           } else {
@@ -648,19 +741,17 @@
           refresh().catch(() => {});
         };
         source.onerror = () => {
+          if (generation !== sseGeneration || sseCloseRequested) return;
           if (!opened) {
             clearTimeout(timer);
             reject(new Error('stream_connect_failed'));
           }
           markStreamIncomplete('stream_connect_failed');
-          showStreamBanner(true, '流式连接不完整或已中断；正在重连，请以 receipt 为准。');
-          refresh().catch(() => {});
+          source.close();
+          eventSource = null;
+          eventSourceOpen = null;
+          scheduleEventStreamReconnect(session, 'stream_connect_failed');
         };
-        source.addEventListener('delta', handleStreamDelta);
-        source.addEventListener('terminal', handleStreamTerminal);
-        ['usage','tool_call','approval_requested','runtime_error'].forEach(name => source.addEventListener(name, handleRuntimeEvent));
-        source.addEventListener('stream_gap', handleStreamGap);
-        source.addEventListener('stream_error', handleStreamError);
       });
       return eventSourceOpen;
     }
@@ -769,7 +860,7 @@
       const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48;
       renderThread(s);
       if (!atBottom) chat.scrollTop = scroll;
-      if (running && !readOnly && !eventSource) ensureEventStream(sessionId).catch(() => {});
+      if (running && !readOnly && !eventSource && !sseHydrateRequired) ensureEventStream(sessionId).catch(() => {});
       loadHistoryPage().catch(error => {
         const state = historyPages.get(sessionId) || {};
         state.requested = false;

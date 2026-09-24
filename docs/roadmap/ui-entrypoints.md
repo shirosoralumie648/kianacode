@@ -421,13 +421,18 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 
 
 
-#### UI-18 · Web SSE reconnect、Last-Event-ID 和 gap　⏳
+#### UI-18 · Web SSE reconnect、Last-Event-ID 和 gap　🔄
 
 - 依赖：UI-06/16/17。代码：SSE handler、EventSource wrapper、feed reducer。
 - 步骤：发出 `id`/event/schema/epoch，读取 Last-Event-ID；心跳、退避、最大重连、terminal/gap 事件；连接 listener 在 resume 前安装。
 - 先拒绝：重复/跳号静默接受、旧 epoch 继续渲染、事件流无限 buffer、SSE token 出现在历史/日志、断线自动重投副作用 command。
 - 成功/回归：网络切断、代理重连、重复 Last-Event-ID、server restart、gap→snapshot、慢 tab、terminal retention。
 - 完成产物：浏览器/HTTP fixture、reconnect state machine、可观测重连指标。
+
+实现基线：[UI-18 Web SSE reconnect, Last-Event-ID and gap](ui18-web-sse-baseline.md)。当前
+source slice 在既有 loopback `/api/events` 与 `DaemonHost` 只读展示投影上补充 server-owned
+`id`/event/schema/epoch、严格 Last-Event-ID 冲突拒绝、显式 heartbeat、有限退避/最大重连和
+gap→snapshot hydrate；重连路径不会提交 `/api/run`、`/api/cancel` 或其他副作用 command。
 
 <a id="step-ui-19"></a>
 

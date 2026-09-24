@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-18 Web SSE reconnect、Last-Event-ID 和 gap（2026-09-25）
+
+source_snapshot: `5abce647` 加 UI-18 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui18-web-sse.json`; `kiana-entrypoints/tests/ui18_web_sse.rs`; `kiana-entrypoints/tests/ui18_web_sse_guard.rs`; `.github/workflows/ui18-web-sse.yml`; `docs/roadmap/ui18-web-sse-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui18`；既有 `/api/events` 仍经 `DaemonHost` 的只读 RunStream 投影，新增 server-owned SSE id/event/schema/epoch、严格 Last-Event-ID header/query precedence、显式 heartbeat、bounded payload 与浏览器 reconnect state machine
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui18_web_sse --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui18_web_sse_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: SSE metadata/Last-Event-ID conflict/duplicate/sequence gap/old epoch/oversized frame/token leak/reconnect re-submit/terminal fence；gap/error/heartbeat require snapshot hydrate；无 provider/Broker/external effect
+exit_code: 本地仅目标 rustfmt 与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: UI-18 SSE reconnect、Last-Event-ID、heartbeat/backoff、gap→hydrate、deny-first fixture/source guard/baseline/workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web SSE source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: SSE cursor、重连计数和 terminal retention 是 Web/daemon 进程内 bounded projection；真实 HTTP/browser timing、跨进程 durable subscription、live provider、外部效果、receipt correctness 与 physical proof 未证明；gap/incomplete 不代表执行终态，仍需查询 ControlPlane/EventLog Receipt
+reviewer: Codex UI-18 source review；检查 Last-Event-ID header/query conflict、id/event/schema/epoch、bounded payload/heartbeat、duplicate/gap/old epoch deny、有限退避、gap hydrate、listener-before-command、reconnect 无副作用 command 和 token 不进入 SSE payload/log；无本地 runtime test reviewer
+
 ### UI-17 Web snapshot hydrate、历史和分页（2026-09-25）
 
 source_snapshot: `e9e2d4ad` 加 UI-17 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui17-web-hydrate.json`; `kiana-entrypoints/tests/ui17_web_hydrate.rs`; `kiana-entrypoints/tests/ui17_web_hydrate_guard.rs`; `.github/workflows/ui17-web-hydrate.yml`; `docs/roadmap/ui17-web-hydrate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
