@@ -124,7 +124,7 @@ def make_sbom(
             "version": package.get("version") or "0.0.0",
             "scope": "required" if package_id in workspace_members else "optional",
             "licenses": (
-                [{"license": {"name": license_value, "url": license_file}}]
+                [{"license": {"name": license_value}}]
                 if license_file
                 else ([{"expression": license_value}] if license_value != "NOASSERTION" else [{"license": {"name": "NOASSERTION"}}])
             ),
