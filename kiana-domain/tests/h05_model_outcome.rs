@@ -17,6 +17,7 @@ fn length_stop_never_dispatches_tools_or_completes_turn() {
         model_id: None,
         content: Vec::new(),
         continuation: None,
+        structured: None,
     };
     assert_eq!(output.normalized_stop_reason(), ModelStopReason::Length);
     let error = ModelReply::legacy(output).unwrap_err();
@@ -34,6 +35,7 @@ fn refusal_is_not_success() {
         model_id: None,
         content: Vec::new(),
         continuation: None,
+        structured: None,
     };
     assert_eq!(output.normalized_stop_reason(), ModelStopReason::Refusal);
     let error = ModelReply::legacy(output).unwrap_err();

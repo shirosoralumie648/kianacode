@@ -199,6 +199,7 @@ mod tests {
             model_id: Some("test-model".to_owned()),
             content: Vec::new(),
             continuation: None,
+            structured: None,
         };
 
         let encoded = serde_json::to_value(&output).unwrap();
