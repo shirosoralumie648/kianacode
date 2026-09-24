@@ -46,8 +46,8 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
     IdentityMigration, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
-    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent, UiActionCommand,
-    UiActionRecord,
+    project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
+    UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -551,6 +551,21 @@ impl DaemonHost {
             .query_original_ui_action(idempotency_key)
             .await
             .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    /// Project one owner-scoped snapshot from a single EventStore read.  The domain projector
+    /// rejects projection lag, retention-protected pending work, stale page cursors and cross-
+    /// owner sessions; an unsupported or failed source read is never turned into an empty page.
+    pub async fn ui_snapshot_page(
+        &self,
+        query: &UiSnapshotQuery,
+    ) -> Result<UiSnapshotPage, PortError> {
+        query.validate().map_err(PortError::Failed)?;
+        let events = self
+            .persisted_events()
+            .await?
+            .ok_or_else(|| PortError::Failed("ui_snapshot_projection_unknown".to_owned()))?;
+        project_ui_snapshot(&events, query).map_err(PortError::Failed)
     }
 
     /// Build a disposable UI snapshot exclusively from this principal's event facts.

@@ -4,6 +4,20 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-05 原子 snapshot projector 与分页（2026-09-24）
+
+source_snapshot: `312e00b6`（EXT-27 动态可见性源码合并后的 master；EQ-27 evaluator compile fix 与 UI-04 durable action CAS 在祖先）；`kiana-domain/src/ui_snapshot.rs`; `kiana-daemon/src/lib.rs`; `kiana-domain/tests/ui05_snapshot_projector.rs`; `kiana-core/tests/ui05_snapshot_projector_guard.rs`; `.github/workflows/ui05-snapshot-projector.yml`; `docs/roadmap/ui05-snapshot-projector-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-05-snapshot-projector-20260924`；`project_ui_snapshot` 从单次 EventStore 读取生成 owner/session-scoped `UiSnapshotPage`，要求 source cursor 原子一致、projection cursor 追平；stable kind/ID/revision 排序，page cursor 绑定 epoch/source/generation/digest，retention floor 下 pending action、lag/unknown、foreign session fail-closed；DaemonHost `ui_snapshot_page` 只做 query facade，不执行副作用。
+command_argv:
+  GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-domain --test ui05_snapshot_projector --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui05_snapshot_projector_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: UI-05 domain atomic/stable pagination, owner/retention/lag deny fixtures 与 core source guard；无外部 provider/effect
+exit_code: 本地未执行上述测试/构建/检查；GitHub Actions 待触发/未等待
+status change: UI-05 源码与 CI wiring 已提交，roadmap row 421/card 状态为 🔄，等待 GitHub CI 证据
+proof-level change: `feature_status=implemented`（domain projector + daemon facade + remote fixture wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: CI 未观察；未实现 UI-06 feed/replay/backpressure、跨进程 projector worker、notification/artifact delivery、真实 live/physical proof；旧 `ui_snapshot` API 仅保留兼容，新分页 contract 使用 `ui_snapshot_page`
+reviewer: Codex UI-05 source review，覆盖单 cursor 原子读取、stable pagination、epoch/source/generation digest、owner/session、retention pending 与 lag deny；无本地 runtime test reviewer
+
 ### P4-J7-20 protected provider replay source slice (2026-09-24)
 
 source_snapshot: `master` at `fe70dfb4` plus P4-J7-20 source slice; `kiana-domain/src/protected_replay.rs`, `kiana-domain/src/model.rs`, `kiana-provider/src/request.rs`, domain fixtures, core source guard and GitHub workflow

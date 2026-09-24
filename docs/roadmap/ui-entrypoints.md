@@ -219,7 +219,7 @@ UiActionResult {
 
 
 
-#### UI-05 · 原子 snapshot projector 与分页　⏳
+#### UI-05 · 原子 snapshot projector 与分页　🔄
 
 - 依赖：UI-01–04、Event/Receipt §23。代码：`kiana-daemon` projector/query facade。
 - 步骤：从 EventStore 单一 cursor 生成 `UiSnapshot`；为 session/run/action/artifact/receipt 提供稳定排序、分页 cursor、retention 和 limitations；保存 projector health/lag。
