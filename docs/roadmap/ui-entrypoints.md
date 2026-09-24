@@ -207,7 +207,7 @@ UiActionResult {
 
 
 
-#### UI-04 · 动作 CAS、idempotency 与响应丢失　⏳
+#### UI-04 · 动作 CAS、idempotency 与响应丢失　🔄
 
 - 依赖：UI-01–03；串接 Event/Receipt §23。代码：ControlPlane action facade、command journal、payload digest。
 - 步骤：为每个 action 绑定 command ID、idempotency key、target、expected epoch/cursor/revision、owner/scope、deadline；持久化 Accepted/Applied/Rejected/Unknown 及原始 digest。

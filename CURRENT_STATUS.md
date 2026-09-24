@@ -11659,3 +11659,16 @@ status change: documentation and source guard now distinguish operator bind conf
 proof-level change: source/documentation review only; no local_behavior, durable, live or physical promotion
 limitations: source guard assertions have not run; no tests or build were run locally; raw-secret resolution and external connector effects remain deferred
 reviewer: Codex source review of ControlPlane operator/project-trust checks, invoke field allowlist, bind typed validation and risk classification
+### UI-04 动作 CAS、idempotency 与响应丢失（2026-09-24）
+
+source_snapshot: `561066fa`（P4-J7-21 合并后的 master）；`kiana-domain/src/ui_action.rs`; `kiana-core/src/ui_actions.rs`; `kiana-daemon/src/lib.rs`; `kiana-domain/tests/ui04_action_journal.rs`; `kiana-core/tests/ui04_action_journal_guard.rs`; `.github/workflows/ui04-action-cas.yml`; `docs/roadmap/ui04-action-cas-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-04-action-cas-20260924`；UiActionCommand 绑定 command/idempotency/target/owner/scope/epoch/cursor/revision/deadline/payload digest；UiActionJournal 固定 Accepted/Applied/Rejected/Unknown 与 effect_count；ControlPlane facade 以 EventStore `commit_transition` 追加 `ui_action` aggregate，ACK 丢失保持 `result_unknown`，只能按原 key `query_original`；DaemonHost 仅转发 facade，旧 RunStreamBus claim 保留为显示预条件。
+command_argv:
+  GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-domain --test ui04_action_journal --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui04_action_journal_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: UI-04 domain journal deny/replay/Unknown fixture、Core source guard；未调用外部 provider/effect
+exit_code: 本地未执行上述测试/构建/检查；GitHub Actions 待触发/未等待
+status change: UI-04 源码与 CI wiring 已提交，roadmap row 420/card 状态为 🔄，等待 GitHub CI 证据
+proof-level change: `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: CI 未观察；未实现 UI-05 snapshot projector/feed、跨进程 socket/read-state、外部 effect receipt、人工 auth 或真实 live/physical proof；Unknown 只能原 key 查询，禁止换 ID 重做
+reviewer: Codex UI-04 source review，覆盖 deny、owner/scope/CAS、重复 key effect-count、ACK 丢失/Unknown、EventStore 原子边界与无第二执行循环；无本地 runtime test reviewer

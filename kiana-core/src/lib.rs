@@ -63,6 +63,7 @@ mod sessions;
 mod span_projection;
 mod trace_export;
 mod turn_outcome;
+mod ui_actions;
 mod versioning;
 mod workflow_queue;
 mod workspace_checkpoints;
@@ -147,6 +148,7 @@ pub use trace_export::{
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
 };
 pub use turn_outcome::{annotate_output, propose_turn_outcome, TURN_OUTCOME_CORE_SCHEMA};
+pub use ui_actions::UiActionAuthoritySnapshot;
 pub use workflow_queue::{
     project_workflow_queue_ready, validate_workflow_queue_dispatch,
     workflow_queue_requires_recovery, WorkflowQueueReadyView,
