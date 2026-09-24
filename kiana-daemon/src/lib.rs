@@ -24,6 +24,7 @@ mod local_packages;
 mod mcp_connector;
 mod mcp_http;
 mod mcp_stdio;
+mod oauth_accounts;
 mod memory_retrieval;
 mod model_client;
 mod pre_tool_hooks;
@@ -36,6 +37,7 @@ mod workflow_service;
 mod workspace_checkpoints;
 
 pub use authn::LocalAuthnAdapter;
+pub use oauth_accounts::InMemoryOAuthAccountStore;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
 };

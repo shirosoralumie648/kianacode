@@ -16,6 +16,7 @@ use ring::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     future::Future,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -28,6 +29,7 @@ const OAUTH_REFRESH_COOLDOWN_MS: u64 = 1_000;
 const MAX_TOKEN_BYTES: usize = 8 * 1024;
 const MAX_TOKEN_RESPONSE_BYTES: usize = 16 * 1024;
 const MAX_PENDING_FLOWS: usize = 32;
+const MAX_CONSUMED_AUTHORIZATION_CODES: usize = 512;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct OAuthClientConfig {
@@ -56,19 +58,32 @@ impl OAuthClientConfig {
         }
         canonical_endpoint(&self.authorization_endpoint)?;
         canonical_endpoint(&self.token_endpoint)?;
-        let redirect = reqwest::Url::parse(self.redirect_uri.trim())
-            .map_err(|_| OAuthError::Invalid("oauth_redirect_uri_invalid"))?;
-        if !redirect.username().is_empty()
-            || redirect.password().is_some()
-            || redirect.query().is_some()
-            || redirect.fragment().is_some()
-        {
-            return Err(OAuthError::Invalid("oauth_redirect_uri_invalid"));
-        }
+        canonical_redirect_uri(&self.redirect_uri)?;
         canonical_scopes(self.scopes.clone())
             .map_err(|_| OAuthError::Invalid("oauth_scope_invalid"))?;
         Ok(())
     }
+}
+
+fn canonical_redirect_uri(value: &str) -> Result<reqwest::Url, OAuthError> {
+    let redirect = reqwest::Url::parse(value.trim())
+        .map_err(|_| OAuthError::Invalid("oauth_redirect_uri_invalid"))?;
+    let host = redirect
+        .host_str()
+        .ok_or(OAuthError::Invalid("oauth_redirect_uri_invalid"))?;
+    let loopback = host == "localhost"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback());
+    if !redirect.username().is_empty()
+        || redirect.password().is_some()
+        || redirect.query().is_some()
+        || redirect.fragment().is_some()
+        || !(redirect.scheme() == "https" || (redirect.scheme() == "http" && loopback))
+    {
+        return Err(OAuthError::Invalid("oauth_redirect_origin_not_loopback"));
+    }
+    Ok(redirect)
 }
 
 fn canonical_endpoint(value: &str) -> Result<reqwest::Url, OAuthError> {
@@ -190,9 +205,49 @@ struct PendingFlow {
 #[derive(Default)]
 struct OAuthState {
     pending: std::collections::BTreeMap<RequestId, PendingFlow>,
+    consumed_code_digests: BTreeSet<String>,
     tokens: Option<StoredTokens>,
     refreshing: bool,
     refresh_cooldown_until: u64,
+}
+
+/// Clears a single-flight claim when the leader future is cancelled before it can publish a
+/// terminal refresh outcome. Waiters then retry against the current generation.
+struct RefreshFlightGuard {
+    state: Arc<Mutex<OAuthState>>,
+    notify: Arc<Notify>,
+    active: bool,
+}
+
+impl RefreshFlightGuard {
+    fn new(state: Arc<Mutex<OAuthState>>, notify: Arc<Notify>) -> Self {
+        Self {
+            state,
+            notify,
+            active: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.active = false;
+    }
+}
+
+impl Drop for RefreshFlightGuard {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if state.refreshing {
+            state.refreshing = false;
+            drop(state);
+            self.notify.notify_waiters();
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -342,13 +397,25 @@ impl OAuthManager {
         if pending.state != callback.state {
             return Err(OAuthError::Invalid("oauth_state_mismatch"));
         }
-        if pending.request.redirect_uri != callback.redirect_uri {
+        let expected_redirect = canonical_redirect_uri(&pending.request.redirect_uri)?;
+        let callback_redirect = canonical_redirect_uri(&callback.redirect_uri)?;
+        if expected_redirect.origin() != callback_redirect.origin()
+            || pending.request.redirect_uri != callback.redirect_uri
+        {
             return Err(OAuthError::Invalid("oauth_redirect_mismatch"));
+        }
+        let code_digest = json_digest(&serde_json::json!({"authorization_code": &callback.code}));
+        if state.consumed_code_digests.contains(&code_digest) {
+            return Err(OAuthError::Invalid("oauth_code_replay"));
+        }
+        if state.consumed_code_digests.len() >= MAX_CONSUMED_AUTHORIZATION_CODES {
+            return Err(OAuthError::Invalid("oauth_code_replay_window_full"));
         }
         let pending = state
             .pending
             .remove(&callback.flow_id)
             .ok_or(OAuthError::Invalid("oauth_flow_replay"))?;
+        state.consumed_code_digests.insert(code_digest);
         if pkce_challenge(&pending.verifier)? != pending.request.code_challenge {
             return Err(OAuthError::Invalid("oauth_pkce_mismatch"));
         }
@@ -461,7 +528,11 @@ impl OAuthManager {
         Fut: Future<Output = Result<RawTokenResponse, RefreshFailure>> + Send,
     {
         loop {
+            // Register the waiter before taking the state lock so a leader notification cannot be
+            // lost in the check-then-sleep window.
             let notified = self.refresh_notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             let leader = {
                 let mut state = self.state.lock().unwrap();
                 let stored = state.tokens.as_ref().ok_or(OAuthError::Missing)?.clone();
@@ -501,8 +572,12 @@ impl OAuthManager {
                 notified.await;
                 continue;
             };
+            let mut flight =
+                RefreshFlightGuard::new(self.state.clone(), self.refresh_notify.clone());
             let result = refresh(refresh_token).await;
-            return self.finish_refresh(generation, now_unix_ms, result).await;
+            let outcome = self.finish_refresh(generation, now_unix_ms, result).await;
+            flight.disarm();
+            return outcome;
         }
     }
 
@@ -597,7 +672,7 @@ impl OAuthManager {
                 } else {
                     let metadata = current
                         .metadata
-                        .with_status(OAuthTokenStatus::ReauthRequired)
+                        .reauth()
                         .map_err(|_| OAuthError::Invalid("oauth_token_metadata_invalid"))?;
                     let stored = StoredTokens {
                         metadata,
@@ -1142,6 +1217,72 @@ mod tests {
                 .code(),
             "oauth_redirect_mismatch"
         );
+    }
+
+    #[test]
+    fn callback_origin_and_authorization_code_replay_are_fenced() {
+        let manager = OAuthManager::new(config(), None).expect("manager");
+        let (first, _) = manager.start_authorization(1_000).expect("first flow");
+        let first_state = manager
+            .state
+            .lock()
+            .unwrap()
+            .pending
+            .get(&first.flow_id)
+            .expect("first pending")
+            .state
+            .clone();
+        let callback = OAuthCallback::new(
+            first.flow_id,
+            first_state,
+            "same-authorization-code",
+            first.redirect_uri.clone(),
+        )
+        .expect("callback");
+        manager
+            .complete_authorization(
+                callback,
+                response("first-access", Some("first-refresh"), 3_600),
+                1_001,
+            )
+            .expect("first exchange");
+
+        let (second, _) = manager.start_authorization(2_000).expect("second flow");
+        let second_state = manager
+            .state
+            .lock()
+            .unwrap()
+            .pending
+            .get(&second.flow_id)
+            .expect("second pending")
+            .state
+            .clone();
+        let replay = OAuthCallback::new(
+            second.flow_id,
+            second_state,
+            "same-authorization-code",
+            second.redirect_uri.clone(),
+        )
+        .expect("replay callback");
+        assert_eq!(
+            manager
+                .complete_authorization(
+                    replay,
+                    response("second-access", Some("second-refresh"), 3_600),
+                    2_001
+                )
+                .unwrap_err()
+                .code(),
+            "oauth_code_replay"
+        );
+
+        let mut invalid = config();
+        invalid.redirect_uri = "https://example.invalid/callback?state=forbidden".to_owned();
+        let error = match OAuthManager::new(invalid, None) {
+            Ok(_) => panic!("unsafe callback origin must be rejected"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), "oauth_redirect_origin_not_loopback");
     }
 
     #[test]

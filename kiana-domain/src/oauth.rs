@@ -324,6 +324,19 @@ impl OAuthTokenMetadata {
         Ok(next)
     }
 
+    /// Fence an in-flight refresh and require a new authorization grant.
+    pub fn reauth(&self) -> Result<Self, String> {
+        let mut next = self.clone();
+        next.generation = self
+            .generation
+            .checked_add(1)
+            .ok_or_else(|| "oauth_generation_overflow".to_owned())?;
+        next.status = OAuthTokenStatus::ReauthRequired;
+        next.metadata_digest = next.digest();
+        next.validate_at(self.issued_at_unix_ms)?;
+        Ok(next)
+    }
+
     pub fn with_status(&self, status: OAuthTokenStatus) -> Result<Self, String> {
         let mut next = self.clone();
         next.status = status;

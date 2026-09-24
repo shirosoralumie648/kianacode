@@ -26,6 +26,7 @@ pub mod hook_lifecycle_dispatch;
 pub mod hook_outcome;
 pub mod hook_receipt;
 pub mod index;
+pub mod oauth_accounts;
 pub mod index_generation;
 pub mod index_invalidation;
 pub mod repo_map;
@@ -71,6 +72,7 @@ pub use hook_receipt::{
     hook_receipt_digest, replay_hook_receipt, HookCleanupState, HookReceipt, HookReplayView,
     HOOK_RECEIPT_SCHEMA,
 };
+pub use oauth_accounts::{project_oauth_accounts, OAuthAccountQueryPage, OAUTH_ACCOUNT_QUERY_SCHEMA};
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,

@@ -2329,6 +2329,8 @@ mod connector;
 pub use connector::*;
 mod connector_https;
 pub use connector_https::*;
+mod oauth_accounts;
+pub use oauth_accounts::*;
 mod model;
 pub use model::*;
 
