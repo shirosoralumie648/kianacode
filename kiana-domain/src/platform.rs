@@ -335,6 +335,8 @@ impl NotificationMaterialization {
             if task.source_event_id != self.source_event_id
                 || task.source_cursor != self.source_cursor
                 || task.decider_principal_id != self.notification.recipient_id
+                || task.due_at_unix_ms != self.due_at_unix_ms
+                || task.expires_at_unix_ms != self.expires_at_unix_ms
                 || task.evidence_refs != self.evidence_refs
                 || task.actions != self.actions
             {
