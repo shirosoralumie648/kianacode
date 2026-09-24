@@ -46,6 +46,19 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: protocol-specific structured dialects remain limited to the supported request shapes; no live provider/schema compatibility or automatic repair behavior is claimed
 reviewer: Codex source review; no local runtime test reviewer
 
+### SC-28 Dependency, license, advisory and SBOM scanner (2026-09-24)
+
+source_snapshot: `f5f732da` plus SC-28 source slice; `scripts/supply-chain-scan.sh`; `scripts/supply-chain-scan.py`; `scripts/validate-sc28-supply-chain.sh`; `deny.toml`; `kiana-core/tests/sc28_supply_chain_guard.rs`; `.github/workflows/sc28-supply-chain.yml`; `docs/roadmap/sc28-supply-chain-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `sc-28-supply-chain-scanner-20260924` based on latest local `master=f5f732da`; scanner binds Cargo metadata to the committed Cargo.lock before/after SHA-256 digest and checkout dirtiness, emits deterministic CycloneDX/SPDX manifests, runs cargo-audit and cargo-deny, and records every failure in a quarantine report; unrelated worktrees and files are preserved
+command_argv: `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, pinned cargo-audit/cargo-deny installation, the SC-28 scanner, script validator and source guard; local tests/build/check/clippy/smoke deliberately not run and CI is not awaited
+cwd·environment: `/tmp/kiana-step-sc28`; Linux; local test authority disabled by user instruction; GitHub Actions is the test authority
+fixture·cassette: GitHub-only `.github/workflows/sc28-supply-chain.yml`; metadata normalizer fixtures are source-bound, with SPDX/CycloneDX, lockfile drift, unknown license, advisory threshold and quarantine markers
+exit_code: `git diff --check` expected to be the only local verification; remote scanner and source guard are pending/not observed
+status change: SC-28 scanner scripts, policy boundary, deterministic SBOM contract, workflow, validator and source guard added; roadmap row 501/card remain 🔄 pending GitHub CI evidence
+proof-level change: `feature_status=implemented` for source scripts and CI wiring; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: scanner metadata cannot prove signed release artifacts, transparent registry provenance, production advisory freshness, runtime effect integrity or regulatory compliance; cargo-audit/cargo-deny tool installation and CI results remain unobserved; SC-29 and SC-41 remain subsequent steps
+reviewer: Codex source review of lockfile digest/drift, deterministic SPDX/CycloneDX generation, license/advisory thresholds, fail-closed scanner/quarantine and read-only CI permissions; no local runtime test reviewer
+
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
 source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow

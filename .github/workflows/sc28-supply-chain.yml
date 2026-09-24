@@ -1,0 +1,71 @@
+name: SC-28 dependency, license and advisory scanner
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "deny.toml"
+      - "scripts/supply-chain-scan.sh"
+      - "scripts/supply-chain-scan.py"
+      - "scripts/validate-sc28-supply-chain.sh"
+      - "kiana-core/tests/sc28_supply_chain_guard.rs"
+      - "docs/roadmap/sc28-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc28-supply-chain.yml"
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "deny.toml"
+      - "scripts/supply-chain-scan.sh"
+      - "scripts/supply-chain-scan.py"
+      - "scripts/validate-sc28-supply-chain.sh"
+      - "kiana-core/tests/sc28_supply_chain_guard.rs"
+      - "docs/roadmap/sc28-supply-chain-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sc28-supply-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Resolve the committed lockfile
+        run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Install pinned scanner tools
+        env:
+          SC28_TOOL_ROOT: ${{ runner.temp }}/sc28-tools
+        run: |
+          mkdir -p "$SC28_TOOL_ROOT"
+          cargo install cargo-audit --locked --root "$SC28_TOOL_ROOT"
+          cargo install cargo-deny --locked --root "$SC28_TOOL_ROOT"
+      - name: Run locked dependency, license, advisory and SBOM scan
+        env:
+          SC28_TOOL_ROOT: ${{ runner.temp }}/sc28-tools
+          SC28_ADVISORY_DB: ${{ runner.temp }}/sc28-advisory-db
+          SC28_OUT_DIR: ${{ runner.temp }}/sc28-supply-chain
+          SC28_MAX_HIGH_ADVISORIES: "0"
+          SC28_MAX_CRITICAL_ADVISORIES: "0"
+        run: bash scripts/supply-chain-scan.sh "$RUNNER_TEMP/sc28-supply-chain"
+      - name: Validate SC-28 script and policy boundaries
+        run: bash scripts/validate-sc28-supply-chain.sh
+      - name: Run SC-28 source guard
+        run: cargo test -p kiana-core --test sc28_supply_chain_guard --locked -- --test-threads=1
+      - name: Upload CI-only supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sc28-supply-chain-evidence
+          path: ${{ runner.temp }}/sc28-supply-chain
+          if-no-files-found: ignore
