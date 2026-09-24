@@ -19,8 +19,8 @@ reviewer: Codex UI-07 source review；检查 initialize/workspace/schema/request
 
 ### UI-08 共享 reducer/entity store（2026-09-24）
 
-source_snapshot: `a2309009`（UI-08 分支基线，提交后绑定本提交）；`kiana-client/src/ui_store.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui08_reducer_store.rs`; `kiana-core/tests/ui08_reducer_store_guard.rs`; `kiana-entrypoints/tests/ui08_store_boundary_guard.rs`; `.github/workflows/ui08-reducer-store.yml`; `docs/roadmap/ui08-reducer-store-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
-worktree_status: 隔离分支 `ui-08-reducer-20260924`，已基于 `origin/master=a2309009` 重放；共享 `UiEntityStore` 按 workspace/session/tab scope 绑定 run/connection/submission/draft/inbox/artifact，保留主工作树用户 WIP 不动
+source_snapshot: `319df52a`（UI-08 分支基线，提交后绑定本提交）；`kiana-client/src/ui_store.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui08_reducer_store.rs`; `kiana-core/tests/ui08_reducer_store_guard.rs`; `kiana-entrypoints/tests/ui08_store_boundary_guard.rs`; `.github/workflows/ui08-reducer-store.yml`; `docs/roadmap/ui08-reducer-store-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-08-reducer-20260924`，已基于 `origin/master=319df52a` 重放；共享 `UiEntityStore` 按 workspace/session/tab scope 绑定 run/connection/submission/draft/inbox/artifact，保留主工作树用户 WIP 不动
 command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui08_reducer_store --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui08_reducer_store_guard --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui08_store_boundary_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
 cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
 fixture·cassette: reducer 旧 revision、duplicate/gap、epoch reset、tab isolation、optimistic rollback/expiry、Applied/Rejected/Unknown、cache protected eviction、hydrate/dehydrate digest；core/entrypoints source guard 覆盖无 ControlPlane/Broker/模型循环和无第二 entity store

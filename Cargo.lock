@@ -2387,7 +2387,9 @@ name = "kiana-client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "kiana-domain",
  "kiana-protocol",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",

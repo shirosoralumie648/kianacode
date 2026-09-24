@@ -8,7 +8,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`UI-08`](ui-entrypoints.md#step-ui-08) |
-| source snapshot | `a2309009`（UI-08 分支基线，提交后绑定本提交） |
+| source snapshot | `319df52a`（UI-08 分支基线，提交后绑定本提交） |
 | feature_status | `implemented`（纯 reducer、scope/revision fence、optimistic rollback、bounded hydrate/dehydrate） |
 | proof_level | `source`；不提升为 local_behavior/durable/live/physical |
 | canonical path | typed client snapshot/feed/action → `kiana-client::UiEntityStore` → presenter projection；store 不授权、不执行 capability |
