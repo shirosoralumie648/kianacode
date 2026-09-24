@@ -2211,6 +2211,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.audit-event.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.audit-projection.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,

@@ -500,6 +500,10 @@ fn record_for_event(
     record.action_digest = Some(action_digest);
     record.input_digest = optional_digest(&event.data, "input_digest")?;
     record.reason_code = optional_reason(&event.data, profile)?;
+    record.reason = record
+        .reason_code
+        .clone()
+        .unwrap_or_else(|| "reason_unspecified".to_owned());
     record.attributes = BTreeMap::from([
         ("event_kind".to_owned(), event.kind.clone()),
         (

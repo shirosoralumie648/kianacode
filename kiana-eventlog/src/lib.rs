@@ -1,6 +1,7 @@
 //! Append-only event storage adapters for Kiana.
 
 mod artifact_store;
+mod audit_contract;
 mod credential_rotation;
 mod event_store_core;
 mod integrity;

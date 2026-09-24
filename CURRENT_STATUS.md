@@ -11756,3 +11756,16 @@ status change: NM-06 source slice and CI wiring are implemented; roadmap row 463
 proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical proof
 limitations: no durable NotificationStore or HumanTask store, outbox, DeliveryWorker, Broker, provider, external notification channel, cross-process replay or task-status mutation is claimed
 reviewer: Codex source review of committed-only materialization, cursor/digest replay, redaction/evidence/due bounds, exact server recipient/decider filtering and no-second-loop boundary; no local runtime test reviewer
+
+### SC-31 AuditRecord append-only event boundary (2026-09-24)
+
+source_snapshot: master=0cc07fd6 plus SC-31 source slice; `kiana-domain/src/{observability.rs,audit.rs,contracts.rs}`; `kiana-protocol/src/lib.rs`; `kiana-eventlog/src/{audit_contract.rs,event_store_core.rs,journal_core.rs,lib.rs}`; `kiana-domain/tests/sc31_audit_record.rs`; `kiana-eventlog/tests/sc31_audit_event.rs`; `kiana-core/tests/sc31_audit_record_guard.rs`; `.github/workflows/sc31-audit-record.yml`; `docs/roadmap/sc31-audit-record-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `sc-31-audit-record-schema-20260924`; AuditRecord requires a normalized redaction-safe reason, fixed Audit profile and non-recoverable payload; AuditRecordEvent is strict, digest/source-bound and append-only; EventLog rejects forged `audit.*` payloads before append, idempotent replay or transition mutation; roadmap row 504/card remain 🔄 pending GitHub CI
+command_argv: `git diff --check`; GitHub Actions will run `cargo fmt --all --check`, domain/EventLog fixtures, core source guard and `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-sc31`; Linux x86_64; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only SC-31 reason/redaction/strict-serde fixture, EventLog deny/replay/transition fixture and core source guard in `sc31-audit-record.yml`
+exit_code: local diff check only; remote CI result intentionally unobserved
+status change: SC-31 source slice and CI wiring implemented; roadmap row 504/card remain 🔄 until dedicated GitHub evidence is observed
+proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no audit projector/query/export, durable projection checkpoint, incident workflow, external effect or live/physical audit proof is claimed; EventLog remains the sole fact source
+reviewer: Codex source review of deny-first audit-kind filtering, strict envelope/digest/source binding, redaction metadata, idempotency binding and no-write boundary; no local runtime test reviewer

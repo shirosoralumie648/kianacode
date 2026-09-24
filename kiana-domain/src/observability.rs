@@ -6,15 +6,18 @@
 //! relationship.
 
 use crate::{
-    canonical_journal_bytes, json_digest, DataClass, EventId, ExecutionId, InvocationId,
-    ModelAttemptId, ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId,
-    SchemaVersion, SpanId, StepId, TraceId, TurnId,
+    canonical_journal_bytes, json_digest, DataClass, EventCursor, EventId, ExecutionId,
+    InvocationId, ModelAttemptId, ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage,
+    RedactionProfile, RedactionSignal, RequestId, RunId, RuntimeEvent, SchemaVersion, SpanId,
+    StepId, TraceId, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
+pub const AUDIT_EVENT_SCHEMA: &str = "kiana.audit-event.v1";
+pub const AUDIT_EVENT_KIND: &str = "audit.record";
 pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
 pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
@@ -33,6 +36,7 @@ pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
 pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_QUERY_CURSOR_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -905,11 +909,38 @@ pub struct AuditRecord {
     pub input_digest: Option<String>,
     #[serde(default)]
     pub reason_code: Option<String>,
+    /// A mandatory, redaction-safe explanation. `reason_code` is retained as a compatibility
+    /// alias for older projections; new records always carry this normalized value.
+    #[serde(default = "default_audit_reason")]
+    pub reason: String,
     pub data_class: DataClass,
     pub retention_class: String,
+    /// Digest of the profile that was applied before this record crossed the audit boundary.
+    #[serde(default = "default_audit_redaction_profile")]
+    pub redaction_profile: String,
+    /// Audit records never carry recoverable raw payload bytes.
+    #[serde(default)]
+    pub payload_recoverable: bool,
     #[serde(default)]
     pub attributes: BTreeMap<String, String>,
     pub record_digest: String,
+}
+
+fn default_audit_reason() -> String {
+    "reason_unspecified".to_owned()
+}
+
+fn default_audit_redaction_profile() -> String {
+    RedactionProfile::for_signal(RedactionSignal::Audit).profile_digest
+}
+
+fn ensure_audit_redacted_text(value: &str, field: &str) -> Result<(), String> {
+    let profile = RedactionProfile::for_signal(RedactionSignal::Audit);
+    let redacted = crate::redact_text_with_profile(&profile, value)?;
+    if redacted != value {
+        return Err(format!("audit_{field}_unredacted"));
+    }
+    Ok(())
 }
 
 impl AuditRecord {
@@ -948,8 +979,11 @@ impl AuditRecord {
             action_digest: None,
             input_digest: None,
             reason_code: None,
+            reason: default_audit_reason(),
             data_class,
             retention_class: retention_class.into(),
+            redaction_profile: default_audit_redaction_profile(),
+            payload_recoverable: false,
             attributes: BTreeMap::new(),
             record_digest: String::new(),
         };
@@ -985,12 +1019,32 @@ impl AuditRecord {
         }
         if let Some(reason) = &self.reason_code {
             validate_nonempty(reason, "audit_reason_code", 128)?;
+            ensure_audit_redacted_text(reason, "reason_code")?;
+        }
+        validate_nonempty(&self.reason, "audit_reason", 128)?;
+        ensure_audit_redacted_text(&self.reason, "reason")?;
+        let profile = RedactionProfile::for_signal(RedactionSignal::Audit);
+        if self.redaction_profile != profile.profile_digest {
+            return Err("audit_redaction_profile_invalid".to_owned());
+        }
+        if self.payload_recoverable {
+            return Err("audit_payload_recoverable".to_owned());
         }
         if let Some(correlation) = &self.correlation_ref {
             validate_nonempty(correlation, "audit_correlation_ref", 256)?;
+            ensure_audit_redacted_text(correlation, "correlation_ref")?;
         }
         if let Some(causation) = &self.causation_ref {
             validate_nonempty(causation, "audit_causation_ref", 256)?;
+            ensure_audit_redacted_text(causation, "causation_ref")?;
+        }
+        ensure_audit_redacted_text(&self.actor_ref, "actor_ref")?;
+        ensure_audit_redacted_text(&self.target_kind, "target_kind")?;
+        ensure_audit_redacted_text(&self.target_ref, "target_ref")?;
+        ensure_audit_redacted_text(&self.retention_class, "retention_class")?;
+        for (key, value) in &self.attributes {
+            ensure_audit_redacted_text(key, "attribute_key")?;
+            ensure_audit_redacted_text(value, "attribute_value")?;
         }
         validate_digest(&self.record_digest, "audit_record_digest")?;
         if self.record_digest != self.digest() {
@@ -1007,6 +1061,108 @@ impl AuditRecord {
         value_without_digest(self, "record_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Versioned append-only EventLog envelope for a server-derived AuditRecord.
+///
+/// The envelope repeats source cursor and redaction metadata deliberately: an EventStore adapter
+/// can reject a forged or partially copied record before it mutates storage. Corrections must be
+/// represented by a later envelope/event; this contract has no update operation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditRecordEvent {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub event_kind: String,
+    pub append_only: bool,
+    pub record: AuditRecord,
+    pub source_cursor: EventCursor,
+    pub source_event_ids: Vec<EventId>,
+    pub redaction_profile: String,
+    pub event_digest: String,
+}
+
+impl AuditRecordEvent {
+    pub fn new(record: AuditRecord) -> Result<Self, String> {
+        record.validate()?;
+        let mut event = Self {
+            schema: AUDIT_EVENT_SCHEMA.to_owned(),
+            version: AUDIT_EVENT_SCHEMA_VERSION,
+            event_kind: AUDIT_EVENT_KIND.to_owned(),
+            append_only: true,
+            source_cursor: record.source_cursor,
+            source_event_ids: record.source_event_ids.clone(),
+            redaction_profile: record.redaction_profile.clone(),
+            record,
+            event_digest: String::new(),
+        };
+        event.event_digest = event.digest();
+        event.validate()?;
+        Ok(event)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != AUDIT_EVENT_SCHEMA {
+            return Err("audit_event_schema_mismatch".to_owned());
+        }
+        if !AUDIT_EVENT_SCHEMA_VERSION.is_compatible_with(&self.version) {
+            return Err("audit_event_schema_version_incompatible".to_owned());
+        }
+        if self.event_kind != AUDIT_EVENT_KIND {
+            return Err("audit_event_kind_invalid".to_owned());
+        }
+        if !self.append_only {
+            return Err("audit_event_append_only_required".to_owned());
+        }
+        self.record.validate()?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.source_cursor != self.record.source_cursor
+            || self.source_event_ids != self.record.source_event_ids
+        {
+            return Err("audit_event_source_binding_mismatch".to_owned());
+        }
+        if self.redaction_profile != self.record.redaction_profile {
+            return Err("audit_event_redaction_binding_mismatch".to_owned());
+        }
+        validate_digest(&self.event_digest, "audit_event_digest")?;
+        if self.event_digest != self.digest() {
+            return Err("audit_event_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "event_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+
+    /// Build the only RuntimeEvent shape accepted by the EventLog audit boundary.
+    pub fn into_runtime_event(
+        &self,
+        request_id: RequestId,
+        sequence: u64,
+    ) -> Result<RuntimeEvent, String> {
+        self.validate()?;
+        let data =
+            serde_json::to_value(self).map_err(|_| "audit_event_encode_failed".to_owned())?;
+        RuntimeEvent::new(request_id, sequence, AUDIT_EVENT_KIND, data)
+            .map(|event| {
+                event
+                    .with_redaction_metadata(
+                        self.redaction_profile.clone(),
+                        false,
+                        Some(self.record.data_epoch),
+                        Vec::new(),
+                    )
+                    .with_idempotency_key(format!("audit-record:{}", self.record.audit_id))
+            })
+            .map_err(|error| error.to_string())
     }
 }
 

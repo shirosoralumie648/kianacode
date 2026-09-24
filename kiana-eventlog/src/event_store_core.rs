@@ -4,6 +4,7 @@
 //! persistence.  Keeping the stream and idempotency rules here prevents the
 //! adapters from drifting while leaving their storage-specific work local.
 
+use crate::audit_contract;
 use kiana_domain::RuntimeEvent;
 use kiana_ports::PortError;
 
@@ -19,6 +20,7 @@ pub(crate) fn plan_append(
     event: RuntimeEvent,
     expected_version: Option<u64>,
 ) -> Result<RuntimeEvent, PortError> {
+    audit_contract::validate_runtime_event(&event).map_err(PortError::Failed)?;
     reject_expected_version(events, &event, expected_version)?;
     reject_conflicts(events, &event)?;
     Ok(event)
@@ -29,6 +31,7 @@ pub(crate) fn plan_idempotent_append(
     event: RuntimeEvent,
     expected_version: Option<u64>,
 ) -> Result<AppendPlan, PortError> {
+    audit_contract::validate_runtime_event(&event).map_err(PortError::Failed)?;
     // Resolve retries before CAS so a committed request can replay after the
     // stream has advanced.
     let key = validate_idempotency_key(&event)?;

@@ -27,7 +27,7 @@ fn log_record(cursor: u64) -> ObservabilityRecord {
 }
 
 fn audit_record(cursor: u64) -> AuditRecord {
-    AuditRecord::new(
+    let record = AuditRecord::new(
         format!("audit-{cursor}"),
         AuditActionKind::Authorization,
         AuditDecision::Accepted,
@@ -41,7 +41,11 @@ fn audit_record(cursor: u64) -> AuditRecord {
         DataClass::Internal,
         "audit",
     )
-    .unwrap()
+    .unwrap();
+    assert_eq!(record.reason, "reason_unspecified");
+    assert!(!record.payload_recoverable);
+    assert!(record.redaction_profile.starts_with("sha256:"));
+    record
 }
 
 #[tokio::test]
