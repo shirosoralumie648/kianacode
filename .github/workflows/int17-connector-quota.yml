@@ -1,0 +1,74 @@
+name: INT-17 connector quota
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/connector_quota.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int17_connector_quota.rs"
+      - "kiana-core/src/connector_quota.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/int17_connector_quota_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int17_connector_quota_guard.rs"
+      - "kiana-provider/src/connector_quota.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/tests/int17_connector_quota.rs"
+      - "kiana-query/src/connector_quota.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/int17_connector_quota.rs"
+      - "docs/roadmap/int17-connector-quota-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/int17-connector-quota.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_quota.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int17_connector_quota.rs"
+      - "kiana-core/src/connector_quota.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/int17_connector_quota_guard.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int17_connector_quota_guard.rs"
+      - "kiana-provider/src/connector_quota.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/tests/int17_connector_quota.rs"
+      - "kiana-query/src/connector_quota.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/int17_connector_quota.rs"
+      - "docs/roadmap/int17-connector-quota-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/int17-connector-quota.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-quota:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-17 domain quota fixtures
+        run: cargo test -p kiana-domain --test int17_connector_quota --locked -- --test-threads=1
+      - name: Run INT-17 provider fixture
+        run: cargo test -p kiana-provider --test int17_connector_quota --locked -- --test-threads=1
+      - name: Run INT-17 core and daemon guards
+        run: |
+          cargo test -p kiana-core --test int17_connector_quota_guard --locked -- --test-threads=1
+          cargo test -p kiana-daemon --test int17_connector_quota_guard --locked -- --test-threads=1
+      - name: Run INT-17 query guard
+        run: cargo test -p kiana-query --test int17_connector_quota --locked -- --test-threads=1
+      - name: Compile INT-17 test targets
+        run: cargo check --workspace --tests --locked

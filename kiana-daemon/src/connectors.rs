@@ -3,7 +3,8 @@
 use crate::local_packages::{failed, sha256, LocalDir};
 use async_trait::async_trait;
 use kiana_capability_broker::{
-    consume_connector_credential_invocation, CapabilityBroker, CapabilityHandler,
+    consume_connector_credential_invocation, validate_connector_quota_boundary, CapabilityBroker,
+    CapabilityHandler,
 };
 use kiana_domain::{
     connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
@@ -532,6 +533,19 @@ impl ConnectorRegistry {
                     || args.get("connector_permit").is_some()
                 {
                     return Err(failed("connector_permit_required"));
+                }
+                if args.get("connector_quota_reservation").is_some()
+                    || args.get("connector_quota_claim").is_some()
+                    || args.get("connector_quota_policy").is_some()
+                {
+                    validate_connector_quota_boundary(request, now).map_err(
+                        |error| match error {
+                            PortError::Conflict(reason) | PortError::Failed(reason) => {
+                                failed(reason)
+                            }
+                            other => other,
+                        },
+                    )?;
                 }
                 let payload_bytes =
                     serde_json::to_vec(&kiana_domain::canonical_json(payload.clone()))

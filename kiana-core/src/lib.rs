@@ -20,6 +20,7 @@ mod company;
 mod company_governance;
 mod connectors;
 mod connector_reservation;
+mod connector_quota;
 mod context_query;
 mod cost_correction;
 mod credential_recovery;
@@ -131,6 +132,7 @@ pub use effect_usage_projection::{
 };
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use connector_reservation::ControlPlaneConnectorReservation;
+pub use connector_quota::ControlPlaneConnectorQuota;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };

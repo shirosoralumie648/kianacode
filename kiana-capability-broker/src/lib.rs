@@ -480,6 +480,50 @@ pub fn validate_connector_effect_boundary(
         .map_err(PortError::Conflict)
 }
 
+/// Revalidate the optional INT-17 quota envelope at the same effect boundary as the INT-16
+/// invocation permit. Quota reservations are server-owned facts; Broker cannot mint a claim,
+/// widen a project/account scope or replace a credential generation. Legacy requests without the
+/// additive envelope remain readable until ControlPlane emits quota facts for every caller.
+pub fn validate_connector_quota_boundary(
+    request: &AuthorizedCapabilityRequest,
+    now_unix_ms: u64,
+) -> Result<(), PortError> {
+    if request.request.operation != kiana_domain::CONNECTOR_INVOKE_OPERATION {
+        return Ok(());
+    }
+    let reservation = request.request.arguments.get("connector_quota_reservation");
+    let has_claim = request.request.arguments.contains_key("connector_quota_claim");
+    let has_policy = request.request.arguments.contains_key("connector_quota_policy");
+    if reservation.is_none() {
+        if has_claim || has_policy {
+            return Err(PortError::Conflict(
+                "connector_quota_reservation_required".to_owned(),
+            ));
+        }
+        return Ok(());
+    }
+    let reservation = reservation.expect("checked above");
+    let claim = request
+        .request
+        .arguments
+        .get("connector_quota_claim")
+        .ok_or_else(|| PortError::Conflict("connector_quota_claim_required".to_owned()))?;
+    let policy = request
+        .request
+        .arguments
+        .get("connector_quota_policy")
+        .ok_or_else(|| PortError::Conflict("connector_quota_policy_required".to_owned()))?;
+    let reservation: kiana_domain::ConnectorQuotaReservation =
+        serde_json::from_value(reservation.clone())
+            .map_err(|_| PortError::Conflict("connector_quota_reservation_invalid".to_owned()))?;
+    let claim: kiana_domain::ConnectorQuotaClaim = serde_json::from_value(claim.clone())
+        .map_err(|_| PortError::Conflict("connector_quota_claim_invalid".to_owned()))?;
+    let policy: kiana_domain::ConnectorQuotaPolicy = serde_json::from_value(policy.clone())
+        .map_err(|_| PortError::Conflict("connector_quota_policy_invalid".to_owned()))?;
+    kiana_domain::connector_quota_effect_admission(&reservation, &claim, &policy, now_unix_ms)
+        .map_err(PortError::Conflict)
+}
+
 fn connector_now_unix_ms() -> Result<u64, PortError> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -645,6 +689,7 @@ impl CapabilityBrokerPort for CapabilityBroker {
             return Err(PortError::Failed("cancelled:before_broker".to_owned()));
         }
         validate_connector_effect_boundary(&request, connector_now_unix_ms()?)?;
+        validate_connector_quota_boundary(&request, connector_now_unix_ms()?)?;
         self.permit_verifier
             .as_ref()
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
@@ -681,6 +726,7 @@ impl CapabilityBrokerPort for CapabilityBroker {
             )));
         };
         validate_connector_effect_boundary(&request, connector_now_unix_ms()?)?;
+        validate_connector_quota_boundary(&request, connector_now_unix_ms()?)?;
         self.permit_verifier
             .as_ref()
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
