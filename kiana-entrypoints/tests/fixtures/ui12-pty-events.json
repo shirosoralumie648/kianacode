@@ -1,0 +1,43 @@
+{
+  "source": "Crossterm decoded PTY event sequences; OS-backed PTY transport is outside this source fixture",
+  "streams": [
+    {
+      "name": "split-unicode-and-multiline-submit",
+      "events": [
+        { "type": "char", "value": "你" },
+        { "type": "char", "value": "好" },
+        { "type": "paste", "value": " é🧪" },
+        { "type": "ctrl_j" },
+        { "type": "char", "value": "x" },
+        { "type": "enter" }
+      ],
+      "committed": ["你好 é🧪\nx"]
+    },
+    {
+      "name": "paste-is-data-until-explicit-enter",
+      "events": [
+        { "type": "paste", "value": "/quit\nshell should-not-run" }
+      ],
+      "draft": "/quit\nshell should-not-run",
+      "committed": []
+    },
+    {
+      "name": "resize-keeps-draft",
+      "events": [
+        { "type": "paste", "value": "preserve" },
+        { "type": "resize", "width": 101, "height": 37 }
+      ],
+      "draft": "preserve",
+      "size": [101, 37],
+      "committed": []
+    }
+  ],
+  "denials": [
+    {
+      "name": "control-sequence-in-paste-is-rejected-atomically",
+      "event": { "type": "paste", "value": "safe\u001b[31m" },
+      "draft": "",
+      "rejection": "tty_input_control_character_rejected"
+    }
+  ]
+}

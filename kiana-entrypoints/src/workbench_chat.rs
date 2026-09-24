@@ -9,7 +9,10 @@
 //! 结果未知仍以终态响应/回执为准。要审计执行结果仍应读取正式 receipt。
 
 use anyhow::{anyhow, Result};
-use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    DisableBracketedPaste, EnableBracketedPaste, EventStream, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -35,6 +38,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::harness_run;
+use crate::tty_input::{InputTransition, TtyInputState};
 use crate::workbench::WORKBENCH_USAGE;
 
 const SLASH_HELP: &str =
@@ -528,7 +532,7 @@ struct TerminalGuard;
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
-        let _ = execute!(stdout(), LeaveAlternateScreen);
+        let _ = execute!(stdout(), DisableBracketedPaste, LeaveAlternateScreen);
     }
 }
 
@@ -549,9 +553,10 @@ pub async fn run(
     let mut view = WorkbenchView::new(workdir.clone(), trusted, sandbox, session_id.clone());
     enable_raw_mode()?;
     let _guard = TerminalGuard;
-    execute!(stdout(), EnterAlternateScreen)?;
+    execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     let mut events = EventStream::new();
+    let mut input = TtyInputState::default();
     let (tx, mut rx) = mpsc::unbounded_channel::<Result<kiana_protocol::ResponseEnvelope>>();
     let (stream_tx, mut stream_rx) =
         mpsc::unbounded_channel::<std::result::Result<RunStreamEnvelope, String>>();
@@ -612,15 +617,24 @@ pub async fn run(
                 }
             }
             event = events.next() => {
-                let Some(Ok(Event::Key(key))) = event else { continue };
-                match action_from_key(key, view.running) {
-                    Some(KeyCommand::Quit) => break,
-                    Some(KeyCommand::Cancel) => {
+                let Some(event) = event else {
+                    if let InputTransition::Rejected(code) = input.eof() {
+                        view.push_system(code);
+                    }
+                    break;
+                };
+                let Ok(event) = event else { continue };
+                let transition = input.apply_event(event, view.running);
+                view.input.clear();
+                view.input.push_str(input.draft());
+                match transition {
+                    InputTransition::Quit => break,
+                    InputTransition::Cancel => {
                         spawn_cancel(&host, &session_id, last_run_id.clone(), &options, &tx);
                     }
-                    Some(KeyCommand::Submit) => {
-                        let action = view.interpret_line(&view.input.clone());
+                    InputTransition::Committed(command) => {
                         view.input.clear();
+                        let action = view.interpret_line(&command.text);
                         match handle_action(
                             action,
                             &mut view,
@@ -639,12 +653,12 @@ pub async fn run(
                             LoopControl::Continue => {}
                         }
                     }
-                    Some(KeyCommand::Backspace) => {
-                        view.input.pop();
+                    InputTransition::Rejected(code) => {
+                        view.push_system(code);
                     }
-                    Some(KeyCommand::Newline) => view.input.push('\n'),
-                    Some(KeyCommand::Insert(ch)) => view.input.push(ch),
-                    None => {}
+                    InputTransition::Changed
+                    | InputTransition::Resized(_)
+                    | InputTransition::Ignored => {}
                 }
             }
             _ = tokio::time::sleep(Duration::from_millis(80)) => {}

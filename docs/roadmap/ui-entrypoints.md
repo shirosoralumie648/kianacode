@@ -314,13 +314,19 @@ deny-first fixtures/source guard；见 [UI-11 baseline](ui11-cli-presenter-basel
 
 
 
-#### UI-12 · TTY 输入状态机　⏳
+#### UI-12 · TTY 输入状态机　🔄
 
 - 依赖：UI-08/10。代码：Workbench/CLI input layer；可参考 Pi 的跨 chunk parser 和 Codex composer。
 - 步骤：解析 Unicode、IME、bracketed paste、历史、逐行/多行、resize、EOF、SIGINT；输入草稿与已提交 command 分离。
 - 先拒绝：半截 escape sequence 执行命令、粘贴内容触发 shell、取消键改写已提交 action、超长输入内存失控。
 - 成功/回归：PTY 分块注入、中文/组合字符、粘贴、窗口 resize、历史回退、Ctrl-C/Ctrl-D 和无 TTY 模式。
 - 完成产物：输入状态图、PTY fixture、边界上限和取消语义。
+
+已接入有界 `PtyChunkDecoder` / `TtyInputState`：半截 UTF-8/escape 只保留 pending，bracketed
+paste 作为单个文本 payload，IME candidate、历史、逐行/多行、resize、EOF、SIGINT 和
+NonTty fence 均与 draft/`CommittedInput` 分离；WorkBench 事件适配仍只把提交交给既有
+`WorkbenchView::interpret_line` 和 DaemonHost 路径。deny-first PTY/Unicode/paste/resize/EOF/
+SIGINT/bounds fixtures、source guard 和 GitHub-only workflow 已接入；见 [UI-12 baseline](ui12-tty-input-baseline.md)。证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-13"></a>
 

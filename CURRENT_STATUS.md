@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-12 TTY 输入状态机（2026-09-25）
+
+source_snapshot: `fe9336cf` 加 UI-12 source slice；`kiana-entrypoints/src/tty_input.rs`; `kiana-entrypoints/src/workbench_chat.rs`; `kiana-entrypoints/src/lib.rs`; `kiana-entrypoints/tests/fixtures/ui12-pty-events.json`; `kiana-entrypoints/tests/ui12_tty_input.rs`; `kiana-entrypoints/tests/ui12_tty_input_guard.rs`; `.github/workflows/ui12-tty-input.yml`; `docs/roadmap/ui12-tty-input-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui12`；新增 `PtyChunkDecoder` 与有界 `TtyInputState`，将 PTY 分块、Unicode、bracketed paste、IME candidate、历史、多行、resize、EOF/SIGINT 和 NonTty fence 收敛为纯输入适配；Enter 才产生独立 `CommittedInput`，后续取消/编辑不能改写；Workbench 事件循环只把提交文本交给既有 `WorkbenchView::interpret_line`，未拆冻结的 `kiana-entrypoints/src/cli.rs`，未触碰无关 WIP
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui12_tty_input --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui12_tty_input_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: split UTF-8/escape PTY chunks、bracketed paste control denial、Chinese/combining/emoji、IME candidate 与 Ctrl-C/Esc 优先级、逐行/多行、历史上限与 draft restore、resize、Ctrl-D/EOF、NonTty、byte/scalar/paste bound、entrypoint source guard；无 daemon/provider/live effect
+exit_code: 本地仅静态源码审阅与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: UI-12 TTY 输入状态机 source contract、Workbench adapter、deny-first fixtures、baseline 与 GitHub workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded parser/state source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: decoder 是确定性 PTY chunk source fixture，不是 OS-backed PTY/terminal emulator；终端 IME 组合通过 adapter API 暴露，具体候选行为依 terminal；未声称完整光标编辑、进程外 durable history、协议 transport、ControlPlane authorization、receipt truth、跨入口 parity、provider/live timing 或 physical proof
+reviewer: Codex UI-12 source review；检查 partial escape/UTF-8 不执行、paste 纯文本、IME/Ctrl-C 优先级、immutable commit、history/resize/EOF/SIGINT/NonTty fence、原子 bounds reject、Workbench 无第二执行循环；无本地 runtime test reviewer
+
 ### UI-11 CLI JSON/TTY/exit-code presenter（2026-09-24）
 
 source_snapshot: `566b7db4` plus UI-11 source slice; `kiana-client/src/cli_contract.rs`; `kiana-client/src/cli_presenter.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui11_cli_presenter.rs`; `kiana-entrypoints/tests/ui11_cli_presenter_guard.rs`; `.github/workflows/ui11-cli-presenter.yml`; `USER.md`; `docs/roadmap/ui11-cli-presenter-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

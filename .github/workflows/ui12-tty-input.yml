@@ -1,0 +1,50 @@
+name: UI-12 TTY input state machine
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/tty_input.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/fixtures/ui12-pty-events.json"
+      - "kiana-entrypoints/tests/ui12_tty_input.rs"
+      - "kiana-entrypoints/tests/ui12_tty_input_guard.rs"
+      - "docs/roadmap/ui12-tty-input-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui12-tty-input.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/tty_input.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/fixtures/ui12-pty-events.json"
+      - "kiana-entrypoints/tests/ui12_tty_input.rs"
+      - "kiana-entrypoints/tests/ui12_tty_input_guard.rs"
+      - "docs/roadmap/ui12-tty-input-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui12-tty-input.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui12-tty-input:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-12 PTY, Unicode, IME and bounds fixtures
+        run: cargo test -p kiana-entrypoints --test ui12_tty_input --locked -- --test-threads=1
+      - name: Run UI-12 input boundary guard
+        run: cargo test -p kiana-entrypoints --test ui12_tty_input_guard --locked -- --test-threads=1
+      - name: Compile UI-12 workspace test targets
+        run: cargo check --workspace --tests --locked
