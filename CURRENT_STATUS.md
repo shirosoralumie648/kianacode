@@ -11884,3 +11884,16 @@ status change: EXT-28 source slice and CI wiring are implemented; read-only comm
 proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: no local runtime tests were run and CI has not been observed; durable package install/recovery, approval UX, Hook/provider effects, external connector receipts and physical proof remain later slices
 reviewer: Codex source review of versioned DTO bounds, deny-first mutation fields, lifecycle CAS/idempotency, receipt-only UI projection and no second execution loop; no local runtime test reviewer
+
+### DEP-00 deployment/operations source inventory evidence (2026-09-24)
+
+source_snapshot: `794b6d44` (`origin/master` at inventory start); `docs/module-map.md`, `CURRENT_STATUS.md`, `scripts/`, `kiana-daemon/src/lib.rs`, `kiana-eventlog/src/`, `kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}`, `kiana-core/tests/dep00_deployment_guard.rs`, `.github/workflows/dep00-deployment-baseline.yml`, `docs/roadmap/dep00-deployment-baseline.md`
+worktree_status: isolated branch `dep-00-deployment-baseline-20260924`; inventory records the existing `DaemonHost → ControlPlane → Broker/Runner → EventLog` spine, release/migration/schema anchors, legacy boundaries, source-only gaps and user-WIP rule; no deployment execution path or second authority was added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-core --test dep00_deployment_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: isolated `/tmp/kiana-step-dep00`; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only DEP-00 inventory/source guard checks composition-root, EventLog, schema/migration, release-script, single-spine, legacy and proof-limit markers; no daemon/provider/supervisor/storage deployment was started
+exit_code: local command execution is limited to diff review; remote fixture and compile exit codes are pending and unobserved
+status change: `DEP-00` source inventory, gap classification, fixture catalog and CI wiring are implemented; roadmap row 605/card are 🔄 pending GitHub evidence
+proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: inventory does not establish deployment profiles, operation journal, lease/fence, health/readiness, backup/restore, migration execution, supervisor effects, release provenance or cross-process durability; later `DEP-01`–`DEP-41` remain required
+reviewer: Codex source review against module map, CURRENT_STATUS, release scripts, DaemonHost/EventLog/schema/migration anchors and single-spine/legacy boundaries; no local runtime test reviewer

@@ -777,7 +777,7 @@
 | 602 | W8 | 专项 | [`SW-17`](#step-sw-17) | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | `P4-J7-02`、`P4-J7-03`、`P2-M5-01`、`P2-M5-02`、`SW-16` | ⏳ | [专项卡](#step-sw-17) |
 | 603 | W8 | 专项 | [`SW-18`](#step-sw-18) | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | `P4-J6-01`、`CO-42`、`CO-43`、`CO-44`、`SW-17` | ⏳ | [专项卡](#step-sw-18) |
 | 604 | W8 | 专项 | [`NM-19`](#step-nm-19) | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | `P4-K8-01`、`NM-08`、`NM-18` | ⏳ | [专项卡](#step-nm-19) |
-| 605 | W8 | 专项 | [`DEP-00`](#step-dep-00) | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | ⏳ | [专项卡](#step-dep-00) |
+| 605 | W8 | 专项 | [`DEP-00`](#step-dep-00) | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | 🔄 | [专项卡](#step-dep-00) · [baseline](roadmap/dep00-deployment-baseline.md) |
 | 606 | W8 | 专项 | [`DEP-01`](#step-dep-01) | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | `DEP-00` | ⏳ | [专项卡](#step-dep-01) |
 | 607 | W8 | 专项 | [`DEP-02`](#step-dep-02) | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | `DEP-00` | ⏳ | [专项卡](#step-dep-02) |
 | 608 | W8 | 专项 | [`DEP-03`](#step-dep-03) | 定义 app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data 兼容矩阵 | `DEP-01`、`DEP-02` | ⏳ | [专项卡](#step-dep-03) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-24 | `DEP-00` 部署/运维/迁移基线：盘点 module map、CURRENT_STATUS、DaemonHost、EventLog、schema/migration、release scripts 与 legacy/WIP 边界；固定 source snapshot、单执行脊柱检查、缺口分类、CI-only fixture、proof ceiling 与限制；新增 deployment inventory baseline、Core source guard、GitHub-only workflow；本地不运行测试/build/check/clippy/smoke，step 保持 🔄 | 待本提交 |
 | 2026-09-24 | `PD-28` 存储安全边界：新增 owner/namespace/purpose 绑定的 opaque 加密引用、文件身份 digest 与平台能力限制；EventLog journal/lock 拒绝 secret sentinel、symlink/hardlink 和过宽权限，artifact receipt/manifest/lessons 写入在路径打开前执行 secret-free 校验；新增 domain/EventLog fixtures、core source guard、GitHub-only workflow 与 baseline；本地不运行测试，step 保持 🔄 等 GitHub CI | 待本提交 |
 | 2026-09-24 | `P4-J7-21` 结构化输出：明确 text/JSON object/JSON schema 响应选项；按能力和协议子集在发送前拒绝不支持 schema；完整终态后独立返回 `ModelOutput.structured`，区分 refusal、length、空、非法 JSON 和 schema 不匹配；工具调用与 structured 结果分离；Harness 提供显式 `OutputRepair` 调用入口，不在 Provider 内部修复循环；新增 provider fixtures、Core source guard、GitHub-only workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 尚未等待，状态保持 🔄 | P4-J7-21 专用分支 |
 | 2026-09-24 | `EXT-27` 动态可见性投影：新增 server-owned `ExtensionVisibilitySnapshot`，将 trust-filtered Skill catalog 与插件 lifecycle registry 合并为同一 redacted list/search/inspect 投影；CLI、Workbench、Web、Desktop 复用共享 adapter，snapshot id/generation/digest 与 stale cache fence 保持一致，动作只作为 intent 返回 ControlPlane/Broker；新增 domain fixture、core source guard、GitHub-only workflow 与 baseline；本地不运行测试，CI 已接线且未等待，step 保持 🔄 | 待本提交 |

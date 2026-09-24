@@ -1,0 +1,51 @@
+name: DEP-00 deployment inventory baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/roadmap/dep00-deployment-baseline.md"
+      - "kiana-core/tests/dep00_deployment_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}"
+      - "scripts/release-preflight.sh"
+      - "scripts/package-release.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-release-provenance.py"
+      - "CURRENT_STATUS.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/dep00-deployment-baseline.yml"
+  pull_request:
+    paths:
+      - "docs/roadmap/dep00-deployment-baseline.md"
+      - "kiana-core/tests/dep00_deployment_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}"
+      - "scripts/release-preflight.sh"
+      - "scripts/package-release.sh"
+      - "scripts/sign-release-artifacts.sh"
+      - "scripts/verify-release-provenance.py"
+      - "CURRENT_STATUS.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/dep00-deployment-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-00 inventory source guard
+        run: cargo test -p kiana-core --test dep00_deployment_guard --locked -- --test-threads=1
+      - name: Compile DEP-00 targets
+        run: cargo check --workspace --tests --locked
+
