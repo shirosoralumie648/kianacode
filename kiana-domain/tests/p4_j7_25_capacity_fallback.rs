@@ -4,48 +4,166 @@ fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))
 }
 
-fn route() -> ProviderFallbackRoute {
-    ProviderFallbackRoute {
-        profile: "backup".to_owned(),
-        provider_id: "provider-b".to_owned(),
-        model_id: "model-b".to_owned(),
-        route_digest: digest('a'),
-        capabilities_digest: digest('b'),
-        data_scope_digest: digest('c'),
-        budget_digest: digest('d'),
-    }
+fn policy() -> ProviderCapacityPolicy {
+    let group = QuotaGroupKey::new(
+        "provider-a",
+        "credential-a",
+        Some("model-a".to_owned()),
+        Some("primary".to_owned()),
+    )
+    .expect("quota group");
+    ProviderCapacityPolicy::new(group, 2, 4, 100, 100_000, 30_000, "config.v1")
+        .expect("policy")
 }
 
 #[test]
 fn circuit_opens_after_typed_failures_and_allows_one_half_open_probe() {
-    let policy = ProviderCapacityPolicy::new(2, 4, 2, 100).expect("policy");
-    let mut breaker = ProviderCircuitBreaker::new(policy).expect("breaker");
-    assert!(breaker.allow(1).expect("closed allow"));
-    breaker.record_failure(10).expect("first failure");
-    assert!(breaker.allow(11).expect("still closed"));
-    breaker.record_failure(12).expect("open failure");
-    assert!(!breaker.allow(50).expect("cooldown deny"));
-    assert!(breaker.allow(112).expect("half open probe"));
-    assert!(!breaker.allow(113).expect("second probe denied"));
-    breaker.record_success().expect("close");
-    assert!(breaker.allow(114).expect("closed again"));
+    let capacity_policy = policy();
+    assert_eq!(capacity_policy.max_concurrency, 2);
+    let mut breaker = ProviderCircuitBreaker::new("config.v1", 2, 30_000).expect("breaker");
+    assert_eq!(
+        breaker.allow(1).expect("closed allow"),
+        CircuitAdmission::Allowed
+    );
+    breaker.observe_failure(10).expect("first failure");
+    assert_eq!(
+        breaker.allow(11).expect("still closed"),
+        CircuitAdmission::Allowed
+    );
+    breaker.observe_failure(12).expect("open failure");
+    assert_eq!(
+        breaker.allow(50).unwrap_err(),
+        "provider_circuit_open"
+    );
+    assert_eq!(
+        breaker.allow(30_012).expect("half open probe"),
+        CircuitAdmission::HalfOpenProbe
+    );
+    assert_eq!(
+        breaker.allow(30_013).unwrap_err(),
+        "provider_circuit_probe_busy"
+    );
+    breaker.observe_success().expect("close");
+    assert_eq!(
+        breaker.allow(30_014).expect("closed again"),
+        CircuitAdmission::Allowed
+    );
+}
+
+fn original_route() -> ModelRoute {
+    ModelRoute {
+        provider_id: "provider-a".to_owned(),
+        protocol: ModelProtocol::OpenAiChat,
+        connection_id: "primary".to_owned(),
+        model_id: "model-a".to_owned(),
+        profile: "primary".to_owned(),
+        configuration_revision: "config.v1".to_owned(),
+        streaming: true,
+    }
+}
+
+fn fallback_candidate() -> FallbackCandidate {
+    FallbackCandidate {
+        route: ModelRoute {
+            provider_id: "provider-b".to_owned(),
+            protocol: ModelProtocol::OpenAiChat,
+            connection_id: "backup".to_owned(),
+            model_id: "model-b".to_owned(),
+            profile: "backup".to_owned(),
+            configuration_revision: "config.v1".to_owned(),
+            streaming: true,
+        },
+        capabilities: ModelCapabilities {
+            tools: CapabilitySupport::Supported,
+            streaming: CapabilitySupport::Supported,
+            structured_output: CapabilitySupport::Supported,
+            images: CapabilitySupport::Supported,
+            reasoning_replay: CapabilitySupport::Supported,
+            context_window: 128_000,
+            max_output: 4096,
+            source: "fixture".to_owned(),
+            revision: "fixture.v1".to_owned(),
+        },
+        credential_revision: Some(digest('e')),
+        context_scope_digest: digest('a'),
+        data_boundary_digest: digest('b'),
+        budget_digest: digest('c'),
+        permit_digest: digest('f'),
+    }
+}
+
+fn requirements() -> FallbackRequirements {
+    FallbackRequirements {
+        context_scope_digest: digest('a'),
+        data_boundary_digest: digest('b'),
+        budget_digest: digest('c'),
+        original_permit_digest: digest('d'),
+        require_tools: true,
+        require_images: true,
+        require_structured_output: true,
+        min_context_window: 64_000,
+        min_output_tokens: 1024,
+    }
 }
 
 #[test]
 fn fallback_rechecks_capability_data_and_budget_digests() {
-    let candidate = route();
-    assert!(admit_fallback(&candidate, &digest('b'), &digest('c'), &digest('d')).is_ok());
+    let original = original_route();
+    let candidate = fallback_candidate();
+    let requirements = requirements();
+    let allowlist = vec![candidate.route.digest()];
+    assert!(admit_fallback(
+        &original,
+        AttemptId::new(),
+        &requirements,
+        &candidate,
+        &allowlist,
+        AttemptId::new(),
+    )
+    .is_ok());
+
+    let mut capability_mismatch = candidate.clone();
+    capability_mismatch.capabilities.tools = CapabilitySupport::Unsupported;
     assert_eq!(
-        admit_fallback(&candidate, &digest('x'), &digest('c'), &digest('d')).unwrap_err(),
-        "provider_fallback_capability_mismatch"
+        admit_fallback(
+            &original,
+            AttemptId::new(),
+            &requirements,
+            &capability_mismatch,
+            &allowlist,
+            AttemptId::new(),
+        )
+        .unwrap_err(),
+        "fallback_cannot_reduce_required_capabilities"
     );
+
+    let mut data_mismatch = candidate.clone();
+    data_mismatch.data_boundary_digest = digest('x');
     assert_eq!(
-        admit_fallback(&candidate, &digest('b'), &digest('x'), &digest('d')).unwrap_err(),
-        "provider_fallback_data_scope_mismatch"
+        admit_fallback(
+            &original,
+            AttemptId::new(),
+            &requirements,
+            &data_mismatch,
+            &allowlist,
+            AttemptId::new(),
+        )
+        .unwrap_err(),
+        "fallback_data_boundary_mismatch"
     );
+
+    let mut budget_mismatch = candidate;
+    budget_mismatch.budget_digest = digest('x');
     assert_eq!(
-        admit_fallback(&candidate, &digest('b'), &digest('c'), &digest('x')).unwrap_err(),
-        "provider_fallback_budget_mismatch"
+        admit_fallback(
+            &original,
+            AttemptId::new(),
+            &requirements,
+            &budget_mismatch,
+            &allowlist,
+            AttemptId::new(),
+        )
+        .unwrap_err(),
+        "fallback_budget_recheck_required"
     );
 }
-

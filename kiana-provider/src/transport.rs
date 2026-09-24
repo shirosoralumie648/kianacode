@@ -34,21 +34,15 @@ async fn send_inner(
             .circuit
             .lock()
             .map_err(|_| ModelError::invalid("provider_circuit_lock_poisoned"))?;
-        if !circuit.allow(now).map_err(ModelError::invalid)? {
-            return Err(ModelError::transport(
-                "provider_circuit_open",
-                ModelRetryClass::Never,
-                false,
-            ));
-        }
+        circuit.allow(now).map_err(ModelError::invalid)?;
     }
     let result = send_inner_attempt(connection, prepared, sink).await;
     let observed_at = unix_ms().unwrap_or(now);
     if let Ok(mut circuit) = connection.circuit.lock() {
         if result.is_ok() {
-            let _ = circuit.record_success();
+            let _ = circuit.observe_success();
         } else if result.as_ref().err().is_some_and(trips_circuit) {
-            let _ = circuit.record_failure(observed_at);
+            let _ = circuit.observe_failure(observed_at);
         }
     }
     result

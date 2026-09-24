@@ -11,7 +11,7 @@ authorizes a capability or silently changes the route.
 - `ProviderCircuitBreaker` implements closed/open/half-open transitions and admits one half-open
   probe. Typed provider rejection/transport failures may open it; capacity-full, auth and unknown
   external outcomes are not silently retried.
-- `ProviderFallbackRoute` and `admit_fallback` require a fresh exact capability, data-scope and
+- `FallbackRoutePlan` and `admit_fallback` require a fresh exact capability, data-scope and
   budget digest match. A fallback cannot reuse the primary route's permit or private context.
 - `ProviderGateway` shares capacity, queue slots and breaker state for connection aliases. The
   transport takes a bounded queue slot before waiting for the semaphore and releases the slot when
@@ -33,4 +33,3 @@ claim a durable cross-process circuit store, distributed fair queue, provider in
 telemetry, automatic route selection, external/live provider effects or physical proof. Any future
 fallback executor must return through ControlPlane, create a new attempt and independently reserve
 usage and authority.
-

@@ -9,7 +9,7 @@ fn provider_capacity_path_is_bounded_and_fallback_is_re_admitted() {
         "provider_capacity_queue_full",
         "ProviderCircuitBreaker",
         "provider_circuit_open",
-        "ProviderFallbackRoute",
+        "FallbackRoutePlan",
         "admit_fallback",
     ] {
         assert!(
@@ -24,4 +24,3 @@ fn provider_capacity_path_is_bounded_and_fallback_is_re_admitted() {
         );
     }
 }
-

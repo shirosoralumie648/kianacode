@@ -531,14 +531,25 @@ fn connection_with_credential_env(
     if queue_limit == 0 || queue_limit > 1_024 {
         return Err(ModelError::invalid("model_queue_limit_invalid"));
     }
-    let capacity_policy = ProviderCapacityPolicy::new(
-        max_concurrency as u32,
-        queue_limit as u32,
-        3,
-        30_000,
+    let quota_group = QuotaGroupKey::new(
+        provider.clone(),
+        credential_revision.clone(),
+        Some(model.clone()),
+        Some(name.to_owned()),
     )
     .map_err(ModelError::invalid)?;
-    let circuit = ProviderCircuitBreaker::new(capacity_policy).map_err(ModelError::invalid)?;
+    let capacity_policy = ProviderCapacityPolicy::new(
+        quota_group,
+        max_concurrency as u32,
+        queue_limit as u32,
+        600,
+        1_000_000,
+        30_000,
+        revision.clone(),
+    )
+    .map_err(ModelError::invalid)?;
+    let circuit = ProviderCircuitBreaker::new(revision.clone(), 3, 30_000)
+        .map_err(ModelError::invalid)?;
     let mut limits = TransportLimits::default();
     if protocol == ModelProtocol::OllamaChat {
         if let Some(timeout) = ollama_load_timeout {
