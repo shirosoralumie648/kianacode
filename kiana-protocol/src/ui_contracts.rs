@@ -3,6 +3,7 @@
 //! These DTOs are projections and intents at the protocol boundary.  They carry no broker
 //! authority; every action must be re-authorized by ControlPlane with the supplied CAS/digest.
 
+use crate::UiCursor;
 use kiana_domain::{
     json_digest, validate_json_limits, ArtifactId, AuthenticatedPrincipalRef, ExecutionStatus,
     ProjectId, ReceiptId, RunId, SessionId,
@@ -1003,6 +1004,188 @@ impl UiFeedEnvelope {
             return Err("ui_feed_aggregate_invalid".to_owned());
         }
         validate_json_limits(&self.event).map_err(|_| "ui_feed_event_invalid".to_owned())
+    }
+}
+
+/// Cursor for the daemon-owned UI feed.  It is intentionally separate from the EventLog cursor:
+/// the feed is a bounded display projection and an old or foreign cursor can only request a
+/// snapshot/gap, never authorize a replay or an effect.
+pub const UI_FEED_CURSOR_SCHEMA: &str = "kiana.ui-feed-cursor.v1";
+pub const UI_FEED_FRAME_SCHEMA: &str = "kiana.ui-feed-frame.v1";
+pub const UI_FEED_GAP_SCHEMA: &str = "kiana.ui-feed-gap.v1";
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFeedGapReason {
+    SequenceGap,
+    ReplayExpired,
+    OldEpoch,
+    InstanceChanged,
+    SequenceAhead,
+    Backpressure,
+    TerminalRetention,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFeedFrameKind {
+    SnapshotBoundary,
+    Delta,
+    Heartbeat,
+    Gap,
+    Terminal,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiFeedCursorV1 {
+    pub schema: String,
+    pub instance_id: String,
+    pub authority_epoch: String,
+    pub feed_sequence: u64,
+    pub snapshot_cursor: UiCursor,
+    pub cursor_digest: String,
+}
+
+impl UiFeedCursorV1 {
+    pub fn new(
+        instance_id: impl Into<String>,
+        authority_epoch: impl Into<String>,
+        feed_sequence: u64,
+        snapshot_cursor: UiCursor,
+    ) -> Result<Self, String> {
+        let mut cursor = Self {
+            schema: UI_FEED_CURSOR_SCHEMA.to_owned(),
+            instance_id: instance_id.into(),
+            authority_epoch: authority_epoch.into(),
+            feed_sequence,
+            snapshot_cursor,
+            cursor_digest: String::new(),
+        };
+        cursor.cursor_digest = cursor.digest();
+        cursor.validate()?;
+        Ok(cursor)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_FEED_CURSOR_SCHEMA {
+            return Err("ui_feed_cursor_header_invalid".to_owned());
+        }
+        required(&self.instance_id, "ui_feed_cursor_instance", 256)?;
+        required(&self.authority_epoch, "ui_feed_cursor_epoch", 256)?;
+        if self.snapshot_cursor.sequence > 0 {
+            required(
+                &self.snapshot_cursor.epoch,
+                "ui_feed_cursor_snapshot_epoch",
+                256,
+            )?;
+        } else if !self.snapshot_cursor.epoch.is_empty() {
+            return Err("ui_feed_cursor_snapshot_invalid".to_owned());
+        }
+        digest(&self.cursor_digest, "ui_feed_cursor_digest")?;
+        if self.cursor_digest != self.digest() {
+            return Err("ui_feed_cursor_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn encode(&self) -> Result<String, String> {
+        self.validate()?;
+        serde_json::to_string(self).map_err(|_| "ui_feed_cursor_encode_failed".to_owned())
+    }
+
+    pub fn decode(value: &str) -> Result<Self, String> {
+        if value.len() > 2_048 {
+            return Err("ui_feed_cursor_too_large".to_owned());
+        }
+        let cursor: Self = serde_json::from_str(value)
+            .map_err(|_| "ui_feed_cursor_decode_failed".to_owned())?;
+        cursor.validate()?;
+        Ok(cursor)
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "instance_id": self.instance_id,
+            "authority_epoch": self.authority_epoch,
+            "feed_sequence": self.feed_sequence,
+            "snapshot_cursor": self.snapshot_cursor,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiFeedGapV1 {
+    pub schema: String,
+    pub reason: UiFeedGapReason,
+    pub from: Option<UiFeedCursorV1>,
+    pub to: UiFeedCursorV1,
+    pub snapshot_required: bool,
+}
+
+impl UiFeedGapV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_FEED_GAP_SCHEMA {
+            return Err("ui_feed_gap_schema_invalid".to_owned());
+        }
+        self.to.validate()?;
+        if let Some(from) = &self.from {
+            from.validate()?;
+            if from.instance_id == self.to.instance_id
+                && from.authority_epoch == self.to.authority_epoch
+                && from.feed_sequence > self.to.feed_sequence
+            {
+                return Err("ui_feed_gap_range_invalid".to_owned());
+            }
+        }
+        if !self.snapshot_required {
+            return Err("ui_feed_gap_snapshot_required".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiFeedFrameV1 {
+    pub schema: String,
+    pub kind: UiFeedFrameKind,
+    pub cursor: UiFeedCursorV1,
+    pub event_id: String,
+    pub replay: bool,
+    pub terminal: bool,
+    #[serde(default)]
+    pub event: Option<Value>,
+    #[serde(default)]
+    pub gap: Option<UiFeedGapV1>,
+}
+
+impl UiFeedFrameV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_FEED_FRAME_SCHEMA {
+            return Err("ui_feed_frame_schema_invalid".to_owned());
+        }
+        self.cursor.validate()?;
+        required(&self.event_id, "ui_feed_frame_event_id", 512)?;
+        if self.terminal != matches!(self.kind, UiFeedFrameKind::Terminal) {
+            return Err("ui_feed_frame_terminal_mismatch".to_owned());
+        }
+        if self.kind == UiFeedFrameKind::Gap {
+            let gap = self
+                .gap
+                .as_ref()
+                .ok_or_else(|| "ui_feed_frame_gap_missing".to_owned())?;
+            gap.validate()?;
+        } else if self.gap.is_some() {
+            return Err("ui_feed_frame_gap_unexpected".to_owned());
+        }
+        if let Some(event) = &self.event {
+            validate_json_limits(event).map_err(|_| "ui_feed_frame_event_invalid".to_owned())?;
+        }
+        Ok(())
     }
 }
 

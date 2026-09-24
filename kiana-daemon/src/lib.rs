@@ -59,11 +59,14 @@ use kiana_ports::{
 };
 use kiana_protocol::{
     RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
-    UiSnapshot, PROTOCOL_SCHEMA,
+    UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
 };
 use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
 use run_stream::RunStreamBus;
-pub use run_stream::RunStreamSubscription;
+pub use run_stream::{
+    RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription, UiFeedBackpressureMetrics,
+    UI_FEED_QUEUE_CAPACITY,
+};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -480,6 +483,30 @@ impl DaemonHost {
         cursor: Option<&UiCursor>,
     ) -> RunStreamSubscription {
         self.run_stream.subscribe_after(run_id, cursor)
+    }
+
+    /// Subscribe to the versioned feed projection.  Replay is bounded by the daemon-owned
+    /// window; stale/foreign cursors produce an explicit gap frame requiring a fresh snapshot.
+    pub fn subscribe_run_feed_after(
+        &self,
+        run_id: RunId,
+        cursor: Option<&UiFeedCursorV1>,
+    ) -> RunStreamFeedSubscription {
+        self.run_stream.subscribe_feed_after(run_id, cursor)
+    }
+
+    pub fn feed_instance_id(&self) -> String {
+        self.run_stream.instance_id().to_owned()
+    }
+
+    pub fn feed_backpressure_metrics(&self) -> UiFeedBackpressureMetrics {
+        self.run_stream.feed_metrics()
+    }
+
+    pub fn feed_heartbeat(&self, run_id: RunId) -> Result<UiFeedFrameV1, PortError> {
+        self.run_stream
+            .heartbeat(run_id)
+            .map_err(PortError::Failed)
     }
 
     pub fn ui_cursor(&self) -> UiCursor {

@@ -231,13 +231,13 @@ UiActionResult {
 
 
 
-#### UI-06 · feed cursor、gap、replay 与背压　⏳
+#### UI-06 · feed cursor、gap、replay 与背压　🔄
 
 - 依赖：UI-05。代码：daemon feed facade，复用 `RunStreamEnvelope` 但补齐 instance/epoch/schema/gap 语义。
 - 步骤：定义 snapshot boundary、feed sequence、Last-Event-ID/after cursor、replay window、heartbeat、慢消费者上限；区分 duplicate、gap、old epoch、terminal、unknown。
 - 先拒绝：序列跳跃、错误 epoch、过期 replay、无界队列、慢客户端阻塞事实提交、terminal 后伪造 delta。
 - 成功/回归：断线重连、重复事件、跨页、慢消费者、服务器重启、terminal retention 和 gap→rehydrate；sequence 由服务端决定，不能按 timestamp 排序。
-- 完成产物：feed state machine、fault fixture、背压指标和 replay 文档。
+- 完成产物：feed state machine、fault fixture、背压指标和 [replay 基线](ui06-feed-replay-baseline.md)。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-07"></a>
 

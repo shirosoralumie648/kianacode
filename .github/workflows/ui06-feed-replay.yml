@@ -1,0 +1,50 @@
+name: UI-06 feed replay and backpressure
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui06_feed_contract.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/ui06_feed_replay_guard.rs"
+      - "docs/roadmap/ui06-feed-replay-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui06-feed-replay.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui06_feed_contract.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-core/tests/ui06_feed_replay_guard.rs"
+      - "docs/roadmap/ui06-feed-replay-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui06-feed-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui06-feed-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-06 protocol feed contract fixtures
+        run: cargo test -p kiana-protocol --test ui06_feed_contract --locked -- --test-threads=1
+      - name: Run UI-06 bounded daemon feed fixtures
+        run: cargo test -p kiana-daemon --lib run_stream::tests::feed_ --locked -- --test-threads=1
+      - name: Run UI-06 ControlPlane source guard
+        run: cargo test -p kiana-core --test ui06_feed_replay_guard --locked -- --test-threads=1
+      - name: Compile UI-06 workspace test targets
+        run: cargo check --workspace --tests --locked

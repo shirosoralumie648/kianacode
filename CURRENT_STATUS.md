@@ -4,6 +4,20 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-06 feed cursor、gap、replay 与背压（2026-09-24）
+
+source_snapshot: `0cc07fd6`（最新 master）+ UI-06 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui06_feed_contract.rs`; `kiana-daemon/src/run_stream.rs`; `kiana-daemon/src/lib.rs`; `kiana-core/tests/ui06_feed_replay_guard.rs`; `.github/workflows/ui06-feed-replay.yml`; `docs/roadmap/ui06-feed-replay-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-06-feed-replay-20260924`，已基于 `0cc07fd6` 重放；versioned feed cursor/frame/gap DTO 绑定 instance、authority epoch、feed sequence、snapshot cursor 和 digest；daemon 保留 bounded replay history 与 broadcast queue，提供 snapshot boundary、replay、heartbeat、gap 和 backpressure metrics；terminal 后拒绝 delta/duplicate terminal；feed facade 仅投影，不创建授权或执行路径
+command_argv:
+  GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-protocol --test ui06_feed_contract --locked -- --test-threads=1`; `cargo test -p kiana-daemon --lib run_stream::tests::feed_ --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui06_feed_replay_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: UI-06 protocol cursor/gap/tamper fixtures、daemon bounded replay/old epoch/replay expiry/backpressure/terminal fixtures 与 core source guard；无外部 provider/effect
+exit_code: 本地未执行上述测试/构建/检查；GitHub Actions 待触发/未等待
+status change: UI-06 源码与 CI wiring 已提交，roadmap row 422/card 状态为 🔄，等待 GitHub CI 证据
+proof-level change: `feature_status=implemented`（protocol/daemon source + remote fixture wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: CI 未观察；feed history/queue 仅为 daemon 进程内 bounded projection，未证明跨进程 SSE/socket、持久化订阅、terminal 跨重启 replay、notification/artifact delivery 或 live/physical proof；UI-07 typed client、UI-08 reducer、UI-18 reconnect 和 UI-33 crash recovery 仍未完成
+reviewer: Codex UI-06 source review，覆盖 cursor digest、snapshot boundary、sequence/epoch/instance gap、replay window、broadcast backpressure、heartbeat、terminal finality 与 facade 无执行权；无本地 runtime test reviewer
+
 ### UI-05 原子 snapshot projector 与分页（2026-09-24）
 
 source_snapshot: `312e00b6`（EXT-27 动态可见性源码合并后的 master；EQ-27 evaluator compile fix 与 UI-04 durable action CAS 在祖先）；`kiana-domain/src/ui_snapshot.rs`; `kiana-daemon/src/lib.rs`; `kiana-domain/tests/ui05_snapshot_projector.rs`; `kiana-core/tests/ui05_snapshot_projector_guard.rs`; `.github/workflows/ui05-snapshot-projector.yml`; `docs/roadmap/ui05-snapshot-projector-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

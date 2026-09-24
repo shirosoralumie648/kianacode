@@ -2,10 +2,11 @@
 //! Terminal replay and cursors never authorize or repeat an execution.
 
 use async_trait::async_trait;
-use kiana_domain::{RequestId, RuntimeEvent};
+use kiana_domain::{json_digest, RequestId, RuntimeEvent};
 use kiana_ports::{EventAppendResult, EventStorePort, PortError, RunnerPort};
 use kiana_protocol::{
     ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor,
+    UiFeedCursorV1, UiFeedFrameKind, UiFeedFrameV1, UiFeedGapReason, UiFeedGapV1,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{HashMap, VecDeque};
@@ -21,11 +22,45 @@ const MAX_RETAINED_RUNS: usize = 128;
 const TERMINAL_RETENTION: Duration = Duration::from_secs(600);
 const MAX_TERMINAL_BYTES: usize = 256 * 1024;
 const MAX_ACTION_KEYS: usize = 1024;
+const FEED_REPLAY_WINDOW: usize = 128;
+
+/// The feed is deliberately bounded. A slow consumer receives an explicit gap and must
+/// rehydrate a snapshot; it can never make the EventStore append path wait on an unbounded queue.
+pub const UI_FEED_QUEUE_CAPACITY: usize = RUN_STREAM_CAPACITY;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UiFeedBackpressureMetrics {
+    pub queue_capacity: usize,
+    pub replay_window: usize,
+    pub lagged_receives: u64,
+    pub gap_frames: u64,
+    pub terminal_delta_rejections: u64,
+}
+
+#[derive(Debug)]
+pub enum RunStreamFeedError {
+    Gap(UiFeedGapV1),
+    Closed,
+    Invalid(String),
+}
+
+impl std::fmt::Display for RunStreamFeedError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Gap(gap) => write!(formatter, "feed_gap:{:?}", gap.reason),
+            Self::Closed => formatter.write_str("feed_closed"),
+            Self::Invalid(reason) => formatter.write_str(reason),
+        }
+    }
+}
+
+impl std::error::Error for RunStreamFeedError {}
 
 struct RunChannel {
     sender: broadcast::Sender<RunStreamEnvelope>,
     sequence: u64,
     terminal: Option<RunStreamEnvelope>,
+    history: VecDeque<RunStreamEnvelope>,
     touched: Instant,
 }
 
@@ -35,6 +70,7 @@ impl RunChannel {
             sender: broadcast::channel(RUN_STREAM_CAPACITY).0,
             sequence: 0,
             terminal: None,
+            history: VecDeque::new(),
             touched: Instant::now(),
         }
     }
@@ -44,9 +80,13 @@ struct BusState {
     channels: HashMap<RunId, RunChannel>,
     ui_sequence: u64,
     action_keys: VecDeque<String>,
+    lagged_receives: u64,
+    gap_frames: u64,
+    terminal_delta_rejections: u64,
 }
 
 pub(crate) struct RunStreamBus {
+    instance_id: String,
     epoch: String,
     state: Mutex<BusState>,
 }
@@ -54,17 +94,150 @@ pub(crate) struct RunStreamBus {
 impl Default for RunStreamBus {
     fn default() -> Self {
         Self {
+            instance_id: RunId::new().to_string(),
             epoch: RunId::new().to_string(),
             state: Mutex::new(BusState {
                 channels: HashMap::new(),
                 ui_sequence: 0,
                 action_keys: VecDeque::new(),
+                lagged_receives: 0,
+                gap_frames: 0,
+                terminal_delta_rejections: 0,
             }),
         }
     }
 }
 
 impl RunStreamBus {
+    pub(crate) fn instance_id(&self) -> &str {
+        &self.instance_id
+    }
+
+    pub(crate) fn feed_metrics(&self) -> UiFeedBackpressureMetrics {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        UiFeedBackpressureMetrics {
+            queue_capacity: UI_FEED_QUEUE_CAPACITY,
+            replay_window: FEED_REPLAY_WINDOW,
+            lagged_receives: state.lagged_receives,
+            gap_frames: state.gap_frames,
+            terminal_delta_rejections: state.terminal_delta_rejections,
+        }
+    }
+
+    fn feed_cursor(&self, sequence: u64, ui_cursor: u64) -> Result<UiFeedCursorV1, String> {
+        UiFeedCursorV1::new(
+            self.instance_id.clone(),
+            self.epoch.clone(),
+            sequence,
+            UiCursor {
+                epoch: if ui_cursor == 0 {
+                    String::new()
+                } else {
+                    self.epoch.clone()
+                },
+                sequence: ui_cursor,
+            },
+        )
+    }
+
+    fn feed_event_id(&self, envelope: &RunStreamEnvelope) -> String {
+        json_digest(&serde_json::json!({
+            "instance_id": &self.instance_id,
+            "epoch": &envelope.epoch,
+            "sequence": envelope.sequence,
+            "event": &envelope.event,
+        }))
+    }
+
+    fn feed_frame(
+        &self,
+        envelope: &RunStreamEnvelope,
+        replay: bool,
+    ) -> Result<UiFeedFrameV1, String> {
+        let kind = match &envelope.event {
+            RunStreamEvent::Terminal { .. } => UiFeedFrameKind::Terminal,
+            RunStreamEvent::Unknown => UiFeedFrameKind::Unknown,
+            _ => UiFeedFrameKind::Delta,
+        };
+        let frame = UiFeedFrameV1 {
+            schema: kiana_protocol::UI_FEED_FRAME_SCHEMA.to_owned(),
+            kind,
+            cursor: self.feed_cursor(envelope.sequence, envelope.ui_cursor)?,
+            event_id: self.feed_event_id(envelope),
+            replay,
+            terminal: matches!(&envelope.event, RunStreamEvent::Terminal { .. }),
+            event: Some(
+                serde_json::to_value(&envelope.event)
+                    .map_err(|_| "feed_event_encode_failed".to_owned())?,
+            ),
+            gap: None,
+        };
+        frame.validate()?;
+        Ok(frame)
+    }
+
+    fn gap_frame(
+        &self,
+        reason: UiFeedGapReason,
+        from: Option<UiFeedCursorV1>,
+        sequence: u64,
+        ui_cursor: u64,
+    ) -> Result<UiFeedFrameV1, String> {
+        let to = self.feed_cursor(sequence, ui_cursor)?;
+        let gap = UiFeedGapV1 {
+            schema: kiana_protocol::UI_FEED_GAP_SCHEMA.to_owned(),
+            reason,
+            from,
+            to: to.clone(),
+            snapshot_required: true,
+        };
+        gap.validate()?;
+        let frame = UiFeedFrameV1 {
+            schema: kiana_protocol::UI_FEED_FRAME_SCHEMA.to_owned(),
+            kind: UiFeedFrameKind::Gap,
+            cursor: to,
+            event_id: format!("gap:{}:{}", self.instance_id, sequence),
+            replay: false,
+            terminal: false,
+            event: None,
+            gap: Some(gap),
+        };
+        frame.validate()?;
+        Ok(frame)
+    }
+
+    fn boundary_frame(&self, sequence: u64, ui_cursor: u64) -> Result<UiFeedFrameV1, String> {
+        let cursor = self.feed_cursor(sequence, ui_cursor)?;
+        let frame = UiFeedFrameV1 {
+            schema: kiana_protocol::UI_FEED_FRAME_SCHEMA.to_owned(),
+            kind: UiFeedFrameKind::SnapshotBoundary,
+            cursor,
+            event_id: format!("boundary:{}:{}", self.instance_id, sequence),
+            replay: false,
+            terminal: false,
+            event: None,
+            gap: None,
+        };
+        frame.validate()?;
+        Ok(frame)
+    }
+
+    fn heartbeat_frame(&self, sequence: u64, ui_cursor: u64) -> Result<UiFeedFrameV1, String> {
+        let cursor = self.feed_cursor(sequence, ui_cursor)?;
+        let frame = UiFeedFrameV1 {
+            schema: kiana_protocol::UI_FEED_FRAME_SCHEMA.to_owned(),
+            kind: UiFeedFrameKind::Heartbeat,
+            cursor,
+            event_id: format!("heartbeat:{}:{}", self.instance_id, sequence),
+            replay: false,
+            terminal: false,
+            event: None,
+            gap: None,
+        };
+        frame.validate()?;
+        Ok(frame)
+    }
+
     fn prune(state: &mut BusState, keep: RunId) {
         state.channels.retain(|id, channel| {
             *id == keep
@@ -148,6 +321,9 @@ impl RunStreamBus {
         Self::prune(&mut state, run_id);
         let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
         channel.terminal = None;
+        channel
+            .history
+            .retain(|event| !matches!(&event.event, RunStreamEvent::Terminal { .. }));
         channel.touched = Instant::now();
     }
 
@@ -188,6 +364,97 @@ impl RunStreamBus {
         }
     }
 
+    /// Subscribe to the versioned UI feed.  Replay is served only from the bounded history; an
+    /// old epoch, expired window, sequence jump or instance mismatch yields an explicit gap frame
+    /// that requires snapshot hydration.  No feed subscription can block EventStore commits.
+    pub(crate) fn subscribe_feed_after(
+        self: &Arc<Self>,
+        run_id: RunId,
+        after: Option<&UiFeedCursorV1>,
+    ) -> RunStreamFeedSubscription {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        Self::prune(&mut state, run_id);
+        let (current_sequence, history, terminal, sender) = {
+            let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
+            (
+                channel.sequence,
+                channel.history.iter().cloned().collect::<Vec<_>>(),
+                channel.terminal.clone(),
+                channel.sender.clone(),
+            )
+        };
+        let current_ui_cursor = state.ui_sequence;
+        let mut frames = VecDeque::new();
+        let mut gap_reason = None;
+        let mut replay = Vec::new();
+
+        if let Some(cursor) = after {
+            if cursor.instance_id != self.instance_id {
+                gap_reason = Some(UiFeedGapReason::InstanceChanged);
+            } else if cursor.authority_epoch != self.epoch {
+                gap_reason = Some(UiFeedGapReason::OldEpoch);
+            } else if cursor.feed_sequence > current_sequence {
+                gap_reason = Some(UiFeedGapReason::SequenceAhead);
+            } else if cursor.feed_sequence < current_sequence {
+                let first = history.first().map(|event| event.sequence);
+                if first.is_none_or(|sequence| sequence > cursor.feed_sequence.saturating_add(1)) {
+                    gap_reason = Some(UiFeedGapReason::ReplayExpired);
+                } else {
+                    replay.extend(
+                        history
+                            .iter()
+                            .filter(|event| event.sequence > cursor.feed_sequence)
+                            .cloned(),
+                    );
+                }
+            }
+        } else if let Some(terminal) = terminal.clone() {
+            replay.push(terminal);
+        }
+
+        let from = after.cloned();
+        if let Some(reason) = gap_reason {
+            state.gap_frames = state.gap_frames.saturating_add(1);
+            if let Ok(frame) = self.gap_frame(
+                reason,
+                from,
+                current_sequence,
+                current_ui_cursor,
+            ) {
+                frames.push_back(frame);
+            }
+        }
+        let boundary_sequence = after.map_or(current_sequence, |cursor| cursor.feed_sequence);
+        let boundary_ui_cursor = after.map_or(current_ui_cursor, |cursor| {
+            cursor.snapshot_cursor.sequence
+        });
+        if let Ok(frame) = self.boundary_frame(boundary_sequence, boundary_ui_cursor) {
+            frames.push_back(frame);
+        }
+        for envelope in replay {
+            if let Ok(frame) = self.feed_frame(&envelope, true) {
+                frames.push_back(frame);
+            }
+        }
+        let initial_cursor = after
+            .cloned()
+            .unwrap_or_else(|| self.feed_cursor(0, 0).expect("zero feed cursor is valid"));
+        RunStreamFeedSubscription {
+            run_id,
+            receiver: sender.subscribe(),
+            bus: Arc::clone(self),
+            frames,
+            cursor: initial_cursor,
+            terminal: terminal.is_some(),
+        }
+    }
+
+    pub(crate) fn heartbeat(&self, run_id: RunId) -> Result<UiFeedFrameV1, String> {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let sequence = state.channels.get(&run_id).map_or(0, |channel| channel.sequence);
+        self.heartbeat_frame(sequence, state.ui_sequence)
+    }
+
     pub(crate) fn publish_delta(&self, run_id: RunId, text: String) {
         self.publish(run_id, RunStreamEvent::Delta { run_id, text });
     }
@@ -204,17 +471,28 @@ impl RunStreamBus {
     }
 
     fn publish(&self, run_id: RunId, event: RunStreamEvent) {
+        let _ = self.publish_checked(run_id, event);
+    }
+
+    fn publish_checked(&self, run_id: RunId, event: RunStreamEvent) -> Result<(), PortError> {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         Self::prune(&mut state, run_id);
+        let terminal_event = matches!(&event, RunStreamEvent::Terminal { .. });
         if state
             .channels
             .get(&run_id)
             .is_some_and(|channel| channel.terminal.is_some())
         {
-            return;
+            if !terminal_event {
+                state.terminal_delta_rejections = state.terminal_delta_rejections.saturating_add(1);
+                return Err(PortError::Conflict(
+                    "feed_terminal_delta_forbidden".to_owned(),
+                ));
+            }
+            return Err(PortError::Conflict("feed_terminal_duplicate".to_owned()));
         }
-        let terminal = matches!(event, RunStreamEvent::Terminal { .. });
-        let advances_ui = terminal || matches!(event, RunStreamEvent::ApprovalRequested { .. });
+        let terminal = terminal_event;
+        let advances_ui = terminal || matches!(&event, RunStreamEvent::ApprovalRequested { .. });
         if advances_ui {
             state.ui_sequence = state.ui_sequence.saturating_add(1);
         }
@@ -235,7 +513,12 @@ impl RunStreamBus {
         if terminal {
             channel.terminal = Some(envelope.clone());
         }
+        channel.history.push_back(envelope.clone());
+        while channel.history.len() > FEED_REPLAY_WINDOW {
+            channel.history.pop_front();
+        }
         let _ = channel.sender.send(envelope);
+        Ok(())
     }
 
     fn project_committed(&self, event: &RuntimeEvent) {
@@ -297,6 +580,122 @@ impl RunStreamSubscription {
             return Ok(envelope);
         }
         self.receiver.recv().await
+    }
+}
+
+/// Versioned feed subscription used by surfaces that need replay/gap semantics.  It keeps the
+/// legacy `RunStreamSubscription` API intact while exposing an explicit snapshot boundary and
+/// bounded backpressure result for new clients.
+pub struct RunStreamFeedSubscription {
+    run_id: RunId,
+    receiver: broadcast::Receiver<RunStreamEnvelope>,
+    bus: Arc<RunStreamBus>,
+    frames: VecDeque<UiFeedFrameV1>,
+    cursor: UiFeedCursorV1,
+    terminal: bool,
+}
+
+impl RunStreamFeedSubscription {
+    pub const fn run_id(&self) -> RunId {
+        self.run_id
+    }
+
+    pub fn cursor(&self) -> &UiFeedCursorV1 {
+        &self.cursor
+    }
+
+    pub fn has_pending_gap(&self) -> bool {
+        self.frames
+            .iter()
+            .any(|frame| frame.kind == UiFeedFrameKind::Gap)
+    }
+
+    pub fn heartbeat(&self) -> Result<UiFeedFrameV1, String> {
+        self.bus
+            .heartbeat(self.run_id)
+            .map(|frame| frame)
+    }
+
+    pub async fn recv_frame(&mut self) -> Result<UiFeedFrameV1, RunStreamFeedError> {
+        loop {
+            if let Some(frame) = self.frames.pop_front() {
+                if frame.kind == UiFeedFrameKind::Terminal {
+                    self.terminal = true;
+                }
+                if frame.kind != UiFeedFrameKind::SnapshotBoundary {
+                    self.cursor = frame.cursor.clone();
+                }
+                return Ok(frame);
+            }
+            let envelope = match self.receiver.recv().await {
+                Ok(envelope) => envelope,
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    let mut state = self
+                        .bus
+                        .state
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner);
+                    state.lagged_receives = state.lagged_receives.saturating_add(1);
+                    state.gap_frames = state.gap_frames.saturating_add(1);
+                    return Err(RunStreamFeedError::Gap(
+                        self.bus
+                            .gap_frame(
+                                UiFeedGapReason::Backpressure,
+                                Some(self.cursor.clone()),
+                                self.cursor.feed_sequence.saturating_add(skipped as u64),
+                                self.cursor.snapshot_cursor.sequence,
+                            )
+                            .map_err(RunStreamFeedError::Invalid)?
+                            .gap
+                            .expect("gap frame contains gap"),
+                    ));
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    return Err(RunStreamFeedError::Closed);
+                }
+            };
+            if envelope.epoch != self.cursor.authority_epoch {
+                return self
+                    .bus
+                    .gap_frame(
+                        UiFeedGapReason::OldEpoch,
+                        Some(self.cursor.clone()),
+                        envelope.sequence,
+                        envelope.ui_cursor,
+                    )
+                    .map_err(RunStreamFeedError::Invalid);
+            }
+            if envelope.sequence <= self.cursor.feed_sequence {
+                continue;
+            }
+            if self.cursor.feed_sequence != 0
+                && envelope.sequence != self.cursor.feed_sequence.saturating_add(1)
+            {
+                return self
+                    .bus
+                    .gap_frame(
+                        UiFeedGapReason::SequenceGap,
+                        Some(self.cursor.clone()),
+                        envelope.sequence,
+                        envelope.ui_cursor,
+                    )
+                    .map_err(RunStreamFeedError::Invalid);
+            }
+            if self.terminal && !matches!(&envelope.event, RunStreamEvent::Terminal { .. }) {
+                return Err(RunStreamFeedError::Invalid(
+                    "feed_terminal_delta_forbidden".to_owned(),
+                ));
+            }
+            let frame = self
+                .bus
+                .feed_frame(&envelope, false)
+                .map_err(RunStreamFeedError::Invalid)?;
+            self.cursor = frame.cursor.clone();
+            if frame.terminal {
+                self.terminal = true;
+            }
+            return Ok(frame);
+        }
     }
 }
 
@@ -788,5 +1187,117 @@ mod tests {
             bus.claim_ui_action(&wrong_epoch),
             Err(PortError::Conflict(reason)) if reason == "ui_action_stale"
         ));
+    }
+
+    #[tokio::test]
+    async fn feed_replays_only_the_bounded_window_and_marks_boundaries() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut live = bus.subscribe_feed_after(run_id, None);
+        assert_eq!(
+            live.recv_frame().await.unwrap().kind,
+            UiFeedFrameKind::SnapshotBoundary
+        );
+        bus.publish_delta(run_id, "one".to_owned());
+        let first = live.recv_frame().await.unwrap();
+        assert_eq!(first.kind, UiFeedFrameKind::Delta);
+        let cursor = first.cursor.clone();
+        bus.publish_delta(run_id, "two".to_owned());
+        drop(live);
+
+        let mut resumed = bus.subscribe_feed_after(run_id, Some(&cursor));
+        assert_eq!(
+            resumed.recv_frame().await.unwrap().kind,
+            UiFeedFrameKind::SnapshotBoundary
+        );
+        let replay = resumed.recv_frame().await.unwrap();
+        assert!(replay.replay);
+        assert_eq!(replay.cursor.feed_sequence, cursor.feed_sequence + 1);
+        assert!(!resumed.has_pending_gap());
+    }
+
+    #[tokio::test]
+    async fn feed_rejects_foreign_epoch_and_expired_replay() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        bus.publish_delta(run_id, "one".to_owned());
+        let mut foreign = bus.subscribe_feed_after(
+            run_id,
+            Some(
+                &UiFeedCursorV1::new(
+                    bus.instance_id().to_owned(),
+                    "old-epoch",
+                    1,
+                    UiCursor {
+                        epoch: "old-epoch".to_owned(),
+                        sequence: 1,
+                    },
+                )
+                .unwrap(),
+            ),
+        );
+        let frame = foreign.recv_frame().await.unwrap();
+        assert_eq!(frame.kind, UiFeedFrameKind::Gap);
+        assert_eq!(
+            frame.gap.as_ref().unwrap().reason,
+            UiFeedGapReason::OldEpoch
+        );
+
+        for index in 0..(FEED_REPLAY_WINDOW + 2) {
+            bus.publish_delta(run_id, format!("delta-{index}"));
+        }
+        let stale = bus.feed_cursor(1, 1).unwrap();
+        let mut expired = bus.subscribe_feed_after(run_id, Some(&stale));
+        let frame = expired.recv_frame().await.unwrap();
+        assert_eq!(frame.kind, UiFeedFrameKind::Gap);
+        assert_eq!(
+            frame.gap.as_ref().unwrap().reason,
+            UiFeedGapReason::ReplayExpired
+        );
+    }
+
+    #[tokio::test]
+    async fn slow_consumer_gets_backpressure_gap_and_terminal_delta_is_denied() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut subscription = bus.subscribe_feed_after(run_id, None);
+        let _ = subscription.recv_frame().await.unwrap();
+        for index in 0..=RUN_STREAM_CAPACITY {
+            bus.publish_delta(run_id, format!("chunk-{index}"));
+        }
+        assert!(matches!(
+            subscription.recv_frame().await,
+            Err(RunStreamFeedError::Gap(gap))
+                if gap.reason == UiFeedGapReason::Backpressure
+        ));
+        bus.publish_terminal(
+            run_id,
+            ResponseEnvelope {
+                schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                request_id: RequestId::new(),
+                status: ExecutionStatus::Completed,
+                output: serde_json::json!({"ok": true}),
+                error: None,
+            },
+        );
+        assert!(matches!(
+            bus.publish_checked(run_id, RunStreamEvent::Delta {
+                run_id,
+                text: "late".to_owned(),
+            }),
+            Err(PortError::Conflict(reason)) if reason == "feed_terminal_delta_forbidden"
+        ));
+        let metrics = bus.feed_metrics();
+        assert!(metrics.lagged_receives > 0);
+        assert!(metrics.terminal_delta_rejections > 0);
+    }
+
+    #[test]
+    fn heartbeat_is_bounded_and_explicit() {
+        let bus = RunStreamBus::default();
+        let frame = bus.heartbeat(RunId::new()).unwrap();
+        assert_eq!(frame.kind, UiFeedFrameKind::Heartbeat);
+        frame.validate().unwrap();
+        assert_eq!(bus.feed_metrics().queue_capacity, UI_FEED_QUEUE_CAPACITY);
     }
 }
