@@ -7,6 +7,11 @@
 
 use kiana_domain::{canonical_scopes, json_digest, CoreResponse};
 pub use kiana_domain::{
+    ModelAttemptError, ModelAttemptEventKind, ModelAttemptLifecycleEvent,
+    ModelAttemptLifecycleRecord, ModelAttemptState, MODEL_ATTEMPT_EVENT_SCHEMA,
+    MODEL_ATTEMPT_EVENT_VERSION, MODEL_ATTEMPT_LIFECYCLE_SCHEMA, MODEL_ATTEMPT_LIFECYCLE_VERSION,
+};
+pub use kiana_domain::{
     normalize_role_path, redact_text, ActionRef, ActionRefId, AdapterCommitState, AdapterResult,
     AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,

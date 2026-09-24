@@ -1,0 +1,52 @@
+name: BQ-11 model attempt lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model_attempt_lifecycle.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq11_attempt_lifecycle.rs"
+      - "kiana-core/src/model_attempt_lifecycle.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq11_attempt_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq11-attempt-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq11-attempt-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model_attempt_lifecycle.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq11_attempt_lifecycle.rs"
+      - "kiana-core/src/model_attempt_lifecycle.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq11_attempt_lifecycle_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq11-attempt-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq11-attempt-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bq11-attempt-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run model attempt lifecycle fixtures
+        run: cargo test -p kiana-domain --test bq11_attempt_lifecycle --locked -- --test-threads=1
+      - name: Run model attempt lifecycle source guard
+        run: cargo test -p kiana-core --test bq11_attempt_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile BQ-11 workspace test targets
+        run: cargo check --workspace --tests --locked

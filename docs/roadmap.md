@@ -575,7 +575,7 @@
 | 403 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-26) · [baseline](roadmap/p4-j7-26-model-events-baseline.md) |
 | 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-27) · [baseline](roadmap/p4-j7-27-provider-recovery-baseline.md) |
 | 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | 🔄 | [专项卡](#step-bq-10) · [baseline](roadmap/bq10-normalized-usage-baseline.md) |
-| 406 | W5 | 专项 | [`BQ-11`](#step-bq-11) | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | `BQ-08`、`BQ-10` | ⏳ | [专项卡](#step-bq-11) |
+| 406 | W5 | 专项 | [`BQ-11`](#step-bq-11) | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | `BQ-08`、`BQ-10` | 🔄 | [专项卡](#step-bq-11) · [baseline](roadmap/bq11-attempt-lifecycle-baseline.md) |
 | 407 | W5 | 专项 | [`BQ-12`](#step-bq-12) | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | `BQ-11` | ⏳ | [专项卡](#step-bq-12) |
 | 408 | W5 | 专项 | [`BQ-13`](#step-bq-13) | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | `BQ-05`、`BQ-12` | ⏳ | [专项卡](#step-bq-13) |
 | 409 | W5 | 专项 | [`INT-06`](roadmap/integrations-connectors.md#step-int-06) | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | `CI-07`、`INT-05` | 🔄 | [专项卡](roadmap/integrations-connectors.md#step-int-06) |

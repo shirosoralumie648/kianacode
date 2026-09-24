@@ -40,6 +40,7 @@ mod capability_attempt_projection;
 mod entrypoint_parity;
 mod memory_proposals;
 mod metrics;
+mod model_attempt_lifecycle;
 mod model_attempt_projection;
 mod notification_projector;
 mod notification_materializer;
@@ -125,6 +126,10 @@ pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
     MetricCardinalityGuard, MetricReducer, MetricReducerError, MetricsProjectionError,
+};
+pub use model_attempt_lifecycle::{
+    project_model_attempt_lifecycle, validate_model_attempt_dispatch,
+    ModelAttemptLifecycleProjection, ModelAttemptLifecycleProjectionError,
 };
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,

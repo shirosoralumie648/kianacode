@@ -29,6 +29,19 @@ proof-level change: `feature_status=implemented` for bounded provider/domain sou
 limitations: response decoder remains responsible for wire syntax and stream accumulation; no provider billing truth, durable settlement, invoice reconciliation, live protocol, crash recovery or external effect proof; BQ-11+ owns attempt lifecycle and settlement integration
 reviewer: Codex BQ-10 source review；检查 protocol mapping、unknown/partial semantics、requested/served model boundary、total consistency、numeric bounds and no execution authority；无本地 runtime test reviewer
 
+### BQ-11 model attempt lifecycle（2026-09-25）
+
+source_snapshot: `778cb7c3` plus BQ-11 source slice; `kiana-domain/src/model_attempt_lifecycle.rs`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/src/lib.rs`; `kiana-protocol/src/lib.rs`; `kiana-core/src/model_attempt_lifecycle.rs`; `kiana-core/src/lib.rs`; `kiana-domain/tests/bq11_attempt_lifecycle.rs`; `kiana-core/tests/bq11_attempt_lifecycle_guard.rs`; `.github/workflows/bq11-attempt-lifecycle.yml`; `docs/roadmap/bq11-attempt-lifecycle-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated worktree `/tmp/kiana-step-bq11`; pure model-attempt ledger binds server-owned run/turn/model-attempt identity to billing `AttemptId`, `QuotaReservation`, permit, `NormalizedUsage` and receipt; dispatch requires prepared append flush acknowledgement and exact permit; core folds only BQ-11 schema facts from committed RuntimeEvents, retaining usage/error on `unknown`; legacy model.prepared payloads remain outside this projector
+command_argv: GitHub Actions will run `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-domain --test bq11_attempt_lifecycle --locked -- --test-threads=1`; `cargo test -p kiana-core --test bq11_attempt_lifecycle_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: unprepared dispatch, missing/mismatched permit, append-without-flush, duplicate settlement, cross-attempt usage, unknown usage/error retention, prepared-first source projection and no provider/Broker/network authority
+exit_code: 本地仅静态源码审阅、目标文件 rustfmt 与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: BQ-11 model attempt lifecycle source contract, lifecycle event registry entries, read-only core projector, deny-first fixtures, baseline and GitHub workflow wired; roadmap row/card advanced from ⏳ to 🔄
+proof-level change: `feature_status=implemented` for bounded domain/core source contracts and CI wiring; `proof_level=source`, no local_behavior/durable/live/physical promotion
+limitations: pure ledger does not append/flush EventLog, consume provider permits, settle/release reservations or reconcile external receipts; projector has no durable checkpoint, crash recovery, invoice reconciliation, retry/fallback policy or live effect proof; legacy `model.prepared` payloads await explicit migration
+reviewer: Codex BQ-11 source review；检查 prepared→flush→dispatch fence、permit/revision/terminal guards、run/turn/attempt/usage/receipt identity、unknown evidence retention、legacy compatibility and read-only ControlPlane boundary；无本地 runtime test reviewer
+
 ### UI-11 CLI JSON/TTY/exit-code presenter（2026-09-24）
 
 source_snapshot: `566b7db4` plus UI-11 source slice; `kiana-client/src/cli_contract.rs`; `kiana-client/src/cli_presenter.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui11_cli_presenter.rs`; `kiana-entrypoints/tests/ui11_cli_presenter_guard.rs`; `.github/workflows/ui11-cli-presenter.yml`; `USER.md`; `docs/roadmap/ui11-cli-presenter-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -31,6 +31,13 @@ const MODEL_EVENT_IDS: &[&str] = &[
     "model_call_id",
     "model_attempt_id",
 ];
+const MODEL_ATTEMPT_LIFECYCLE_IDS: &[&str] = &[
+    "run_id",
+    "turn_id",
+    "model_attempt_id",
+    "attempt_id",
+    "reservation_id",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -285,6 +292,39 @@ const MODEL_EVENT_FIELDS: &[&str] = &[
     "correlation",
     "source_event_id",
     "source_cursor",
+    "event_digest",
+    "attempt_id",
+    "reservation_id",
+    "permit_id",
+    "usage",
+    "receipt_id",
+    "prepared_flushed",
+    "flush_sequence",
+    "revision",
+    "event_id",
+    "permit",
+    "prepared",
+    "authority_versions",
+    "model_request_id",
+    "request_hash",
+];
+const MODEL_ATTEMPT_LIFECYCLE_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "kind",
+    "run_id",
+    "turn_id",
+    "model_attempt_id",
+    "attempt_id",
+    "reservation_id",
+    "permit_id",
+    "usage",
+    "receipt_id",
+    "error",
+    "prepared_flushed",
+    "flush_sequence",
+    "revision",
+    "event_id",
     "event_digest",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
@@ -707,6 +747,38 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         MODEL_EVENT_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "model.observed",
+        "model_attempt",
+        MODEL_ATTEMPT_LIFECYCLE_IDS,
+        MODEL_ATTEMPT_LIFECYCLE_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "model.dispatching",
+        "model_attempt",
+        MODEL_ATTEMPT_LIFECYCLE_IDS,
+        MODEL_ATTEMPT_LIFECYCLE_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "model.settled",
+        "model_attempt",
+        MODEL_ATTEMPT_LIFECYCLE_IDS,
+        MODEL_ATTEMPT_LIFECYCLE_FIELDS,
+        true,
+        None
+    ),
+    spec!(
+        "model.unknown",
+        "model_attempt",
+        MODEL_ATTEMPT_LIFECYCLE_IDS,
+        MODEL_ATTEMPT_LIFECYCLE_FIELDS,
+        true,
+        None
     ),
     spec!(
         "run.snapshot",
