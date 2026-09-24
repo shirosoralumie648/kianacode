@@ -21,6 +21,7 @@ mod harness_skills;
 mod instance;
 mod journal_approvals;
 mod local_packages;
+mod mcp_connector;
 mod mcp_http;
 mod mcp_stdio;
 mod memory_retrieval;
@@ -1054,7 +1055,7 @@ impl DaemonHost {
         harness_memory::register(&mut capabilities, events.clone())?;
         workspace_checkpoints::register(&mut capabilities)?;
         data_governance::register(&mut capabilities)?;
-        connectors::register(&mut capabilities, events.clone())?;
+        connectors::register(&mut capabilities, events.clone(), mcp_registry.clone())?;
         extensions.register(&mut capabilities)?;
         capabilities.validate_catalog_bindings()?;
         let hooks = Arc::new(pre_tool_hooks::QueryPreToolHooks::new(

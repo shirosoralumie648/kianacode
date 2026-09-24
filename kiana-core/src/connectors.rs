@@ -3,7 +3,8 @@
 use super::*;
 use kiana_domain::{
     connector_bindings, ConnectorBindingSnapshot, CONNECTOR_HEALTH_OPERATION,
-    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_STREAM,
+    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_MCP_HANDSHAKE_OPERATION,
+    CONNECTOR_STREAM,
 };
 
 impl ControlPlane {
@@ -93,6 +94,51 @@ impl ControlPlane {
             arguments.insert("binding_snapshot".to_owned(), json!(binding));
             arguments.insert("binding_authorized".to_owned(), json!(true));
             arguments.insert("probe_kind".to_owned(), json!("read_only"));
+            RiskLevel::ReadOnly
+        } else if intent.name == CONNECTOR_MCP_HANDSHAKE_OPERATION {
+            if arguments
+                .keys()
+                .any(|key| !matches!(key.as_str(), "binding_id" | "server"))
+            {
+                return Err("connector_mcp_handshake_arguments_invalid".to_owned());
+            }
+            let binding_id = arguments
+                .get("binding_id")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or("connector_binding_id_required")?
+                .to_owned();
+            let server = arguments
+                .get("server")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or("connector_mcp_server_required")?
+                .to_owned();
+            let history = self
+                .events
+                .read_stream(CONNECTOR_STREAM, &context.project_root)
+                .await
+                .map_err(|e| format!("connector_registry_unavailable:{e}"))?;
+            let (_, bindings) = connector_bindings(&history).map_err(str::to_owned)?;
+            let binding = bindings
+                .get(&binding_id)
+                .ok_or("connector_binding_missing")?;
+            if binding.project_root != context.project_root {
+                return Err("connector_binding_scope_mismatch".to_owned());
+            }
+            if binding.status != "active" {
+                return Err("connector_binding_revoked".to_owned());
+            }
+            if binding.definition.adapter != "stdio_mcp" {
+                return Err("mcp_http_unsupported".to_owned());
+            }
+            arguments.insert("binding_snapshot".to_owned(), json!(binding));
+            arguments.insert("binding_authorized".to_owned(), json!(true));
+            arguments.insert("server".to_owned(), json!(server));
+            arguments.insert(
+                "session_ref".to_owned(),
+                json!(context.request_id.to_string()),
+            );
             RiskLevel::ReadOnly
         } else if intent.name == CONNECTOR_INVOKE_OPERATION {
             if arguments.keys().any(|key| {

@@ -3,10 +3,10 @@ use crate::mcp_http::HttpMcpClient;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     AdapterCommitState, AdapterResultKind, AggregateVersion, AuthorizedCapabilityRequest,
-    CapabilityKind, CapabilityRequest, CapabilityResult, CommitOutcome, RequestContext, RequestId,
-    RuntimeEvent, TransitionBatch,
+    CapabilityKind, CapabilityRequest, CapabilityResult, CommitOutcome, McpCapabilityHandshake,
+    McpCapabilityHandshakeRequest, RequestContext, RequestId, RuntimeEvent, TransitionBatch,
 };
-use kiana_ports::{EventStorePort, PortError};
+use kiana_ports::{ConnectorAdapter, EventStorePort, PortError};
 #[cfg(test)]
 use kiana_services::mcp::McpTool;
 use kiana_services::mcp::{McpServerConfig, TransportType};
@@ -248,6 +248,35 @@ impl McpRegistry {
         prepared.arguments["server"] = json!(config.name);
         prepared.arguments["mcp_snapshot"] = snapshot;
         Ok(prepared)
+    }
+
+    /// Connector-owned read-only handshake. The config is resolved from the trusted registry and
+    /// the process is always confined and per invocation; no HTTP/SSE/WS transport is accepted.
+    pub(crate) async fn connector_handshake(
+        &self,
+        request: &McpCapabilityHandshakeRequest,
+    ) -> Result<McpCapabilityHandshake, PortError> {
+        let selector = json!(request.server);
+        let config = select_server(&self.servers, Some(&selector))?;
+        if config.transport != TransportType::Stdio {
+            return Err(mcp_failed("mcp_http_unsupported"));
+        }
+        let root = PathBuf::from(&request.binding.project_root);
+        let pin_config = config.clone();
+        let pin_root = root.clone();
+        let pin = tokio::task::spawn_blocking(move || config_pin(&pin_config, &pin_root))
+            .await
+            .map_err(|_| mcp_failed("mcp_config_pin_failed"))??;
+        let scope = json!({
+            "project_trusted": true,
+            "project_root": request.binding.project_root,
+            "sandbox": "read-only",
+            "path_allow": ["."],
+            "mcp_snapshot": pin,
+        });
+        let adapter =
+            crate::mcp_connector::StdioMcpConnectorAdapter::new(config, scope, Vec::new())?;
+        adapter.capability_handshake_checked(request.clone()).await
     }
 
     async fn discovery(&self, key: &str) -> Result<Value, PortError> {

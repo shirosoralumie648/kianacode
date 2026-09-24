@@ -1,4 +1,5 @@
-//! Local Connector contracts. External transports are deliberately unsupported.
+//! Connector contracts. External transports remain closed; stdio MCP is the only remote-style
+//! adapter admitted by the INT-10 source slice and still runs inside the confined child boundary.
 
 use crate::{
     connector_fixture_hash_valid, is_sha256_hex, valid_extension_identifier, valid_extension_path,
@@ -13,8 +14,12 @@ pub const CONNECTOR_INVOKE_OPERATION: &str = "connector.invoke";
 /// Read-only binding health command. The command only authorizes an adapter probe; it never
 /// grants an invocation permit or performs an external effect.
 pub const CONNECTOR_HEALTH_OPERATION: &str = "connector.health";
+/// Read-only stdio MCP initialize/tools-list handshake. It only publishes untrusted capability
+/// metadata and never grants a server advertised scope.
+pub const CONNECTOR_MCP_HANDSHAKE_OPERATION: &str = "connector.mcp_handshake";
 pub const CONNECTOR_STREAM: &str = "connector_registry";
 pub const CONNECTOR_HEALTH_EVENT_KIND: &str = "connector.health_checked";
+pub const CONNECTOR_MCP_HANDSHAKE_EVENT_KIND: &str = "connector.mcp_handshake";
 pub const CONNECTOR_HEALTH_FACT_SCHEMA: &str = "kiana.connector-health-fact.v1";
 pub const CONNECTOR_HEALTH_PROJECTION_SCHEMA: &str = "kiana.connector-health-projection.v1";
 pub const CONNECTOR_HEALTH_MAX_LIMITATIONS: usize = 16;
@@ -192,7 +197,8 @@ pub struct ConnectorDefinition {
     pub connector_id: String,
     pub version: String,
     pub provider_id: String,
-    /// This release accepts only local_fixture and never sends external requests.
+    /// The adapter is server-owned. `stdio_mcp` is constrained to a local child process and never
+    /// accepts an HTTP endpoint or a server supplied scope.
     pub adapter: String,
     pub operations: BTreeMap<String, ConnectorOperation>,
     pub rate_limit_per_minute: u32,
@@ -250,7 +256,9 @@ impl ConnectorBindingSnapshot {
         {
             return Err("connector_binding_invalid");
         }
-        if definition.adapter != "local_fixture" || definition.data_processing != "local_only" {
+        if !matches!(definition.adapter.as_str(), "local_fixture" | "stdio_mcp")
+            || definition.data_processing != "local_only"
+        {
             return Err("connector_transport_not_supported");
         }
         if definition.operations.is_empty()
@@ -353,6 +361,7 @@ pub fn connector_bindings(
                     | "connector.invoked"
                     | "connector.reconciled"
                     | CONNECTOR_HEALTH_EVENT_KIND
+                    | CONNECTOR_MCP_HANDSHAKE_EVENT_KIND
             )
         {
             return Err("connector_registry_event_invalid");
@@ -374,6 +383,19 @@ pub fn connector_bindings(
             if !bindings.contains_key(&fact.binding_id) {
                 return Err("connector_registry_event_invalid");
             }
+        } else if event.kind == CONNECTOR_MCP_HANDSHAKE_EVENT_KIND {
+            let binding_id = event.data["binding_id"]
+                .as_str()
+                .ok_or("connector_registry_event_invalid")?;
+            if !bindings.contains_key(binding_id) {
+                return Err("connector_registry_event_invalid");
+            }
+            let handshake: crate::McpCapabilityHandshake =
+                serde_json::from_value(event.data["handshake"].clone())
+                    .map_err(|_| "connector_registry_event_invalid")?;
+            handshake
+                .validate()
+                .map_err(|_| "connector_registry_event_invalid")?;
         }
         version += 1;
     }

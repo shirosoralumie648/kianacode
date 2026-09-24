@@ -37,7 +37,10 @@ impl ResourceFootprint {
         let mode = if matches!(request.capability, CapabilityKind::Network)
             || matches!(
                 request.operation.as_str(),
-                "connector.invoke" | "connector.manage" | "connector.health"
+                "connector.invoke"
+                    | "connector.manage"
+                    | "connector.health"
+                    | "connector.mcp_handshake"
             ) {
             FootprintMode::Unknown
         } else {

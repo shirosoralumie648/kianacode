@@ -8,8 +8,8 @@ use crate::PortError;
 use async_trait::async_trait;
 use kiana_domain::{
     is_sha256_hex, json_digest, valid_extension_identifier, ConnectorBindingSnapshot,
-    CredentialLease, EffectObservation, InvocationId, ProviderReceipt, StopReport,
-    WorkflowEventIngress, WorkflowEventOccurrence, WorkflowEventSourcePolicy,
+    CredentialLease, EffectObservation, InvocationId, McpCapabilityHandshake, ProviderReceipt,
+    StopReport, WorkflowEventIngress, WorkflowEventOccurrence, WorkflowEventSourcePolicy,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -26,6 +26,7 @@ pub const CONNECTOR_OBSERVATION_REQUEST_SCHEMA: &str = "kiana.connector-observat
 pub const CONNECTOR_CANCEL_REQUEST_SCHEMA: &str = "kiana.connector-cancel-request.v1";
 pub const CONNECTOR_WEBHOOK_REQUEST_SCHEMA: &str = "kiana.connector-webhook-request.v1";
 pub const CONNECTOR_VERIFIED_WEBHOOK_SCHEMA: &str = "kiana.connector-verified-webhook.v1";
+pub const CONNECTOR_MCP_HANDSHAKE_REQUEST_SCHEMA: &str = "kiana.connector-mcp-handshake-request.v1";
 pub const CONNECTOR_PAYLOAD_MAX_BYTES: usize = 64 * 1024;
 pub const CONNECTOR_LIMITATIONS_MAX: usize = 16;
 
@@ -41,6 +42,7 @@ pub enum ConnectorAdapterCapability {
     ObserveReceipt,
     Cancel,
     WebhookVerify,
+    CapabilityHandshake,
 }
 
 impl ConnectorAdapterCapability {
@@ -52,6 +54,7 @@ impl ConnectorAdapterCapability {
             Self::ObserveReceipt => "observe_receipt",
             Self::Cancel => "cancel",
             Self::WebhookVerify => "webhook_verify",
+            Self::CapabilityHandshake => "capability_handshake",
         }
     }
 }
@@ -424,6 +427,35 @@ pub struct CredentialProbeResult {
     pub evidence_digest: Option<String>,
 }
 
+/// Server-owned input for a stdio MCP capability handshake.  It contains no command, URL,
+/// headers or scope grant; the trusted registry resolves those after the ControlPlane permit.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpCapabilityHandshakeRequest {
+    pub schema: String,
+    pub binding: ConnectorBindingSnapshot,
+    pub server: String,
+    pub session_ref: String,
+}
+
+impl McpCapabilityHandshakeRequest {
+    pub fn validate(&self) -> Result<(), PortError> {
+        if self.schema != CONNECTOR_MCP_HANDSHAKE_REQUEST_SCHEMA
+            || !valid_extension_identifier(&self.server)
+            || self.session_ref.trim().is_empty()
+            || self.session_ref.len() > 256
+            || self.session_ref.chars().any(char::is_control)
+        {
+            return Err(PortError::Failed(
+                "connector_mcp_handshake_request_invalid".to_owned(),
+            ));
+        }
+        self.binding
+            .validate()
+            .map_err(|error| PortError::Conflict(error.to_owned()))
+    }
+}
+
 impl CredentialProbeResult {
     pub fn validate(&self) -> Result<(), PortError> {
         if self.schema != CONNECTOR_PROBE_RESULT_SCHEMA
@@ -625,6 +657,15 @@ pub trait ConnectorAdapter: Send + Sync {
         ))
     }
 
+    async fn capability_handshake(
+        &self,
+        _request: McpCapabilityHandshakeRequest,
+    ) -> Result<McpCapabilityHandshake, PortError> {
+        Err(PortError::Unavailable(
+            "connector_capability_handshake_unsupported".to_owned(),
+        ))
+    }
+
     async fn discover_checked(
         &self,
         binding: &ConnectorBindingSnapshot,
@@ -674,6 +715,18 @@ pub trait ConnectorAdapter: Send + Sync {
             .validate()
             .map_err(|error| PortError::Failed(error.to_owned()))?;
         Ok(report)
+    }
+
+    async fn capability_handshake_checked(
+        &self,
+        request: McpCapabilityHandshakeRequest,
+    ) -> Result<McpCapabilityHandshake, PortError> {
+        self.capabilities()
+            .require(ConnectorAdapterCapability::CapabilityHandshake)?;
+        request.validate()?;
+        let handshake = self.capability_handshake(request).await?;
+        handshake.validate().map_err(PortError::Failed)?;
+        Ok(handshake)
     }
 }
 

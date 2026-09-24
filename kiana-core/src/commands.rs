@@ -282,6 +282,7 @@ impl ControlPlane {
             kiana_domain::CONNECTOR_MANAGE_OPERATION
                 | kiana_domain::CONNECTOR_INVOKE_OPERATION
                 | kiana_domain::CONNECTOR_HEALTH_OPERATION
+                | kiana_domain::CONNECTOR_MCP_HANDSHAKE_OPERATION
         ) {
             return self.handle_connector_command(context, intent).await;
         }

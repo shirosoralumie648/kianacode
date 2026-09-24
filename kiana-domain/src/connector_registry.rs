@@ -60,7 +60,10 @@ impl ConnectorRegistrySnapshot {
                 || definition.connector_id.trim().is_empty()
                 || definition.version.trim().is_empty()
                 || definition.operations.is_empty()
-                || !matches!(definition.adapter.as_str(), "local_fixture" | "local_only")
+                || !matches!(
+                    definition.adapter.as_str(),
+                    "local_fixture" | "local_only" | "stdio_mcp"
+                )
             {
                 return Err("connector_registry_definition_invalid".to_owned());
             }

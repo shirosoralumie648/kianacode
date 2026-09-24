@@ -641,6 +641,7 @@ impl ControlPlane {
                     | "connector.manage"
                     | "connector.invoke"
                     | "connector.health"
+                    | "connector.mcp_handshake"
                     | "workspace.checkpoint.restore"
             )
         {

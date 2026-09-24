@@ -1,0 +1,78 @@
+name: int10-stdio-mcp
+
+on:
+  push:
+    paths:
+      - 'kiana-domain/src/connectors.rs'
+      - 'kiana-domain/src/connector_registry.rs'
+      - 'kiana-domain/src/mcp_connector.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/int10_stdio_mcp.rs'
+      - 'kiana-ports/src/connector.rs'
+      - 'kiana-daemon/src/mcp_connector.rs'
+      - 'kiana-daemon/src/mcp_stdio.rs'
+      - 'kiana-daemon/src/harness_mcp.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-daemon/src/lib.rs'
+      - 'kiana-daemon/tests/int10_stdio_mcp_guard.rs'
+      - 'kiana-core/src/connectors.rs'
+      - 'kiana-core/src/commands.rs'
+      - 'kiana-core/src/capability_scheduler.rs'
+      - 'kiana-core/src/company.rs'
+      - 'kiana-core/tests/int10_stdio_mcp_guard.rs'
+      - 'kiana-policy/src/lib.rs'
+      - '.github/workflows/int10-stdio-mcp.yml'
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int10-stdio-mcp-baseline.md'
+      - 'docs/roadmap.md'
+      - 'CURRENT_STATUS.md'
+  pull_request:
+    paths:
+      - 'kiana-domain/src/connectors.rs'
+      - 'kiana-domain/src/connector_registry.rs'
+      - 'kiana-domain/src/mcp_connector.rs'
+      - 'kiana-domain/src/lib.rs'
+      - 'kiana-domain/tests/int10_stdio_mcp.rs'
+      - 'kiana-ports/src/connector.rs'
+      - 'kiana-daemon/src/mcp_connector.rs'
+      - 'kiana-daemon/src/mcp_stdio.rs'
+      - 'kiana-daemon/src/harness_mcp.rs'
+      - 'kiana-daemon/src/connectors.rs'
+      - 'kiana-daemon/src/lib.rs'
+      - 'kiana-daemon/tests/int10_stdio_mcp_guard.rs'
+      - 'kiana-core/src/connectors.rs'
+      - 'kiana-core/src/commands.rs'
+      - 'kiana-core/src/capability_scheduler.rs'
+      - 'kiana-core/src/company.rs'
+      - 'kiana-core/tests/int10_stdio_mcp_guard.rs'
+      - 'kiana-policy/src/lib.rs'
+      - '.github/workflows/int10-stdio-mcp.yml'
+      - 'docs/roadmap/integrations-connectors.md'
+      - 'docs/roadmap/int10-stdio-mcp-baseline.md'
+      - 'docs/roadmap.md'
+      - 'CURRENT_STATUS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stdio-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-10 domain handshake fixtures
+        run: cargo test -p kiana-domain --test int10_stdio_mcp --locked -- --test-threads=1
+      - name: Run INT-10 core boundary guard
+        run: cargo test -p kiana-core --test int10_stdio_mcp_guard --locked -- --test-threads=1
+      - name: Run INT-10 daemon boundary guard
+        run: cargo test -p kiana-daemon --test int10_stdio_mcp_guard --locked -- --test-threads=1
+      - name: Compile stdio MCP connector path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-policy -p kiana-core -p kiana-daemon --tests --locked

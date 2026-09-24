@@ -84,11 +84,16 @@ pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static
         kiana_domain::CONNECTOR_MANAGE_OPERATION
             | kiana_domain::CONNECTOR_INVOKE_OPERATION
             | kiana_domain::CONNECTOR_HEALTH_OPERATION
+            | kiana_domain::CONNECTOR_MCP_HANDSHAKE_OPERATION
     ) {
         if request.capability != CapabilityKind::Tool {
             return Some("connector_capability_mismatch");
         }
-        if request.operation == kiana_domain::CONNECTOR_HEALTH_OPERATION {
+        if matches!(
+            request.operation.as_str(),
+            kiana_domain::CONNECTOR_HEALTH_OPERATION
+                | kiana_domain::CONNECTOR_MCP_HANDSHAKE_OPERATION
+        ) {
             if request.risk != RiskLevel::ReadOnly {
                 return Some("connector_health_risk_downgrade");
             }
@@ -268,6 +273,7 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
         kiana_domain::CONNECTOR_MANAGE_OPERATION
             | kiana_domain::CONNECTOR_INVOKE_OPERATION
             | kiana_domain::CONNECTOR_HEALTH_OPERATION
+            | kiana_domain::CONNECTOR_MCP_HANDSHAKE_OPERATION
     ) && (context.cell_id.is_some()
         || request.cell_id.is_some()
         || request.arguments["operator_authorized"] != true

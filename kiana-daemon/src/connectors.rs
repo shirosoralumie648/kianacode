@@ -12,9 +12,12 @@ use kiana_domain::{
     EffectObservation, ExecutionId, InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent,
     CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND,
     CONNECTOR_HEALTH_OPERATION, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
-    CONNECTOR_STREAM,
+    CONNECTOR_MCP_HANDSHAKE_EVENT_KIND, CONNECTOR_MCP_HANDSHAKE_OPERATION, CONNECTOR_STREAM,
 };
-use kiana_ports::{EventStorePort, PortError};
+use kiana_ports::{
+    EventStorePort, McpCapabilityHandshakeRequest, PortError,
+    CONNECTOR_MCP_HANDSHAKE_REQUEST_SCHEMA,
+};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::sync::Arc;
@@ -23,8 +26,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub(crate) fn register(
     broker: &mut CapabilityBroker,
     events: Arc<dyn EventStorePort>,
+    mcp: Arc<crate::harness_mcp::McpRegistry>,
 ) -> Result<(), PortError> {
-    let registry = Arc::new(ConnectorRegistry { events });
+    let registry = Arc::new(ConnectorRegistry { events, mcp });
     broker.register_static(
         CapabilityKind::Tool,
         CONNECTOR_MANAGE_OPERATION,
@@ -35,11 +39,17 @@ pub(crate) fn register(
         CONNECTOR_HEALTH_OPERATION,
         registry.clone(),
     )?;
+    broker.register_static(
+        CapabilityKind::Tool,
+        CONNECTOR_MCP_HANDSHAKE_OPERATION,
+        registry.clone(),
+    )?;
     broker.register_static(CapabilityKind::Tool, CONNECTOR_INVOKE_OPERATION, registry)
 }
 
 struct ConnectorRegistry {
     events: Arc<dyn EventStorePort>,
+    mcp: Arc<crate::harness_mcp::McpRegistry>,
 }
 
 impl ConnectorRegistry {
@@ -207,6 +217,99 @@ impl ConnectorRegistry {
         }))
     }
 
+    async fn handle_mcp_handshake(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        args: &Value,
+        project: &str,
+        actor: &str,
+        history: &[RuntimeEvent],
+        bindings: &std::collections::BTreeMap<String, ConnectorBindingSnapshot>,
+    ) -> Result<Value, PortError> {
+        if request.request.cell_id.is_some()
+            || args["operator_authorized"] != true
+            || args["binding_authorized"] != true
+        {
+            return Err(failed("connector_operator_required"));
+        }
+        let binding_id = string(args, "binding_id")?;
+        let server = string(args, "server")?;
+        let session_ref = string(args, "session_ref")?;
+        let snapshot: ConnectorBindingSnapshot =
+            serde_json::from_value(args["binding_snapshot"].clone())
+                .map_err(|_| failed("connector_binding_snapshot_required"))?;
+        if snapshot.project_root != project
+            || snapshot.binding.binding_id != binding_id
+            || bindings.get(binding_id) != Some(&snapshot)
+        {
+            return Err(failed("connector_binding_snapshot_changed"));
+        }
+        if snapshot.status != "active" {
+            return Err(failed("connector_binding_revoked"));
+        }
+        if snapshot.definition.adapter != "stdio_mcp" {
+            return Err(failed("mcp_http_unsupported"));
+        }
+        let handshake_request = McpCapabilityHandshakeRequest {
+            schema: CONNECTOR_MCP_HANDSHAKE_REQUEST_SCHEMA.to_owned(),
+            binding: snapshot.clone(),
+            server: server.to_owned(),
+            session_ref: session_ref.to_owned(),
+        };
+        let handshake = self.mcp.connector_handshake(&handshake_request).await?;
+        let next_version = history
+            .last()
+            .and_then(|event| event.stream_version)
+            .unwrap_or_default()
+            .checked_add(1)
+            .ok_or_else(|| failed("connector_registry_version_exhausted"))?;
+        let event = RuntimeEvent::new(
+            request.request.request_id,
+            1,
+            CONNECTOR_MCP_HANDSHAKE_EVENT_KIND,
+            json!({
+                "schema": "kiana.connector-mcp-handshake-event.v1",
+                "request_id": request.request.request_id,
+                "connector_id": snapshot.definition.connector_id,
+                "binding_id": binding_id,
+                "server": server,
+                "actor_id": actor,
+                "project_root": project,
+                "authorization_id": request.authorization_id,
+                "handshake": handshake,
+                "proof_level": "source",
+            }),
+        )
+        .map_err(|error| failed(error.to_string()))?
+        .with_stream_metadata(CONNECTOR_STREAM, project, next_version)
+        .with_idempotency_key(format!(
+            "connector-mcp-handshake:{}:{}:{}",
+            sha256(project.as_bytes()),
+            binding_id,
+            server
+        ));
+        let appended = self
+            .events
+            .append_idempotent_expected(event, Some(next_version - 1))
+            .await
+            .map_err(|error| match error {
+                PortError::Conflict(_) => error,
+                other => failed(format!(
+                    "result_unknown:connector_mcp_handshake_persist:{other}"
+                )),
+            })?;
+        Ok(json!({
+            "schema": "kiana.connector-mcp-handshake-result.v1",
+            "handshake": appended.event.data["handshake"],
+            "binding_id": binding_id,
+            "server": server,
+            "event_id": appended.event.event_id,
+            "source_cursor": next_version,
+            "replayed": appended.replayed,
+            "proof_level": "source",
+        }))
+    }
+
     async fn handle(&self, request: &AuthorizedCapabilityRequest) -> Result<Value, PortError> {
         let args = &request.request.arguments;
         if request.request.cell_id.is_some() || args["operator_authorized"] != true {
@@ -220,6 +323,8 @@ impl ConnectorRegistry {
             "invoke"
         } else if request.request.operation == CONNECTOR_HEALTH_OPERATION {
             "health"
+        } else if request.request.operation == CONNECTOR_MCP_HANDSHAKE_OPERATION {
+            "mcp_handshake"
         } else {
             string(args, "action")?
         };
@@ -248,6 +353,11 @@ impl ConnectorRegistry {
         if action == "health" {
             return self
                 .handle_health(&request, args, project, actor, &history, &bindings)
+                .await;
+        }
+        if action == "mcp_handshake" {
+            return self
+                .handle_mcp_handshake(&request, args, project, actor, &history, &bindings)
                 .await;
         }
         if !matches!(action, "bind" | "revoke" | "reconcile" | "invoke") {
@@ -541,6 +651,7 @@ impl CapabilityHandler for ConnectorRegistry {
                 CONNECTOR_INVOKE_OPERATION
                     | CONNECTOR_MANAGE_OPERATION
                     | CONNECTOR_HEALTH_OPERATION
+                    | CONNECTOR_MCP_HANDSHAKE_OPERATION
             )
         {
             return Err(failed("connector_operation_mismatch"));
