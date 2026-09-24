@@ -7,6 +7,7 @@ mod resolver;
 mod response;
 mod telemetry;
 mod transport;
+mod usage;
 use async_trait::async_trait;
 pub use config::ProviderConfig;
 use kiana_domain::*;
@@ -17,6 +18,7 @@ pub use resolver::{
 };
 use std::collections::BTreeMap;
 pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
+pub use usage::normalize_model_reply;
 
 pub struct ProviderGateway {
     connections: BTreeMap<String, config::Connection>,

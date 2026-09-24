@@ -371,7 +371,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-24 Provider 用量、价格快照与预算结算　⏳
+#### P4-J7-24 Provider 用量、价格快照与预算结算　🔄
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14`。
 - **改动位置**：现有 domain/usage、core 预算/receipt、provider usage 归一化与 RateCard 加载。
@@ -379,6 +379,8 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`missing_usage_and_price_remain_unknown`、`usage_overflow_is_rejected`、`concurrent_model_calls_cannot_overspend_reserved_budget`。
 - **再成功**：`cumulative_cache_and_reasoning_usage_is_not_double_counted`、`failed_attempt_usage_is_retained`、`replayed_usage_is_settled_once`。
 - **退出 / 证据**：重试增加成本可解释；Receipt 显示未知项；不把本机 GPU 调用的外部费用默认为零，也不宣称模型 token 统计等于账单。
+
+- **已实现切片（CI 待跑）**：`ProviderUsageSettlement` 绑定 server-owned provider/model/route、attempt/run、最终 `NormalizedUsage`、idempotency digest 与 observed timestamp；`SettlementCost` 明确区分 unknown、RateCard version-bound estimated 和 provider receipt-bound measured；attempt-local ledger 对相同 digest 幂等、对冲突结算拒绝。Provider adapter 将已准入的 `ModelReply` 归一化为缺失保留 unknown 的 provider observation，不能自行授权预算或写 EventLog。实现与限制见 [baseline](p4-j7-24-usage-settlement-baseline.md)。
 
 <a id="step-p4-j7-25"></a>
 

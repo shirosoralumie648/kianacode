@@ -11898,6 +11898,19 @@ proof-level change: `feature_status=implemented`, `proof_level=source`; no local
 limitations: no local runtime tests were run and CI has not been observed; durable package install/recovery, approval UX, Hook/provider effects, external connector receipts and physical proof remain later slices
 reviewer: Codex source review of versioned DTO bounds, deny-first mutation fields, lifecycle CAS/idempotency, receipt-only UI projection and no second execution loop; no local runtime test reviewer
 
+### P4-J7-24 provider usage/price snapshot/settlement evidence (2026-09-24)
+
+source_snapshot: `0ed70bb1` plus P4-J7-24 source slice; `kiana-domain/src/provider_usage_settlement.rs`; `kiana-provider/src/usage.rs`; `kiana-domain/tests/p4_j7_24_usage_settlement.rs`; `kiana-core/tests/p4_j7_24_usage_settlement_guard.rs`; `.github/workflows/p4-j7-24-usage-settlement.yml`; `docs/roadmap/p4-j7-24-usage-settlement-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`
+worktree_status: isolated branch `p4-j7-24-usage-settlement-20260924`; server-owned attempt/run/provider/model/route fields, final normalized usage, idempotency digest and observed timestamp are bound in `ProviderUsageSettlement`; unknown, RateCard version-bound estimated and opaque provider-receipt measured costs remain separate; provider adapter is projection-only and does not authorize budget or append EventLog
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-domain --test p4_j7_24_usage_settlement --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_24_usage_settlement_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: isolated `/tmp/kiana-step-p4j724`; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: GitHub-only missing usage/rate card, measured receipt, exact replay/conflict, run identity drift and no Broker/EventLog/network authority fixtures; no provider request or billing service was contacted
+exit_code: local verification is limited to diff review; remote fixture and compile exit codes are pending and unobserved
+status change: `P4-J7-24` source contracts, provider normalization adapter, guards, workflow and baseline are implemented; roadmap row 401/card remain 🔄 pending CI evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no durable quota reservation/CAS, project/org financial allocation, invoice reconciliation, capacity queue, cross-process ledger, live provider billing or external effect proof; BQ-10+ and later Provider/Receipt/EventLog steps remain
+reviewer: Codex source review of unknown-versus-zero handling, rate-card scope/version binding, measured receipt requirement, attempt replay conflict and provider no-authority boundary; no local runtime test reviewer
+
 ### DEP-00 deployment/operations source inventory evidence (2026-09-24)
 
 source_snapshot: `794b6d44` (`origin/master` at inventory start); `docs/module-map.md`, `CURRENT_STATUS.md`, `scripts/`, `kiana-daemon/src/lib.rs`, `kiana-eventlog/src/`, `kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}`, `kiana-core/tests/dep00_deployment_guard.rs`, `.github/workflows/dep00-deployment-baseline.yml`, `docs/roadmap/dep00-deployment-baseline.md`

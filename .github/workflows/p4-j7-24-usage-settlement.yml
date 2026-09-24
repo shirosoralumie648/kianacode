@@ -1,0 +1,50 @@
+name: P4-J7-24 provider usage settlement
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/provider_usage_settlement.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_24_usage_settlement.rs"
+      - "kiana-provider/src/usage.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-core/tests/p4_j7_24_usage_settlement_guard.rs"
+      - "docs/roadmap/p4-j7-24-usage-settlement-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-24-usage-settlement.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/provider_usage_settlement.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/p4_j7_24_usage_settlement.rs"
+      - "kiana-provider/src/usage.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-core/tests/p4_j7_24_usage_settlement_guard.rs"
+      - "docs/roadmap/p4-j7-24-usage-settlement-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-24-usage-settlement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  usage-settlement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run provider usage settlement fixtures
+        run: cargo test -p kiana-domain --test p4_j7_24_usage_settlement --locked -- --test-threads=1
+      - name: Run provider usage adapter source guard
+        run: cargo test -p kiana-core --test p4_j7_24_usage_settlement_guard --locked -- --test-threads=1
+      - name: Compile P4-J7-24 targets
+        run: cargo check --workspace --tests --locked
