@@ -11910,3 +11910,16 @@ status change: `DEP-00` source inventory, gap classification, fixture catalog an
 proof-level change: `feature_status=implemented`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: inventory does not establish deployment profiles, operation journal, lease/fence, health/readiness, backup/restore, migration execution, supervisor effects, release provenance or cross-process durability; later `DEP-01`–`DEP-41` remain required
 reviewer: Codex source review against module map, CURRENT_STATUS, release scripts, DaemonHost/EventLog/schema/migration anchors and single-spine/legacy boundaries; no local runtime test reviewer
+
+### UI-09 schema 资产、生成和兼容门（2026-09-24）
+
+source_snapshot: `0ed70bb1`（UI-08 集成后的 UI-09 分支基线，提交后绑定本提交）；`docs/schemas/ui/*.schema.json`; `docs/schemas/ui/schema-lock.v1.json`; `docs/schemas/ui/compatibility-matrix.v1.json`; `docs/schemas/ui/examples/*`; `scripts/validate-ui09-schemas.py`; `scripts/validate-json-schema.py`; `kiana-client/src/ui_schema_generated.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui09_schema_catalog.rs`; `kiana-core/tests/ui09_schema_guard.rs`; `.github/workflows/ui09-schema-contract.yml`; `docs/roadmap/ui09-schema-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-09-schema-20260924`，基于 `origin/master=0ed70bb1`；schema lock 绑定 handshake/snapshot/feed/action/action-result/entity-store 七个 UI DTO、Rust owner、unknown-field policy、max bytes、deprecated 字段、example 与 SHA-256，主工作树 WIP 未触碰
+command_argv: `python3 scripts/validate-ui09-schemas.py --write`; `rustfmt --edition 2021 kiana-client/src/lib.rs kiana-client/src/ui_schema_generated.rs kiana-client/tests/ui09_schema_catalog.rs kiana-core/tests/ui09_schema_guard.rs`; `git diff --check`; GitHub Actions 将运行 `python3 scripts/validate-ui09-schemas.py`; `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui09_schema_catalog --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui09_schema_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: `/tmp/kiana-step-ui09`; Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: 每个 DTO 的 synthetic/redacted valid example 与 strict unknown-field example；schema hash/order/owner/size/redaction gate；same-major additive-only、unknown major/command fail-closed compatibility matrix；generated Rust catalog byte parity；core source guard 无 Broker/ControlPlane/DaemonHost/model loop/network/filesystem
+exit_code: `python3 scripts/validate-ui09-schemas.py --write` 退出 0；目标 rustfmt 与 `git diff --check` 在提交前执行并记录；GitHub Actions 待触发/未等待
+status change: UI-09 schema lock、生成校验命令、兼容矩阵和脱敏 fixtures 已接入，roadmap row 425/card 状态为 🔄
+proof-level change: `feature_status=implemented`（JSON Schema/Rust catalog source + GitHub-only gate wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 只覆盖首批七个 UI DTO，未覆盖所有 domain/event/platform schema 或 TypeScript 包；语义 digest/cursor 校验仍由 Rust DTO，未证明跨版本 live interoperability、browser transport、durable migration、provider 或 physical proof；CI 结果未观察
+reviewer: Codex UI-09 source review；检查 schema `$id`/version/owner/hash、strict unknown fields、byte limits、redacted synthetic examples、major/command rejection、generated catalog parity 和无第二执行循环；无本地 runtime test reviewer

@@ -52,7 +52,12 @@ Canonical domain schema 定义业务对象的字段、版本和兼容边界；Ru
 | `kiana-app-server-team-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
 | `kiana-app-server-trust-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
 
-## 3. 目标目录
+## 3. 当前 UI registry 与目标目录
+
+UI-09 adds the first strict, locked UI contracts under [`ui/`](ui/README.md). The lock and generated
+catalog cover the handshake, snapshot, feed, action, action result and shared entity-store snapshot
+boundaries used by UI-07/08. The remaining domain/runtime/platform files below are still target
+inventory and must not be treated as implemented by the presence of this slice.
 
 本目录规划为 schema registry 的唯一目标位置；[`company-os-domain-contracts.md`](../company-os-domain-contracts.md) §9 的 registry 引用本节（其早期 `docs/schemas/company-os/` 写法以本节为准）。
 

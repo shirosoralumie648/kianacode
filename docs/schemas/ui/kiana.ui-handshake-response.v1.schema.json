@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-handshake-response.v1",
+  "title": "Kiana UI handshake response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "server_version",
+    "instance_id",
+    "authority_epoch",
+    "surface",
+    "capabilities"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-handshake-response.v1"
+    },
+    "server_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "authority_epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "surface": {
+      "enum": [
+        "cli",
+        "workbench",
+        "web",
+        "desktop",
+        "ide"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/limitation"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "capability_id",
+        "enabled",
+        "actions",
+        "scope_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kiana.ui-capability.v1"
+        },
+        "capability_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "actions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1024
+        },
+        "scope_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-handshake-response.v1",
+      "server_version": "0.1.0",
+      "instance_id": "instance-example",
+      "authority_epoch": 7,
+      "surface": "web",
+      "capabilities": [
+        {
+          "schema": "kiana.ui-capability.v1",
+          "capability_id": "ui.feed.v1",
+          "enabled": true,
+          "actions": [
+            "subscribe"
+          ],
+          "reason": null,
+          "scope_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "limitations": []
+    }
+  ]
+}

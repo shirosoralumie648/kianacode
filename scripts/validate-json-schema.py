@@ -20,7 +20,9 @@ def load_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def type_matches(instance: Any, expected: str) -> bool:
+def type_matches(instance: Any, expected: str | list[str]) -> bool:
+    if isinstance(expected, list):
+        return any(type_matches(instance, option) for option in expected)
     if expected == "object":
         return isinstance(instance, dict)
     if expected == "array":
@@ -82,7 +84,7 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
         errors.append(f"{path}: expected one of {schema['enum']!r}, got {instance!r}")
 
     expected_type = schema.get("type")
-    if isinstance(expected_type, str):
+    if isinstance(expected_type, (str, list)):
         try:
             type_ok = type_matches(instance, expected_type)
         except ValidationError as exc:
@@ -93,6 +95,12 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
             return errors
 
     if isinstance(instance, dict):
+        min_properties = schema.get("minProperties")
+        if isinstance(min_properties, int) and len(instance) < min_properties:
+            errors.append(f"{path}: expected at least {min_properties} properties, got {len(instance)}")
+        max_properties = schema.get("maxProperties")
+        if isinstance(max_properties, int) and len(instance) > max_properties:
+            errors.append(f"{path}: expected at most {max_properties} properties, got {len(instance)}")
         required = schema.get("required", [])
         for key in required:
             if key not in instance:
@@ -121,6 +129,9 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
         min_items = schema.get("minItems")
         if isinstance(min_items, int) and len(instance) < min_items:
             errors.append(f"{path}: expected at least {min_items} items, got {len(instance)}")
+        max_items = schema.get("maxItems")
+        if isinstance(max_items, int) and len(instance) > max_items:
+            errors.append(f"{path}: expected at most {max_items} items, got {len(instance)}")
         contains_schema = schema.get("contains")
         if isinstance(contains_schema, dict):
             matching_items = sum(
@@ -149,6 +160,9 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
         min_length = schema.get("minLength")
         if isinstance(min_length, int) and len(instance) < min_length:
             errors.append(f"{path}: expected string length >= {min_length}")
+        max_length = schema.get("maxLength")
+        if isinstance(max_length, int) and len(instance) > max_length:
+            errors.append(f"{path}: expected string length <= {max_length}")
         pattern = schema.get("pattern")
         if isinstance(pattern, str) and re.search(pattern, instance) is None:
             errors.append(f"{path}: string does not match pattern {pattern!r}")

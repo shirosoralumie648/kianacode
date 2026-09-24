@@ -15,6 +15,7 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 mod typed;
+mod ui_schema_generated;
 mod ui_store;
 
 pub use typed::{
@@ -22,6 +23,9 @@ pub use typed::{
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
     UiCommandStatusV1, UiHistoryV1,
+};
+pub use ui_schema_generated::{
+    schema_contract, UiSchemaContract, UI_SCHEMA_CONTRACTS, UI_SCHEMA_LOCK_SCHEMA,
 };
 pub use ui_store::{
     UiEntity, UiEntityKey, UiEntityKind, UiEntityLifecycle, UiEntityStore, UiEntityStoreSnapshot,
@@ -490,8 +494,8 @@ where
         request: ExtensionCommandRequest,
     ) -> Result<ResponseEnvelope, ClientError> {
         request.validate().map_err(ClientError::Protocol)?;
-        let envelope = RequestEnvelope::extension_command(metadata, request)
-            .map_err(ClientError::Protocol)?;
+        let envelope =
+            RequestEnvelope::extension_command(metadata, request).map_err(ClientError::Protocol)?;
         self.transport.send(envelope).await
     }
 

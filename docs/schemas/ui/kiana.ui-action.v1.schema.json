@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-action.v1",
+  "title": "Kiana UI action v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "command_id",
+    "idempotency_key",
+    "target_id",
+    "expected_epoch",
+    "expected_cursor",
+    "payload",
+    "payload_digest",
+    "submitted_by"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-action.v1"
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "target_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expected_epoch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expected_cursor": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected_revision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "payload": {},
+    "payload_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "submitted_by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deadline_unix_ms": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-action.v1",
+      "command_id": "00000000-0000-4000-8000-000000000002",
+      "idempotency_key": "ui09-example-action",
+      "target_id": "run-example",
+      "expected_epoch": "epoch-example",
+      "expected_cursor": 3,
+      "expected_revision": 2,
+      "payload": {
+        "decision": "approve"
+      },
+      "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "submitted_by": "principal-example",
+      "deadline_unix_ms": 4102444800000
+    }
+  ]
+}

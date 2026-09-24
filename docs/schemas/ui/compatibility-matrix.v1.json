@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-compatibility-matrix.v1",
+  "schema": "kiana.ui-compatibility-matrix.v1",
+  "version": "1.0",
+  "same_version_policy": "additive_only",
+  "unknown_major_policy": "reject_before_decode",
+  "unknown_command_policy": "reject_with_schema_unsupported",
+  "rules": [
+    {
+      "from": "kiana.ui-action-result.v1",
+      "to": "kiana.ui-action-result.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-action.v1",
+      "to": "kiana.ui-action.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-entity-store-snapshot.v1",
+      "to": "kiana.ui-entity-store-snapshot.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-feed-frame.v1",
+      "to": "kiana.ui-feed-frame.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-handshake-request.v1",
+      "to": "kiana.ui-handshake-request.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-handshake-response.v1",
+      "to": "kiana.ui-handshake-response.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    },
+    {
+      "from": "kiana.ui-snapshot.v1",
+      "to": "kiana.ui-snapshot.v1",
+      "old_client_reads_new_server": true,
+      "new_server_reads_old_client": true,
+      "unknown_field_policy": "deny",
+      "breaking_change": "major_version_required"
+    }
+  ],
+  "negative_cases": [
+    {
+      "case_id": "remove_required_field",
+      "change": "remove a required field without changing major",
+      "disposition": "reject_schema_change"
+    },
+    {
+      "case_id": "change_field_type",
+      "change": "change a field type within the same major",
+      "disposition": "reject_schema_change"
+    },
+    {
+      "case_id": "unknown_major",
+      "change": "receive a schema major that is not in the lock",
+      "disposition": "reject_before_decode"
+    },
+    {
+      "case_id": "unknown_command",
+      "change": "receive a command name that is not in the negotiated catalog",
+      "disposition": "reject_with_schema_unsupported"
+    }
+  ]
+}

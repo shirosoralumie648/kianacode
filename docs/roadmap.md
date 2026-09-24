@@ -595,7 +595,7 @@
 | 422 | W6 | 专项 | [`UI-06`](roadmap/ui-entrypoints.md#step-ui-06) | UI / Entrypoints · feed cursor、gap、replay 与背压 | `UI-05` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-06) |
 | 423 | W6 | 专项 | [`UI-07`](roadmap/ui-entrypoints.md#step-ui-07) | UI / Entrypoints · typed client query/feed/action API | `UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-07) |
 | 424 | W6 | 专项 | [`UI-08`](roadmap/ui-entrypoints.md#step-ui-08) | UI / Entrypoints · 共享 reducer/entity store | `UI-05`、`UI-06`、`UI-07` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-08) |
-| 425 | W6 | 专项 | [`UI-09`](roadmap/ui-entrypoints.md#step-ui-09) | UI / Entrypoints · schema 资产、生成和兼容门 | `UI-01`、`UI-07`、`UI-08` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-09) |
+| 425 | W6 | 专项 | [`UI-09`](roadmap/ui-entrypoints.md#step-ui-09) | UI / Entrypoints · schema 资产、生成和兼容门 | `UI-01`、`UI-07`、`UI-08` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-09) |
 | 426 | W6 | 专项 | [`UI-10`](roadmap/ui-entrypoints.md#step-ui-10) | UI / Entrypoints · CLI 命令和输出归一化 | `UI-07`、`UI-08`、`UI-09` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-10) |
 | 427 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) |
 | 428 | W6 | 专项 | [`UI-12`](roadmap/ui-entrypoints.md#step-ui-12) | UI / Entrypoints · TTY 输入状态机 | `UI-08`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-12) |

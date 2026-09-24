@@ -1,0 +1,20 @@
+{
+  "schema": "kiana.ui-handshake-response.v1",
+  "server_version": "0.1.0",
+  "instance_id": "instance-example",
+  "authority_epoch": 7,
+  "surface": "web",
+  "capabilities": [
+    {
+      "schema": "kiana.ui-capability.v1",
+      "capability_id": "ui.feed.v1",
+      "enabled": true,
+      "actions": [
+        "subscribe"
+      ],
+      "reason": null,
+      "scope_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "limitations": []
+}

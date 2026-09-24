@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-snapshot.v1",
+  "title": "Kiana UI snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "instance_id",
+    "authority_epoch",
+    "snapshot_cursor",
+    "generated_at_unix_ms",
+    "principal",
+    "workspace_id",
+    "sessions",
+    "runs",
+    "pending_actions",
+    "artifacts",
+    "notices",
+    "limitations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-snapshot.v1"
+    },
+    "instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "authority_epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "snapshot_cursor": {
+      "$ref": "#/$defs/cursor"
+    },
+    "generated_at_unix_ms": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/session"
+      }
+    },
+    "active_session_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runs": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    "pending_actions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "notices": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "next_page": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2048
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/limitation"
+      }
+    }
+  },
+  "$defs": {
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "sequence"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "title",
+        "status",
+        "revision"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status",
+        "revision"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "status": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "final_assistant_text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 65536
+        },
+        "receipt": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-snapshot.v1",
+      "instance_id": "instance-example",
+      "authority_epoch": 7,
+      "snapshot_cursor": {
+        "epoch": "epoch-example",
+        "sequence": 2
+      },
+      "generated_at_unix_ms": 1735689600000,
+      "principal": {
+        "principal_id": "redacted-principal"
+      },
+      "workspace_id": "00000000-0000-4000-8000-000000000010",
+      "capabilities": [],
+      "sessions": [],
+      "active_session_id": null,
+      "runs": [],
+      "pending_actions": [],
+      "artifacts": [],
+      "notices": [],
+      "next_page": null,
+      "limitations": []
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "kiana.ui-snapshot.v1",
+  "instance_id": "instance-example",
+  "authority_epoch": 7,
+  "snapshot_cursor": {
+    "epoch": "epoch-example",
+    "sequence": 2
+  },
+  "generated_at_unix_ms": 1735689600000,
+  "principal": {
+    "principal_id": "redacted-principal"
+  },
+  "workspace_id": "00000000-0000-4000-8000-000000000010",
+  "capabilities": [],
+  "sessions": [],
+  "active_session_id": null,
+  "runs": [],
+  "pending_actions": [],
+  "artifacts": [],
+  "notices": [],
+  "next_page": null,
+  "limitations": []
+}

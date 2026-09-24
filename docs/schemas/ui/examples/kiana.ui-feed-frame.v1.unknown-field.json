@@ -1,0 +1,25 @@
+{
+  "schema": "kiana.ui-feed-frame.v1",
+  "kind": "delta",
+  "cursor": {
+    "schema": "kiana.ui-feed-cursor.v1",
+    "instance_id": "instance-example",
+    "authority_epoch": "epoch-example",
+    "feed_sequence": 4,
+    "snapshot_cursor": {
+      "epoch": "epoch-example",
+      "sequence": 2
+    },
+    "cursor_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "event_id": "event-example",
+  "replay": false,
+  "terminal": false,
+  "event": {
+    "entity_kind": "run",
+    "entity_id": "run-example",
+    "revision": 3,
+    "status": "running"
+  },
+  "unexpected_field": "must-be-rejected"
+}

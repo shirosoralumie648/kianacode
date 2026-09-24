@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.ui-action-result.v1",
+  "command_id": "00000000-0000-4000-8000-000000000001",
+  "disposition": "rejected",
+  "resulting_revision": null,
+  "receipt": null,
+  "error": {
+    "schema": "kiana.ui-error.v1",
+    "code": "permission_denied",
+    "message": "approval required",
+    "retry": "do_not_retry"
+  },
+  "retry": "do_not_retry"
+}

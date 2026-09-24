@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-entity-store-snapshot.v1",
+  "title": "Kiana UI entity store snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scope",
+    "epoch",
+    "feed_sequence",
+    "entities",
+    "optimistic",
+    "seen_event_ids",
+    "unknown_commands",
+    "needs_snapshot",
+    "max_entities",
+    "snapshot_digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-entity-store-snapshot.v1"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "epoch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "feed_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
+    },
+    "optimistic": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/optimistic"
+      }
+    },
+    "seen_event_ids": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+    "unknown_commands": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "needs_snapshot": {
+      "type": "boolean"
+    },
+    "max_entities": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "snapshot_digest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace",
+        "session_id",
+        "tab_id"
+      ],
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "tab_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "run",
+            "connection",
+            "submission",
+            "draft",
+            "inbox",
+            "artifact"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "workspace",
+        "session_id",
+        "tab_id",
+        "epoch",
+        "revision",
+        "lifecycle",
+        "value",
+        "source_event_id"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "workspace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "tab_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lifecycle": {
+          "enum": [
+            "authoritative",
+            "optimistic_pending",
+            "unknown"
+          ]
+        },
+        "value": {},
+        "source_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      }
+    },
+    "optimistic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "command_id",
+        "key",
+        "revision",
+        "value",
+        "expires_at_unix_ms",
+        "previous"
+      ],
+      "properties": {
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "command_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "value": {},
+        "expires_at_unix_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previous": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Null or an entity with the same shape as the entity definition above."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-entity-store-snapshot.v1",
+      "scope": {
+        "workspace": "workspace-example",
+        "session_id": "session-example",
+        "tab_id": "tab-example"
+      },
+      "epoch": "epoch-example",
+      "feed_sequence": 4,
+      "entities": [],
+      "optimistic": [],
+      "seen_event_ids": [],
+      "unknown_commands": [],
+      "needs_snapshot": false,
+      "max_entities": 128,
+      "snapshot_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "kiana.ui-entity-store-snapshot.v1",
+  "scope": {
+    "workspace": "workspace-example",
+    "session_id": "session-example",
+    "tab_id": "tab-example"
+  },
+  "epoch": "epoch-example",
+  "feed_sequence": 4,
+  "entities": [],
+  "optimistic": [],
+  "seen_event_ids": [],
+  "unknown_commands": [],
+  "needs_snapshot": false,
+  "max_entities": 128,
+  "snapshot_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "unexpected_field": "must-be-rejected"
+}

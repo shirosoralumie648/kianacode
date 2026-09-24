@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.ui-handshake-request.v1",
+  "client_version": "0.1.0",
+  "surface": "web",
+  "requested_capabilities": [
+    {
+      "capability_id": "ui.feed.v1",
+      "feature_version": "1.0"
+    }
+  ],
+  "known_instance_id": "instance-example",
+  "known_authority_epoch": 7,
+  "unexpected_field": "must-be-rejected"
+}

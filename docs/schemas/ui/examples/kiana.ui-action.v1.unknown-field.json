@@ -1,0 +1,16 @@
+{
+  "schema": "kiana.ui-action.v1",
+  "command_id": "00000000-0000-4000-8000-000000000002",
+  "idempotency_key": "ui09-example-action",
+  "target_id": "run-example",
+  "expected_epoch": "epoch-example",
+  "expected_cursor": 3,
+  "expected_revision": 2,
+  "payload": {
+    "decision": "approve"
+  },
+  "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "submitted_by": "principal-example",
+  "deadline_unix_ms": 4102444800000,
+  "unexpected_field": "must-be-rejected"
+}

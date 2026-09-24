@@ -1,0 +1,53 @@
+name: UI-09 schema assets and compatibility gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/schemas/ui/**"
+      - "scripts/validate-ui09-schemas.py"
+      - "scripts/validate-json-schema.py"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/ui_schema_generated.rs"
+      - "kiana-client/tests/ui09_schema_catalog.rs"
+      - "kiana-core/tests/ui09_schema_guard.rs"
+      - "docs/roadmap/ui09-schema-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui09-schema-contract.yml"
+  pull_request:
+    paths:
+      - "docs/schemas/ui/**"
+      - "scripts/validate-ui09-schemas.py"
+      - "scripts/validate-json-schema.py"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/ui_schema_generated.rs"
+      - "kiana-client/tests/ui09_schema_catalog.rs"
+      - "kiana-core/tests/ui09_schema_guard.rs"
+      - "docs/roadmap/ui09-schema-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui09-schema-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui09-schema-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: python3 scripts/validate-ui09-schemas.py
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run generated UI schema catalog fixtures
+        run: cargo test -p kiana-client --test ui09_schema_catalog --locked -- --test-threads=1
+      - name: Run UI-09 source guard
+        run: cargo test -p kiana-core --test ui09_schema_guard --locked -- --test-threads=1
+      - name: Compile UI-09 workspace test targets
+        run: cargo check --workspace --tests --locked

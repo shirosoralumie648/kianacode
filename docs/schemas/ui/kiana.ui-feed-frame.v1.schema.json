@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-feed-frame.v1",
+  "title": "Kiana UI feed frame v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "cursor",
+    "event_id",
+    "replay",
+    "terminal"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-feed-frame.v1"
+    },
+    "kind": {
+      "enum": [
+        "snapshot_boundary",
+        "delta",
+        "heartbeat",
+        "gap",
+        "terminal",
+        "unknown"
+      ]
+    },
+    "cursor": {
+      "$ref": "#/$defs/feedCursor"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "replay": {
+      "type": "boolean"
+    },
+    "terminal": {
+      "type": "boolean"
+    },
+    "event": {},
+    "gap": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "reason",
+        "from",
+        "to",
+        "snapshot_required"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kiana.ui-feed-gap.v1"
+        },
+        "reason": {
+          "enum": [
+            "sequence_gap",
+            "replay_expired",
+            "old_epoch",
+            "instance_changed",
+            "sequence_ahead",
+            "backpressure",
+            "terminal_retention"
+          ]
+        },
+        "from": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/feedCursor"
+        },
+        "snapshot_required": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    },
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "sequence"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "feedCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "instance_id",
+        "authority_epoch",
+        "feed_sequence",
+        "snapshot_cursor",
+        "cursor_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kiana.ui-feed-cursor.v1"
+        },
+        "instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "authority_epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "feed_sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "snapshot_cursor": {
+          "$ref": "#/$defs/cursor"
+        },
+        "cursor_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-feed-frame.v1",
+      "kind": "delta",
+      "cursor": {
+        "schema": "kiana.ui-feed-cursor.v1",
+        "instance_id": "instance-example",
+        "authority_epoch": "epoch-example",
+        "feed_sequence": 4,
+        "snapshot_cursor": {
+          "epoch": "epoch-example",
+          "sequence": 2
+        },
+        "cursor_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "event_id": "event-example",
+      "replay": false,
+      "terminal": false,
+      "event": {
+        "entity_kind": "run",
+        "entity_id": "run-example",
+        "revision": 3,
+        "status": "running"
+      }
+    }
+  ]
+}

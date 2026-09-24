@@ -267,13 +267,13 @@ UiActionResult {
 
 
 
-#### UI-09 · schema 资产、生成和兼容门　⏳
+#### UI-09 · schema 资产、生成和兼容门　🔄
 
 - 依赖：UI-01/07/08。代码：schema/fixture 目录、生成脚本、版本检查 CI。
 - 步骤：决定 JSON Schema/TypeScript/Rust 生成边界；为每个 DTO 固定 examples、unknown-field、max-size 和 deprecated 字段；生成静态客户端类型。
 - 先拒绝：schema 与 Rust 类型漂移、同版本破坏性改动、生成文件未更新、示例包含 secret/真实路径。
 - 成功/回归：schema diff、跨语言 round-trip、旧客户端读取新服务端、服务端拒绝新客户端不可理解命令。
-- 完成产物：schema lock、生成校验命令、兼容矩阵和脱敏 fixtures。
+- 完成产物：schema lock、生成校验命令、兼容矩阵和脱敏 fixtures。JSON Schema/Rust catalog 源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 ### 27.2 CLI 与 Workbench
 

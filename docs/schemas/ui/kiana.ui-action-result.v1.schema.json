@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.ui-action-result.v1",
+  "title": "Kiana UI action result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "command_id",
+    "disposition",
+    "retry"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.ui-action-result.v1"
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "disposition": {
+      "enum": [
+        "accepted",
+        "applied",
+        "rejected",
+        "unknown"
+      ]
+    },
+    "resulting_cursor": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "epoch",
+        "sequence"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "resulting_revision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "receipt": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "receipt_digest"
+      ],
+      "properties": {
+        "receipt_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "receipt_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "code",
+        "message",
+        "retry"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kiana.ui-error.v1"
+        },
+        "code": {
+          "enum": [
+            "invalid_request",
+            "schema_unsupported",
+            "permission_denied",
+            "approval_required",
+            "conflict",
+            "capacity",
+            "unavailable",
+            "cancelled",
+            "failed",
+            "unknown",
+            "persistence"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2048
+        },
+        "retry": {
+          "$ref": "#/$defs/retry"
+        }
+      }
+    },
+    "retry": {
+      "$ref": "#/$defs/retry"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    },
+    "retry": {
+      "enum": [
+        "query_original",
+        "safe_retry",
+        "do_not_retry"
+      ]
+    }
+  },
+  "examples": [
+    {
+      "schema": "kiana.ui-action-result.v1",
+      "command_id": "00000000-0000-4000-8000-000000000001",
+      "disposition": "rejected",
+      "resulting_revision": null,
+      "receipt": null,
+      "error": {
+        "schema": "kiana.ui-error.v1",
+        "code": "permission_denied",
+        "message": "approval required",
+        "retry": "do_not_retry"
+      },
+      "retry": "do_not_retry"
+    }
+  ]
+}
