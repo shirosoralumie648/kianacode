@@ -4,6 +4,20 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### P4-J7-20 protected provider replay source slice (2026-09-24)
+
+source_snapshot: `master` at `fe70dfb4` plus P4-J7-20 source slice; `kiana-domain/src/protected_replay.rs`, `kiana-domain/src/model.rs`, `kiana-provider/src/request.rs`, domain fixtures, core source guard and GitHub workflow
+worktree_status: implementation branch; unrelated `kiana-domain/src/memory_workbench.rs` WIP and `docs/agentdb.rvf.lock` preserved unstaged
+command_argv:
+  GitHub Actions: `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-domain --test p4_j7_20_protected_replay --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_20_protected_replay_guard --locked -- --test-threads=1`
+cwd/environment: repository worktree, Linux; local tests/build/check/clippy/smoke deliberately not run; GitHub CI not awaited
+fixture·cassette: in-process protected material byte-preservation, cross-connection/model scope denial, expiry/deletion invalidation, provider pre-dispatch storage-unavailable guard
+exit_code: not observed locally; GitHub workflow queued by push
+status change: P4-J7-20 source contract and CI fixtures wired; roadmap row/card advanced from ⏳ to 🔄 pending asynchronous CI and provider-specific continuation integration
+proof-level change: source plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: private provider signatures/thoughts are not decoded into wire-specific payloads yet; no encrypted durable artifact adapter or cross-process resume; absence of adapter intentionally fails closed; no secrets or private bytes enter EventLog, receipts or repository
+reviewer: Codex source review; verified scope binding, bounded memory, explicit expiry/deletion failure and provider pre-dispatch refusal; CI not awaited
+
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
 source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
