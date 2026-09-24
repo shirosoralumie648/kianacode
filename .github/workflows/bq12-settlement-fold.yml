@@ -1,0 +1,52 @@
+name: BQ-12 settlement fold
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_settlement_fold.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq12_settlement_fold.rs"
+      - "kiana-core/src/billing_settlement_fold.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq12_settlement_fold_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq12-settlement-fold-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq12-settlement-fold.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_settlement_fold.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq12_settlement_fold.rs"
+      - "kiana-core/src/billing_settlement_fold.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq12_settlement_fold_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq12-settlement-fold-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq12-settlement-fold.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bq12-settlement-fold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run settlement fold domain fixtures
+        run: cargo test -p kiana-domain --test bq12_settlement_fold --locked -- --test-threads=1
+      - name: Run settlement fold core guard
+        run: cargo test -p kiana-core --test bq12_settlement_fold_guard --locked -- --test-threads=1
+      - name: Compile BQ-12 workspace test targets
+        run: cargo check --workspace --tests --locked

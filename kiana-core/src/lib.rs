@@ -27,6 +27,7 @@ mod eval;
 mod events;
 mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
+mod billing_settlement_fold;
 mod health;
 mod history;
 mod hook_reauthorization;
@@ -86,6 +87,10 @@ pub use authority_read_model::{
     project_authority_read_model, AuthorityProjectionError, AuthorityReadModel,
     BudgetAuthorityProjection, CellAuthorityProjection, GrantAuthorityProjection,
     LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
+};
+pub use billing_settlement_fold::{
+    project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
+    SettlementFoldProjectionError,
 };
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{

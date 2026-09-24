@@ -38,6 +38,8 @@ const MODEL_ATTEMPT_LIFECYCLE_IDS: &[&str] = &[
     "attempt_id",
     "reservation_id",
 ];
+const SETTLEMENT_FOLD_IDS: &[&str] =
+    &["run_id", "model_attempt_id", "attempt_id", "reservation_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -325,6 +327,28 @@ const MODEL_ATTEMPT_LIFECYCLE_FIELDS: &[&str] = &[
     "flush_sequence",
     "revision",
     "event_id",
+    "event_digest",
+];
+const SETTLEMENT_FOLD_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "kind",
+    "event_id",
+    "run_id",
+    "model_attempt_id",
+    "attempt_id",
+    "reservation_id",
+    "reservation_digest",
+    "usage_class",
+    "usage_digest",
+    "receipt_id",
+    "reserved",
+    "consumed",
+    "released",
+    "unknown_reason",
+    "reconciliation_required",
+    "source_refs",
+    "revision",
     "event_digest",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
@@ -781,6 +805,46 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         None
     ),
     spec!(
+        "usage.reserved",
+        "billing_attempt",
+        SETTLEMENT_FOLD_IDS,
+        SETTLEMENT_FOLD_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "usage.observed",
+        "billing_attempt",
+        SETTLEMENT_FOLD_IDS,
+        SETTLEMENT_FOLD_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "usage.settled",
+        "billing_attempt",
+        SETTLEMENT_FOLD_IDS,
+        SETTLEMENT_FOLD_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "usage.released",
+        "billing_attempt",
+        SETTLEMENT_FOLD_IDS,
+        SETTLEMENT_FOLD_FIELDS,
+        true,
+        None
+    ),
+    spec!(
+        "usage.unknown",
+        "billing_attempt",
+        SETTLEMENT_FOLD_IDS,
+        SETTLEMENT_FOLD_FIELDS,
+        true,
+        None
+    ),
+    spec!(
         "run.snapshot",
         "run",
         RUN_IDS,
@@ -1018,6 +1082,7 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "quality.",
         "recovery.",
         "model.",
+        "usage.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))
