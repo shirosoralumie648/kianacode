@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-07 typed client query/feed/action API（2026-09-24）
+
+source_snapshot: `45e66545`（UI-07 分支基线，提交后绑定本提交）；`kiana-client/src/lib.rs`; `kiana-client/src/typed.rs`; `kiana-client/tests/ui07_typed_clients.rs`; `kiana-protocol/src/lib.rs`; `kiana-core/tests/ui07_typed_client_guard.rs`; `kiana-daemon/tests/ui07_typed_client_guard.rs`; `.github/workflows/ui07-typed-client.yml`; `docs/roadmap/ui07-typed-client-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离分支 `ui-07-typed-client-20260924`；typed `QueryClient`/`FeedClient`/`ActionClient`/`ArtifactClient` 共享协商 session、request ID、deadline/cancel fence 和 listener generation；旧 `KianaClient` API 保留；未触碰主工作树用户 WIP
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-client --test ui07_typed_clients --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui07_typed_client_guard --locked -- --test-threads=1`; `cargo test -p kiana-daemon --test ui07_typed_client_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd/environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: typed mock transport 覆盖未初始化/deadline、Accepted 不提升 Applied、错误 command 重投、重复 listener、listener cleanup/late frame；daemon/core source guard 覆盖 ControlPlane authority 和无第二执行循环
+exit_code: 本地未执行上述测试/构建/检查；GitHub Actions 待触发/未等待
+status change: UI-07 typed client source slice 与 GitHub-only fixtures 已接入，roadmap row 423/card 状态为 🔄
+proof-level change: `feature_status=implemented`（typed facade + lifecycle checks + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: generic command routes remain protocol contracts until later daemon/entrypoint wiring；listener registry 仅进程内，非 durable subscription inbox；未证明跨进程 socket/SSE、artifact blob delivery、provider/live timing 或 physical proof；UI-08 reducer、UI-18 reconnect 和 UI-33 crash recovery 仍未完成
+reviewer: Codex UI-07 source review；检查 initialize/workspace/schema/request ID fence、deadline/cancel、feed listener generation、Unknown 原 key 查询、Accepted/Applied 分离及 client 无 Broker/模型循环；无本地 runtime test reviewer
+
 ### UI-06 feed cursor、gap、replay 与背压（2026-09-24）
 
 source_snapshot: `0cc07fd6`（最新 master）+ UI-06 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui06_feed_contract.rs`; `kiana-daemon/src/run_stream.rs`; `kiana-daemon/src/lib.rs`; `kiana-core/tests/ui06_feed_replay_guard.rs`; `.github/workflows/ui06-feed-replay.yml`; `docs/roadmap/ui06-feed-replay-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -11,6 +11,16 @@ use kiana_protocol::{
     RunId, TurnId, UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
+use std::sync::{Arc, Mutex};
+
+mod typed;
+
+pub use typed::{
+    ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
+    ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
+    FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
+    UiCommandStatusV1, UiHistoryV1,
+};
 
 #[async_trait]
 /// 协议请求的异步传输端口。
@@ -20,6 +30,23 @@ use serde_json::Value;
 pub trait ClientTransport: Send + Sync {
     /// 发送一个已经构造完成的协议请求。
     async fn send(&self, request: RequestEnvelope) -> Result<ResponseEnvelope, ClientError>;
+
+    /// Best-effort cancellation hook for transports that can fence an in-flight request.
+    ///
+    /// The default is intentionally a no-op: a transport that cannot cancel an already sent
+    /// request still has to return its late response, which the typed client will discard after
+    /// checking its request token.  This hook never grants or performs a capability effect.
+    async fn cancel(&self, _request_id: kiana_protocol::RequestId) -> Result<(), ClientError> {
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct ClientSessionState {
+    pub(crate) session: Option<ClientSession>,
+    pub(crate) listeners: std::collections::BTreeMap<String, typed::ListenerRecord>,
+    pub(crate) next_listener_generation: u64,
+    pub(crate) action_commands: std::collections::BTreeMap<String, kiana_protocol::RequestId>,
 }
 
 /// 面向协议调用者的轻量客户端 facade。
@@ -27,7 +54,8 @@ pub trait ClientTransport: Send + Sync {
 /// 泛型 transport 被按值持有，避免客户端偷偷创建全局连接或可变单例。所有方法都只构造
 /// 请求并委托给 transport，权限、审批、执行与事实写入仍在服务端完成。
 pub struct KianaClient<T> {
-    transport: T,
+    transport: Arc<T>,
+    pub(crate) state: Arc<Mutex<ClientSessionState>>,
 }
 
 impl<T> KianaClient<T>
@@ -41,6 +69,8 @@ where
         handshake: UiHandshakeRequest,
     ) -> Result<UiHandshakeResponse, ClientError> {
         handshake.validate().map_err(ClientError::Protocol)?;
+        let project_root = metadata.project_root.clone();
+        let session_id = metadata.session_id.clone();
         let response = self
             .transport
             .send(RequestEnvelope::command(
@@ -61,6 +91,14 @@ where
         let handshake: UiHandshakeResponse = serde_json::from_value(response.output)
             .map_err(|error| ClientError::Protocol(format!("ui_handshake_response:{error}")))?;
         handshake.validate().map_err(ClientError::Protocol)?;
+        if let Ok(mut state) = self.state.lock() {
+            state.session = Some(ClientSession {
+                workspace: project_root,
+                session_id,
+                instance_id: handshake.instance_id.clone(),
+                authority_epoch: handshake.authority_epoch,
+            });
+        }
         Ok(handshake)
     }
 
@@ -86,7 +124,31 @@ where
 
     /// 使用给定传输端口创建客户端。
     pub fn new(transport: T) -> Self {
-        Self { transport }
+        Self {
+            transport: Arc::new(transport),
+            state: Arc::new(Mutex::new(ClientSessionState::default())),
+        }
+    }
+
+    /// Return typed, state-sharing facades for the query/feed/action/artifact surfaces.
+    pub fn typed_clients(&self) -> TypedClients<T> {
+        TypedClients::from_shared(Arc::clone(&self.transport), Arc::clone(&self.state))
+    }
+
+    pub fn query_client(&self) -> QueryClient<T> {
+        self.typed_clients().query
+    }
+
+    pub fn feed_client(&self) -> FeedClient<T> {
+        self.typed_clients().feed
+    }
+
+    pub fn action_client(&self) -> ActionClient<T> {
+        self.typed_clients().action
+    }
+
+    pub fn artifact_client(&self) -> ArtifactClient<T> {
+        self.typed_clients().artifact
     }
 
     pub async fn resume_run(
@@ -399,7 +461,11 @@ where
             ));
         }
         let snapshot: ExtensionVisibilitySnapshot = serde_json::from_value(
-            response.output.get("snapshot").cloned().unwrap_or(Value::Null),
+            response
+                .output
+                .get("snapshot")
+                .cloned()
+                .unwrap_or(Value::Null),
         )
         .map_err(|error| ClientError::Protocol(format!("extension_visibility_response:{error}")))?;
         snapshot
@@ -482,6 +548,33 @@ pub enum ClientError {
     /// Remote response or typed handshake validation failed; no local retry is implied.
     #[error("client_protocol_failed:{0}")]
     Protocol(String),
+    /// The UI facade has not completed the versioned handshake yet.
+    #[error("client_not_initialized")]
+    NotInitialized,
+    /// The request targets a workspace different from the negotiated session.
+    #[error("client_workspace_mismatch")]
+    WorkspaceMismatch,
+    /// A response or request carried a schema that this client cannot understand.
+    #[error("client_unknown_schema:{0}")]
+    UnknownSchema(String),
+    /// The request was cancelled before dispatch.
+    #[error("client_cancelled")]
+    Cancelled,
+    /// The request deadline had elapsed before dispatch or before its response was observed.
+    #[error("client_deadline_exceeded")]
+    DeadlineExceeded,
+    /// A response arrived after its cancellation/deadline fence and cannot be delivered.
+    #[error("client_late_response:{0}")]
+    LateResponse(kiana_protocol::RequestId),
+    /// A listener token has already been registered for the same controller.
+    #[error("client_duplicate_listener:{0}")]
+    DuplicateListener(String),
+    /// A listener token was released or belongs to a previous controller generation.
+    #[error("client_listener_inactive")]
+    ListenerInactive,
+    /// A mutation cannot be retried without reconciling its original command first.
+    #[error("client_command_retry_forbidden")]
+    CommandRetryForbidden,
 }
 
 #[cfg(test)]

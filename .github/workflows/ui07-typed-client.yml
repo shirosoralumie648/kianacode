@@ -1,0 +1,52 @@
+name: UI-07 typed client query feed action API
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/typed.rs"
+      - "kiana-client/tests/ui07_typed_clients.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/ui07_typed_client_guard.rs"
+      - "kiana-daemon/tests/ui07_typed_client_guard.rs"
+      - "docs/roadmap/ui07-typed-client-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui07-typed-client.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/typed.rs"
+      - "kiana-client/tests/ui07_typed_clients.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-core/tests/ui07_typed_client_guard.rs"
+      - "kiana-daemon/tests/ui07_typed_client_guard.rs"
+      - "docs/roadmap/ui07-typed-client-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui07-typed-client.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui07-typed-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-07 typed client fixtures
+        run: cargo test -p kiana-client --test ui07_typed_clients --locked -- --test-threads=1
+      - name: Run UI-07 ControlPlane source guard
+        run: cargo test -p kiana-core --test ui07_typed_client_guard --locked -- --test-threads=1
+      - name: Run UI-07 daemon authority source guard
+        run: cargo test -p kiana-daemon --test ui07_typed_client_guard --locked -- --test-threads=1
+      - name: Compile UI-07 workspace test targets
+        run: cargo check --workspace --tests --locked

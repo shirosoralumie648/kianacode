@@ -305,6 +305,10 @@ fn default_department_id() -> String {
 pub struct RequestMetadata {
     /// 请求唯一 ID，用于事件和响应关联。
     pub request_id: RequestId,
+    /// Optional client deadline carried through the wire envelope.  The daemon still owns the
+    /// authoritative timeout and must fail closed when this value is stale or malformed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_unix_ms: Option<u64>,
     /// session 稳定 ID。
     pub session_id: SessionId,
     /// 项目根目录文字。
@@ -348,6 +352,7 @@ impl RequestMetadata {
     pub fn local(session_id: impl Into<String>, project_root: impl Into<String>) -> Self {
         Self {
             request_id: RequestId::new(),
+            deadline_unix_ms: None,
             session_id: SessionId::new(session_id),
             project_root: project_root.into(),
             actor_id: Some("local-user".to_owned()),

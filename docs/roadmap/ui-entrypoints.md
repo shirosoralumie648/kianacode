@@ -243,13 +243,13 @@ UiActionResult {
 
 
 
-#### UI-07 · typed client query/feed/action API　⏳
+#### UI-07 · typed client query/feed/action API　🔄
 
 - 依赖：UI-02–06。代码：`kiana-client` 拆出 QueryClient、FeedClient、ActionClient、ArtifactClient，统一 request ID/deadline/cancel。
 - 步骤：提供 initialize、snapshot、history、command status、subscribe/resume、artifact page、submit/cancel/continue；listener 可释放并隔离迟到回调。
 - 先拒绝：未初始化、跨 workspace target、未知 schema、重复 listener、错误 command 重投、取消后继续回调到旧 controller。
 - 成功/回归：typed mock transport 覆盖 timeout、late response、reconnect、gap、Unknown query 和 listener cleanup；不把 HTTP 200 直接当 Applied。
-- 完成产物：client traits、mock transport、请求生命周期图和调用迁移清单。
+- 完成产物：client traits、mock transport、请求生命周期图和调用迁移清单。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-08"></a>
 
