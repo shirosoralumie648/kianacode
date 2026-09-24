@@ -9,7 +9,8 @@
 
 use crate::{
     json_digest, AttemptId, EventId, ModelAttemptIdentity, NormalizedUsage, QuotaReservation,
-    QuotaReservationId, QuotaReservationState, ReceiptId, RequestId, RunId, SchemaVersion, TurnId,
+    QuotaReservationId, QuotaReservationState, ReceiptId, RequestId, RunId, RuntimeEvent,
+    SchemaVersion, TurnId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -175,6 +176,30 @@ pub struct ModelAttemptLifecycleEvent {
 }
 
 impl ModelAttemptLifecycleEvent {
+    /// Encode the fact into the existing EventLog envelope.  This helper only creates a value;
+    /// the caller still has to commit and flush it before invoking the provider.
+    pub fn into_runtime_event(
+        &self,
+        request_id: RequestId,
+        sequence: u64,
+    ) -> Result<crate::RuntimeEvent, String> {
+        self.validate()?;
+        if request_id.as_uuid().is_nil() || sequence == 0 {
+            return Err("model_attempt_runtime_event_identity_invalid".to_owned());
+        }
+        RuntimeEvent::new(
+            request_id,
+            sequence,
+            self.kind.as_str(),
+            serde_json::to_value(self)
+                .map_err(|_| "model_attempt_runtime_encode_failed".to_owned())?,
+        )
+        .map(|event| {
+            event.with_stream_metadata("model_attempt", self.attempt_id.to_string(), self.revision)
+        })
+        .map_err(|_| "model_attempt_runtime_encode_failed".to_owned())
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != MODEL_ATTEMPT_EVENT_SCHEMA
             || !self

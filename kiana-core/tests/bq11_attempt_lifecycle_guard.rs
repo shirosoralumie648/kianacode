@@ -46,18 +46,8 @@ fn committed_events(ledger: &ModelAttemptLifecycleLedger) -> Vec<RuntimeEvent> {
         .events()
         .iter()
         .map(|fact| {
-            RuntimeEvent::new(
-                RequestId::new(),
-                fact.revision,
-                fact.kind.as_str(),
-                serde_json::to_value(fact).unwrap(),
-            )
-            .unwrap()
-            .with_stream_metadata(
-                "model_attempt",
-                fact.attempt_id.to_string(),
-                fact.revision,
-            )
+            fact.into_runtime_event(RequestId::new(), fact.revision)
+                .unwrap()
         })
         .collect()
 }
