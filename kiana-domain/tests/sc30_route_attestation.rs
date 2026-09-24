@@ -1,4 +1,4 @@
-//! Provider/model route, prompt-pack, data policy, credential and MCP fixture coverage.
+//! provider/model route, prompt-pack, data policy, credential and MCP fixture coverage.
 
 use std::collections::BTreeSet;
 
