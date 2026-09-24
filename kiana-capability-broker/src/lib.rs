@@ -18,6 +18,7 @@ use kiana_domain::{
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 type HandlerKey = (CapabilityKind, String);
@@ -450,6 +451,107 @@ fn validate_network_observation(
     Ok(())
 }
 
+/// Validate optional handler-produced BQ-15 usage evidence at the Broker boundary. The handler
+/// may report bytes and timing, but it cannot choose a different run, owner, lease, resource or
+/// attempt. Rejected/not-started results must carry no effect and cannot be upgraded to success.
+fn seal_effect_usage_wall_time(
+    mut result: CapabilityResult,
+    elapsed: std::time::Duration,
+) -> Result<CapabilityResult, PortError> {
+    let Some(value) = result.output.get("effect_usage").cloned() else {
+        return Ok(result);
+    };
+    let usage =
+        kiana_domain::EffectUsageObservation::from_json(&value).map_err(PortError::Failed)?;
+    let elapsed_ms = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
+    let usage = usage
+        .with_server_wall_time_ms(elapsed_ms)
+        .map_err(PortError::Failed)?;
+    let output = result
+        .output
+        .as_object_mut()
+        .ok_or_else(|| PortError::Failed("effect_usage_output_object_required".to_owned()))?;
+    output.insert(
+        "effect_usage".to_owned(),
+        serde_json::to_value(usage)
+            .map_err(|_| PortError::Failed("effect_usage_encode_failed".to_owned()))?,
+    );
+    Ok(result)
+}
+
+fn validate_effect_usage_result(
+    request: &AuthorizedCapabilityRequest,
+    result: &CapabilityResult,
+) -> Result<(), PortError> {
+    let Some(value) = result.output.get("effect_usage") else {
+        return Ok(());
+    };
+    if result.request_id != request.request.request_id {
+        return Err(PortError::Failed(
+            "effect_usage_request_mismatch".to_owned(),
+        ));
+    }
+    let usage =
+        kiana_domain::EffectUsageObservation::from_json(value).map_err(PortError::Failed)?;
+    let scope = request
+        .request
+        .execution_scope
+        .as_ref()
+        .ok_or_else(|| PortError::Failed("effect_usage_scope_required".to_owned()))?;
+    let run_id = scope
+        .run_id
+        .ok_or_else(|| PortError::Failed("effect_usage_run_required".to_owned()))?;
+    let lease_digest = request
+        .request
+        .arguments
+        .get("lease_digest")
+        .or_else(|| request.request.arguments.get("resource_lease_digest"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| PortError::Failed("effect_usage_lease_required".to_owned()))?;
+    let resource_digest = request
+        .request
+        .arguments
+        .get("resource_digest")
+        .or_else(|| request.request.arguments.get("path_digest"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| PortError::Failed("effect_usage_resource_required".to_owned()))?;
+    let expected_attempt = request
+        .request
+        .arguments
+        .get("attempt")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|attempt| u32::try_from(attempt).ok())
+        .unwrap_or(1);
+    if usage.attempt != expected_attempt {
+        return Err(PortError::Failed(
+            "effect_usage_attempt_mismatch".to_owned(),
+        ));
+    }
+    usage
+        .validate_binding(
+            run_id,
+            kiana_domain::InvocationId::from_uuid(request.request.request_id.as_uuid()),
+            usage.attempt_id,
+            expected_attempt,
+            &scope.scope_digest,
+            lease_digest,
+            resource_digest,
+        )
+        .map_err(PortError::Failed)?;
+    let dimensions = result.dimensions();
+    if result.success != usage.state.is_success()
+        || result.output.get("not_executed") == Some(&serde_json::Value::Bool(true))
+            && !usage.state.is_not_started()
+        || dimensions.effect == kiana_domain::CapabilityEffectState::NotStarted
+            && !usage.state.is_not_started()
+    {
+        return Err(PortError::Failed(
+            "effect_usage_result_state_mismatch".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 fn insert_handler(
     handlers: &mut HashMap<HandlerKey, Arc<dyn CapabilityHandler>>,
     capability: CapabilityKind,
@@ -509,7 +611,13 @@ impl CapabilityBrokerPort for CapabilityBroker {
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
             .verify_and_consume(&request)
             .await?;
-        handler.execute_cancellable(request, cancellation).await
+        let started_at = Instant::now();
+        let result = handler
+            .execute_cancellable(request.clone(), cancellation)
+            .await?;
+        let result = seal_effect_usage_wall_time(result, started_at.elapsed())?;
+        validate_effect_usage_result(&request, &result)?;
+        Ok(result)
     }
     /// 按能力种类和操作名精确路由并执行请求。
     ///
@@ -538,7 +646,11 @@ impl CapabilityBrokerPort for CapabilityBroker {
             .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
             .verify_and_consume(&request)
             .await?;
-        handler.execute(request).await
+        let started_at = Instant::now();
+        let result = handler.execute(request.clone()).await?;
+        let result = seal_effect_usage_wall_time(result, started_at.elapsed())?;
+        validate_effect_usage_result(&request, &result)?;
+        Ok(result)
     }
 }
 

@@ -1,0 +1,64 @@
+name: BQ-15 tool effect resource usage
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/effect_usage.rs"
+      - "kiana-domain/src/receipt_aggregation.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq15_effect_usage.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/bq15_effect_usage_guard.rs"
+      - "kiana-core/src/effect_usage_projection.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq15_effect_usage.rs"
+      - "kiana-core/tests/bq15_effect_usage_guard.rs"
+      - "docs/roadmap/bq15-effect-usage-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq15-effect-usage.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/effect_usage.rs"
+      - "kiana-domain/src/receipt_aggregation.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq15_effect_usage.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-capability-broker/tests/bq15_effect_usage_guard.rs"
+      - "kiana-core/src/effect_usage_projection.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq15_effect_usage.rs"
+      - "kiana-core/tests/bq15_effect_usage_guard.rs"
+      - "docs/roadmap/bq15-effect-usage-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq15-effect-usage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  effect-usage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-15 domain fixtures
+        run: cargo test -p kiana-domain --test bq15_effect_usage --locked -- --test-threads=1
+      - name: Run BQ-15 Broker source guard
+        run: cargo test -p kiana-capability-broker --test bq15_effect_usage_guard --locked -- --test-threads=1
+      - name: Run BQ-15 core fixtures
+        run: cargo test -p kiana-core --test bq15_effect_usage --locked -- --test-threads=1
+      - name: Run BQ-15 core source guard
+        run: cargo test -p kiana-core --test bq15_effect_usage_guard --locked -- --test-threads=1
+      - name: Compile BQ-15 targets
+        run: cargo check --workspace --tests --locked

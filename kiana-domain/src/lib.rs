@@ -509,8 +509,10 @@ pub use handoff::*;
 
 mod dispatch;
 mod effect_observation;
+mod effect_usage;
 pub use dispatch::*;
 pub use effect_observation::*;
+pub use effect_usage::*;
 
 mod journal;
 pub use journal::*;

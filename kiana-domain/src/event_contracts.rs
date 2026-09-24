@@ -138,6 +138,10 @@ const RUN_FIELDS: &[&str] = &[
     "outcome_digest",
     "terminal",
     "kind",
+    "effect_usage",
+    "owner_digest",
+    "lease_digest",
+    "resource_digest",
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
@@ -229,6 +233,10 @@ const INVOCATION_FIELDS: &[&str] = &[
     "decision_id",
     "permit",
     "invocation",
+    "effect_usage",
+    "owner_digest",
+    "lease_digest",
+    "resource_digest",
 ];
 const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "run_id",

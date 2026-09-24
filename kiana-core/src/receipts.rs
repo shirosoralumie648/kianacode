@@ -326,6 +326,10 @@ pub(crate) fn receipt_from_events(
         .get("cost_breakdown")
         .cloned()
         .unwrap_or(Value::Null);
+    let effect_usage = aggregation
+        .get("effect_usage")
+        .cloned()
+        .unwrap_or(Value::Null);
     let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -363,6 +367,7 @@ pub(crate) fn receipt_from_events(
             "execution_receipts": typed_execution_receipts,
             "aggregation": aggregation,
             "cost_breakdown": cost_breakdown,
+            "effect_usage": effect_usage,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "observability": observability_from_events(run_id, events),
@@ -629,6 +634,11 @@ pub fn aggregate_receipt_facts(
         .map_err(|reason| format!("receipt_cost_projection:{reason}"))?
     {
         aggregation = aggregation.with_cost_breakdown(cost_breakdown)?;
+    }
+    if let Some(effect_usage) = crate::project_effect_usage(run_id, &events)
+        .map_err(|reason| format!("receipt_effect_usage_projection:{reason}"))?
+    {
+        aggregation = aggregation.with_effect_usage(effect_usage)?;
     }
     Ok(aggregation)
 }

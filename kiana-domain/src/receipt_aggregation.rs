@@ -40,6 +40,9 @@ pub struct ReceiptAggregation {
     pub provider_receipt_refs: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_breakdown: Option<crate::ReceiptCostBreakdown>,
+    /// BQ-15 model/tool/effect counters rebuilt from committed terminal invocation facts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect_usage: Option<crate::EffectUsageReceipt>,
     pub verification: AggregationVerification,
     pub aggregation_digest: String,
 }
@@ -85,6 +88,7 @@ impl ReceiptAggregation {
             evidence_ref_digests,
             provider_receipt_refs,
             cost_breakdown: None,
+            effect_usage: None,
             verification,
             aggregation_digest: String::new(),
         };
@@ -140,6 +144,19 @@ impl ReceiptAggregation {
         Ok(self)
     }
 
+    /// Attach a read-only BQ-15 usage projection. The projection has already been rebuilt from
+    /// committed facts; attaching it never authorizes a capability or mutates a ledger.
+    pub fn with_effect_usage(
+        mut self,
+        effect_usage: crate::EffectUsageReceipt,
+    ) -> Result<Self, String> {
+        effect_usage.validate()?;
+        self.effect_usage = Some(effect_usage);
+        self.aggregation_digest = self.digest();
+        self.validate()?;
+        Ok(self)
+    }
+
     pub fn from_json(value: &Value) -> Result<Self, String> {
         let aggregation: Self = serde_json::from_value(value.clone())
             .map_err(|_| "receipt_aggregation_decode_failed".to_owned())?;
@@ -186,6 +203,9 @@ impl ReceiptAggregation {
                 return Err("receipt_cost_unknown_must_remain_visible".to_owned());
             }
         }
+        if let Some(effect_usage) = &self.effect_usage {
+            effect_usage.validate()?;
+        }
         Ok(())
     }
 
@@ -207,6 +227,7 @@ impl ReceiptAggregation {
             "evidence_ref_digests": self.evidence_ref_digests,
             "provider_receipt_refs": self.provider_receipt_refs,
             "cost_breakdown": self.cost_breakdown,
+            "effect_usage": self.effect_usage,
             "verification": self.verification,
         }))
     }

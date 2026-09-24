@@ -24,6 +24,7 @@ mod credential_recovery;
 mod data_governance;
 mod deletion;
 mod dispatch;
+mod effect_usage_projection;
 mod eval;
 mod events;
 mod fault_injection;
@@ -121,6 +122,9 @@ pub use entrypoint_parity::{
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,
 };
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
+pub use effect_usage_projection::{
+    project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
+};
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };
