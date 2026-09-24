@@ -12,8 +12,9 @@
 //! run/continue/cancel 等变更路径。
 
 use anyhow::{anyhow, Context, Result};
-use axum::extract::{DefaultBodyLimit, Query, State};
+use axum::extract::{DefaultBodyLimit, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -36,6 +37,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 
 use crate::harness_run;
@@ -64,7 +66,148 @@ const MAX_WEB_ITEMS_PER_TURN: usize = 128;
 const MAX_WEB_SUMMARY_TEXT_BYTES: usize = 16 * 1024;
 const MAX_WEB_FILES_PER_TURN: usize = 256;
 const MAX_WEB_FILE_PATH_BYTES: usize = 1024;
+const MAX_WEB_URI_BYTES: usize = 8 * 1024;
+const MAX_WEB_REQUESTS_PER_WINDOW: u32 = 120;
+const WEB_RATE_WINDOW: Duration = Duration::from_secs(1);
 const STREAM_GAP_RUN_IN_PROGRESS: &str = "subscription_attached_after_run_started";
+
+/// The stable route inventory used by the Web entrypoint and its source/CI guards.
+///
+/// Every API route is either host-only (`health`) or token protected.  The root page is
+/// deliberately host-only so a fresh browser can obtain the in-memory token; it never exposes
+/// runtime state.  The inventory is descriptive and does not create a second dispatch path.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WebRouteClass {
+    Health,
+    State,
+    Sessions,
+    Events,
+    Run,
+    Cancel,
+    Trust,
+    Sandbox,
+    Session,
+    Receipt,
+    Approval,
+    Resume,
+    Command,
+    Diagnostics,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WebRouteContract {
+    pub path: &'static str,
+    pub method: &'static str,
+    pub class: WebRouteClass,
+    pub token_required: bool,
+}
+
+/// Canonical route/auth matrix.  `OPTIONS` is intentionally not listed: Axum's default method
+/// rejection remains deny-first and never reaches a mutating handler.
+pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
+    WebRouteContract {
+        path: "/api/health",
+        method: "GET",
+        class: WebRouteClass::Health,
+        token_required: false,
+    },
+    WebRouteContract {
+        path: "/api/state",
+        method: "GET",
+        class: WebRouteClass::State,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/sessions",
+        method: "GET",
+        class: WebRouteClass::Sessions,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/events",
+        method: "GET",
+        class: WebRouteClass::Events,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/run",
+        method: "POST",
+        class: WebRouteClass::Run,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/cancel",
+        method: "POST",
+        class: WebRouteClass::Cancel,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/trust",
+        method: "POST",
+        class: WebRouteClass::Trust,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/sandbox",
+        method: "POST",
+        class: WebRouteClass::Sandbox,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/session",
+        method: "POST",
+        class: WebRouteClass::Session,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/receipt",
+        method: "POST",
+        class: WebRouteClass::Receipt,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/approvals",
+        method: "GET/POST",
+        class: WebRouteClass::Approval,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/resume",
+        method: "POST",
+        class: WebRouteClass::Resume,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/command",
+        method: "GET/POST",
+        class: WebRouteClass::Command,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/parity",
+        method: "GET",
+        class: WebRouteClass::Diagnostics,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/company-governance",
+        method: "GET",
+        class: WebRouteClass::Diagnostics,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/extensions",
+        method: "GET",
+        class: WebRouteClass::Diagnostics,
+        token_required: true,
+    },
+];
+
+#[derive(Debug)]
+struct WebRateWindow {
+    started: Instant,
+    requests: u32,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLaunch {
@@ -105,6 +248,7 @@ struct WebApp {
     active: Arc<Mutex<String>>,
     web_token: String,
     bound_addr: SocketAddr,
+    rate_window: Arc<Mutex<WebRateWindow>>,
     shutting_down: Arc<AtomicBool>,
     shutdown: tokio::sync::watch::Sender<bool>,
 }
@@ -479,6 +623,7 @@ async fn wait_for_shutdown_signal() {
 }
 
 fn router(app: WebApp) -> Router {
+    let state = Arc::new(app);
     Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
@@ -498,7 +643,52 @@ fn router(app: WebApp) -> Router {
         .route("/api/extensions", get(extension_visibility))
         .route("/api/command", get(command_query).post(command_action))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
-        .with_state(Arc::new(app))
+        .layer(middleware::from_fn(security_headers))
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state),
+            enforce_request_bounds,
+        ))
+        .with_state(state)
+}
+
+/// Reject unbounded request targets before a query extractor or a mutating handler runs.
+///
+/// Body bytes are bounded by [`DefaultBodyLimit`].  This guard covers the URI/query side and
+/// rejects encoded path traversal rather than trying to normalize it inside an endpoint.
+async fn enforce_request_bounds(
+    State(app): State<Arc<WebApp>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let target = request.uri().to_string();
+    if target.len() > MAX_WEB_URI_BYTES {
+        return ApiError::bad("web_request_target_too_large").into_response();
+    }
+    if path_contains_traversal(request.uri().path()) {
+        return ApiError::bad("web_path_traversal_denied").into_response();
+    }
+    // Rate limiting is deliberately scoped to one WebApp instance and runs before route
+    // extraction/authentication so malformed or unauthorized floods cannot reach handlers.
+    if let Err(error) = app.enforce_rate_limit() {
+        return error.into_response();
+    }
+    next.run(request).await
+}
+
+async fn security_headers(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert("x-content-type-options", "nosniff".parse().unwrap());
+    headers.insert("cache-control", "no-store".parse().unwrap());
+    headers.insert("referrer-policy", "no-referrer".parse().unwrap());
+    headers.insert("x-frame-options", "DENY".parse().unwrap());
+    headers.insert(
+        "content-security-policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+            .parse()
+            .unwrap(),
+    );
+    response
 }
 
 impl WebApp {
@@ -523,6 +713,10 @@ impl WebApp {
             active: Arc::new(Mutex::new(session_id)),
             web_token: uuid::Uuid::new_v4().to_string(),
             bound_addr,
+            rate_window: Arc::new(Mutex::new(WebRateWindow {
+                started: Instant::now(),
+                requests: 0,
+            })),
             shutting_down: Arc::new(AtomicBool::new(false)),
             shutdown: tokio::sync::watch::channel(false).0,
         }
@@ -532,6 +726,26 @@ impl WebApp {
     // 因此只作为展示快照返回，不用于授权结论。历史会话只从事件账本投影，且永远
     // 标记为 read_only；人工命令可核验归属后访问，继续执行必须先显式 Resume。
     async fn snapshot(&self, session_id: &str) -> Result<Value, ApiError> {
+        validate_web_session_id(session_id)?;
+        // Check ownership before asking DaemonHost for a projection.  This keeps an arbitrary
+        // UUID/path-like value from becoming a cross-workspace probe through the host API.
+        let (known_live, known_history) = {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+            let known_live = sessions.contains_key(session_id);
+            drop(sessions);
+            let known_history = self
+                .history_sessions()
+                .await?
+                .iter()
+                .any(|session| session.id == session_id);
+            (known_live, known_history)
+        };
+        if !known_live && !known_history {
+            return Err(ApiError::bad("session_unknown"));
+        }
         let projection = self
             .host
             .ui_snapshot(session_id)
@@ -741,7 +955,6 @@ async fn health(
         "ok": false,
         "harness": harness_run::HARNESS_ID,
         "loopback": true,
-        "folder": app.workdir.display().to_string(),
         "streaming": true,
         "streaming_transport": "sse",
     });
@@ -749,11 +962,12 @@ async fn health(
         Ok(snapshot) => {
             payload["ok"] = Value::Bool(snapshot.status == SignalStatus::Ok);
             payload["status"] = serde_json::to_value(snapshot.status).unwrap_or(Value::Null);
-            payload["snapshot"] = serde_json::to_value(snapshot).unwrap_or(Value::Null);
         }
-        Err(error) => {
+        Err(_) => {
             payload["status"] = Value::String("unavailable".to_owned());
-            payload["limitations"] = json!([format!("health_projection_unavailable:{error}")]);
+            // Health is a low-detail liveness signal.  Do not return source paths, storage
+            // locations, or nested error text from the ControlPlane/ledger boundary.
+            payload["limitations"] = json!(["health_projection_unavailable"]);
         }
     }
     Ok(Json(payload))
@@ -1870,6 +2084,30 @@ fn validate_web_prompt(prompt: String) -> Result<String, ApiError> {
     Ok(prompt)
 }
 
+fn path_contains_traversal(path: &str) -> bool {
+    let lowered = path.to_ascii_lowercase();
+    path.split('/')
+        .any(|segment| segment == ".." || segment == ".")
+        || lowered.contains("%2e")
+        || lowered.contains("%2f")
+        || lowered.contains("%5c")
+        || path.contains('\\')
+}
+
+fn validate_web_session_id(value: &str) -> Result<(), ApiError> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.len() > 128
+        || value.contains('/')
+        || value.contains('\\')
+        || value.contains("..")
+        || value.chars().any(char::is_control)
+    {
+        return Err(ApiError::bad("session_invalid"));
+    }
+    Ok(())
+}
+
 fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
     if app.shutting_down.load(Ordering::Acquire) {
         return Err(ApiError {
@@ -1877,7 +2115,7 @@ fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError>
             error: "web_shutting_down".to_owned(),
         });
     }
-    let supplied = web_token_from_header(headers);
+    let supplied = web_token_from_header(headers)?;
     authorize_web_request(app, headers, supplied)
 }
 
@@ -1886,17 +2124,14 @@ fn authorize_sse(
     headers: &HeaderMap,
     query_token: Option<&str>,
 ) -> Result<(), ApiError> {
-    let supplied = web_token_from_header(headers)
+    let supplied = web_token_from_header(headers)?
         .or_else(|| query_token.map(str::trim).filter(|value| !value.is_empty()));
     authorize_web_request(app, headers, supplied)
 }
 
-fn web_token_from_header(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get("x-kiana-web-token")
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+fn web_token_from_header(headers: &HeaderMap) -> Result<Option<&str>, ApiError> {
+    let value = single_header(headers, "x-kiana-web-token")?;
+    Ok(value.map(str::trim).filter(|value| !value.is_empty()))
 }
 
 fn authorize_web_request(
@@ -1908,7 +2143,16 @@ fn authorize_web_request(
         return Err(ApiError::unauthorized());
     }
     authorize_host(app, headers)?;
-    if let Some(origin) = headers.get("origin").and_then(|value| value.to_str().ok()) {
+    Ok(())
+}
+
+fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
+    let host = single_header(headers, "host")?
+        .filter(|value| authority_matches_bound_addr(value, app.bound_addr));
+    if host.is_none() {
+        return Err(ApiError::unauthorized());
+    }
+    if let Some(origin) = single_header(headers, "origin")? {
         if !origin_matches_bound_addr(origin, app.bound_addr) {
             return Err(ApiError::unauthorized());
         }
@@ -1916,15 +2160,39 @@ fn authorize_web_request(
     Ok(())
 }
 
-fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
-    let host = headers
-        .get("host")
-        .and_then(|value| value.to_str().ok())
-        .filter(|value| authority_matches_bound_addr(value, app.bound_addr));
-    if host.is_none() {
+impl WebApp {
+    fn enforce_rate_limit(&self) -> Result<(), ApiError> {
+        let mut window = self
+            .rate_window
+            .lock()
+            .map_err(|_| ApiError::fail("web_rate_state_unavailable"))?;
+        if window.started.elapsed() >= WEB_RATE_WINDOW {
+            window.started = Instant::now();
+            window.requests = 0;
+        }
+        if window.requests >= MAX_WEB_REQUESTS_PER_WINDOW {
+            return Err(ApiError {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                error: "web_rate_limit_exceeded".to_owned(),
+            });
+        }
+        window.requests += 1;
+        Ok(())
+    }
+}
+
+fn single_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, ApiError> {
+    let mut values = headers.get_all(name).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
         return Err(ApiError::unauthorized());
     }
-    Ok(())
+    value
+        .to_str()
+        .map(Some)
+        .map_err(|_| ApiError::unauthorized())
 }
 
 fn authority_matches_bound_addr(authority: &str, bound_addr: SocketAddr) -> bool {
@@ -1957,6 +2225,7 @@ async fn resolve_human_session(app: &WebApp, requested: Option<&str>) -> Result<
         Some(id) => id.to_owned(),
         None => lock_string(&app.active)?,
     };
+    validate_web_session_id(&id)?;
     let known_session = {
         let sessions = app
             .sessions

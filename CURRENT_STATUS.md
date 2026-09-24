@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-16 Web 路由、来源校验和最小健康信息（2026-09-25）
+
+source_snapshot: `2d31a8b0` 加 UI-16 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui16-web-routes.json`; `kiana-entrypoints/tests/ui16_web_routes.rs`; `kiana-entrypoints/tests/ui16_web_routes_guard.rs`; `.github/workflows/ui16-web-routes.yml`; `docs/roadmap/ui16-web-routes-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui16`；新增稳定 route/auth matrix，loopback Host/Origin/token 校验、URI/body/rate 上限、路径和 session scope deny-first、统一安全响应头与最小 health；请求仍经既有 Web handler → DaemonHost → ControlPlane，不新增浏览器执行器或第二执行循环
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui16_web_routes --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui16_web_routes_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: route/auth/limit matrix、missing token、foreign Origin、path traversal、cross-workspace session、health absolute path/internal error deny cases；无 daemon/provider/live effect
+exit_code: 本地仅目标 `rustfmt --edition 2021 kiana-entrypoints/src/web.rs` 与 `git diff --check`，均为 0；GitHub Actions 待触发/未等待
+status_change: UI-16 Web route/auth/health source contract、deny-first fixtures、baseline 与 GitHub workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: health 保留 host-only liveness 以支持本地 readiness，仍不返回路径/内部错误；Origin 缺省仅为本地非浏览器客户端兼容而接受；rate state 是进程内、对所有到达请求计数，恶意流量可消耗本地实例额度；token 未证明跨重启轮换；未证明真实 HTTP/browser、跨进程 transport、durable session、provider/live timing 或 physical proof
+reviewer: Codex UI-16 source review；检查 route matrix、Host/Origin/token deny-first、URI/body/rate bounds、UUID/session ownership、health redaction、CSP/no-store/no-frame headers、DaemonHost-only execution spine；无本地 runtime test reviewer
+
 ### UI-12 TTY 输入状态机（2026-09-25）
 
 source_snapshot: `fe9336cf` 加 UI-12 source slice；`kiana-entrypoints/src/tty_input.rs`; `kiana-entrypoints/src/workbench_chat.rs`; `kiana-entrypoints/src/lib.rs`; `kiana-entrypoints/tests/fixtures/ui12-pty-events.json`; `kiana-entrypoints/tests/ui12_tty_input.rs`; `kiana-entrypoints/tests/ui12_tty_input_guard.rs`; `.github/workflows/ui12-tty-input.yml`; `docs/roadmap/ui12-tty-input-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

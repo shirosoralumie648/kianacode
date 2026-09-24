@@ -1,0 +1,42 @@
+{
+  "schema": "kiana.web-route-matrix.v1",
+  "binding": {
+    "listener": "loopback-only",
+    "host": "exact-bound-address",
+    "origin": "exact-http-origin-when-present",
+    "token_header": "x-kiana-web-token",
+    "sse_token_query": "explicit-eventsource-compatibility"
+  },
+  "limits": {
+    "body_bytes": 131072,
+    "uri_bytes": 8192,
+    "requests_per_window": 120,
+    "window_ms": 1000
+  },
+  "deny": [
+    "missing_token_state_events_action",
+    "foreign_origin",
+    "path_traversal",
+    "cross_workspace_session",
+    "health_absolute_path",
+    "health_internal_error"
+  ],
+  "routes": [
+    {"path":"/api/health","method":"GET","class":"health","token_required":false},
+    {"path":"/api/state","method":"GET","class":"state","token_required":true},
+    {"path":"/api/sessions","method":"GET","class":"sessions","token_required":true},
+    {"path":"/api/events","method":"GET","class":"events","token_required":true},
+    {"path":"/api/run","method":"POST","class":"run","token_required":true},
+    {"path":"/api/cancel","method":"POST","class":"cancel","token_required":true},
+    {"path":"/api/trust","method":"POST","class":"trust","token_required":true},
+    {"path":"/api/sandbox","method":"POST","class":"sandbox","token_required":true},
+    {"path":"/api/session","method":"POST","class":"session","token_required":true},
+    {"path":"/api/receipt","method":"POST","class":"receipt","token_required":true},
+    {"path":"/api/approvals","method":"GET/POST","class":"approval","token_required":true},
+    {"path":"/api/resume","method":"POST","class":"resume","token_required":true},
+    {"path":"/api/command","method":"GET/POST","class":"command","token_required":true},
+    {"path":"/api/parity","method":"GET","class":"diagnostics","token_required":true},
+    {"path":"/api/company-governance","method":"GET","class":"diagnostics","token_required":true},
+    {"path":"/api/extensions","method":"GET","class":"diagnostics","token_required":true}
+  ]
+}

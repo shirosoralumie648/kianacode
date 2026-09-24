@@ -393,13 +393,15 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 
 
 
-#### UI-16 · Web 路由、来源校验和最小健康信息　⏳
+#### UI-16 · Web 路由、来源校验和最小健康信息　🔄
 
 - 依赖：UI-03/07/11。代码：`kiana-entrypoints/src/web.rs`（可拆分 router/auth/handlers）。
 - 步骤：按 health/state/sessions/events/run/cancel/trust/sandbox/session/receipt/approval/resume/command 分类；统一 loopback Host/Origin/token 校验和请求大小/速率上限。
 - 先拒绝：缺 token 的 state/events/action、任意 Origin、路径穿越、跨 workspace session、health 泄漏绝对路径或内部错误；不新增浏览器直连执行器。
 - 成功/回归：每路由 deny-first、OPTIONS/GET/POST 方法、错误码、token rotation、过大 body、并发 tab 和日志脱敏。
 - 完成产物：route/auth matrix、安全 header/CSP 草案、迁移旧 endpoint 的兼容表。
+
+实现基线：[UI-16 Web routes, origin checks and minimal health baseline](ui16-web-routes-baseline.md)。
 
 <a id="step-ui-17"></a>
 

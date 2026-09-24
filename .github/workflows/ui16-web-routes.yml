@@ -1,0 +1,46 @@
+name: UI-16 Web routes and request guards
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/fixtures/ui16-web-routes.json"
+      - "kiana-entrypoints/tests/ui16_web_routes.rs"
+      - "kiana-entrypoints/tests/ui16_web_routes_guard.rs"
+      - "docs/roadmap/ui16-web-routes-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui16-web-routes.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/tests/fixtures/ui16-web-routes.json"
+      - "kiana-entrypoints/tests/ui16_web_routes.rs"
+      - "kiana-entrypoints/tests/ui16_web_routes_guard.rs"
+      - "docs/roadmap/ui16-web-routes-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui16-web-routes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui16-web-routes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-16 route/auth/limit fixtures
+        run: cargo test -p kiana-entrypoints --test ui16_web_routes --locked -- --test-threads=1
+      - name: Run UI-16 authority and health guard
+        run: cargo test -p kiana-entrypoints --test ui16_web_routes_guard --locked -- --test-threads=1
+      - name: Compile UI-16 workspace test targets
+        run: cargo check --workspace --tests --locked
