@@ -397,8 +397,8 @@ pub fn sort_findings(findings: &mut [Finding]) -> Result<(), FindingError> {
     // `sort_by` is stable; the canonical key includes every field, so equal keys remain
     // indistinguishable and cannot introduce an observable order difference.
     findings.sort_by(|left, right| {
-        let left_key = canonical_sort_key(left).unwrap_or_default();
-        let right_key = canonical_sort_key(right).unwrap_or_default();
+        let left_key = canonical_sort_key(left);
+        let right_key = canonical_sort_key(right);
         left_key.cmp(&right_key)
     });
     // Keep the precomputed keys live so validation cannot accidentally be optimized away from a
