@@ -1,0 +1,70 @@
+name: BQ-19 cost allocation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_allocation.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq19_cost_allocation.rs"
+      - "kiana-core/src/billing_allocation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq19_cost_allocation.rs"
+      - "kiana-core/tests/bq19_cost_allocation_guard.rs"
+      - "kiana-query/src/allocation_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq19_allocation_projector.rs"
+      - "kiana-query/tests/bq19_allocation_projector_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq19-cost-allocation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq19-cost-allocation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_allocation.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/bq19_cost_allocation.rs"
+      - "kiana-core/src/billing_allocation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/bq19_cost_allocation.rs"
+      - "kiana-core/tests/bq19_cost_allocation_guard.rs"
+      - "kiana-query/src/allocation_projector.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq19_allocation_projector.rs"
+      - "kiana-query/tests/bq19_allocation_projector_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/bq19-cost-allocation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq19-cost-allocation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cost-allocation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-19 domain fixtures
+        run: cargo test -p kiana-domain --test bq19_cost_allocation --locked -- --test-threads=1
+      - name: Run BQ-19 core fixtures
+        run: cargo test -p kiana-core --test bq19_cost_allocation --locked -- --test-threads=1
+      - name: Run BQ-19 core source guard
+        run: cargo test -p kiana-core --test bq19_cost_allocation_guard --locked -- --test-threads=1
+      - name: Run BQ-19 query projector fixtures
+        run: cargo test -p kiana-query --test bq19_allocation_projector --locked -- --test-threads=1
+      - name: Run BQ-19 query source guard
+        run: cargo test -p kiana-query --test bq19_allocation_projector_guard --locked -- --test-threads=1
+      - name: Compile BQ-19 targets
+        run: cargo check --workspace --tests --locked

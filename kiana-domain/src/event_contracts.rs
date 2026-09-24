@@ -48,6 +48,7 @@ const COST_CORRECTION_IDS: &[&str] = &[
     "target_entry_id",
     "target_entry_digest",
 ];
+const COST_ALLOCATION_IDS: &[&str] = &["run_id", "allocation_id", "usage_id"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -444,6 +445,26 @@ const COST_CORRECTION_FIELDS: &[&str] = &[
     "created_at_unix_ms",
     "correction_digest",
     "run_id",
+];
+const COST_ALLOCATION_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "allocation_id",
+    "usage_id",
+    "source_project_id",
+    "scope",
+    "organization_id",
+    "project_id",
+    "workflow_id",
+    "cell_id",
+    "run_id",
+    "sharing_grant",
+    "cost",
+    "source_event_id",
+    "source_cursor",
+    "revision",
+    "source_digest",
+    "allocation_digest",
 ];
 const APPROVAL_FIELDS: &[&str] = &[
     "approval_id",
@@ -983,6 +1004,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "cost_ledger",
         COST_CORRECTION_IDS,
         COST_CORRECTION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "cost.allocation",
+        "cost_allocation",
+        COST_ALLOCATION_IDS,
+        COST_ALLOCATION_FIELDS,
         false,
         None
     ),

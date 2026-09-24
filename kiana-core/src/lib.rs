@@ -8,6 +8,7 @@ mod audit_export;
 mod audit_projection;
 mod authority;
 mod authority_read_model;
+mod billing_allocation;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
@@ -92,6 +93,7 @@ pub use authority_read_model::{
     BudgetAuthorityProjection, CellAuthorityProjection, GrantAuthorityProjection,
     LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
 };
+pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
 pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,

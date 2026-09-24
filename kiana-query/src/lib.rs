@@ -11,6 +11,7 @@
 //!
 //! 这里的序列化结构和结果报告是当前实现的本地契约；字段存在不表示所有入口都已经接入，
 //! 也不自动提供 durable、live 或 physical 证明。
+pub mod allocation_projector;
 pub mod cache_policy;
 pub mod chunker;
 pub mod config;
@@ -36,6 +37,12 @@ pub mod token_budget;
 pub mod transitions;
 pub mod unified_retrieval;
 pub mod workspace_snapshot;
+
+pub use allocation_projector::{
+    project_cost_allocation, project_cost_allocations, AllocationTotals, CostAllocationProjection,
+    CostAllocationProjectionError, COST_ALLOCATION_PROJECTION_SCHEMA,
+    COST_ALLOCATION_PROJECTION_VERSION,
+};
 
 pub use cache_policy::{ContextCacheDecision, ContextCacheStatus, CONTEXT_CACHE_DECISION_SCHEMA};
 pub use chunker::{chunk_text, ChunkingOptions};

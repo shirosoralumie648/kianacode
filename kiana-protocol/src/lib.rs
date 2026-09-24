@@ -6,6 +6,11 @@
 //! 只是兼容性策略，不代表缺失字段自动安全或自动允许。
 
 use kiana_domain::{canonical_scopes, CoreResponse};
+pub use kiana_domain::{
+    AllocationCostKind, AllocationScope, CostAllocation, CostAllocationId, SharingGrantRef,
+    WorkflowInstanceId, COST_ALLOCATION_EVENT, COST_ALLOCATION_OPERATION, COST_ALLOCATION_SCHEMA,
+    COST_ALLOCATION_VERSION,
+};
 pub use kiana_domain::json_digest;
 pub use kiana_domain::{
     apply_settlement_fold_event, ConsumedUnits, ReservationUnits, SettlementFoldApplyOutcome,
