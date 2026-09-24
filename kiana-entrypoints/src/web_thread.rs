@@ -38,6 +38,9 @@ pub struct TurnView {
 /// Web 时间线中一条可渲染的项目。
 #[derive(Clone, Debug, Serialize)]
 pub struct ItemView {
+    /// Stable server-owned identity used by Web renderers.  A renderer must not use an array
+    /// position as a key because history pagination and replay can insert older items.
+    pub id: String,
     /// 前端区分渲染方式的种类，例如 `userMessage` 或 `fileChange`。
     pub kind: String,
     /// 继承自所属回执的状态；不是对每项单独执行结果的重新判定。
@@ -71,14 +74,17 @@ pub fn thread_name(prompt: &str) -> String {
 /// 这是一种宽容的反序列化：缺失或形状不匹配的可选 JSON 字段会被忽略而不是伪造数据。
 /// 因而空列表不代表没有发生副作用，只表示该回执没有提供本视图可识别的字段。
 pub fn items_from_turn(prompt: &str, response: &ResponseEnvelope) -> Vec<ItemView> {
+    let item_prefix = response.request_id.to_string();
     let mut items = vec![ItemView {
+        id: format!("{item_prefix}:user"),
         kind: "userMessage".to_owned(),
         status: "completed".to_owned(),
         title: "You".to_owned(),
         body: prompt.to_owned(),
     }];
-    for cap in capabilities(response) {
+    for (index, cap) in capabilities(response).into_iter().enumerate() {
         items.push(ItemView {
+            id: format!("{item_prefix}:tool:{index}"),
             kind: "commandExecution".to_owned(),
             status: status_of(response),
             title: format!("tool · {cap}"),
@@ -88,6 +94,7 @@ pub fn items_from_turn(prompt: &str, response: &ResponseEnvelope) -> Vec<ItemVie
     let files = files_changed(response);
     if !files.is_empty() {
         items.push(ItemView {
+            id: format!("{item_prefix}:files"),
             kind: "fileChange".to_owned(),
             status: status_of(response),
             title: format!(
@@ -101,6 +108,7 @@ pub fn items_from_turn(prompt: &str, response: &ResponseEnvelope) -> Vec<ItemVie
     let text = assistant_text(response);
     if !text.trim().is_empty() {
         items.push(ItemView {
+            id: format!("{item_prefix}:assistant"),
             kind: "agentMessage".to_owned(),
             status: status_of(response),
             title: "Builder".to_owned(),
@@ -109,6 +117,7 @@ pub fn items_from_turn(prompt: &str, response: &ResponseEnvelope) -> Vec<ItemVie
     }
     if let Some(error) = response.error.as_deref().filter(|value| !value.is_empty()) {
         items.push(ItemView {
+            id: format!("{item_prefix}:error"),
             kind: "error".to_owned(),
             status: status_of(response),
             title: "blocked".to_owned(),

@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-20 Web 时间线组件迁移（2026-09-25）
+
+source_snapshot: `c162ecaa`（UI-19）加 UI-20 source slice；`kiana-client/src/web_timeline.rs`; `kiana-client/src/lib.rs`; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_thread.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui20-web-timeline.json`; `kiana-entrypoints/tests/ui20_web_timeline.rs`; `kiana-entrypoints/tests/ui20_web_timeline_guard.rs`; `.github/workflows/ui20-web-timeline.yml`; `docs/roadmap/ui20-web-timeline-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: 隔离 worktree `/tmp/kiana-step-ui20`；server `ItemView` 提供稳定 item id，typed client 暴露 `WebTimelineItemKind`/`WebTimelineWindow`；Web inline thread 迁移为按显式 server kind 的 DOM text-only renderer，recent window 保留 pending/unknown；复用既有 UI-17 hydrate、UI-18 SSE reconnect/gap、UI-19 session/tab 状态，不新增执行循环
+command_argv: GitHub Actions 将运行 `cargo fetch --locked`; `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui20_web_timeline --locked -- --test-threads=1`; `cargo test -p kiana-entrypoints --test ui20_web_timeline_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: GitHub runner；Linux x86_64；stable Rust；本地不运行测试/build/check/clippy/smoke，CI 结果不等待
+fixture·cassette: delta/tool/approval/error/unknown/terminal kind、XSS text boundary、stable server id、protected pending/unknown window、loading/partial/replay/offline、hydrate/SSE/session boundary；无 daemon/provider/live/external effect
+exit_code: 本地仅目标 rustfmt 与 `git diff --check`；GitHub Actions 待触发/未等待
+status_change: UI-20 typed Web timeline item contract、DOM-safe rendering、stable item IDs、bounded protected window、deny-first fixture/source guard/workflow/baseline 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded Web/client source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 无浏览器截图/golden、真实 HTTP/SSE timing、视觉 parity、跨进程/durable cache/replay、provider/live、receipt correctness、外部 effect 或 physical proof；旧 item kind alias 仍属迁移兼容映射；CI 结果未等待
+reviewer: Codex UI-20 source review；检查显式 server kind mapping、textContent/no-innerHTML、stable item id/no-array-index、pending/unknown window protection、loading/partial/replay/offline visibility、shared hydrate/SSE/session boundary 与 no-second-loop；无本地 runtime test reviewer
+
 ### UI-19 Web session ownership 与多 tab 并发（2026-09-25）
 
 source_snapshot: `3bfb9eef` 加 UI-19 source slice；`kiana-entrypoints/src/web.rs`; `kiana-entrypoints/src/web_page.html`; `kiana-client/src/web_contract.rs`; `kiana-protocol/src/ui_contracts.rs`; `kiana-entrypoints/tests/fixtures/ui19-session-tabs.json`; `kiana-entrypoints/tests/ui19_session_tabs.rs`; `kiana-entrypoints/tests/ui19_session_tabs_guard.rs`; `.github/workflows/ui19-session-tabs.yml`; `docs/roadmap/ui19-session-tabs-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

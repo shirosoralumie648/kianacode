@@ -455,13 +455,21 @@ close-without-cancel fence；GitHub-only fixture/workflow 已接入，证明等�
 
 
 
-#### UI-20 · Web 时间线组件迁移　⏳
+#### UI-20 · Web 时间线组件迁移　🔄
 
 - 依赖：UI-08/13/17/18。代码：从当前 inline HTML 渐进抽出 Thread/Turn/Item、status bar、feed indicator 组件；可采用 React/TS/Vite，但先保持静态构建可运行。
 - 步骤：按 server item kind 渲染 delta/tool/approval/error/unknown；虚拟化和窗口化受有界 cursor 控制；错误、partial、replay、loading 可感知。
 - 先拒绝：前端根据文本猜 item kind、innerHTML 直插不可信内容、虚拟化丢 pending/unknown、render key 使用数组 index。
 - 成功/回归：旧页面功能 parity、长时间流、刷新重连、XSS payload、深链接和窄屏；组件只依赖 shared store/client。
 - 完成产物：组件目录、迁移开关、浏览器截图/golden 和 bundle size 基线。
+
+实现基线：[UI-20 Web timeline component migration](ui20-web-timeline-baseline.md)。当前 source
+slice 在既有 UI-17 hydrate、UI-18 SSE 和 UI-19 tab/session projection 上加入 typed client
+`WebTimelineItemKind`/`WebTimelineWindow`、server-owned stable `ItemView.id`、DOM text-only
+timeline renderer 与受保护 pending/unknown recent window；loading/partial/replay/offline 以
+状态节点可见，unknown 不从文本猜测且要求保守刷新。GitHub-only fixture/source guard/workflow
+已接入，浏览器截图/golden、真实长流/窄屏、视觉 parity、跨进程/durable replay 和 live/physical
+proof 留后续。
 
 <a id="step-ui-21"></a>
 

@@ -2781,19 +2781,22 @@ impl HistoryTurnBuilder {
     }
 
     fn into_turn(self) -> TurnView {
+        let item_prefix = self.id.clone();
         let text = if self.final_text.is_empty() {
             redact_history_text(&self.delta_text)
         } else {
             redact_history_text(&self.final_text)
         };
         let mut items = vec![web_thread::ItemView {
+            id: format!("{item_prefix}:user"),
             kind: "userMessage".to_owned(),
             status: "completed".to_owned(),
             title: "You".to_owned(),
             body: redact_history_text(&self.prompt),
         }];
-        for capability in self.capabilities {
+        for (index, capability) in self.capabilities.into_iter().enumerate() {
             items.push(web_thread::ItemView {
+                id: format!("{item_prefix}:tool:{index}"),
                 kind: "commandExecution".to_owned(),
                 status: self.status.clone(),
                 title: format!("tool · {capability}"),
@@ -2802,6 +2805,7 @@ impl HistoryTurnBuilder {
         }
         if !self.files.is_empty() {
             items.push(web_thread::ItemView {
+                id: format!("{item_prefix}:files"),
                 kind: "fileChange".to_owned(),
                 status: self.status.clone(),
                 title: format!(
@@ -2814,6 +2818,7 @@ impl HistoryTurnBuilder {
         }
         if !text.trim().is_empty() {
             items.push(web_thread::ItemView {
+                id: format!("{item_prefix}:assistant"),
                 kind: "agentMessage".to_owned(),
                 status: self.status.clone(),
                 title: "Builder".to_owned(),
@@ -2822,6 +2827,7 @@ impl HistoryTurnBuilder {
         }
         if let Some(error) = self.error.filter(|error| !error.trim().is_empty()) {
             items.push(web_thread::ItemView {
+                id: format!("{item_prefix}:error"),
                 kind: "error".to_owned(),
                 status: self.status.clone(),
                 title: "blocked".to_owned(),
@@ -3430,7 +3436,13 @@ fn turn_storage_bytes(turn: &TurnView) -> usize {
         + turn
             .items
             .iter()
-            .map(|item| item.kind.len() + item.status.len() + item.title.len() + item.body.len())
+            .map(|item| {
+                item.id.len()
+                    + item.kind.len()
+                    + item.status.len()
+                    + item.title.len()
+                    + item.body.len()
+            })
             .sum::<usize>()
 }
 
@@ -3612,6 +3624,7 @@ mod tests {
                 status: "completed".to_owned(),
                 items: (0..(MAX_WEB_ITEMS_PER_TURN + 1))
                     .map(|index| web_thread::ItemView {
+                        id: format!("item-{index}"),
                         kind: "agentMessage".to_owned(),
                         status: "completed".to_owned(),
                         title: index.to_string(),
@@ -3640,6 +3653,7 @@ mod tests {
                     id: index.to_string(),
                     status: "completed".to_owned(),
                     items: vec![web_thread::ItemView {
+                        id: "item".to_owned(),
                         kind: "agentMessage".to_owned(),
                         status: "completed".to_owned(),
                         title: "Builder".to_owned(),

@@ -1,0 +1,57 @@
+{
+  "schema": "kiana.web-timeline.v1",
+  "item_schema": "kiana.web-timeline-item.v1",
+  "server_item_kinds": [
+    "delta",
+    "tool",
+    "approval",
+    "error",
+    "unknown",
+    "terminal"
+  ],
+  "legacy_kind_aliases": {
+    "userMessage": "delta",
+    "agentMessage": "delta",
+    "commandExecution": "tool",
+    "fileChange": "tool"
+  },
+  "rendering": {
+    "text_node": "textContent",
+    "render_key": "server_item_id",
+    "unknown_policy": "visible_refresh_marker"
+  },
+  "window": {
+    "size": 64,
+    "max_items": 512,
+    "protected": [
+      "pending",
+      "unknown"
+    ],
+    "older_page": "hydrate_or_history_cursor"
+  },
+  "visible_states": [
+    "loading",
+    "partial",
+    "replay",
+    "ready",
+    "offline"
+  ],
+  "deny_first": [
+    "text_body_kind_guess",
+    "innerHTML_untrusted_timeline",
+    "array_index_render_key",
+    "window_drops_pending",
+    "window_drops_unknown",
+    "replay_promoted_to_live",
+    "timeline_starts_execution_loop",
+    "stream_reconnect_submits_command"
+  ],
+  "success": [
+    "delta_tool_approval_error_unknown_terminal_are_distinct",
+    "xss_payload_is_text_only",
+    "stable_server_item_id_survives_replay",
+    "protected_items_survive_recent_window",
+    "loading_partial_replay_are_visible",
+    "snapshot_and_sse_share_store_projection"
+  ]
+}

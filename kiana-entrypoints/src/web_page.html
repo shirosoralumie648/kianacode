@@ -37,6 +37,16 @@
     .item.userMessage { background:var(--user); }
     .item.commandExecution, .item.fileChange { font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
     .item.error { border-color:var(--err); color:var(--err); }
+    .timeline-item { contain:content; }
+    .timeline-item.timeline-tool { font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+    .timeline-item.timeline-approval { border-color:var(--warn); }
+    .timeline-item.timeline-error { border-color:var(--err); color:var(--err); }
+    .timeline-item.timeline-unknown { border-style:dashed; border-color:var(--warn); }
+    .timeline-item.timeline-terminal { border-color:var(--ok); }
+    .timeline-state { max-width:760px; margin:0 auto 12px; padding:8px 12px; border:1px dashed var(--border); border-radius:8px; color:var(--muted); font-size:12px; }
+    .timeline-state[data-state="partial"], .timeline-state[data-state="replay"] { border-color:var(--warn); color:var(--warn); }
+    .timeline-state[data-state="offline"] { border-color:var(--err); color:var(--err); }
+    .timeline-item[data-pending="true"] { box-shadow:inset 3px 0 var(--warn); }
     .who { font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.08em; }
     .guide { max-width:760px; margin:24px auto; }
     .guide h1 { font-size:22px; margin:0 0 8px; }
@@ -94,6 +104,7 @@
     <main class="center" aria-label="对话">
       <div class="banner" id="streamBanner" role="status" aria-live="polite">正在重连…</div>
       <div class="chat" id="chat" role="region" aria-label="对话记录" tabindex="0">
+        <div class="timeline-state" id="timelineState" data-state="loading" role="status" aria-live="polite">时间线 loading…</div>
         <div class="guide" id="emptyGuide">
           <h1>Ask Kiana</h1>
           <p class="muted">选择左侧会话，描述要完成的任务。运行进度、待审批动作与文件变更会显示在右侧。</p>
@@ -220,6 +231,30 @@
     const submissionIds = new Map();
     let hydrateState = 'loading';
 
+    // UI-20 keeps the Web timeline as a bounded presentation projection.  The server's explicit
+    // item kind is the only discriminator; title/body text is never parsed to guess a kind.
+    const WEB_TIMELINE_SCHEMA = 'kiana.web-timeline.v1';
+    const WEB_TIMELINE_ITEM_SCHEMA = 'kiana.web-timeline-item.v1';
+    const TIMELINE_WINDOW_SIZE = 64;
+    const TIMELINE_MAX_ITEMS = 512;
+    const TIMELINE_MAX_BODY_BYTES = 16 * 1024;
+    const SERVER_ITEM_KINDS = Object.freeze({
+      delta: 'delta', tool: 'tool', approval: 'approval', error: 'error', unknown: 'unknown', terminal: 'terminal',
+      // UI-13/legacy server projections remain explicit aliases during migration.
+      userMessage: 'delta', commandExecution: 'tool', fileChange: 'tool', agentMessage: 'delta'
+    });
+    const TIMELINE_PROTECTED_KINDS = new Set(['approval', 'unknown']);
+    const timelineProjection = {
+      schema: WEB_TIMELINE_SCHEMA,
+      items: new Map(),
+      order: [],
+      state: 'loading',
+      replay: false,
+      partial: false,
+      loading: true,
+      cursor: null
+    };
+
     // Drafts and submission identities are scoped to this tab. A retry reuses the same identity
     // so the server can return the original command receipt; a new tab never imports this map.
     function tabSessionKey(session) { return tabOwnerId + ':' + (session || 'workspace'); }
@@ -235,6 +270,7 @@
       hydrateState = status;
       const value = detail || ('snapshot ' + status);
       document.getElementById('hydrateStatus').textContent = value;
+      if (['loading', 'partial', 'offline'].includes(status)) setTimelineState(status, '时间线 ' + status + ' · ' + value);
       const history = historyPages.get(sessionId);
       if (history && history.status) {
         document.getElementById('historyStatus').textContent = 'history ' + history.status;
@@ -350,7 +386,10 @@
     }
 
     function announce(text) { document.getElementById('announcer').textContent = text; }
-    function reportError(error) { addItem({kind:'error',title:'操作未完成',body:String(error.message || error)}); announce(String(error.message || error)); }
+    function reportError(error) {
+      reportTimelineError(error);
+      announce(String(error && (error.message || error) || '请求失败'));
+    }
     function parseSsePayload(message) {
       try { return JSON.parse(message.data); }
       catch (_) { requestStreamHydrate('stream_payload_invalid'); return null; }
@@ -398,6 +437,16 @@
       if (!envelope) return;
       const event = envelope.event || {};
       const data = event.data || {};
+      const eventKinds = Object.freeze({tool_call:'tool', approval_requested:'approval', runtime_error:'error'});
+      const itemKind = Object.prototype.hasOwnProperty.call(eventKinds, event.type)
+        ? eventKinds[event.type] : 'unknown';
+      appendTimelineItem({
+        id: 'stream:' + String(envelope.sequence), kind: itemKind,
+        status: itemKind === 'approval' ? 'pending' : 'partial',
+        title: timelineLabelForKind(itemKind),
+        body: boundedTimelineText(JSON.stringify(data)),
+        pending: itemKind === 'approval', sequence: envelope.sequence
+      }, itemKind === 'unknown' ? 'partial' : null);
       runtimeEvents.push(event.type + ': ' + (data.operation || data.error || data.approval_id || JSON.stringify(data)));
       while (runtimeEvents.length > 12) runtimeEvents.shift();
       document.getElementById('runtimeEvents').textContent = runtimeEvents.join('\n');
@@ -507,16 +556,134 @@
       else if (previousFocus && previousFocus.isConnected) previousFocus.focus();
     }
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    function boundedTimelineText(value) {
+      const text = String(value == null ? '' : value);
+      if (text.length <= TIMELINE_MAX_BODY_BYTES) return text;
+      return text.slice(0, TIMELINE_MAX_BODY_BYTES) + '\n…truncated…';
     }
-    function addItem(item) {
-      if (!started) { emptyGuide.remove(); started = true; }
-      const el = document.createElement('div');
-      el.className = 'item ' + item.kind;
-      el.innerHTML = '<div class="who">' + escapeHtml(item.title || item.kind) + '</div>' + escapeHtml(item.body || '');
-      chat.appendChild(el);
+    function timelineStableKey(item) {
+      const explicit = item && (item.id || item.event_id || item.key);
+      if (explicit) return String(explicit);
+      return [item && item.kind || 'unknown', item && item.title || '', item && item.body || ''].join('\u001f');
+    }
+    function normalizeServerTimelineItem(item) {
+      const rawKind = item && typeof item.kind === 'string' ? item.kind : 'unknown';
+      const kind = Object.prototype.hasOwnProperty.call(SERVER_ITEM_KINDS, rawKind)
+        ? SERVER_ITEM_KINDS[rawKind] : 'unknown';
+      const pending = !!(item && item.pending) || kind === 'approval';
+      return {
+        schema: WEB_TIMELINE_ITEM_SCHEMA,
+        id: timelineStableKey(item),
+        kind,
+        status: String(item && item.status || 'unknown'),
+        title: String(item && item.title || kind),
+        body: boundedTimelineText(item && item.body),
+        pending,
+        replay: !!(item && item.replay),
+        sequence: Number.isSafeInteger(item && item.sequence) ? item.sequence : null
+      };
+    }
+    function timelineLabelForKind(kind) {
+      switch (kind) {
+        case 'delta': return 'delta';
+        case 'tool': return 'tool';
+        case 'approval': return 'approval · pending';
+        case 'error': return 'error';
+        case 'unknown': return 'unknown · refresh required';
+        case 'terminal': return 'terminal';
+        default: return 'unknown · refresh required';
+      }
+    }
+    function renderTimelineItem(item) {
+      const normalized = normalizeServerTimelineItem(item);
+      const el = document.createElement('article');
+      el.className = 'item timeline-item timeline-' + normalized.kind;
+      el.dataset.renderKey = normalized.id;
+      el.dataset.kind = normalized.kind;
+      el.dataset.pending = String(normalized.pending);
+      if (normalized.replay) el.dataset.replay = 'true';
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = normalized.title || timelineLabelForKind(normalized.kind);
+      const body = document.createElement('div');
+      body.className = 'timeline-body';
+      body.textContent = normalized.body;
+      el.appendChild(who);
+      el.appendChild(body);
+      el.setAttribute('aria-label', timelineLabelForKind(normalized.kind));
+      if (normalized.pending) el.setAttribute('aria-busy', 'true');
+      return el;
+    }
+    function preserveProtectedTimelineItems() {
+      const visibleKeys = new Set(timelineProjection.order.slice(-TIMELINE_WINDOW_SIZE));
+      timelineProjection.order.forEach(key => {
+        const item = timelineProjection.items.get(key);
+        if (item && (item.pending || TIMELINE_PROTECTED_KINDS.has(item.kind))) visibleKeys.add(key);
+      });
+      return timelineProjection.order.filter(key => visibleKeys.has(key));
+    }
+    function setTimelineState(state, detail) {
+      const allowed = new Set(['loading', 'partial', 'replay', 'ready', 'offline']);
+      timelineProjection.state = allowed.has(state) ? state : 'partial';
+      timelineProjection.loading = timelineProjection.state === 'loading';
+      timelineProjection.partial = timelineProjection.state === 'partial';
+      timelineProjection.replay = timelineProjection.state === 'replay';
+      const node = document.getElementById('timelineState');
+      node.dataset.state = timelineProjection.state;
+      node.textContent = detail || ('时间线 ' + timelineProjection.state);
+      node.hidden = timelineProjection.state === 'ready' && timelineProjection.items.size === 0;
+    }
+    function trimTimelineProjection() {
+      while (timelineProjection.order.length > TIMELINE_MAX_ITEMS) {
+        const removable = timelineProjection.order.find(key => {
+          const item = timelineProjection.items.get(key);
+          return item && !item.pending && !TIMELINE_PROTECTED_KINDS.has(item.kind);
+        });
+        if (!removable) break;
+        timelineProjection.items.delete(removable);
+        timelineProjection.order = timelineProjection.order.filter(key => key !== removable);
+      }
+    }
+    function appendTimelineItem(item, state = null) {
+      const normalized = normalizeServerTimelineItem(item);
+      const existing = timelineProjection.items.has(normalized.id);
+      timelineProjection.items.set(normalized.id, normalized);
+      if (!existing) timelineProjection.order.push(normalized.id);
+      trimTimelineProjection();
+      if (state) setTimelineState(state, state === 'loading' ? '时间线 loading…' : null);
+      renderTimelineProjection();
       chat.scrollTop = chat.scrollHeight;
+      return normalized.id;
+    }
+    function replaceTimelineFromServer(items, state = 'ready', replay = false) {
+      timelineProjection.items.clear();
+      timelineProjection.order = [];
+      timelineProjection.cursor = stateCache && stateCache.cursor || null;
+      (Array.isArray(items) ? items : []).forEach(item => appendTimelineItem(item));
+      timelineProjection.replay = replay;
+      setTimelineState(replay ? 'replay' : state, replay ? '时间线 replay · 历史投影' : null);
+      renderTimelineProjection();
+    }
+    function renderTimelineProjection() {
+      const streamNode = streamItem;
+      chat.querySelectorAll('.timeline-item').forEach(node => node.remove());
+      const fragment = document.createDocumentFragment();
+      preserveProtectedTimelineItems().forEach(key => {
+        const item = timelineProjection.items.get(key);
+        if (item) fragment.appendChild(renderTimelineItem(item));
+      });
+      if (streamNode) fragment.appendChild(streamNode);
+      chat.appendChild(fragment);
+      if (timelineProjection.items.size || streamNode) {
+        emptyGuide.remove();
+        started = true;
+      }
+    }
+    function reportTimelineError(error) {
+      appendTimelineItem({
+        id: 'local:error:' + Date.now(), kind: 'error', title: '操作未完成',
+        body: String(error && (error.message || error) || 'unknown')
+      }, 'partial');
     }
     async function api(path, body, submissionId = null) {
       const headers = {
@@ -543,11 +710,17 @@
     }
     function renderThread(s) {
       const thread = s.thread || { turns: [] };
-      chat.querySelectorAll('.item').forEach(n => n.remove());
       started = false;
       if (!emptyGuide.parentNode) chat.prepend(emptyGuide);
-      (thread.turns || []).forEach(turn => (turn.items || []).forEach(addItem));
-      if ((thread.turns || []).length) emptyGuide.remove();
+      const items = [];
+      (thread.turns || []).forEach(turn => (turn.items || []).forEach(item => items.push({
+        ...item,
+        replay: !!s.read_only || !!item.replay,
+        sequence: item.sequence || null
+      })));
+      const projectionState = hydrateState === 'offline' || hydrateState === 'partial'
+        ? hydrateState : (s.read_only ? 'replay' : 'ready');
+      replaceTimelineFromServer(items, projectionState, !!s.read_only);
       const terminalTurnPresent = !!streamRunId && (thread.turns || []).some(turn => turn.id === streamRunId);
       if (streamItem) {
         if (!streamIncomplete && streamTerminal && streamTerminal.status === 'completed' && terminalTurnPresent) {
@@ -558,11 +731,11 @@
           streamTerminal = null;
           streamComplete = false;
         } else {
-          chat.appendChild(streamItem);
           emptyGuide.remove();
           started = true;
         }
       }
+      renderTimelineProjection();
     }
     function showStreamBanner(show, message) {
       const banner = document.getElementById('streamBanner');
@@ -597,16 +770,15 @@
     }
     function ensureStreamItem() {
       if (streamItem) return;
+      streamItem = renderTimelineItem({
+        id: 'stream:' + String(streamRunId || sessionId || 'unknown'),
+        kind: 'delta', status: 'partial', title: 'Builder · streaming', body: streamText,
+        pending: true
+      });
+      streamItem.classList.add('streaming');
+      const body = streamBody();
+      if (body) body.classList.add('stream-body');
       if (!started) { emptyGuide.remove(); started = true; }
-      streamItem = document.createElement('div');
-      streamItem.className = 'item agentMessage streaming';
-      const who = document.createElement('div');
-      who.className = 'who';
-      who.textContent = 'Builder · streaming';
-      const body = document.createElement('div');
-      body.className = 'stream-body';
-      streamItem.appendChild(who);
-      streamItem.appendChild(body);
       chat.appendChild(streamItem);
     }
     function markStreamIncomplete(reason) {
@@ -614,8 +786,7 @@
       streamComplete = false;
       streamInterruption = reason || 'stream_incomplete';
       ensureStreamItem();
-      const who = streamItem && streamItem.querySelector('.who');
-      if (who) who.textContent = 'Builder · 不完整 / 已中断';
+      setStreamItemKind('unknown', 'Builder · unknown / incomplete', true);
       showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
       renderBusyStatus();
     }
@@ -634,6 +805,19 @@
       if (body) body.textContent = streamText;
       chat.scrollTop = chat.scrollHeight;
     }
+    function setStreamItemKind(kind, title, pending = false) {
+      if (!streamItem) return;
+      const normalized = Object.prototype.hasOwnProperty.call(SERVER_ITEM_KINDS, kind)
+        ? SERVER_ITEM_KINDS[kind] : 'unknown';
+      streamItem.className = 'item timeline-item timeline-' + normalized + ' streaming';
+      streamItem.dataset.kind = normalized;
+      streamItem.dataset.pending = String(pending);
+      const who = streamItem.querySelector('.who');
+      if (who) who.textContent = title || timelineLabelForKind(normalized);
+      streamItem.setAttribute('aria-label', timelineLabelForKind(normalized));
+      if (pending) streamItem.setAttribute('aria-busy', 'true');
+      else streamItem.removeAttribute('aria-busy');
+    }
     function handleStreamTerminal(message) {
       const envelope = readStreamEnvelope(message);
       if (!envelope) return;
@@ -642,6 +826,11 @@
       streamTerminal = terminal.response || {};
       streamComplete = false;
       const status = streamTerminal.status || 'unknown';
+      setStreamItemKind(
+        streamIncomplete ? 'unknown' : 'terminal',
+        streamIncomplete ? 'unknown · incomplete / receipt required' : (status === 'completed' ? 'terminal · completed' : 'terminal · ' + status),
+        streamIncomplete
+      );
       if (streamIncomplete) {
         ensureStreamItem();
         const who = streamItem.querySelector('.who');
@@ -880,7 +1069,7 @@
         'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
       const box = document.getElementById('sessions');
       const focusedSession = document.activeElement && document.activeElement.dataset.session;
-      box.innerHTML = '';
+      box.replaceChildren();
       (s.sessions || s.threads || []).forEach(item => {
         const b = document.createElement('button');
         b.dataset.session = item.id;
@@ -932,11 +1121,11 @@
       const text = String(prompt || '').trim();
       if (!text || running || runPending) return;
       if (readOnly) {
-        addItem({ kind:'error', title:'需要恢复会话', body:'继续执行前请先选择「恢复此会话」。人工待办和编辑恢复可直接处理。' });
+        appendTimelineItem({ id:'local:resume-required', kind:'error', title:'需要恢复会话', body:'继续执行前请先选择「恢复此会话」。人工待办和编辑恢复可直接处理。' }, 'partial');
         return;
       }
       if (stateCache && !stateCache.trusted) {
-        addItem({ kind:'error', title:'blocked', body:'请先核实并信任当前工作区，再发送写入任务。' });
+        appendTimelineItem({ id:'local:workspace-untrusted', kind:'error', title:'blocked', body:'请先核实并信任当前工作区，再发送写入任务。' }, 'partial');
         return;
       }
       promptEl.value = '';
@@ -956,7 +1145,7 @@
         renderState(data);
       } catch (err) {
         runPending = false;
-        addItem({ kind:'error', title:'error', body: String(err.message || err) });
+        reportTimelineError(err);
         try { await refresh(); } catch (_) {}
       } finally {
         runPending = false;

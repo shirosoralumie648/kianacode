@@ -21,6 +21,7 @@ mod typed;
 mod ui_schema_generated;
 mod ui_store;
 mod web_contract;
+mod web_timeline;
 
 pub use cli_contract::{
     validate_session, validate_workspace, CliCommand, CliCommandId, CliInvocation, CliOutput,
@@ -50,6 +51,11 @@ pub use ui_store::{
 pub use web_contract::{
     WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,
     WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA, WEB_CLIENT_TAB_SCHEMA,
+};
+pub use web_timeline::{
+    WebTimelineItem, WebTimelineItemKind, WebTimelineViewState, WebTimelineWindow,
+    WEB_TIMELINE_ITEM_SCHEMA, WEB_TIMELINE_MAX_BODY_BYTES, WEB_TIMELINE_MAX_ID_BYTES,
+    WEB_TIMELINE_MAX_ITEMS, WEB_TIMELINE_SCHEMA, WEB_TIMELINE_WINDOW_SIZE,
 };
 
 #[async_trait]

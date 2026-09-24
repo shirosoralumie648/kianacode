@@ -1,0 +1,54 @@
+name: UI-20 Web timeline component migration
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/web_thread.rs"
+      - "kiana-entrypoints/tests/fixtures/ui20-web-timeline.json"
+      - "kiana-entrypoints/tests/ui20_web_timeline.rs"
+      - "kiana-entrypoints/tests/ui20_web_timeline_guard.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_timeline.rs"
+      - "docs/roadmap/ui20-web-timeline-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui20-web-timeline.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/web_thread.rs"
+      - "kiana-entrypoints/tests/fixtures/ui20-web-timeline.json"
+      - "kiana-entrypoints/tests/ui20_web_timeline.rs"
+      - "kiana-entrypoints/tests/ui20_web_timeline_guard.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/web_timeline.rs"
+      - "docs/roadmap/ui20-web-timeline-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui20-web-timeline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui20-web-timeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-20 timeline contract fixture
+        run: cargo test -p kiana-entrypoints --test ui20_web_timeline --locked -- --test-threads=1
+      - name: Run UI-20 deny-first source guard
+        run: cargo test -p kiana-entrypoints --test ui20_web_timeline_guard --locked -- --test-threads=1
+      - name: Compile UI-20 workspace test targets
+        run: cargo check --workspace --tests --locked
