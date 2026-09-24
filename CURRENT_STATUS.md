@@ -12414,3 +12414,18 @@ proof-level_change: `feature_status=implemented`; `proof_level=source`; no local
 limitations: binding lookup, operation risk derivation, policy/gate/approval, reservation/CAS, effect-time fence, receipt persistence, external transport, durable cross-process identity and live/physical connector effects remain later INT/CP/ER/PD steps; legacy untyped command compatibility remains while typed surfaces share the normalizer; HTTP/remote MCP and arbitrary endpoint selection remain unsupported; CI result intentionally unobserved
 reviewer: Codex INT-14 source review; checked strict versioned DTO, server-owned authority/data boundary, route/reconcile mapping, zero-Broker deny-first ordering, CLI/Web/Workbench/MCP client helper reuse and no second execution/authorization path; no local runtime test reviewer
 ```
+
+### INT-15 connector operation risk to policy/gate/approval evidence (2026-09-25)
+
+```text
+source_snapshot: `c134f0cb` plus INT-15 source slice; `kiana-domain/src/{connector_policy,connector_operation,connectors,lib}.rs`; `kiana-policy/src/lib.rs`; `kiana-core/src/connectors.rs`; domain/policy/core fixtures and source guard; `.github/workflows/int15-connector-policy.yml`; `docs/roadmap/int15-connector-policy-baseline.md`; `docs/roadmap/integrations-connectors.md`; `docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-int15` on branch `int-15-operation-policy-20260925`; server-owned operation classification maps R0/R1 to read-only, R2 to a data grant, R3 to one exact final-payload approval and R4 to default deny; binding status/expiry, authority/policy/data epochs and approval/grant digest checks return zero Broker calls on rejection; existing ControlPlane policy/gate/approval/Broker spine remains the only execution path
+command_argv: target-only `rustfmt --edition 2021` on INT-15 Rust files; `git diff --check`; GitHub Actions will run `cargo fetch --locked`, `cargo fmt --all --check`, INT-15 domain/policy fixtures, Core source guard and `cargo check --workspace --tests --locked`
+cwd_environment: `/tmp/kiana-step-int15`; Linux x86_64; stable Rust; local Cargo test/build/check/clippy/smoke commands deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture_cassette: domain fixtures cover deterministic R0/R1, missing/revoked/expired/stale R2 grants, R3 once approval and final payload digest drift, R4 default deny, revoked/expired binding and authority/policy epoch mismatch; policy fixtures cover the existing DefaultPolicyEngine Allow/Ask/Deny mapping; Core guard checks no direct Broker or second authority path
+exit_code: target-only rustfmt and `git diff --check` are the only local verification; remote fixtures, workspace compile and CI exit codes are pending/unobserved
+status_change: INT-15 operation risk to policy/gate/approval source slice, deny fixtures/source guard, baseline, workflow and roadmap overlay implemented; roadmap row/card advanced from `⏳` to `🔄` pending GitHub evidence
+proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: grant/approval consumption, reservation/CAS and effect-time epoch fencing remain in-process source contracts for this step; durable cross-process authority, provider receipts, external transport and live/physical connector outcomes remain later INT/CP/ER/PD work; operation-name classification is conservative for the legacy binding projection and CI result is intentionally unobserved
+reviewer: Codex INT-15 source review; checked R0/R1 read-only, R2 data grant intersection, R3 exact final payload/once approval, R4 default deny, zero-Broker rejection and reuse of the INT-14 normalized ControlPlane path; no local runtime test reviewer
+```

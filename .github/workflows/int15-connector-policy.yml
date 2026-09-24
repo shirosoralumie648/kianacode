@@ -1,0 +1,62 @@
+name: int15-connector-policy
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_policy.rs"
+      - "kiana-domain/src/connector_operation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int15_connector_policy.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/int15_connector_policy.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/int15_connector_policy_guard.rs"
+      - "kiana-gates/src/lib.rs"
+      - ".github/workflows/int15-connector-policy.yml"
+      - "docs/roadmap/int15-connector-policy-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_policy.rs"
+      - "kiana-domain/src/connector_operation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int15_connector_policy.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-policy/tests/int15_connector_policy.rs"
+      - "kiana-core/src/connectors.rs"
+      - "kiana-core/tests/int15_connector_policy_guard.rs"
+      - "kiana-gates/src/lib.rs"
+      - ".github/workflows/int15-connector-policy.yml"
+      - "docs/roadmap/int15-connector-policy-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-15 domain risk and admission fixtures
+        run: cargo test -p kiana-domain --test int15_connector_policy --locked -- --test-threads=1
+      - name: Run INT-15 policy fixtures
+        run: cargo test -p kiana-policy --test int15_connector_policy --locked -- --test-threads=1
+      - name: Run INT-15 ControlPlane source guard
+        run: cargo test -p kiana-core --test int15_connector_policy_guard --locked -- --test-threads=1
+      - name: Compile INT-15 workspace targets
+        run: cargo check --workspace --tests --locked

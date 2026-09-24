@@ -414,5 +414,6 @@ pub fn connector_invocation_risk(
     let operation = request.arguments["operation"]
         .as_str()
         .ok_or("connector_operation_required")?;
-    Ok(binding.operation(operation)?.risk())
+    let contract = binding.operation(operation)?;
+    Ok(contract.connector_risk(operation).required_risk_level())
 }

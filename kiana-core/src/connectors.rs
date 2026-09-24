@@ -213,7 +213,18 @@ impl ControlPlane {
             if binding.project_root != context.project_root {
                 return Err("connector_binding_scope_mismatch".to_owned());
             }
-            let risk = binding.operation(&operation).map_err(str::to_owned)?.risk();
+            let contract = binding.operation(&operation).map_err(str::to_owned)?;
+            let risk = contract.connector_risk(&operation).required_risk_level();
+            let payload = arguments
+                .get("payload")
+                .ok_or("connector_final_payload_required")?;
+            // The digest is server-derived from the canonical final payload.  A connector
+            // operation can therefore not smuggle a different payload through approval by
+            // supplying its own digest on the wire.
+            arguments.insert(
+                "final_payload_digest".to_owned(),
+                json!(kiana_domain::connector_payload_sha256(payload)),
+            );
             arguments.insert("binding_snapshot".to_owned(), json!(binding));
             arguments.insert("binding_authorized".to_owned(), json!(true));
             risk

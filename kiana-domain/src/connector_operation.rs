@@ -42,6 +42,13 @@ pub struct ConnectorOperationContract {
 }
 
 impl ConnectorOperationContract {
+    /// Map the versioned contract into the connector R0--R4 policy vocabulary.  The server-owned
+    /// declared risk remains an input to the conservative mapping; callers cannot lower it by
+    /// changing request arguments.
+    pub fn connector_risk(&self) -> crate::ConnectorOperationRisk {
+        crate::connector_operation_risk_with_declared(&self.operation_id, self.effect, self.risk)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != CONNECTOR_OPERATION_CONTRACT_SCHEMA
             || self.operation_id.trim().is_empty()
@@ -61,8 +68,16 @@ impl ConnectorOperationContract {
         {
             return Err("connector_operation_contract_header_invalid".to_owned());
         }
-        if self.effect == ConnectorEffect::ReadOnly && self.risk != RiskLevel::ReadOnly {
+        if self.effect == ConnectorEffect::ReadOnly
+            && !matches!(self.risk, RiskLevel::ReadOnly | RiskLevel::LocalWrite)
+        {
             return Err("connector_operation_risk_downgrade_or_mismatch".to_owned());
+        }
+        if self.effect == ConnectorEffect::ReadOnly
+            && self.risk == RiskLevel::LocalWrite
+            && self.connector_risk() != crate::ConnectorOperationRisk::R2DataGrant
+        {
+            return Err("connector_operation_data_grant_risk_invalid".to_owned());
         }
         if self.effect == ConnectorEffect::Write
             && !matches!(

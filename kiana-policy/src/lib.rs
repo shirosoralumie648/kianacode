@@ -103,6 +103,10 @@ pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static
             request.arguments["action"] != "list"
         } else {
             match kiana_domain::connector_invocation_risk(request) {
+                Ok(RiskLevel::Critical) => return Some("connector_r4_default_denied"),
+                Ok(RiskLevel::LocalWrite) if request.risk == RiskLevel::ReadOnly => {
+                    return Some("connector_risk_downgrade")
+                }
                 Ok(risk) => risk == RiskLevel::ExternalSideEffect,
                 Err(reason) => return Some(reason),
             }
@@ -140,6 +144,116 @@ pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static
         return Some("mcp_risk_downgrade");
     }
     kiana_domain::capability_action_contract(request).err()
+}
+
+/// Apply the connector-specific R0--R4 admission mapping after INT-14 normalization.  This
+/// helper is deliberately pure: binding/approval material is server-owned input already carried
+/// by the normalized request, and the returned decision only controls the existing Gate and
+/// approval path.  It never calls a Broker.
+pub fn connector_policy_decision(
+    context: &RequestContext,
+    request: &CapabilityRequest,
+) -> Option<PolicyDecision> {
+    if request.operation != kiana_domain::CONNECTOR_INVOKE_OPERATION {
+        return None;
+    }
+    let binding: kiana_domain::ConnectorBindingSnapshot =
+        match serde_json::from_value(request.arguments["binding_snapshot"].clone()) {
+            Ok(binding) => binding,
+            Err(_) => {
+                return Some(PolicyDecision::Deny {
+                    reason: "connector_binding_snapshot_required".to_owned(),
+                })
+            }
+        };
+    let operation = match request.arguments["operation"].as_str() {
+        Some(operation) if !operation.trim().is_empty() => operation,
+        _ => {
+            return Some(PolicyDecision::Deny {
+                reason: "connector_operation_required".to_owned(),
+            })
+        }
+    };
+    let contract = match binding.definition.operations.get(operation) {
+        Some(contract) => contract,
+        None => {
+            return Some(PolicyDecision::Deny {
+                reason: "connector_operation_unregistered".to_owned(),
+            })
+        }
+    };
+    let payload = request.arguments.get("payload");
+    let mut input = kiana_domain::ConnectorAdmissionInput::new(
+        operation,
+        contract.effect,
+        &contract.data_classes,
+        request.risk,
+        &binding.binding.binding_id,
+        context.actor_id.as_deref().unwrap_or_default(),
+        &context.project_root,
+        payload,
+    );
+    input.binding_active = binding.status == "active";
+    input.binding_expires_at_unix_ms = request.arguments["binding_expires_at_unix_ms"]
+        .as_u64()
+        .unwrap_or(u64::MAX);
+    input.authority_epoch = request.arguments["authority_epoch"].as_u64().unwrap_or(1);
+    input.policy_epoch = request.arguments["policy_epoch"].as_u64().unwrap_or(1);
+    input.data_epoch = request.arguments["data_epoch"].as_u64().unwrap_or(1);
+    input.binding_authority_epoch = request.arguments["binding_authority_epoch"]
+        .as_u64()
+        .unwrap_or(input.authority_epoch);
+    input.binding_policy_epoch = request.arguments["binding_policy_epoch"]
+        .as_u64()
+        .unwrap_or(input.policy_epoch);
+    input.now_unix_ms = request.arguments["now_unix_ms"].as_u64().unwrap_or(1);
+    input.final_payload_digest = request.arguments["final_payload_digest"]
+        .as_str()
+        .map(str::to_owned);
+
+    let grant = request
+        .arguments
+        .get("data_grant")
+        .filter(|value| !value.is_null())
+        .map(|value| serde_json::from_value::<kiana_domain::ConnectorDataGrant>(value.clone()));
+    let grant = match grant {
+        Some(Ok(grant)) => Some(grant),
+        Some(Err(_)) => {
+            return Some(PolicyDecision::Deny {
+                reason: "connector_data_grant_invalid".to_owned(),
+            })
+        }
+        None => None,
+    };
+    input.data_grant = grant.as_ref();
+
+    let approval = request
+        .arguments
+        .get("connector_approval")
+        .filter(|value| !value.is_null())
+        .map(|value| serde_json::from_value::<kiana_domain::ConnectorOnceApproval>(value.clone()));
+    let approval = match approval {
+        Some(Ok(approval)) => Some(approval),
+        Some(Err(_)) => {
+            return Some(PolicyDecision::Deny {
+                reason: "connector_once_approval_invalid".to_owned(),
+            })
+        }
+        None => None,
+    };
+    input.once_approval = approval.as_ref();
+
+    match kiana_domain::evaluate_connector_admission(&input) {
+        kiana_domain::ConnectorAdmission::Allowed { .. } => Some(PolicyDecision::Allow {
+            authorization_id: format!("policy:{}", request.request_id),
+        }),
+        kiana_domain::ConnectorAdmission::AwaitingApproval { reason, .. } => {
+            Some(PolicyDecision::Ask { reason })
+        }
+        kiana_domain::ConnectorAdmission::Denied { reason, .. } => {
+            Some(PolicyDecision::Deny { reason })
+        }
+    }
 }
 
 /// Product boundaries are enforced even when a deployment supplies a permissive engine.
@@ -185,6 +299,10 @@ impl PolicyEngine for DefaultPolicyEngine {
     fn evaluate(&self, context: &RequestContext, request: &CapabilityRequest) -> PolicyDecision {
         if let Some(reason) = hard_policy_denial(context, request) {
             return PolicyDecision::Deny { reason };
+        }
+
+        if let Some(decision) = connector_policy_decision(context, request) {
+            return decision;
         }
 
         // Secret 和名称启发式命中的敏感操作至少需要一次显式审批，与声明风险无关。
