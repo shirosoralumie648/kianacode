@@ -85,7 +85,7 @@ pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
-    UiCommandStatusV1, UiHistoryV1,
+    UiCommandStatusV1, UiHistoryV1, UI_HISTORY_SCHEMA,
 };
 pub use ui_schema_generated::{
     schema_contract, UiSchemaContract, UI_SCHEMA_CONTRACTS, UI_SCHEMA_LOCK_SCHEMA,

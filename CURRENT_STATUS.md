@@ -588,6 +588,28 @@ proof-level change: `feature_status=implemented`（typed facade + lifecycle chec
 limitations: generic command routes remain protocol contracts until later daemon/entrypoint wiring；listener registry 仅进程内，非 durable subscription inbox；未证明跨进程 socket/SSE、artifact blob delivery、provider/live timing 或 physical proof；UI-08 reducer、UI-18 reconnect 和 UI-33 crash recovery 仍未完成
 reviewer: Codex UI-07 source review；检查 initialize/workspace/schema/request ID fence、deadline/cancel、feed listener generation、Unknown 原 key 查询、Accepted/Applied 分离及 client 无 Broker/模型循环；无本地 runtime test reviewer
 
+### UI-07 typed history instance/epoch fence evidence (2026-09-26)
+
+```text
+source_snapshot: base `5226a1bd` plus UI-07 history-fence slice; `kiana-client/src/typed.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui07_typed_clients.rs`; `kiana-core/tests/ui07_typed_client_guard.rs`; UI-07 baseline and roadmap overlays
+worktree_status: UiHistoryV1 validation now binds every feed frame to the history instance and snapshot authority epoch; the public history schema constant is exported through the client facade; no transport/effect authority changed
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/typed.rs kiana-client/src/lib.rs kiana-client/tests/ui07_typed_clients.rs kiana-core/tests/ui07_typed_client_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui07_typed_clients --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test ui07_typed_client_guard --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-daemon --test ui07_typed_client_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only history response rejects foreign instance and foreign authority epoch frames; typed mock lifecycle fixtures remain transport-only and no provider/effect path is opened
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-07 typed history now fails closed on cross-instance/cross-epoch frame mixing; card remains 🔄 pending CI evidence and later daemon route integration
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: validation is response-contract only; listener registry remains process-local, generic routes remain later daemon work, and no cross-process/browser/provider/live/physical evidence is claimed
+reviewer: Codex source review of history envelope binding, instance/authority epoch consistency, schema export and unchanged ControlPlane/no-loop boundary; no local runtime test reviewer
+```
+
 ### UI-08 共享 reducer/entity store（2026-09-24）
 
 source_snapshot: `319df52a`（UI-08 分支基线，提交后绑定本提交）；`kiana-client/src/ui_store.rs`; `kiana-client/src/lib.rs`; `kiana-client/tests/ui08_reducer_store.rs`; `kiana-core/tests/ui08_reducer_store_guard.rs`; `kiana-entrypoints/tests/ui08_store_boundary_guard.rs`; `.github/workflows/ui08-reducer-store.yml`; `docs/roadmap/ui08-reducer-store-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

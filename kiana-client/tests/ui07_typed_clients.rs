@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use kiana_client::{
     ActionClient, ActionRequest, ClientError, ClientRequestOptions, ClientTransport, FeedClient,
-    HistoryRequest, QueryClient, SnapshotRequest,
+    HistoryRequest, QueryClient, SnapshotRequest, UiHistoryV1,
 };
 use kiana_domain::json_digest;
 use kiana_protocol::{
@@ -215,6 +215,60 @@ async fn unknown_action_is_queryable_by_original_idempotency_key() {
     assert_eq!(
         reconciled.disposition,
         kiana_protocol::UiActionDisposition::Unknown
+    );
+}
+
+#[test]
+fn history_rejects_foreign_instance_or_authority_epoch_frames() {
+    let frame = UiFeedFrameV1 {
+        schema: UI_FEED_FRAME_SCHEMA.to_owned(),
+        kind: UiFeedFrameKind::Heartbeat,
+        cursor: UiFeedCursorV1::new(
+            "foreign-instance",
+            "epoch-2",
+            1,
+            UiCursor {
+                epoch: "epoch-2".to_owned(),
+                sequence: 1,
+            },
+        )
+        .expect("frame cursor"),
+        event_id: "heartbeat-foreign".to_owned(),
+        replay: false,
+        terminal: false,
+        event: None,
+        gap: None,
+    };
+    let history = UiHistoryV1 {
+        schema: kiana_client::UI_HISTORY_SCHEMA.to_owned(),
+        instance_id: "instance-1".to_owned(),
+        snapshot_cursor: UiCursorV1 {
+            epoch: "epoch-1".to_owned(),
+            sequence: 1,
+        },
+        frames: vec![frame],
+        next_page: None,
+        limitations: Vec::new(),
+    };
+    assert_eq!(
+        history.validate().unwrap_err(),
+        "ui_history_instance_mismatch"
+    );
+
+    let mut epoch_history = history;
+    epoch_history.frames[0].cursor = UiFeedCursorV1::new(
+        "instance-1",
+        "epoch-2",
+        1,
+        UiCursor {
+            epoch: "epoch-2".to_owned(),
+            sequence: 1,
+        },
+    )
+    .expect("epoch cursor");
+    assert_eq!(
+        epoch_history.validate().unwrap_err(),
+        "ui_history_epoch_mismatch"
     );
 }
 
