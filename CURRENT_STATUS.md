@@ -968,6 +968,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: source/fixture matrix is not runtime integration; no real HTTP/Electron/IDE/PTY/provider effect, EventLog append or physical proof
 reviewer: Codex UI-32 source review; checked effect_count/follow-up schema, latest action/IPC/path fences and no happy-path substitution; no local runtime reviewer
 ```
+
+### UI-33 recovery gap evidence (2026-09-26)
+
+```text
+source_snapshot: base `1e02ab08` plus UI-33 recovery fence slice; `kiana-client/src/ui_recovery.rs`; `kiana-client/tests/fixtures/ui33-recovery.json`; `kiana-client/tests/ui33_recovery.rs`; UI-33 baseline/roadmap overlays
+worktree_status: RecoveryFence marks a sequence gap as blocked; same-epoch updates remain Gap until explicit `reset_after_snapshot`, while all RecoveryPlan decisions keep `new_effect_allowed=false`
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/ui_recovery.rs kiana-client/tests/ui33_recovery.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only gap-blocked-until-hydrate regression plus old epoch/duplicate/late terminal/Unknown/no-new-effect cases; no daemon/provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; recovery fixtures and workspace compile pending/unobserved
+status change: UI-33 discontinuous feed updates can no longer be silently accepted after a gap; card remains 🔄 pending CI and real crash/restart/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: reset is a source contract without live daemon snapshot/kill/restart, durable projector, effect counter, provider/Broker or physical proof
+reviewer: Codex UI-33 source review; checked gap blocking, explicit hydrate reset, old epoch/terminal fences and no-new-effect recovery plans; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
