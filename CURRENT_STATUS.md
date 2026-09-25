@@ -888,6 +888,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no electron-builder clean package, DEB signature, offline upgrade/rollback, cross-platform packaging, browser cache or provider/Broker effect proof
 reviewer: Codex UI-28 source review; checked manifest/package version binding, hash/size/CSP/license/secret/path fences and no execution authority; no local package-build reviewer
 ```
+
+### UI-29 ACP listener-before-action evidence (2026-09-26)
+
+```text
+source_snapshot: base `a179f9fd` plus UI-29 ACP session slice; `kiana-client/src/acp.rs`; `kiana-client/tests/fixtures/ui29-acp.json`; `kiana-client/tests/ui29_acp_adapter.rs`; UI-29 baseline/roadmap overlays
+worktree_status: `require_owner` now permits session-bound prompt/permission/cancel intents only in Attached state after feed-handler installation; session creation may precede listener installation, but no command intent can
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/acp.rs kiana-client/tests/ui29_acp_adapter.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui29_acp_adapter --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only prompt-before-feed-handler denial plus owner/epoch/permission/replay/gap/terminal/no-direct-effect cases; no ACP socket/provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; ACP fixtures and workspace compile pending/unobserved
+status change: UI-29 can no longer emit session-bound action intents before the feed listener is installed; card remains 🔄 pending CI and live ACP/IDE transport proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: adapter remains transport-free and process-local; no real ACP peer, IDE/editor/terminal host, cross-process lease, provider/Broker or physical proof
+reviewer: Codex UI-29 source review; checked listener-before-action, owner/epoch, permission expiry, replay/gap and no execution authority; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

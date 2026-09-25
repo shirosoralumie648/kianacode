@@ -14,7 +14,8 @@ owner、旧 epoch 和没有安装 feed handler 的 replay/resume 都拒绝。
 ## UI contract mapping
 
 `AcpProjection` 只允许三种既有协议对象：`UiSnapshotV1`、`UiFeedFrameV1`、`UiActionV1`，并调用
-各自的 server/client contract validation。prompt、permission decision 和 cancel 生成带
+各自的 server/client contract validation。session 可以先创建，再安装 feed handler；prompt、
+permission decision 和 cancel 在 handler 已安装且连接为 Attached 之前 fail-closed，并生成带
 `command_id`、idempotency key、expected epoch/cursor、payload digest 的 `UiActionV1`；它们是
 ControlPlane intent，不是本地执行请求。permission 保存 bounded pending reference，过期或重复
 决定 fail-closed。

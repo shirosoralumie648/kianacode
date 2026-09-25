@@ -463,10 +463,7 @@ impl AcpSessionAdapter {
         if self.owner_digest.as_deref() != Some(owner_digest) {
             return Err(AcpAdapterError::SessionOwnerMismatch);
         }
-        if !matches!(
-            self.connection,
-            AcpConnectionState::Attached | AcpConnectionState::Initialized
-        ) {
+        if !matches!(self.connection, AcpConnectionState::Attached) {
             return Err(AcpAdapterError::FeedHandlerRequired);
         }
         Ok(())

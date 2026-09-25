@@ -11,6 +11,7 @@
   "denied": [
     "unknown protocol or capability explosion",
     "foreign session owner",
+    "prompt or cancel before feed handler installation",
     "old authority epoch",
     "expired permission",
     "late update after terminal",
