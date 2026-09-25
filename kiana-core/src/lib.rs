@@ -57,6 +57,7 @@ mod notification_store;
 mod notification_action;
 mod notification_priority;
 mod notification_policy;
+mod notification_recovery;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -185,6 +186,10 @@ pub use notification_priority::{
 pub use notification_policy::{
     plan_notification_policy, NotificationPolicyConfig, NotificationPolicyError,
     NOTIFICATION_POLICY_PLANNER_SCHEMA,
+};
+pub use notification_recovery::{
+    plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
+    NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
 };
 pub use notification_projector::{
     NotificationProjector, NotificationProjectorError, NotificationVisibility,

@@ -1,0 +1,22 @@
+{
+  "schema": "kiana.notification-recovery.v1",
+  "states": ["pending", "pre_send_failed", "in_flight", "submitted", "acknowledged", "unknown", "cancel_requested", "revoked", "expired"],
+  "dispositions": ["dispatch_allowed", "retry_requires_re_admission", "await_reconciliation", "terminal_no_send"],
+  "deny_first": [
+    "cancel_requested_is_not_delivered",
+    "in_flight_unknown_is_not_resent",
+    "authority_epoch_mismatch_is_not_sent",
+    "revoked_subscription_is_not_sent",
+    "expired_notification_is_not_sent",
+    "unknown_is_not_automatically_retried",
+    "retry_requires_new_authority_and_delivery_key",
+    "connector_effect_is_not_planned_here"
+  ],
+  "accepted": [
+    "pending_active_dispatch_plan",
+    "known_pre_send_failure_bounded_retry_plan",
+    "acknowledged_terminal_no_send",
+    "reconciliation_required_for_uncertain_outcome"
+  ],
+  "proof_ceiling": "source"
+}
