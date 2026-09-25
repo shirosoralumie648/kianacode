@@ -12242,16 +12242,16 @@ reviewer: Codex source review against official Interactions request/step/status/
 
 ### P4-J7-18 Ollama NDJSON evidence (2026-09-23)
 
-source_snapshot: base d85a4a5b + staged P4-J7-18 patch; kiana-domain/src/model.rs; kiana-provider/src/config.rs; kiana-provider/src/request.rs; kiana-provider/src/response.rs; kiana-provider/tests/p4_j7_08_config.rs; kiana-core/tests/p4_j7_18_ollama_guard.rs; kiana-runner/src/harness.rs; .github/workflows/p4-j7-18-ollama.yml; docs/roadmap/p4-j7-18-ollama-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+source_snapshot: current master `282323ca` with CM-36 `kiana-domain/src/memory_workbench.rs` present plus P4-J7-18 Ollama source; `kiana-domain/src/{model.rs,memory_workbench.rs}`; `kiana-provider/src/{config.rs,request.rs,response.rs}`; `kiana-provider/tests/p4_j7_08_config.rs`; `kiana-core/tests/p4_j7_18_ollama_guard.rs`; `kiana-runner/src/harness.rs`; `.github/workflows/p4-j7-18-ollama.yml`; `docs/roadmap/p4-j7-18-ollama-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`
 worktree_status: Ollama Chat uses bounded NDJSON and incremental text delivery; terminal messages require assistant content and boolean done, successful completion requires done=true, stable local IDs use ModelCallId plus tool ordinal, tool results map to the original advertised tool name, unknown tools fail closed, profile load timeout is bounded to the transport total, and load/generation timing is retained in ModelTurn metadata.
 command_argv:
   cargo fmt --all --check
   git diff --check
-  GitHub Actions runs 35832638463 (PR) and 35832756821 (post-merge): cargo fmt --all --check failed before test steps because kiana-domain/src/memory_workbench.rs was absent while lib.rs declared the module; provider tests and source guard were skipped
+  historical GitHub runs 35832638463 (PR) and 35832756821 (post-merge): cargo fmt --all --check failed before test steps because kiana-domain/src/memory_workbench.rs was absent while lib.rs declared the module; provider tests and source guard were skipped. Current CM-36 module is present; this commit adds the module to the workflow path filter and triggers a fresh remote rerun, pending/unobserved
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority
-fixture·cassette: runs 35832638463 and 35832756821 stopped at cargo fmt; P4-J7-18 fixtures were not executed; CM-36 now adds the missing module and a later workflow rerun is required
-exit_code: both dedicated remote runs failed at cargo fmt and skipped tests
-status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; the missing-module blocker is addressed by CM-36, but P4-J7-18 CI evidence remains incomplete
+fixture·cassette: historical runs 35832638463 and 35832756821 stopped at cargo fmt; P4-J7-18 fixtures were not executed there; current CM-36 module plus workflow path-filter rerun is pending
+exit_code: historical dedicated remote runs failed at cargo fmt and skipped tests; fresh post-CM-36 remote exit code pending/unobserved
+status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; CM-36 module is present and workflow path filter now requests a fresh GitHub evidence run, but no pass is claimed
 proof-level change: source; no local_behavior, durable, live or physical promotion
 limitations: no local Ollama endpoint/model was contacted; runs 35832638463 and 35832756821 did not reach provider tests; a post-CM-36 CI rerun is unobserved; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added
 reviewer: Codex root implementation review plus deny/done, tool identity/continuation, timeout bounds, event timing projection and local model lifecycle boundary review; no local runtime test reviewer
