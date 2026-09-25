@@ -199,6 +199,19 @@ proof-level change: `feature_status=implemented`（domain/core policy source + C
 limitations: planner 不实现定时器、digest batching、quiet-hours timezone、escalation EventLog commit、connector/OS delivery、自动 approve/retry/close 或 reconcile；interval 只为 bounded policy input，CI 结果未等待
 reviewer: Codex NM-17 source review；检查 server source/owner/deadline bindings、critical/Unknown anti-digest、quiet high same-day、low suppression、primary/fallback metadata、no send/scheduler/effect；无本地 runtime reviewer
 
+### NM-18 notification cancellation/revocation/expiry/reconciliation（2026-09-26）
+
+source_snapshot: `aefe9850`（NM-17 已合并 master 基线）加 NM-18 recovery source slice；`kiana-domain/src/{lib.rs,notification_recovery.rs}`；`kiana-core/src/{lib.rs,notification_recovery.rs}`；`kiana-core/tests/{nm18_notification_recovery.rs,nm18_notification_recovery_guard.rs,fixtures/nm18-notification-recovery.json}`；`.github/workflows/nm18-notification-recovery.yml`; `docs/roadmap/nm18-notification-recovery-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm18-notification-recovery-20260926`; pure recovery gate distinguishes pending/pre-send failure/in-flight/submitted/acknowledged/Unknown/cancel/revoked/expired；only known pre-send failure under bounded limit can request fresh authority + delivery key；send/ACK uncertainty and epoch/subscription drift require reconciliation；no connector/send/retry/EventLog/receipt effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm18_notification_recovery --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm18_notification_recovery_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Cargo test/build/check/clippy/smoke、connector/provider/reconcile runtime；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm18-notification-recovery.json`、pending dispatch、bounded known pre-send retry、新 key/authority requirement、in-flight/submitted/Unknown no retry、cancel/revoke/expiry/ACK no send、epoch/subscription/expiry drift reconciliation、source guard；无 durable dead-letter、provider query、committed reconcile fact、live/physical receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core recovery fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-18 cancellation/revocation/expiry/Unknown recovery plan、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（domain/core recovery source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: recovery plan 不生成新授权/交付 key、不访问 connector、不重发、不写 delivered/receipt、不提交 EventLog；实际 re-admission/reconcile/dead-letter/durable delivery 留后续 NM/INT/PD；CI 结果未等待
+reviewer: Codex NM-18 source review；检查 cancel-not-delivered、in-flight/Unknown no retry、revoked/expired/epoch fence、known pre-send bounded retry、新 key requirement、no direct connector/effect；无本地 runtime reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
