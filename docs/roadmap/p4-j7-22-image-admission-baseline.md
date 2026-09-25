@@ -44,13 +44,13 @@ fixtures、core source guard、fmt 和 workspace test-target compile；本地不
 ## 4. Evidence
 
 ```text
-source_snapshot: P4-J7-22 image admission slice on the current roadmap branch
+source_snapshot: current master `640400f7` plus P4-J7-22 image admission slice and CM-36 fmt dependency
 worktree_status: ImageInputAdmission binds Artifact/ProcessingGrant/policy/route and provider encodes only admitted bytes
 command_argv: GitHub Actions runs cargo fmt --all --check; cargo test -p kiana-domain --test p4_j7_22_image_admission; cargo test -p kiana-provider --lib; cargo test -p kiana-core --test p4_j7_22_image_admission_guard; cargo check --workspace --tests --locked
-cwd/environment: GitHub Actions ubuntu-latest, Rust 1.97.1; local test/build/check/clippy/smoke deliberately not run
+cwd/environment: GitHub Actions ubuntu-latest, Rust 1.97.1; local test/build/check/clippy/smoke deliberately not run; `kiana-domain/src/memory_workbench.rs` included in workflow path filter
 fixture·cassette: domain image admission fixtures, provider unit fixtures and core source guard in p4-j7-22-image-admission.yml
-exit_code: not observed locally; GitHub CI not awaited
-status change: P4-J7-22 image input admission and CI wiring added; roadmap row/card updated to 🔄 pending CI
+exit_code: not observed locally; fresh post-CM-36 GitHub CI exit code pending/unobserved
+status change: P4-J7-22 image input admission and CI wiring remain 🔄; workflow now requests fresh remote evidence after CM-36, no pass is claimed
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical proof
 limitations: no real provider request, ArtifactStore durable recovery, remote URL fetch, document upload, audio/video, image generation or external outcome is claimed
 reviewer: Codex source review; no local runtime test reviewer
