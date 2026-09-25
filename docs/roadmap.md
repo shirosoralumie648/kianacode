@@ -564,7 +564,7 @@
 | 392 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
 | 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
 | 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
-| 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-18) |
+| 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-18) · [baseline](roadmap/p4-j7-18-ollama-baseline.md) |
 | 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-19) |
 | 397 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-20) |
 | 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-21) |
@@ -6386,3 +6386,4 @@ limitations / reviewer
 | 2026-09-26 | `UI-40` release evidence CI rerun: added current CM-36 memory-workbench path coverage to the GitHub-only deny→recovery→parity/resource/conformance gate and updated the baseline; no release publish, live/physical or external effect executed, source row remains 🔄 | 待本提交 |
 | 2026-09-26 | `CM-38` fake/live evidence CI rerun: added current CM-36 memory-workbench path coverage to the context-memory fake/live boundary workflow and updated the baseline; no live credentials/external request/durable golden path executed, source row remains ⏳ | 待本提交 |
 | 2026-09-26 | `CM-39` context-memory closeout CI rerun: added current CM-36 memory-workbench path coverage to the documentation/source parity workflow and updated the baseline; no docs guard/durable/live/physical evidence was promoted, source row remains ⏳ | 待本提交 |
+| 2026-09-26 | `P4-J7-18` Ollama CI rerun observed queued: dedicated GitHub run `36162666095` targets `5f12d89c`, with CM-36 included in workflow paths; no tests were awaited or promoted, row remains 🔄 until a remote pass is observed | 待本提交 |

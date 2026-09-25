@@ -37,6 +37,10 @@ adds it to the workflow path filter to trigger a fresh remote run. The new run i
 treated as passed. Local tests remain intentionally not run; no live Ollama endpoint or physical
 model behavior is claimed.
 
+At the 2026-09-26 live status check, GitHub run `36162666095` for head `5f12d89c` was `queued`.
+The check was read-only and not polled further; provider fixtures and the source guard remain
+unobserved.
+
 Fixture names: `ollama_eof_without_done_is_incomplete`,
 `ollama_same_name_tools_keep_distinct_invocations`,
 `ollama_unknown_tools_support_is_not_assumed`, `ollama_streams_before_model_completion`,
