@@ -12705,6 +12705,27 @@ status change: `P4-J7-26` source contracts, model lifecycle registry, redaction 
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: model facts still require a real EventStore append adapter at runtime; commitment guards are pure source contracts until that adapter is wired; no cross-process history/recovery, provider invoice truth, live model effect, or physical tool/receipt proof is claimed; P4-J7-27+ own recovery and UI projection
 reviewer: Codex source review of versioned model fact identity, unknown provider references, fail-closed append guard, recursive/split-stream redaction, bounded delta ledger, RuntimeEvent boundary and no-second-loop invariant; no local runtime test reviewer
+
+### P4-J7-26 usage correction digest binding evidence (2026-09-26)
+
+```text
+source_snapshot: base `eda82a33` plus P4-J7-26 usage-correction slice; `kiana-domain/src/model_event.rs`; `kiana-domain/tests/p4_j7_26_model_events.rs`; `kiana-core/tests/p4_j7_26_model_events_guard.rs`; P4-J7-26 baseline and roadmap overlays
+worktree_status: ModelUsageCorrection now has a server-field constructor and content-bound correction digest; validation rejects mutation after sealing; no EventStore writer or second execution path added
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/model_event.rs kiana-domain/tests/p4_j7_26_model_events.rs kiana-core/tests/p4_j7_26_model_events_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-domain --test p4_j7_26_model_events --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_26_model_events_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only correction constructor/validation and post-seal usage mutation rejection; source guard binds the digest mismatch marker and keeps provider/network/second-loop boundaries closed
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: P4-J7-26 now binds late usage correction payloads to their own digest; the card remains 🔄 because EventStore producer integration, durable recovery and CI evidence remain open
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: correction reason remains digest-only, no producer appends the fact through EventStore yet, and no correction is connected to billing settlement or receipt projection; no provider/live/physical effect is claimed
+reviewer: Codex source review of correction payload sealing, bounded usage, digest mutation denial and existing runtime/event boundary; no local runtime test reviewer
+```
 ```
 
 ### P4-J7-27 provider complete-round recovery and in-flight reconciliation (2026-09-25)

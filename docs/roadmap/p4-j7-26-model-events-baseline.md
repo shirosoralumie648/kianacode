@@ -10,7 +10,8 @@ text are represented only by redacted digest references.
 
 - `ModelEvent` registers prepared, denied, attempt-started, retry-scheduled, finished and usage
   correction facts. Identity and correlation fields are checked together and unknown provider
-  request/response IDs stay explicitly `unknown`.
+  request/response IDs stay explicitly `unknown`. `ModelUsageCorrection::new` binds its
+  correction digest to the late-usage payload and validation rejects post-seal mutation.
 - `ProviderTraceMetadata` and `ProviderDeltaLedger` use the existing `RedactionProfile` and
   `StreamingRedactor`. Secret markers split across chunks are redacted, payloads are bounded and
   the durable event contains no raw provider material. The delta ledger counts all observations
@@ -33,8 +34,9 @@ remote run can clear the historical repository-wide fmt dependency; that result 
 unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixtures cover redacted provider traces and split markers, bounded delta retention, runtime
-event schema/identity, persistence-before-effect denial, receipt-link digest tampering and the
-model lifecycle registry. They use synthetic IDs and do not open a provider or network route.
+event schema/identity, persistence-before-effect denial, receipt-link digest tampering, usage
+correction digest tampering and the model lifecycle registry. They use synthetic IDs and do not
+open a provider or network route.
 
 ## Evidence ceiling and limitations
 

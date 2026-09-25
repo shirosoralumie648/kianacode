@@ -512,6 +512,24 @@ pub struct ModelUsageCorrection {
 }
 
 impl ModelUsageCorrection {
+    pub fn new(
+        replaces_digest: Option<String>,
+        usage: Option<ModelUsage>,
+        reason_digest: impl Into<String>,
+        observed_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let mut correction = Self {
+            correction_digest: String::new(),
+            replaces_digest,
+            usage,
+            reason_digest: reason_digest.into(),
+            observed_at_unix_ms,
+        };
+        correction.correction_digest = correction.digest();
+        correction.validate()?;
+        Ok(correction)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         valid_digest(&self.correction_digest, "model_usage_correction_digest")?;
         if let Some(digest) = &self.replaces_digest {
@@ -526,7 +544,19 @@ impl ModelUsageCorrection {
                 return Err("model_usage_correction_tokens_invalid".to_owned());
             }
         }
+        if self.correction_digest != self.digest() {
+            return Err("model_usage_correction_digest_mismatch".to_owned());
+        }
         Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "replaces_digest": self.replaces_digest,
+            "usage": self.usage,
+            "reason_digest": self.reason_digest,
+            "observed_at_unix_ms": self.observed_at_unix_ms,
+        }))
     }
 }
 

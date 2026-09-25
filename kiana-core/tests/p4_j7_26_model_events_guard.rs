@@ -17,6 +17,8 @@ fn model_event_boundary_has_lifecycle_redaction_and_commit_guards() {
         "model.retry_scheduled",
         "model.finished",
         "model.usage_correction",
+        "model_usage_correction_digest_mismatch",
+        "pub fn digest(&self) -> String",
         "provider_request_id_status",
         "provider_response_id_status",
     ] {
