@@ -92,6 +92,31 @@ fn verified_rollout_requires_approval_health_and_drain_receipts() {
         true,
         Vec::new(),
     )
-    .expect("verified evidence shape");
-    value.validate().expect("verified evidence validates");
+    .expect_err("simulation cannot produce verified live evidence");
+    assert_eq!(value, "orchestrated_simulation_cannot_verify");
+}
+
+#[test]
+fn verified_rollout_requires_typed_operator_approval() {
+    let mut value = evidence(
+        OrchestratedBackend::Simulation,
+        OrchestratedRolloutProofLevel::LocalBehavior,
+        OrchestratedRolloutEvidenceStatus::Simulated,
+        false,
+        false,
+        vec!["simulation remains source-bound".to_owned()],
+    )
+    .expect("simulation evidence shape");
+    value.status = OrchestratedRolloutEvidenceStatus::Verified;
+    value.proof_level = OrchestratedRolloutProofLevel::Live;
+    value.operator_approval_ref = Some("operator-approval".to_owned());
+    value.health_receipt_digest = Some(digest('f'));
+    value.traffic_drain_receipt_digest = Some(digest('0'));
+    value.evidence_digest = value.digest();
+    assert_eq!(
+        value
+            .validate()
+            .expect_err("verified approval must be typed"),
+        "orchestrated_operator_approval_ref_invalid"
+    );
 }

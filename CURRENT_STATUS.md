@@ -173,6 +173,19 @@ proof-level change: `feature_status=implemented`（bounded container source cont
 limitations: 未执行真实 OCI/gVisor runtime、cross-process inventory/fence、traffic drain、restart recovery、health/cleanup receipt 或 physical/live effect；CI 结果未等待
 reviewer: Codex DEP-36 source review；检查 serde unknown-field deny、execution input parse、identity/root/env/probe/SIGTERM boundary 与 no host fallback；无本地 container/runtime reviewer
 
+### DEP-37 simulation proof ceiling fence（2026-09-26）
+
+source_snapshot: `449147b0`（DEP-36 container wire fence 已合并 master 基线）加 DEP-37 evidence proof-boundary source slice；`kiana-domain/src/orchestrated_rollout_evidence.rs`; `kiana-domain/tests/dep37_orchestrated_rollout_evidence.rs`; `docs/roadmap/dep37-orchestrated-rollout-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/dep-37-simulation-proof-fence-20260926`; `Simulation` backend 永不生成 `Verified` live evidence，verified approval ref 必须是无空白包裹的 `approval:` 引用；target/Unknown/非 verified limitations 继续 fail-closed；不改流量、不 fence worker、不调用 cluster/provider
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/orchestrator）；GitHub Actions 将运行 `cargo fmt --all --check`、DEP-37 domain fixtures、source guard 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/orchestrator/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `dep37_orchestrated_rollout_evidence.rs` 新增 simulation Verified deny 与 malformed approval deny；existing target/Unknown/canary/writer/deadline fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 DEP-37 domain/evidence/source guard/workspace compile exit code pending/unobserved
+status_change: DEP-37 rollout evidence proof ceiling now rejects simulation-as-live and untyped approval, 补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded rollout evidence source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实 orchestrator/Kubernetes/generic backend、durable rollout state、cross-process writer fence、traffic drain、health window 或 live/physical receipt；CI 结果未等待
+reviewer: Codex DEP-37 source review；检查 Simulation/target/Unknown proof ceiling、approval prefix/trim、writer/deadline/canary contracts 与 no external effect；无本地 orchestrator/runtime reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
