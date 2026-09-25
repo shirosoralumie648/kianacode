@@ -186,6 +186,19 @@ proof-level change: `feature_status=implemented`（Electron source adapter + exi
 limitations: `shown` 只表示本地 adapter 调用 OS Notification，不是物理送达 receipt；denied/unknown/unavailable 不改变 server durable inbox；无真实 Electron/OS permission prompt、toast、tray、reopen、跨进程 cursor recovery 或 external/live delivery proof；CI 结果未等待
 reviewer: Codex NM-16 source review；检查 permission deny/unknown/unavailable fail-closed、fixed redaction、workspace/replay fence、tray typed boundary、close/detach no implicit execution、asset hash update；无本地 Electron/OS reviewer
 
+### NM-17 notification severity/digest/reminder/escalation policy（2026-09-26）
+
+source_snapshot: `0b84f20b`（NM-16 已合并 master 基线）加 NM-17 policy source slice；`kiana-domain/src/{lib.rs,notification_policy.rs}`；`kiana-core/src/{lib.rs,notification_policy.rs}`；`kiana-core/tests/{nm17_notification_policy.rs,nm17_notification_policy_guard.rs,fixtures/nm17-notification-policy.json}`；`.github/workflows/nm17-notification-policy.yml`; `docs/roadmap/nm17-notification-policy-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm17-notification-policy-20260926`; server-owned priority + materialization 输入经过纯 planner 映射 low/medium/high/critical 到 suppressed/digest/immediate/same-day reminder；critical/explicit Unknown bypass digest，quiet hours 只延后 high；每个 high/critical decision 保留 owner/source IDs/next action/deadline 与 escalation fact；无 scheduler/channel/EventLog/Broker/ControlPlane effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm17_notification_policy --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm17_notification_policy_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Cargo test/build/check/clippy/smoke、scheduler/connector/live channel；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm17-notification-policy.json`、severity route/quiet-hours/deadline、critical/Unknown anti-digest、medium digest/low suppression、owner/source/next-action escalation binding、invalid owner/interval、no direct effect source guard；无 durable reminder/digest worker、committed escalation fact、timezone service、external/live/physical delivery receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core policy fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-17 severity/digest/reminder/escalation typed facts + pure planner、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（domain/core policy source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: planner 不实现定时器、digest batching、quiet-hours timezone、escalation EventLog commit、connector/OS delivery、自动 approve/retry/close 或 reconcile；interval 只为 bounded policy input，CI 结果未等待
+reviewer: Codex NM-17 source review；检查 server source/owner/deadline bindings、critical/Unknown anti-digest、quiet high same-day、low suppression、primary/fallback metadata、no send/scheduler/effect；无本地 runtime reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

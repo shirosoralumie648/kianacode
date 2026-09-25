@@ -56,6 +56,7 @@ mod notification_delivery;
 mod notification_store;
 mod notification_action;
 mod notification_priority;
+mod notification_policy;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -180,6 +181,10 @@ pub use notification_action::{
 pub use notification_priority::{
     classify_notification, compare_notification_priority, NotificationPriority,
     NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
+};
+pub use notification_policy::{
+    plan_notification_policy, NotificationPolicyConfig, NotificationPolicyError,
+    NOTIFICATION_POLICY_PLANNER_SCHEMA,
 };
 pub use notification_projector::{
     NotificationProjector, NotificationProjectorError, NotificationVisibility,
