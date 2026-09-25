@@ -177,8 +177,18 @@ impl OrchestratedRolloutEvidence {
             return Err("orchestrated_unknown_cannot_verify".to_owned());
         }
         if self.status == OrchestratedRolloutEvidenceStatus::Verified {
+            let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
+                return Err("orchestrated_verified_evidence_incomplete".to_owned());
+            };
+            if approval_ref.trim() != approval_ref
+                || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+            {
+                return Err("orchestrated_operator_approval_ref_invalid".to_owned());
+            }
+            if self.backend == OrchestratedBackend::Simulation {
+                return Err("orchestrated_simulation_cannot_verify".to_owned());
+            }
             if self.proof_level != OrchestratedRolloutProofLevel::Live
-                || self.operator_approval_ref.is_none()
                 || self.health_receipt_digest.is_none()
                 || self.traffic_drain_receipt_digest.is_none()
                 || self.phase != OrchestratedRolloutPhase::Promoted

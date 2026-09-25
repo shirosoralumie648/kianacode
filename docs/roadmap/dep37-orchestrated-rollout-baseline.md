@@ -7,8 +7,8 @@ canary observation and progress deadline gate resume/promote decisions, while pa
 remain explicit adapter actions.
 
 `OrchestratedRolloutEvidence` now binds plan/routing/canary/decision digests, active writer and
-fence, deadline, phase/action, operator approval and health/traffic-drain receipt references.
-Target backends and `result_unknown` cannot be marked verified; simulation and non-verified rows
+fence, deadline, phase/action, typed operator approval and health/traffic-drain receipt references.
+Target backends, Simulation and `result_unknown` cannot be marked verified; non-verified rows
 retain their proof level and limitations.
 
 Kubernetes and generic orchestrator backends are named targets only. The CI fixture is fake and
