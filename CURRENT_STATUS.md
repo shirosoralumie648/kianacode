@@ -575,6 +575,27 @@ proof-level change: `feature_status=implemented`（source contracts + CI wiring�
 limitations: 尚未迁移冻结的旧 `cli.rs` 所有 legacy 分支，未知 session/命令执行结果仍由服务端返回；未证明跨进程 protocol、CLI presenter parity、durable session recovery、provider/live timing 或 physical proof
 reviewer: Codex UI-10 source review；检查 canonical ten commands/aliases、workspace/session and TTY/retry fences、secret/ANSI/size redaction、client-facade boundary、无第二执行循环；无本地 runtime test reviewer
 
+### UI-10 CLI recursive secret-text fence evidence (2026-09-26)
+
+```text
+source_snapshot: base `f19fe0ab` plus UI-10 CLI secret-text slice; `kiana-client/src/cli_contract.rs`; `kiana-client/tests/ui10_cli_contract.rs`; `kiana-entrypoints/tests/ui10_cli_boundary_guard.rs`; UI-10 baseline and roadmap overlays
+worktree_status: CLI invocation arguments and output payloads now recursively reject secret-shaped text values even when ordinary field names hide them; existing key/ANSI/size/client-boundary rules remain unchanged
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/cli_contract.rs kiana-client/tests/ui10_cli_contract.rs kiana-entrypoints/tests/ui10_cli_boundary_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui10_cli_contract --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui10_cli_boundary_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only plain-field Bearer/token text in invocation arguments and output payload is rejected; no CLI execution, provider request or external effect occurs
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-10 recursive secret-text redaction now closes ordinary-key bypasses; card remains 🔄 pending CI evidence and full frozen-cli migration
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: marker scanning is bounded heuristic redaction, not secret classification proof; frozen legacy CLI branches, transport, server authorization, durable recovery and live/physical effects remain outside this slice
+reviewer: Codex source review of recursive string redaction, key redaction compatibility, JSON/TTY bounds and no-authority boundary; no local runtime test reviewer
+```
+
 ### UI-07 typed client query/feed/action API（2026-09-24）
 
 source_snapshot: `45e66545`（UI-07 分支基线，提交后绑定本提交）；`kiana-client/src/lib.rs`; `kiana-client/src/typed.rs`; `kiana-client/tests/ui07_typed_clients.rs`; `kiana-protocol/src/lib.rs`; `kiana-core/tests/ui07_typed_client_guard.rs`; `kiana-daemon/tests/ui07_typed_client_guard.rs`; `.github/workflows/ui07-typed-client.yml`; `docs/roadmap/ui07-typed-client-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
