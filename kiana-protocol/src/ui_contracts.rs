@@ -65,6 +65,38 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn command_argument_contains_secret_marker(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    [
+        "api_key",
+        "api-key",
+        "client_secret",
+        "client-secret",
+        "access_token",
+        "access-token",
+        "refresh_token",
+        "refresh-token",
+        "authorization:",
+        "authorization=",
+        "--authorization",
+        "bearer ",
+        "password ",
+        "password=",
+        "--password",
+        "private_key",
+        "private-key",
+        "secret ",
+        "secret=",
+        "--secret",
+        "token ",
+        "token:",
+        "token=",
+        "--token",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
 // Explicit name for new UI contracts so field names such as `scope.digest` do not shadow the
 // validation helper in presenter code.
 fn digest_value(value: &str, field: &str) -> Result<(), String> {
@@ -739,12 +771,7 @@ impl UiEvidenceCase {
         }
         for argument in &self.command_argv {
             required(argument, "ui_evidence_command_argument", 4_096)?;
-            let lower = argument.to_ascii_lowercase();
-            if lower.contains("api_key=")
-                || lower.contains("token=")
-                || lower.contains("secret=")
-                || lower.contains("bearer ")
-            {
+            if command_argument_contains_secret_marker(argument) {
                 return Err("ui_evidence_secret_in_command_argv".to_owned());
             }
         }

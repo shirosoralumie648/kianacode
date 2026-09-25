@@ -82,6 +82,19 @@ proof-level change: `feature_status=implemented`（release/evidence source gate 
 limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
 reviewer: Codex UI-40 source review；检查 deny/recovery ordering、evidence source/fixture/environment/argv/exit/proof/receipt/artifact/limitation/reviewer binding、secret/duplicate/drift/false-live deny、release gate no-publish 与 no second execution loop；无本地 runtime/release reviewer
 
+### UI-40 evidence command-secret fence（2026-09-26）
+
+source_snapshot: `5ca11767`（UI-39 feed-gap fence 已合并 master 基线）加 UI-40 evidence argv source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui40_release_evidence.rs`; `docs/roadmap/ui40-release-gate-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui-40-evidence-secret-fence-20260926`; `UiEvidenceCase` 对 command argv 统一拒绝 API key、client/access/refresh token、authorization/bearer、password、private key 和 secret marker，覆盖 `--api-key` 等 hyphenated flag；不发布、不执行外部 effect、不把 source/CI 写成 durable/live/physical
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/release）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-protocol --test ui40_release_evidence --locked -- --test-threads=1`、既有 UI-40 deny/recovery/parity/resource/conformance/release gate 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/live；GitHub Actions 是 gate/test/build 权威且不等待
+fixture·cassette: `ui40_release_evidence.rs` 新增 hyphenated `--api-key raw` deny，覆盖已有 `api_key=` secret fixture；无真实发布、Desktop/browser/PTY、外部 provider/connector 或 physical receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 evidence fixture、focused gates、release asset/build 与 workspace compile exit code pending/unobserved
+status_change: UI-40 evidence command argv secret scan 扩展到 hyphenated and token/authorization/private-key forms，补齐 source baseline、fixture 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（release/evidence source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
+reviewer: Codex UI-40 source review；检查命令参数 marker coverage、hyphenated secret deny、既有证据 digest/proof/limitation binding、no-publish 与 no second execution loop；无本地 runtime/release reviewer
+
 ### UI-41 交接、审查和后续缺口（2026-09-25）
 
 source_snapshot: `f04d886f`（UI-40 已合并 master 基线）加 UI-41 handoff source/docs slice；`docs/roadmap/ui41-handoff-baseline.md`; `kiana-core/tests/ui41_handoff_guard.rs`; `.github/workflows/ui41-handoff.yml`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`; `docs/module-map.md`; `docs/ui-entrypoints-runbook.md`; `CURRENT_STATUS.md`

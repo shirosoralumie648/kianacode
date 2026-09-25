@@ -133,6 +133,50 @@ fn command_secrets_and_missing_unknown_limits_fail_closed() {
         "ui_evidence_secret_in_command_argv"
     );
 
+    let hyphen_secret = UiEvidenceCase::new(
+        "hyphen-secret",
+        UiSurface::Cli,
+        UiEvidenceClass::Deny,
+        vec!["kiana".to_owned(), "--api-key".to_owned(), "raw".to_owned()],
+        "git:ui-40-snapshot",
+        digest('a'),
+        digest('b'),
+        Some(0),
+        UiFeatureStatus::Partial,
+        UiProofLevel::Source,
+        UiEvidenceOutcome::Passed,
+        None,
+        Vec::new(),
+        Vec::new(),
+        "ci-reviewer",
+    );
+    assert_eq!(
+        hyphen_secret.expect_err("hyphenated command secret must be rejected"),
+        "ui_evidence_secret_in_command_argv"
+    );
+
+    let token_flag = UiEvidenceCase::new(
+        "token-flag",
+        UiSurface::Cli,
+        UiEvidenceClass::Deny,
+        vec!["kiana".to_owned(), "--token".to_owned(), "raw".to_owned()],
+        "git:ui-40-snapshot",
+        digest('a'),
+        digest('b'),
+        Some(0),
+        UiFeatureStatus::Partial,
+        UiProofLevel::Source,
+        UiEvidenceOutcome::Passed,
+        None,
+        Vec::new(),
+        Vec::new(),
+        "ci-reviewer",
+    );
+    assert_eq!(
+        token_flag.expect_err("token flag must be rejected"),
+        "ui_evidence_secret_in_command_argv"
+    );
+
     let unknown = UiEvidenceCase::new(
         "unknown",
         UiSurface::Cli,
