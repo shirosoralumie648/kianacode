@@ -1,0 +1,70 @@
+name: UI-26 Desktop workspace tray notifications and close policy
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/desktop-state.js"
+      - "contrib/desktop/lib/ipc-security.js"
+      - "contrib/desktop/lib/notifications.js"
+      - "contrib/desktop/tests/fixtures/ui26-workspace-tray.json"
+      - "contrib/desktop/tests/ui26_workspace_tray.test.js"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap/ui26-desktop-workspace-tray-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui26-desktop-workspace.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/desktop-state.js"
+      - "contrib/desktop/lib/ipc-security.js"
+      - "contrib/desktop/lib/notifications.js"
+      - "contrib/desktop/tests/fixtures/ui26-workspace-tray.json"
+      - "contrib/desktop/tests/ui26_workspace_tray.test.js"
+      - "kiana-entrypoints/src/web_page.html"
+      - "docs/roadmap/ui26-desktop-workspace-tray-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui26-desktop-workspace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui26-desktop-workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check Desktop sources and fixture
+        run: |
+          node --check contrib/desktop/lib/close-policy.js
+          node --check contrib/desktop/lib/desktop-state.js
+          node --check contrib/desktop/lib/ipc-security.js
+          node --check contrib/desktop/lib/notifications.js
+          node --check contrib/desktop/main.js
+          node --check contrib/desktop/preload.js
+          node --check contrib/desktop/tests/ui26_workspace_tray.test.js
+          node -e 'JSON.parse(require("fs").readFileSync("contrib/desktop/tests/fixtures/ui26-workspace-tray.json", "utf8"))'
+      - name: Run deny-first workspace, tray and notification contract
+        run: node --test contrib/desktop/tests/ui26_workspace_tray.test.js
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Run Web entrypoint regression fixture
+        run: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

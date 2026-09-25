@@ -6,7 +6,8 @@
     "workspace:state",
     "workspace:open",
     "workspace:new",
-    "workspace:continue"
+    "workspace:continue",
+    "desktop:notification"
   ],
   "trusted": [
     "file:///opt/kiana/contrib/desktop/welcome.html",

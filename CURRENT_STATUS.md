@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-26 Desktop workspace、托盘、通知与关闭策略（2026-09-25）
+
+source_snapshot: `2a9ee9e0`（UI-25 master 基线）加 UI-26 source slice；`contrib/desktop/{main.js,preload.js,lib/close-policy.js,lib/desktop-state.js,lib/ipc-security.js,lib/notifications.js}`；`contrib/desktop/tests/{fixtures/ui26-workspace-tray.json,ui26_workspace_tray.test.js}`；`kiana-entrypoints/src/web_page.html`; `.github/workflows/ui26-desktop-workspace.yml`; `docs/roadmap/ui26-desktop-workspace-tray-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui26-desktop-workspace-20260925`;新增 bounded desktop state reducer、workspace switch attention reset、server-bound terminal/pending notification fact、workspace binding/feed cursor/replay fence、固定脱敏 OS notification copy 和 close prompt；已有 tray/workspace typed intent、DaemonHost→ControlPlane 主路径与 process-group stop 保持不变
+command_argv: 本地仅目标 JavaScript `node --check` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 Node syntax/fixture、`node --test contrib/desktop/tests/ui26_workspace_tray.test.js`、`cargo fmt --all --check`、`cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui26-workspace-tray.json`；旧 workspace fact、错误 binding、未知 kind/status/epoch/sequence、duplicate notification、私密正文/路径/token、pending approval、unknown terminal、close 不隐式 cancel/resume/trust/approve；无 provider、filesystem、EventLog write 或 external effect
+exit_code: 本地目标 JavaScript `node --check` 与 `git diff --check` 均为 0；远程 fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-26 desktop state、workspace/tray typed boundary、server-fact notification bridge、close attention policy、deny-first fixture/source guard、baseline 与 workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded desktop source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron/Chromium 多窗口、OS notification permission/送达、托盘进程生命周期、跨重启/多进程 dedupe、真实 SSE/browser timing、durable notification projector、provider/Broker/external effect 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-26 source review；检查 workspace identity reset、server-only bounded fact、binding/epoch/sequence/replay fence、fixed redacted copy、pending/unknown visibility、close mutation none、typed intent/no second execution loop；无本地 runtime test reviewer
+
 ### UI-22 Web artifact/diff/receipt detail（2026-09-25）
 
 source_snapshot: `b74e7332`（UI-21）加 UI-22 source slice；`kiana-protocol/src/ui_contracts.rs`; `kiana-client/src/{lib.rs,web_detail.rs}`; `kiana-entrypoints/src/{web.rs,web_page.html}`; `kiana-entrypoints/tests/fixtures/ui22-web-detail.json`; `kiana-entrypoints/tests/ui22_web_detail.rs`; `kiana-entrypoints/tests/ui22_web_detail_guard.rs`; `.github/workflows/ui22-web-detail.yml`; `docs/roadmap/ui22-web-detail-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -14,6 +14,7 @@ const IPC_CHANNELS = Object.freeze({
   open: "workspace:open",
   newProject: "workspace:new",
   continue: "workspace:continue",
+  notification: "desktop:notification",
 });
 
 const CHANNEL_INTENTS = Object.freeze({
@@ -21,6 +22,7 @@ const CHANNEL_INTENTS = Object.freeze({
   [IPC_CHANNELS.open]: "desktop.workspace.open.v1",
   [IPC_CHANNELS.newProject]: "desktop.workspace.new.v1",
   [IPC_CHANNELS.continue]: "desktop.workspace.continue.v1",
+  [IPC_CHANNELS.notification]: "desktop.notification.server-fact.v1",
 });
 
 const ALLOWED_CHANNELS = new Set([
@@ -245,6 +247,51 @@ function makeIntent(channel, session, nonce) {
   });
 }
 
+function validateNotificationEnvelope(fact, session) {
+  if (!fact || typeof fact !== "object" || Array.isArray(fact)) {
+    return { ok: false, reason: "desktop_notification_fact_invalid" };
+  }
+  if (fact.schema !== "kiana.desktop-notification.v1" || fact.source !== "server") {
+    return { ok: false, reason: "desktop_notification_schema_mismatch" };
+  }
+  const knownKeys = new Set([
+    "schema", "source", "kind", "notification_id", "feed_epoch", "sequence", "status",
+    "workspace_binding_digest",
+  ]);
+  if (Object.keys(fact).some(key => !knownKeys.has(key))) {
+    return { ok: false, reason: "desktop_notification_unknown_field" };
+  }
+  if (fact.workspace_binding_digest !== session.workspaceBindingDigest) {
+    return { ok: false, reason: "desktop_notification_workspace_mismatch" };
+  }
+  if (typeof fact.workspace_binding_digest !== "string" ||
+      !/^[a-f0-9]{64}$/.test(fact.workspace_binding_digest)) {
+    return { ok: false, reason: "desktop_notification_workspace_mismatch" };
+  }
+  if (typeof fact.notification_id !== "string" ||
+      !/^[A-Za-z0-9:_-]{1,256}$/.test(fact.notification_id)) {
+    return { ok: false, reason: "desktop_notification_id_invalid" };
+  }
+  if (typeof fact.feed_epoch !== "string" ||
+      fact.feed_epoch.length === 0 || fact.feed_epoch.length > 256) {
+    return { ok: false, reason: "desktop_notification_epoch_invalid" };
+  }
+  if (!Number.isSafeInteger(fact.sequence) || fact.sequence < 1) {
+    return { ok: false, reason: "desktop_notification_sequence_invalid" };
+  }
+  if (fact.kind === "approval" && fact.status !== "pending") {
+    return { ok: false, reason: "desktop_notification_status_invalid" };
+  }
+  if (fact.kind === "terminal" &&
+      !["completed", "cancelled", "failed", "unknown", "result_unknown"].includes(fact.status)) {
+    return { ok: false, reason: "desktop_notification_status_invalid" };
+  }
+  if (fact.kind !== "approval" && fact.kind !== "terminal") {
+    return { ok: false, reason: "desktop_notification_kind_invalid" };
+  }
+  return { ok: true };
+}
+
 function validateIpcRequest({ event, expectedSender, session, welcomeUrl, channel, envelope } = {}) {
   if (!ALLOWED_CHANNELS.has(channel) || channel === HANDSHAKE_CHANNEL || !CHANNEL_INTENTS[channel]) {
     return { ok: false, reason: "unknown_channel" };
@@ -273,8 +320,20 @@ function validateIpcRequest({ event, expectedSender, session, welcomeUrl, channe
   if (!Number.isSafeInteger(envelope.nonce) || envelope.nonce !== session.nonce + 1) {
     return { ok: false, reason: "nonce_mismatch" };
   }
+  if (channel === IPC_CHANNELS.notification) {
+    const notification = validateNotificationEnvelope(envelope.fact, session);
+    if (!notification.ok) return notification;
+  } else if (Object.hasOwn(envelope, "fact")) {
+    return { ok: false, reason: "unexpected_intent_payload" };
+  }
   session.nonce = envelope.nonce;
-  return { ok: true, intent: makeIntent(channel, session, envelope.nonce) };
+  const intent = channel === IPC_CHANNELS.notification
+    ? Object.freeze({
+        ...makeIntent(channel, session, envelope.nonce),
+        fact: Object.freeze({ ...envelope.fact }),
+      })
+    : makeIntent(channel, session, envelope.nonce);
+  return { ok: true, intent };
 }
 
 module.exports = {
@@ -293,6 +352,7 @@ module.exports = {
   makeIntent,
   opaqueToken,
   validateHandshake,
+  validateNotificationEnvelope,
   validateIpcRequest,
   validateSenderFrame,
 };
