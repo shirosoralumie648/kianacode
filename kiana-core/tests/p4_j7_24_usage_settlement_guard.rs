@@ -9,13 +9,20 @@ fn usage_settlement_keeps_cost_and_authority_boundaries_separate() {
         "provider_usage_attempt_conflict",
         "BillingState::Unknown",
         "provider_usage_run_mismatch",
+        "from_usage_with_execution_id",
+        "provider_usage_execution_id_invalid",
     ] {
         assert!(
             domain.contains(marker) || provider.contains(marker),
             "P4-J7-24 marker missing: {marker}"
         );
     }
-    for forbidden in ["CapabilityBroker", "tokio::spawn", "reqwest::Client", "EventStore"] {
+    for forbidden in [
+        "CapabilityBroker",
+        "tokio::spawn",
+        "reqwest::Client",
+        "EventStore",
+    ] {
         assert!(
             !domain.contains(forbidden) && !provider.contains(forbidden),
             "usage settlement boundary widened: {forbidden}"

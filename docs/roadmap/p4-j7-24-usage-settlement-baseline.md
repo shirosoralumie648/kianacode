@@ -8,6 +8,8 @@ and rate-card revision while keeping estimated, measured and unknown cost separa
 
 - `kiana-domain::ProviderUsageSettlement` requires server-owned usage/run/attempt identity, a
   provider and route, bounded idempotency, a final `NormalizedUsage` observation and a digest.
+  `from_usage_with_execution_id` additionally binds a non-nil `ExecutionId` supplied by the
+  authoritative caller; the provider adapter has no input for choosing that identity.
 - `SettlementCost::Unknown` preserves missing usage, missing rate cards and incomplete provider
   fields. It is never represented as zero cost. `Estimated` carries the `RateCard` ID/version;
   `Measured` requires an opaque `ProviderReceiptRef` and `Money` amount.
@@ -26,13 +28,15 @@ Actions. The workflow path filter includes the current CM-36 `kiana-domain/src/m
 module so a fresh remote run can pass the repository-wide format gate; that result is pending and
 unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
-The fixtures cover missing provider/rate-card usage, measured receipt attachment, exact replay,
-conflicting attempt settlement, run identity drift and the absence of Broker/EventLog/network
-authority in the value adapters.
+The fixtures cover missing provider/rate-card usage, explicit non-nil execution identity binding,
+measured receipt attachment, exact replay, conflicting attempt settlement, run identity drift and
+the absence of Broker/EventLog/network authority in the value adapters.
 
 ## Evidence ceiling and limitations
 
-The slice is `feature_status=implemented` with `proof_level=source` plus CI wiring. It does not
+The slice is `feature_status=implemented` with `proof_level=source` plus CI wiring. The new
+execution binding is a value-level seam only; no production ControlPlane/EventStore caller is
+claimed until that integration is wired and verified. It does not
 claim durable reservation/CAS, provider invoice reconciliation, project/org financial allocation,
 capacity queues, live provider billing, cross-process replay or physical external effects. BQ-10+
 and later Provider/Receipt/EventLog steps must consume these contracts before any budget or cost

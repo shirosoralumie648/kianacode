@@ -12596,6 +12596,27 @@ proof-level change: `feature_status=implemented`, `proof_level=source` plus CI w
 limitations: no durable quota reservation/CAS, project/org financial allocation, invoice reconciliation, capacity queue, cross-process ledger, live provider billing or external effect proof; BQ-10+ and later Provider/Receipt/EventLog steps remain
 reviewer: Codex source review of unknown-versus-zero handling, rate-card scope/version binding, measured receipt requirement, attempt replay conflict and provider no-authority boundary; no local runtime test reviewer
 
+### P4-J7-24 explicit execution identity binding evidence (2026-09-26)
+
+```text
+source_snapshot: base `ec5d5ce9` plus P4-J7-24 execution-binding slice; `kiana-domain/src/provider_usage_settlement.rs`; `kiana-domain/tests/p4_j7_24_usage_settlement.rs`; `kiana-core/tests/p4_j7_24_usage_settlement_guard.rs`; P4-J7-24 baseline and roadmap overlays
+worktree_status: domain settlement now offers an explicit non-nil ExecutionId constructor; legacy no-execution constructor remains compatible; CI workflow already filters these source and fixture paths
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/provider_usage_settlement.rs kiana-domain/tests/p4_j7_24_usage_settlement.rs kiana-core/tests/p4_j7_24_usage_settlement_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-domain --test p4_j7_24_usage_settlement --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_24_usage_settlement_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; P4-J7-24 CI result not awaited
+fixture·cassette: GitHub-only positive explicit ExecutionId binding and nil-ID rejection; Core source guard checks the binding contract and preserves the provider no-authority boundary
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: P4-J7-24 adds an explicit value-level server-owned ExecutionId binding seam; overall step remains 🔄 because production ControlPlane/EventStore settlement integration, durable CAS, allocation, corrections and CI evidence remain open
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: the caller-supplied ID is not yet wired from a production authoritative caller; no durable ledger, reservation/release transaction, financial allocation, invoice reconciliation, live billing or cross-process replay is claimed
+reviewer: Codex source review of server-owned identity input, nil rejection, digest binding, compatibility and no-provider-authority boundary; no runtime test reviewer
+```
+
 ### DEP-00 deployment/operations source inventory evidence (2026-09-24)
 
 source_snapshot: `794b6d44` (`origin/master` at inventory start); `docs/module-map.md`, `CURRENT_STATUS.md`, `scripts/`, `kiana-daemon/src/lib.rs`, `kiana-eventlog/src/`, `kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}`, `kiana-core/tests/dep00_deployment_guard.rs`, `.github/workflows/dep00-deployment-baseline.yml`, `docs/roadmap/dep00-deployment-baseline.md`
