@@ -73,7 +73,7 @@ impl PtyChunkDecoder {
                     (&b"\x1b[D"[..], KeyCode::Left),
                     (&b"\x1b[3~"[..], KeyCode::Delete),
                 ];
-                let mut prefix = false;
+                let mut prefix = PASTE_START.starts_with(&self.pending);
                 for (sequence, code) in known {
                     if self.pending.starts_with(sequence) {
                         self.pending.drain(..sequence.len());

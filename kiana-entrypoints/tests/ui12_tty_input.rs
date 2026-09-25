@@ -182,6 +182,17 @@ fn pty_chunks_hold_partial_escape_and_utf8_until_complete() {
 }
 
 #[test]
+fn bracketed_paste_start_marker_can_be_split_across_chunks() {
+    let mut decoder = PtyChunkDecoder::default();
+    assert!(decoder.feed(b"\x1b[200").unwrap().is_empty());
+    let events = decoder.feed(b"~payload\n/quit\x1b[201~").unwrap();
+    assert!(events
+        .iter()
+        .any(|event| matches!(event, Event::Paste(text) if text == "payload\n/quit")));
+    assert_eq!(decoder.finish(), Ok(()));
+}
+
+#[test]
 fn chunk_adapter_applies_only_complete_events_and_explicit_enter_commits() {
     let mut decoder = PtyChunkDecoder::default();
     let mut state = TtyInputState::default();
