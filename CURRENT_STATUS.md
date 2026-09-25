@@ -13093,4 +13093,17 @@ status change: UI-34 CI path now covers CM-36 fmt dependency; roadmap row/card r
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no real long-stream/RSS/p50/p95/slow-disk/low-bandwidth/browser/PTY/Electron accessibility runner, bundle performance, cross-process backpressure, provider/Broker effect or live/physical proof
 reviewer: Codex UI-34 path-filter rerun review; no local runtime test reviewer
+
+### UI-35 legacy migration CI path rerun (2026-09-26)
+
+source_snapshot: `399e7336` plus UI-35 CI-boundary rerun; `kiana-client/src/legacy_migration.rs`; `kiana-client/tests/{fixtures/ui35-legacy-migration.json,ui35_legacy_migration.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui35-legacy-migration.yml`; `docs/roadmap/ui35-legacy-migration-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-35-ci-rerun-20260926`; existing read-only legacy mapping/deprecation contract remains unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no old traffic, endpoint deletion, provider/Broker or external effect added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-client --test ui35_legacy_migration --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-35 known route deprecation/canonical mapping/Unknown-NUL/no-fact-write/no-second-loop fixtures; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-35 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real legacy traffic evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real old browser/CLI traffic, dual-read capture, rollout telemetry, old endpoint removal, durable compatibility, provider/Broker/external effect or live/physical proof
+reviewer: Codex UI-35 path-filter rerun review; no local runtime test reviewer
 ```
