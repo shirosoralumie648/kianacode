@@ -15,6 +15,7 @@ const IPC_CHANNELS = Object.freeze({
   newProject: "workspace:new",
   continue: "workspace:continue",
   notification: "desktop:notification",
+  reference: "desktop:reference",
 });
 
 const CHANNEL_INTENTS = Object.freeze({
@@ -23,6 +24,7 @@ const CHANNEL_INTENTS = Object.freeze({
   [IPC_CHANNELS.newProject]: "desktop.workspace.new.v1",
   [IPC_CHANNELS.continue]: "desktop.workspace.continue.v1",
   [IPC_CHANNELS.notification]: "desktop.notification.server-fact.v1",
+  [IPC_CHANNELS.reference]: "desktop.session.reference.v1",
 });
 
 const ALLOWED_CHANNELS = new Set([
@@ -292,6 +294,42 @@ function validateNotificationEnvelope(fact, session) {
   return { ok: true };
 }
 
+function validateReferenceEnvelope(reference, session) {
+  if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+    return { ok: false, reason: "desktop_reference_invalid" };
+  }
+  const knownKeys = new Set([
+    "schema", "source", "workspace_binding_digest", "session_id", "scope_digest", "cursor", "draft_policy",
+  ]);
+  if (Object.keys(reference).some(key => !knownKeys.has(key))) {
+    return { ok: false, reason: "desktop_reference_unknown_field" };
+  }
+  if (reference.schema !== "kiana.desktop-session-reference.v1" || reference.source !== "server") {
+    return { ok: false, reason: "desktop_reference_schema_mismatch" };
+  }
+  if (reference.workspace_binding_digest !== session.workspaceBindingDigest ||
+      typeof reference.workspace_binding_digest !== "string" ||
+      !/^[a-f0-9]{64}$/.test(reference.workspace_binding_digest)) {
+    return { ok: false, reason: "desktop_reference_workspace_mismatch" };
+  }
+  if (typeof reference.session_id !== "string" || !/^[A-Za-z0-9:_-]{1,256}$/.test(reference.session_id)) {
+    return { ok: false, reason: "desktop_reference_session_invalid" };
+  }
+  if (typeof reference.scope_digest !== "string" || !/^[a-f0-9]{64}$/.test(reference.scope_digest)) {
+    return { ok: false, reason: "desktop_reference_scope_invalid" };
+  }
+  if (!reference.cursor || typeof reference.cursor !== "object" || Array.isArray(reference.cursor) ||
+      typeof reference.cursor.epoch !== "string" || reference.cursor.epoch.length === 0 ||
+      reference.cursor.epoch.length > 256 || !Number.isSafeInteger(reference.cursor.sequence) ||
+      reference.cursor.sequence < 0 || Object.keys(reference.cursor).some(key => !["epoch", "sequence"].includes(key))) {
+    return { ok: false, reason: "desktop_reference_cursor_invalid" };
+  }
+  if (!["discard", "restore_prompt"].includes(reference.draft_policy)) {
+    return { ok: false, reason: "desktop_reference_policy_invalid" };
+  }
+  return { ok: true };
+}
+
 function validateIpcRequest({ event, expectedSender, session, welcomeUrl, channel, envelope } = {}) {
   if (!ALLOWED_CHANNELS.has(channel) || channel === HANDSHAKE_CHANNEL || !CHANNEL_INTENTS[channel]) {
     return { ok: false, reason: "unknown_channel" };
@@ -323,16 +361,18 @@ function validateIpcRequest({ event, expectedSender, session, welcomeUrl, channe
   if (channel === IPC_CHANNELS.notification) {
     const notification = validateNotificationEnvelope(envelope.fact, session);
     if (!notification.ok) return notification;
-  } else if (Object.hasOwn(envelope, "fact")) {
+  } else if (channel === IPC_CHANNELS.reference) {
+    const reference = validateReferenceEnvelope(envelope.reference, session);
+    if (!reference.ok) return reference;
+  } else if (Object.hasOwn(envelope, "fact") || Object.hasOwn(envelope, "reference")) {
     return { ok: false, reason: "unexpected_intent_payload" };
   }
   session.nonce = envelope.nonce;
   const intent = channel === IPC_CHANNELS.notification
-    ? Object.freeze({
-        ...makeIntent(channel, session, envelope.nonce),
-        fact: Object.freeze({ ...envelope.fact }),
-      })
-    : makeIntent(channel, session, envelope.nonce);
+    ? Object.freeze({ ...makeIntent(channel, session, envelope.nonce), fact: Object.freeze({ ...envelope.fact }) })
+    : channel === IPC_CHANNELS.reference
+      ? Object.freeze({ ...makeIntent(channel, session, envelope.nonce), reference: Object.freeze({ ...envelope.reference, cursor: Object.freeze({ ...envelope.reference.cursor }) }) })
+      : makeIntent(channel, session, envelope.nonce);
   return { ok: true, intent };
 }
 
@@ -353,6 +393,7 @@ module.exports = {
   opaqueToken,
   validateHandshake,
   validateNotificationEnvelope,
+  validateReferenceEnvelope,
   validateIpcRequest,
   validateSenderFrame,
 };

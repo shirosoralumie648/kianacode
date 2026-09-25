@@ -593,13 +593,23 @@ terminal/pending notification fact、workspace binding/feed cursor/replay fence 
 
 
 
-#### UI-27 · Desktop 安全持久化和 detach　⏳
+#### UI-27 · Desktop 安全持久化和 detach　🔄
 
 - 依赖：UI-04/25/26。代码：layout/session reference store、safe detach/reattach。
 - 步骤：只持久化布局、草稿策略、instance/session 引用和最后已知 cursor；敏感 token 使用受控存储；detach 后重新 handshake，不自动执行。
 - 先拒绝：把 access token 写明文配置、从 layout 恢复即 launch/resume/approve、旧 epoch 的 cursor 直接提交、私有 artifact 缓存无 TTL。
 - 成功/回归：重启/升级/损坏 store/权限不足/多用户、旧实例、token rotation、detach/reattach。
 - 完成产物：持久化 schema、迁移/清理策略、恢复证据和限制清单。
+
+实现基线：[`ui27-desktop-persistence-baseline.md`](ui27-desktop-persistence-baseline.md)。当前 source
+slice 将旧的裸 `desktop.json` 替换为 versioned `kiana.desktop-store.v1` metadata store，严格
+限制 layout、draft policy、workspace/instance/session/cursor refs；写入使用同目录临时文件、0600
+权限和 rename，读取拒绝 schema/unknown field/size/symlink/digest/secret 漂移。Web 只提交 server
+bound session reference，Electron 重新校验 workspace binding 后再写入引用。
+
+detach/reattach 只保留可诊断的旧 instance/session/cursor reference；`reattachPlan` 明确要求新
+handshake，并把旧 cursor 标为 discard，绝不从 layout/store 自动 launch、resume、approve 或 trust。
+继续上次工作区是用户显式点击后的新 worker attach，scratch 自动 trust 仅保留给“新建项目”动作。
 
 <a id="step-ui-28"></a>
 

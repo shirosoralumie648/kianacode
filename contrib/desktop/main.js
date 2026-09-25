@@ -26,6 +26,14 @@ const {
   reduceDesktopState,
 } = require("./lib/desktop-state");
 const { NotificationBridge } = require("./lib/notifications");
+const {
+  emptyDesktopStore,
+  mergeDesktopStore,
+  readDesktopStore,
+  reattachPlan,
+  validateServerReference,
+  writeDesktopStore,
+} = require("./lib/desktop-persistence");
 const { groupExists, stopWorker } = require("./lib/worker");
 const {
   createScratchWorkspace,
@@ -78,15 +86,15 @@ function configPath() {
 
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(configPath(), "utf8"));
+    return readDesktopStore(configPath());
   } catch {
-    return {};
+    return emptyDesktopStore();
   }
 }
 
-function saveConfig(config) {
-  fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-  fs.writeFileSync(configPath(), JSON.stringify(config, null, 2));
+function saveConfig(patch) {
+  const next = mergeDesktopStore(loadConfig(), patch);
+  return writeDesktopStore(configPath(), next);
 }
 
 function iconImage() {
@@ -122,6 +130,14 @@ async function stopChild() {
   applyDesktopState({ type: "worker_stopping" });
   proc.kianaStopping = true;
   stopPromise = stopWorker(proc).then(() => {
+    const instanceRef = readyRecord ? {
+      instance_id: readyRecord.instance_id,
+      authority_epoch: readyRecord.authority_epoch,
+      feed_epoch: readyRecord.epoch,
+    } : undefined;
+    const detachPatch = { detached: true };
+    if (instanceRef) detachPatch.instance_ref = instanceRef;
+    saveConfig(detachPatch);
     if (child === proc) child = null;
     readyRecord = null;
     lifecycle = "stopped";
@@ -161,7 +177,7 @@ async function autoTrust(url) {
   }
 }
 
-async function startHarness(folder) {
+async function startHarness(folder, { autoTrustScratch = false } = {}) {
   if (quitting) throw new Error("desktop_shutting_down");
   await stopChild();
   if (quitting) throw new Error("desktop_shutting_down");
@@ -230,10 +246,19 @@ async function startHarness(folder) {
     instance_id: ready.instance_id,
     epoch: ready.epoch,
   });
-  saveConfig({ workdir: workspace });
+  saveConfig({
+    workspace_path: workspace,
+    instance_ref: {
+      instance_id: ready.instance_id,
+      authority_epoch: ready.authority_epoch,
+      feed_epoch: ready.epoch,
+    },
+    last_cursor: { epoch: ready.epoch, sequence: 0 },
+    detached: false,
+  });
   // The stderr diagnostics pipe is already drained; resume the stdout display stream after ready.
   proc.stdout.resume();
-  if (isScratchWorkspace(workspace)) {
+  if (autoTrustScratch && isScratchWorkspace(workspace)) {
     await autoTrust(ready.url);
   }
   return ready.url;
@@ -247,12 +272,12 @@ function showWelcome() {
   mainWindow.loadFile(path.join(__dirname, "welcome.html"));
 }
 
-async function switchWorkspace(folder) {
+async function switchWorkspace(folder, options = {}) {
   lastError = "";
   // The old renderer loses its IPC binding before its worker is stopped.
   showWelcome();
   try {
-    const url = await startHarness(folder);
+    const url = await startHarness(folder, options);
     if (mainWindow && !mainWindow.isDestroyed()) {
       await mainWindow.loadURL(url);
       mainWindow.show();
@@ -267,8 +292,8 @@ async function switchWorkspace(folder) {
   }
 }
 
-function openWorkspace(folder) {
-  workspaceTransition = workspaceTransition.catch(() => {}).then(() => switchWorkspace(folder));
+function openWorkspace(folder, options = {}) {
+  workspaceTransition = workspaceTransition.catch(() => {}).then(() => switchWorkspace(folder, options));
   return workspaceTransition;
 }
 
@@ -404,24 +429,27 @@ async function handleOpenFolder() {
   if (!folder) {
     return { canceled: true };
   }
-  return openWorkspace(folder);
+  return openWorkspace(folder, { autoTrustScratch: false });
 }
 
 async function handleNewProject() {
   const folder = createScratchWorkspace({ homedir: os.homedir() });
-  return openWorkspace(folder);
+  return openWorkspace(folder, { autoTrustScratch: true });
 }
 
 async function handleContinue() {
-  const last = loadConfig().workdir;
-  if (!last || !fs.existsSync(last)) {
+  const plan = reattachPlan(loadConfig());
+  if (!plan.workspace_path || !fs.existsSync(plan.workspace_path)) {
     throw new Error("没有上次的工作区。打开文件夹，或新建 ~/.kiana 项目。");
   }
-  return openWorkspace(last);
+  // Reattach is an explicit new worker handshake.  The persisted cursor is only a
+  // stale reference for diagnostics; it is never submitted as a resume or action.
+  return openWorkspace(plan.workspace_path, { autoTrustScratch: false });
 }
 
 function workspaceState() {
-  const last = loadConfig().workdir;
+  const stored = loadConfig();
+  const last = stored.workspace_ref && stored.workspace_ref.path;
   const attention = closeAttention(desktopState);
   return {
     last: last && fs.existsSync(last) ? last : null,
@@ -435,7 +463,28 @@ function workspaceState() {
     scratchRoot: path.join(os.homedir(), ".kiana", "workspaces"),
     workspace_binding_digest: ipcSession && ipcSession.workspaceBindingDigest,
     attention,
+    persistence: {
+      schema: stored.schema,
+      detached: stored.detached,
+      has_instance_ref: stored.instance_ref !== null,
+      has_session_ref: stored.session_ref !== null,
+      has_last_cursor: stored.last_cursor !== null,
+      draft_policy: stored.draft_policy,
+    },
   };
+}
+
+function rememberServerReference(reference) {
+  try {
+    const normalized = validateServerReference(
+      reference,
+      ipcSession && ipcSession.workspaceBindingDigest
+    );
+    saveConfig({ server_reference: normalized });
+    return { ok: true, disposition: "stored" };
+  } catch (error) {
+    throw ipcDenied(error.message || "desktop_reference_invalid");
+  }
 }
 
 function ipcDenied(reason) {
@@ -533,6 +582,8 @@ function dispatchDesktopIntent(intent) {
       return handleContinue();
     case "desktop.notification.server-fact.v1":
       return notifyServerFact(intent.fact);
+    case "desktop.session.reference.v1":
+      return rememberServerReference(intent.reference);
     default:
       throw ipcDenied("unknown_intent");
   }

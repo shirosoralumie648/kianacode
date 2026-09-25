@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-27 Desktop 安全持久化和 detach（2026-09-25）
+
+source_snapshot: `43c0e6d8`（UI-26 已合并 master 基线）加 UI-27 source slice；`contrib/desktop/{main.js,preload.js,lib/ipc-security.js,lib/desktop-persistence.js}`；`contrib/desktop/tests/{fixtures/ui24-ipc.json,fixtures/ui27-persistence.json,ui27_persistence.test.js}`；`kiana-entrypoints/src/web_page.html`; `.github/workflows/ui27-desktop-persistence.yml`; `docs/roadmap/ui27-desktop-persistence-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui27-desktop-persistence-20260925`;旧 `desktop.json` 裸 `workdir` 迁为 versioned metadata-only store，支持 bounded layout/draft policy/workspace/instance/session/cursor refs、0600 atomic replacement、schema/size/symlink/digest/secret deny；detach 保留引用但 reattach 只要求新 handshake，旧 cursor 不直接提交；scratch auto-trust 仅保留给显式新建项目
+command_argv: 本地仅目标 JavaScript `node --check` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 Node syntax/fixture、`node --test contrib/desktop/tests/ui27_persistence.test.js`、`cargo fmt --all --check`、`cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui27-persistence.json`；secret/token field、unknown schema/field、oversized/corrupt/symlink store、workspace digest drift、old epoch cursor direct submit、layout auto launch/resume/approve/trust、private artifact cache；CI fixture only, no provider/filesystem worker effect beyond bounded store contract
+exit_code: 本地目标 JavaScript `node --check` 与 `git diff --check`；远程 fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-27 versioned metadata store、atomic restricted write、server reference persistence、detach/reattach new-handshake fence、deny-first fixture/source guard、baseline 与 workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded desktop persistence source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron/OS secure storage、跨用户 ACL、多进程 CAS、崩溃中断 rename、升级迁移、真实 browser detach timing、durable EventLog session projector、provider/Broker/external effect 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-27 source review；检查 metadata-only schema、recursive secret deny、0600 atomic write、symlink/digest/size fence、server-bound reference、old cursor discard、new handshake/no implicit action、ControlPlane/DaemonHost 主路径与无第二执行循环；无本地 runtime test reviewer
+
 ### UI-26 Desktop workspace、托盘、通知与关闭策略（2026-09-25）
 
 source_snapshot: `2a9ee9e0`（UI-25 master 基线）加 UI-26 source slice；`contrib/desktop/{main.js,preload.js,lib/close-policy.js,lib/desktop-state.js,lib/ipc-security.js,lib/notifications.js}`；`contrib/desktop/tests/{fixtures/ui26-workspace-tray.json,ui26_workspace_tray.test.js}`；`kiana-entrypoints/src/web_page.html`; `.github/workflows/ui26-desktop-workspace.yml`; `docs/roadmap/ui26-desktop-workspace-tray-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
