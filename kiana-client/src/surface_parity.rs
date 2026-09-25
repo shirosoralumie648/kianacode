@@ -115,11 +115,35 @@ impl SurfaceTrace {
                 Err(SurfaceParityError::TraceInvalid("revision_or_limitations"))
             };
         }
-        if self.disposition == "applied" && self.receipt_digest.is_none() {
+        if self
+            .receipt_digest
+            .as_deref()
+            .is_some_and(|value| !valid_digest(value))
+        {
             return Err(SurfaceParityError::TraceInvalid("receipt"));
+        }
+        if self.disposition == "applied"
+            && self
+                .receipt_digest
+                .as_deref()
+                .is_none_or(|value| !valid_digest(value))
+        {
+            return Err(SurfaceParityError::TraceInvalid("receipt"));
+        }
+        if self.error_code.as_deref().is_some_and(|value| {
+            value.trim().is_empty() || value.len() > 128 || value.contains('\0')
+        }) {
+            return Err(SurfaceParityError::TraceInvalid("error_code"));
         }
         Ok(())
     }
+}
+
+fn valid_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn compare_surface_traces(

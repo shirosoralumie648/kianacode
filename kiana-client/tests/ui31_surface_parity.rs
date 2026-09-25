@@ -80,4 +80,16 @@ fn parity_rejects_drift_missing_surface_and_sensitive_fields() {
     ])
     .unwrap_err();
     assert_eq!(secret_error, SurfaceParityError::SensitiveFields);
+
+    let mut malformed_receipt = trace(ParitySurface::Cli);
+    malformed_receipt.receipt_digest = Some("receipt-not-a-digest".to_owned());
+    assert_eq!(
+        compare_surface_traces(&[
+            malformed_receipt,
+            trace(ParitySurface::Workbench),
+            trace(ParitySurface::Web),
+            trace(ParitySurface::Desktop),
+        ]),
+        Err(SurfaceParityError::TraceInvalid("receipt"))
+    );
 }

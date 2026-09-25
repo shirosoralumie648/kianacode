@@ -928,6 +928,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no real IDE host, filesystem TOCTOU store, terminal process, permit mint/consume, provider/Broker or physical proof
 reviewer: Codex UI-30 source review; checked relative path components, scope/revision/permit binding and no direct effect boundary; no local runtime reviewer
 ```
+
+### UI-31 parity identity evidence (2026-09-26)
+
+```text
+source_snapshot: base `08e96d39` plus UI-31 parity slice; `kiana-client/src/surface_parity.rs`; `kiana-client/tests/fixtures/ui31-parity.json`; `kiana-client/tests/ui31_surface_parity.rs`; UI-31 baseline/roadmap overlays
+worktree_status: comparator now rejects malformed receipt digests and empty/oversized/NUL error codes before comparing four surface traces; it remains read-only and never retries or executes
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/surface_parity.rs kiana-client/tests/ui31_surface_parity.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui31_surface_parity --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only malformed receipt/error identity denial plus missing/duplicate/sensitive/drift/Unknown parity cases; no provider/Broker/effect path
+exit_code: 0 for targeted rustfmt and `git diff --check`; parity fixtures and workspace compile pending/unobserved
+status change: UI-31 parity reports cannot promote malformed receipt/error identity into a cross-surface match; card remains 🔄 pending CI and real runtime trace proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no four-surface runtime capture, durable parity index, browser/PTY/Electron timing, provider/Broker effect or physical proof
+reviewer: Codex UI-31 source review; checked digest/error identity validation, missing/duplicate/sensitive/drift fences and read-only comparator boundary; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

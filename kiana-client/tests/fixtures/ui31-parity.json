@@ -10,6 +10,7 @@
     "missing or duplicate surface trace",
     "command, disposition, retry, cursor, revision or receipt drift",
     "sensitive field count or result field omission",
+    "malformed receipt digest or error identity",
     "surface-specific retry or direct capability execution",
     "closed window or disconnect rewritten as business terminal success"
   ]
