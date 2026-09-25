@@ -11,7 +11,8 @@
     "access token, refresh token, secret or credential in desktop store",
     "unknown store field or schema migration",
     "workspace reference digest drift",
-    "symlinked or oversized store",
+    "symlinked workspace reference or oversized store",
+    "broad desktop store permissions",
     "old epoch cursor submitted directly after detach",
     "layout restore implicitly launch, resume, approve or trust",
     "private artifact bytes cached without a bounded TTL"

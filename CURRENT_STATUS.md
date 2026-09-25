@@ -842,6 +842,29 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: pending counters remain observed presentation facts rather than durable EventLog projection; no real Electron/tray/OS notification, browser timing, provider/Broker or physical proof
 reviewer: Codex UI-26 source review; checked workspace reset ordering, fact shape validation, replay/dedupe and no implicit mutation on close; no local runtime reviewer
 ```
+
+### UI-27 Desktop store symlink/permission evidence (2026-09-26)
+
+```text
+source_snapshot: base `67a17f40` plus UI-27 persistence slice; `contrib/desktop/lib/desktop-persistence.js`; `contrib/desktop/tests/ui27_persistence.test.js`; `contrib/desktop/tests/fixtures/ui27-persistence.json`; UI-27 baseline/roadmap overlays
+worktree_status: workspace references canonicalize existing paths and reject direct symlink targets; readDesktopStore rejects broad POSIX mode bits before parsing metadata; detach/reattach no-effect plan remains unchanged
+command_argv:
+  node --check contrib/desktop/lib/desktop-persistence.js
+  node --check contrib/desktop/main.js
+  git diff --check
+  GitHub Actions: node --check sources and JSON parse
+  GitHub Actions: node --test contrib/desktop/tests/ui27_persistence.test.js
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; syntax/whitespace checks only; local Node/Cargo tests and Electron/OS runs deliberately not run; CI not awaited
+fixture·cassette: GitHub-only symlink workspace-reference and broad desktop-store-permission denials plus schema/secret/cursor/reattach cases; no provider/network/OS effect
+exit_code: 0 for targeted node --check and `git diff --check`; Node/Rust fixtures and compile pending/unobserved
+status change: UI-27 persisted workspace/store trust boundary now includes symlink and read-permission fences; card remains 🔄 pending CI and durable/OS proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: parent-component symlink and Windows ACL behavior remain unproven; no crash-rename, multi-process CAS, keyring, restart, provider/Broker or physical proof
+reviewer: Codex UI-27 source review; checked canonical workspace reference, store mode checks, metadata-only schema and no-auto-reattach path; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

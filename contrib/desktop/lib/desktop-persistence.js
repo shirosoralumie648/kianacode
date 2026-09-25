@@ -46,13 +46,25 @@ function assertNoSensitiveKeys(value) {
 }
 
 function digestWorkspace(workspacePath) {
-  const canonical = path.resolve(boundedString(workspacePath, MAX_PATH_BYTES, "desktop_workspace_path_invalid"));
+  const canonical = canonicalWorkspacePath(workspacePath);
   if (canonical.includes("\0")) throw new Error("desktop_workspace_path_invalid");
   return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
+function canonicalWorkspacePath(workspacePath) {
+  const absolute = path.resolve(boundedString(workspacePath, MAX_PATH_BYTES, "desktop_workspace_path_invalid"));
+  try {
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) throw new Error("desktop_workspace_symlink");
+    return fs.realpathSync(absolute);
+  } catch (error) {
+    if (error && error.code === "ENOENT") return absolute;
+    throw error;
+  }
+}
+
 function workspaceReference(workspacePath) {
-  const canonical = path.resolve(boundedString(workspacePath, MAX_PATH_BYTES, "desktop_workspace_path_invalid"));
+  const canonical = canonicalWorkspacePath(workspacePath);
   return {
     path: canonical,
     digest: digestWorkspace(canonical),
@@ -218,6 +230,9 @@ function readDesktopStore(file) {
     const stat = fs.lstatSync(file);
     if (stat.isSymbolicLink()) throw new Error("desktop_store_symlink");
     if (!stat.isFile() || stat.size > MAX_STORE_BYTES) throw new Error("desktop_store_size_invalid");
+    if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
+      throw new Error("desktop_store_permissions");
+    }
     return validateDesktopStore(JSON.parse(fs.readFileSync(file, "utf8")));
   } catch (error) {
     if (error && error.code === "ENOENT") return emptyDesktopStore();

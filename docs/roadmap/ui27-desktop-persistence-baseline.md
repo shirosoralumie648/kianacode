@@ -7,12 +7,12 @@
 
 `contrib/desktop/lib/desktop-persistence.js` 定义 versioned `kiana.desktop-store.v1`，允许的
 字段只有 layout、draft policy、workspace reference、instance reference、session reference、
-last cursor 和 detached 标志。workspace path 是用户选择的本地引用，另绑定 SHA-256 digest；
+last cursor 和 detached 标志。workspace path 是用户选择的本地引用，现存目标要求不是 symlink，另绑定 SHA-256 digest；
 instance/session/cursor 只保存 opaque identity、epoch、sequence 和 scope digest。递归 key guard
 拒绝 token、secret、password、credential、authorization、bearer、private key、access key 和
 refresh 等敏感字段，store 不接收 Web bearer 或 Electron instance token。
 
-布局尺寸、路径、ID、epoch、cursor 和 JSON 总大小均有边界；unknown field、schema/revision 漂移、
+布局尺寸、路径、ID、epoch、cursor 和 JSON 总大小均有边界；读取也拒绝过宽 POSIX 权限；unknown field、schema/revision 漂移、
 workspace digest 不匹配、非法 cursor、symlink 目标和损坏 JSON fail-closed。写入先在同一目录
 生成临时文件、设置 0600，再 rename 到目标；读取到损坏 store 不会自动启动旧 worker。
 
