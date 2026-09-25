@@ -147,6 +147,19 @@ proof-level change: `feature_status=implemented`（existing RunStream adapter br
 limitations: bridge 不证明 durable notification bus、跨进程 subscriber、Web/SSE/CLI/TTY/Desktop wiring、action reconcile、provider/connector/channel external ACK 或 live/physical delivery；CI 结果未等待
 reviewer: Codex NM-13 source review；检查 reuse existing RunStreamBus/FeedSubscription、snapshot-first/gap/old epoch/sequence fence、heartbeat/terminal/disposed visibility、no second bus/no spawn/no Broker/no retry/no second loop；无本地 runtime test reviewer
 
+### NM-14 CLI/TTY inbox 与运行状态（2026-09-25）
+
+source_snapshot: `792d0509`（NM-13 已合并 master 基线）加 NM-14 presenter source slice；`kiana-entrypoints/src/{notification_cli.rs,lib.rs,cli.rs,workbench_chat.rs}`；`kiana-entrypoints/tests/{nm14_notification_cli.rs,nm14_notification_cli_guard.rs,fixtures/nm14-notification-cli.json}`；`.github/workflows/nm14-notification-cli.yml`; `docs/roadmap/nm14-notification-cli-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm14-cli-tty-inbox-20260925`;新增 bounded CLI/TTY notification page presenter 和 existing `UiFeedFrameV1` run-status presenter，脱敏 action id/command、保留 read/ACK/snooze/urgency/due、Unknown→query_original/snapshot required；不拆 frozen `cli.rs`、不调用 Broker/Runner/process、不提交 action、不改 HumanTask/Approval
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-entrypoints --test nm14_notification_cli --locked -- --test-threads=1`、`cargo test -p kiana-entrypoints --test nm14_notification_cli_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/interactive TTY；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm14-notification-cli.json`、page/frame presenter/source guards；bounded rows/action labels, payload redaction, malformed/oversized page, delta/heartbeat/terminal/Unknown/retry/gap, no direct effect/frozen CLI；无真实 CLI/TTY/Web/Desktop action route、PTY/accessibility、durable/live/physical receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 entrypoint fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-14 CLI/TTY inbox/run-status presenter、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（display-only entrypoint source adapter + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: presenter 不证明真实 CLI/TTY/Workbench runtime、action ControlPlane routing、durable inbox/read state、SSE/Web/Desktop parity、PTY/accessibility、provider/connector/external/live/physical delivery；CI 结果未等待
+reviewer: Codex NM-14 source review；检查 frozen CLI preservation、server-page redaction/limits、action display-only、run cursor/Unknown/terminal retry semantics、no Broker/Runner/process/no direct action/no second loop；无本地 runtime/TTY reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
