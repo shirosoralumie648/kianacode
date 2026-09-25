@@ -19,6 +19,8 @@ approval 或 effect 权限；Degraded/Reject 只改变 UI 可见状态和下一�
 Degraded/Reject、bytes/queue hard bound、protected pending/unknown、非法 schema/limit/usage。
 `.github/workflows/ui34-resource-budget.yml` 运行 Rust format、聚焦 budget fixture 与 workspace
 test-target compile。
+其 push/pull_request path filter 现在同时包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，
+fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pending/unobserved。
 
 `feature_status=implemented`; `proof_level=source`。未证明真实长流/100+ sessions/慢磁盘/低带宽、
 RSS/p50/p95/queue metrics、浏览器/PTY/Electron accessibility runner、bundle performance、跨进程
