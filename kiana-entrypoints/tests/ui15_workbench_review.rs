@@ -4,7 +4,8 @@ use kiana_entrypoints::workbench_review::{
     MAX_ARTIFACT_PAGE_BYTES, WORKBENCH_RECEIPT_SCHEMA, WORKBENCH_REVIEW_SCHEMA,
 };
 use kiana_protocol::{
-    ArtifactId, ArtifactProvenance, ArtifactVersion, ExecutionStatus, HumanActionCard, RunId,
+    json_digest, ArtifactId, ArtifactProvenance, ArtifactVersion, ExecutionStatus, HumanActionCard,
+    RunId,
 };
 use serde_json::{json, Value};
 
@@ -20,6 +21,7 @@ fn scope() -> InboxScope {
 }
 
 fn card() -> WorkbenchInboxCard {
+    let payload = json!({"decision":"approve", "scope":"src/"});
     WorkbenchInboxCard {
         schema: WORKBENCH_REVIEW_SCHEMA.to_owned(),
         action_id: "approval-15".to_owned(),
@@ -44,8 +46,8 @@ fn card() -> WorkbenchInboxCard {
             "restore".to_owned(),
             "continue".to_owned(),
         ],
-        payload: json!({"decision":"approve", "scope":"src/"}),
-        payload_digest: DIGEST.to_owned(),
+        payload_digest: json_digest(&payload),
+        payload,
         artifact_refs: Vec::new(),
     }
 }
@@ -104,6 +106,12 @@ fn fixture_and_inbox_display_contract_keep_server_fields() {
 #[test]
 fn deny_expiry_revision_and_client_payload_mutation_before_action() {
     let card = card();
+    let mut mismatched = card.clone();
+    mismatched.payload_digest = DIGEST.to_owned();
+    assert_eq!(
+        mismatched.validate(),
+        Err("inbox_payload_digest_mismatch".to_owned())
+    );
     assert_eq!(
         card.prepare_decision("approve", card.payload.clone(), Some(4), 2_000),
         Err("approval_expired".to_owned())
