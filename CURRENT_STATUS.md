@@ -13080,4 +13080,17 @@ status change: UI-33 CI path now covers CM-36 fmt dependency; roadmap row/card r
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no real browser/PTY/Electron/ACP reconnect, daemon kill/restart, durable EventLog projector, cross-process command query/effect counter, provider/Broker/external effect or live/physical recovery
 reviewer: Codex UI-33 path-filter rerun review; no local runtime test reviewer
+
+### UI-34 resource/accessibility CI path rerun (2026-09-26)
+
+source_snapshot: `ee7c6c43` plus UI-34 CI-boundary rerun; `kiana-client/src/ui_budget.rs`; `kiana-client/tests/{fixtures/ui34-resource-budget.json,ui34_resource_budget.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui34-resource-budget.yml`; `docs/roadmap/ui34-resource-budget-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-34-ci-rerun-20260926`; existing presentation/resource budget contract remains read-only, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no long-stream, browser/PTY/Electron/accessibility benchmark, provider/Broker or physical effect added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-client --test ui34_resource_budget --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-34 within/degraded/reject bytes/items/sessions/queue/protected pending/unknown/accessibility-limit fixtures; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-34 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real resource/accessibility evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real long-stream/RSS/p50/p95/slow-disk/low-bandwidth/browser/PTY/Electron accessibility runner, bundle performance, cross-process backpressure, provider/Broker effect or live/physical proof
+reviewer: Codex UI-34 path-filter rerun review; no local runtime test reviewer
 ```
