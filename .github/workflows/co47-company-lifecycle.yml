@@ -1,0 +1,56 @@
+name: CO-47 Company fake-model lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/src/company_replay.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/company_lifecycle.rs"
+      - "kiana-daemon/tests/fixtures/co47-company-lifecycle.json"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-core/tests/co47_company_lifecycle_guard.rs"
+      - "kiana-core/tests/p3_i06_company_golden.rs"
+      - "scripts/company-os-business-smoke.sh"
+      - "docs/roadmap/co47-company-lifecycle-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-domain/src/memory_workbench.rs"
+      - ".github/workflows/co47-company-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/src/company_replay.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/company_lifecycle.rs"
+      - "kiana-daemon/tests/fixtures/co47-company-lifecycle.json"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-core/tests/co47_company_lifecycle_guard.rs"
+      - "kiana-core/tests/p3_i06_company_golden.rs"
+      - "scripts/company-os-business-smoke.sh"
+      - "docs/roadmap/co47-company-lifecycle-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-domain/src/memory_workbench.rs"
+      - ".github/workflows/co47-company-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: bash scripts/company-os-business-smoke.sh

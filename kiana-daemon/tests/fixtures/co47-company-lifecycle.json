@@ -1,0 +1,15 @@
+{
+  "schema": "kiana.company-lifecycle-fixture.v1",
+  "cases": [
+    "fake-model golden closing receipt through DaemonHost",
+    "role denial records a rejected event without runtime effect",
+    "missing project close is blocked before business fact commit",
+    "idempotency payload drift is rejected without duplicate business fact",
+    "real file and EventLog evidence are checked rather than final status only"
+  ],
+  "limitations": [
+    "fake model only",
+    "CI-only execution",
+    "no real provider, external delivery or physical effect"
+  ]
+}

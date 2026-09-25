@@ -134,6 +134,19 @@ proof-level change: `feature_status=implemented`（handoff/source guard + CI wir
 limitations: 未证明任何 runtime UAT、跨进程 durable recovery、真实 browser/PTY/Electron/ACP host、scale/performance/accessibility、provider/connector/live/physical effect、签名发布或外部 receipt；UI-41 仍是交接和缺口，不是整体完成证明；CI 结果未等待
 reviewer: Codex UI-41 source/handoff review；检查 matrix five-column parse、allowed classification、non-empty next action、UI-40 reuse 与 no blanket completion；无本地 runtime/release reviewer
 
+### CO-47 fake-model Company lifecycle and fault slice（2026-09-26）
+
+source_snapshot: `958a7145`（UI-41 handoff matrix guard 已合并 master 基线）加 CO-47 lifecycle source slice；`kiana-daemon/tests/{company_lifecycle.rs,p3_i06_company_golden.rs,fixtures/co47-company-lifecycle.json}`；`kiana-core/tests/{co47_company_lifecycle_guard.rs,p3_i06_company_golden.rs}`；`scripts/company-os-business-smoke.sh`; `.github/workflows/co47-company-lifecycle.yml`; `docs/roadmap/co47-company-lifecycle-baseline.md`; `docs/roadmap/companyos.md`; `docs/roadmap.md`
+worktree_status: branch `step/co-47-company-lifecycle-20260926`; existing DaemonHost golden success path retained, new CI fixture routes role denial, missing-project close rejection and idempotency payload drift through `RequestEnvelope::company_command`, checks rejected EventLog facts, real file absence and one business fact; no direct Broker/model second loop or external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021`、shell `bash -n scripts/company-os-business-smoke.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 remote-only business smoke、focused daemon/core tests、workspace compile
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `co47-company-lifecycle.json`、`company_lifecycle.rs`、`p3_i06_company_golden.rs`；role denial、missing project、idempotency drift、rejected event、file/effect accounting 与 full fake happy path；取消/Unknown/重启/并行多 packet/真实 provider/外部交付仍未执行
+exit_code: 本地目标 rustfmt、`bash -n` 与 `git diff --check`；远程 lifecycle/golden/source guard/workspace compile exit code pending/unobserved
+status_change: CO-47 fake-model lifecycle source/fixture/remote smoke 已接入，roadmap row/card 由 ⏳ 推进为 🔄；CO-48 仍依赖后续完整 CO-47 证据与获授权 live provider
+proof-level change: `feature_status=implemented`（DaemonHost fake lifecycle source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 该切片不证明真实模型、真实 provider/connector、外部 delivery、cross-process durable restart、完整取消/Unknown/reconcile、并行/多 packet fault matrix、业务 Outcome 或 physical/live proof；CI 结果未等待
+reviewer: Codex CO-47 source review；检查唯一 DaemonHost 路由、role/missing-project/idempotency deny、rejected facts、file/effect accounting、golden closing receipt、remote-only smoke 与无第二执行循环；无本地 runtime test reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`

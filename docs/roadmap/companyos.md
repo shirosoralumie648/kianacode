@@ -772,6 +772,7 @@
 - **归属**：`P3-I-06`、`P1-L1-01`。
 - **依赖**：CO-35、CO-36、CO-37、CO-40、CO-41、CO-42、CO-44、CO-46。
 - **代码与产物**：拟新增 `kiana-daemon/tests/company_lifecycle.rs`、core/domain 聚焦 suite、`scripts/company-os-business-smoke.sh`、可重放 cassette 与 expected trace。
+- **实现基线**：[`co47-company-lifecycle-baseline.md`](co47-company-lifecycle-baseline.md)。现有 `p3_i06_company_golden` 作为成功路径，新增 lifecycle fixture 通过 `DaemonHost::handle` 覆盖角色拒绝、缺失项目关闭、幂等 payload 漂移、拒绝事件和无副作用计数；取消/Unknown/重启/多 packet 矩阵仍受限制并需后续证据。
 - **实现顺序**：①一个目标、两依赖里程碑、三 packet，先拒绝再返工通过；②穿插人工决定、取消/Unknown、重启、并行/集成和本地交付确认；③比较每个命令回执、真实文件、EventLog 和四入口终态，不只检查最后 JSON 的 status。
 - **先拒绝**：§19.2 全矩阵场景均有实际断言和非零命中；篡改标准、缺证据、重复交付、错误 owner、故障注入均不能 Closed(success)。
 - **再成功 / 退出**：`fake_model_company_project_produces_complete_closing_receipt`；同时覆盖拒绝关闭/取消关闭/豁免/成果未实现，完整 stdout、fixture hash 和源码快照形成证据包。
