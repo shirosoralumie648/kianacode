@@ -112,3 +112,40 @@ fn result_unknown_cannot_be_promoted_to_verified_closeout() {
         "company_live_unknown_cannot_verify"
     );
 }
+
+#[test]
+fn live_opt_in_requires_typed_approval_and_provider_revision() {
+    let mut bad_approval = evidence(
+        CompanyLiveMode::LiveOptIn,
+        CompanyLiveProofLevel::Live,
+        CompanyLiveStatus::Verified,
+        false,
+        Vec::new(),
+    )
+    .expect("live evidence shape");
+    bad_approval.operator_approval_ref = Some("operator-approval".to_owned());
+    bad_approval.evidence_digest = bad_approval.digest();
+    assert_eq!(
+        bad_approval
+            .validate()
+            .expect_err("approval ref must be typed"),
+        "company_live_opt_in_approval_ref_invalid"
+    );
+
+    let mut missing_revision = evidence(
+        CompanyLiveMode::LiveOptIn,
+        CompanyLiveProofLevel::Live,
+        CompanyLiveStatus::Verified,
+        false,
+        Vec::new(),
+    )
+    .expect("live evidence shape");
+    missing_revision.provider_revision = "none".to_owned();
+    missing_revision.evidence_digest = missing_revision.digest();
+    assert_eq!(
+        missing_revision
+            .validate()
+            .expect_err("provider revision must be bound"),
+        "company_live_opt_in_provider_identity_missing"
+    );
+}
