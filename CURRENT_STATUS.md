@@ -819,6 +819,29 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no real Electron/worker/PID start-time/OS process-tree, cross-user, restart, port-race or provider/Broker effect proof
 reviewer: Codex UI-25 source review; checked structured ready, sidecar/health identity and stop state boundaries plus directory permission hardening; no local runtime reviewer
 ```
+
+### UI-26 workspace-switch state evidence (2026-09-26)
+
+```text
+source_snapshot: base `5a2ee0ce` plus UI-26 desktop-state slice; `contrib/desktop/lib/desktop-state.js`; `contrib/desktop/tests/ui26_workspace_tray.test.js`; `contrib/desktop/tests/fixtures/ui26-workspace-tray.json`; UI-26 baseline/roadmap overlays
+worktree_status: `workspace_requested` now clears `draft_dirty` together with attention/dedupe state; reducer server facts require digest/epoch/positive sequence and valid kind/status before counters mutate
+command_argv:
+  node --check contrib/desktop/lib/desktop-state.js
+  node --check contrib/desktop/lib/notifications.js
+  git diff --check
+  GitHub Actions: node --check sources and JSON parse
+  GitHub Actions: node --test contrib/desktop/tests/ui26_workspace_tray.test.js
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; syntax/whitespace checks only; local Node/Cargo tests and Electron/OS runs deliberately not run; CI not awaited
+fixture·cassette: GitHub-only old-draft carryover and malformed-server-fact denials plus existing notification binding/replay/fixed-copy/close-policy cases; no provider/network/OS effect
+exit_code: 0 for targeted node --check and `git diff --check`; Node/Rust fixtures and compile pending/unobserved
+status change: UI-26 workspace switch cannot retain old draft attention or accept malformed facts into counters; card remains 🔄 pending CI and real OS notification/process proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: pending counters remain observed presentation facts rather than durable EventLog projection; no real Electron/tray/OS notification, browser timing, provider/Broker or physical proof
+reviewer: Codex UI-26 source review; checked workspace reset ordering, fact shape validation, replay/dedupe and no implicit mutation on close; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

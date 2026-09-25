@@ -54,6 +54,7 @@ test("desktop state resets attention on workspace switch and deduplicates server
   });
   state = reduceDesktopState(state, { type: "server_fact", fact: approval });
   state = reduceDesktopState(state, { type: "server_fact", fact: approval });
+  state = reduceDesktopState(state, { type: "draft_changed", dirty: true });
   assert.deepEqual(closeAttention(state), {
     pending_count: 1,
     unknown_count: 0,
@@ -63,6 +64,19 @@ test("desktop state resets attention on workspace switch and deduplicates server
   state = reduceDesktopState(state, { type: "workspace_requested", workspace: "/workspace/two" });
   assert.equal(state.workspace, "/workspace/two");
   assert.equal(closeAttention(state).requires_attention, false);
+  assert.equal(state.draft_dirty, false);
+});
+
+test("desktop state rejects malformed server facts before attention mutation", () => {
+  const state = createDesktopState();
+  assert.throws(
+    () => reduceDesktopState(state, { type: "server_fact", fact: fact({ sequence: 0 }) }),
+    /desktop_server_fact_invalid/
+  );
+  assert.throws(
+    () => reduceDesktopState(state, { type: "server_fact", fact: fact({ status: "running" }) }),
+    /desktop_server_fact_invalid/
+  );
 });
 
 test("notification bridge accepts only bound server facts and fixed redacted copy", () => {
