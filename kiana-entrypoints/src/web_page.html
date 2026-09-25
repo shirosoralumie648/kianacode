@@ -287,6 +287,20 @@
         });
       }).catch(() => {});
     }
+    function rememberDesktopServerReference(session, cursor) {
+      if (!window.kianaDesktop || typeof session !== 'string' || !cursor || !cursor.epoch ||
+          !Number.isSafeInteger(cursor.sequence) || cursor.sequence < 0) return;
+      desktopNotificationBinding().then(workspaceBindingDigest => {
+        if (!workspaceBindingDigest) return null;
+        return window.kianaDesktop.rememberServerReference({
+          schema: 'kiana.desktop-session-reference.v1', source: 'server',
+          workspace_binding_digest: workspaceBindingDigest, session_id: session,
+          // The server binding is an opaque scope fence; the desktop never stores the Web token.
+          scope_digest: workspaceBindingDigest,
+          cursor: { epoch: cursor.epoch, sequence: cursor.sequence }, draft_policy: 'restore_prompt'
+        });
+      }).catch(() => {});
+    }
 
     // UI-20 keeps the Web timeline as a bounded presentation projection.  The server's explicit
     // item kind is the only discriminator; title/body text is never parsed to guess a kind.
@@ -372,6 +386,10 @@
         session_id: envelope.session_id,
         tab_id: tabOwnerId,
         generated_at_unix_ms: envelope.generated_at_unix_ms || 0
+      });
+      rememberDesktopServerReference(snapshot.session_id, {
+        epoch: envelope.epoch,
+        sequence: envelope.snapshot_cursor || 0
       });
       while (hydrateCache.size > MAX_HYDRATE_CACHE) hydrateCache.delete(hydrateCache.keys().next().value);
       const turns = snapshot.thread && snapshot.thread.turns || [];
@@ -1076,6 +1094,10 @@
       const terminal = envelope.event;
       if (!terminal || terminal.type !== 'terminal' || terminal.run_id !== streamRunId) return;
       streamTerminal = terminal.response || {};
+      rememberDesktopServerReference(sessionId, {
+        epoch: envelope.epoch,
+        sequence: envelope.sequence
+      });
       streamComplete = false;
       const status = streamTerminal.status || 'unknown';
       notifyDesktopServerFact('terminal', envelope, status);

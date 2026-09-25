@@ -1,0 +1,56 @@
+name: UI-27 Desktop secure persistence and detach
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/desktop-persistence.js"
+      - "contrib/desktop/tests/fixtures/ui27-persistence.json"
+      - "contrib/desktop/tests/ui27_persistence.test.js"
+      - "docs/roadmap/ui27-desktop-persistence-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui27-desktop-persistence.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/desktop-persistence.js"
+      - "contrib/desktop/tests/fixtures/ui27-persistence.json"
+      - "contrib/desktop/tests/ui27_persistence.test.js"
+      - "docs/roadmap/ui27-desktop-persistence-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui27-desktop-persistence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui27-desktop-persistence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check persistence sources and fixture
+        run: |
+          node --check contrib/desktop/lib/desktop-persistence.js
+          node --check contrib/desktop/main.js
+          node --check contrib/desktop/tests/ui27_persistence.test.js
+          node -e 'JSON.parse(require("fs").readFileSync("contrib/desktop/tests/fixtures/ui27-persistence.json", "utf8"))'
+      - name: Run deny-first persistence and detach contract
+        run: node --test contrib/desktop/tests/ui27_persistence.test.js
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Run Web entrypoint regression fixture
+        run: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

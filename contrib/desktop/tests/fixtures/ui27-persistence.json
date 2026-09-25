@@ -1,0 +1,26 @@
+{
+  "schema": "kiana.desktop-persistence-fixture.v1",
+  "accepted": [
+    "versioned metadata-only desktop store",
+    "atomic 0600 store replacement",
+    "bounded layout and draft policy",
+    "instance/session/cursor references without bearer material",
+    "reattach requires a new handshake and drops cursor submission"
+  ],
+  "denied": [
+    "access token, refresh token, secret or credential in desktop store",
+    "unknown store field or schema migration",
+    "workspace reference digest drift",
+    "symlinked or oversized store",
+    "old epoch cursor submitted directly after detach",
+    "layout restore implicitly launch, resume, approve or trust",
+    "private artifact bytes cached without a bounded TTL"
+  ],
+  "draft_policies": ["discard", "restore_prompt"],
+  "reattach": {
+    "requires_new_handshake": true,
+    "auto_resume": false,
+    "auto_approve": false,
+    "auto_trust": false
+  }
+}

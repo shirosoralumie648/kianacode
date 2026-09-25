@@ -13,6 +13,7 @@ const IPC_CHANNELS = Object.freeze({
   newProject: "workspace:new",
   continue: "workspace:continue",
   notification: "desktop:notification",
+  reference: "desktop:reference",
 });
 
 let bridgeSession = null;
@@ -42,7 +43,7 @@ async function establishSession() {
   return bridgeSession;
 }
 
-function invokeIntent(channel, fact = undefined) {
+function invokeIntent(channel, payload = undefined, payloadKey = "fact") {
   // Electron preserves invoke ordering, but serializing here makes the nonce
   // monotonic even when two UI buttons are clicked in the same task turn.
   requestChain = requestChain.then(async () => {
@@ -54,7 +55,7 @@ function invokeIntent(channel, fact = undefined) {
       nonce,
       workspace_binding: session.workspaceBinding,
     };
-    if (fact !== undefined) envelope.fact = fact;
+    if (payload !== undefined) envelope[payloadKey] = payload;
     const result = await ipcRenderer.invoke(channel, envelope);
     session.nonce = nonce;
     return result;
@@ -68,4 +69,5 @@ contextBridge.exposeInMainWorld("kianaDesktop", {
   newProject: () => invokeIntent(IPC_CHANNELS.newProject),
   continueLast: () => invokeIntent(IPC_CHANNELS.continue),
   notifyServerFact: fact => invokeIntent(IPC_CHANNELS.notification, fact),
+  rememberServerReference: reference => invokeIntent(IPC_CHANNELS.reference, reference, "reference"),
 });
