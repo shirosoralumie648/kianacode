@@ -25,7 +25,7 @@ approval/company/failure/feedback dispatch and final policy/CAS checks.
 
 | Surface | Contract | Deny-first behavior |
 |---|---|---|
-| protocol | `UiHumanInboxV1`, `UiHumanActionCardV1`, `UiHumanActionIntentV1` | schema, digest, bounds, duplicate item/action and unknown top-level fields fail closed |
+| protocol | `UiHumanInboxV1`, `UiHumanActionCardV1`, `UiHumanActionIntentV1` | schema, digest, bounds, tuple-safe duplicate item/action identity and unknown top-level fields fail closed |
 | ControlPlane | `human.resolve` payload/revision recheck | supplied card payload digest and expected revision are compared with the authoritative action before approval/company/failure dispatch |
 | client | `WebHumanInbox::replace/prepare_intent` | duplicate card, observer/owner mismatch, expired/revoked card, stale inbox/card revision, missing/hidden field and oversized form are rejected before an intent exists |
 | Web server | `annotate_human_inbox_response`, `validate_human_action_command` | action metadata is additive/read-only; malformed or forged intent is rejected before idempotency claim and then forwarded only through existing command path |

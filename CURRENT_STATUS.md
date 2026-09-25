@@ -711,6 +711,28 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: overflow item is deferred until hydrate/history pagination; no browser screenshot/golden, long-stream timing, cross-process cache, provider or physical proof
 reviewer: Codex UI-20 source review; checked typed kind mapping, text-only DOM rendering, stable IDs, protected-item retention and hard overflow behavior; no local runtime test reviewer
 ```
+
+### UI-21 Human Inbox identity evidence (2026-09-26)
+
+```text
+source_snapshot: base `696df840` plus UI-21 Inbox identity slice; `kiana-protocol/src/ui_contracts.rs`; `kiana-client/src/web_inbox.rs`; `kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json`; `kiana-entrypoints/tests/ui21_web_human_inbox.rs`; UI-21 baseline/roadmap overlays
+worktree_status: protocol validation now deduplicates exact `(item_id, action_id)` tuples; client BTreeMap key length-delimits `item_id`, preserving distinct opaque IDs containing colons; no approval, actor, scope or execution authority changed
+command_argv:
+  rustfmt --edition 2021 kiana-protocol/src/ui_contracts.rs kiana-client/src/web_inbox.rs kiana-entrypoints/tests/ui21_web_human_inbox.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test ui21_human_inbox_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `colon_delimited_identity_collision` source fixture; expiry/revocation/revision/owner/hidden-field/digest/Unknown cases remain; no provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-21 card identity no longer conflates distinct colon-containing opaque IDs; card remains 🔄 pending CI evidence and browser/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source markers cover tuple/key construction but no browser E2E, HTTP race, durable inbox, approval identity or provider/Broker effect proof
+reviewer: Codex UI-21 source review; checked tuple-safe protocol identity, client key isolation and unchanged server-owned approval boundary; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

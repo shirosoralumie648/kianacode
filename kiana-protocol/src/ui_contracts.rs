@@ -1147,7 +1147,7 @@ impl UiHumanInboxV1 {
         let mut ids = BTreeSet::new();
         for item in &self.items {
             item.validate()?;
-            if !ids.insert(format!("{}:{}", item.item_id, item.action_id)) {
+            if !ids.insert((item.item_id.as_str(), item.action_id.as_str())) {
                 return Err("ui_human_inbox_duplicate".to_owned());
             }
         }

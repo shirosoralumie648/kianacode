@@ -13,6 +13,7 @@
   ],
   "deny_first": [
     "duplicate_card",
+    "colon_delimited_identity_collision",
     "expired_approval",
     "revoked_approval",
     "stale_inbox_revision",
