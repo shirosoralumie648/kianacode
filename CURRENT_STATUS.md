@@ -12753,6 +12753,28 @@ status change: `P4-J7-28` shared provider selection/diagnostic source contracts,
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no live CLI/Workbench/Web/Desktop transport integration, no durable cross-process diagnostic checkpoint, no real gateway connection test, no provider invoice truth, no live model effect or physical capability proof; existing catalog/smoke handlers still require explicit migration to this DTO and the current ControlPlane/ProviderGateway admission path
 reviewer: Codex source review of shared catalog/config snapshot, secret-free/actionable diagnostics, explicit connection-test gate, authority/config epoch fencing, cursor-gap recovery, terminal replay and no-second-request boundary; no local runtime test reviewer
+
+### P4-J7-28 cursor gap and zero-sequence fence evidence (2026-09-26)
+
+```text
+source_snapshot: base `d5e786ab` plus P4-J7-28 cursor-fence slice; `kiana-client/src/provider_diagnostics.rs`; `kiana-client/tests/p4_j7_28_provider_diagnostics.rs`; `kiana-domain/src/provider_diagnostics.rs`; domain fixture, Core guard, workflow and baseline overlays
+worktree_status: diagnostics cursor rejects sequence zero; client reconnect now requires the exact expected sequence and clears stale projection on either older or future gap; no provider request or UI action retry added
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/provider_diagnostics.rs kiana-client/tests/p4_j7_28_provider_diagnostics.rs kiana-domain/src/provider_diagnostics.rs kiana-domain/tests/p4_j7_28_provider_diagnostics.rs kiana-core/tests/p4_j7_28_provider_diagnostics_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-domain --test p4_j7_28_provider_diagnostics --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_28_provider_diagnostics_guard --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-client --test p4_j7_28_provider_diagnostics --locked -- --test-threads=1
+  GitHub Actions: cargo check -p kiana-client -p kiana-core -p kiana-protocol --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only zero cursor rejection, future-sequence gap rejection, old projection clearing and no second model request boundary; no provider/network route opened
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: P4-J7-28 now treats both skipped and replayed cursor sequences as gaps and rejects zero cursors; card remains 🔄 because live multi-surface transport, durable projection checkpoint and CI evidence remain open
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: only typed projection/client state is covered; no browser/TTY/Desktop transport, durable cross-process cursor store, real connection test, provider invoice, live model or physical capability proof is claimed
+reviewer: Codex source review of exact cursor continuity, zero-sequence denial, projection clearing and no-retry behavior; no local runtime test reviewer
+```
 ### P4-J7-29 provider offline contract matrix and fault corpus (2026-09-26)
 
 source_snapshot: `050bf89b` plus P4-J7-29 source slice; `kiana-domain/src/{provider_contracts,lib}.rs`; `kiana-provider/src/{response,lib,config}.rs`; `kiana-provider/tests/{provider_contract,provider_streaming,provider_retry}.rs`; `kiana-provider/fixtures/provider/p4-j7-29-cassette.json`; `kiana-core/tests/p4_j7_29_provider_contract_guard.rs`; `.github/workflows/p4-j7-29-provider-contract.yml`; `docs/roadmap/p4-j7-29-provider-contract-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`

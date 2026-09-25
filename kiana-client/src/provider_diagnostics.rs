@@ -82,7 +82,7 @@ impl ProviderDiagnosticsClientState {
                     ProviderDiagnosticsClientError::Invalid(reason)
                 }
             })?;
-        if expected_sequence.is_some_and(|sequence| snapshot.cursor.sequence < sequence) {
+        if expected_sequence.is_some_and(|sequence| snapshot.cursor.sequence != sequence) {
             self.snapshot = None;
             self.cursor = None;
             return Err(ProviderDiagnosticsClientError::CursorGap);

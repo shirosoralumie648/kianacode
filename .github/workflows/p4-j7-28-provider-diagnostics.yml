@@ -11,6 +11,7 @@ on:
       - "kiana-protocol/src/lib.rs"
       - "kiana-client/src/provider_diagnostics.rs"
       - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/p4_j7_28_provider_diagnostics.rs"
       - "kiana-entrypoints/src/provider_diagnostics.rs"
       - "kiana-core/src/provider_diagnostics.rs"
       - "kiana-core/src/lib.rs"
@@ -29,6 +30,7 @@ on:
       - "kiana-protocol/src/lib.rs"
       - "kiana-client/src/provider_diagnostics.rs"
       - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/p4_j7_28_provider_diagnostics.rs"
       - "kiana-entrypoints/src/provider_diagnostics.rs"
       - "kiana-core/src/provider_diagnostics.rs"
       - "kiana-core/src/lib.rs"
@@ -56,5 +58,7 @@ jobs:
         run: cargo test -p kiana-domain --test p4_j7_28_provider_diagnostics --locked -- --test-threads=1
       - name: Run provider diagnostics source guard
         run: cargo test -p kiana-core --test p4_j7_28_provider_diagnostics_guard --locked -- --test-threads=1
+      - name: Run provider diagnostics client cursor fixtures
+        run: cargo test -p kiana-client --test p4_j7_28_provider_diagnostics --locked -- --test-threads=1
       - name: Compile provider diagnostics clients and projection
         run: cargo check -p kiana-client -p kiana-core -p kiana-entrypoints -p kiana-protocol --tests --locked

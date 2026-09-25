@@ -52,6 +52,8 @@ fn provider_diagnostics_projection_is_server_owned_and_deny_first() {
     assert!(entrypoint.contains("render_provider_diagnostics"));
     assert!(entrypoint.contains("render_provider_terminal_replay"));
     assert!(client.contains("CursorGap"));
+    assert!(client.contains("snapshot.cursor.sequence != sequence"));
+    assert!(domain.contains("self.sequence == 0"));
     assert!(core.contains("StaleEpoch"));
     assert!(core.contains("terminal"));
 
