@@ -184,7 +184,8 @@ impl LiveAcpSession {
 
     pub fn install_feed_handler(&mut self) -> Result<(), LiveAcpError> {
         self.adapter.install_feed_handler()?;
-        if self.session.is_some() {
+        if self.session.is_some() && self.adapter.connection_state() == AcpConnectionState::Attached
+        {
             self.state = LiveAcpState::Attached;
         }
         Ok(())

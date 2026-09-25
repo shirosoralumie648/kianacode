@@ -136,6 +136,8 @@ pub enum AcpAdapterError {
     EpochMismatch,
     #[error("acp_feed_handler_required")]
     FeedHandlerRequired,
+    #[error("acp_reconcile_required")]
+    ReconcileRequired,
     #[error("acp_update_after_terminal")]
     UpdateAfterTerminal,
     #[error("acp_permission_unknown")]
@@ -257,7 +259,7 @@ impl AcpSessionAdapter {
     pub fn install_feed_handler(&mut self) -> Result<(), AcpAdapterError> {
         self.require_initialized()?;
         self.handler_installed = true;
-        if self.session_id.is_some() {
+        if self.session_id.is_some() && self.connection != AcpConnectionState::Degraded {
             self.connection = AcpConnectionState::Attached;
         }
         Ok(())
@@ -402,6 +404,12 @@ impl AcpSessionAdapter {
     ) -> Result<AcpUpdateDisposition, AcpAdapterError> {
         self.require_initialized()?;
         if !self.handler_installed {
+            return Err(AcpAdapterError::FeedHandlerRequired);
+        }
+        if self.connection == AcpConnectionState::Degraded {
+            return Err(AcpAdapterError::ReconcileRequired);
+        }
+        if self.connection != AcpConnectionState::Attached {
             return Err(AcpAdapterError::FeedHandlerRequired);
         }
         frame

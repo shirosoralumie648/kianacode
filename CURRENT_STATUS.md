@@ -56,6 +56,19 @@ proof-level change: `feature_status=implemented`（bounded client/source preflig
 limitations: 未执行真实 ACP/IDE host、socket/stdio transport、workspace attach、permission timeout、external receipt、provider/connector、browser/PTY/Electron、跨进程 recovery 或 live/physical proof；`LiveAcpSession` 不自升 Verified，CI 结果未等待
 reviewer: Codex UI-39 source review；检查 explicit opt-in、fixed protocol/host/workspace/approval/redaction/local transport、delegated capability、initialize/session/prompt/update/permission/cancel/reconnect、Unknown/reconcile、no external process/network/effect 与 no second execution loop；无本地 runtime/live reviewer
 
+### UI-39 feed-gap reconcile fence（2026-09-26）
+
+source_snapshot: `e09f72f6`（UI-38 digest fence 已合并 master 基线）加 UI-39 feed-gap recovery source slice；`kiana-client/src/{acp.rs,live_acp.rs}`；`kiana-client/tests/{fixtures/ui39-live-acp-opt-in.json,ui39_live_acp_opt_in.rs}`；`docs/roadmap/ui39-live-acp-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui-39-feed-gap-fence-20260926`; ACP gap/disconnect 保持 `Degraded`，handler 重装不会清除 reconcile fence，feed update 在显式 `resume_session` 前返回 `acp_reconcile_required`；不打开 socket、不 spawn、不接 provider/Broker、不 mint permit、不执行 host capability
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui39_live_acp_opt_in --locked -- --test-threads=1`、既有 UI-39 protocol/core guards 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/live host；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui39-live-acp-opt-in.json` 与 `ui39_live_acp_opt_in.rs` 新增 gap→handler reinstall→resume deny/recovery fixture；无真实 ACP socket/stdio host、credential/provider/Broker 或 physical effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 client/protocol/core fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-39 ACP adapter 现在要求 feed gap/disconnect 后显式 session resume 才能恢复 attached/update，补齐 live boundary baseline、fixture 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（bounded ACP recovery source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实 ACP/IDE host、socket/stdio transport、workspace attach、permission timeout、external receipt、provider/connector、browser/PTY/Electron、跨进程 recovery 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-39 source review；检查 gap/disconnect handler reinstall、explicit resume、Unknown/reconcile and no direct effect；无本地 runtime/live reviewer
+
 ### UI-40 发布门与证据收口（2026-09-25）
 
 source_snapshot: `75a39e30`（UI-39 已推送 master 基线）加 UI-40 release/evidence gate source slice；`scripts/verify-ui40-release-evidence.sh`; `scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui40-release-gate.yml`; `kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui40_release_evidence.rs`; `kiana-core/tests/{ui39_live_acp_guard.rs,ui40_release_gate_guard.rs}`; `kiana-client/tests/{ui31_surface_parity.rs,ui33_recovery.rs,ui34_resource_budget.rs,ui38_conformance.rs,ui39_live_acp_opt_in.rs}`; `docs/roadmap/ui40-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

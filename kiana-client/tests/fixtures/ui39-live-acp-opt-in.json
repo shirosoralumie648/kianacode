@@ -9,6 +9,7 @@
     "missing opt-in or operator approval",
     "remote transport, raw credential or unredacted host payload",
     "protocol/host version drift, direct host effect or capability delegation failure",
-    "feed gap, disconnect or late host result without server reconciliation"
+    "feed gap, disconnect or late host result without server reconciliation",
+    "clearing a feed gap by reinstalling a handler without resume"
   ]
 }
