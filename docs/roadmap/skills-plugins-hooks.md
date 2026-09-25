@@ -384,9 +384,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-29 · 本地 fake golden　⏳
+#### EXT-29 · 本地 fake golden　🔄
 
 用固定 fixture 覆盖可信/不可信项目 Skill、同名 Skill、路径资源、预算超限、Hook block/ask/update/timeout/cancel、签名包 install/upgrade/revoke、依赖环、MCP connector deny、五入口同一 snapshot。golden trace 至少包含输入、snapshot digest、policy/gate、Hook outcome、最终 capability request、Broker result 和 receipt；先跑 deny，再跑 allow。
+
+当前 source slice 与 CI-only 验收见 [`ext29-extension-golden-baseline.md`](ext29-extension-golden-baseline.md)。新增只读 `ExtensionGoldenMatrix`，覆盖上述 deny/allow/unknown 场景、Hook update 的最终输入重验、签名 registry mutation、capability/Broker/Receipt 关联和 CLI/Workbench/Web/Desktop/MCP 五入口 snapshot digest；fixture 不加载或执行扩展，EXT-29 保持 🔄 直到 GitHub fixtures 和真实 ControlPlane/适配器行为证据完成。
 
 <a id="step-ext-30"></a>
 
