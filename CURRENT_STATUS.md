@@ -13067,4 +13067,17 @@ status_change: UI-25 structured stdout + workspace sidecar + health identity att
 proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: sidecar and loopback health are attach metadata, not authorization or PID start-time proof; no real Electron/Chromium, cross-platform OS process-tree, PID reuse race, stale-lock recovery, port contention, duplicate-window, crash/restart, upgrade compatibility, cross-restart durability or physical process e2e evidence; CI result intentionally unobserved
 reviewer: UI-25 source-level review by implementation agent and Codex parent; checked exact child stdout schema/nonce/PID/workspace/loopback, sidecar path/file/digest/protocol/endpoint binding, health feed and leased identity, deny-before-window-load ordering, no stderr URL discovery, process-group stop/unconfirmed handling, no automatic resume and reuse of existing DaemonHost → ControlPlane path; no local runtime test reviewer
+
+### UI-33 recovery CI path rerun (2026-09-26)
+
+source_snapshot: `3701623d` plus UI-33 CI-boundary rerun; `kiana-client/src/ui_recovery.rs`; `kiana-client/tests/{fixtures/ui33-recovery.json,ui33_recovery.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui33-recovery-contract.yml`; `docs/roadmap/ui33-recovery-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-33-ci-rerun-20260926`; existing read-only RecoveryPlan/RecoveryFence contract unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no reconnect, daemon restart, browser/PTY/Electron/ACP, EventLog projector, provider/Broker or external effect added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-33 original-command query, hydrate/replay/Unknown, duplicate/gap/old-epoch/late-terminal and no-new-effect fixtures; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-33 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real reconnect/durable evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real browser/PTY/Electron/ACP reconnect, daemon kill/restart, durable EventLog projector, cross-process command query/effect counter, provider/Broker/external effect or live/physical recovery
+reviewer: Codex UI-33 path-filter rerun review; no local runtime test reviewer
 ```
