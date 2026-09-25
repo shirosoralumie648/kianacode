@@ -14,3 +14,6 @@ live or physical proof.
 The closeout remains partial until CM-33–37 and the durable/live evidence exist. This baseline is
 the honest handoff: no undocumented provider, no cross-process recovery claim, no physical effect
 claim, and no “skip means pass” interpretation.
+The workflow path filter also includes current CM-36 `kiana-domain/src/memory_workbench.rs`, so a
+fresh remote format/source-guard run covers the repository-wide fmt dependency; that result is
+pending/unobserved.
