@@ -1,0 +1,47 @@
+name: NM-13 notification stream bridge
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/notification_stream.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/nm13_notification_stream.rs"
+      - "kiana-daemon/tests/nm13_notification_stream_guard.rs"
+      - "kiana-daemon/tests/fixtures/nm13-notification-stream.json"
+      - "docs/roadmap/nm13-notification-stream-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm13-notification-stream.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/notification_stream.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/nm13_notification_stream.rs"
+      - "kiana-daemon/tests/nm13_notification_stream_guard.rs"
+      - "kiana-daemon/tests/fixtures/nm13-notification-stream.json"
+      - "docs/roadmap/nm13-notification-stream-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm13-notification-stream.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-stream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run notification stream fixtures
+        run: cargo test -p kiana-daemon --test nm13_notification_stream --locked -- --test-threads=1
+      - name: Run notification stream source guard
+        run: cargo test -p kiana-daemon --test nm13_notification_stream_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

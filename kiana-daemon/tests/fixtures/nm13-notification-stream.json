@@ -1,0 +1,13 @@
+{
+  "schema": "kiana.notification-stream-fixture.v1",
+  "accepted": [
+    "existing RunStreamFeedSubscription is consumed snapshot-first",
+    "after cursor keeps instance/epoch/feed/source cursor identity",
+    "heartbeat and terminal frames remain visible and bounded"
+  ],
+  "denied": [
+    "delta before snapshot boundary, old epoch, instance drift or sequence gap",
+    "lagged/replay-expired gap treated as completed",
+    "late terminal update, disposed subscription, second broadcast bus or direct effect"
+  ]
+}

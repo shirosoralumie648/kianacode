@@ -134,6 +134,19 @@ proof-level change: `feature_status=implemented`（append-only lifecycle source 
 limitations: projector 仍为进程内可重建 projection，不证明 durable checkpoint、retention store、legal hold/PD-24..26 propagation、artifact/memory/index deletion、HumanTask action、provider/connector/external/live/physical effect；CI 结果未等待
 reviewer: Codex NM-12 source review；检查 lifecycle fact digest/event/cursor/epoch/reason, exact replay, terminal rewrite/epoch regression, materializer clone/rebuild, source history preservation and no authority/effect/no second loop；无本地 runtime test reviewer
 
+### NM-13 run stream/notification bridge（2026-09-25）
+
+source_snapshot: `ecddc8ec`（NM-12 已合并 master 基线）加 NM-13 stream bridge source slice；`kiana-daemon/src/{notification_stream.rs,run_stream.rs,lib.rs}`；`kiana-daemon/tests/{nm13_notification_stream.rs,nm13_notification_stream_guard.rs,fixtures/nm13-notification-stream.json}`；`.github/workflows/nm13-notification-stream.yml`; `docs/roadmap/nm13-notification-stream-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm13-notification-stream-20260925`;新增 `NotificationStreamBridge`，只消费现有 daemon `RunStreamFeedSubscription` 的 `UiFeedFrameV1`，维护 run/instance/epoch/feed/source cursor；snapshot boundary 前 delta、old epoch/instance、sequence/replay gap 返回 SnapshotRequired，heartbeat/terminal/disposed 显式保留；不创建第二 broadcast bus、不 spawn、不调用 Broker/channel
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-daemon --test nm13_notification_stream --locked -- --test-threads=1`、`cargo test -p kiana-daemon --test nm13_notification_stream_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm13-notification-stream.json`、bridge/run_stream source guards；snapshot-first, after cursor, heartbeat, terminal, disposed, old epoch/instance, sequence/replay gap and no-second-bus/no-effect deny；无真实 browser/SSE/CLI/Desktop subscriber、跨进程 recovery、notification action/provider/external/live effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 daemon stream fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-13 run stream notification bridge、snapshot/gap/epoch/cursor/heartbeat/disposed contract、CI fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（existing RunStream adapter bridge source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: bridge 不证明 durable notification bus、跨进程 subscriber、Web/SSE/CLI/TTY/Desktop wiring、action reconcile、provider/connector/channel external ACK 或 live/physical delivery；CI 结果未等待
+reviewer: Codex NM-13 source review；检查 reuse existing RunStreamBus/FeedSubscription、snapshot-first/gap/old epoch/sequence fence、heartbeat/terminal/disposed visibility、no second bus/no spawn/no Broker/no retry/no second loop；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
