@@ -1,0 +1,24 @@
+{
+  "schema": "kiana.external-notification-admission.v1",
+  "policy": "default_off",
+  "transports": ["webhook", "a2a"],
+  "deny_first": [
+    "disabled_by_default",
+    "wrong_https_origin",
+    "origin_not_allowlisted",
+    "nonce_replay_or_mismatch",
+    "authority_epoch_drift",
+    "data_epoch_drift",
+    "expired_envelope",
+    "signature_or_payload_digest_drift",
+    "unknown_provider_receipt_is_reconcile",
+    "receipt_binding_mismatch",
+    "direct_network_effect"
+  ],
+  "accepted": [
+    "explicit_connector_handoff_only",
+    "acknowledged_receipt_observation",
+    "rejected_receipt_observation"
+  ],
+  "proof_ceiling": "source"
+}
