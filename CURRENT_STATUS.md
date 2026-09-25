@@ -69,6 +69,19 @@ proof-level change: `feature_status=implemented`（handoff/source guard + CI wir
 limitations: 未证明任何 runtime UAT、跨进程 durable recovery、真实 browser/PTY/Electron/ACP host、scale/performance/accessibility、provider/connector/live/physical effect、签名发布或外部 receipt；UI-41 明确交接和缺口，不是整体完成证明；CI 结果未等待
 reviewer: Codex UI-41 source/handoff review；检查 UI-38/39/40 evidence linkage、分类与 proof 分离、reviewer/source/receipt/limitation/next-action 完整性、无 blanket completion、无第二执行循环；无本地 runtime/release reviewer
 
+### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
+
+source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm08-notification-outbox-20260925`;新增 versioned outbox record/lease token/authority epoch/attempt fence、pending→claimed→submitted→ack/failed/unknown 状态、receipt/digest/identity CAS、过期 pre-submit reclaim；`MemoryNotificationOutboxStore` 只提供进程内 CI semantics；`NotificationDeliveryWorker` 只产生 Claim/Dispatch/AwaitReceipt/Reclaim/Reconcile/Terminal plan，不调用 Broker/channel/provider，不 spawn 第二 loop
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-eventlog --test nm08_notification_outbox --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm08_delivery_worker_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm08-notification-outbox.json`、outbox fixture/source guard；claim/lease/stale worker/reclaim/submit/receipt/Unknown/reconcile/direct-effect deny；无真实 durable JSONL/SQLite、restart/cross-process lock、shutdown drain、channel/provider/OS/Web delivery 或 external ACK
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 outbox fixture、worker guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-08 outbox/lease/fence/receipt source contracts、memory CI adapter、worker plan/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded outbox source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 内存 adapter 不证明 durable/restart/cross-process CAS；submitted expired 只生成 Unknown/reconcile plan，不自动 retry；未实现真实 shutdown drain、NotificationStore/query/page、in-app/Web/Desktop/OS channel、external receipt/provider/connector 或 physical/live delivery；CI 结果未等待
+reviewer: Codex NM-08 source review；检查 outbox identity/content/attempt/revision/lease token/authority epoch/expiry/receipt fence、stale worker/reclaim/Unknown ordering、worker no-effect/no-second-loop 与 memory-only proof ceiling；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
