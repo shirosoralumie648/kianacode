@@ -908,6 +908,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: adapter remains transport-free and process-local; no real ACP peer, IDE/editor/terminal host, cross-process lease, provider/Broker or physical proof
 reviewer: Codex UI-29 source review; checked listener-before-action, owner/epoch, permission expiry, replay/gap and no execution authority; no local runtime reviewer
 ```
+
+### UI-30 IDE relative-path evidence (2026-09-26)
+
+```text
+source_snapshot: base `d1d627be` plus UI-30 IDE capability slice; `kiana-client/src/ide_capability.rs`; `kiana-client/tests/fixtures/ui30-ide-capability.json`; `kiana-client/tests/ui30_ide_capability.rs`; UI-30 baseline/roadmap overlays
+worktree_status: relative path validation now rejects `.`, `..` and empty components before query/action intent creation; workspace/path/revision/permit and no-spawn boundaries remain unchanged
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/ide_capability.rs kiana-client/tests/ui30_ide_capability.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui30_ide_capability --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `dot path component` denial plus absolute/parent/scope/revision/permit/output/no-spawn cases; no filesystem/terminal/provider/Broker effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; IDE fixtures and workspace compile pending/unobserved
+status change: UI-30 alternate relative path spellings can no longer reach a query/action intent with a mismatched normalization boundary; card remains 🔄 pending CI and live IDE proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no real IDE host, filesystem TOCTOU store, terminal process, permit mint/consume, provider/Broker or physical proof
+reviewer: Codex UI-30 source review; checked relative path components, scope/revision/permit binding and no direct effect boundary; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

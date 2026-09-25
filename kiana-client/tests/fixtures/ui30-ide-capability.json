@@ -8,6 +8,7 @@
   ],
   "denied": [
     "absolute, parent escaping or empty path",
+    "dot path component",
     "remote workspace scope mixed into local workspace",
     "old revision or path digest applied",
     "expired, wrong-owner or effect-disabled permit",

@@ -289,7 +289,7 @@ fn relative_path(value: &str) -> Result<(), IdeCapabilityError> {
         || value.starts_with('\\')
         || value
             .split(['/', '\\'])
-            .any(|part| part == ".." || part.is_empty())
+            .any(|part| part == "." || part == ".." || part.is_empty())
     {
         return Err(IdeCapabilityError::PathInvalid);
     }
