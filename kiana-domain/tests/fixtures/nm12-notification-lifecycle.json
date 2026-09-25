@@ -1,0 +1,12 @@
+{
+  "schema": "kiana.notification-lifecycle-fixture.v1",
+  "accepted": [
+    "withdraw/expire/supersede facts bind source event, cursor, data epoch and digest",
+    "rebuild folds exact replay and hides only lifecycle-marked projection items"
+  ],
+  "denied": [
+    "delete source history or rewrite a terminal withdraw/supersede fact",
+    "retention epoch/cursor regression or missing replacement/reason",
+    "payload/artifact/approval metadata confused with notification lifecycle fact"
+  ]
+}
