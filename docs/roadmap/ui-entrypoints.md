@@ -764,13 +764,18 @@ EventLog、不自行 retry、不启动第二执行循环。
 
 
 
-#### UI-36 · 生产构建、安装和发布前 smoke　⏳
+#### UI-36 · 生产构建、安装和发布前 smoke　🔄
 
 - 依赖：UI-28/34/35。代码：Web static build、Electron artifact、CLI distribution scripts。
 - 步骤：执行 clean/offline 构建、版本/asset/schema 检查、loopback launch、桌面 attach、CLI pipe、Workbench smoke；确保日志和包不含 secret。
 - 先拒绝：构建引用工作树绝对路径、未锁依赖、旧 protocol、Electron 远程导航、安装后默认 trust/resume。
 - 成功/回归：空目录安装、升级/回滚、无网络、权限不足、端口占用、daemon crash；每个失败有诊断和退出码。
 - 完成产物：构建 manifest、安装 smoke 回执、artifact hash 和已知限制。
+
+实现基线：[`ui36-release-gate-baseline.md`](ui36-release-gate-baseline.md)。当前 source slice 新增
+GitHub-only `scripts/verify-ui36-release-gate.sh`：非 CI 环境 fail-closed 为 `remote_ci_required`，
+CI 才执行 desktop asset manifest、Cargo.lock/format、`cargo build --bin kiana --locked` 和 package/
+script secret marker scan；脚本不安装、信任、resume、approve、启动第二 loop 或直接调用 Broker。
 
 <a id="step-ui-37"></a>
 
