@@ -4,6 +4,8 @@ const DESKTOP_STATE_SCHEMA = "kiana.desktop-state.v1";
 const MAX_WORKSPACE_BYTES = 4096;
 const MAX_NOTIFICATION_IDS = 256;
 const MAX_NOTIFICATION_ID_BYTES = 256;
+const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const TERMINAL_STATUSES = new Set(["completed", "cancelled", "failed", "unknown", "result_unknown"]);
 
 function boundedString(value, maxBytes, reason) {
   if (typeof value !== "string" || value.length === 0 || Buffer.byteLength(value, "utf8") > maxBytes) {
@@ -48,7 +50,12 @@ function isNotificationFact(fact) {
     typeof fact.notification_id === "string" &&
     fact.notification_id.length > 0 &&
     Buffer.byteLength(fact.notification_id, "utf8") <= MAX_NOTIFICATION_ID_BYTES &&
-    (fact.kind === "approval" || fact.kind === "terminal")
+    typeof fact.workspace_binding_digest === "string" &&
+    DIGEST_PATTERN.test(fact.workspace_binding_digest) &&
+    typeof fact.feed_epoch === "string" && fact.feed_epoch.length > 0 && fact.feed_epoch.length <= 256 &&
+    Number.isSafeInteger(fact.sequence) && fact.sequence >= 1 &&
+    ((fact.kind === "approval" && fact.status === "pending") ||
+      (fact.kind === "terminal" && TERMINAL_STATUSES.has(fact.status)))
   );
 }
 
@@ -75,6 +82,7 @@ function reduceDesktopState(previous, event) {
       next.instance = null;
       next.observed = { pending_count: 0, unknown_count: 0 };
       next.seen_notification_ids = [];
+      next.draft_dirty = false;
       break;
     case "worker_ready":
       next.lifecycle = "ready";

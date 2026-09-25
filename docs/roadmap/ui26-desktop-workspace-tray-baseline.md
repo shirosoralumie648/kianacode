@@ -7,7 +7,7 @@
 
 `contrib/desktop/lib/desktop-state.js` 提供 `kiana.desktop-state.v1` 的纯 reducer。它只记录
 当前工作区、worker lifecycle、实例 identity、未保存草稿标志，以及由服务端事实触发的有界
-`pending_count`/`unknown_count`。切换工作区会清空旧 workspace 的 attention 和 notification
+`pending_count`/`unknown_count`。切换工作区会清空旧 workspace 的 attention、draft dirty 和 notification
 dedupe 窗口，避免旧窗口/旧 worker 的事实串入新窗口；重复 notification identity 不重复计数。
 
 工作区打开、新建、继续和状态查询仍由已有 `kiana.desktop.intent.v1` typed intent 进入

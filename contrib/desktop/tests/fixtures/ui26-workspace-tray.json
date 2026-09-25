@@ -11,6 +11,8 @@
     "renderer supplied notification body or private content",
     "notification from a different workspace binding",
     "notification with unknown kind, status, epoch or sequence",
+    "workspace switch carries old draft",
+    "malformed server fact mutates attention",
     "notification replay that changes its payload",
     "old workspace notification delivered after a workspace switch",
     "close window implicitly cancel, resume, trust or approve",
