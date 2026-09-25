@@ -641,7 +641,7 @@
 | 468 | W6 | 专项 | [`NM-12`](#step-nm-12) | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | `P2-K7-01`、`NM-04`、`NM-09` | 🔄 | [专项卡](#step-nm-12) · [baseline](roadmap/nm12-notification-lifecycle-baseline.md) |
 | 469 | W6 | 专项 | [`NM-13`](#step-nm-13) | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | `UI-17`、`UI-18`、`NM-04`、`NM-08` | 🔄 | [专项卡](#step-nm-13) · [baseline](roadmap/nm13-notification-stream-baseline.md) |
 | 470 | W6 | 专项 | [`NM-14`](#step-nm-14) | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | `UI-12`、`UI-15`、`NM-09`、`NM-10`、`NM-13` | 🔄 | [专项卡](#step-nm-14) · [baseline](roadmap/nm14-notification-cli-baseline.md) |
-| 471 | W6 | 专项 | [`NM-15`](#step-nm-15) | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | `UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-21`、`NM-09`、`NM-10`、`NM-13` | ⏳ | [专项卡](#step-nm-15) |
+| 471 | W6 | 专项 | [`NM-15`](#step-nm-15) | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | `UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-21`、`NM-09`、`NM-10`、`NM-13` | 🔄 | [专项卡](#step-nm-15) · [baseline](roadmap/nm15-web-notification-baseline.md) |
 | 472 | W6 | 专项 | [`NM-16`](#step-nm-16) | Desktop local notification adapter；OS permission、tray、close/detach | `UI-24`、`UI-25`、`UI-26`、`UI-27`、`NM-15` | ⏳ | [专项卡](#step-nm-16) |
 | 473 | W6 | 专项 | [`EQ-27`](#step-eq-27) | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `EQ-26` | 🔄 | [专项卡](#step-eq-27) |
 | 474 | W6 | 专项 | [`EQ-28`](#step-eq-28) | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `EQ-27` | ⏳ | [专项卡](#step-eq-28) |

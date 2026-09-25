@@ -25,7 +25,8 @@ use futures_util::Stream;
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
     EntryPointKind, ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent,
-    SignalStatus, UiAction, UiCursor, UiInstanceRecord, PROTOCOL_SCHEMA, ROLE_BUILDER,
+    SignalStatus, UiAction, UiCursor, UiFeedCursorV1, UiFeedFrameV1, UiInstanceRecord,
+    PROTOCOL_SCHEMA, ROLE_BUILDER,
 };
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
@@ -99,6 +100,7 @@ const MAX_WEB_SSE_REASON_BYTES: usize = 512;
 /// needed for the loopback EventSource wrapper, but both forms must agree when both are present.
 const MAX_WEB_SSE_CURSOR_BYTES: usize = 256;
 const WEB_SSE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
+const WEB_NOTIFICATION_SSE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const MAX_WEB_ACTION_SUBMISSIONS: usize = 512;
 const WEB_ACTION_SUBMISSION_TTL: Duration = Duration::from_secs(15 * 60);
 
@@ -118,6 +120,8 @@ pub enum WebRouteClass {
     ArtifactDetail,
     Diff,
     Events,
+    Notifications,
+    NotificationEvents,
     Run,
     Cancel,
     Trust,
@@ -200,6 +204,18 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         path: "/api/events",
         method: "GET",
         class: WebRouteClass::Events,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/notifications",
+        method: "GET",
+        class: WebRouteClass::Notifications,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/notifications/events",
+        method: "GET",
+        class: WebRouteClass::NotificationEvents,
         token_required: true,
     },
     WebRouteContract {
@@ -527,6 +543,33 @@ struct EventsQuery {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+struct NotificationQuery {
+    session_id: String,
+    #[serde(default)]
+    after_item_id: Option<String>,
+    #[serde(default = "default_web_notification_page")]
+    limit: u16,
+    #[serde(default)]
+    expected_source_cursor: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct NotificationEventsQuery {
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default)]
+    last_event_id: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
+}
+
+fn default_web_notification_page() -> u16 {
+    30
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct ParityQuery {
     #[serde(default)]
     session_id: Option<String>,
@@ -605,6 +648,19 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (self.status, Json(json!({ "error": self.error }))).into_response()
     }
+}
+
+fn notification_api_error(error: String) -> ApiError {
+    if error.contains("unavailable") || error.contains("unsupported") {
+        return ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            error,
+        };
+    }
+    if error.contains("cursor_stale") || error.contains("scope_mismatch") {
+        return ApiError::conflict(error);
+    }
+    ApiError::fail(error)
 }
 
 /// 解析 Web 参数并启动本地 Web Workbench。
@@ -877,6 +933,8 @@ fn router(app: WebApp) -> Router {
         .route("/api/artifact/detail", get(artifact_detail))
         .route("/api/diff", get(diff_detail))
         .route("/api/events", get(events))
+        .route("/api/notifications", get(notifications))
+        .route("/api/notifications/events", get(notification_events))
         .route("/api/run", post(run_turn))
         .route("/api/cancel", post(cancel_turn))
         .route("/api/trust", post(trust_folder))
@@ -2003,6 +2061,52 @@ async fn history(
     Ok(Json(page))
 }
 
+/// Return a server-scoped notification page.  The page is a disposable projection: item detail
+/// and action arguments are removed before the response leaves this entrypoint, and any action
+/// still has to be re-admitted by the ControlPlane.
+async fn notifications(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<NotificationQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
+    authorize_feed_tab(&app, &session_id, &tab_id)?;
+    if query.limit == 0
+        || usize::from(query.limit) > crate::web_notifications::WEB_NOTIFICATION_MAX_ITEMS
+    {
+        return Err(ApiError::bad("web_notification_page_limit_invalid"));
+    }
+    if query.expected_source_cursor == Some(0) {
+        return Err(ApiError::bad("web_notification_cursor_invalid"));
+    }
+    if let Some(after) = query.after_item_id.as_deref() {
+        validate_web_opaque_id(after, "after_item_id")?;
+    }
+    let page = app
+        .host
+        .notification_page(
+            query.limit,
+            query.after_item_id,
+            query.expected_source_cursor,
+        )
+        .await
+        .map_err(|error| notification_api_error(error.to_string()))?;
+    let page = serde_json::to_value(page)
+        .map_err(|_| ApiError::fail("web_notification_page_encode_failed"))?;
+    let cursor = app.host.ui_cursor();
+    let payload = crate::web_notifications::present_notification_page(
+        &page,
+        &session_id,
+        &tab_id,
+        &app.host.feed_instance_id(),
+        &cursor.epoch,
+    )
+    .map_err(|error| ApiError::fail(error))?;
+    Ok(Json(payload))
+}
+
 async fn artifact(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
@@ -2090,6 +2194,15 @@ struct EventStreamState {
     done: bool,
     shutdown: tokio::sync::watch::Receiver<bool>,
     last_cursor: UiCursor,
+}
+
+struct NotificationEventStreamState {
+    subscription: kiana_daemon::RunStreamFeedSubscription,
+    done: bool,
+    shutdown: tokio::sync::watch::Receiver<bool>,
+    session_id: String,
+    tab_id: String,
+    last_cursor: UiFeedCursorV1,
 }
 
 struct StreamAttachState {
@@ -2216,6 +2329,167 @@ async fn events(
         },
     );
     Ok(Sse::new(Box::pin(stream)).keep_alive(KeepAlive::default()))
+}
+
+/// Notification SSE is a redacted view over the existing versioned feed.  It sends a snapshot
+/// boundary first, carries an encoded server cursor for reconnect, and closes on gap/unknown so
+/// the browser must hydrate `/api/notifications` before observing more deltas.
+async fn notification_events(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<NotificationEventsQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>> + Send + 'static>, ApiError> {
+    authorize_sse(&app, &headers, query.token.as_deref())?;
+    let tab_id = query
+        .tab_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad("web_tab_required"))?;
+    validate_web_tab_id(tab_id)?;
+    let session_id = resolve_feed_session(&app, query.session_id.as_deref()).await?;
+    authorize_feed_tab(&app, &session_id, tab_id)?;
+    let attach = stream_attach_state(&app, &session_id)?;
+    let after = notification_stream_cursor_from_request(&headers, query.last_event_id.as_deref())?;
+    let subscription = app
+        .host
+        .subscribe_run_feed_after(attach.run_id, after.as_ref());
+    let initial_cursor = subscription.cursor().clone();
+    let stream = stream::unfold(
+        NotificationEventStreamState {
+            subscription,
+            done: false,
+            shutdown: app.shutdown.subscribe(),
+            session_id,
+            tab_id: tab_id.to_owned(),
+            last_cursor: initial_cursor,
+        },
+        |mut state| async move {
+            if state.done {
+                return None;
+            }
+            let event = tokio::select! {
+                biased;
+                _ = state.shutdown.changed() => {
+                    state.done = true;
+                    notification_sse_error_event(
+                        &state.last_cursor,
+                        &state.session_id,
+                        &state.tab_id,
+                        "web_shutdown",
+                    )
+                }
+                _ = tokio::time::sleep(WEB_NOTIFICATION_SSE_HEARTBEAT_INTERVAL) => {
+                    match state.subscription.heartbeat() {
+                        Ok(frame) => {
+                            state.last_cursor = frame.cursor.clone();
+                            notification_sse_frame_event(&frame, &state.session_id, &state.tab_id)
+                        }
+                        Err(error) => {
+                            state.done = true;
+                            notification_sse_error_event(
+                                &state.last_cursor,
+                                &state.session_id,
+                                &state.tab_id,
+                                &format!("heartbeat:{error}"),
+                            )
+                        }
+                    }
+                }
+                received = state.subscription.recv_frame() => {
+                    match received {
+                        Ok(frame) => {
+                            state.last_cursor = frame.cursor.clone();
+                            if frame.terminal
+                                || matches!(
+                                    &frame.kind,
+                                    &kiana_protocol::UiFeedFrameKind::Unknown
+                                )
+                            {
+                                state.done = true;
+                            }
+                            notification_sse_frame_event(&frame, &state.session_id, &state.tab_id)
+                        }
+                        Err(kiana_daemon::RunStreamFeedError::Gap(gap)) => {
+                            state.done = true;
+                            match crate::web_notifications::notification_gap_frame(gap) {
+                                Ok(frame) => {
+                                    state.last_cursor = frame.cursor.clone();
+                                    notification_sse_frame_event(&frame, &state.session_id, &state.tab_id)
+                                }
+                                Err(error) => notification_sse_error_event(
+                                    &state.last_cursor,
+                                    &state.session_id,
+                                    &state.tab_id,
+                                    &format!("gap:{error}"),
+                                ),
+                            }
+                        }
+                        Err(kiana_daemon::RunStreamFeedError::Closed) => {
+                            state.done = true;
+                            notification_sse_error_event(
+                                &state.last_cursor,
+                                &state.session_id,
+                                &state.tab_id,
+                                "stream_closed_before_terminal",
+                            )
+                        }
+                        Err(kiana_daemon::RunStreamFeedError::Invalid(error)) => {
+                            state.done = true;
+                            notification_sse_error_event(
+                                &state.last_cursor,
+                                &state.session_id,
+                                &state.tab_id,
+                                &error,
+                            )
+                        }
+                    }
+                }
+            };
+            Some((Ok(event), state))
+        },
+    );
+    Ok(Sse::new(Box::pin(stream)).keep_alive(KeepAlive::default()))
+}
+
+fn notification_sse_frame_event(frame: &UiFeedFrameV1, session_id: &str, tab_id: &str) -> Event {
+    let event_name = crate::web_notifications::notification_frame_event_name(frame);
+    let data = crate::web_notifications::present_notification_frame(frame, session_id, tab_id)
+        .and_then(|payload| {
+            serde_json::to_string(&payload)
+                .map_err(|_| "web_notification_sse_encode_failed".to_owned())
+        });
+    let id = crate::web_notifications::encode_notification_cursor(&frame.cursor)
+        .unwrap_or_else(|_| "notification-cursor-invalid".to_owned());
+    match data {
+        Ok(data) => Event::default().id(id).event(event_name).data(data),
+        Err(error) => notification_sse_error_event(&frame.cursor, session_id, tab_id, &error),
+    }
+}
+
+fn notification_sse_error_event(
+    cursor: &UiFeedCursorV1,
+    session_id: &str,
+    tab_id: &str,
+    error: &str,
+) -> Event {
+    let id = crate::web_notifications::encode_notification_cursor(cursor)
+        .unwrap_or_else(|_| "notification-cursor-invalid".to_owned());
+    let payload = crate::web_notifications::present_notification_stream_error(
+        cursor, session_id, tab_id, error,
+    )
+    .unwrap_or_else(|_| {
+        json!({
+            "schema": crate::web_notifications::WEB_NOTIFICATION_SSE_SCHEMA,
+            "kind": "stream_error",
+            "snapshot_required": true,
+            "retry": "query_original"
+        })
+    });
+    Event::default()
+        .id(id)
+        .event("stream_error")
+        .data(payload.to_string())
 }
 
 fn stream_attach_state(app: &WebApp, session_id: &str) -> Result<StreamAttachState, ApiError> {
@@ -2377,6 +2651,27 @@ fn rotate_web_token(app: &WebApp) -> Result<(), ApiError> {
     app.token_generation
         .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     Ok(())
+}
+
+fn notification_stream_cursor_from_request(
+    headers: &HeaderMap,
+    query: Option<&str>,
+) -> Result<Option<UiFeedCursorV1>, ApiError> {
+    let header = headers
+        .get("last-event-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let query = query.map(str::trim).filter(|value| !value.is_empty());
+    if header.is_some() && query.is_some() && header != query {
+        return Err(ApiError::bad("web_notification_cursor_conflict"));
+    }
+    let Some(raw) = header.or(query) else {
+        return Ok(None);
+    };
+    crate::web_notifications::decode_notification_cursor(raw)
+        .map(Some)
+        .map_err(|error| ApiError::bad(error))
 }
 
 fn stream_cursor_from_request(

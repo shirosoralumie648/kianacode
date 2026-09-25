@@ -160,6 +160,19 @@ proof-level change: `feature_status=implemented`（display-only entrypoint sourc
 limitations: presenter 不证明真实 CLI/TTY/Workbench runtime、action ControlPlane routing、durable inbox/read state、SSE/Web/Desktop parity、PTY/accessibility、provider/connector/external/live/physical delivery；CI 结果未等待
 reviewer: Codex NM-14 source review；检查 frozen CLI preservation、server-page redaction/limits、action display-only、run cursor/Unknown/terminal retry semantics、no Broker/Runner/process/no direct action/no second loop；无本地 runtime/TTY reviewer
 
+### NM-15 Web REST notification snapshot/page + SSE（2026-09-26）
+
+source_snapshot: `4b8ea7bd`（NM-14 已合并 master 基线）加 NM-15 Web notification source slice；`kiana-daemon/src/lib.rs`; `kiana-entrypoints/src/{lib.rs,web.rs,web_notifications.rs}`；`kiana-entrypoints/tests/{nm15_web_notification.rs,nm15_web_notification_guard.rs,fixtures/nm15-web-notification.json}`；`.github/workflows/nm15-web-notification.yml`; `docs/roadmap/nm15-web-notification-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm15-web-notification-sse-20260925`; `/api/notifications` 使用 authenticated principal + committed EventStore/NotificationStore rebuild，Host/Origin/token/session/tab fence；`/api/notifications/events` reuse existing `RunStreamFeedSubscription`，snapshot boundary first、UiFeedCursorV1 Last-Event-ID、payload redaction、gap/Unknown→snapshot hydrate、terminal non-retry；不新增 bus/loop、不调用 Broker/Runner/process、不提交 action
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-entrypoints --test nm15_web_notification --locked -- --test-threads=1`、`cargo test -p kiana-entrypoints --test nm15_web_notification_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/browser/live connector；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm15-web-notification.json`、page/frame presenter、cursor/gap/terminal redaction、wrong Host/Origin/token、cross-session/tab、stale/conflicting cursor、bounded page/SSE、no reconnect command source guards；无真实 browser/SSE/network subscriber、durable read/ACK、cross-process recovery、provider/external/live/physical receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 Web notification fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-15 Web REST notification page + redacted SSE adapter、authenticated route matrix、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（Web display projection source adapter + existing feed reuse + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: Web notification read/ACK projection 本 slice 每次从 committed EventStore rebuild，未宣称 durable；SSE cursor/subscription process-local；无 browser/PTY/accessibility、跨进程、provider/connector/external/live/physical delivery proof；CI 结果未等待
+reviewer: Codex NM-15 source review；检查 existing Host/Origin/token/session/tab auth、server recipient scope、page/action/detail redaction、UiFeed cursor/gap/heartbeat/terminal、no second bus/no execution/no retry；无本地 HTTP/browser reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

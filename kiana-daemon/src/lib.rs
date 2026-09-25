@@ -603,6 +603,40 @@ impl DaemonHost {
         project_ui_snapshot(&events, query).map_err(PortError::Failed)
     }
 
+    /// Build a bounded notification page from the committed EventStore projection.  The
+    /// recipient is always the daemon-authenticated principal; a Web/CLI caller cannot widen it
+    /// through a query parameter.  This is a rebuildable read path only: projection read/ACK
+    /// state is intentionally not claimed to be durable here.
+    pub async fn notification_page(
+        &self,
+        limit: u16,
+        after_item_id: Option<String>,
+        expected_source_cursor: Option<u64>,
+    ) -> Result<kiana_core::NotificationPage, PortError> {
+        let events = self.persisted_events().await?.ok_or_else(|| {
+            PortError::Unavailable("notification_projection_unsupported".to_owned())
+        })?;
+        let source_cursor = self.last_durable_cursor().await?;
+        if source_cursor == 0 {
+            return Err(PortError::Unavailable(
+                "notification_projection_unavailable".to_owned(),
+            ));
+        }
+        let mut store = kiana_core::NotificationStore::new();
+        store
+            .apply_committed(&events, source_cursor)
+            .map_err(|error| PortError::Failed(error.to_string()))?;
+        store
+            .list(kiana_core::NotificationListRequest {
+                schema: kiana_core::NOTIFICATION_STORE_SCHEMA.to_owned(),
+                recipient_id: self.principal.identity.principal_id.clone(),
+                limit,
+                after_item_id,
+                expected_source_cursor,
+            })
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
     /// Build a disposable UI snapshot exclusively from this principal's event facts.
     pub async fn ui_snapshot(&self, session_id: &str) -> Result<UiSnapshot, PortError> {
         let cursor = self.ui_cursor();

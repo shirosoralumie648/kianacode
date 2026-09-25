@@ -27,6 +27,7 @@ pub mod tty_input;
 pub mod tui;
 pub mod web;
 pub(crate) mod web_inbox;
+pub mod web_notifications;
 mod web_thread;
 mod web_ui;
 pub mod workbench;
