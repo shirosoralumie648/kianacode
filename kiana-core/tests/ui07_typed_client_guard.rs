@@ -13,6 +13,8 @@ fn ui07_typed_client_keeps_control_plane_as_effect_authority() {
         "UI_ACTION_STATUS_OPERATION",
         "CommandRetryForbidden",
         "LateResponse",
+        "ui_history_instance_mismatch",
+        "ui_history_epoch_mismatch",
         "Accepted is intentionally returned as Accepted",
         "RequestEnvelope::command",
     ] {

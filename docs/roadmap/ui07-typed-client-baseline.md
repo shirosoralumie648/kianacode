@@ -41,6 +41,7 @@ Unknown/late action --> query_original(idempotency_key), never synthesize a new 
 ```
 
 `FeedClient` 的 callback 只接收已校验的 `UiFeedFrameV1`，不会获得 capability 或执行句柄。
+`UiHistoryV1` 还要求每个 frame 绑定同一 instance 与 authority epoch，拒绝跨实例/跨 epoch 的历史拼接。
 `ActionClient` 只提交 `UiActionV1`，服务端的 receipt/state 决定 `Applied`；HTTP/transport
 成功或 `Accepted` 本身永远不会被提升为 `Applied`。`ClientTransport::cancel` 是 best-effort
 fence，无法撤回已送出的请求时，typed client 仍会丢弃迟到响应。

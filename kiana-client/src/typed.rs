@@ -221,6 +221,12 @@ impl UiHistoryV1 {
         self.snapshot_cursor.validate()?;
         for frame in &self.frames {
             frame.validate()?;
+            if frame.cursor.instance_id != self.instance_id {
+                return Err("ui_history_instance_mismatch".to_owned());
+            }
+            if frame.cursor.authority_epoch != self.snapshot_cursor.epoch {
+                return Err("ui_history_epoch_mismatch".to_owned());
+            }
         }
         if self
             .limitations
