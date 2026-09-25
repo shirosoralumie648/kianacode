@@ -20,8 +20,10 @@ authorizes a capability or silently changes the route.
 ## CI-only fixtures
 
 `.github/workflows/p4-j7-25-capacity-fallback.yml` runs domain transition/fallback fixtures, a
-Core source guard, formatting and workspace test-target compilation on GitHub Actions. Local tests,
-builds, checks, clippy and smoke commands are intentionally not run.
+Core source guard, formatting and workspace test-target compilation on GitHub Actions. Its path
+filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs` module so a fresh remote
+run can clear the historical repository-wide fmt dependency; that result is pending/unobserved.
+Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixture catalog covers queue limits, typed circuit transitions, one half-open probe, alias
 sharing and fallback capability/data/budget drift. It does not open a provider or external route.
