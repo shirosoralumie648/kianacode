@@ -75,4 +75,21 @@ fn fixture_lists_injection_and_cancel_unknown_without_happy_path_substitution() 
         .unwrap()
         .iter()
         .all(|item| item.get("requires").is_some()));
+    for required in [
+        "missing_action_envelope",
+        "unknown_ipc_envelope",
+        "dot_path_component",
+    ] {
+        assert!(denied.iter().any(|item| item["id"] == required), required);
+    }
+}
+
+#[test]
+fn current_entrypoint_fences_remain_registered_in_the_deny_matrix() {
+    let web = source("src/web.rs");
+    let ipc = source("../contrib/desktop/lib/ipc-security.js");
+    let ide = source("../kiana-client/src/ide_capability.rs");
+    assert!(web.contains("ui_action_required"));
+    assert!(ipc.contains("unexpected_envelope_field"));
+    assert!(ide.contains("part == \".\""));
 }

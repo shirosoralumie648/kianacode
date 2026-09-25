@@ -5,9 +5,9 @@
 
 ## Deny matrix
 
-`kiana-entrypoints/tests/fixtures/ui32-deny-first.json` 固定八类入口拒绝：foreign session、bad
+`kiana-entrypoints/tests/fixtures/ui32-deny-first.json` 固定入口拒绝：foreign session、bad
 token/origin、foreign Electron sender/channel、expired/revoked approval、stale cursor/revision、
-payload digest/scope widening、cancel race with unknown effect、indirect injection。每一项带稳定
+missing action envelope、payload digest/scope widening、unknown IPC envelope、IDE dot path、cancel race with unknown effect、indirect injection。每一项带稳定
 error code、`effect_count=0` 和 `requery_original`/`safe_retry`/`do_not_retry`/`reconcile` follow-up；
 Unknown 不改写为成功，且不盲目 retry。
 

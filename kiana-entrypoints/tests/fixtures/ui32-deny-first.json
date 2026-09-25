@@ -6,7 +6,10 @@
     {"id":"sender_channel","trigger":"foreign Electron sender or unknown channel","error":"desktop_ipc_denied","effect_count":0,"follow_up":"do_not_retry"},
     {"id":"expired_approval","trigger":"approval expired or revoked","error":"approval_expired","effect_count":0,"follow_up":"requery_original"},
     {"id":"stale_cursor","trigger":"stale cursor or revision","error":"ui_action_stale","effect_count":0,"follow_up":"requery_original"},
+    {"id":"missing_action_envelope","trigger":"mutation omits action identity envelope","error":"ui_action_required","effect_count":0,"follow_up":"requery_original"},
     {"id":"digest_scope","trigger":"payload digest or scope widening","error":"ui_action_invalid","effect_count":0,"follow_up":"do_not_retry"},
+    {"id":"unknown_ipc_envelope","trigger":"Electron IPC envelope has unknown field","error":"desktop_ipc_denied","effect_count":0,"follow_up":"do_not_retry"},
+    {"id":"dot_path_component","trigger":"IDE relative path contains dot component","error":"ide_path_invalid","effect_count":0,"follow_up":"do_not_retry"},
     {"id":"cancel_unknown","trigger":"cancel race with unknown effect","error":"result_unknown","effect_count":0,"follow_up":"reconcile"},
     {"id":"indirect_injection","trigger":"untrusted UI or artifact text requests capability","error":"policy_denied","effect_count":0,"follow_up":"do_not_retry"}
   ],

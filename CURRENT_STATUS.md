@@ -948,6 +948,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no four-surface runtime capture, durable parity index, browser/PTY/Electron timing, provider/Broker effect or physical proof
 reviewer: Codex UI-31 source review; checked digest/error identity validation, missing/duplicate/sensitive/drift fences and read-only comparator boundary; no local runtime reviewer
 ```
+
+### UI-32 deny matrix refresh evidence (2026-09-26)
+
+```text
+source_snapshot: base `44814c09` plus UI-32 deny-matrix refresh; `kiana-entrypoints/tests/fixtures/ui32-deny-first.json`; `kiana-entrypoints/tests/ui32_deny_first.rs`; UI-32 baseline/roadmap overlays
+worktree_status: deny fixture now registers missing Web action envelope, unknown Electron IPC envelope field and IDE dot path with stable error and effect_count=0 follow-up; source guard binds each current fence
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/tests/ui32_deny_first.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only current entrypoint deny cases with effect_count=0 and requery/do_not_retry follow-up; no runtime/provider/Broker effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; deny fixture and workspace compile pending/unobserved
+status change: UI-32 security matrix now covers the latest UI-19/UI-24/UI-30 fences; card remains 🔄 pending CI and real effect-counter/audit proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source/fixture matrix is not runtime integration; no real HTTP/Electron/IDE/PTY/provider effect, EventLog append or physical proof
+reviewer: Codex UI-32 source review; checked effect_count/follow-up schema, latest action/IPC/path fences and no happy-path substitution; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
