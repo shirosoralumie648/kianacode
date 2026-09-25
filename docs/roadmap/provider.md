@@ -79,7 +79,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | 🔄 |
 | `P4-J7-28` | 三界面配置和诊断 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 同一目录/状态/错误；迟到终态与重连无需重新执行 | 🔄 |
 | `P4-J7-29` | 离线协议一致性矩阵 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | 每个支持的协议/能力通过相同合同及其特有故障用例 | 🔄 |
-| `P4-J7-30` | 产品链与四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | 模型→受控工具→事件→Receipt；CLI/TTY/Web/Desktop 终态一致 | ⏳ |
+| `P4-J7-30` | 产品链与四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | 模型→受控工具→事件→Receipt；CLI/TTY/Web/Desktop 终态一致 | 🔄 |
 | `P4-J7-31` | 逐连接 live 验收与发布证据 | `P4-J7-30` | 原生/兼容/本地分别有真实证据；未验证能力如实列出 | ⏳ |
 
 ### 16.3 每张卡的具体步骤
@@ -473,7 +473,7 @@ unsupported preflight error、版本化且仅 digest 的 cassette 元数据，�
 
 
 
-#### P4-J7-30 产品链和四表面回归　⏳
+#### P4-J7-30 产品链和四表面回归　🔄
 
 - **依赖**：`P4-J7-28`、`P4-J7-29`、`P0-M1-01`。
 - **改动位置**：daemon/entrypoints/client 的集成 tests、四表面 smoke、既有 release harness 脚本。
@@ -481,6 +481,13 @@ unsupported preflight error、版本化且仅 digest 的 cassette 元数据，�
 - **先拒绝**：`provider_output_cannot_bypass_control_plane`、`cancel_between_model_finish_and_dispatch_runs_no_tool`、`slow_subscriber_does_not_drop_durable_terminal`。
 - **再成功**：`provider_backed_coding_run_produces_correlated_receipt`、`four_surfaces_agree_on_provider_run_outcome`。
 - **退出 / 证据**：至少包含真实沙箱内的文件/进程观测；只生成模型自然语言不算 coding 闭环；mock 仍只支持 local_behavior。
+
+已实现切片（CI 待跑、未在本地运行测试）：新增 `ProviderProductChainEvidence` 与矩阵，固定
+coding round-trip、model finish 与 dispatch 之间取消、慢订阅、continue/resume、预算拒绝五类
+场景，绑定 model/capability/event/Receipt、文件效果与用量 digest；四个投影面通过既有
+`SurfaceParity` 比较器共享终态、Receipt、cursor、retry 和 limitation。源守卫确认仍复用
+`DaemonHost → ControlPlane → KianaHarness/ProviderGateway`，未新增入口执行循环。CI 与证据限制见
+[`p4-j7-30-provider-product-chain-baseline.md`](p4-j7-30-provider-product-chain-baseline.md)。
 
 <a id="step-p4-j7-31"></a>
 

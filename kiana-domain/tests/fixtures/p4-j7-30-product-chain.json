@@ -1,0 +1,9 @@
+{
+  "schema": "kiana.provider-product-chain-fixture.v1",
+  "mode": "loopback_cassette",
+  "scenario": "coding_round_trip",
+  "stages": ["model_request", "model_reply", "capability_dispatch", "tool_result", "runtime_event", "receipt"],
+  "surfaces": ["cli", "tty", "web", "desktop"],
+  "physical_proof": false,
+  "limitations": ["loopback_only", "durable_reopen_unverified", "live_provider_unverified"]
+}
