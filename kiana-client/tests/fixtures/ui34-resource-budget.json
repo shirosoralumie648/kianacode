@@ -4,7 +4,9 @@
     "within budget stays ready",
     "item/session overflow is visible degraded with hydrate/pagination",
     "bytes/queue overflow rejects before unbounded rendering",
-    "pending and unknown items are protected from silent eviction"
+    "pending and unknown items are protected from silent eviction",
+    "UI-20 protected timeline overflow stays partial and bounded",
+    "UI-33 feed gap stays blocked until hydrate"
   ],
   "denied": [
     "silent truncation of pending or unknown",

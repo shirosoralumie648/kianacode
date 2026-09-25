@@ -17,6 +17,8 @@ approval 或 effect 权限；Degraded/Reject 只改变 UI 可见状态和下一�
 
 `kiana-client/tests/fixtures/ui34-resource-budget.json` 与 `ui34_resource_budget.rs` 覆盖 within/
 Degraded/Reject、bytes/queue hard bound、protected pending/unknown、非法 schema/limit/usage。
+预算门同时注册 UI-20 all-protected timeline overflow 的 partial/硬上限行为和 UI-33 gap-blocked
+until-hydrate recovery fence，避免后续资源退化重新丢弃 protected facts 或继续消费不连续 feed。
 `.github/workflows/ui34-resource-budget.yml` 运行 Rust format、聚焦 budget fixture 与 workspace
 test-target compile。
 其 push/pull_request path filter 现在同时包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，
