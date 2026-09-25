@@ -13132,4 +13132,17 @@ status change: UI-39 CI path now covers CM-36 fmt dependency; roadmap row/card r
 proof-level change: `feature_status=partial`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no external host/version/environment/receipt/reconnect capture, no ACP socket/process, no real IDE/terminal effect, no provider/Broker/live/physical proof; opt-in source contract is not live verification
 reviewer: Codex UI-39 path-filter rerun review; no live/local runtime reviewer
+
+### UI-40 release evidence CI path rerun (partial, 2026-09-26)
+
+source_snapshot: `db51eb52` plus UI-40 CI-boundary rerun; UI-32/33/34/38/39 source fixtures and guards; `kiana-domain/src/memory_workbench.rs` path dependency; `kiana-protocol/src/ui_contracts.rs`; `kiana-core/tests/ui40_release_gate_guard.rs`; `kiana-protocol/tests/ui40_release_evidence.rs`; `.github/workflows/ui40-release-gate.yml`; `docs/roadmap/ui40-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/module-map.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-40-ci-rerun-20260926`; existing deny→recovery→parity/resource/conformance/UI-39 evidence ordering remains source-only, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no release build/publish/live/physical effect added
+command_argv: `git diff --check`; GitHub Actions: `bash` evidence preflight; `cargo fmt --all --check`; focused UI-32/33/34/38/39/UI-40 tests and guards; `cargo check --workspace --tests --locked`; existing UI-36 release build/asset gate
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke/release deliberately not run; GitHub CI is the gate/test authority and is not awaited
+fixture·cassette: existing UI-40 evidence bundle/guard plus UI-32/33/34/38/39 source fixtures, source drift/duplicate/secret argv/Unknown/limitation/false-live checks; no published artifact or external receipt
+exit_code: local verification limited to diff review; fresh post-CM-36 remote preflight, focused tests, release gate and compile exit codes pending/unobserved
+status change: UI-40 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub gate and real release/live evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real Electron/browser/PTY/provider/connector receipt, durable recovery, signed publication, release artifact or physical/live outcome; source/CI evidence is not release success
+reviewer: Codex UI-40 path-filter rerun review; no local release/runtime reviewer
 ```

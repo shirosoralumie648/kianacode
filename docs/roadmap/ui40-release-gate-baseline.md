@@ -22,3 +22,5 @@ UI-36 release-build/asset gate. It does not run local tests or publish a release
 runtime performance, external provider/connector receipts, live/physical effects and unsupported
 combinations remain not_supported or partial. The evidence bundle must retain command argv, fixture
 hashes, exit codes, proof level and limitations.
+The workflow path filter also includes current CM-36 `kiana-domain/src/memory_workbench.rs`, so a
+fresh remote gate covers the repository-wide fmt dependency; that result is pending/unobserved.
