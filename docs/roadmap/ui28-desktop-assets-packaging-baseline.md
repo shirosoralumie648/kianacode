@@ -6,7 +6,7 @@
 
 ## Manifest 与版本合同
 
-`contrib/desktop/asset-manifest.json` 使用 `kiana.desktop-assets.v1`，绑定 app version
+`contrib/desktop/asset-manifest.json` 使用 `kiana.desktop-assets.v1`，绑定并校验 package 与 manifest 的 app version
 `0.1.0`、`kiana.protocol.v1`、`kiana.ui.v1`、MIT OR Apache-2.0 license、runtime nonce CSP
 模式和 `unsafe-inline`/`unsafe-eval` 禁止项。每个 packaged asset 都有相对路径、字节数、SHA-256
 和 cache policy；hash 命名/不可变 package asset 可用一年 immutable cache，动态/metadata 文件

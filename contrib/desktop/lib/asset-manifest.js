@@ -85,9 +85,12 @@ function validateAssetManifest(manifest) {
   };
 }
 
-function validatePackageFiles(packageJson) {
+function validatePackageFiles(packageJson, expectedAppVersion = undefined) {
   if (!plain(packageJson) || !plain(packageJson.build) || !Array.isArray(packageJson.build.files)) {
     throw new Error("desktop_package_build_files_missing");
+  }
+  if (expectedAppVersion !== undefined && packageJson.version !== expectedAppVersion) {
+    throw new Error("desktop_package_version_mismatch");
   }
   const files = packageJson.build.files.map(String);
   for (const required of ["main.js", "preload.js", "welcome.html", "asset-manifest.json"]) {
@@ -102,7 +105,7 @@ function validatePackageFiles(packageJson) {
 
 function verifyAssetManifest(manifest, root, packageJson) {
   const normalized = validateAssetManifest(manifest);
-  validatePackageFiles(packageJson);
+  validatePackageFiles(packageJson, normalized.app_version);
   for (const asset of normalized.assets) {
     const file = path.join(root, asset.path);
     const stat = fs.lstatSync(file);
