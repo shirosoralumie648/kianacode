@@ -653,13 +653,19 @@ sequence gap 返回 hydrate/replay 状态，terminal 后 late update、foreign o
 
 
 
-#### UI-30 · IDE editor/terminal capability boundary　⏳
+#### UI-30 · IDE editor/terminal capability boundary　🔄
 
 - 依赖：UI-04/07/29、Capability 专项。代码：editor/terminal adapter 的 capability request/permit bridge。
 - 步骤：将打开文件、读取、patch preview、apply、终端输出映射为受控 Artifact/UiAction；editor host 只提供显示/输入，真正 effect 回 ControlPlane。
 - 先拒绝：任意路径、隐式保存、编辑器扩展绕过 permit、终端 spawn、旧 revision apply、remote workspace 混入本地 scope。
 - 成功/回归：只读/写入/拒绝/过期 permit、外部修改、diff digest、terminal cancel/unknown、host 重启。
 - 完成产物：IDE capability matrix、fake editor fixture、越权/TOCTOU 证据。
+
+实现基线：[`ui30-ide-capability-baseline.md`](ui30-ide-capability-baseline.md)。当前 source slice 位于
+`kiana-client/src/ide_capability.rs`：host capability 只声明 `delegated_to_kiana=true` 且
+`direct_effect=false`；relative path、workspace/path digest、revision 和 permit owner/expiry/effect
+在 client intent 形成前严格绑定。open/read/patch preview/terminal output 是 query intents；apply 和
+terminal cancel 只有匹配的未过期 permit 才产生 `UiActionV1`，host 不读文件、不保存、不 spawn terminal。
 
 ### 27.5 跨入口一致性、恢复和质量门
 
