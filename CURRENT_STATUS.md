@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-37 用户文档、模块图和操作 runbook（2026-09-25）
+
+source_snapshot: `7fdc8c15`（UI-36 已合并 master 基线）加 UI-37 docs/source slice；`docs/ui-entrypoints-runbook.md`; `docs/module-map.md`; `scripts/verify-ui37-docs.sh`; `.github/workflows/ui37-docs-runbook.yml`; `docs/roadmap/ui37-docs-runbook-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui37-runbook-docs-20260925`;runbook 固定 CLI/TTY/Web/Desktop/ACP-IDE 真实入口和唯一 DaemonHost→ControlPlane→Harness/Broker→EventLog/Receipt/UI projection 脊柱，明确 deny/happy/reconnect/Unknown、trust/token/origin、feature/proof 与 limitations；module-map 入口图与 CI link/status/overclaim guard 已接入
+command_argv: 本地仅文档/脚本源码审阅与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `bash -n scripts/verify-ui37-docs.sh`、`bash scripts/verify-ui37-docs.sh`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是文档 gate 权威且不等待
+fixture·cassette: runbook/module-map/link/status/overclaim source guard；没有 runtime cassette，不把文档检查升级为行为证据
+exit_code: 本地 `git diff --check`；远程 docs guard exit code pending/unobserved
+status_change: UI-37 runbook、module map、migration FAQ/limitations/proof index 与 CI-only guard/baseline 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（docs/source + CI guard）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 文档不能证明干净 checkout runtime、真实 browser/PTY/Electron/ACP、durable recovery、provider/connector/live/physical 或 release UAT；CI 结果未等待
+reviewer: Codex UI-37 source/doc review；检查唯一执行脊柱、事实/投影边界、命令/错误/Unknown/recovery、feature/proof 分离、限制完整性、link/status guard 与无 overclaim；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

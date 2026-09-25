@@ -206,6 +206,33 @@ operator-only action、HTTP MCP 和动态工具扩展不因存在 descriptor 就
 交付，不提升任何产品 capability 的 `proof_level`；后续 CAP/CP/H 步骤必须在开始时
 重新核对源码快照和 hash，避免把 WIP 漂移当成已接线。
 
+## UI-37 入口调用关系与证据边界（2026-09-25）
+
+当前入口调用关系以同一条主链为准：
+
+```text
+CLI / TTY Workbench / Web / Electron Desktop / ACP-IDE client adapter
+  -> versioned kiana-client / kiana-protocol DTO
+  -> DaemonHost
+  -> ControlPlane policy/gate/approval/lease
+  -> KianaHarness / Capability Broker
+  -> EventLog facts
+  -> Receipt + UiSnapshot/UiFeed/Artifact projections
+```
+
+| surface | 当前 adapter | 只读/变更边界 | 不能据此声称 |
+|---|---|---|---|
+| CLI | `kiana-entrypoints::cli` + `KianaClient` | command/presenter；服务端决定 trust、policy、approval、receipt | 本地输出等于 durable/live |
+| TTY Workbench | `workbench_chat` + same `DaemonHost` | 输入/状态/取消 intent；不自建 runner | token streaming/live |
+| Web | `web.rs`/`web_page.html` + typed snapshot/feed/action | loopback auth、hydrate/SSE、action CAS；浏览器缓存是展示层 | SSE/HTML 是事实源或授权 |
+| Desktop | `contrib/desktop` + Web worker readiness/IPC | workspace/attach/tray/persistence/notification intent；OS shell 不执行 Kiana capability | Electron attach 等于 production package/physical proof |
+| ACP/IDE | `kiana-client::{acp,ide_capability}` | fake/source session、UiAction、host capability delegation；direct effect=false | live IDE/editor/terminal/provider effect |
+
+状态、证据和限制的唯一权威仍是 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md)。`feature_status` 与
+`proof_level` 分开填写；UI-26–36 当前 source/CI slices 不把 CI 未观察、类型存在、单次 smoke、
+Receipt 或 presenter 输出提升为 `local_behavior`、`durable`、`live` 或 `physical`。任何新 adapter
+都只能返回 typed query/intent，不能在 surface 里复制 policy、EventLog、Broker 或模型循环。
+
 ## 如何判断完成程度
 
 这张图描述职责和边界，具体能力仍须结合证据。[状态账本](../CURRENT_STATUS.md) 记录当前源码快照、命令、测试和证明等级。规范里的 `target`、`partial`、`deferred` 或模块名称本身，都不能推断功能已经交付。

@@ -1,0 +1,38 @@
+name: UI-37 entrypoint docs and runbook guard
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "docs/ui-entrypoints-runbook.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "CURRENT_STATUS.md"
+      - "USER.md"
+      - "scripts/verify-ui37-docs.sh"
+      - "docs/roadmap/ui37-docs-runbook-baseline.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui37-docs-runbook.yml"
+  pull_request:
+    paths:
+      - "docs/ui-entrypoints-runbook.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "CURRENT_STATUS.md"
+      - "USER.md"
+      - "scripts/verify-ui37-docs.sh"
+      - "docs/roadmap/ui37-docs-runbook-baseline.md"
+      - "docs/roadmap.md"
+      - ".github/workflows/ui37-docs-runbook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui37-docs-runbook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n scripts/verify-ui37-docs.sh
+      - run: bash scripts/verify-ui37-docs.sh
