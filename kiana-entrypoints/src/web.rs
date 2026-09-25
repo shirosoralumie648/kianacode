@@ -3898,8 +3898,12 @@ fn authorize_sse(
     headers: &HeaderMap,
     query_token: Option<&str>,
 ) -> Result<(), ApiError> {
-    let supplied = web_token_from_header(headers)?
-        .or_else(|| query_token.map(str::trim).filter(|value| !value.is_empty()));
+    let header_token = web_token_from_header(headers)?;
+    let query_token = query_token.map(str::trim).filter(|value| !value.is_empty());
+    if header_token.is_some() && query_token.is_some() && header_token != query_token {
+        return Err(ApiError::unauthorized());
+    }
+    let supplied = header_token.or(query_token);
     authorize_web_request(app, headers, supplied)
 }
 

@@ -607,6 +607,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: digest equality is a source-side projection fence, not ControlPlane approval or EventLog evidence; no durable artifact store, browser, provider, filesystem or external effect proof
 reviewer: Codex UI-15 source review; checked canonical payload digest, approval deny-first ordering and display-only boundary; no local runtime test reviewer
 ```
+
+### UI-16 SSE token-source evidence (2026-09-26)
+
+```text
+source_snapshot: base `86d08cfa` plus UI-16 Web auth slice; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui16-web-routes.json`; `kiana-entrypoints/tests/ui16_web_routes.rs`; `kiana-entrypoints/tests/ui16_web_routes_guard.rs`; UI-16 baseline/roadmap overlays
+worktree_status: SSE authorization now requires Header and query token values to agree when both are present; conflicting values fail before `authorize_web_request` and no handler/DaemonHost path changes
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/web.rs kiana-entrypoints/tests/ui16_web_routes.rs kiana-entrypoints/tests/ui16_web_routes_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui16_web_routes --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui16_web_routes_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only route matrix now includes `sse_header_query_conflict`; source guard binds exact `header_token != query_token` rejection; no HTTP/browser/provider effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-16 SSE dual-token ambiguity is now deny-first; card remains 🔄 pending CI evidence and real HTTP/browser/token-rotation proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live HTTP server/browser or cross-process token rotation proof; query token remains an explicit EventSource compatibility path and rate state remains process-local
+reviewer: Codex UI-16 source review; checked Host/Origin/token ordering, dual-token conflict handling and pre-handler rejection; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

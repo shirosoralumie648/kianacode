@@ -26,6 +26,7 @@ fn ui16_web_routes_keep_authority_and_health_redaction_boundaries() {
         "web_path_traversal_denied",
         "web_rate_limit_exceeded",
         "origin_matches_bound_addr",
+        "header_token != query_token",
         "single_header",
         "x-kiana-web-token",
         "DaemonHost",
