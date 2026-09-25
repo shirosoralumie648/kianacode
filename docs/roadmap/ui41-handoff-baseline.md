@@ -33,4 +33,5 @@ source/fixture handoff aid, not a runtime, durable, live or physical acceptance 
 
 Required handoff fields are `source_snapshot`, `feature_status`, `proof_level`, `reviewer`,
 `receipt_digest`, `limitations` and `next_action`; missing or blanket-completion language is a
-handoff failure.
+handoff failure. The CI guard also parses the status matrix, requiring five non-empty columns,
+an allowed feature classification and a concrete next action for every scope row.

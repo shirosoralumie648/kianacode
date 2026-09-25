@@ -64,4 +64,33 @@ fn ui_handoff_keeps_partial_and_not_supported_boundaries_visible() {
     }
     assert!(!baseline.contains("overall project complete"));
     assert!(!baseline.contains("all UI cards are complete"));
+
+    let matrix_start = baseline
+        .find("| scope | feature_status | proof_level | evidence | next_action |")
+        .expect("handoff matrix header");
+    let mut matrix_rows = 0;
+    for line in baseline[matrix_start..].lines().skip(2) {
+        let line = line.trim();
+        if line.is_empty() {
+            break;
+        }
+        assert!(
+            line.starts_with('|'),
+            "handoff matrix row is not a table row"
+        );
+        let cells = line
+            .trim_matches('|')
+            .split('|')
+            .map(str::trim)
+            .collect::<Vec<_>>();
+        assert_eq!(cells.len(), 5, "handoff matrix row must have five columns");
+        assert!(cells.iter().all(|cell| !cell.is_empty()));
+        assert!(matches!(
+            cells[1],
+            "implemented" | "partial" | "deferred" | "not_supported"
+        ));
+        assert_ne!(cells[4].to_ascii_lowercase(), "tbd");
+        matrix_rows += 1;
+    }
+    assert!(matrix_rows >= 5, "handoff matrix lost required scope rows");
 }
