@@ -394,9 +394,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-30 · Durable、故障注入和恢复　⏳
+#### EXT-30 · Durable、故障注入和恢复　🔄
 
 在临时包未 rename、rename 后未 event、event 后未 projection、upgrade 切换中、Hook 执行中、approval 即将过期、Broker result unknown 等边界注入 crash。启动新进程重建 registry、snapshot、pending approval 和 fence；重复命令必须幂等，unknown 必须显示并等待明确恢复决策。单进程重建或内存测试不能替代本卡。
+
+当前 source slice 与 CI-only 验收见 [`ext30-extension-recovery-baseline.md`](ext30-extension-recovery-baseline.md)。新增 crash-point/recovery-decision matrix，固定 quarantine、idempotent retry、registry/snapshot rebuild、await approval 和 unknown reconciliation；unknown 与 Hook-running 禁止自动重试，EXT-30 保持 🔄，不把单进程合同提升成 durable 证明。
 
 <a id="step-ext-31"></a>
 

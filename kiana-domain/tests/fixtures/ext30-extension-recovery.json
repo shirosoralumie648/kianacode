@@ -1,0 +1,8 @@
+{
+  "schema": "kiana.extension-recovery-fixture.v1",
+  "crash_points": ["before_rename", "after_rename_before_event", "after_event_before_projection", "upgrade_switch", "hook_running", "approval_expiring", "broker_result_unknown"],
+  "new_process_reopen_proven": false,
+  "automatic_retry_unknown": false,
+  "effect_authority": "control_plane_and_broker",
+  "limitations": ["source_contract_only", "durable_reopen_pending", "physical_effect_pending"]
+}
