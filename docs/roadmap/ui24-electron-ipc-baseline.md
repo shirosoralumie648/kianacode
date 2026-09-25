@@ -20,7 +20,8 @@ workspace action/DaemonHost 路径；renderer 不能传任意参数、workspace 
 
 `will-navigate` 只接受当前受信 loopback origin 或本地 welcome 文件；端口、origin、userinfo、
 敏感 query/fragment 漂移会 fail closed。`file:`, `javascript:`, `data:`、未知 loopback 和
-伪造 workspace/token URL 均被拒绝。`setWindowOpenHandler` 对安全的显式 HTTP(S) 外部链接
+伪造 workspace/token URL 均被拒绝；token/access-token/auth/api-key/secret 等敏感 query key
+也统一拒绝。IPC handshake/envelope 的未知字段同样 fail closed。`setWindowOpenHandler` 对安全的显式 HTTP(S) 外部链接
 调用 `shell.openExternal` 并拒绝 renderer 加载；受信 loopback popup 只以
 `sandbox/contextIsolation/nodeIntegration` 安全覆盖打开且没有 preload bridge，未知/不受控
 新窗口一律拒绝。
