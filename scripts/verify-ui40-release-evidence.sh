@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${CI:-}" != "true" && "${GITHUB_ACTIONS:-}" != "true" ]]; then
+if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
   printf 'ui40_release_evidence:remote_ci_required\n' >&2
   exit 2
 fi
