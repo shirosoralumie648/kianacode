@@ -19,7 +19,7 @@ loopback URL 都会拒绝。
 Rust Web worker 在绑定 `127.0.0.1` ephemeral port 后创建现有 `DaemonHost` 和 workspace
 `InstanceLease`。sidecar record 与 lock 先落盘，ready 行再携带相同的 instance id、epoch、PID、
 workspace/endpoint digest 和 record digest。Electron 从目标 workspace 的 `.kiana/instances`
-读取 sidecar，要求 regular non-symlink lock/record、受限文件权限、正确 protocol、当前子进程
+读取 sidecar，要求 regular non-symlink lock/record、受限目录与文件权限、正确 protocol、当前子进程
 PID、workspace/endpoint digest 与重算 record digest。之后只向该 ready record 中验证过的 URL
 访问 `/api/health`，并交叉检查 feed identity 和 sidecar identity；探测前后重新验证子进程仍活跃
 且 sidecar 未变。UI feed epoch 与 sidecar authority epoch 使用独立字段，避免混成第二个身份源。
