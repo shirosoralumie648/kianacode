@@ -98,6 +98,7 @@ pub struct RecoveryFence {
     epoch: String,
     last_sequence: u64,
     terminal_seen: bool,
+    gap_blocked: bool,
 }
 
 impl RecoveryFence {
@@ -112,6 +113,7 @@ impl RecoveryFence {
             epoch,
             last_sequence: 0,
             terminal_seen: false,
+            gap_blocked: false,
         })
     }
 
@@ -122,10 +124,17 @@ impl RecoveryFence {
         if self.terminal_seen && sequence > self.last_sequence {
             return FeedDisposition::LateAfterTerminal;
         }
+        if self.gap_blocked {
+            return FeedDisposition::Gap {
+                expected: self.last_sequence + 1,
+                received: sequence,
+            };
+        }
         if sequence <= self.last_sequence {
             return FeedDisposition::Duplicate { sequence };
         }
         if sequence != self.last_sequence + 1 {
+            self.gap_blocked = true;
             return FeedDisposition::Gap {
                 expected: self.last_sequence + 1,
                 received: sequence,
@@ -146,6 +155,26 @@ impl RecoveryFence {
 
     pub fn instance_id(&self) -> &str {
         &self.instance_id
+    }
+
+    /// Replace the display boundary after an explicit server snapshot hydrate. This is the only
+    /// way to resume feed acceptance after a gap; it never submits or retries an action.
+    pub fn reset_after_snapshot(
+        &mut self,
+        epoch: &str,
+        sequence: u64,
+        terminal: bool,
+    ) -> Result<(), RecoveryError> {
+        if epoch != self.epoch {
+            return Err(RecoveryError::IdentityInvalid);
+        }
+        if sequence == 0 {
+            return Err(RecoveryError::SequenceInvalid);
+        }
+        self.last_sequence = sequence;
+        self.terminal_seen = terminal;
+        self.gap_blocked = false;
+        Ok(())
     }
 }
 

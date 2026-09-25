@@ -34,6 +34,10 @@ fn fixture_declares_recovery_deny_first_contract() {
         .unwrap()
         .iter()
         .any(|item| item.as_str().unwrap().contains("implicitly")));
+    assert!(value["denied"].as_array().unwrap().iter().any(|item| item
+        .as_str()
+        .unwrap()
+        .contains("gap updates remain blocked")));
 }
 
 #[test]
@@ -93,16 +97,27 @@ fn feed_fence_rejects_gap_old_epoch_and_late_terminal() {
         FeedDisposition::OldEpoch
     );
     assert_eq!(
-        fence.accept_feed("epoch-33", 2, true),
+        fence.accept_feed("epoch-33", 2, false),
+        FeedDisposition::Gap {
+            expected: 2,
+            received: 2
+        }
+    );
+    fence.reset_after_snapshot("epoch-33", 2, false).unwrap();
+    assert_eq!(
+        fence.accept_feed("epoch-33", 3, false),
         FeedDisposition::Accepted {
-            sequence: 2,
-            terminal: true
+            sequence: 3,
+            terminal: false
         }
     );
     assert_eq!(
-        fence.accept_feed("epoch-33", 3, true),
-        FeedDisposition::LateAfterTerminal
+        fence.accept_feed("epoch-33", 4, true),
+        FeedDisposition::Accepted {
+            sequence: 4,
+            terminal: true
+        }
     );
-    assert_eq!(fence.last_sequence(), 2);
+    assert_eq!(fence.last_sequence(), 4);
     assert!(fence.terminal_seen());
 }

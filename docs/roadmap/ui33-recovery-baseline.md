@@ -12,7 +12,7 @@ sequence 与 limitation；每个 plan 都把 `new_effect_allowed` 固定为 fals
 映射规则固定为：Accepted disconnect/kill → QueryOriginalCommand；feed gap/old epoch/worker kill
 → HydrateSnapshot；artifact fetch → QueryArtifact；duplicate terminal → ReplayTerminal；cancel/terminal
 不确定 → ReconcileUnknown。Fence 按 instance epoch 和连续 sequence 接受 feed，重复返回 Duplicate，
-跳号返回 Gap，旧 epoch 返回 OldEpoch，terminal 后迟到 frame 返回 LateAfterTerminal。
+跳号返回 Gap 并阻塞后续 update，旧 epoch 返回 OldEpoch，terminal 后迟到 frame 返回 LateAfterTerminal；只有显式 snapshot hydrate 才能清除 gap block。
 
 ## CI-only fixture 与限制
 

@@ -3,6 +3,7 @@
   "accepted": [
     "action accepted disconnect queries original command",
     "feed gap or old epoch requires snapshot hydrate",
+    "gap updates remain blocked until explicit hydrate",
     "duplicate terminal replays terminal without a second effect",
     "cancel/worker kill with uncertain result becomes reconcile Unknown",
     "old worker epoch cannot publish into the new fence"
