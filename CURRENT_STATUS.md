@@ -565,6 +565,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: complete-line Authorization masking may hide non-secret explanatory text on the same header line; deterministic renderer only, no browser/PTY/provider/live effect proof
 reviewer: Codex UI-13 source review; checked Authorization scheme-plus-credential consumption, downstream secret scan and display-only boundary; no local runtime test reviewer
 ```
+
+### UI-14 Workbench wire-bound evidence (2026-09-26)
+
+```text
+source_snapshot: base `d9604568` plus UI-14 controller wire-bound slice; `kiana-entrypoints/src/workbench_controller.rs`; `kiana-entrypoints/tests/ui14_workbench_controller.rs`; `kiana-entrypoints/tests/ui14_workbench_controller_guard.rs`; UI-14 baseline/roadmap overlays
+worktree_status: `Open` controller targets are capped at the protocol 256-byte `UiActionV1.target_id` bound; idempotency keys use command plus monotonic sequence only; no daemon, transport or execution path changed
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/workbench_controller.rs kiana-entrypoints/tests/ui14_workbench_controller.rs kiana-entrypoints/tests/ui14_workbench_controller_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui14_workbench_controller --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui14_workbench_controller_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only 256-byte workspace target passes `UiActionV1::validate`, 257-byte target is rejected before action creation, and the resulting idempotency key remains within 256 bytes; no provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-14 controller no longer prepares an action that must fail solely at the typed wire-boundary; card remains 🔄 pending CI evidence and transport/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: controller remains process-local intent state; no live typed-client transport, server authorization, EventLog append, response-loss recovery or provider/tool effect proof
+reviewer: Codex UI-14 source review; checked target/idempotency bounds, digest validation handoff and display-only controller boundary; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

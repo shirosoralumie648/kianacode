@@ -3,7 +3,7 @@ use kiana_entrypoints::workbench_controller::{
     SubmissionStatus, WorkbenchCommand, WorkbenchController, WorkbenchIntent,
 };
 use kiana_protocol::{
-    ExecutionStatus, RequestId, RunId, SessionId, UiActionDisposition, UiCapability,
+    json_digest, ExecutionStatus, RequestId, RunId, SessionId, UiActionDisposition, UiCapability,
     UI_CAPABILITY_SCHEMA,
 };
 use serde_json::Value;
@@ -137,6 +137,29 @@ fn controller_translates_actions_with_scope_and_preserves_separate_statuses() {
     controller.observe_run_status(ExecutionStatus::Running);
     assert_eq!(controller.state().run, RunStatus::Running);
     assert_eq!(controller.state().submission, SubmissionStatus::Preparing);
+}
+
+#[test]
+fn open_action_respects_wire_target_and_idempotency_bounds() {
+    let mut controller = controller(true);
+    let workspace = "w".repeat(256);
+    let open = action(
+        controller
+            .dispatch(WorkbenchIntent::Open {
+                workspace: workspace.clone(),
+            })
+            .unwrap(),
+    );
+    assert_eq!(open.target_id.len(), 256);
+    let wire = open.clone().into_protocol(json_digest(&open.payload));
+    wire.validate().unwrap();
+    assert!(wire.idempotency_key.len() <= 256);
+    assert_eq!(
+        controller.dispatch(WorkbenchIntent::Open {
+            workspace: "w".repeat(257),
+        }),
+        Err("workbench_workspace_invalid".to_owned())
+    );
 }
 
 #[test]
