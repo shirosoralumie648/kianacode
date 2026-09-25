@@ -1,0 +1,17 @@
+{
+  "schema": "kiana.ui-recovery-fixture.v1",
+  "accepted": [
+    "action accepted disconnect queries original command",
+    "feed gap or old epoch requires snapshot hydrate",
+    "duplicate terminal replays terminal without a second effect",
+    "cancel/worker kill with uncertain result becomes reconcile Unknown",
+    "old worker epoch cannot publish into the new fence"
+  ],
+  "denied": [
+    "disconnect creates a new command ID or duplicate effect",
+    "gap silently continues as if contiguous",
+    "terminal is emitted twice as a new success",
+    "old epoch writes after restart",
+    "recovery implicitly approves, resumes or retries"
+  ]
+}
