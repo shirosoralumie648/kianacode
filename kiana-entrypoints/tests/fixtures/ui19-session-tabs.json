@@ -5,6 +5,7 @@
   "deny_first": [
     "tab_a_operates_tab_b_private_session",
     "stale_card_after_feed_revision",
+    "missing_action_envelope",
     "duplicate_click_two_effects",
     "closed_tab_cancels_run",
     "token_rotation_old_credential",

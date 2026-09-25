@@ -670,6 +670,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no live SSE timing, browser reconnect, cross-process cursor durability, provider stream or external network proof
 reviewer: Codex UI-18 source review; checked oversized/error fallback cursor context, bounded payload behavior and read-only reconnect path; no local runtime test reviewer
 ```
+
+### UI-19 mutation action-envelope evidence (2026-09-26)
+
+```text
+source_snapshot: base `eef6f848` plus UI-19 Web ownership/CAS slice; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui19-session-tabs.json`; `kiana-entrypoints/tests/ui19_session_tabs.rs`; `kiana-entrypoints/tests/ui19_session_tabs_guard.rs`; UI-19 baseline/roadmap overlays
+worktree_status: every Web mutation entering `claim_action_submission` now requires `x-kiana-action-id`; missing action envelope fails as `ui_action_required` before `claim_ui_headers`, owner handler, ControlPlane or Broker
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/web.rs kiana-entrypoints/tests/ui19_session_tabs.rs kiana-entrypoints/tests/ui19_session_tabs_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui19_session_tabs --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui19_session_tabs_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `missing_action_envelope` deny fixture/source marker; stale/cursor/owner/replay/close-without-cancel cases remain in the same workflow; no provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-19 mutation routes can no longer bypass the action identity and epoch/cursor CAS by omitting the envelope; card remains 🔄 pending CI evidence and browser/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: this strengthens the Web mutation boundary but does not provide owner refresh handoff, token rotation runtime proof or durable lease/submission storage; no browser/HTTP/provider effect proof
+reviewer: Codex UI-19 source review; checked required action identity, CAS ordering, owner/replay fence and no-close-cancel path; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

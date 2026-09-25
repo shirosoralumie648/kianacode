@@ -401,7 +401,6 @@ struct WebActionSubmission {
 
 #[derive(Clone, Debug)]
 enum WebActionClaim {
-    None,
     New { id: String },
     Replay(Value),
 }
@@ -2554,11 +2553,9 @@ fn claim_action_submission(
 ) -> Result<WebActionClaim, ApiError> {
     validate_web_session_id(session_id)?;
     validate_web_tab_id(tab_id)?;
-    let Some(raw) = headers.get("x-kiana-action-id") else {
-        // Legacy/read-only callers may omit the optional action envelope. Mutating handlers still
-        // require the owner lease, while the ControlPlane remains the final authority.
-        return Ok(WebActionClaim::None);
-    };
+    let raw = headers
+        .get("x-kiana-action-id")
+        .ok_or_else(|| ApiError::bad("ui_action_required"))?;
     let id = raw
         .to_str()
         .map(str::trim)
