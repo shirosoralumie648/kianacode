@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-34 性能、资源上限和可访问性验收（2026-09-25）
+
+source_snapshot: `c179388e`（UI-33 已合并 master 基线）加 UI-34 source slice；`kiana-client/src/{ui_budget.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui34-resource-budget.json,ui34_resource_budget.rs}`；`.github/workflows/ui34-resource-budget.yml`; `docs/roadmap/ui34-resource-budget-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui34-resource-budget-20260925`;新增 Feed/Snapshot/Artifact/DOM/TTY/IPC shared budget，bytes/items/sessions/queue hard bounds，pending/unknown protected-item fence 与 Accept/Degraded/Reject visible decisions；不拥有 EventLog/ControlPlane/cancel/retry/approval/effect 权限
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui34_resource_budget --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui34-resource-budget.json`；within/Degraded/Reject、hard bytes/queue、protected pending/unknown、invalid schema/limits/usage；无 browser/PTY/Electron runtime/provider/Broker effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 budget fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-34 shared resource budget、protected item/degraded/reject contract、CI-only fixture/workflow、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded client resource source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实长流/100+ sessions/慢磁盘/低带宽、RSS/p50/p95/queue metrics、浏览器/PTY/Electron accessibility runner、bundle performance、跨进程 backpressure、provider/Broker effect 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-34 source review；检查统一资源维度、hard/degraded decisions、pending/unknown preservation、no silent truncation/no business mutation 与 no second execution loop；无本地 runtime test reviewer
+
 ### UI-33 reconnect/replay/gap/crash recovery（2026-09-25）
 
 source_snapshot: `7764782a`（UI-32 已合并 master 基线）加 UI-33 source slice；`kiana-client/src/{ui_recovery.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui33-recovery.json,ui33_recovery.rs}`；`.github/workflows/ui33-recovery-contract.yml`; `docs/roadmap/ui33-recovery-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

@@ -20,6 +20,7 @@ mod acp;
 mod ide_capability;
 mod surface_parity;
 mod ui_recovery;
+mod ui_budget;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -58,6 +59,10 @@ pub use surface_parity::{
 pub use ui_recovery::{
     plan_recovery, FeedDisposition, RecoveryDecision, RecoveryError, RecoveryFault, RecoveryFence,
     RecoveryInput, RecoveryPhase, RecoveryPlan, UI_RECOVERY_SCHEMA,
+};
+pub use ui_budget::{
+    evaluate_budget, UiBudgetDecision, UiBudgetError, UiBudgetSurface, UiResourceBudget,
+    UiResourceUsage, UI_RESOURCE_BUDGET_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{

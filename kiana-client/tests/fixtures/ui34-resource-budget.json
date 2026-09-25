@@ -1,0 +1,16 @@
+{
+  "schema": "kiana.ui-resource-budget-fixture.v1",
+  "accepted": [
+    "within budget stays ready",
+    "item/session overflow is visible degraded with hydrate/pagination",
+    "bytes/queue overflow rejects before unbounded rendering",
+    "pending and unknown items are protected from silent eviction"
+  ],
+  "denied": [
+    "silent truncation of pending or unknown",
+    "unbounded feed/DOM/TTY/IPC payload",
+    "hard limit converted into successful execution",
+    "budget miss changed into cancel, retry or approval",
+    "negative/zero budget or inconsistent usage schema"
+  ]
+}
