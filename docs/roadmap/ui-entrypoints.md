@@ -857,13 +857,20 @@ receipt/artifact/proof/limitation/reviewer；source/CI 结果仍不能自升为 
 
 
 
-#### UI-41 · 交接、审查和后续缺口　⏳
+#### UI-41 · 交接、审查和后续缺口　🔄
 
 - 依赖：UI-40。代码/文档：roadmap、module-map、CURRENT_STATUS、实现 PR/工作树说明。
 - 步骤：列出完成/部分/延期/不支持的 UI 卡，绑定 P/P2/P4、Event/Receipt、Capability、Harness 单元；指出跨进程、物理 PTY、live provider、规模和浏览器兼容上限。
 - 先拒绝：没有 reviewer、没有 source snapshot、把 WIP agent 修改视为验收、发现规范与源码冲突却改规范消除冲突。
 - 成功/回归：独立 reviewer 能从 evidence bundle 重跑关键拒绝与恢复路径；未完成项有下一步和阻塞事实，不用“整体完成”覆盖细节。
 - 完成产物：交接清单、审查意见、最终证据索引和下一批明确任务。
+
+实现基线：[`ui41-handoff-baseline.md`](ui41-handoff-baseline.md)。当前 handoff matrix 绑定 UI-38
+conformance、UI-39 opt-in、UI-40 `UiEvidenceBundle`、P/P2/P4 与 Event/Receipt/Capability/Harness
+限制，逐项写出 `feature_status`、`proof_level`、source snapshot、reviewer、receipt/limitation 和
+next action；UI runtime、跨进程 durable、Desktop/browser/PTY、provider/live/physical 仍保留
+partial/not_supported，不用“整个项目完成”覆盖缺口。GitHub workflow 复核 UI-40 source gate 与
+handoff guard，本地不运行测试。
 
 ## 28. UI / Entrypoints 执行批次、验证命令与证据规则
 

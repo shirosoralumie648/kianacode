@@ -56,6 +56,19 @@ proof-level change: `feature_status=implemented`（release/evidence source gate 
 limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
 reviewer: Codex UI-40 source review；检查 deny/recovery ordering、evidence source/fixture/environment/argv/exit/proof/receipt/artifact/limitation/reviewer binding、secret/duplicate/drift/false-live deny、release gate no-publish 与 no second execution loop；无本地 runtime/release reviewer
 
+### UI-41 交接、审查和后续缺口（2026-09-25）
+
+source_snapshot: `f04d886f`（UI-40 已合并 master 基线）加 UI-41 handoff source/docs slice；`docs/roadmap/ui41-handoff-baseline.md`; `kiana-core/tests/ui41_handoff_guard.rs`; `.github/workflows/ui41-handoff.yml`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`; `docs/module-map.md`; `docs/ui-entrypoints-runbook.md`; `CURRENT_STATUS.md`
+worktree_status: branch `step/ui41-handoff-gaps-20260925`;新增 UI-26–40 status matrix，逐项绑定 implemented/partial/deferred/not_supported、source proof ceiling、source snapshot、reviewer、receipt/limitation、next action；复核 UI-40 evidence gate；不发布、不批准、不执行 Broker、不把 handoff 当作 runtime/durable/live/physical acceptance
+command_argv: 本地仅 shell `bash -n scripts/verify-ui40-release-evidence.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `bash -n`、UI-40 source gate、`cargo test -p kiana-core --test ui41_handoff_guard --locked -- --test-threads=1`、`git diff --check`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/live；GitHub Actions 是 handoff/test/compile 权威且不等待
+fixture·cassette: `ui41_handoff_guard`、UI-41 matrix、UI-40 `UiEvidenceBundle`/release gate references；completed/partial/deferred/not_supported、source/proof/receipt/limitation/next-action and reviewer fields；无真实 runtime、durable、live、physical cassette
+exit_code: 本地 `bash -n` 与 `git diff --check`；远程 handoff guard、UI-40 gate、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-41 handoff matrix、reviewer/source/receipt/limitation/next-action guard、UI-40 gate recheck、baseline/runbook/module-map/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（handoff/source guard + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明任何 runtime UAT、跨进程 durable recovery、真实 browser/PTY/Electron/ACP host、scale/performance/accessibility、provider/connector/live/physical effect、签名发布或外部 receipt；UI-41 明确交接和缺口，不是整体完成证明；CI 结果未等待
+reviewer: Codex UI-41 source/handoff review；检查 UI-38/39/40 evidence linkage、分类与 proof 分离、reviewer/source/receipt/limitation/next-action 完整性、无 blanket completion、无第二执行循环；无本地 runtime/release reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

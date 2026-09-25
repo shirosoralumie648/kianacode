@@ -7,6 +7,10 @@ on:
       - "docs/roadmap/ui-entrypoints.md"
       - "docs/roadmap/ui39-live-acp-baseline.md"
       - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "scripts/verify-ui40-release-evidence.sh"
+      - "kiana-client/src/live_acp.rs"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "kiana-client/tests/ui38_conformance.rs"
       - "kiana-protocol/src/ui_contracts.rs"
       - "docs/roadmap/ui41-handoff-baseline.md"
       - "docs/module-map.md"
@@ -19,6 +23,10 @@ on:
       - "docs/roadmap/ui-entrypoints.md"
       - "docs/roadmap/ui39-live-acp-baseline.md"
       - "docs/roadmap/ui40-release-gate-baseline.md"
+      - "scripts/verify-ui40-release-evidence.sh"
+      - "kiana-client/src/live_acp.rs"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "kiana-client/tests/ui38_conformance.rs"
       - "kiana-protocol/src/ui_contracts.rs"
       - "docs/roadmap/ui41-handoff-baseline.md"
       - "docs/module-map.md"
@@ -40,6 +48,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
+      - run: bash -n scripts/verify-ui40-release-evidence.sh
+      - name: Recheck UI-40 evidence gate in handoff context
+        run: bash scripts/verify-ui40-release-evidence.sh
       - run: cargo test -p kiana-core --test ui41_handoff_guard --locked -- --test-threads=1
       - run: git diff --check
       - run: cargo check --workspace --tests --locked

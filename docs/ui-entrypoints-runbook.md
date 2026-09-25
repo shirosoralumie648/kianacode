@@ -47,6 +47,13 @@ CLI / TTY Workbench / Web / Electron Desktop / ACP adapter
 - 真实 browser/PTY/Electron、多进程 EventLog recovery、provider/connector external effect、签名包、
   ACP/IDE live、跨平台安装和物理结果仍必须保留 limitation。
 
+## UI-41 交接
+
+交接时阅读 [`ui41-handoff-baseline.md`](roadmap/ui41-handoff-baseline.md)：逐项核对
+`feature_status`、`proof_level`、source snapshot、reviewer、receipt/limitation 和 next action。
+UI-40 evidence bundle 是可重跑的 source/CI 索引，不是整项目完成声明；没有独立 runtime、durable、
+live 或 physical receipt 的项目保持 `partial`、`deferred` 或 `not_supported`。
+
 ## 相关事实入口
 
 - 当前账本：[`CURRENT_STATUS.md`](../CURRENT_STATUS.md)
