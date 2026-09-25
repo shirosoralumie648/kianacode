@@ -10,7 +10,7 @@ disposition、retry disposition、cursor epoch/sequence、object revision、Rece
 stable error code。四个 surface 必须各有且仅有一条 trace：CLI、Workbench、Web、Desktop；文案、
 颜色、快捷键、layout 和入口 limitation 不进入 equality key。
 
-`compare_surface_traces` 先做 schema/field/cursor/revision/receipt/sensitive-field validation，再
+`compare_surface_traces` 先做 schema/field/cursor/revision/receipt-digest/error-code/sensitive-field validation，再
 检查四 surface 集合与 identity equality。`Unknown` 仍可 parity，但所有 surface 必须保留同一
 `query_original`/limitation 语义；任何 drift 返回稳定错误，不自动 retry、resume、cancel 或调用
 Broker。surface-specific limitations 仅按集合排序合并进 read-only report。
