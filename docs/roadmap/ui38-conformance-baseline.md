@@ -10,7 +10,9 @@
 - `kiana-client/tests/fixtures/ui38-conformance.json` 与 `ui38_conformance.rs`：同一 Unknown trace 的
   四入口一致性、隐藏 Unknown、敏感字段和 capability schema drift deny-first fixture。
 - `.github/workflows/ui38-conformance.yml`：GitHub-only `cargo fmt`、聚焦 conformance test 和 workspace
-  check gate。
+check gate。
+其 push/pull_request path filter 现在同时包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，
+fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pending/unobserved。
 
 source slice 只验证可比较 trace metadata；CLI、Workbench、Web、Desktop 和 ACP fake peer 的真实
 transport/host/effect 仍不是本次切片的直接执行对象。comparator 不提交命令、不 retry/cancel/resume/

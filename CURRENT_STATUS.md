@@ -13106,4 +13106,17 @@ status change: UI-35 CI path now covers CM-36 fmt dependency; roadmap row/card r
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no real old browser/CLI traffic, dual-read capture, rollout telemetry, old endpoint removal, durable compatibility, provider/Broker/external effect or live/physical proof
 reviewer: Codex UI-35 path-filter rerun review; no local runtime test reviewer
+
+### UI-38 conformance CI path rerun (2026-09-26)
+
+source_snapshot: `dcfa3bb9` plus UI-38 CI-boundary rerun; `kiana-client/src/{conformance,surface_parity,lib}.rs`; `kiana-client/tests/{fixtures/ui38-conformance.json,ui38_conformance.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui38-conformance.yml`; `docs/roadmap/ui38-conformance-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-38-ci-rerun-20260926`; existing read-only conformance comparator/source guard remains unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no surface transport, ACP peer, provider/Broker or physical effect added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-client --test ui38_conformance --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-38 four-surface Unknown/schema/cursor/action/retry/digest/receipt/sensitive/capability-drift fixtures; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-38 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real conformance transport evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real CLI/Workbench/Web/Desktop/ACP transport, browser/PTY/Electron, durable cursor/replay, artifact/Receipt projection, provider/connector effect or live/physical proof
+reviewer: Codex UI-38 path-filter rerun review; no local runtime test reviewer
 ```

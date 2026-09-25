@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-client/src/conformance.rs"
       - "kiana-client/src/lib.rs"
       - "kiana-client/src/surface_parity.rs"
@@ -16,6 +17,7 @@ on:
       - ".github/workflows/ui38-conformance.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-client/src/conformance.rs"
       - "kiana-client/src/lib.rs"
       - "kiana-client/src/surface_parity.rs"
