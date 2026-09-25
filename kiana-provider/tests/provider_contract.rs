@@ -39,13 +39,7 @@ fn digest(seed: char) -> String {
 }
 
 fn fixture_matrix() -> ProviderContractMatrix {
-    let protocols = [
-        ModelProtocol::AnthropicMessages,
-        ModelProtocol::OpenAiChat,
-        ModelProtocol::OpenAiResponses,
-        ModelProtocol::OllamaChat,
-        ModelProtocol::GeminiInteractions,
-    ];
+    let protocols = ModelProtocol::PROVIDER_CONTRACT_MATRIX_PROTOCOLS;
     let mut cells = Vec::new();
     for (index, protocol) in protocols.into_iter().enumerate() {
         for (capability_index, capability) in
@@ -102,6 +96,15 @@ fn matrix_requires_explicit_support_fixture_or_preflight_error() {
             ProviderContractCapability::Streaming,
         )
         .is_some_and(|cell| cell.support == ProviderContractSupport::Supported));
+    let mut fake_cell_count = 0;
+    for capability in ProviderContractCapability::ALL {
+        let fake_cell = matrix
+            .cell(ModelProtocol::Legacy, capability)
+            .expect("Legacy/Fake capability cell");
+        fake_cell.validate().expect("explicit Fake capability cell");
+        fake_cell_count += 1;
+    }
+    assert_eq!(fake_cell_count, ProviderContractCapability::ALL.len());
     assert!(matrix.canonical_bytes().expect("canonical matrix").len() > 64);
 }
 

@@ -8,6 +8,8 @@ fn offline_contracts_are_shared_and_have_no_effect_authority() {
         "PROVIDER_CONTRACT_MATRIX_SCHEMA",
         "ProviderContractCapability",
         "ProviderContractMatrix",
+        "PROVIDER_CONTRACT_MATRIX_PROTOCOLS",
+        "Self::Legacy",
         "provider_contract_matrix_coverage_incomplete",
         "ProviderCassetteMode",
         "provider_replay_external_connection_forbidden",

@@ -12788,6 +12788,29 @@ proof-level change: `feature_status=implemented`, `proof_level=source` plus CI w
 limitations: no complete live adapter-by-adapter matrix proof, no fuzz campaign, no real provider request, no durable cross-process cassette store, no invoice truth, no live model effect or physical capability proof; fixture fault dispositions are declared expectations rather than exhaustive exploration
 reviewer: Codex source review of explicit matrix claims, unsupported preflight parity, digest-only cassette metadata, no-live replay boundary, bounded fault attempts, arbitrary chunk parser reuse and SDK retry disable marker; no local runtime test reviewer
 
+### P4-J7-29 Legacy/Fake matrix coverage evidence (2026-09-26)
+
+```text
+source_snapshot: base `5b53ec61` plus P4-J7-29 protocol-matrix follow-up; `kiana-domain/src/provider_contracts.rs`; `kiana-provider/tests/provider_contract.rs`; `kiana-core/tests/p4_j7_29_provider_contract_guard.rs`; P4-J7-29 baseline and roadmap overlays
+worktree_status: the canonical offline matrix protocol set now includes all five provider protocols plus Legacy/Fake; every Fake capability cell is explicitly classified and cannot silently disappear from the matrix; no live-provider claim added
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/provider_contracts.rs kiana-provider/tests/provider_contract.rs kiana-core/tests/p4_j7_29_provider_contract_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-provider --test provider_contract --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-provider --test provider_streaming --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-provider --test provider_retry --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_29_provider_contract_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only matrix asserts all nine Legacy/Fake capability cells are present and individually validate as Supported, Unsupported or explicitly unclaimed Unknown; existing cassette/fault/stream fixtures remain offline and no live endpoint is contacted
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: P4-J7-29 matrix now covers the deterministic Legacy/Fake protocol boundary alongside named providers; roadmap card remains 🔄 pending CI evidence and complete adapter-level conformance
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: Fake/Legacy coverage is offline compatibility evidence only; it does not verify every adapter claim, run a fuzz campaign, open a provider, establish billing truth or prove durable/live/physical behavior
+reviewer: Codex source review of matrix protocol enumeration, complete capability classification and no Fake-to-live inference; no local runtime test reviewer
+```
+
 ### P4-J7-30 provider product chain and four-surface regression (2026-09-26)
 
 source_snapshot: `25976ef2` plus P4-J7-30 source slice; `kiana-domain/src/{provider_product_chain,lib}.rs`; `kiana-domain/tests/{p4_j7_30_provider_product_chain.rs,fixtures/p4-j7-30-product-chain.json}`; `kiana-client/src/surface_parity.rs`; `kiana-client/tests/p4_j7_30_surface_parity.rs`; `kiana-core/tests/p4_j7_30_provider_product_chain_guard.rs`; `.github/workflows/p4-j7-30-provider-product-chain.yml`; `docs/roadmap/p4-j7-30-provider-product-chain-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`

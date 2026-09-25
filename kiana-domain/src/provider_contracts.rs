@@ -105,6 +105,20 @@ impl ProviderContractCapability {
     }
 }
 
+/// Protocols whose adapter contracts belong in the offline matrix, including the deterministic
+/// legacy/Fake boundary used by fixtures. This is coverage metadata only; it does not claim the
+/// Legacy adapter is a live provider.
+impl ModelProtocol {
+    pub const PROVIDER_CONTRACT_MATRIX_PROTOCOLS: [Self; 6] = [
+        Self::Legacy,
+        Self::AnthropicMessages,
+        Self::OpenAiChat,
+        Self::OpenAiResponses,
+        Self::OllamaChat,
+        Self::GeminiInteractions,
+    ];
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderContractSupport {

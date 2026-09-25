@@ -8,8 +8,10 @@ durable, live or physical evidence.
 
 - `kiana-domain/src/provider_contracts.rs` defines a versioned `ProviderContractMatrix` whose
   every cell must explicitly carry fixture coverage, an unsupported preflight error, or an
-  unclaimed `unknown` state. Duplicate protocol/capability cells and secret-bearing identifiers
-  fail closed.
+  unclaimed `unknown` state. Its protocol set includes all five named provider protocols and the
+  deterministic `Legacy`/Fake adapter; that Legacy row is offline compatibility coverage, not a
+  live-provider claim. Duplicate protocol/capability cells and secret-bearing identifiers fail
+  closed.
 - `ProviderCassette` stores only protocol, source/mode, payload digest and redaction-profile
   digest. Replay is offline by construction; recording requires captured source plus explicit
   live opt-in, while synthetic cassettes cannot enter record mode.
