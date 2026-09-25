@@ -12341,6 +12341,19 @@ proof-level change: `feature_status=partial`, `proof_level=source` plus CI wirin
 limitations: no real context selection or candidate approval runtime, no durable EventStore/index/restart recovery, no live scope/redaction/Receipt/cleanup, no provider/physical proof; fake output cannot promote live
 reviewer: Codex CM-38 path-filter rerun review; no local/live runtime reviewer
 
+### CM-39 context-memory closeout CI path rerun (partial, 2026-09-26)
+
+source_snapshot: `0b71afdc` plus CM-39 CI-boundary rerun; `docs/roadmap/context-memory.md`; `docs/module-map.md`; `CURRENT_STATUS.md`; `kiana-daemon/src/{harness_memory,memory_retrieval}.rs`; `kiana-domain/src/{memory_journal,context_memory_evidence,memory_workbench}.rs`; `kiana-core/tests/cm39_context_memory_closeout_guard.rs`; `.github/workflows/cm39-context-memory-closeout.yml`; `docs/roadmap/cm39-context-memory-closeout-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/cm-39-ci-rerun-20260926`; existing read-only docs/source parity guard remains unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no product runtime, EventStore, provider, physical or second path added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-core --test cm39_context_memory_closeout_guard --locked -- --test-threads=1`; `git diff --check`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing CM-39 docs/module-map/CURRENT_STATUS canonical source, ContextMemoryGoldenPathEvidence/StageDigests, fake/live proof ceiling and open provider/cross-process/physical/scale limitations; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, guard, diff and compile exit codes pending/unobserved
+status change: CM-39 CI path now covers CM-36 fmt dependency; roadmap remains ⏳ because CM-33–37, durable memory/index/retention and live evidence remain open
+proof-level change: `feature_status=partial`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: docs/source parity does not prove runtime/durable/live/physical behavior, provider or cross-process recovery, retention/index maintenance, scale, browser or external effects
+reviewer: Codex CM-39 path-filter rerun review; no local runtime/docs acceptance reviewer
+
 ### EXT-29 extension fake golden matrix (2026-09-26)
 
 source_snapshot: `ba55db3e` plus EXT-29 source slice; `kiana-domain/src/{extension_golden,extension_contracts,hook_lifecycle,extension_commands,extension_visibility,lib}.rs`; `kiana-domain/tests/{ext29_extension_golden.rs,fixtures/ext29-extension-golden.json}`; `kiana-core/tests/ext29_extension_golden_guard.rs`; `.github/workflows/ext29-extension-golden.yml`; `docs/roadmap/ext29-extension-golden-baseline.md`; `docs/roadmap/skills-plugins-hooks.md`; `docs/roadmap.md`

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "docs/roadmap/context-memory.md"
       - "docs/module-map.md"
       - "CURRENT_STATUS.md"
@@ -17,6 +18,7 @@ on:
       - ".github/workflows/cm39-context-memory-closeout.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "docs/roadmap/context-memory.md"
       - "docs/module-map.md"
       - "CURRENT_STATUS.md"
