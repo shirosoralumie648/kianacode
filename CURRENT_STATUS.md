@@ -12328,6 +12328,19 @@ proof-level change: `feature_status=partial`, `proof_level=source` plus CI wirin
 limitations: no EventStore retention scan adapter, index/artifact/cache writer, disk monitor, cross-process orphan recovery, physical delete/compaction, durable watermark or live/physical effect proof; planned reclaim is not an observed cleanup result
 reviewer: Codex source review of generation/TTL/tombstone eligibility, retention/legal-hold and Event/Receipt reference fences, quota arithmetic, orphan report/recovery semantics and no-effect boundary; no local runtime test reviewer
 
+### CM-38 fake/live evidence CI path rerun (partial, 2026-09-26)
+
+source_snapshot: `1a689587` plus CM-38 CI-boundary rerun; `kiana-daemon/tests/eq10_fake_provider.rs`; `kiana-daemon/src/{eval_runtime,harness_memory}.rs`; `kiana-domain/src/{memory_journal,live_handoff,context_memory_evidence}.rs`; `kiana-domain/src/memory_workbench.rs` path dependency; `kiana-domain/tests/cm38_context_memory_evidence.rs`; `kiana-core/tests/cm38_context_memory_live_guard.rs`; `.github/workflows/cm38-context-memory-live.yml`; `docs/roadmap/cm38-context-memory-live-baseline.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/cm-38-ci-rerun-20260926`; existing FakeProvider/ContextMemoryGoldenPathEvidence/live-opt-in boundary remains unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no live credentials, external request, durable reopen or second loop added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-daemon --test eq10_fake_provider --locked -- --test-threads=1`; `cargo test -p kiana-domain --test cm38_context_memory_evidence --locked -- --test-threads=1`; `cargo test -p kiana-core --test cm38_context_memory_live_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke/live-provider commands deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing fake Provider→ContextPlan→tool→retrieval→candidate→approval→projection→recovery→receipt evidence, fake/live mode separation, scope/redaction/receipt/cleanup fields and no-live source guard; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixtures, guard and compile exit codes pending/unobserved
+status change: CM-38 CI path now covers CM-36 fmt dependency; roadmap remains ⏳ because durable golden path and authorized live Provider evidence are absent
+proof-level change: `feature_status=partial`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real context selection or candidate approval runtime, no durable EventStore/index/restart recovery, no live scope/redaction/Receipt/cleanup, no provider/physical proof; fake output cannot promote live
+reviewer: Codex CM-38 path-filter rerun review; no local/live runtime reviewer
+
 ### EXT-29 extension fake golden matrix (2026-09-26)
 
 source_snapshot: `ba55db3e` plus EXT-29 source slice; `kiana-domain/src/{extension_golden,extension_contracts,hook_lifecycle,extension_commands,extension_visibility,lib}.rs`; `kiana-domain/tests/{ext29_extension_golden.rs,fixtures/ext29-extension-golden.json}`; `kiana-core/tests/ext29_extension_golden_guard.rs`; `.github/workflows/ext29-extension-golden.yml`; `docs/roadmap/ext29-extension-golden-baseline.md`; `docs/roadmap/skills-plugins-hooks.md`; `docs/roadmap.md`

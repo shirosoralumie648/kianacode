@@ -15,4 +15,6 @@ bounded limitation.
 This does not claim a durable full golden path or live Provider proof. No local test or external
 request runs in this task; real context selection, candidate approval, restart recovery, index
 maintenance and live scope/redaction receipts remain partial. Mock/fake output cannot promote a
-live provider or prove physical effect.
+live provider or prove physical effect. The workflow path filter also includes current CM-36
+`kiana-domain/src/memory_workbench.rs`, so a fresh remote run covers the repository-wide fmt
+dependency; that result is pending/unobserved.
