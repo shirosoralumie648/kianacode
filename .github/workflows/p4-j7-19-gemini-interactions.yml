@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-provider/src/request.rs"
       - "kiana-provider/src/response.rs"
       - "kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs"
@@ -14,6 +15,7 @@ on:
       - ".github/workflows/p4-j7-19-gemini-interactions.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-provider/src/request.rs"
       - "kiana-provider/src/response.rs"
       - "kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs"

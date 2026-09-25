@@ -61,8 +61,11 @@ cargo test -p kiana-provider --lib --locked gemini_ -- --test-threads=1
 cargo test -p kiana-core --test p4_j7_19_gemini_interactions_guard --locked -- --test-threads=1
 ```
 
-Local tests/build/check/clippy/smoke were not run. The source branch has not yet run in GitHub CI;
-the step remains `source` / 🔄 until the dedicated fixture and source-guard jobs execute. No live
-Gemini endpoint, billing, durable replay storage, or provider-side effect is claimed. The API
+Local tests/build/check/clippy/smoke were not run. Historical provider CI was blocked before the
+fixture job by the repository-wide missing `kiana-domain/src/memory_workbench.rs` module; CM-36 now
+supplies that module, and the dedicated workflow path filter includes it so a fresh remote run is
+triggered by this source update. That run is pending/unobserved; the step remains `source` / 🔄 until
+the dedicated fixture and source-guard jobs execute. No live Gemini endpoint, billing, durable replay
+storage, or provider-side effect is claimed. The API
 reference describes optional interaction/step usage fields; missing usage remains unknown rather
 than being fabricated as zero. Cost-vector mapping remains P4-J7-24/BQ-10.
