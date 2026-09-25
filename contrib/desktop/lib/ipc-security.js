@@ -38,6 +38,16 @@ const SENSITIVE_QUERY_KEYS = new Set([
   "token",
   "web_token",
   "x-kiana-web-token",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "authorization",
+  "auth",
+  "api_key",
+  "apikey",
+  "secret",
+  "credential",
+  "credentials",
   "workspace",
   "workdir",
   "project",
@@ -225,7 +235,9 @@ function validateHandshake({ event, expectedSender, session, welcomeUrl, payload
   if (!sender.ok) {
     return sender;
   }
-  if (!payload || payload.version !== IPC_PROTOCOL_VERSION) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
+      Object.keys(payload).some(key => key !== "version") ||
+      payload.version !== IPC_PROTOCOL_VERSION) {
     return { ok: false, reason: "protocol_version_mismatch" };
   }
   return {
@@ -345,6 +357,10 @@ function validateIpcRequest({ event, expectedSender, session, welcomeUrl, channe
   }
   if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
     return { ok: false, reason: "malformed_envelope" };
+  }
+  const envelopeKeys = new Set(["version", "instance_token", "nonce", "workspace_binding", "fact", "reference"]);
+  if (Object.keys(envelope).some(key => !envelopeKeys.has(key))) {
+    return { ok: false, reason: "unexpected_envelope_field" };
   }
   if (envelope.version !== IPC_PROTOCOL_VERSION) {
     return { ok: false, reason: "protocol_version_mismatch" };

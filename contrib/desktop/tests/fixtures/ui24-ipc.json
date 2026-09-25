@@ -22,6 +22,8 @@
   "denied": [
     "http://127.0.0.1:4322/",
     "http://127.0.0.1:4321/?token=web-secret",
+    "https://example.com/help?access_token=web-secret",
+    "https://example.com/help?api_key=web-secret",
     "file:///tmp/attacker.html",
     "javascript:alert(1)",
     "data:text/html,owned"
@@ -34,6 +36,7 @@
     "instance_token_mismatch",
     "workspace_binding_mismatch",
     "nonce_mismatch",
+    "unexpected_envelope_field",
     "unknown_channel"
   ]
 }

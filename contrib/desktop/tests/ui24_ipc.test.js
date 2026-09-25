@@ -148,6 +148,17 @@ test("ui24 IPC denies foreign senders, nested frames, forged bindings and channe
     }),
     { ok: false, reason: "protocol_version_mismatch" }
   );
+  assert.deepEqual(
+    validateHandshake({
+      event: makeEvent(),
+      expectedSender: sender,
+      session,
+      welcomeUrl: "file:///opt/kiana/contrib/desktop/welcome.html",
+      payload: { version: IPC_PROTOCOL_VERSION, extra: "ignored" },
+    }),
+    { ok: false, reason: "protocol_version_mismatch" }
+  );
+  assert.equal(check(makeEvent(), { ...base, extra: "ignored" }).reason, "unexpected_envelope_field");
 });
 
 test("ui24 source guard keeps Electron security flags and token-free renderer boundary", () => {

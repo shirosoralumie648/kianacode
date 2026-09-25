@@ -774,6 +774,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: sanitizer is deny/display fallback rather than secret redaction authority; no browser/axe/screen-reader/keyboard device, real CSP delivery, durable lease, provider/Broker or physical proof
 reviewer: Codex UI-23 source review; checked JSON/text sinks, stream delta/terminal sanitization, tab/instance scope and existing CSP/focus boundaries; no local runtime test reviewer
 ```
+
+### UI-24 Electron envelope/query evidence (2026-09-26)
+
+```text
+source_snapshot: base `67cee8bb` plus UI-24 Electron IPC slice; `contrib/desktop/lib/ipc-security.js`; `contrib/desktop/tests/ui24_ipc.test.js`; `contrib/desktop/tests/fixtures/ui24-ipc.json`; UI-24 baseline/roadmap overlays
+worktree_status: handshake and IPC request envelopes reject unknown fields; navigation rejects expanded sensitive query keys including access/auth/api-key/secret; existing senderFrame/origin/nonce/workspace and BrowserWindow security flags remain in force
+command_argv:
+  node --check contrib/desktop/lib/ipc-security.js
+  node --check contrib/desktop/main.js
+  node --check contrib/desktop/preload.js
+  git diff --check
+  GitHub Actions: node --check sources and JSON parse
+  GitHub Actions: node --test contrib/desktop/tests/ui24_ipc.test.js
+cwd·environment: repository root; syntax/whitespace checks only; local Node tests and Electron/OS runs deliberately not run; CI not awaited
+fixture·cassette: GitHub-only access_token/api_key navigation and unexpected handshake/envelope field denials; no workspace action, provider/network or OS external-browser effect
+exit_code: 0 for targeted node --check and `git diff --check`; Node fixture/Electron CI pending/unobserved
+status change: UI-24 renderer-controlled IPC shape and sensitive navigation query surface are narrower; card remains 🔄 pending CI and real Electron/OS proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no real BrowserWindow/senderFrame, popup lifetime, external browser, restart rotation, DevTools extraction or provider/Broker effect proof
+reviewer: Codex UI-24 source review; checked sender/origin/channel/nonce/binding, unknown envelope fields and sensitive query key coverage; no local Electron runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
