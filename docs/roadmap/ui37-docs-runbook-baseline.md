@@ -19,3 +19,6 @@ command/Receipt 或 reconcile。
 `feature_status=implemented`; `proof_level=source`。未证明干净 checkout 的完整跨入口 runtime、真实
 browser/PTY/Electron/ACP、durable recovery、provider/connector/live/physical 和 release UAT；CI guard
 结果保持 pending/unobserved。
+
+The guard rejects any `proof_level=durable`, `proof_level=live` or `proof_level=physical` token in the
+runbook, rather than relying on the claim appearing beside `feature_status` on the same line.

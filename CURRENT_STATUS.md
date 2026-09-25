@@ -1047,6 +1047,24 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no local/real build, Electron/DEB/install/upgrade, signature/provenance, OS, provider/Broker or physical proof
 reviewer: Codex UI-36 source review; checked CI-only boundary, scan scope/self-match, lock/format/build and no-effect path; no local release reviewer
 ```
+
+### UI-37 docs proof-level guard evidence (2026-09-26)
+
+```text
+source_snapshot: base `908f7c2a` plus UI-37 documentation guard slice; `scripts/verify-ui37-docs.sh`; `docs/ui-entrypoints-runbook.md`; `docs/module-map.md`; UI-37 baseline/roadmap overlays
+worktree_status: runbook verifier now rejects any durable/live/physical `proof_level` token rather than only same-line feature/proof overclaims; source/current spine and limitations remain explicit
+command_argv:
+  bash -n scripts/verify-ui37-docs.sh
+  git diff --check
+  GitHub Actions: bash -n and bash scripts/verify-ui37-docs.sh
+cwd·environment: repository root; shell syntax/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only docs/status/link/overclaim guard; no product runtime/provider/Broker/network effect
+exit_code: 0 for `bash -n` and `git diff --check`; remote docs guard pending/unobserved
+status change: UI-37 documentation guard now fails closed on standalone proof-level overclaims; card remains 🔄 pending CI and clean-checkout documentation proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: documentation guard is not runtime/behavior/durable/live/physical evidence; no clean checkout launch or cross-entry smoke run
+reviewer: Codex UI-37 source/documentation review; checked unique execution spine, status/limitation wording and standalone proof-level rejection; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
