@@ -638,9 +638,11 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-37 · Cache, index and retention maintenance　⏳
+##### CM-37 · Cache, index and retention maintenance　🔄
 
 实现 generation GC、摘要/结果 artifact TTL、tombstone compaction、过期扫描、磁盘 quota、恢复后 orphan 检测；任何清理先核对 Event/receipt 引用与 retention。验收：`gc_never_removes_retained_evidence`、`orphan_artifact_is_reported_and_recoverable`。
+
+当前 source slice 与 CI-only 验收见 [`cm37-memory-maintenance-baseline.md`](cm37-memory-maintenance-baseline.md)。新增只读 `MemoryMaintenancePlan`，覆盖旧 index generation、summary/result/cache TTL、tombstone cursor、quota reclaim、Event/Receipt 引用、legal hold 和 orphan report/recovery；计划不执行删除，CM-37 保持 🔄 直到 GitHub fixtures 和后续实际 adapter/恢复证据完成。
 
 <a id="step-cm-38"></a>
 

@@ -1,0 +1,58 @@
+name: CM-37 memory maintenance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/memory_maintenance.rs"
+      - "kiana-domain/src/retention.rs"
+      - "kiana-domain/src/retention_watermark.rs"
+      - "kiana-domain/src/index_generation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-query/src/cache_policy.rs"
+      - "kiana-domain/tests/cm37_memory_maintenance.rs"
+      - "kiana-domain/tests/fixtures/cm37-memory-maintenance.json"
+      - "kiana-core/tests/cm37_memory_maintenance_guard.rs"
+      - "docs/roadmap/cm37-memory-maintenance-baseline.md"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm37-memory-maintenance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/memory_maintenance.rs"
+      - "kiana-domain/src/retention.rs"
+      - "kiana-domain/src/retention_watermark.rs"
+      - "kiana-domain/src/index_generation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-query/src/cache_policy.rs"
+      - "kiana-domain/tests/cm37_memory_maintenance.rs"
+      - "kiana-domain/tests/fixtures/cm37-memory-maintenance.json"
+      - "kiana-core/tests/cm37_memory_maintenance_guard.rs"
+      - "docs/roadmap/cm37-memory-maintenance-baseline.md"
+      - "docs/roadmap/context-memory.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cm37-memory-maintenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-37 domain maintenance fixtures
+        run: cargo test -p kiana-domain --test cm37_memory_maintenance --locked -- --test-threads=1
+      - name: Run CM-37 source guard
+        run: cargo test -p kiana-core --test cm37_memory_maintenance_guard --locked -- --test-threads=1
+      - name: Compile CM-37 targets
+        run: cargo check --workspace --tests --locked
