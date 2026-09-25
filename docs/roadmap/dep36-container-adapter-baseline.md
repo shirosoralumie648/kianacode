@@ -13,8 +13,8 @@ receipts, SIGTERM, no-host-fallback, inventory/fence/health/cleanup references a
 limitations.
 
 The adapter preserves fail-closed behavior for identity drift, unpinned images, unapproved env
-names, unconfirmed cancellation and probe timeouts. A fake/container harness is CI-only in this
-step. Runtime inventory and restart recovery are still process-local, and no real container,
+names, unknown launch/exec fields, unconfirmed cancellation and probe timeouts. A fake/container
+harness is CI-only in this step. Runtime inventory and restart recovery are still process-local, and no real container,
 gVisor target, traffic drain, durable fence, health receipt or cross-process cleanup was executed.
 DEP-36 remains partial with source/static evidence only; result_unknown cannot be promoted to
 success.

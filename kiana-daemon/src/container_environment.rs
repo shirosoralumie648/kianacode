@@ -47,6 +47,7 @@ const LABEL_BACKEND: &str = "io.kiana.backend";
 /// accepted as a workspace. Environment variables are an explicit allowlist rather than a copy
 /// of the daemon process environment.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ContainerLaunchConfig {
     pub runtime: PathBuf,
     pub image: String,
@@ -149,6 +150,7 @@ impl ContainerLaunchConfig {
 /// Parsed command supplied to the container exec boundary. The operation is data, not a shell
 /// string; shell syntax is not accepted by this adapter.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ContainerExecOperation {
     pub argv: Vec<String>,
     #[serde(default = "default_container_cwd")]
