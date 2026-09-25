@@ -225,6 +225,19 @@ proof-level change: `feature_status=implemented`（cross-entry UAT evidence sour
 limitations: 未证明真实四入口 release/UAT、跨进程 durable recovery、Desktop packaging、external provider/account receipt、physical/live outcome；CI 结果未等待
 reviewer: Codex DEP-40 source review；检查 approval prefix/trim、fake/live proof ceiling、receipt/reconcile/Unknown、matrix entrypoint/scenario coverage 与 no external effect；无本地 UAT/live reviewer
 
+### DEP-41 handoff matrix schema fence（2026-09-26）
+
+source_snapshot: `20825e6c`（DEP-40 UAT approval fence 已合并 master 基线）加 DEP-41 matrix-parser source slice；`scripts/validate-dep41-release-gate.sh`; `kiana-core/tests/dep41_release_gate_guard.rs`; `docs/roadmap/dep41-capability-proof-matrix.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/dep-41-handoff-matrix-parser-20260926`; GitHub-only validator 逐行解析 capability/proof matrix，要求五个非空列、允许的 feature/proof 值、非空 evidence/next gate 和至少十个 handoff rows，且拒绝 blanket completion；不发布、不执行 restore/migration/rollout/provider/Broker、不中止或扩大权限
+command_argv: 本地仅 `bash -n scripts/validate-dep41-release-gate.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/release/UAT）；GitHub Actions 将运行 `cargo fmt --all --check`、DEP-41 validator、source guard、`git diff --check` 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/UAT/live/physical；GitHub Actions 是 handoff/test/compile 权威且不等待
+fixture·cassette: `dep41-capability-proof-matrix.md`、`validate-dep41-release-gate.sh`、`dep41_release_gate_guard.rs`；partial/target/deferred/not_supported、source/local_behavior/durable/live/physical vocabulary、limitation/reviewer/next gate、no blanket completion
+exit_code: 本地 `bash -n` 与 `git diff --check`；远程 DEP-41 docs/source guard/workspace compile exit code pending/unobserved
+status_change: DEP-41 release gate 从全文 marker 检查升级为逐行 matrix schema/status/proof/evidence/next-gate 校验，补齐 matrix 文档与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（operator handoff/source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: validator 仍只证明文档/矩阵结构，不能证明 runtime、capability enforcement、durable restore/migration、release artifact、external receipt、live/physical cleanup 或任何下游代码完成；CI 结果未等待
+reviewer: Codex DEP-41 source/handoff review；检查逐行五列 parser、allowed status/proof、non-empty evidence/next gate、blanket-completion deny、DEP-41 partial/source self-row 与 no execution authority；无本地 operator/release reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
