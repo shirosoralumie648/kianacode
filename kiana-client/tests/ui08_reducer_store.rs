@@ -227,6 +227,38 @@ fn unknown_and_pending_survive_hydrate_and_dehydrate() {
 }
 
 #[test]
+fn hydrate_rejects_optimistic_previous_from_a_foreign_scope() {
+    let mut store = UiEntityStore::new(scope("tab-1"), 8).unwrap();
+    let mut boundary = frame(1, "boundary-foreign-previous", 1);
+    boundary.kind = UiFeedFrameKind::SnapshotBoundary;
+    boundary.event = None;
+    let boundary_scope = store.scope().clone();
+    store
+        .apply(UiStoreEvent::feed(boundary_scope, boundary))
+        .unwrap();
+    let update = optimistic("command-1", u64::MAX);
+    store.apply(UiStoreEvent::Optimistic(update)).unwrap();
+    let snapshot = store.dehydrate().unwrap();
+    let mut encoded = serde_json::to_value(snapshot).unwrap();
+    encoded["optimistic"][0]["previous"] = json!({
+        "key": {"kind": "submission", "id": "command-1"},
+        "workspace": "/foreign",
+        "session_id": "foreign-session",
+        "tab_id": "foreign-tab",
+        "epoch": "foreign-epoch",
+        "revision": 1,
+        "lifecycle": "authoritative",
+        "value": {},
+        "source_event_id": null
+    });
+    let forged = serde_json::from_value(encoded).unwrap();
+    assert_eq!(
+        UiEntityStore::hydrate(forged).unwrap_err(),
+        UiStoreError::ScopeMismatch
+    );
+}
+
+#[test]
 fn tab_scope_isolation_and_reducer_purity_are_explicit() {
     let store = UiEntityStore::new(scope("tab-1"), 8).unwrap();
     let update = optimistic("command-1", u64::MAX);

@@ -622,6 +622,28 @@ status change: UI-08 共享纯 reducer/entity store 与 GitHub-only fixtures 已
 proof-level change: `feature_status=implemented`（bounded source reducer + lifecycle/recovery contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
 limitations: store 是进程内 presentation projection，未证明 durable/cross-process replay、SSE/socket、presenter 全量迁移、provider/live timing 或 physical proof；UI-18 reconnect 与 UI-33 crash recovery 仍未完成
 reviewer: Codex UI-08 source review；检查 scope/revision/event/epoch fences、pending/unknown protection、Accepted 保留 optimistic、Applied/Rejected/Unknown settlement、snapshot digest 和无第二执行循环；无本地 runtime test reviewer
+
+### UI-08 optimistic previous scope fence evidence (2026-09-26)
+
+```text
+source_snapshot: base `4730c654` plus UI-08 optimistic-previous slice; `kiana-client/src/ui_store.rs`; `kiana-client/tests/ui08_reducer_store.rs`; `kiana-core/tests/ui08_reducer_store_guard.rs`; UI-08 baseline and roadmap overlays
+worktree_status: hydrated snapshots now reject missing/non-pending/revision-mismatched optimistic entities and reject rollback previous entities from another workspace/session/tab/epoch; reducer remains pure and effect-free
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/ui_store.rs kiana-client/tests/ui08_reducer_store.rs kiana-core/tests/ui08_reducer_store_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui08_reducer_store --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test ui08_reducer_store_guard --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui08_store_boundary_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only forged hydrated optimistic previous entity from a foreign scope is rejected before digest/replay use; existing revision/gap/tab/rollback/Unknown fixtures remain offline
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-08 hydration now fails closed on optimistic rollback scope leakage; card remains 🔄 pending CI evidence and durable/cross-process proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: in-process bounded presentation store only; no durable store, cross-process replay, browser/provider/live timing or physical proof is claimed
+reviewer: Codex source review of optimistic entity/previous scope binding, revision/lifecycle consistency, forged hydrate denial and unchanged no-authority boundary; no local runtime test reviewer
+```
 ### ER-28 CompanyOS / Workflow / Artifact 业务引用（2026-09-24）
 
 source_snapshot: `origin/master=69394fb1` 重放后的 `er-28-company-workflow-artifact-20260924` source slice；`kiana-domain/src/runtime_evidence.rs`; `kiana-domain/src/automation.rs`; `kiana-domain/src/company.rs`; `kiana-domain/src/company_business.rs`; `kiana-domain/src/company_closeout.rs`; `kiana-workflow/src/durable.rs`; `kiana-core/src/automation.rs`; `kiana-core/src/company.rs`; `kiana-domain/tests/er28_runtime_evidence.rs`; `kiana-core/tests/er28_company_workflow_artifact_guard.rs`; `.github/workflows/er28-company-workflow-artifact.yml`; `docs/roadmap/er28-company-workflow-artifact-baseline.md`

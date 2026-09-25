@@ -21,6 +21,9 @@ fn ui08_store_is_a_pure_bounded_projection() {
         "unknown_commands",
         "optimistic",
         "ensure_capacity",
+        "ui_store_optimistic_entity_missing",
+        "ui_store_optimistic_entity_mismatch",
+        "previous.workspace",
     ] {
         assert!(
             store.contains(marker) || client.contains(marker),
