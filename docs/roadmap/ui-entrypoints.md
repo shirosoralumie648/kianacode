@@ -729,13 +729,18 @@ Unknown，所有计划 `new_effect_allowed=false`。`RecoveryFence` 拒绝旧 ep
 
 
 
-#### UI-34 · 性能、资源上限和可访问性验收　⏳
+#### UI-34 · 性能、资源上限和可访问性验收　🔄
 
 - 依赖：UI-13/20/23/28/33。代码：metrics、bounded queue/cache/render budget、accessibility runner。
 - 步骤：为 feed、snapshot、artifact、DOM、TUI buffer、IPC payload 定义上限和退化行为；测首屏、长 stream、100+ session、超长 diff、慢磁盘、低带宽。
 - 先拒绝：无界内存、慢消费者拖住 EventStore、丢弃 pending/unknown、超限静默截断、焦点/读屏回归。
 - 成功/回归：压力下仍有可见 Degraded/limited 状态和可恢复 action；记录 p50/p95、RSS、queue depth、bundle size。
 - 完成产物：性能基线、资源预算、无障碍人工/工具报告。
+
+实现基线：[`ui34-resource-budget-baseline.md`](ui34-resource-budget-baseline.md)。当前 source slice 位于
+`kiana-client/src/ui_budget.rs`，统一 Feed/Snapshot/Artifact/DOM/TTY/IPC 的 bytes/items/sessions/
+queue 上限；硬 bytes/queue 超限返回 Reject，item/session 超限返回可见 Degraded，pending/unknown
+保护项超过容量直接 fail-closed，禁止静默淘汰或把预算拒绝改成 cancel/retry/approval。
 
 <a id="step-ui-35"></a>
 

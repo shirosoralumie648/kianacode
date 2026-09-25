@@ -1,0 +1,42 @@
+name: UI-34 resource budgets and accessibility fallback contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/ui_budget.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui34-resource-budget.json"
+      - "kiana-client/tests/ui34_resource_budget.rs"
+      - "docs/roadmap/ui34-resource-budget-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui34-resource-budget.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/ui_budget.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui34-resource-budget.json"
+      - "kiana-client/tests/ui34_resource_budget.rs"
+      - "docs/roadmap/ui34-resource-budget-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui34-resource-budget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui34-resource-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui34_resource_budget --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
