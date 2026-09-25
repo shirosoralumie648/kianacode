@@ -462,8 +462,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`all_supported_adapters_satisfy_model_contract`、`arbitrary_chunk_boundaries_preserve_final_output`。
 - **退出 / 证据**：只编译测试不算通过；记录每矩阵格命中测试/fixture，避免空过滤结果；fuzz 只证明其运行范围，不声称无漏洞。
 
-已实现切片（CI 待跑、未在本地运行测试）：新增共享 `ProviderContractMatrix` 能力格、显式
-unsupported preflight error、版本化且仅 digest 的 cassette 元数据，以及覆盖任意分块、乱序/重复
+已实现切片（CI 待跑、未在本地运行测试）：共享 `ProviderContractMatrix` 覆盖五种命名 provider
+protocol 和 Legacy/Fake 离线兼容边界，能力格需显式声明、unsupported 绑定 preflight error；cassette
+使用版本化且仅 digest 的元数据，并覆盖任意分块、乱序/重复
 事件、截断、超限、取消、不完整工具调用、缺失用量和 unsupported capability 的离线 fault corpus。
 `replay_stream_fixture` 复用现有 `Accumulator`/`Framer`，只解析已捕获字节，不创建 permit、不解析
 凭据、不打开连接；SDK retry 已保持显式关闭。CI 与证据限制见
