@@ -1,0 +1,56 @@
+name: NM-08 notification outbox
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/notification_outbox.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/notification_outbox.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/tests/nm08_notification_outbox.rs"
+      - "kiana-eventlog/tests/fixtures/nm08-notification-outbox.json"
+      - "kiana-core/src/notification_delivery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm08_delivery_worker_guard.rs"
+      - "docs/roadmap/nm08-notification-outbox-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm08-notification-outbox.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/notification_outbox.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/notification_outbox.rs"
+      - "kiana-eventlog/src/lib.rs"
+      - "kiana-eventlog/tests/nm08_notification_outbox.rs"
+      - "kiana-eventlog/tests/fixtures/nm08-notification-outbox.json"
+      - "kiana-core/src/notification_delivery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm08_delivery_worker_guard.rs"
+      - "docs/roadmap/nm08-notification-outbox-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm08-notification-outbox.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-outbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run notification outbox fixtures
+        run: cargo test -p kiana-eventlog --test nm08_notification_outbox --locked -- --test-threads=1
+      - name: Run delivery worker source guard
+        run: cargo test -p kiana-core --test nm08_delivery_worker_guard --locked -- --test-threads=1
+      - name: Compile NM-08 targets
+        run: cargo check --workspace --tests --locked

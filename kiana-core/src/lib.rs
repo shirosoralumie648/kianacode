@@ -52,6 +52,7 @@ mod model_attempt_lifecycle;
 mod model_attempt_projection;
 mod notification_projector;
 mod notification_materializer;
+mod notification_delivery;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -160,6 +161,9 @@ pub use model_attempt_projection::{
 };
 pub use notification_projector::NotificationProjection;
 pub use notification_materializer::NotificationMaterializer;
+pub use notification_delivery::{
+    NotificationDeliveryPlan, NotificationDeliveryWorker, NOTIFICATION_DELIVERY_WORKER_SCHEMA,
+};
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
 pub use provider_diagnostics::{
     project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,

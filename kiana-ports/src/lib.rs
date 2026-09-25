@@ -1607,6 +1607,83 @@ pub trait NotificationDedupStore: Send + Sync {
     }
 }
 
+/// Server-owned outbox boundary for notification delivery intents.
+///
+/// Implementations must make enqueue/claim/transition atomic at their declared storage boundary.
+/// A lease is a fence, not a capability grant: the worker still emits a typed dispatch intent and
+/// an external channel must return a separate receipt. The default methods fail closed so an
+/// in-memory adapter cannot be mistaken for durable or cross-process evidence.
+#[async_trait]
+pub trait NotificationOutboxStore: Send + Sync {
+    async fn enqueue_notification(
+        &self,
+        _record: kiana_domain::NotificationOutboxRecord,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_enqueue_unsupported".to_owned(),
+        ))
+    }
+
+    async fn claim_next_notification(
+        &self,
+        _worker_id: &str,
+        _authority_epoch: u64,
+        _now_unix_ms: u64,
+        _lease_ttl_ms: u64,
+    ) -> Result<
+        Option<(
+            kiana_domain::NotificationOutboxRecord,
+            kiana_domain::NotificationOutboxLease,
+        )>,
+        PortError,
+    > {
+        Err(PortError::Unavailable(
+            "notification_outbox_claim_unsupported".to_owned(),
+        ))
+    }
+
+    async fn mark_notification_submitted(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_submit_unsupported".to_owned(),
+        ))
+    }
+
+    async fn acknowledge_notification(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _receipt: &kiana_domain::DeliveryReceipt,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_ack_unsupported".to_owned(),
+        ))
+    }
+
+    async fn fail_notification(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_fail_unsupported".to_owned(),
+        ))
+    }
+
+    async fn reconcile_notification_unknown(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_unknown_unsupported".to_owned(),
+        ))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitObserverFailure {
     pub command_id: kiana_domain::RequestId,

@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.notification-outbox-fixture.v1",
+  "accepted": [
+    "pending to claimed to submitted to acknowledged is digest-bound",
+    "one active lease fences stale worker and duplicate transition",
+    "expired pre-submit claim creates a new attempt without reusing the old fence"
+  ],
+  "denied": [
+    "crash after claim cannot silently drop critical or terminal notification",
+    "expired submitted lease becomes Unknown/reconcile instead of automatic retry",
+    "revoked or stale authority, invalid receipt and queue overflow fail closed",
+    "worker does not call Broker, channel send or a second agent loop"
+  ]
+}
