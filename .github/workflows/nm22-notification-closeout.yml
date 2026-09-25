@@ -1,0 +1,57 @@
+name: NM-22 notification evidence and closeout gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "scripts/verify-nm22-notification-closeout.sh"
+      - "docs/roadmap/notifications-baseline.md"
+      - "docs/roadmap/nm*-notification-*-baseline.md"
+      - "CURRENT_STATUS.md"
+      - "docs/roadmap.md"
+      - "docs/module-map.md"
+      - "kiana-domain/src/notification_*.rs"
+      - "kiana-core/src/notification_*.rs"
+      - "kiana-core/tests/nm*.rs"
+      - ".github/workflows/nm22-notification-closeout.yml"
+  pull_request:
+    paths:
+      - "scripts/verify-nm22-notification-closeout.sh"
+      - "docs/roadmap/notifications-baseline.md"
+      - "docs/roadmap/nm*-notification-*-baseline.md"
+      - "CURRENT_STATUS.md"
+      - "docs/roadmap.md"
+      - "docs/module-map.md"
+      - "kiana-domain/src/notification_*.rs"
+      - "kiana-core/src/notification_*.rs"
+      - "kiana-core/tests/nm*.rs"
+      - ".github/workflows/nm22-notification-closeout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Verify source/evidence closeout gate
+        run: bash scripts/verify-nm22-notification-closeout.sh
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Run domain/core notification test targets
+        run: |
+          cargo test -p kiana-domain --tests --locked -- --test-threads=1
+          cargo test -p kiana-core --tests --locked -- --test-threads=1
+      - name: Run entrypoint and desktop notification targets
+        run: |
+          cargo test -p kiana-entrypoints --tests --locked -- --test-threads=1
+          node --test contrib/desktop/tests/nm16_desktop_notification.test.js
+      - run: cargo check --workspace --tests --locked
