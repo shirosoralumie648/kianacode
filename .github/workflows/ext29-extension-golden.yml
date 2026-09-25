@@ -1,0 +1,58 @@
+name: EXT-29 extension fake golden
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/extension_golden.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/hook_lifecycle.rs"
+      - "kiana-domain/src/extension_commands.rs"
+      - "kiana-domain/src/extension_visibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext29_extension_golden.rs"
+      - "kiana-domain/tests/fixtures/ext29-extension-golden.json"
+      - "kiana-core/tests/ext29_extension_golden_guard.rs"
+      - "docs/roadmap/ext29-extension-golden-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext29-extension-golden.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/extension_golden.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "kiana-domain/src/hook_lifecycle.rs"
+      - "kiana-domain/src/extension_commands.rs"
+      - "kiana-domain/src/extension_visibility.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext29_extension_golden.rs"
+      - "kiana-domain/tests/fixtures/ext29-extension-golden.json"
+      - "kiana-core/tests/ext29_extension_golden_guard.rs"
+      - "docs/roadmap/ext29-extension-golden-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext29-extension-golden.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-29 domain golden fixtures
+        run: cargo test -p kiana-domain --test ext29_extension_golden --locked -- --test-threads=1
+      - name: Run EXT-29 source guard
+        run: cargo test -p kiana-core --test ext29_extension_golden_guard --locked -- --test-threads=1
+      - name: Compile EXT-29 targets
+        run: cargo check --workspace --tests --locked

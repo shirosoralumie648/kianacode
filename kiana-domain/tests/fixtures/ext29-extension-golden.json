@@ -1,0 +1,9 @@
+{
+  "schema": "kiana.extension-golden-fixture.v1",
+  "mode": "offline_no_effects",
+  "surface_count": 5,
+  "scenarios": ["untrusted_project", "collision", "path_escape", "budget", "hook", "signed_package", "dependency_cycle", "mcp_denied", "allow"],
+  "broker_invocations": 0,
+  "physical_effect_proven": false,
+  "limitations": ["fake_trace_only", "durable_restart_pending", "live_connector_pending"]
+}
