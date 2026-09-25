@@ -95,6 +95,19 @@ proof-level change: `feature_status=implemented`（committed-only projection sou
 limitations: NotificationStore 为进程内可重建展示 projection，不证明 durable/cross-process read state、retention/withdraw/urgency、action command、SSE/Web/Desktop/OS delivery、provider/connector/external effect 或 live/physical proof；CI 结果未等待
 reviewer: Codex NM-09 source review；检查 materializer-only source、recipient scope、page bound/cursor digest、unavailable/empty distinction、read/ACK idempotency/clock fence、no task-status mutation/no EventLog/Broker/Runner/no second loop；无本地 runtime test reviewer
 
+### NM-10 notification action refs 与 HumanTask action command（2026-09-25）
+
+source_snapshot: `3b1b3149`（NM-09 已合并 master 基线）加 NM-10 action command/gate source slice；`kiana-domain/src/{notification_actions.rs,notifications.rs,lib.rs}`；`kiana-domain/tests/{nm10_notification_actions.rs,fixtures/nm10-notification-actions.json}`；`kiana-core/src/{notification_action.rs,lib.rs}`；`kiana-core/tests/{nm10_notification_action.rs,nm10_notification_action_guard.rs}`；`kiana-protocol/src/lib.rs`; `.github/workflows/nm10-notification-actions.yml`; `docs/roadmap/nm10-notification-actions-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm10-notification-actions-20260925`;新增 typed `NotificationActionCommand` 和 `NotificationActionGate`，绑定 authoritative ActionRef、exact notification scope/id、target revision/digest、recipient/decider、authority epoch、source cursor、redacted payload、idempotency；gate 只返回 `control_plane_required=true/direct_effect=false` admission，不 mutate HumanTask/Approval、不 append EventLog、不 consume permit、不调用 Broker
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-domain --test nm10_notification_actions --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm10_notification_action --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm10_notification_action_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm10-notification-actions.json`、domain/core admission/source guards；stale ref/target/digest/epoch/cursor、wrong decider、expiry、scope widening、unknown action、raw secret/duplicate idempotency、no direct effect；无真实 ControlPlane command execution、HumanTask decision、EventLog/Broker/provider/external effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core fixtures、source guards、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-10 action ref/command contract、ControlPlane re-admission gate、protocol re-export、deny-first fixtures/source guards、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（typed action candidate + source admission gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未接入真实 HumanTask/Approval action command、single-consume/wait-key wakeup、durable idempotency/receipt settlement、CLI/Web/Desktop action surface、Broker/provider/external/live/physical effect；CI 结果未等待
+reviewer: Codex NM-10 source review；检查 authoritative ref identity/digest/expiry/scope、target revision/digest、recipient/decider、authority/cursor, payload redaction, idempotency, control-plane-only/no-effect/no-second-loop；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
