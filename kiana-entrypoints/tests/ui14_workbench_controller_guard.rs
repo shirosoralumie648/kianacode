@@ -15,6 +15,7 @@ fn ui14_controller_is_intent_only_and_keeps_authority_in_the_client_daemon_path(
         "expected_epoch",
         "expected_cursor",
         "expected_revision",
+        "UiActionV1.target_id is bounded to 256 bytes",
         "duplicate_shortcut",
         "duplicate_submission",
         "stale_draft",

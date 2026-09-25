@@ -684,12 +684,7 @@ impl WorkbenchController {
         let action = WorkbenchUiAction {
             command,
             command_id: RequestId::new(),
-            idempotency_key: format!(
-                "workbench:{}:{}:{}",
-                command.as_str(),
-                self.sequence,
-                target_id
-            ),
+            idempotency_key: format!("workbench:{}:{}", command.as_str(), self.sequence),
             target_id,
             expected_epoch: self.epoch.clone(),
             expected_cursor: self.cursor,
@@ -780,7 +775,9 @@ impl WorkbenchController {
             .unwrap_or_else(|| self.workspace.clone());
         match intent {
             WorkbenchIntent::Open { workspace } => {
-                validate_text(workspace, "workspace", 512)?;
+                // UiActionV1.target_id is bounded to 256 bytes; keep the controller and wire
+                // contract aligned so an action cannot be prepared only to fail at the client.
+                validate_text(workspace, "workspace", 256)?;
                 Ok((workspace.clone(), json!({"workspace": workspace}), true))
             }
             WorkbenchIntent::Attach { session_id } => {

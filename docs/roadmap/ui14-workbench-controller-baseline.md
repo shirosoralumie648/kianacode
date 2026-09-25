@@ -40,6 +40,10 @@ Unknown or in-flight mutation blocks a second mutation until the original comman
 there is no automatic retry with a new ID. The audit trace is bounded and records prepared/result
 dispositions without claiming EventLog facts.
 
+The `Open` workspace target is capped at the protocol's 256-byte `UiActionV1.target_id` bound, and
+the idempotency key uses only the controller command and monotonic sequence. A long target cannot
+make a prepared action fail later at typed-client validation or inflate the key past its wire bound.
+
 ## Keymap, palette and session boundaries
 
 | Surface | Contract |
