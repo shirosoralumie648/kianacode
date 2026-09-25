@@ -14,6 +14,14 @@ on:
       - "kiana-core/tests/ui40_release_gate_guard.rs"
       - "kiana-protocol/src/ui_contracts.rs"
       - "kiana-protocol/tests/ui40_release_evidence.rs"
+      - "kiana-client/tests/ui31_surface_parity.rs"
+      - "kiana-client/tests/ui33_recovery.rs"
+      - "kiana-client/tests/ui34_resource_budget.rs"
+      - "kiana-client/tests/ui38_conformance.rs"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "kiana-client/tests/fixtures/ui38-conformance.json"
+      - "scripts/verify-ui36-release-gate.sh"
+      - "scripts/verify-ui40-release-evidence.sh"
       - "docs/roadmap.md"
       - ".github/workflows/ui40-release-gate.yml"
   pull_request:
@@ -28,6 +36,14 @@ on:
       - "kiana-core/tests/ui40_release_gate_guard.rs"
       - "kiana-protocol/src/ui_contracts.rs"
       - "kiana-protocol/tests/ui40_release_evidence.rs"
+      - "kiana-client/tests/ui31_surface_parity.rs"
+      - "kiana-client/tests/ui33_recovery.rs"
+      - "kiana-client/tests/ui34_resource_budget.rs"
+      - "kiana-client/tests/ui38_conformance.rs"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "kiana-client/tests/fixtures/ui38-conformance.json"
+      - "scripts/verify-ui36-release-gate.sh"
+      - "scripts/verify-ui40-release-evidence.sh"
       - "docs/roadmap.md"
       - ".github/workflows/ui40-release-gate.yml"
   workflow_dispatch:
@@ -44,8 +60,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
+      - name: Run UI-40 source evidence gate
+        run: bash scripts/verify-ui40-release-evidence.sh
+      - name: Run deny-first gate
+        run: cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1
+      - name: Run recovery gate
+        run: cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1
+      - name: Run parity and resource gates
+        run: |
+          cargo test -p kiana-client --test ui31_surface_parity --locked -- --test-threads=1
+          cargo test -p kiana-client --test ui34_resource_budget --locked -- --test-threads=1
+          cargo test -p kiana-client --test ui38_conformance --locked -- --test-threads=1
+          cargo test -p kiana-client --test ui39_live_acp_opt_in --locked -- --test-threads=1
       - name: Run UI-40 evidence fixture
         run: cargo test -p kiana-protocol --test ui40_release_evidence --locked -- --test-threads=1
+      - name: Run UI-39 protocol and source guards
+        run: |
+          cargo test -p kiana-protocol --test ui39_live_acp --locked -- --test-threads=1
+          cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test ui40_release_gate_guard --locked -- --test-threads=1
+      - name: Run release build and asset gate
+        run: bash scripts/verify-ui36-release-gate.sh
       - run: git diff --check
       - run: cargo check --workspace --tests --locked

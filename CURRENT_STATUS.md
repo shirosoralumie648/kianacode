@@ -43,6 +43,19 @@ proof-level change: `feature_status=implemented`（bounded client/source preflig
 limitations: 未执行真实 ACP/IDE host、socket/stdio transport、workspace attach、permission timeout、external receipt、provider/connector、browser/PTY/Electron、跨进程 recovery 或 live/physical proof；`LiveAcpSession` 不自升 Verified，CI 结果未等待
 reviewer: Codex UI-39 source review；检查 explicit opt-in、fixed protocol/host/workspace/approval/redaction/local transport、delegated capability、initialize/session/prompt/update/permission/cancel/reconnect、Unknown/reconcile、no external process/network/effect 与 no second execution loop；无本地 runtime/live reviewer
 
+### UI-40 发布门与证据收口（2026-09-25）
+
+source_snapshot: `75a39e30`（UI-39 已推送 master 基线）加 UI-40 release/evidence gate source slice；`scripts/verify-ui40-release-evidence.sh`; `scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui40-release-gate.yml`; `kiana-protocol/src/ui_contracts.rs`; `kiana-protocol/tests/ui40_release_evidence.rs`; `kiana-core/tests/{ui39_live_acp_guard.rs,ui40_release_gate_guard.rs}`; `kiana-client/tests/{ui31_surface_parity.rs,ui33_recovery.rs,ui34_resource_budget.rs,ui38_conformance.rs,ui39_live_acp_opt_in.rs}`; `docs/roadmap/ui40-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui40-release-evidence-20260925`;新增 GitHub-only evidence gate，先串行 deny/recovery，再 parity/resource/conformance/UI-39 guards/UI-40 evidence，最后复用 release build/asset gate；`UiEvidenceCase/Bundle` 绑定 source/fixture/environment/secret-free argv/exit/receipt/artifact/proof/limitation/reviewer；不发布、不把 source/CI 写成 durable/live/physical
+command_argv: 本地仅 shell `bash -n scripts/verify-ui40-release-evidence.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 UI-32 deny、UI-33 recovery、UI-31 parity、UI-34 resource、UI-38 conformance、UI-39 protocol/client、UI-40 evidence/core guards、UI-36 release build/asset gate 和 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release；GitHub Actions 是 gate/test/build 权威且不等待
+fixture·cassette: `ui40_release_evidence`、`ui40_release_gate_guard`、UI-31/33/34/38/39 focused fixtures；deny/recovery 顺序、source drift/duplicate/secret argv、Unknown/limitation、live/physical proof ceiling；无真实发布、Desktop/browser/PTY、外部 provider/connector 或 physical receipt
+exit_code: 本地 `bash -n` 与 `git diff --check`；远程 focused tests、release build/asset gate、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-40 GitHub-only release/evidence orchestration、source-only fail-closed gate、deny→recovery→parity/resource/conformance ordering、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（release/evidence source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
+reviewer: Codex UI-40 source review；检查 deny/recovery ordering、evidence source/fixture/environment/argv/exit/proof/receipt/artifact/limitation/reviewer binding、secret/duplicate/drift/false-live deny、release gate no-publish 与 no second execution loop；无本地 runtime/release reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
