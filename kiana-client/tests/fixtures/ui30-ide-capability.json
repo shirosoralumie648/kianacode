@@ -1,0 +1,17 @@
+{
+  "schema": "kiana.ide-capability-fixture.v1",
+  "accepted": [
+    "host capability matrix advertises delegation without direct effect",
+    "read/open/patch preview/terminal output remain query intents",
+    "apply and terminal cancel require matching unexpired permit",
+    "path, workspace, revision and digest are bound before UiAction creation"
+  ],
+  "denied": [
+    "absolute, parent escaping or empty path",
+    "remote workspace scope mixed into local workspace",
+    "old revision or path digest applied",
+    "expired, wrong-owner or effect-disabled permit",
+    "implicit save or host terminal spawn",
+    "private artifact bytes returned as an unbounded terminal output"
+  ]
+}

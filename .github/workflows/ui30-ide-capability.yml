@@ -1,0 +1,42 @@
+name: UI-30 IDE editor terminal capability boundary
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/ide_capability.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui30-ide-capability.json"
+      - "kiana-client/tests/ui30_ide_capability.rs"
+      - "docs/roadmap/ui30-ide-capability-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui30-ide-capability.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/ide_capability.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui30-ide-capability.json"
+      - "kiana-client/tests/ui30_ide_capability.rs"
+      - "docs/roadmap/ui30-ide-capability-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui30-ide-capability.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui30-ide-capability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui30_ide_capability --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
