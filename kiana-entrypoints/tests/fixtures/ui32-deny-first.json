@@ -1,0 +1,17 @@
+{
+  "schema": "kiana.ui-deny-first.v1",
+  "denied": [
+    {"id":"foreign_session","trigger":"session owner mismatch","error":"session_owner_mismatch","effect_count":0,"follow_up":"requery_original"},
+    {"id":"bad_token_origin","trigger":"token or origin mismatch","error":"web_auth_denied","effect_count":0,"follow_up":"safe_retry"},
+    {"id":"sender_channel","trigger":"foreign Electron sender or unknown channel","error":"desktop_ipc_denied","effect_count":0,"follow_up":"do_not_retry"},
+    {"id":"expired_approval","trigger":"approval expired or revoked","error":"approval_expired","effect_count":0,"follow_up":"requery_original"},
+    {"id":"stale_cursor","trigger":"stale cursor or revision","error":"ui_action_stale","effect_count":0,"follow_up":"requery_original"},
+    {"id":"digest_scope","trigger":"payload digest or scope widening","error":"ui_action_invalid","effect_count":0,"follow_up":"do_not_retry"},
+    {"id":"cancel_unknown","trigger":"cancel race with unknown effect","error":"result_unknown","effect_count":0,"follow_up":"reconcile"},
+    {"id":"indirect_injection","trigger":"untrusted UI or artifact text requests capability","error":"policy_denied","effect_count":0,"follow_up":"do_not_retry"}
+  ],
+  "success": [
+    {"id":"owner_action","requires":"server snapshot + current epoch + idempotency key"},
+    {"id":"unknown_visibility","requires":"explicit Unknown/receipt query without retry"}
+  ]
+}

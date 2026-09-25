@@ -1,0 +1,40 @@
+name: UI-32 deny-first entrypoint security matrix
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/**"
+      - "kiana-entrypoints/tests/fixtures/ui32-deny-first.json"
+      - "kiana-entrypoints/tests/ui32_deny_first.rs"
+      - "docs/roadmap/ui32-deny-first-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui32-deny-first.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/**"
+      - "kiana-entrypoints/tests/fixtures/ui32-deny-first.json"
+      - "kiana-entrypoints/tests/ui32_deny_first.rs"
+      - "docs/roadmap/ui32-deny-first-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui32-deny-first.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui32-deny-first:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

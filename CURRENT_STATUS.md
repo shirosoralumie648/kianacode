@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-32 deny-first 安全路径集成测试（2026-09-25）
+
+source_snapshot: `c831457d`（UI-31 已合并 master 基线）加 UI-32 source slice；`kiana-entrypoints/tests/{fixtures/ui32-deny-first.json,ui32_deny_first.rs}`；`.github/workflows/ui32-deny-first.yml`; `docs/roadmap/ui32-deny-first-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui32-deny-first-matrix-20260925`;CI-only deny matrix 覆盖 foreign session/token/origin/sender、expired approval、stale cursor/revision、digest/scope widening、cancel Unknown 与 injection；每项要求 stable error、零 effect 或显式 reconcile；source guard 保持入口→DaemonHost→ControlPlane→EventLog/Receipt spine
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui32-deny-first.json`；zero-effect foreign/credential/sender/approval/cursor/digest/injection cases，Unknown 只允许 query/reconcile follow-up；无本地 runtime/provider/Broker effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 matrix fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-32 deny-first matrix、shared entrypoint source guard、CI-only workflow、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（CI-only fixture/source guard）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: source matrix 不等于真实 HTTP/browser/Electron/PTY effect-count、EventLog append、approval/cancel race、provider/connector、跨进程 recovery 或 physical/live proof；CI 结果未等待
+reviewer: Codex UI-32 source review；检查 stable deny codes/effect_count zero、Unknown/reconcile boundary、owner/action claim、shared DaemonHost/ControlPlane/EventLog spine、injection/cancel/stale/scope cases；无本地 runtime test reviewer
+
 ### UI-31 CLI/Workbench/Web/Desktop 行为 parity（2026-09-25）
 
 source_snapshot: `9bbbeac9`（UI-30 已合并 master 基线）加 UI-31 source slice；`kiana-client/src/{surface_parity.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui31-parity.json,ui31_surface_parity.rs}`；`.github/workflows/ui31-surface-parity.yml`; `docs/roadmap/ui31-surface-parity-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
