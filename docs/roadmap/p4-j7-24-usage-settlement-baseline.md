@@ -22,7 +22,9 @@ and rate-card revision while keeping estimated, measured and unknown cost separa
 
 `.github/workflows/p4-j7-24-usage-settlement.yml` runs the domain settlement fixture, provider
 source guard, Core boundary guard, formatting and workspace test-target compilation on GitHub
-Actions. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
+Actions. The workflow path filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs`
+module so a fresh remote run can pass the repository-wide format gate; that result is pending and
+unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixtures cover missing provider/rate-card usage, measured receipt attachment, exact replay,
 conflicting attempt settlement, run identity drift and the absence of Broker/EventLog/network
