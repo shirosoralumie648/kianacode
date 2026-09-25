@@ -9,7 +9,7 @@
 复用 `UiHostCapability`，所有 advertised row 都是 `direct_effect=false`、`delegated_to_kiana=true`。
 请求 schema 绑定 operation、workspace digest、relative path、path digest、expected revision、
 idempotency key 和可选 server Artifact reference；绝对路径、`..`、空 component、NUL、过大 path
-和 scope digest 漂移在产生 intent 前拒绝。
+、`.`/`..`/empty component 和 scope digest 漂移在产生 intent 前拒绝。
 
 只读 open/read/patch preview、terminal output 只返回 bounded query intent；terminal output 有
 256 KiB 上限。apply/cancel 使用 `IdeCapabilityPermit`，必须精确匹配 operation/workspace/path/

@@ -84,6 +84,13 @@ fn capability_matrix_and_read_queries_do_not_grant_direct_effect() {
         }),
         Err(IdeCapabilityError::PathInvalid)
     ));
+    assert!(matches!(
+        adapter.query(IdeCapabilityRequest {
+            relative_path: "src/./main.rs".to_owned(),
+            ..request(IdeOperation::ReadFile)
+        }),
+        Err(IdeCapabilityError::PathInvalid)
+    ));
 }
 
 #[test]
