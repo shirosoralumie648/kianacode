@@ -233,6 +233,15 @@ CLI / TTY Workbench / Web / Electron Desktop / ACP-IDE client adapter
 Receipt 或 presenter 输出提升为 `local_behavior`、`durable`、`live` 或 `physical`。任何新 adapter
 都只能返回 typed query/intent，不能在 surface 里复制 policy、EventLog、Broker 或模型循环。
 
+## UI-41 交接矩阵与后续缺口（2026-09-25）
+
+[`ui41-handoff-baseline.md`](roadmap/ui41-handoff-baseline.md) 是 UI 交接的分类入口：它把
+UI-26–40 的 source/CI slices 与 UI runtime、跨进程 durable recovery、Desktop/browser/PTY
+性能、provider/live/physical effect 分开列出，并为每项绑定 `feature_status`、`proof_level`、
+source snapshot、reviewer、receipt/limitation 和 next action。UI-40 的
+[`verify-ui40-release-evidence.sh`](../scripts/verify-ui40-release-evidence.sh) 只提供 GitHub
+source gate；handoff 不拥有发布、审批、Broker 或任何第二执行循环。
+
 ## 如何判断完成程度
 
 这张图描述职责和边界，具体能力仍须结合证据。[状态账本](../CURRENT_STATUS.md) 记录当前源码快照、命令、测试和证明等级。规范里的 `target`、`partial`、`deferred` 或模块名称本身，都不能推断功能已经交付。

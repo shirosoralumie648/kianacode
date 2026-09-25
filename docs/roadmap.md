@@ -910,7 +910,7 @@
 | 732 | W11 | 专项 | [`CM-39`](roadmap/context-memory.md#step-cm-39) | Context / Memory · 文档、状态和交接收口 | `CM-38` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-39) |
 | 733 | W11 | 专项 | [`UI-39`](roadmap/ui-entrypoints.md#step-ui-39) | UI / Entrypoints · live ACP/IDE opt-in 验证 | `UI-29`、`UI-30`、`UI-33`、`UI-38` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-39) · [baseline](roadmap/ui39-live-acp-baseline.md) |
 | 734 | W11 | 专项 | [`UI-40`](roadmap/ui-entrypoints.md#step-ui-40) | UI / Entrypoints · 发布门与证据收口 | `UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37`、`UI-38`、`UI-39` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-40) · [baseline](roadmap/ui40-release-gate-baseline.md) |
-| 735 | W11 | 专项 | [`UI-41`](roadmap/ui-entrypoints.md#step-ui-41) | UI / Entrypoints · 交接、审查和后续缺口 | `UI-40` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-41) |
+| 735 | W11 | 专项 | [`UI-41`](roadmap/ui-entrypoints.md#step-ui-41) | UI / Entrypoints · 交接、审查和后续缺口 | `UI-40` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-41) · [baseline](roadmap/ui41-handoff-baseline.md) |
 | 736 | W11 | 专项 | [`CO-48`](roadmap/companyos.md#step-co-48) | CompanyOS · 真实模型闭环验证、文档回填与交接 | `CO-47` | ⏳ | [专项卡](roadmap/companyos.md#step-co-48) |
 | 737 | W11 | 专项 | [`OA-28`](#step-oa-28) | Physical/live handoff；目标 OS、OTLP backend、隔离 provider/connector 和 operator runbook | `ER-36`、`OA-26`、`OA-27` | ✅ | [专项卡](#step-oa-28) |
 | 738 | W11 | 专项 | [`DEP-36`](#step-dep-36) | 实现 container adapter：immutable image、volume/root identity、env allowlist、SIGTERM、startup/readiness/liveness probe | `DEP-09`、`DEP-11`、`DEP-17`、`DEP-35` | ⏳ | [专项卡](#step-dep-36) |
