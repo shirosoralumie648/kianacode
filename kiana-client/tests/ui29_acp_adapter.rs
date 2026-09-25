@@ -89,6 +89,10 @@ fn initialize_session_and_actions_use_shared_ui_contracts() {
     adapter
         .new_session(session.clone(), digest("owner"), "epoch-29")
         .unwrap();
+    assert_eq!(
+        adapter.prompt(&session, "too early", "epoch-29", 1, "prompt-early"),
+        Err(AcpAdapterError::FeedHandlerRequired)
+    );
     adapter.install_feed_handler().unwrap();
 
     let prompt = adapter
