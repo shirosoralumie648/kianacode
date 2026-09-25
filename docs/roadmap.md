@@ -637,7 +637,7 @@
 | 464 | W6 | 专项 | [`NM-08`](#step-nm-08) | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | `PD-10`、`PD-11`、`PD-12`、`PD-13`、`NM-06`、`NM-07` | 🔄 | [专项卡](#step-nm-08) · [baseline](roadmap/nm08-notification-outbox-baseline.md) |
 | 465 | W6 | 专项 | [`NM-09`](#step-nm-09) | in-process/in-app channel；NotificationStore query/page | `NM-06`、`NM-08` | 🔄 | [专项卡](#step-nm-09) · [baseline](roadmap/nm09-notification-store-baseline.md) |
 | 466 | W6 | 专项 | [`NM-10`](#step-nm-10) | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | `CP-18`、`CP-19`、`NM-06`、`NM-09` | 🔄 | [专项卡](#step-nm-10) · [baseline](roadmap/nm10-notification-actions-baseline.md) |
-| 467 | W6 | 专项 | [`NM-11`](#step-nm-11) | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | `NM-09`、`NM-10` | ⏳ | [专项卡](#step-nm-11) |
+| 467 | W6 | 专项 | [`NM-11`](#step-nm-11) | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | `NM-09`、`NM-10` | 🔄 | [专项卡](#step-nm-11) · [baseline](roadmap/nm11-notification-priority-baseline.md) |
 | 468 | W6 | 专项 | [`NM-12`](#step-nm-12) | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | `P2-K7-01`、`NM-04`、`NM-09` | ⏳ | [专项卡](#step-nm-12) |
 | 469 | W6 | 专项 | [`NM-13`](#step-nm-13) | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | `UI-17`、`UI-18`、`NM-04`、`NM-08` | ⏳ | [专项卡](#step-nm-13) |
 | 470 | W6 | 专项 | [`NM-14`](#step-nm-14) | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | `UI-12`、`UI-15`、`NM-09`、`NM-10`、`NM-13` | ⏳ | [专项卡](#step-nm-14) |

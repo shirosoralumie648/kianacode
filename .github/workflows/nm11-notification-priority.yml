@@ -1,0 +1,47 @@
+name: NM-11 notification priority
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/notification_priority.rs"
+      - "kiana-core/src/notification_store.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm11_notification_priority.rs"
+      - "kiana-core/tests/nm11_notification_priority_guard.rs"
+      - "kiana-core/tests/fixtures/nm11-notification-priority.json"
+      - "docs/roadmap/nm11-notification-priority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm11-notification-priority.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/notification_priority.rs"
+      - "kiana-core/src/notification_store.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm11_notification_priority.rs"
+      - "kiana-core/tests/nm11_notification_priority_guard.rs"
+      - "kiana-core/tests/fixtures/nm11-notification-priority.json"
+      - "docs/roadmap/nm11-notification-priority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm11-notification-priority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-priority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run priority and snooze fixtures
+        run: cargo test -p kiana-core --test nm11_notification_priority --locked -- --test-threads=1
+      - name: Run priority source guard
+        run: cargo test -p kiana-core --test nm11_notification_priority_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

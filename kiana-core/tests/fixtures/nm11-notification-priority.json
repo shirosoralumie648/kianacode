@@ -1,0 +1,13 @@
+{
+  "schema": "kiana.notification-priority-fixture.v1",
+  "accepted": [
+    "critical/high/medium/low urgency and due/source cursor ordering are server-derived",
+    "digest grouping is deterministic and redaction-safe",
+    "snooze is projection state and does not remove critical or unknown items"
+  ],
+  "denied": [
+    "client clock changes urgency or due ordering",
+    "snooze hides critical/unknown or changes approval/terminal status",
+    "priority path invokes Broker, retries, approves or mutates EventLog"
+  ]
+}

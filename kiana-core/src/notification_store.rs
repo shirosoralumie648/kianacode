@@ -4,7 +4,7 @@
 //! only presentation read/ack state; it never copies HumanTask status, approves an action, writes
 //! EventLog facts, invokes Broker or treats an empty projection as unavailable.
 
-use crate::NotificationMaterializer;
+use crate::{classify_notification, compare_notification_priority, NotificationMaterializer};
 use kiana_domain::{json_digest, HumanInboxItem, RuntimeEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -56,8 +56,13 @@ impl NotificationListRequest {
 #[serde(deny_unknown_fields)]
 pub struct NotificationPageItem {
     pub item: HumanInboxItem,
+    pub urgency: crate::NotificationUrgency,
+    pub due_at_unix_ms: u64,
+    pub digest_group: String,
     pub read: bool,
     pub acknowledged: bool,
+    #[serde(default)]
+    pub snoozed_until_unix_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -127,6 +132,8 @@ pub struct NotificationProjectionMutation {
     pub read: bool,
     pub acknowledged: bool,
     pub changed: bool,
+    #[serde(default)]
+    pub snoozed_until_unix_ms: Option<u64>,
     pub mutation_digest: String,
 }
 
@@ -138,6 +145,7 @@ impl NotificationProjectionMutation {
         read: bool,
         acknowledged: bool,
         changed: bool,
+        snoozed_until_unix_ms: Option<u64>,
     ) -> Result<Self, NotificationStoreError> {
         required(&item_id, "item_id", 512)?;
         if source_cursor == 0 || projection_revision == 0 {
@@ -151,6 +159,7 @@ impl NotificationProjectionMutation {
             read,
             acknowledged,
             changed,
+            snoozed_until_unix_ms,
             mutation_digest: String::new(),
         };
         mutation.mutation_digest = mutation.digest();
@@ -166,6 +175,7 @@ impl NotificationProjectionMutation {
             "read": self.read,
             "acknowledged": self.acknowledged,
             "changed": self.changed,
+            "snoozed_until_unix_ms": self.snoozed_until_unix_ms,
         }))
     }
 }
@@ -190,12 +200,15 @@ pub enum NotificationStoreError {
     DigestMismatch,
     #[error("notification_store_materializer:{0}")]
     Materializer(String),
+    #[error("notification_store_priority:{0}")]
+    Priority(String),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct ProjectionState {
     read_at_unix_ms: Option<u64>,
     acknowledged_at_unix_ms: Option<u64>,
+    snoozed_until_unix_ms: Option<u64>,
     revision: u64,
 }
 
@@ -247,25 +260,38 @@ impl NotificationStore {
             .materializer
             .human_inbox_items(&request.recipient_id)
             .map_err(NotificationStoreError::Materializer)?;
+        let mut prioritized = items
+            .into_iter()
+            .map(|item| {
+                let priority = classify_notification(&item)
+                    .map_err(|error| NotificationStoreError::Priority(error.to_string()))?;
+                Ok((item, priority))
+            })
+            .collect::<Result<Vec<_>, NotificationStoreError>>()?;
+        prioritized.sort_by(|(_, left), (_, right)| compare_notification_priority(left, right));
         let start = match request.after_item_id.as_deref() {
             None => 0,
-            Some(after) => items
+            Some(after) => prioritized
                 .iter()
-                .position(|item| item.item_id == after)
+                .position(|(item, _)| item.item_id == after)
                 .map(|index| index + 1)
                 .ok_or(NotificationStoreError::CursorInvalid)?,
         };
-        let page_items = items
+        let page_items = prioritized
             .into_iter()
             .skip(start)
             .take(usize::from(request.limit))
-            .map(|item| {
+            .map(|(item, priority)| {
                 let state = self.projection.get(&item.item_id);
                 NotificationPageItem {
+                    urgency: priority.urgency,
+                    due_at_unix_ms: priority.due_at_unix_ms,
+                    digest_group: priority.digest_group,
                     read: state.and_then(|value| value.read_at_unix_ms).is_some(),
                     acknowledged: state
                         .and_then(|value| value.acknowledged_at_unix_ms)
                         .is_some(),
+                    snoozed_until_unix_ms: state.and_then(|value| value.snoozed_until_unix_ms),
                     item,
                 }
             })
@@ -296,6 +322,60 @@ impl NotificationStore {
         self.mutate(recipient_id, item_id, now_unix_ms, true)
     }
 
+    pub fn snooze(
+        &mut self,
+        recipient_id: &str,
+        item_id: &str,
+        now_unix_ms: u64,
+        snoozed_until_unix_ms: u64,
+    ) -> Result<NotificationProjectionMutation, NotificationStoreError> {
+        required(recipient_id, "recipient_id", 256)?;
+        required(item_id, "item_id", 512)?;
+        if now_unix_ms == 0 || snoozed_until_unix_ms <= now_unix_ms {
+            return Err(NotificationStoreError::Invalid("snooze_window"));
+        }
+        if self.source_cursor() == 0 {
+            return Err(NotificationStoreError::ProjectionUnavailable);
+        }
+        let item = self
+            .materializer
+            .human_inbox_items(recipient_id)
+            .map_err(NotificationStoreError::Materializer)?
+            .into_iter()
+            .find(|item| item.item_id == item_id)
+            .ok_or(NotificationStoreError::ItemNotFound)?;
+        let source_cursor = self.source_cursor();
+        let (revision, read, acknowledged, changed) = {
+            let state = self.projection.entry(item.item_id.clone()).or_default();
+            if state
+                .snoozed_until_unix_ms
+                .is_some_and(|previous| snoozed_until_unix_ms < previous)
+            {
+                return Err(NotificationStoreError::ClockRegression);
+            }
+            let changed = state.snoozed_until_unix_ms != Some(snoozed_until_unix_ms);
+            state.snoozed_until_unix_ms = Some(snoozed_until_unix_ms);
+            if changed {
+                state.revision = state.revision.saturating_add(1);
+            }
+            (
+                state.revision,
+                state.read_at_unix_ms.is_some(),
+                state.acknowledged_at_unix_ms.is_some(),
+                changed,
+            )
+        };
+        NotificationProjectionMutation::new(
+            item.item_id,
+            source_cursor,
+            revision,
+            read,
+            acknowledged,
+            changed,
+            Some(snoozed_until_unix_ms),
+        )
+    }
+
     fn mutate(
         &mut self,
         recipient_id: &str,
@@ -319,7 +399,7 @@ impl NotificationStore {
             .find(|item| item.item_id == item_id)
             .ok_or(NotificationStoreError::ItemNotFound)?;
         let source_cursor = self.source_cursor();
-        let (revision, read, acknowledged, changed) = {
+        let (revision, read, acknowledged, changed, snoozed_until) = {
             let state = self.projection.entry(item.item_id.clone()).or_default();
             if state
                 .read_at_unix_ms
@@ -347,6 +427,7 @@ impl NotificationStore {
                 state.read_at_unix_ms.is_some(),
                 state.acknowledged_at_unix_ms.is_some(),
                 changed,
+                state.snoozed_until_unix_ms,
             )
         };
         NotificationProjectionMutation::new(
@@ -356,6 +437,7 @@ impl NotificationStore {
             read,
             acknowledged,
             changed,
+            snoozed_until,
         )
     }
 }

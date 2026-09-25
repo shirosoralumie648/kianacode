@@ -55,6 +55,7 @@ mod notification_materializer;
 mod notification_delivery;
 mod notification_store;
 mod notification_action;
+mod notification_priority;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -175,6 +176,10 @@ pub use notification_store::{
 pub use notification_action::{
     NotificationActionAdmission, NotificationActionGate, NotificationActionGateError,
     NOTIFICATION_ACTION_GATE_SCHEMA,
+};
+pub use notification_priority::{
+    classify_notification, compare_notification_priority, NotificationPriority,
+    NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
 };
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
 pub use provider_diagnostics::{
