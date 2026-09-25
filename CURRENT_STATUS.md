@@ -12588,6 +12588,19 @@ proof-level change: `feature_status=implemented`, `proof_level=source` plus CI w
 limitations: no real sandbox file/process observation, no durable EventStore/reopen or Receipt projector evidence, no provider invoice truth, no live model effect, no browser visual/live transport evidence and no physical capability proof; matching surface projections remain source-level only
 reviewer: Codex source review of model→capability→event→Receipt binding, cancellation and slow-subscriber fences, four-surface parity equality, budget preflight boundary and DaemonHost/ControlPlane/KianaHarness/ProviderGateway single-spine guard; no local runtime test reviewer
 
+### P4-J7-31 provider live boundary rerun (partial, 2026-09-26)
+
+source_snapshot: `d434c3dd` plus P4-J7-31 CI-boundary rerun; `scripts/provider-live-smoke.sh`; `kiana-domain/src/provider_live.rs`; `kiana-domain/src/memory_workbench.rs` path dependency; `kiana-domain/tests/p4_j7_31_live_evidence.rs`; `kiana-provider/src/{lib,request,response}.rs`; `kiana-core/tests/p4_j7_31_provider_live_guard.rs`; `.github/workflows/p4-j7-31-provider-live.yml`; `docs/roadmap/p4-j7-31-provider-live-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/p4-j7-31-ci-boundary-rerun-20260926`; existing required/skip-if-unconfigured smoke remains default-deny, rejects fake-as-live and requires per-connection text/tools/live flags; workflow path filter now includes current CM-36 `memory_workbench.rs` so a fresh remote run covers the repository-wide fmt dependency; no credentials, account, budget or external request supplied
+command_argv: `bash -n scripts/provider-live-smoke.sh`; `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `bash scripts/provider-live-smoke.sh --skip-if-unconfigured`; `cargo test -p kiana-domain --test p4_j7_31_live_evidence --locked -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_31_provider_live_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke/live-provider commands deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: CI-only provider live evidence contracts, required-vs-skip shell boundary, non-fake text/tools gate, per-connection requested/reported model/usage/Receipt/artifact metadata and source guard; no live cassette or authorized account was used
+exit_code: local verification is limited to diff review; fresh post-CM-36 remote shell, format, guard and compile exit codes are pending and unobserved
+status change: P4-J7-31 default-deny/live-boundary evidence wiring advanced and its workflow now covers CM-36; roadmap row/card remain ⏳ because no authorized real connection was executed
+proof-level change: `feature_status=partial`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no credentials or operator approval for a real connection, no text/tools/delta/cancel request, no real model/usage/Receipt/artifact or cleanup observation, no cross-process durable/live/physical proof; skip is not live success and one configured provider cannot close every connection
+reviewer: Codex source review of default-deny required/skip semantics, non-fake provider gate, per-connection evidence fields, no external request in CI and CM-36 path-filter coverage; no live reviewer
+
 ### UI-13 Workbench timeline and result rendering (2026-09-25)
 
 source_snapshot: `1e648a08` (`origin/master` after UI-12); UI-13 source slice `kiana-entrypoints/src/workbench_render.rs`, Workbench projection wiring, typed snapshot fixture, source guard, GitHub workflow, baseline and roadmap overlays

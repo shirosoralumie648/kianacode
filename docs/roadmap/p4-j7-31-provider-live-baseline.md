@@ -6,6 +6,11 @@ observation and never a live success. The smoke requires live catalog/tools flag
 non-fake text and tools result, while the ProviderGateway keeps credential revision, model route,
 usage and Receipt boundaries.
 
+The workflow path filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs` module,
+so a fresh remote format/source-guard run covers the repository-wide formatting dependency. That
+remote result is pending and unobserved; the local workspace deliberately performs no test, build,
+check, clippy, smoke or live-provider command.
+
 The domain now also exposes `ProviderLiveConnectionMetadata` and
 `ProviderLiveConnectionEvidence`. The former is the secret-free selected-connection identity
 (`provider_id`, connection, protocol, requested model, configuration digest, credential revision

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "scripts/provider-live-smoke.sh"
       - "kiana-provider/src/lib.rs"
       - "kiana-provider/src/request.rs"
@@ -17,6 +18,7 @@ on:
       - ".github/workflows/p4-j7-31-provider-live.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "scripts/provider-live-smoke.sh"
       - "kiana-provider/src/lib.rs"
       - "kiana-provider/src/request.rs"
