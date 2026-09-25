@@ -173,6 +173,19 @@ proof-level change: `feature_status=implemented`（Web display projection source
 limitations: Web notification read/ACK projection 本 slice 每次从 committed EventStore rebuild，未宣称 durable；SSE cursor/subscription process-local；无 browser/PTY/accessibility、跨进程、provider/connector/external/live/physical delivery proof；CI 结果未等待
 reviewer: Codex NM-15 source review；检查 existing Host/Origin/token/session/tab auth、server recipient scope、page/action/detail redaction、UiFeed cursor/gap/heartbeat/terminal、no second bus/no execution/no retry；无本地 HTTP/browser reviewer
 
+### NM-16 Desktop local notification adapter（2026-09-26）
+
+source_snapshot: `2fa80590`（NM-15 已合并 master 基线）加 NM-16 Electron source slice；`contrib/desktop/{main.js,asset-manifest.json}`；`contrib/desktop/lib/notifications.js`; `contrib/desktop/tests/{nm16_desktop_notification.test.js,fixtures/nm16-desktop-notification.json}`；`.github/workflows/nm16-desktop-notification.yml`; `docs/roadmap/nm16-desktop-notification-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm16-desktop-notification-adapter-20260926`; existing server-bound NotificationBridge wrapped by explicit DesktopNotificationAdapter with granted/denied/unknown/unavailable states；only granted may call OS Notification, fixed redacted title/body；permission denial still updates bounded attention projection but never claims shown/delivered；tray typed intents and existing close/detach/reattach fences preserved
+command_argv: 本地仅目标 Node/Rust 源码静态审阅与 `git diff --check`（未运行 node --test、node --check、Cargo test/build/check/clippy/smoke）；GitHub Actions 将运行 Node syntax/fixture/asset verifier、`node --test contrib/desktop/tests/nm16_desktop_notification.test.js`、`cargo fmt --all --check`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Electron/OS notification、Node tests、Cargo tests/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm16-desktop-notification.json`、permission state/disposition、fixed redaction、workspace binding/replay/unknown field、tray/no command、close/no cancel-resume、detach/no implicit resume/approve source guards；无真实 OS permission/toast/tray/browser/PTY、durable inbox/read state、external/live/physical receipt
+exit_code: 本地 `git diff --check`；远程 Node syntax/test、asset digest、Rust format/workspace compile 与 CI exit code pending/unobserved
+status_change: NM-16 Desktop explicit permission-aware OS notification adapter、asset digest refresh、deny-first fixture/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（Electron source adapter + existing desktop lifecycle reuse + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: `shown` 只表示本地 adapter 调用 OS Notification，不是物理送达 receipt；denied/unknown/unavailable 不改变 server durable inbox；无真实 Electron/OS permission prompt、toast、tray、reopen、跨进程 cursor recovery 或 external/live delivery proof；CI 结果未等待
+reviewer: Codex NM-16 source review；检查 permission deny/unknown/unavailable fail-closed、fixed redaction、workspace/replay fence、tray typed boundary、close/detach no implicit execution、asset hash update；无本地 Electron/OS reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

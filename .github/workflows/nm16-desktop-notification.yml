@@ -1,0 +1,59 @@
+name: NM-16 Desktop local notification adapter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/notifications.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/desktop-persistence.js"
+      - "contrib/desktop/asset-manifest.json"
+      - "contrib/desktop/tests/fixtures/nm16-desktop-notification.json"
+      - "contrib/desktop/tests/nm16_desktop_notification.test.js"
+      - "docs/roadmap/nm16-desktop-notification-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm16-desktop-notification.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/notifications.js"
+      - "contrib/desktop/lib/close-policy.js"
+      - "contrib/desktop/lib/desktop-persistence.js"
+      - "contrib/desktop/asset-manifest.json"
+      - "contrib/desktop/tests/fixtures/nm16-desktop-notification.json"
+      - "contrib/desktop/tests/nm16_desktop_notification.test.js"
+      - "docs/roadmap/nm16-desktop-notification-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm16-desktop-notification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check Desktop notification sources and manifest
+        run: |
+          node --check contrib/desktop/lib/notifications.js
+          node --check contrib/desktop/main.js
+          node --check contrib/desktop/tests/nm16_desktop_notification.test.js
+          node -e 'JSON.parse(require("fs").readFileSync("contrib/desktop/tests/fixtures/nm16-desktop-notification.json", "utf8"))'
+          node scripts/verify-desktop-assets.js
+      - name: Run deny-first Desktop notification contract
+        run: node --test contrib/desktop/tests/nm16_desktop_notification.test.js
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

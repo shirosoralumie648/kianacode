@@ -25,7 +25,10 @@ const {
   createDesktopState,
   reduceDesktopState,
 } = require("./lib/desktop-state");
-const { NotificationBridge } = require("./lib/notifications");
+const {
+  DesktopNotificationAdapter,
+  NotificationBridge,
+} = require("./lib/notifications");
 const {
   emptyDesktopStore,
   mergeDesktopStore,
@@ -64,6 +67,11 @@ let lifecycle = "stopped";
 let readyRecord = null;
 let desktopState = createDesktopState();
 const notificationBridge = new NotificationBridge({ workspaceBindingDigest: null });
+const notificationAdapter = new DesktopNotificationAdapter({
+  bridge: notificationBridge,
+  notifier: Notification,
+  permission: "unknown",
+});
 
 function welcomeUrl() {
   return pathToFileURL(path.join(__dirname, "welcome.html")).href;
@@ -71,7 +79,7 @@ function welcomeUrl() {
 
 function rotateIpcSession({ origin, workspaceBinding = null }) {
   ipcSession = createIpcSession({ origin, workspaceBinding });
-  notificationBridge.setWorkspaceBindingDigest(ipcSession.workspaceBindingDigest);
+  notificationAdapter.setWorkspaceBindingDigest(ipcSession.workspaceBindingDigest);
 }
 
 rotateIpcSession({ origin: welcomeUrl() });
@@ -493,23 +501,25 @@ function ipcDenied(reason) {
   return error;
 }
 
+function resolveNotificationPermission() {
+  if (typeof Notification !== "function" ||
+      (typeof Notification.isSupported === "function" && !Notification.isSupported())) {
+    return "unavailable";
+  }
+  if (Notification.permission === "denied") return "denied";
+  if (Notification.permission === "granted") return "granted";
+  return "unknown";
+}
+
 function notifyServerFact(fact) {
-  const result = notificationBridge.accept(fact);
+  notificationAdapter.setPermission(resolveNotificationPermission());
+  const result = notificationAdapter.accept(fact);
   if (!result.ok) throw ipcDenied(result.reason);
   applyDesktopState({ type: "server_fact", fact });
   if (result.disposition !== "new") {
     return { ok: true, disposition: result.disposition };
   }
-  if (typeof Notification !== "function" ||
-      (typeof Notification.isSupported === "function" && !Notification.isSupported())) {
-    return { ok: true, disposition: "unavailable" };
-  }
-  const notification = new Notification({
-    title: result.value.title,
-    body: result.value.body,
-  });
-  notification.show();
-  return { ok: true, disposition: "shown" };
+  return { ok: true, disposition: result.disposition };
 }
 
 function installWindowSecurity(window) {
