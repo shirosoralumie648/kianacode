@@ -321,6 +321,34 @@ impl UiEntityStoreSnapshot {
                     "ui_store_optimistic_duplicate".to_owned(),
                 ));
             }
+            let entity = self
+                .entities
+                .iter()
+                .find(|entity| entity.key == update.key)
+                .ok_or_else(|| {
+                    UiStoreError::Invalid("ui_store_optimistic_entity_missing".to_owned())
+                })?;
+            if entity.lifecycle != UiEntityLifecycle::OptimisticPending
+                || entity.revision != update.revision
+                || entity.workspace != self.scope.workspace
+                || entity.session_id != self.scope.session_id
+                || entity.tab_id != self.scope.tab_id
+                || entity.epoch != self.epoch
+            {
+                return Err(UiStoreError::Invalid(
+                    "ui_store_optimistic_entity_mismatch".to_owned(),
+                ));
+            }
+            if let Some(previous) = &update.previous {
+                if previous.key != update.key
+                    || previous.workspace != self.scope.workspace
+                    || previous.session_id != self.scope.session_id
+                    || previous.tab_id != self.scope.tab_id
+                    || previous.epoch != self.epoch
+                {
+                    return Err(UiStoreError::ScopeMismatch);
+                }
+            }
         }
         for event_id in &self.seen_event_ids {
             required(event_id, "ui_store_event_id", 512)?;

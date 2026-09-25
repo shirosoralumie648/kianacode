@@ -25,6 +25,7 @@ Draft、Inbox 和 Artifact 使用同一套 key/revision/lifecycle 规则；prese
 | `reducer_deduplicates_events_and_requires_snapshot_after_gap` | 重复 event/frame 被拒绝，sequence gap 进入 snapshot-required 状态 |
 | `optimistic_state_rolls_back_and_protected_entries_block_eviction` | pending 条目保护 cache，拒绝结果恢复 previous 或移除 optimistic 条目 |
 | `unknown_and_pending_survive_hydrate_and_dehydrate` | `Unknown` 与 pending 状态经过 digest/schema 校验后保留 |
+| `hydrate_rejects_optimistic_previous_from_a_foreign_scope` | rollback previous entity 跨 workspace/session/tab/epoch 时拒绝 hydrate |
 | `tab_scope_isolation_and_reducer_purity_are_explicit` | 跨 tab 输入被拒绝，纯 reducer 不修改原 store |
 | `ui08_store_is_a_pure_bounded_projection` | source guard 拒绝 Broker、ControlPlane、DaemonHost、模型循环和文件副作用 |
 
@@ -40,8 +41,10 @@ pending -- Unknown --> unknown (protected, original idempotency key retained)
 gap/epoch mismatch --> snapshot required; local pending/unknown state is retained by policy
 ```
 
-The store binds every entity to workspace/session/tab and authority epoch. Feed sequence and event
-IDs reject replay and sequence gaps; a gap must be repaired by a snapshot before later deltas are
+The store binds every entity and an optimistic update's rollback `previous` entity to the same
+workspace/session/tab and authority epoch. A snapshot cannot hydrate an optimistic record whose
+entity is missing, non-pending, revision-mismatched or foreign-scoped. Feed sequence and event IDs
+reject replay and sequence gaps; a gap must be repaired by a snapshot before later deltas are
 accepted. Cache eviction only removes authoritative entries, never pending or unknown entries. The
 snapshot digest covers schema, scope, epoch, entities, optimistic records and replay bookkeeping.
 
