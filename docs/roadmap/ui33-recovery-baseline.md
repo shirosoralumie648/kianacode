@@ -20,6 +20,8 @@ sequence 与 limitation；每个 plan 都把 `new_effect_allowed` 固定为 fals
 hydrate/replay/Unknown、duplicate/gap/old epoch/late terminal 和 no-new-effect assertions。
 `.github/workflows/ui33-recovery-contract.yml` 运行 Rust format、聚焦 recovery fixture 与 workspace
 test-target compile。
+其 push/pull_request path filter 现在同时包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，
+fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pending/unobserved。
 
 `feature_status=implemented`; `proof_level=source`。未证明真实 browser/PTY/Electron/ACP reconnect、
 daemon kill/restart、EventLog durable projector、跨进程 command query/effect counter、provider/Broker/
