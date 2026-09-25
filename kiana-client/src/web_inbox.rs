@@ -25,7 +25,9 @@ fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
 }
 
 fn card_key(item_id: &str, action_id: &str) -> String {
-    format!("{item_id}:{action_id}")
+    // IDs are opaque and may contain `:`. Length-delimit the first component so distinct
+    // `(item_id, action_id)` tuples cannot collapse into one BTreeMap entry.
+    format!("{}:{}{}", item_id.len(), item_id, action_id)
 }
 
 /// Bounded client-side projection keyed by the server's item/action identity.

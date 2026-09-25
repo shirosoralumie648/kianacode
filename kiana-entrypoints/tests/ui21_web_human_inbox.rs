@@ -24,6 +24,7 @@ fn ui21_fixture_captures_server_card_and_deny_first_matrix() {
     }
     for denial in [
         "duplicate_card",
+        "colon_delimited_identity_collision",
         "expired_approval",
         "revoked_approval",
         "stale_inbox_revision",
@@ -59,6 +60,7 @@ fn ui21_typed_protocol_client_and_server_contracts_are_wired() {
         "payload_digest",
         "allowed_decisions",
         "UiHumanInboxV1",
+        "item.item_id.as_str(), item.action_id.as_str()",
     ] {
         assert!(
             protocol.contains(marker),
@@ -74,6 +76,7 @@ fn ui21_typed_protocol_client_and_server_contracts_are_wired() {
         "web_human_action_revoked",
         "web_human_field_denied",
         "web_human_inbox_stale_revision",
+        "item_id.len()",
     ] {
         assert!(
             client.contains(marker),
