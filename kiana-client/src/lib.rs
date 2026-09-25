@@ -19,6 +19,7 @@ mod cli_presenter;
 mod acp;
 mod ide_capability;
 mod surface_parity;
+mod ui_recovery;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -53,6 +54,10 @@ pub use ide_capability::{
 pub use surface_parity::{
     compare_surface_traces, ParitySurface, SurfaceParityError, SurfaceParityReport, SurfaceTrace,
     SURFACE_PARITY_SCHEMA,
+};
+pub use ui_recovery::{
+    plan_recovery, FeedDisposition, RecoveryDecision, RecoveryError, RecoveryFault, RecoveryFence,
+    RecoveryInput, RecoveryPhase, RecoveryPlan, UI_RECOVERY_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{

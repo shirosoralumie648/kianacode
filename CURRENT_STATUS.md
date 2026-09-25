@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-33 reconnect/replay/gap/crash recovery（2026-09-25）
+
+source_snapshot: `7764782a`（UI-32 已合并 master 基线）加 UI-33 source slice；`kiana-client/src/{ui_recovery.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui33-recovery.json,ui33_recovery.rs}`；`.github/workflows/ui33-recovery-contract.yml`; `docs/roadmap/ui33-recovery-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui33-recovery-contract-20260925`;新增 deterministic RecoveryPlan/RecoveryFence，Accepted 查询原 command、gap/old epoch hydrate、terminal replay、cancel/worker uncertain reconcile Unknown；旧 epoch、跳号、duplicate、late terminal deny，所有恢复计划 `new_effect_allowed=false`
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui33-recovery.json`；disconnect/kill/delay/duplicate/gap/old epoch/late terminal、original command/query、hydrate/replay/Unknown、no-new-effect；无 browser/daemon/provider/Broker runtime effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 recovery fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-33 recovery plan/fence、deny-first fixture/source guard、CI-only workflow、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（read-only client recovery source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 browser/PTY/Electron/ACP reconnect、daemon kill/restart、durable EventLog projector、跨进程 command query/effect counter、provider/Broker/external effect 或 live/physical recovery；CI 结果未等待
+reviewer: Codex UI-33 source review；检查 original command identity、snapshot/feed hydrate、Unknown/reconcile、epoch/sequence/terminal fence、no-new-effect recovery plans 与 no second execution loop；无本地 runtime test reviewer
+
 ### UI-32 deny-first 安全路径集成测试（2026-09-25）
 
 source_snapshot: `c831457d`（UI-31 已合并 master 基线）加 UI-32 source slice；`kiana-entrypoints/tests/{fixtures/ui32-deny-first.json,ui32_deny_first.rs}`；`.github/workflows/ui32-deny-first.yml`; `docs/roadmap/ui32-deny-first-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

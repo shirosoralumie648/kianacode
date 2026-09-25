@@ -1,0 +1,42 @@
+name: UI-33 reconnect replay gap crash recovery contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/ui_recovery.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui33-recovery.json"
+      - "kiana-client/tests/ui33_recovery.rs"
+      - "docs/roadmap/ui33-recovery-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui33-recovery-contract.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/ui_recovery.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui33-recovery.json"
+      - "kiana-client/tests/ui33_recovery.rs"
+      - "docs/roadmap/ui33-recovery-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui33-recovery-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui33-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

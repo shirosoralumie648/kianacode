@@ -710,13 +710,20 @@ cancel/parity 与 `DaemonHost`/`ControlPlane`/`EventLog`/`result_unknown` 共享
 
 
 
-#### UI-33 · reconnect/replay/gap/crash recovery e2e　⏳
+#### UI-33 · reconnect/replay/gap/crash recovery e2e　🔄
 
 - 依赖：UI-05–08、UI-18、UI-25、Event/Receipt §23。代码：daemon restart + browser/PTY/Desktop/ACP harness。
 - 步骤：在 snapshot、feed、action accepted、artifact fetch、cancel 和 terminal 各阶段注入断网/kill/延迟/重复；重启后查询原 command、重建 projection、fence 旧 epoch。
 - 先拒绝：丢响应产生第二 effect、gap 静默继续、terminal 重复、旧 worker 仍写入、恢复自动 approve/resume/retry。
 - 成功/回归：状态最终收敛到 Applied/Rejected/Cancelled/Failed/Unknown；Unknown 有显式下一步和 limitation。
 - 完成产物：故障时间线、重启 fixture、recovery Receipt 和未证明的跨进程边界。
+
+实现基线：[`ui33-recovery-baseline.md`](ui33-recovery-baseline.md)。当前 source slice 位于
+`kiana-client/src/ui_recovery.rs`，将 snapshot/feed/action accepted/artifact/cancel/terminal 与
+disconnect/kill/delay/duplicate/gap/old epoch 映射为只读 `RecoveryPlan`；Accepted 只 query original
+command，gap/old epoch 要求 hydrate，terminal 只 replay，cancel/worker uncertain 进入 reconcile
+Unknown，所有计划 `new_effect_allowed=false`。`RecoveryFence` 拒绝旧 epoch、跳号和 terminal 后迟到
+更新，不隐式 retry/resume/approve。
 
 <a id="step-ui-34"></a>
 
