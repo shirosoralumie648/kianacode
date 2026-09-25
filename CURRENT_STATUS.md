@@ -108,6 +108,19 @@ proof-level change: `feature_status=implemented`（typed action candidate + sour
 limitations: 未接入真实 HumanTask/Approval action command、single-consume/wait-key wakeup、durable idempotency/receipt settlement、CLI/Web/Desktop action surface、Broker/provider/external/live/physical effect；CI 结果未等待
 reviewer: Codex NM-10 source review；检查 authoritative ref identity/digest/expiry/scope、target revision/digest、recipient/decider、authority/cursor, payload redaction, idempotency, control-plane-only/no-effect/no-second-loop；无本地 runtime test reviewer
 
+### NM-11 notification urgency/read/ACK/snooze/digest projection（2026-09-25）
+
+source_snapshot: `1134afa0`（NM-10 已合并 master 基线）加 NM-11 source slice；`kiana-core/src/{notification_priority.rs,notification_store.rs,lib.rs}`；`kiana-core/tests/{nm11_notification_priority.rs,nm11_notification_priority_guard.rs,fixtures/nm11-notification-priority.json}`；`.github/workflows/nm11-notification-priority.yml`; `docs/roadmap/nm11-notification-priority-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm11-notification-priority-20260925`;新增 server-derived urgency/due/source-cursor/digest-group ordering，page item read/ACK/snooze metadata 和 projection-only snooze；critical/Unknown 不被隐藏；不改 HumanTask/Approval，不写 EventLog，不调用 Broker/Runner，不以 client clock 或 presenter 文案重排
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm11_notification_priority --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm11_notification_priority_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm11-notification-priority.json`、priority/snooze/source guards；critical/high/medium ordering, due/source cursor, digest grouping, unavailable/empty, snooze/idempotency/no-authority；无 durable read/snooze、retention/withdraw、action command、Web/SSE/Desktop channel 或 external/live receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 priority fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-11 urgency/due/source ordering、digest grouping、projection-only snooze/read/ACK metadata、CI fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（server-derived priority source projection + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 优先级与 snooze 仍为进程内 presentation projection，不证明跨进程/durable read state、digest scheduler、retention/withdraw、action/approval、provider/connector/external/live/physical effect；CI 结果未等待
+reviewer: Codex NM-11 source review；检查 server-time/due/urgency/source cursor/digest ordering、critical/Unknown preservation、snooze/read/ACK projection-only and idempotent clock fences、no task status/EventLog/Broker/Runner/no second loop；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
