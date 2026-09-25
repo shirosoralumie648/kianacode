@@ -626,6 +626,28 @@ proof-level change: `feature_status=implemented`（protocol/daemon source + remo
 limitations: CI 未观察；feed history/queue 仅为 daemon 进程内 bounded projection，未证明跨进程 SSE/socket、持久化订阅、terminal 跨重启 replay、notification/artifact delivery 或 live/physical proof；UI-07 typed client、UI-08 reducer、UI-18 reconnect 和 UI-33 crash recovery 仍未完成
 reviewer: Codex UI-06 source review，覆盖 cursor digest、snapshot boundary、sequence/epoch/instance gap、replay window、broadcast backpressure、heartbeat、terminal finality 与 facade 无执行权；无本地 runtime test reviewer
 
+### UI-06 gap boundary cursor recovery evidence (2026-09-26)
+
+```text
+source_snapshot: base `a5052381` plus UI-06 gap-boundary slice; `kiana-daemon/src/run_stream.rs`; `kiana-core/tests/ui06_feed_replay_guard.rs`; UI-06 daemon fixture, baseline and roadmap overlays
+worktree_status: expired/foreign/sequence gap now emits the gap target and a snapshot boundary at the same current server cursor; the old requested after cursor is not replayed as a boundary; no execution or EventLog authority changed
+command_argv:
+  rustfmt --edition 2021 kiana-daemon/src/run_stream.rs kiana-core/tests/ui06_feed_replay_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-protocol --test ui06_feed_contract --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-daemon --lib run_stream::tests::feed_ --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test ui06_feed_replay_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only expired replay asserts gap cursor equals subsequent snapshot-boundary cursor; existing epoch/sequence/backpressure/terminal fixtures remain offline and bounded
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-06 gap recovery no longer emits a stale boundary cursor after a gap; card remains 🔄 pending CI evidence and durable/cross-process feed proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: in-process feed/replay only; no durable subscription, cross-process socket/SSE, provider/live timing, notification delivery or physical proof is claimed
+reviewer: Codex source review of gap target/boundary cursor continuity, expired replay recovery and unchanged bounded single-spine projection; no local runtime test reviewer
+```
+
 ### UI-05 原子 snapshot projector 与分页（2026-09-24）
 
 source_snapshot: `312e00b6`（EXT-27 动态可见性源码合并后的 master；EQ-27 evaluator compile fix 与 UI-04 durable action CAS 在祖先）；`kiana-domain/src/ui_snapshot.rs`; `kiana-daemon/src/lib.rs`; `kiana-domain/tests/ui05_snapshot_projector.rs`; `kiana-core/tests/ui05_snapshot_projector_guard.rs`; `.github/workflows/ui05-snapshot-projector.yml`; `docs/roadmap/ui05-snapshot-projector-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

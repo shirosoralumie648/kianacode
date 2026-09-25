@@ -23,14 +23,14 @@ UI-06 为 daemon feed 定义独立的 `UiFeedCursorV1`、`UiFeedFrameV1` 和 `Ui
 | `feed_cursor_round_trip_and_gap_are_explicit` | cursor 编解码、digest、gap range 和 snapshot-required 约束保持 |
 | `feed_cursor_digest_and_terminal_boundary_fail_closed` | 篡改 cursor digest、伪造 terminal flag 被拒绝 |
 | `feed_replays_only_the_bounded_window_and_marks_boundaries` | 首帧为 snapshot boundary，断线后只回放 bounded history |
-| `feed_rejects_foreign_epoch_and_expired_replay` | old epoch 与 replay expired 返回 gap，不伪造 delta |
+| `feed_rejects_foreign_epoch_and_expired_replay` | old epoch 与 replay expired 返回 gap；随后 snapshot boundary 使用服务端当前 cursor，不回退到旧请求 cursor |
 | `slow_consumer_gets_backpressure_gap_and_terminal_delta_is_denied` | 慢消费者收到 backpressure gap；terminal 后 delta/duplicate terminal 被拒绝，指标递增 |
 | `heartbeat_is_bounded_and_explicit` | heartbeat 帧带当前 feed/snapshot cursor，并通过 DTO 校验 |
 | `ui06_feed_replay_guard` | protocol/daemon facade 保留 cursor、gap、replay window、backpressure 和 terminal markers，未新增第二执行循环 |
 
 ## 3. Durable boundary and limitations
 
-feed history 和 broadcast queue 都是 daemon 进程内、有限容量的展示投影；它们不是 EventLog 的第二事实源。订阅建立时发送 boundary，之后按 sequence 投影；检测到 gap 后客户端必须走 UI-05 snapshot query 重新 hydrate，再以新 cursor 继续。terminal 只允许一次，terminal 后不接受 delta；terminal retention 不承诺跨 daemon restart 的 durable replay。`UiFeedBackpressureMetrics` 只记录队列容量、窗口、lag、gap 和 terminal rejection 计数。
+feed history 和 broadcast queue 都是 daemon 进程内、有限容量的展示投影；它们不是 EventLog 的第二事实源。订阅建立时发送 boundary，之后按 sequence 投影；检测到 gap 后客户端必须走 UI-05 snapshot query 重新 hydrate，再以服务端 gap target cursor 继续，不能把旧 after cursor 作为新的 boundary。terminal 只允许一次，terminal 后不接受 delta；terminal retention 不承诺跨 daemon restart 的 durable replay。`UiFeedBackpressureMetrics` 只记录队列容量、窗口、lag、gap 和 terminal rejection 计数。
 
 当前证据只覆盖源码与 GitHub CI wiring，CI 结果未等待。UI-06 不实现跨进程 socket/SSE adapter、持久化订阅收件箱、notification delivery、artifact 内容下载、provider/live timing 或 physical proof；UI-07 typed client、UI-08 reducer、UI-18 SSE reconnect 与 UI-33 crash recovery 继续依赖本步骤的 contract。旧 `RunStreamSubscription` API 保留兼容，不改变既有 stream gap 语义。
 

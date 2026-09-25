@@ -21,6 +21,8 @@ fn feed_replay_stays_a_bounded_projection_and_never_an_execution_path() {
         "FEED_REPLAY_WINDOW",
         "UI_FEED_QUEUE_CAPACITY",
         "subscribe_feed_after",
+        "snapshot_boundary_after_gap",
+        "current_sequence, current_ui_cursor",
         "RunStreamFeedError",
         "Backpressure",
         "ReplayExpired",
@@ -50,7 +52,10 @@ fn feed_replay_stays_a_bounded_projection_and_never_an_execution_path() {
         "proof_level",
         "source",
     ] {
-        assert!(baseline.contains(marker), "UI-06 baseline marker missing: {marker}");
+        assert!(
+            baseline.contains(marker),
+            "UI-06 baseline marker missing: {marker}"
+        );
     }
 
     assert!(daemon.contains("broadcast::channel(RUN_STREAM_CAPACITY)"));
