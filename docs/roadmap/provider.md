@@ -304,7 +304,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **退出 / 证据**：旧 GenerateContent 若仍有用户需求，另加 `gemini_generate_content` 协议子卡及独立 fixture；不混两套帧格式，也不调用 SDK 自动工具循环。
 - **本次实现**：请求固定为 Interactions stateless streaming；函数结果绑定本地 call_id/name 并保留可识别的 error 结果；流聚合校验连续 step index、status transition、arguments 与 step/terminal usage，一直等待 interaction.completed 才返回模型终态。
 - **拒绝与回归 fixture**：上列三条 deny；另覆盖 status update 后拒绝迟到 step、requires_action 无 function step 拒绝、stateless function result round-trip、每轮重发参数、malformed/不一致 usage。Core source guard 绑定 Interactions wire markers，专属 workflow 在 GitHub 执行 provider fixture 与 guard。
-- **CI / 状态**：当前分支尚未由 GitHub CI 执行；保持 🔄，proof 上限 `source`。本地未运行测试/build/check/clippy/smoke；未证明 live Gemini、账单或受保护 thought replay。
+- **CI / 状态**：当前 source 已合并 master；历史 repository-wide fmt 缺失模块问题由 CM-36 补齐，本提交将 `memory_workbench.rs` 纳入 workflow path filter 触发新的 GitHub fixture/source-guard rerun，结果 pending/unobserved；保持 🔄，proof 上限 `source`。本地未运行测试/build/check/clippy/smoke；未证明 live Gemini、账单或受保护 thought replay。
 
 <a id="step-p4-j7-20"></a>
 
