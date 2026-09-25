@@ -54,6 +54,21 @@ fn fixture_declares_budget_and_protected_item_contract() {
 }
 
 #[test]
+fn current_timeline_and_recovery_fences_are_registered_with_budget_gate() {
+    let timeline = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../kiana-entrypoints/src/web_page.html"),
+    )
+    .unwrap();
+    let recovery =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/ui_recovery.rs"))
+            .unwrap();
+    assert!(timeline.contains("timelineProjection.order.length >= TIMELINE_MAX_ITEMS"));
+    assert!(timeline.contains("保留 pending/unknown"));
+    assert!(recovery.contains("gap_blocked"));
+    assert!(recovery.contains("reset_after_snapshot"));
+}
+
+#[test]
 fn budget_accepts_degrades_and_rejects_explicitly() {
     assert_eq!(
         evaluate_budget(&budget(), &usage(10, 2, 1, 1, 1, 0)).unwrap(),

@@ -988,6 +988,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: reset is a source contract without live daemon snapshot/kill/restart, durable projector, effect counter, provider/Broker or physical proof
 reviewer: Codex UI-33 source review; checked gap blocking, explicit hydrate reset, old epoch/terminal fences and no-new-effect recovery plans; no local runtime reviewer
 ```
+
+### UI-34 budget integration evidence (2026-09-26)
+
+```text
+source_snapshot: base `fcbd1baa` plus UI-34 budget integration slice; `kiana-client/tests/ui34_resource_budget.rs`; `kiana-client/tests/fixtures/ui34-resource-budget.json`; UI-34 baseline/roadmap overlays
+worktree_status: budget gate now registers current UI-20 all-protected timeline hard bound/partial state and UI-33 gap-blocked-until-hydrate fence in addition to shared Accept/Degraded/Reject decisions
+command_argv:
+  rustfmt --edition 2021 kiana-client/tests/ui34_resource_budget.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui34_resource_budget --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only budget hard-bound/protected-item cases plus current timeline overflow and recovery gap fences; no browser/daemon/provider effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; budget fixture and workspace compile pending/unobserved
+status change: UI-34 budget gate now covers recent protected-render and recovery invariants; card remains 🔄 pending CI and real pressure/accessibility evidence
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: source integration is not long-stream/RSS/p50/p95/accessibility automation or cross-process backpressure proof
+reviewer: Codex UI-34 source review; checked hard/degraded/protected budget decisions and registration of UI-20/UI-33 fences without execution authority; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
