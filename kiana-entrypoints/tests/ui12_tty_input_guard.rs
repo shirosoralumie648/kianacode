@@ -10,6 +10,7 @@ fn tty_input_is_a_bounded_event_adapter_without_execution_authority() {
         "MAX_TTY_INPUT_CHARS",
         "MAX_TTY_HISTORY_ENTRIES",
         "PtyChunkDecoder",
+        "PASTE_START.starts_with",
         "apply_chunk",
         "pub fn eof(&mut self)",
         "InputMode::NonTty",

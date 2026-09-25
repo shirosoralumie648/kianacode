@@ -523,6 +523,27 @@ status_change: UI-12 TTY 输入状态机 source contract、Workbench adapter、d
 proof-level change: `feature_status=implemented`（bounded parser/state source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
 limitations: decoder 是确定性 PTY chunk source fixture，不是 OS-backed PTY/terminal emulator；终端 IME 组合通过 adapter API 暴露，具体候选行为依 terminal；未声称完整光标编辑、进程外 durable history、协议 transport、ControlPlane authorization、receipt truth、跨入口 parity、provider/live timing 或 physical proof
 reviewer: Codex UI-12 source review；检查 partial escape/UTF-8 不执行、paste 纯文本、IME/Ctrl-C 优先级、immutable commit、history/resize/EOF/SIGINT/NonTty fence、原子 bounds reject、Workbench 无第二执行循环；无本地 runtime test reviewer
+
+### UI-12 split bracketed-paste prefix evidence (2026-09-26)
+
+```text
+source_snapshot: base `dc1c871b` plus UI-12 paste-prefix slice; `kiana-entrypoints/src/tty_input.rs`; `kiana-entrypoints/tests/ui12_tty_input.rs`; `kiana-entrypoints/tests/ui12_tty_input_guard.rs`; UI-12 baseline and roadmap overlays
+worktree_status: PtyChunkDecoder now retains partial bracketed-paste start markers across chunks instead of treating `ESC[200` as an unknown escape; payload remains one Paste event and no command execution path is added
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/tty_input.rs kiana-entrypoints/tests/ui12_tty_input.rs kiana-entrypoints/tests/ui12_tty_input_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui12_tty_input --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui12_tty_input_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only split `ESC[200` + `~payload...ESC[201~` fixture proves pending start marker and single Paste payload; no shell/daemon/provider effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-12 split bracketed-paste start is now fail-safe and chunk-boundary complete; card remains 🔄 pending CI evidence and OS-backed PTY proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: deterministic decoder only, no OS terminal emulator/IME proof, no full cursor editing, transport, authorization or live/physical effect proof
+reviewer: Codex source review of partial paste-prefix retention, UTF-8/escape behavior and immutable Paste boundary; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

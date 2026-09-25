@@ -44,7 +44,7 @@ InputMode::Tty
 
 | Fixture / guard | Assertion |
 |---|---|
-| PTY chunk decoder | split UTF-8 and escape prefixes remain pending; `finish` rejects dangling escape; bracketed paste closes before emission |
+| PTY chunk decoder | split UTF-8, escape and bracketed-paste start prefixes remain pending; `finish` rejects dangling escape; bracketed paste closes before emission |
 | paste boundary | pasted slash text/newlines become one bounded draft payload; no paste byte is interpreted as Enter, Escape or shell input |
 | Unicode and IME | Chinese, combining marks and emoji remain scalar-safe; IME candidate is separate; Ctrl-C/Esc during composition cancels composition, not a running turn |
 | draft/commit separation | Enter creates one immutable `CommittedInput`; later cancel, resize or editing cannot mutate the committed text |
