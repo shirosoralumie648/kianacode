@@ -121,6 +121,19 @@ proof-level change: `feature_status=implemented`（handoff/source guard + CI wir
 limitations: 未证明任何 runtime UAT、跨进程 durable recovery、真实 browser/PTY/Electron/ACP host、scale/performance/accessibility、provider/connector/live/physical effect、签名发布或外部 receipt；UI-41 明确交接和缺口，不是整体完成证明；CI 结果未等待
 reviewer: Codex UI-41 source/handoff review；检查 UI-38/39/40 evidence linkage、分类与 proof 分离、reviewer/source/receipt/limitation/next-action 完整性、无 blanket completion、无第二执行循环；无本地 runtime/release reviewer
 
+### UI-41 handoff matrix schema guard（2026-09-26）
+
+source_snapshot: `20782f40`（UI-40 GitHub-only boundary 已合并 master 基线）加 UI-41 matrix-guard source slice；`kiana-core/tests/ui41_handoff_guard.rs`; `docs/roadmap/ui41-handoff-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui-41-handoff-matrix-guard-20260926`; CI guard 解析 UI-41 status matrix，要求每个 scope row 具有五个非空列、允许的 feature classification 和具体 next action，同时保留 reviewer/source/receipt/limitation 字段要求；不发布、不批准、不执行 Broker、不把 handoff 当 runtime/durable/live/physical acceptance
+command_argv: 本地仅 `git diff --check`（未运行测试/build/check/clippy/smoke/release）；GitHub Actions 将运行 `bash -n`、UI-40 source gate、`cargo test -p kiana-core --test ui41_handoff_guard --locked -- --test-threads=1`、`git diff --check`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/live；GitHub Actions 是 handoff/test/compile 权威且不等待
+fixture·cassette: `ui41-handoff-baseline.md` status matrix 与 `ui41_handoff_guard.rs` source parser；UI-38/39/40 evidence references、classification、proof/receipt/limitation/next-action；无真实 runtime、durable、live、physical cassette
+exit_code: 本地 `git diff --check`；远程 handoff guard、UI-40 gate、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-41 handoff guard 从关键词存在性升级为逐行 matrix schema/classification/next-action 检查，补齐 baseline 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（handoff/source guard + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明任何 runtime UAT、跨进程 durable recovery、真实 browser/PTY/Electron/ACP host、scale/performance/accessibility、provider/connector/live/physical effect、签名发布或外部 receipt；UI-41 仍是交接和缺口，不是整体完成证明；CI 结果未等待
+reviewer: Codex UI-41 source/handoff review；检查 matrix five-column parse、allowed classification、non-empty next action、UI-40 reuse 与 no blanket completion；无本地 runtime/release reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
