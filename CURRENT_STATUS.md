@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-29 ACP/IDE session adapter（2026-09-25）
+
+source_snapshot: `5c5336ed`（UI-28 已合并 master 基线）加 UI-29 source slice；`kiana-client/src/{acp.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui29-acp.json,ui29_acp_adapter.rs}`；`.github/workflows/ui29-acp-session.yml`; `docs/roadmap/ui29-acp-session-adapter-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui29-acp-session-20260925`;纯 client adapter 支持 ACP v1/v2 bounded initialize、owner/epoch session new/resume、handler-before-replay、prompt/permission/cancel 到现有 UiActionV1、shared snapshot/feed/action validation、sequence gap/replay/terminal fences；无 host tool、Broker、runner 或直接 effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021 --check` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui29_acp_adapter --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui29-acp.json`；unknown protocol/capability bound、foreign owner/session、old epoch、expired permission、handler-before-replay、duplicate/gap/late terminal update、cancel not terminal success、no direct host effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 adapter fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-29 ACP protocol/session adapter、typed UI projections/actions、deny-first fake peer fixture/source guard、baseline 与 workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded client adapter source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未接入真实 ACP/IDE transport、editor/terminal host、durable cross-process lease、真实 provider/Broker effect、crash/reconnect physical timing 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-29 source review；检查 v1/v2 negotiation、owner/session/epoch、handler-before-replay、UiSnapshot/Feed/Action mapping、permission expiry、sequence gap/terminal fence、cancel no-direct-effect 与 no second execution loop；无本地 runtime test reviewer
+
 ### UI-28 共享静态资产、版本和生产打包（2026-09-25）
 
 source_snapshot: `b78100d5`（UI-27 已合并 master 基线）加 UI-28 source slice；`contrib/desktop/{package.json,asset-manifest.json,lib/asset-manifest.js}`；`scripts/verify-desktop-assets.js`; `contrib/desktop/tests/{fixtures/ui28-assets.json,ui28_assets.test.js}`; `.github/workflows/ui28-desktop-assets.yml`; `kiana-entrypoints/src/web.rs`; `docs/roadmap/ui28-desktop-assets-packaging-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

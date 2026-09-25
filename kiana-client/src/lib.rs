@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 
 mod cli_contract;
 mod cli_presenter;
+mod acp;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -34,6 +35,13 @@ pub use cli_contract::{
 pub use cli_presenter::{
     present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
     CLI_DEFAULT_TTY_BYTES, CLI_MAX_DIAGNOSTIC_BYTES,
+};
+pub use acp::{
+    AcpAdapterError, AcpConnectionState, AcpInitializeRequest, AcpInitializeResponse,
+    AcpPermissionDecision, AcpPermissionRequest, AcpProjection, AcpProtocolVersion,
+    AcpResumeResult, AcpSessionAdapter, AcpSessionReference, AcpUpdateDisposition,
+    ACP_INITIALIZE_SCHEMA, ACP_MAX_CAPABILITIES, ACP_MAX_PROMPT_BYTES, ACP_PERMISSION_SCHEMA,
+    ACP_PROTOCOL_V1, ACP_PROTOCOL_V2, ACP_SESSION_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{

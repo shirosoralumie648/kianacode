@@ -1,0 +1,20 @@
+{
+  "schema": "kiana.acp-fixture.v1",
+  "protocols": ["acp.v1", "acp.v2"],
+  "accepted": [
+    "initialize negotiates a bounded protocol and capabilities",
+    "new/resume session binds owner and authority epoch",
+    "prompt, permission and cancel become UiAction intents",
+    "snapshot/feed/action projections validate against shared UI contracts",
+    "disconnect requires feed handler installation before replay"
+  ],
+  "denied": [
+    "unknown protocol or capability explosion",
+    "foreign session owner",
+    "old authority epoch",
+    "expired permission",
+    "late update after terminal",
+    "sequence gap treated as hydrate/replay, not success",
+    "host tool or ACP peer directly executing a capability"
+  ]
+}

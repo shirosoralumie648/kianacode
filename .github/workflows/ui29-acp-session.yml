@@ -1,0 +1,45 @@
+name: UI-29 ACP and IDE session adapter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/acp.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui29-acp.json"
+      - "kiana-client/tests/ui29_acp_adapter.rs"
+      - "docs/roadmap/ui29-acp-session-adapter-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui29-acp-session.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/acp.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui29-acp.json"
+      - "kiana-client/tests/ui29_acp_adapter.rs"
+      - "docs/roadmap/ui29-acp-session-adapter-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui29-acp-session.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui29-acp-session:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check ACP source and fixture
+        run: |
+          cargo fmt --all --check
+          cargo test -p kiana-client --test ui29_acp_adapter --locked -- --test-threads=1
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

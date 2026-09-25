@@ -634,13 +634,20 @@ nonce CSP，未打开 `unsafe-inline`/`unsafe-eval`；asset verifier 不接触 D
 
 
 
-#### UI-29 · ACP/IDE session adapter　⏳
+#### UI-29 · ACP/IDE session adapter　🔄
 
 - 依赖：UI-01/02/07/18/21/25。代码：`kiana-entrypoints` 或独立 adapter 的 initialize/session/new/resume/prompt/update/permission/cancel。
 - 步骤：将 ACP turn/update 映射到同一 UiSnapshot/UiFeed/UiAction；连接 handler 在 resume/replay 前安装；明确 v1/v2 capability 和 session ownership。
 - 先拒绝：未知协议版本、外部 session 越权、permission 过期、cancel 抢先显示为最终成功、host tool 直接执行、update 乱序。
 - 成功/回归：fake ACP peer 的 initialize/new/resume/prompt/permission/cancel、disconnect/replay/gap、旧版本协商和 late update。
 - 完成产物：ACP mapping table、fixture peer、版本/错误转换表；live IDE 只在 opt-in 卡验证。
+
+实现基线：[`ui29-acp-session-adapter-baseline.md`](ui29-acp-session-adapter-baseline.md)。当前 source
+slice 位于 `kiana-client/src/acp.rs`，支持 `acp.v1`/`acp.v2` 协商、owner/authority epoch 绑定的
+session new/resume、feed handler 在 replay 前安装、prompt/permission/cancel 到现有
+`UiActionV1` 的 typed intent 映射，以及 `UiSnapshotV1`/`UiFeedFrameV1`/`UiActionV1` schema 校验。
+sequence gap 返回 hydrate/replay 状态，terminal 后 late update、foreign owner、过期 permission 和
+旧 epoch fail-closed；adapter 不拥有 host tool、Broker、runner 或直接 effect。
 
 <a id="step-ui-30"></a>
 
