@@ -839,13 +839,19 @@ approval/redaction/digest preflight，也不启动 external host 或把 source/C
 
 
 
-#### UI-40 · 发布门与证据收口　⏳
+#### UI-40 · 发布门与证据收口　🔄
 
 - 依赖：UI-32–39、Event/Receipt §23。代码/脚本：聚焦 cargo tests、entrypoint tests、desktop tests、smoke 和文档校验。
 - 步骤：先运行 deny/recovery，再 happy/parity/performance；按改动 crate 串行 daemon/control-plane 测试；保存命令 argv、匹配测试数、环境、fixture digest 和 exit code。
 - 先拒绝：基线失败混入本次结果、`0 tests`、忽略/放宽断言、网络偶然可用、一次人工观察冒充 durable/physical。
 - 成功/回归：必要 checks、`git diff --check`、schema/link/id 唯一性、release smoke 全部有回执；更新状态仅覆盖真实行为。
 - 完成产物：UI evidence bundle、failure classification、CURRENT_STATUS 候选证据块（待 reviewer 采纳）。
+
+实现基线：[`ui40-release-gate-baseline.md`](ui40-release-gate-baseline.md)。当前 GitHub-only
+workflow 先运行 UI-32 deny、UI-33 recovery，再运行 UI-31 parity、UI-34 resource、UI-38 conformance、
+UI-39 protocol/client guards 和 UI-40 typed evidence；随后复用 UI-36 release build/asset gate、
+diff check 与 workspace compile。`UiEvidenceCase/Bundle` 绑定 source/fixture/environment/argv/exit/
+receipt/artifact/proof/limitation/reviewer；source/CI 结果仍不能自升为 durable/live/physical。
 
 <a id="step-ui-41"></a>
 
