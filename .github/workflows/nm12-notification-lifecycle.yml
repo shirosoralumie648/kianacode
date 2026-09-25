@@ -1,0 +1,55 @@
+name: NM-12 notification lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/notification_lifecycle.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/nm12_notification_lifecycle.rs"
+      - "kiana-domain/tests/fixtures/nm12-notification-lifecycle.json"
+      - "kiana-core/src/notification_projector.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm12_notification_projector.rs"
+      - "kiana-core/tests/nm12_notification_projector_guard.rs"
+      - "docs/roadmap/nm12-notification-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm12-notification-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/notification_lifecycle.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/nm12_notification_lifecycle.rs"
+      - "kiana-domain/tests/fixtures/nm12-notification-lifecycle.json"
+      - "kiana-core/src/notification_projector.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm12_notification_projector.rs"
+      - "kiana-core/tests/nm12_notification_projector_guard.rs"
+      - "docs/roadmap/nm12-notification-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm12-notification-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run lifecycle domain fixtures
+        run: cargo test -p kiana-domain --test nm12_notification_lifecycle --locked -- --test-threads=1
+      - name: Run projector fixtures
+        run: cargo test -p kiana-core --test nm12_notification_projector --locked -- --test-threads=1
+      - name: Run projector source guard
+        run: cargo test -p kiana-core --test nm12_notification_projector_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

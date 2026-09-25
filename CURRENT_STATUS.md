@@ -121,6 +121,19 @@ proof-level change: `feature_status=implemented`（server-derived priority sourc
 limitations: 优先级与 snooze 仍为进程内 presentation projection，不证明跨进程/durable read state、digest scheduler、retention/withdraw、action/approval、provider/connector/external/live/physical effect；CI 结果未等待
 reviewer: Codex NM-11 source review；检查 server-time/due/urgency/source cursor/digest ordering、critical/Unknown preservation、snooze/read/ACK projection-only and idempotent clock fences、no task status/EventLog/Broker/Runner/no second loop；无本地 runtime test reviewer
 
+### NM-12 durable inbox rebuild、retention/withdraw/supersede（2026-09-25）
+
+source_snapshot: `1e356f5b`（NM-11 已合并 master 基线）加 NM-12 lifecycle/projector source slice；`kiana-domain/src/{notification_lifecycle.rs,lib.rs}`；`kiana-domain/tests/{nm12_notification_lifecycle.rs,fixtures/nm12-notification-lifecycle.json}`；`kiana-core/src/{notification_projector.rs,notification_materializer.rs,lib.rs}`；`kiana-core/tests/{nm12_notification_projector.rs,nm12_notification_projector_guard.rs}`；`.github/workflows/nm12-notification-lifecycle.yml`; `docs/roadmap/nm12-notification-lifecycle-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm12-notification-lifecycle-20260925`;新增 append-only withdraw/supersede/expire fact，绑定 notification/source event/cursor/data epoch/reason/digest；`NotificationProjector` 对 committed materializer + lifecycle facts 做 clone/rebuild、exact replay、epoch/cursor/terminal rewrite deny，并只从当前 inbox projection 隐藏已验证 lifecycle item；不删 EventLog、不改 HumanTask/Approval、不执行 artifact/provider/connector effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-domain --test nm12_notification_lifecycle --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm12_notification_projector --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm12_notification_projector_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm12-notification-lifecycle.json`、domain/projector/source guards；exact replay, withdraw/supersede/expire visibility, cursor/epoch regression, missing replacement/reason, terminal rewrite and no-delete/no-effect deny；无 durable checkpoint/cross-process retention、legal-hold executor、artifact deletion、provider/connector/external/live/physical effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 lifecycle/projector fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-12 lifecycle facts、rebuildable notification projector、retention/withdraw/supersede fail-closed guards、CI workflow/baseline/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（append-only lifecycle source contract + rebuildable projection + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: projector 仍为进程内可重建 projection，不证明 durable checkpoint、retention store、legal hold/PD-24..26 propagation、artifact/memory/index deletion、HumanTask action、provider/connector/external/live/physical effect；CI 结果未等待
+reviewer: Codex NM-12 source review；检查 lifecycle fact digest/event/cursor/epoch/reason, exact replay, terminal rewrite/epoch regression, materializer clone/rebuild, source history preservation and no authority/effect/no second loop；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

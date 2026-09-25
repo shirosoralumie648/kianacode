@@ -181,6 +181,10 @@ pub use notification_priority::{
     classify_notification, compare_notification_priority, NotificationPriority,
     NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
 };
+pub use notification_projector::{
+    NotificationProjector, NotificationProjectorError, NotificationVisibility,
+    NOTIFICATION_PROJECTOR_SCHEMA,
+};
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
 pub use provider_diagnostics::{
     project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
