@@ -1,0 +1,8 @@
+{
+  "schema": "kiana.memory-maintenance-fixture.v1",
+  "effect_authority": "none",
+  "checks": ["index_generation_gc", "artifact_ttl", "tombstone_compaction", "quota", "retention_reference"],
+  "orphan_action": "report_and_recover",
+  "physical_cleanup_proven": false,
+  "limitations": ["plan_only", "event_store_adapter_pending", "cross_process_recovery_pending"]
+}
