@@ -1,0 +1,49 @@
+name: NM-14 CLI TTY notification inbox
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/notification_cli.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/nm14_notification_cli.rs"
+      - "kiana-entrypoints/tests/nm14_notification_cli_guard.rs"
+      - "kiana-entrypoints/tests/fixtures/nm14-notification-cli.json"
+      - "docs/roadmap/nm14-notification-cli-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm14-notification-cli.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/notification_cli.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/nm14_notification_cli.rs"
+      - "kiana-entrypoints/tests/nm14_notification_cli_guard.rs"
+      - "kiana-entrypoints/tests/fixtures/nm14-notification-cli.json"
+      - "docs/roadmap/nm14-notification-cli-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm14-notification-cli.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CLI/TTY notification fixtures
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli --locked -- --test-threads=1
+      - name: Run CLI/TTY source guard
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

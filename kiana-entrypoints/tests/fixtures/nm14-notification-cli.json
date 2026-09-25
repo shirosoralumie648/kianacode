@@ -1,0 +1,13 @@
+{
+  "schema": "kiana.notification-cli-fixture.v1",
+  "accepted": [
+    "CLI/TTY presenter renders bounded server page rows and action ids",
+    "run delta/heartbeat/terminal/Unknown preserve cursor and retry semantics",
+    "payload/detail is not copied into display rows"
+  ],
+  "denied": [
+    "foreign/oversized/malformed page or action fields",
+    "Unknown converted to automatic retry or terminal converted to cancel",
+    "presenter calls Broker/runner/process or mutates HumanTask/Approval"
+  ]
+}
