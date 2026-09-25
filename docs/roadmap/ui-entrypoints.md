@@ -615,13 +615,20 @@ handshake，并把旧 cursor 标为 discard，绝不从 layout/store 自动 laun
 
 
 
-#### UI-28 · 共享静态资产、版本和生产打包　⏳
+#### UI-28 · 共享静态资产、版本和生产打包　🔄
 
 - 依赖：UI-20/23/24–27。代码：Web build、asset manifest、Electron packaging、CSP hash。
 - 步骤：固定 schema/client/ui 版本和 asset hash；开发/生产 URL、base path、cache headers、source map 和 license；桌面包内不带 secret。
 - 先拒绝：旧 bundle 连接新 protocol 无能力协商、缓存旧 JS 绕过 CSP、构建把 `.env`/token 打入产物、未签名/未校验资源运行。
 - 成功/回归：clean build、离线 bundle、hash mismatch、upgrade/rollback、Electron package 和 loopback deployment smoke。
 - 完成产物：可复现 build manifest、打包检查、CSP hash/asset integrity 证据。
+
+实现基线：[`ui28-desktop-assets-packaging-baseline.md`](ui28-desktop-assets-packaging-baseline.md)。当前 source
+slice 新增 `contrib/desktop/asset-manifest.json` 与 `lib/asset-manifest.js`，绑定 app/protocol/UI
+版本、package asset 相对路径、bytes、SHA-256、immutable/no-store cache policy、license 和
+runtime-nonce CSP forbid list；`scripts/verify-desktop-assets.js` 在构建前校验 Electron `files`
+allowlist、资源 hash/size、symlink/secret marker 与 manifest drift。Web 仍使用 server-generated
+nonce CSP，未打开 `unsafe-inline`/`unsafe-eval`；asset verifier 不接触 DaemonHost/Broker/runner。
 
 <a id="step-ui-29"></a>
 

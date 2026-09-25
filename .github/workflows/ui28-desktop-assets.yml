@@ -1,0 +1,66 @@
+name: UI-28 Desktop assets versions and packaging manifest
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/package.json"
+      - "contrib/desktop/asset-manifest.json"
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/welcome.html"
+      - "contrib/desktop/lib/**"
+      - "scripts/verify-desktop-assets.js"
+      - "contrib/desktop/tests/fixtures/ui28-assets.json"
+      - "contrib/desktop/tests/ui28_assets.test.js"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/ui28-desktop-assets-packaging-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui28-desktop-assets.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/package.json"
+      - "contrib/desktop/asset-manifest.json"
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/preload.js"
+      - "contrib/desktop/welcome.html"
+      - "contrib/desktop/lib/**"
+      - "scripts/verify-desktop-assets.js"
+      - "contrib/desktop/tests/fixtures/ui28-assets.json"
+      - "contrib/desktop/tests/ui28_assets.test.js"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/ui28-desktop-assets-packaging-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui28-desktop-assets.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui28-desktop-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check asset and packaging sources
+        run: |
+          node --check contrib/desktop/lib/asset-manifest.js
+          node --check scripts/verify-desktop-assets.js
+          node --check contrib/desktop/tests/ui28_assets.test.js
+          node scripts/verify-desktop-assets.js
+      - name: Run deny-first asset and packaging contract
+        run: node --test contrib/desktop/tests/ui28_assets.test.js
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Check Web CSP source
+        run: cargo check -p kiana-entrypoints --tests --locked
