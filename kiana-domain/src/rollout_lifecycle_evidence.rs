@@ -160,8 +160,18 @@ impl RolloutLifecycleEvidence {
             bounded(limitation, "rollout_lifecycle_limitation", 256)?;
         }
         if self.status == RolloutLifecycleEvidenceStatus::Verified {
+            let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
+                return Err("rollout_lifecycle_verified_evidence_incomplete".to_owned());
+            };
+            if approval_ref.trim() != approval_ref
+                || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+            {
+                return Err("rollout_lifecycle_operator_approval_ref_invalid".to_owned());
+            }
+            if self.backend == OrchestratedBackend::Simulation {
+                return Err("rollout_lifecycle_simulation_cannot_verify".to_owned());
+            }
             if self.proof_level == RolloutLifecycleProofLevel::Source
-                || self.operator_approval_ref.is_none()
                 || self.health_window_digest.is_none()
                 || self.verification_digest.is_none()
                 || self.active_run_count > 0

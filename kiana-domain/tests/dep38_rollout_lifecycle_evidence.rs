@@ -80,6 +80,19 @@ fn target_unknown_and_invalid_deletion_cannot_verify() {
         "rollout_lifecycle_unknown_cannot_verify"
     );
 
+    let simulation = evidence(
+        OrchestratedBackend::Simulation,
+        RolloutLifecycleEvidenceStatus::Verified,
+        RolloutLifecyclePhase::Promoted,
+        false,
+        false,
+        Vec::new(),
+    );
+    assert_eq!(
+        simulation.expect_err("simulation lifecycle cannot verify live"),
+        "rollout_lifecycle_simulation_cannot_verify"
+    );
+
     let invalid_delete = evidence(
         OrchestratedBackend::Simulation,
         RolloutLifecycleEvidenceStatus::Simulated,
@@ -91,5 +104,27 @@ fn target_unknown_and_invalid_deletion_cannot_verify() {
     assert_eq!(
         invalid_delete.expect_err("promoted root cannot be deletion eligible"),
         "rollout_lifecycle_deletion_gate_invalid"
+    );
+}
+
+#[test]
+fn verified_lifecycle_requires_typed_operator_approval() {
+    let mut value = evidence(
+        OrchestratedBackend::Simulation,
+        RolloutLifecycleEvidenceStatus::Simulated,
+        RolloutLifecyclePhase::Promoted,
+        false,
+        false,
+        vec!["simulation remains source-bound".to_owned()],
+    )
+    .expect("simulation evidence shape");
+    value.status = RolloutLifecycleEvidenceStatus::Verified;
+    value.operator_approval_ref = Some("operator-approval".to_owned());
+    value.evidence_digest = value.digest();
+    assert_eq!(
+        value
+            .validate()
+            .expect_err("verified approval must be typed"),
+        "rollout_lifecycle_operator_approval_ref_invalid"
     );
 }
