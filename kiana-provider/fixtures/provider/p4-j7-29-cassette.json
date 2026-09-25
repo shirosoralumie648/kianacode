@@ -1,0 +1,12 @@
+{
+  "schema": "kiana.provider-cassette.v1",
+  "version": {"major": 1, "minor": 0},
+  "cassette_id": "p4-j7-29-openai-synthetic",
+  "protocol": "open_ai_chat",
+  "mode": "replay",
+  "source": "synthetic",
+  "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "redaction_profile_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "external_connection_allowed": false,
+  "live_opt_in": false
+}

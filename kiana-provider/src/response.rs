@@ -1134,6 +1134,63 @@ impl Accumulator {
         Ok(result)
     }
 }
+fn replay_frames(
+    accumulator: &mut Accumulator,
+    frames: impl IntoIterator<Item = String>,
+    deltas: &mut Vec<ModelDelta>,
+    prepared: &PreparedModelCall,
+) -> Result<Option<ModelReply>, ModelError> {
+    for frame in frames {
+        let finished = accumulator.push(&frame, &mut |delta| {
+            deltas.push(delta);
+            Ok(())
+        })?;
+        if finished {
+            return accumulator.finish(prepared).map(Some);
+        }
+    }
+    Ok(None)
+}
+
+/// Replay a provider stream from already captured bytes without opening a connection.
+///
+/// This is intentionally a fixture-only parser boundary: it validates the same framing and
+/// response accumulator used by transport, but it cannot create a permit, resolve credentials,
+/// call a gateway or dispatch a capability. Callers must pass a prepared call whose route is
+/// already fixed; a missing terminal frame fails closed.
+pub fn replay_stream_fixture(
+    prepared: PreparedModelCall,
+    chunks: &[Vec<u8>],
+    max_frame: usize,
+) -> Result<(ModelReply, Vec<ModelDelta>), ModelError> {
+    prepared.validate()?;
+    if max_frame == 0 {
+        return Err(ModelError::invalid("provider_fixture_frame_limit_invalid"));
+    }
+    if !prepared.route.streaming {
+        return Err(ModelError::invalid("provider_fixture_requires_streaming"));
+    }
+    let ndjson = prepared.route.protocol == ModelProtocol::OllamaChat;
+    let mut framer = Framer::new(ndjson, max_frame);
+    let mut accumulator = Accumulator::new(prepared.route.protocol);
+    let mut deltas = Vec::new();
+    for chunk in chunks {
+        if let Some(reply) = replay_frames(
+            &mut accumulator,
+            framer.push(chunk)?,
+            &mut deltas,
+            &prepared,
+        )? {
+            return Ok((reply, deltas));
+        }
+    }
+    if let Some(reply) = replay_frames(&mut accumulator, framer.finish()?, &mut deltas, &prepared)?
+    {
+        return Ok((reply, deltas));
+    }
+    Err(ModelError::invalid("provider_stream_incomplete"))
+}
+
 fn index(value: &Value, key: &str) -> Result<usize, ModelError> {
     value[key]
         .as_u64()

@@ -1,0 +1,64 @@
+name: P4-J7-29 provider offline contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/provider_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-provider/tests/provider_contract.rs"
+      - "kiana-provider/tests/provider_streaming.rs"
+      - "kiana-provider/tests/provider_retry.rs"
+      - "kiana-provider/fixtures/provider/p4-j7-29-cassette.json"
+      - "kiana-core/tests/p4_j7_29_provider_contract_guard.rs"
+      - "docs/roadmap/p4-j7-29-provider-contract-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-29-provider-contract.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/provider_contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-provider/tests/provider_contract.rs"
+      - "kiana-provider/tests/provider_streaming.rs"
+      - "kiana-provider/tests/provider_retry.rs"
+      - "kiana-provider/fixtures/provider/p4-j7-29-cassette.json"
+      - "kiana-core/tests/p4_j7_29_provider_contract_guard.rs"
+      - "docs/roadmap/p4-j7-29-provider-contract-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-29-provider-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run neutral provider contract fixtures
+        run: cargo test -p kiana-provider --test provider_contract --locked -- --test-threads=1
+      - name: Run streaming and frame fault fixtures
+        run: cargo test -p kiana-provider --test provider_streaming --locked -- --test-threads=1
+      - name: Run retry and fault corpus fixtures
+        run: cargo test -p kiana-provider --test provider_retry --locked -- --test-threads=1
+      - name: Run provider contract source guard
+        run: cargo test -p kiana-core --test p4_j7_29_provider_contract_guard --locked -- --test-threads=1
+      - name: Compile P4-J7-29 targets
+        run: cargo check --workspace --tests --locked

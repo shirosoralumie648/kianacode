@@ -24,6 +24,7 @@ pub use resolver::{
     redacted_workspace_value, ConfigResolver, WorkspaceConfig, WorkspaceProfile,
     MAX_WORKSPACE_CONFIG_BYTES,
 };
+pub use response::replay_stream_fixture;
 use std::collections::BTreeMap;
 pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
 pub use usage::normalize_model_reply;
