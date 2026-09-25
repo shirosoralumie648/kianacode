@@ -1,0 +1,16 @@
+{
+  "schema": "kiana.surface-parity-fixture.v1",
+  "surfaces": ["cli", "workbench", "web", "desktop"],
+  "accepted": [
+    "same command/action/cursor/revision/receipt identity across four surfaces",
+    "surface-specific presenter limitations remain visible but do not change server result",
+    "unknown result remains unknown and query-original across every surface"
+  ],
+  "denied": [
+    "missing or duplicate surface trace",
+    "command, disposition, retry, cursor, revision or receipt drift",
+    "sensitive field count or result field omission",
+    "surface-specific retry or direct capability execution",
+    "closed window or disconnect rewritten as business terminal success"
+  ]
+}

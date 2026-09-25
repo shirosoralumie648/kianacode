@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-31 CLI/Workbench/Web/Desktop 行为 parity（2026-09-25）
+
+source_snapshot: `9bbbeac9`（UI-30 已合并 master 基线）加 UI-31 source slice；`kiana-client/src/{surface_parity.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui31-parity.json,ui31_surface_parity.rs}`；`.github/workflows/ui31-surface-parity.yml`; `docs/roadmap/ui31-surface-parity-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui31-surface-parity-20260925`;新增 read-only SurfaceTrace/SurfaceParityReport comparator，绑定四 surface 的 command/operation/disposition/retry/cursor/revision/receipt/error identity，surface limitation 只做集合并集；不发起 retry/resume/cancel、capability 或 effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui31_surface_parity --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui31-parity.json`；missing/duplicate surface、command/disposition/retry/cursor/revision/receipt drift、sensitive fields、Unknown/query-original parity；无 provider/Broker/entrypoint effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 comparator fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-31 four-surface parity trace comparator、deny-first fixture/source guard、baseline 与 workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（read-only client parity source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未接入真实四入口 command harness/trace capture、durable parity index、browser/PTY/Electron timing、provider/Broker/external effect、crash/recovery 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-31 source review；检查四 surface exact set、command/action/cursor/revision/receipt/error/retry equality、Unknown preservation、sensitive field deny、limitations-only presentation difference 与 no-effect comparator；无本地 runtime test reviewer
+
 ### UI-30 IDE editor/terminal capability boundary（2026-09-25）
 
 source_snapshot: `3a97e6c3`（UI-29 已合并 master 基线）加 UI-30 source slice；`kiana-client/src/{ide_capability.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui30-ide-capability.json,ui30_ide_capability.rs}`；`.github/workflows/ui30-ide-capability.yml`; `docs/roadmap/ui30-ide-capability-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
