@@ -12276,7 +12276,7 @@ command_argv:
   historical GitHub runs 35832638463 (PR) and 35832756821 (post-merge): cargo fmt --all --check failed before test steps because kiana-domain/src/memory_workbench.rs was absent while lib.rs declared the module; provider tests and source guard were skipped. Current CM-36 module is present; this commit adds the module to the workflow path filter and triggers a fresh remote rerun, pending/unobserved
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain; local tests deliberately not run per user instruction; GitHub CI is the test authority
 fixture·cassette: historical runs 35832638463 and 35832756821 stopped at cargo fmt; P4-J7-18 fixtures were not executed there; current CM-36 module plus workflow path-filter rerun is pending
-exit_code: historical dedicated remote runs failed at cargo fmt and skipped tests; fresh post-CM-36 remote exit code pending/unobserved
+exit_code: historical dedicated remote runs failed at cargo fmt and skipped tests; GitHub run `36162666095` for head `5f12d89c` was `queued` at the latest read-only status check, so fresh fixtures/guard/compile exit codes remain pending/unobserved
 status change: P4-J7-18 source remains implemented and roadmap row 395 remains 🔄; CM-36 module is present and workflow path filter now requests a fresh GitHub evidence run, but no pass is claimed
 proof-level change: source; no local_behavior, durable, live or physical promotion
 limitations: no local Ollama endpoint/model was contacted; runs 35832638463 and 35832756821 did not reach provider tests; a post-CM-36 CI rerun is unobserved; timing remains provider-reported observation and does not establish measured billing or performance; no automatic model pull/create/delete behavior is added

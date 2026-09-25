@@ -67,7 +67,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-15` | Anthropic Messages 收口 | `P4-J7-12`、`P4-J7-14` | 原生/兼容 dialect 分清；完整文本与工具往返，严格终态 | ✅ |
 | `P4-J7-16` | OpenAI Chat 原生 SSE | `P4-J7-12`、`P4-J7-14` | 原生增量、交错工具、usage-only chunk、结束标记均正确 | ✅ |
 | `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ✅ |
-| `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | ⏳ |
+| `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | 🔄 |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | 🔄 |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | 🔄 |
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | 🔄 |
