@@ -89,3 +89,24 @@ fn live_verified_uat_requires_approval_receipts_and_unknown_reconciliation() {
     .expect("verified live UAT shape");
     value.validate().expect("live UAT evidence validates");
 }
+
+#[test]
+fn live_uat_requires_typed_operator_approval() {
+    let mut value = evidence(
+        UatProviderMode::LiveOptIn,
+        ReleaseUatProofLevel::Live,
+        ReleaseUatEvidenceStatus::Verified,
+        Some("operator-approval".to_owned()),
+        vec![A.to_owned()],
+        true,
+        Vec::new(),
+    )
+    .expect("live UAT evidence shape");
+    value.evidence_digest = value.digest();
+    assert_eq!(
+        value
+            .validate()
+            .expect_err("live approval ref must be typed"),
+        "release_uat_live_approval_ref_invalid"
+    );
+}

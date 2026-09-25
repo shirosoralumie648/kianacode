@@ -212,6 +212,19 @@ proof-level change: `feature_status=implemented`（supply-chain release evidence
 limitations: 未证明真实签名者、透明 provenance、SBOM/advisory freshness、生产制品、release upload/install、跨平台 package 或 live/physical result；CI 结果未等待
 reviewer: Codex DEP-39 source review；检查 approval prefix/trim、gate Ready、publish receipt、Unknown/blocked/limitation semantics 与 no release effect；无本地 release/compliance reviewer
 
+### DEP-40 live UAT approval identity fence（2026-09-26）
+
+source_snapshot: `1b975d37`（DEP-39 release approval fence 已合并 master 基线）加 DEP-40 UAT-evidence source slice；`kiana-domain/src/release_uat_evidence.rs`; `kiana-domain/tests/dep40_release_uat_evidence.rs`; `docs/roadmap/dep40-release-uat-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/dep-40-uat-approval-fence-20260926`; LiveOptIn UAT evidence 现在要求 trimmed `approval:` operator ref，且保留 fake/live/physical proof ceiling、receipt、Unknown reconciliation 和 limitations；不执行 release/upgrade/rollback/backup/restore/migration/health、Desktop、provider 或 external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/release/UAT/live）；GitHub Actions 将运行 DEP-40 matrix/evidence/source/spine fixtures 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/UAT/provider/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `dep40_release_uat_evidence.rs` 新增 malformed LiveOptIn approval ref deny；existing four-entrypoint deny/success/restart/replay/Unknown matrix and fake/live proof fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 DEP-40 domain/evidence/source/spine/workspace compile exit code pending/unobserved
+status_change: DEP-40 LiveOptIn UAT evidence now binds typed operator approval before live proof claim，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（cross-entry UAT evidence source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实四入口 release/UAT、跨进程 durable recovery、Desktop packaging、external provider/account receipt、physical/live outcome；CI 结果未等待
+reviewer: Codex DEP-40 source review；检查 approval prefix/trim、fake/live proof ceiling、receipt/reconcile/Unknown、matrix entrypoint/scenario coverage 与 no external effect；无本地 UAT/live reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`

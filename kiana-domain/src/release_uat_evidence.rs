@@ -125,9 +125,15 @@ impl ReleaseUatEvidence {
         {
             return Err("release_uat_fake_cannot_claim_live".to_owned());
         }
-        if self.provider_mode == UatProviderMode::LiveOptIn && self.operator_approval_ref.is_none()
-        {
-            return Err("release_uat_live_approval_missing".to_owned());
+        if self.provider_mode == UatProviderMode::LiveOptIn {
+            let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
+                return Err("release_uat_live_approval_missing".to_owned());
+            };
+            if approval_ref.trim() != approval_ref
+                || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+            {
+                return Err("release_uat_live_approval_ref_invalid".to_owned());
+            }
         }
         if self.status == ReleaseUatEvidenceStatus::Verified {
             if self.proof_level == ReleaseUatProofLevel::Source
