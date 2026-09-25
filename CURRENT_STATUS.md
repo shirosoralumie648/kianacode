@@ -30,6 +30,19 @@ proof-level change: `feature_status=implemented`（read-only conformance source 
 limitations: 未证明真实四入口 trace capture、browser/PTY/Electron/ACP runtime、跨进程 cursor/replay、artifact/receipt 投影、provider/connector/external effect、差异 cassette 持久化或 live/physical proof；CI 结果未等待
 reviewer: Codex UI-38 source review；检查 schema/cursor/sequence/action/retry/digest/receipt/Unknown/sensitive parity、fail-closed mismatch、UI-33 recovery assertion alignment、无执行权与无第二执行循环；无本地 runtime test reviewer
 
+### UI-38 digest-shape fence（2026-09-26）
+
+source_snapshot: `2f0e5c2c`（UI-37 已合并 master 基线）加 UI-38 digest-shape source slice；`kiana-client/src/conformance.rs`; `kiana-client/tests/{fixtures/ui38-conformance.json,ui38_conformance.rs}`; `docs/roadmap/ui38-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui-38-conformance-fence-20260926`; `ConformanceTrace::validate` 对可选 artifact/receipt digest 执行严格 `sha256:` 加 64 个十六进制字符校验，非法值在 surface parity 前 fail-closed；不提交命令、不 retry/cancel/resume/approve、不写 EventLog、不执行 capability effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui38_conformance --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui38-conformance.json` 与 `ui38_conformance.rs` 新增 malformed artifact/receipt digest deny；四 surface Unknown/schema/cursor/action/retry/digest/receipt/sensitive/capability drift 仍为 CI-only，无真实 transport/browser/PTY/Electron/ACP/provider/Broker effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 conformance fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-38 comparator 现在在比较 artifact/receipt parity 前拒绝 malformed digest，补齐 fixture、baseline 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（read-only conformance source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实四入口 trace capture、browser/PTY/Electron/ACP runtime、跨进程 cursor/replay、artifact/receipt 投影、provider/connector/external effect、差异 cassette 持久化或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-38 digest-shape source review；检查 optional digest 的 fail-closed 校验、deny fixture、既有 parity delegation、无执行权与无第二执行循环；无本地 runtime test reviewer
+
 ### UI-39 live ACP/IDE opt-in 验证（2026-09-25）
 
 source_snapshot: `718942c6`（UI-38 已合并 master 基线）加 UI-39 opt-in source slice；`kiana-client/src/{live_acp.rs,acp.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui39-live-acp-opt-in.json,ui39_live_acp_opt_in.rs}`；`scripts/verify-ui39-live-acp-opt-in.sh`; `.github/workflows/ui39-live-acp.yml`; `kiana-protocol/src/ui_contracts.rs`; `docs/roadmap/ui39-live-acp-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`; `docs/module-map.md`; `docs/ui-entrypoints-runbook.md`

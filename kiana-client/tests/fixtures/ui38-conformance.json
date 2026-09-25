@@ -9,6 +9,7 @@
     "wrong retry disposition or hidden Unknown",
     "sensitive field leakage",
     "artifact/receipt/capability drift",
+    "malformed artifact or receipt digest",
     "surface-specific direct effect or authorization"
   ]
 }

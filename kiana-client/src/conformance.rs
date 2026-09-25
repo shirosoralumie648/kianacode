@@ -79,6 +79,19 @@ impl ConformanceTrace {
         {
             return Err(ConformanceError::SchemaInvalid("identity_or_cursor"));
         }
+        if self
+            .artifact_digest
+            .as_deref()
+            .is_some_and(|value| !valid_digest(value))
+            || self
+                .receipt_digest
+                .as_deref()
+                .is_some_and(|value| !valid_digest(value))
+        {
+            return Err(ConformanceError::SchemaInvalid(
+                "artifact_or_receipt_digest",
+            ));
+        }
         if self.sensitive_field_count > 0 {
             return Err(ConformanceError::SensitiveFields);
         }
@@ -99,6 +112,13 @@ impl ConformanceTrace {
         }
         Ok(())
     }
+}
+
+fn valid_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn compare_conformance(

@@ -39,6 +39,11 @@ fn fixture_declares_conformance_deny_first_contract() {
         .unwrap()
         .iter()
         .any(|item| item.as_str().unwrap().contains("Unknown")));
+    assert!(value["denied"].as_array().unwrap().iter().any(|item| {
+        item.as_str()
+            .unwrap()
+            .contains("malformed artifact or receipt digest")
+    }));
 }
 
 #[test]
@@ -89,5 +94,31 @@ fn conformance_rejects_hidden_unknown_sensitive_and_schema_drift() {
             trace(ParitySurface::Desktop),
         ]),
         Err(ConformanceError::Mismatch("capability_schema"))
+    );
+    let mut malformed_artifact = trace(ParitySurface::Desktop);
+    malformed_artifact.artifact_digest = Some("sha256:not-a-digest".to_owned());
+    assert_eq!(
+        compare_conformance(&[
+            trace(ParitySurface::Cli),
+            trace(ParitySurface::Workbench),
+            trace(ParitySurface::Web),
+            malformed_artifact,
+        ]),
+        Err(ConformanceError::SchemaInvalid(
+            "artifact_or_receipt_digest"
+        ))
+    );
+    let mut malformed_receipt = trace(ParitySurface::Desktop);
+    malformed_receipt.receipt_digest = Some("not-a-sha256-digest".to_owned());
+    assert_eq!(
+        compare_conformance(&[
+            trace(ParitySurface::Cli),
+            trace(ParitySurface::Workbench),
+            trace(ParitySurface::Web),
+            malformed_receipt,
+        ]),
+        Err(ConformanceError::SchemaInvalid(
+            "artifact_or_receipt_digest"
+        ))
     );
 }
