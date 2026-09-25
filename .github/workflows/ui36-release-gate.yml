@@ -1,0 +1,47 @@
+name: UI-36 release build and smoke gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-*/**"
+      - "contrib/desktop/**"
+      - "scripts/verify-desktop-assets.js"
+      - "scripts/verify-ui36-release-gate.sh"
+      - "docs/roadmap/ui36-release-gate-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui36-release-gate.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "kiana-*/**"
+      - "contrib/desktop/**"
+      - "scripts/verify-desktop-assets.js"
+      - "scripts/verify-ui36-release-gate.sh"
+      - "docs/roadmap/ui36-release-gate-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui36-release-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui36-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: bash scripts/verify-ui36-release-gate.sh

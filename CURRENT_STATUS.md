@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
+
+source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui36-release-gate-20260925`;GitHub-only gate 在非 CI 主动返回 `remote_ci_required`，CI 绑定 asset manifest、Cargo.lock/format、`cargo build --bin kiana --locked` 和 desktop/release secret marker scan；不安装、不 trust/resume/approve、不直接执行 Broker
+command_argv: 本地仅脚本源码审阅与 `git diff --check`（未运行测试/build/check/clippy/smoke）；GitHub Actions 将运行 `bash scripts/verify-ui36-release-gate.sh`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地测试/build/check/clippy/smoke intentionally not run；GitHub Actions 是测试/构建权威且不等待
+fixture·cassette: asset manifest/lockfile/format/build/secret marker gate；空目录/升级回滚/安装/端口/daemon crash 仍为后续 CI/UAT scope；无本地 runtime/provider/Broker effect
+exit_code: 本地 `git diff --check`；远程 build/gate/CI exit code pending/unobserved
+status_change: UI-36 GitHub-only release build/smoke gate、remote_ci_required fence、baseline/workflow 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（release gate source + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron-builder/DEB install、离线 upgrade/rollback、签名/provenance、真实 OS/Desktop attach、provider/Broker/external effect、跨平台 packaging 或 live/physical 结果；CI 结果未等待
+reviewer: Codex UI-36 source review；检查 CI-only boundary、asset/lock/format/build/secret gate、non-CI fail-closed、no install/trust/resume/approve/second loop；无本地 runtime test reviewer
+
 ### UI-35 旧 Web/CLI 迁移与兼容收口（2026-09-25）
 
 source_snapshot: `ea80e592`（UI-34 已合并 master 基线）加 UI-35 source slice；`kiana-client/src/{legacy_migration.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui35-legacy-migration.json,ui35_legacy_migration.rs}`；`.github/workflows/ui35-legacy-migration.yml`; `docs/roadmap/ui35-legacy-migration-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
