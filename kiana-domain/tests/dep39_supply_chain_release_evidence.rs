@@ -93,3 +93,21 @@ fn not_released_handoff_retains_a_reason() {
     .expect("not released handoff");
     value.validate().expect("not released validates");
 }
+
+#[test]
+fn approved_handoff_requires_typed_operator_approval() {
+    let mut value = evidence(
+        SupplyChainGateStatus::Ready,
+        SupplyChainReleaseDisposition::Approved,
+        None,
+        false,
+        Vec::new(),
+    )
+    .expect("approved handoff");
+    value.operator_approval_ref = Some("operator-approval".to_owned());
+    value.evidence_digest = value.digest();
+    assert_eq!(
+        value.validate().expect_err("approval ref must be typed"),
+        "supply_chain_release_approval_ref_invalid"
+    );
+}
