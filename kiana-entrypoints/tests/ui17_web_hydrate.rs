@@ -23,6 +23,7 @@ fn ui17_fixture_binds_hydrate_cache_and_page_cursor_contract() {
         "web_page_cursor_replayed",
         "web_page_cursor_scope_mismatch",
         "web_page_cursor_source_changed",
+        "scope_mismatch_does_not_consume_cursor",
     ] {
         assert!(fixture["deny_first"]
             .as_array()

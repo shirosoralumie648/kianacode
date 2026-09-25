@@ -37,7 +37,7 @@ server references; content loading remains a later artifact viewer step.
 | Fixture / guard | Assertion |
 |---|---|
 | hydrate fixture | schema, instance/epoch/session/tab cache scope, bounded eviction and snapshot-before-feed order |
-| page cursor fixture | wrong kind, old source cursor, foreign tab, wrong limit, unknown cursor and single-use replay are rejected |
+| page cursor fixture | wrong kind, old source cursor, foreign tab, wrong limit, unknown cursor and single-use replay are rejected; a scope mismatch does not consume the owner's valid cursor |
 | session/history fixture | empty known session is not treated as absent; history is owner-filtered and read-only |
 | browser source guard | no persisted Web state, cross-tab cache reuse, client artifact fetch or browser execution authority |
 

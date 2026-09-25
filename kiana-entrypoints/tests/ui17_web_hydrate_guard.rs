@@ -15,6 +15,7 @@ fn ui17_server_queries_are_read_only_and_cursor_bound() {
         "web_page_cursor_scope_mismatch",
         "web_page_cursor_limit_mismatch",
         "web_page_source_changed",
+        "cursors.get(token).cloned()",
         "artifact_content_requires_server_ref",
         "attach_hydrate_tab",
     ] {
@@ -43,6 +44,16 @@ fn ui17_server_queries_are_read_only_and_cursor_bound() {
     assert!(!artifact.contains("std::fs"));
     assert!(!artifact.contains("Command::new"));
     assert!(source.contains("cache: \"memory_only\""));
+    let cursor_scope = source
+        .split("fn consume_page_cursor")
+        .nth(1)
+        .and_then(|rest| rest.split("// 为每次 daemon 调用").next())
+        .expect("page cursor consumer");
+    assert!(
+        cursor_scope.find("web_page_cursor_scope_mismatch").unwrap()
+            < cursor_scope.find("cursors.remove(token)").unwrap(),
+        "scope must be checked before a cursor is consumed"
+    );
 }
 
 #[test]
