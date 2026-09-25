@@ -342,6 +342,19 @@ proof-level change: `feature_status=implemented`（read-only client parity sourc
 limitations: 未接入真实四入口 command harness/trace capture、durable parity index、browser/PTY/Electron timing、provider/Broker/external effect、crash/recovery 或 live/physical proof；CI 结果未等待
 reviewer: Codex UI-31 source review；检查四 surface exact set、command/action/cursor/revision/receipt/error/retry equality、Unknown preservation、sensitive field deny、limitations-only presentation difference 与 no-effect comparator；无本地 runtime test reviewer
 
+### UI-31 parity CI path rerun (partial, 2026-09-26)
+
+source_snapshot: `ad07ddc0` plus UI-31 CI-boundary rerun; `kiana-client/src/{surface_parity,lib}.rs`; `kiana-client/tests/{fixtures/ui31-parity.json,ui31_surface_parity.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui31-surface-parity.yml`; `docs/roadmap/ui31-surface-parity-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-31-ci-rerun-20260926`; existing read-only SurfaceTrace comparator remains the only parity logic, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no browser/PTY/Electron trace, command harness, provider/Broker effect or second loop added
+command_argv: `rustfmt --edition 2021` target files already recorded by UI-31; `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-client --test ui31_surface_parity --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-31 four-surface parity/drift/Unknown/sensitive-field fixtures; rerun only broadens path coverage, no live or physical trace
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-31 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real four-surface runtime evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real CLI/Workbench/Web/Desktop trace capture, browser/PTY/Electron timing, durable parity index, provider/Broker/external effect, crash/recovery or live/physical proof
+reviewer: Codex UI-31 path-filter rerun review; no local runtime test reviewer
+
 ### UI-30 IDE editor/terminal capability boundary（2026-09-25）
 
 source_snapshot: `3a97e6c3`（UI-29 已合并 master 基线）加 UI-30 source slice；`kiana-client/src/{ide_capability.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui30-ide-capability.json,ui30_ide_capability.rs}`；`.github/workflows/ui30-ide-capability.yml`; `docs/roadmap/ui30-ide-capability-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
