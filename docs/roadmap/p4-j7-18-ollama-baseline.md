@@ -29,12 +29,13 @@ the next request, since Ollama does not supply a wire ID for each tool invocatio
 
 ## GitHub-only evidence
 
-The dedicated GitHub Actions runs `35832638463` (PR) and `35832756821` (post-merge) both failed at
+The dedicated GitHub Actions runs `35832638463` (PR) and `35832756821` (post-merge) both stopped at
 `cargo fmt --all --check` because `kiana-domain/src/memory_workbench.rs` was missing while
-`kiana-domain/src/lib.rs` declared the module. Provider fixtures and the core source guard were
-skipped in both runs. CM-36 adds the missing module; a subsequent workflow rerun is still required.
-Local tests are intentionally not run. The step remains `source` / 🔄; no live Ollama endpoint or
-physical model behavior is claimed.
+`kiana-domain/src/lib.rs` declared the module; provider fixtures and the core source guard were
+skipped. CM-36 now supplies that declared module on current master, and this source/workflow touch
+adds it to the workflow path filter to trigger a fresh remote run. The new run is pending and is not
+treated as passed. Local tests remain intentionally not run; no live Ollama endpoint or physical
+model behavior is claimed.
 
 Fixture names: `ollama_eof_without_done_is_incomplete`,
 `ollama_same_name_tools_keep_distinct_invocations`,
