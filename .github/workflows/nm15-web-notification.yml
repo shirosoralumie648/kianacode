@@ -1,0 +1,49 @@
+name: NM-15 Web notification snapshot and SSE
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_notifications.rs"
+      - "kiana-entrypoints/tests/nm15_web_notification.rs"
+      - "kiana-entrypoints/tests/nm15_web_notification_guard.rs"
+      - "kiana-entrypoints/tests/fixtures/nm15-web-notification.json"
+      - "docs/roadmap/nm15-web-notification-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm15-web-notification.yml"
+  pull_request:
+    paths:
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_notifications.rs"
+      - "kiana-entrypoints/tests/nm15_web_notification.rs"
+      - "kiana-entrypoints/tests/nm15_web_notification_guard.rs"
+      - "kiana-entrypoints/tests/fixtures/nm15-web-notification.json"
+      - "docs/roadmap/nm15-web-notification-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm15-web-notification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run Web notification fixtures
+        run: cargo test -p kiana-entrypoints --test nm15_web_notification --locked -- --test-threads=1
+      - name: Run Web notification source guard
+        run: cargo test -p kiana-entrypoints --test nm15_web_notification_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

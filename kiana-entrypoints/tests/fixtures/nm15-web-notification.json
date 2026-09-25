@@ -1,0 +1,62 @@
+{
+  "schema": "kiana.web-notification-page.v1",
+  "transport": "sse",
+  "page_fields": [
+    "session_id",
+    "tab_id",
+    "instance_id",
+    "authority_epoch",
+    "source_cursor",
+    "items",
+    "next_after_item_id",
+    "page_digest",
+    "unknown_visible",
+    "limitations"
+  ],
+  "sse_events": [
+    "snapshot_boundary",
+    "delta",
+    "heartbeat",
+    "stream_gap",
+    "stream_error",
+    "terminal",
+    "unknown"
+  ],
+  "cursor": {
+    "header": "Last-Event-ID",
+    "query_fallback": "last_event_id",
+    "bounded_bytes": 2048,
+    "conflict": "web_notification_cursor_conflict"
+  },
+  "limits": {
+    "page_items": 30,
+    "actions_per_item": 16,
+    "sse_event_bytes": 262144,
+    "reconnect_backoff_seconds": [1, 30]
+  },
+  "deny_first": [
+    "wrong_host",
+    "wrong_origin",
+    "wrong_bearer_or_web_token",
+    "cross_session_tab",
+    "foreign_or_stale_cursor",
+    "cursor_conflict",
+    "unbounded_page",
+    "payload_or_action_argument_leak",
+    "gap_as_completion",
+    "sse_reconnect_submits_command",
+    "terminal_then_delta"
+  ],
+  "source_boundary": {
+    "page": "DaemonHost.authenticated_principal.EventStore.NotificationStore",
+    "stream": "DaemonHost.RunStreamFeedSubscription",
+    "actions": "display_only_until_ControlPlane_re_admission",
+    "gap": "snapshot_hydration_required"
+  },
+  "limitations": [
+    "notification_projection_read_state_is_rebuildable_and_not_durable_in_this_slice",
+    "SSE_cursor_and_subscription_are_process_local",
+    "no_browser_or_cross_process_live_delivery_proof",
+    "no_external_connector_or_physical_receipt_proof"
+  ]
+}
