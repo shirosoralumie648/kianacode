@@ -781,13 +781,20 @@ script secret marker scan；脚本不安装、信任、resume、approve、启动
 
 
 
-#### UI-37 · 用户文档、模块图和操作 runbook　⏳
+#### UI-37 · 用户文档、模块图和操作 runbook　🔄
 
 - 依赖：UI-31–36。代码/文档：`module-map.md`、`USER.md`、入口帮助、`docs/company-os-ui-ux.md`。
 - 步骤：更新真实调用关系、命令/错误/状态/恢复流程、token/来源边界、CLI/Workbench/Web/Desktop 差异；将目标与已实现明确分开。
 - 先拒绝：把类型写成 implemented、把一次本地通过写成 durable/live、把 reference 行为写成 Kiana 事实、遗漏限制。
 - 成功/回归：从干净 checkout 按文档启动并完成最小 deny/happy/reconnect；链接、编号和命令检查通过。
 - 完成产物：用户 runbook、module-map 入口图、迁移 FAQ 和限制/证据索引。
+
+实现基线：[`ui37-docs-runbook-baseline.md`](ui37-docs-runbook-baseline.md)。新增
+[`docs/ui-entrypoints-runbook.md`](../ui-entrypoints-runbook.md)，更新 `docs/module-map.md` 的真实
+入口→client/protocol→DaemonHost→ControlPlane→Broker/EventLog/Receipt 关系，明确 CLI/TTY/Web/
+Desktop/ACP-IDE 的当前 command、deny/recovery/Unknown、feature/proof 口径和限制；
+`scripts/verify-ui37-docs.sh` 与 GitHub workflow 只检查链接/关键边界/overclaim，不把文档检查当成
+runtime/durable/live/physical 证明。
 
 <a id="step-ui-38"></a>
 
