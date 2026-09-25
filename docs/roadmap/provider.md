@@ -411,7 +411,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **退出 / 证据**：元数据缺 provider request id 时明确 unknown；UI sequence、上游 sequence 和 durable sequence 不混用；不打印完整 prompt/key。
 
   当前 source slice 与 CI-only 验收见 [`p4-j7-26-model-events-baseline.md`](p4-j7-26-model-events-baseline.md)。
-  `ModelEvent`、provider trace/delta redaction、append commitment 和
+  `ModelEvent`、provider trace/delta redaction、usage correction digest、append commitment 和
   ModelCall→Invocation→Receipt digest link 已登记；EventStore writer 接线、跨进程恢复和
   live/physical provider evidence 仍保留在后续步骤。
 

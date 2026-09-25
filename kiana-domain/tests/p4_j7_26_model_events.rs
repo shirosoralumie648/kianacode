@@ -194,3 +194,28 @@ fn registry_covers_model_lifecycle_and_correction_is_not_terminal() {
     assert!(!ModelEventKind::UsageCorrection.is_terminal());
     assert!(ModelEventKind::Finished.is_terminal());
 }
+
+#[test]
+fn usage_correction_digest_binds_the_late_usage_payload() {
+    let reason_digest = digest('r');
+    let mut correction = ModelUsageCorrection::new(
+        Some(digest('o')),
+        Some(ModelUsage {
+            input_tokens: 12,
+            output_tokens: 7,
+        }),
+        reason_digest,
+        42,
+    )
+    .expect("usage correction");
+    correction.validate().expect("bound correction");
+
+    correction.usage = Some(ModelUsage {
+        input_tokens: 13,
+        output_tokens: 7,
+    });
+    assert_eq!(
+        correction.validate().unwrap_err(),
+        "model_usage_correction_digest_mismatch"
+    );
+}
