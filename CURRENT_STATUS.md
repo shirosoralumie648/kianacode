@@ -13119,4 +13119,17 @@ status change: UI-38 CI path now covers CM-36 fmt dependency; roadmap row/card r
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no real CLI/Workbench/Web/Desktop/ACP transport, browser/PTY/Electron, durable cursor/replay, artifact/Receipt projection, provider/connector effect or live/physical proof
 reviewer: Codex UI-38 path-filter rerun review; no local runtime test reviewer
+
+### UI-39 live ACP boundary CI path rerun (partial, 2026-09-26)
+
+source_snapshot: `42b8d1c9` plus UI-39 CI-boundary rerun; `kiana-protocol/src/{ui_contracts,lib}.rs`; `kiana-client/src/{acp,live_acp,lib}.rs`; `kiana-client/tests/{fixtures/ui39-live-acp-opt-in.json,ui39_live_acp_opt_in.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `scripts/verify-ui39-live-acp-opt-in.sh`; `.github/workflows/ui39-live-acp.yml`; `docs/roadmap/ui39-live-acp-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-39-ci-rerun-20260926`; existing default-deny ACP/IDE opt-in boundary remains transport-free, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no host socket, process, credential, provider/Broker or live effect added
+command_argv: `git diff --check`; GitHub Actions: `bash` opt-in preflight; `cargo fmt --all --check`; `cargo test -p kiana-protocol --test ui39_live_acp --locked -- --test-threads=1`; `cargo test -p kiana-client --test ui39_live_acp_opt_in --locked -- --test-threads=1`; `cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke/live host commands deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-39 missing opt-in/approval, remote transport/raw secret, protocol/host drift, direct effect/delegation, disconnect/gap/Unknown/reconnect and redacted digest-only preflight fixtures; no external host/credential used
+exit_code: local verification limited to diff review; fresh post-CM-36 remote preflight, format, fixtures, guard and compile exit codes pending/unobserved
+status change: UI-39 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 because no authorized live ACP/IDE host was used
+proof-level change: `feature_status=partial`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no external host/version/environment/receipt/reconnect capture, no ACP socket/process, no real IDE/terminal effect, no provider/Broker/live/physical proof; opt-in source contract is not live verification
+reviewer: Codex UI-39 path-filter rerun review; no live/local runtime reviewer
 ```
