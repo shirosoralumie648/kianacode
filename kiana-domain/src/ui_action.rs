@@ -111,9 +111,7 @@ impl UiActionCommand {
 
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_COMMAND_SCHEMA
-            || !self
-                .version
-                .is_compatible_with(&UI_ACTION_JOURNAL_VERSION)
+            || !self.version.is_compatible_with(&UI_ACTION_JOURNAL_VERSION)
             || self.command_id.as_uuid().is_nil()
             || self.expected_revision == Some(0)
             || self.deadline_unix_ms == 0
@@ -209,9 +207,7 @@ impl UiActionRecord {
 
     fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_RECORD_SCHEMA
-            || !self
-                .version
-                .is_compatible_with(&UI_ACTION_JOURNAL_VERSION)
+            || !self.version.is_compatible_with(&UI_ACTION_JOURNAL_VERSION)
             || self.command_id.as_uuid().is_nil()
             || self.accepted_at_unix_ms == 0
             || self.effect_count > 1
@@ -223,6 +219,21 @@ impl UiActionRecord {
         digest(&self.payload_digest, "ui_action_payload_digest")?;
         digest(&self.scope_digest, "ui_action_scope_digest")?;
         digest(&self.record_digest, "ui_action_record_digest")?;
+        match (&self.state, &self.receipt_digest) {
+            (UiActionState::Applied, Some(receipt_digest)) => {
+                digest(receipt_digest, "ui_action_receipt_digest")?;
+            }
+            (UiActionState::Applied, None) => {
+                return Err("ui_action_applied_receipt_missing".to_owned());
+            }
+            (
+                UiActionState::Accepted | UiActionState::Rejected | UiActionState::Unknown,
+                Some(_),
+            ) => {
+                return Err("ui_action_receipt_state_mismatch".to_owned());
+            }
+            (_, None) => {}
+        }
         if self.state == UiActionState::Applied
             && (self.effect_count != 1 || self.applied_at_unix_ms.is_none())
         {
@@ -272,8 +283,7 @@ impl UiActionRecord {
         now_unix_ms: u64,
     ) -> Result<Self, String> {
         let mut journal = UiActionJournal::from_record(self.clone())?;
-        journal
-            .apply(&self.idempotency_key, receipt_digest, now_unix_ms)
+        journal.apply(&self.idempotency_key, receipt_digest, now_unix_ms)
     }
 
     pub fn reject_transition(&self, reason: impl Into<String>) -> Result<Self, String> {
@@ -326,7 +336,8 @@ impl UiActionJournal {
             if original.owner_id != command.owner_id || original.owner_id != owner_id {
                 return Err("ui_action_owner_mismatch".to_owned());
             }
-            if original.scope_digest != command.scope_digest || original.scope_digest != scope_digest
+            if original.scope_digest != command.scope_digest
+                || original.scope_digest != scope_digest
             {
                 return Err("ui_action_scope_mismatch".to_owned());
             }
@@ -437,7 +448,9 @@ impl UiActionJournal {
     }
 
     pub fn query_command(&self, command_id: RequestId) -> Option<&UiActionRecord> {
-        self.records.values().find(|record| record.command_id == command_id)
+        self.records
+            .values()
+            .find(|record| record.command_id == command_id)
     }
 
     pub fn records(&self) -> impl Iterator<Item = &UiActionRecord> {

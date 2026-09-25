@@ -12462,6 +12462,27 @@ proof-level change: `feature_status=implemented`（domain/core/daemon source + r
 limitations: CI 未观察；未实现 UI-05 snapshot projector/feed、跨进程 socket/read-state、外部 effect receipt、人工 auth 或真实 live/physical proof；Unknown 只能原 key 查询，禁止换 ID 重做
 reviewer: Codex UI-04 source review，覆盖 deny、owner/scope/CAS、重复 key effect-count、ACK 丢失/Unknown、EventStore 原子边界与无第二执行循环；无本地 runtime test reviewer
 
+### UI-04 receipt/state consistency fence evidence (2026-09-26)
+
+```text
+source_snapshot: base `3f3f554b` plus UI-04 receipt-state slice; `kiana-domain/src/ui_action.rs`; `kiana-domain/tests/ui04_action_journal.rs`; `kiana-core/tests/ui04_action_journal_guard.rs`; UI-04 baseline and roadmap overlays
+worktree_status: UiActionRecord validation now requires a valid receipt digest exactly in Applied state, rejects missing/invalid Applied receipts and rejects receipts on Accepted/Rejected/Unknown records; no effect execution path changed
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/ui_action.rs kiana-domain/tests/ui04_action_journal.rs kiana-core/tests/ui04_action_journal_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-domain --test ui04_action_journal --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test ui04_action_journal_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only applied missing/invalid receipt, non-applied receipt and valid replay fixtures; source guard retains ControlPlane/EventStore CAS and no-second-loop boundary
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-04 records now fail closed on receipt/state mismatch; roadmap card remains 🔄 pending CI evidence and durable cross-process proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: this validates the record contract only; it does not prove external effect receipt correctness, EventStore reopen, cross-process query, human authentication or live/physical behavior
+reviewer: Codex source review of receipt digest validation, state pairing, replay compatibility and unchanged ControlPlane authority boundary; no local runtime test reviewer
+```
+
 ### EQ-27 deterministic evaluator 与 finding schema evidence (2026-09-24)
 
 source_snapshot: `530099ad` + EQ-27 isolated source slice; `kiana-quality/src/{evaluator.rs,lib.rs}`; `kiana-quality/tests/{eq27_evaluator.rs,eq27_evaluator_guard.rs}`; `.github/workflows/eq27-evaluator.yml`; `docs/roadmap/evaluation-evaluator-baseline.md`; `docs/roadmap.md`
