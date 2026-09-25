@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use kiana_domain::{
     ModelError, ModelOutput, ModelReply, ModelRequest, ModelRetryClass, RequestId, RunId,
 };
-use kiana_runner::{KianaHarness, ModelClient};
+use kiana_runner::{HarnessBudgetConfig, KianaHarness, ModelClient, RuntimeConfig};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -75,10 +75,28 @@ fn harness(
     Arc<AtomicUsize>,
     Arc<std::sync::Mutex<Vec<RequestId>>>,
 ) {
+    harness_with_config(
+        model,
+        RuntimeConfig {
+            wall_time_budget: Some(budget),
+            ..RuntimeConfig::default()
+        },
+    )
+}
+
+fn harness_with_config(
+    model: SequenceModel,
+    config: RuntimeConfig,
+) -> (
+    Arc<KianaHarness>,
+    Arc<Notify>,
+    Arc<AtomicUsize>,
+    Arc<std::sync::Mutex<Vec<RequestId>>>,
+) {
     let entered = model.entered.clone();
     let calls = model.calls.clone();
     let attempt_ids = model.attempt_ids.clone();
-    let harness = Arc::new(KianaHarness::new(Arc::new(model)).with_wall_time_budget(budget));
+    let harness = Arc::new(KianaHarness::with_config(Arc::new(model), config));
     (harness, entered, calls, attempt_ids)
 }
 
@@ -148,6 +166,61 @@ async fn retryable_429_then_success_records_two_attempts() {
         .filter(|event| matches!(event, RunnerEvent::ModelTurn { .. }))
         .count();
     assert_eq!(attempts, 2);
+}
+
+#[tokio::test]
+async fn provider_retries_do_not_consume_the_separate_repair_budget() {
+    let model = SequenceModel {
+        outcomes: vec![
+            transient("provider_http_429", ModelRetryClass::Rejected, true),
+            transient("provider_http_503", ModelRetryClass::Rejected, true),
+            Ok(ModelOutput::text("recovered after two rejections")),
+        ],
+        calls: Arc::new(AtomicUsize::new(0)),
+        attempt_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
+        entered: Arc::new(Notify::new()),
+        rejected: true,
+        retry_after_ms: Some(1),
+        emit_delta_before_error: false,
+    };
+    let mut config = RuntimeConfig::default();
+    config.wall_time_budget = Some(std::time::Duration::from_secs(5));
+    config.budget = HarnessBudgetConfig {
+        max_attempts_per_task: 3,
+        max_repairs_per_task: 1,
+        ..HarnessBudgetConfig::default()
+    };
+    let (harness, _, calls, attempt_ids) = harness_with_config(model, config);
+    let events = harness
+        .send(RunnerCommand::start_in(
+            RunId::new(),
+            "transport retry budget separation",
+            "/p4-j7-23-repair-budget",
+            "read-only",
+        ))
+        .await
+        .unwrap();
+
+    assert!(events
+        .iter()
+        .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    assert_eq!(harness_model_calls(&events), 3);
+    let attempt_ids = attempt_ids.lock().unwrap();
+    assert_eq!(attempt_ids.len(), 3);
+    assert_ne!(attempt_ids[0], attempt_ids[1]);
+    assert_ne!(attempt_ids[0], attempt_ids[2]);
+    assert_ne!(attempt_ids[1], attempt_ids[2]);
+    let repair_counts = events
+        .iter()
+        .filter_map(|event| match event {
+            RunnerEvent::ModelTurn { metadata, .. } => {
+                metadata["harness_budget"]["repairs"].as_u64()
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(repair_counts, vec![0, 0, 0]);
 }
 
 #[tokio::test]

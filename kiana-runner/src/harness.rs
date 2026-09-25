@@ -1607,10 +1607,6 @@ impl KianaHarness {
                             .is_some_and(|decision| decision.retry)
                         && is_safe_to_retry(&error, observed_delta) =>
                 {
-                    if matches!(error.retry_class, kiana_domain::ModelRetryClass::Rejected) {
-                        self.budget_ledger
-                            .reserve_repair(&budget_scope, budget_limits)?;
-                    }
                     let delay = retry_delay(&error, attempt, attempt_id);
                     if delay >= remaining.saturating_sub(started.elapsed()) {
                         return Err("model_retry_deadline_exceeded".to_owned());

@@ -72,7 +72,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | 🔄 |
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | 🔄 |
 | `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | 🔄 |
-| `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | ⏳ |
+| `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | 🔄 |
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
 | `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | 🔄 |
@@ -365,7 +365,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`retryable_429_then_success_records_two_attempts`、`retry_after_http_date_uses_injected_clock`；保留已有 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`。
 - **退出 / 证据**：测试断言真实请求数、dispatch 数、终态数与资源释放；SDK 隐式重试为零；模型未知用量与工具 result_unknown 分开。
 
-- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。集成快照的 workspace 格式检查通过，但未运行测试或 build。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
+- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Transport retry 计入 attempt budget，不占用独立 repair budget。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。集成快照的 workspace 格式检查通过，但未运行测试或 build。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
 
 <a id="step-p4-j7-24"></a>
 

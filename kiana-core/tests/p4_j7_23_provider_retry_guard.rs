@@ -33,6 +33,10 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
             "runner retry boundary missing {marker}"
         );
     }
+    assert!(
+        !runner.contains("reserve_repair(&budget_scope, budget_limits)?"),
+        "transport retries must consume the attempt budget, not the separate repair budget"
+    );
     for marker in [
         "ModelRetryClass::BeforeSend",
         "ModelRetryClass::Rejected",
@@ -53,6 +57,7 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
         "cancel_during_retry_backoff_prevents_next_attempt",
         "oversized_retry_after_does_not_retry_early",
         "observed_delta_prevents_retry_even_for_retryable_rejection",
+        "provider_retries_do_not_consume_the_separate_repair_budget",
         "cancelling_mid_stream_never_completes_or_emits_a_late_delta",
         "SDK implicit retries are disabled",
         "cargo test -p kiana-runner --test p4_j7_23_retry",
