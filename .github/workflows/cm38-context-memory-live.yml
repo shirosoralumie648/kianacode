@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-daemon/tests/eq10_fake_provider.rs"
       - "kiana-daemon/src/eval_runtime.rs"
       - "kiana-daemon/src/harness_memory.rs"
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/cm38-context-memory-live.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-daemon/tests/eq10_fake_provider.rs"
       - "kiana-daemon/src/eval_runtime.rs"
       - "kiana-daemon/src/harness_memory.rs"
