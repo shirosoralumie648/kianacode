@@ -544,6 +544,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: deterministic decoder only, no OS terminal emulator/IME proof, no full cursor editing, transport, authorization or live/physical effect proof
 reviewer: Codex source review of partial paste-prefix retention, UTF-8/escape behavior and immutable Paste boundary; no local runtime test reviewer
 ```
+
+### UI-13 Authorization header redaction evidence (2026-09-26)
+
+```text
+source_snapshot: base `d80868b9` plus UI-13 Workbench redaction slice; `kiana-entrypoints/src/workbench_render.rs`; `kiana-entrypoints/tests/ui13_workbench_render.rs`; `kiana-entrypoints/tests/ui13_workbench_render_guard.rs`; UI-13 baseline/roadmap overlays
+worktree_status: Workbench timeline text projection now consumes an entire `Authorization:` scheme-plus-credential line before emitting `[REDACTED]`; no execution, transport or authorization path changed
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/workbench_render.rs kiana-entrypoints/tests/ui13_workbench_render.rs kiana-entrypoints/tests/ui13_workbench_render_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui13_workbench_render --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui13_workbench_render_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `Authorization: Bearer ui13-bearer-secret` timeline delta proves the scheme and trailing credential are replaced as one redacted display value; no provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-13 Workbench text redaction now fails closed against trailing Bearer credential leakage; card remains 🔄 pending CI evidence and browser/terminal/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: complete-line Authorization masking may hide non-secret explanatory text on the same header line; deterministic renderer only, no browser/PTY/provider/live effect proof
+reviewer: Codex UI-13 source review; checked Authorization scheme-plus-credential consumption, downstream secret scan and display-only boundary; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

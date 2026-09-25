@@ -50,7 +50,9 @@ MAX_TIMELINE_JSON_BYTES = 16 KiB for Usage/ToolCall/Approval/Error JSON views
 
 Text is treated as plain text. ANSI CSI and OSC sequences are discarded, remaining control bytes
 are replaced, and common authorization/bearer/token/api-key/secret values are redacted before the
-per-item bound. Markdown is not parsed or rendered as markup. Truncation is explicit on the item.
+per-item bound. Authorization headers consume the complete scheme-plus-credential line so a Bearer
+credential cannot remain after the scheme is redacted. Markdown is not parsed or rendered as markup.
+Truncation is explicit on the item.
 
 ## Failure-first fixture matrix
 
@@ -59,7 +61,7 @@ per-item bound. Markdown is not parsed or rendered as markup. Truncation is expl
 | typed snapshot fixture | Delta/Terminal/Usage/ToolCall/Approval/Artifact/Error/Unknown map to stable kinds; terminal response files/artifacts produce separate items |
 | duplicate/ordering | duplicate cursor is ignored; gap emits one Gap marker and blocks later stream data; foreign run leaves cursor/items unchanged |
 | terminal fence | terminal is visible; late delta/error cannot append or clear the timeline |
-| text safety | ANSI/OSC/control bytes are removed; secret-shaped values are redacted; markdown is left as plain text |
+| text safety | ANSI/OSC/control bytes are removed; complete Authorization scheme-plus-credential lines and other secret-shaped values are redacted; markdown is left as plain text |
 | bounded output | oversized delta/JSON is truncated; item and aggregate budgets emit Limit without exceeding bounds |
 | presentation flags | collapse/expand and loading flags are mutable without changing item identity/body |
 | entrypoint boundary guard | renderer contains no process, network, filesystem, model loop, ControlPlane or capability execution authority |

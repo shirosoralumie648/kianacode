@@ -481,20 +481,23 @@ fn redact_and_strip_controls(value: &str) -> String {
         redacted.push_str(&clean[marker_index..value_start]);
         let mut value_end = value_start;
         if marker == "authorization:" {
+            // An Authorization header is a scheme plus credentials. Consuming only the first
+            // token would turn `Authorization: Bearer secret` into a leaked trailing `secret`.
             while value_end < clean.len() {
                 let ch = clean[value_end..].chars().next().unwrap_or_default();
-                if !ch.is_whitespace() {
+                if matches!(ch, '\r' | '\n') {
                     break;
                 }
                 value_end += ch.len_utf8();
             }
-        }
-        while value_end < clean.len() {
-            let ch = clean[value_end..].chars().next().unwrap_or_default();
-            if ch.is_whitespace() {
-                break;
+        } else {
+            while value_end < clean.len() {
+                let ch = clean[value_end..].chars().next().unwrap_or_default();
+                if ch.is_whitespace() {
+                    break;
+                }
+                value_end += ch.len_utf8();
             }
-            value_end += ch.len_utf8();
         }
         redacted.push_str("[REDACTED]");
         cursor = value_end;

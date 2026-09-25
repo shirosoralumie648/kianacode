@@ -14,6 +14,7 @@ fn ui13_renderer_is_bounded_typed_and_display_only() {
         "GapRequiresSnapshot",
         "IgnoredAfterTerminal",
         "redact_and_strip_controls",
+        "Authorization header is a scheme plus credentials",
         "timeline_event_run_mismatch",
         "toggle_collapsed",
         "set_loading",

@@ -193,6 +193,15 @@ fn render_is_plain_text_redacted_and_bounded() {
     assert!(body.contains("[REDACTED]"));
     assert!(!body.contains('\u{1}'));
 
+    let authorization = RunStreamEnvelope::new(RunStreamEvent::Delta {
+        run_id,
+        text: "Authorization: Bearer ui13-bearer-secret".to_owned(),
+    });
+    assert_eq!(renderer.apply(&authorization), Ok(TimelineApply::Applied));
+    let authorization_body = &renderer.items()[1].body;
+    assert!(!authorization_body.contains("ui13-bearer-secret"));
+    assert_eq!(authorization_body, "Authorization: [REDACTED]");
+
     let mut item_renderer = TimelineRenderer::new(run_id);
     let oversized = "界".repeat(MAX_TIMELINE_ITEM_BYTES);
     assert_eq!(
