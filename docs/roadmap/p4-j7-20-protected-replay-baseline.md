@@ -7,6 +7,9 @@ Deletion and expiry fail closed. The provider compiler validates a reference env
 to dispatch when a protected artifact adapter is unavailable; it never guesses at private bytes.
 
 GitHub Actions owns all fixtures. No local test, build, check, clippy or smoke command was run.
+The workflow path filter also includes the current CM-36 `kiana-domain/src/memory_workbench.rs`
+module so repository-wide formatting can be rerun after the historical missing-module correction;
+the fresh remote result remains pending and unobserved.
 The proof ceiling is `source` plus CI wiring: durable encrypted artifact persistence, provider
 specific signature decoding, cross-process resume and live provider behavior remain open follow-up
 work. No private reasoning bytes are written to the repository, EventLog or receipt.
