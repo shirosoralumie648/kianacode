@@ -100,7 +100,11 @@ pub fn map_legacy_route(
 }
 
 pub fn validate_mapping(mapping: &LegacyRouteMapping) -> Result<(), LegacyMigrationError> {
-    if mapping.schema != LEGACY_MIGRATION_SCHEMA || mapping.legacy_name.trim().is_empty() {
+    if mapping.schema != LEGACY_MIGRATION_SCHEMA
+        || mapping.legacy_name.trim().is_empty()
+        || mapping.legacy_name.len() > 256
+        || mapping.legacy_name.contains('\0')
+    {
         return Err(LegacyMigrationError::SchemaInvalid);
     }
     if mapping.writes_facts || !mapping.requires_typed_client {
@@ -110,8 +114,26 @@ pub fn validate_mapping(mapping: &LegacyRouteMapping) -> Result<(), LegacyMigrat
         if mapping.canonical_name.is_some() {
             return Err(LegacyMigrationError::SchemaInvalid);
         }
-    } else if mapping.canonical_name.is_none() || mapping.deprecation.is_none() {
-        return Err(LegacyMigrationError::SchemaInvalid);
+    } else {
+        let Some(canonical) = mapping.canonical_name.as_deref() else {
+            return Err(LegacyMigrationError::SchemaInvalid);
+        };
+        let Some(deprecation) = mapping.deprecation.as_deref() else {
+            return Err(LegacyMigrationError::SchemaInvalid);
+        };
+        if !matches!(
+            canonical,
+            "ui.snapshot" | "ui.feed" | "turn.prompt" | "turn.cancel" | "receipt.query"
+        ) || deprecation.trim().is_empty()
+            || deprecation.len() > 256
+            || deprecation.contains('\0')
+        {
+            return Err(LegacyMigrationError::SchemaInvalid);
+        }
+        let expected_read_only = matches!(canonical, "ui.snapshot" | "ui.feed" | "receipt.query");
+        if mapping.read_only != expected_read_only {
+            return Err(LegacyMigrationError::SchemaInvalid);
+        }
     }
     Ok(())
 }

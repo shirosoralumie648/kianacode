@@ -51,3 +51,19 @@ fn unknown_or_malicious_routes_fail_closed() {
         Err(LegacyMigrationError::InputInvalid)
     );
 }
+
+#[test]
+fn forged_mapping_cannot_widen_legacy_operation() {
+    let mut mapping = map_legacy_route(LegacySurface::Cli, "run").unwrap();
+    mapping.read_only = true;
+    assert_eq!(
+        validate_mapping(&mapping),
+        Err(LegacyMigrationError::SchemaInvalid)
+    );
+    mapping.read_only = false;
+    mapping.canonical_name = Some("capability.execute".to_owned());
+    assert_eq!(
+        validate_mapping(&mapping),
+        Err(LegacyMigrationError::SchemaInvalid)
+    );
+}
