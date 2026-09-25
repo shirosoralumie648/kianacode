@@ -199,6 +199,19 @@ proof-level change: `feature_status=implemented`（bounded rollout lifecycle sou
 limitations: 未执行真实 pause/resume/promote/rollback effect、durable state、cross-process lease/fence、traffic drain、retention cleanup、health window 或 live/physical receipt；CI 结果未等待
 reviewer: Codex DEP-38 source review；检查 Simulation/target/Unknown proof ceiling、approval prefix/trim、deletion/retention/phase/health/drain contracts 与 no external effect；无本地 orchestrator/runtime reviewer
 
+### DEP-39 release approval identity fence（2026-09-26）
+
+source_snapshot: `7230b553`（DEP-38 simulation lifecycle proof fence 已合并 master 基线）加 DEP-39 release-evidence source slice；`kiana-domain/src/supply_chain_release_evidence.rs`; `kiana-domain/tests/dep39_supply_chain_release_evidence.rs`; `docs/roadmap/dep39-supply-chain-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/dep-39-release-approval-fence-20260926`; `Approved/Published` release handoff 现在要求 trimmed `approval:` operator ref、Ready gate 和 existing receipt/Unknown/limitation rules；不签名、不上传、不安装、不执行 commercial release 或 external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/release/compliance）；GitHub Actions 将运行 DEP-39 domain gate/release fixtures、source guard、script syntax/compliance/signature/package boundary fixtures 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/compliance/signing/upload；GitHub Actions 是测试权威且不等待
+fixture·cassette: `dep39_supply_chain_release_evidence.rs` 新增 malformed approval ref deny；existing dirty/source/dependency/license/secret/desktop/artifact/signature/SBOM/receipt fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 DEP-39 domain/source guard/script/compliance/package/workspace exit code pending/unobserved
+status_change: DEP-39 release handoff now binds typed operator approval before Approved/Published，补齐 baseline 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（supply-chain release evidence source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实签名者、透明 provenance、SBOM/advisory freshness、生产制品、release upload/install、跨平台 package 或 live/physical result；CI 结果未等待
+reviewer: Codex DEP-39 source review；检查 approval prefix/trim、gate Ready、publish receipt、Unknown/blocked/limitation semantics 与 no release effect；无本地 release/compliance reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`

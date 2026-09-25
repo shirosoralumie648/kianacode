@@ -143,10 +143,16 @@ impl SupplyChainReleaseEvidence {
             self.disposition,
             SupplyChainReleaseDisposition::Approved | SupplyChainReleaseDisposition::Published
         ) {
-            if self.gate_status != SupplyChainGateStatus::Ready
-                || self.operator_approval_ref.is_none()
-            {
+            let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
                 return Err("supply_chain_release_approval_or_gate_missing".to_owned());
+            };
+            if self.gate_status != SupplyChainGateStatus::Ready {
+                return Err("supply_chain_release_approval_or_gate_missing".to_owned());
+            }
+            if approval_ref.trim() != approval_ref
+                || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+            {
+                return Err("supply_chain_release_approval_ref_invalid".to_owned());
             }
         }
         if self.disposition == SupplyChainReleaseDisposition::Published
