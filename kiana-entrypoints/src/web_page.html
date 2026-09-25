@@ -476,6 +476,9 @@
       try { return sanitizeUntrustedContent(value, maxBytes); }
       catch (_) { return '内容已隐藏：未通过 text-only 安全检查。'; }
     }
+    function safeJsonText(value, maxBytes = 64 * 1024) {
+      return sanitizeDisplayText(JSON.stringify(value, null, 2), maxBytes);
+    }
     function sanitizeUrl(value) {
       const text = String(value || '').trim();
       if (!text || EXECUTABLE_URL_RE.test(text) || /^data:/i.test(text)) throw new Error('web_url_denied');
@@ -492,6 +495,12 @@
       const cache = requested && hydrateCache.get(cacheKeyFor(requested));
       if (cache && suppliedEpoch && String(suppliedEpoch) !== String(cache.epoch)) {
         throw new Error('stale_epoch');
+      }
+      if (scope && scope.tab_id && String(scope.tab_id) !== String(tabOwnerId)) {
+        throw new Error('stale_tab');
+      }
+      if (cache && scope && scope.instance_id && String(scope.instance_id) !== String(cache.instance_id)) {
+        throw new Error('stale_instance');
       }
       return payload;
     }
@@ -708,7 +717,7 @@
         const metadata = document.createElement('p'); metadata.className = 'muted';
         metadata.textContent = sanitizeDisplayText('revision ' + String(output.revision || 'unknown') + (limitation ? ' · limitation: ' + limitation : ''), 2048);
         card.appendChild(metadata);
-        const detail = document.createElement('pre'); detail.textContent = JSON.stringify(item.detail || {}, null, 2); card.appendChild(detail);
+        const detail = document.createElement('pre'); detail.textContent = safeJsonText(item.detail || {}, 32 * 1024); card.appendChild(detail);
         (item.actions || []).forEach(action => {
           const actionCard = humanActionCardFor(item, action, output.revision);
           if (!actionCard) {
@@ -754,13 +763,13 @@
       const box=document.getElementById('checkpoints'); box.replaceChildren();
       (output.checkpoints || []).forEach(checkpoint => {
         const card=document.createElement('section'); card.className='approval';
-        const label=document.createElement('p'); label.textContent=checkpoint.reason + ' · ' + checkpoint.checkpoint_id + '\n' + checkpoint.paths.join(', '); card.appendChild(label);
+        const label=document.createElement('p'); label.textContent=sanitizeDisplayText(checkpoint.reason + ' · ' + checkpoint.checkpoint_id + '\n' + checkpoint.paths.join(', '), 16 * 1024); card.appendChild(label);
         const preview=document.createElement('button'); preview.textContent='预览恢复'; preview.disabled=!checkpoint.paths.length;
         preview.onclick=async () => {
           try {
             const result=await queryCommand('workspace.checkpoint.preview',{checkpoint_id:checkpoint.checkpoint_id},requested);
             if (requested!==sessionId) return;
-            const detail=document.getElementById('checkpointPreview'); detail.textContent=JSON.stringify(result.preview,null,2); detail.focus();
+            const detail=document.getElementById('checkpointPreview'); detail.textContent=safeJsonText(result.preview, 32 * 1024); detail.focus();
             let restore=card.querySelector('[data-restore]'); if (restore) restore.remove();
             restore=document.createElement('button'); restore.dataset.restore='true'; restore.textContent='请求恢复这些修改'; restore.disabled=!humanActionsAllowed;
             restore.onclick=async () => {
@@ -1018,7 +1027,7 @@
     }
     function showStreamBanner(show, message) {
       const banner = document.getElementById('streamBanner');
-      if (message) banner.textContent = message;
+      if (message) banner.textContent = sanitizeDisplayText(message, 2048);
       banner.classList.toggle('show', show);
     }
     function closeEventStream(intentional = true) {
@@ -1074,7 +1083,7 @@
       if (!envelope) return;
       const delta = envelope.event;
       if (!delta || delta.type !== 'delta' || delta.run_id !== streamRunId) return;
-      const nextText = streamText + (delta.text || '');
+      const nextText = streamText + sanitizeDisplayText(delta.text || '', MAX_STREAM_TEXT_BYTES);
       if (nextText.length > MAX_STREAM_TEXT_BYTES) {
         requestStreamHydrate('stream_text_limit'); return;
       }
@@ -1129,8 +1138,8 @@
         if (status === 'completed') {
           const finalText = streamTerminal.output && streamTerminal.output.output && streamTerminal.output.output.text;
           if (typeof finalText === 'string' && finalText.length) {
-            streamText = finalText;
-            if (body) body.textContent = finalText;
+            streamText = sanitizeDisplayText(finalText, MAX_STREAM_TEXT_BYTES);
+            if (body) body.textContent = streamText;
           }
           if (who) who.textContent = 'Builder · completed';
         } else {
@@ -1344,13 +1353,13 @@
       const streamState = streamIncomplete
         ? 'incomplete / interrupted (' + (streamInterruption || 'unknown') + '; receipt authoritative)'
         : (streamComplete ? 'complete' : 'not complete');
-      document.getElementById('progress').textContent =
+      document.getElementById('progress').textContent = sanitizeDisplayText(
         'thread ' + (thread.name || 'New thread') + '\n' +
         'turns ' + ((thread.turns || []).length) + '\n' +
         'status ' + lastTurnStatus + '\n' +
         'session sandbox ' + (s.run_sandbox || '尚未开始') + ' · 新任务 ' + s.sandbox + '\n' +
         'stream ' + streamState + '\n' +
-        'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
+        'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : ''), 16 * 1024);
       const box = document.getElementById('sessions');
       const focusedSession = document.activeElement && document.activeElement.dataset.session;
       box.replaceChildren();
@@ -1359,8 +1368,10 @@
         b.dataset.session = item.id;
         b.setAttribute('aria-current', item.id === s.session_id ? 'true' : 'false');
         b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
-        b.textContent = (item.name || item.id.slice(0,8)) +
-          (item.read_only ? ' · history' : (item.running ? ' · running' : ''));
+        b.textContent = sanitizeDisplayText(
+          (item.name || item.id.slice(0,8)) +
+          (item.read_only ? ' · history' : (item.running ? ' · running' : '')),
+          1024);
         b.onclick = () => { clearStreamProjection(); sessionId = item.id; refresh().catch(() => {}); };
         box.appendChild(b);
       });
@@ -1378,7 +1389,7 @@
         state.requested = false;
         state.status = 'offline';
         historyPages.set(sessionId, state);
-        document.getElementById('historyStatus').textContent = 'history offline · ' + String(error.message || error);
+        document.getElementById('historyStatus').textContent = sanitizeDisplayText('history offline · ' + String(error.message || error), 2048);
       });
       syncPolling();
     }
@@ -1471,7 +1482,7 @@
       try {
         const data = await api('/api/command', {session_id:sessionId, name:document.getElementById('commandName').value.trim(), arguments:JSON.parse(document.getElementById('commandArguments').value)});
         renderState(data.state); const output = document.getElementById('commandResult');
-        output.textContent = JSON.stringify(data.response, null, 2); output.focus();
+        output.textContent = safeJsonText(data.response, 64 * 1024); output.focus();
       } catch (error) { reportError(error); }
     };
     document.getElementById('resume').onclick = async () => {
@@ -1483,7 +1494,7 @@
       catch (error) { reportError(error); }
     };
     document.getElementById('receiptBtn').onclick = async () => {
-      try { const data = await api('/api/receipt', {session_id:sessionId}); document.getElementById('receiptDetail').textContent = JSON.stringify(data.receipt, null, 2); document.getElementById('receiptDetail').focus(); }
+      try { const data = await api('/api/receipt', {session_id:sessionId}); document.getElementById('receiptDetail').textContent = safeJsonText(data.receipt, 64 * 1024); document.getElementById('receiptDetail').focus(); }
       catch (error) { reportError(error); }
     };
     async function loadReceiptDetail() {
@@ -1491,7 +1502,7 @@
       assertProjectionScope(data, sessionId);
       const status = String(data.status || 'unknown');
       const unknown = data.unknown === true || status === 'unknown' || status === 'result_unknown';
-      document.getElementById('receiptDetail').textContent = JSON.stringify({
+      document.getElementById('receiptDetail').textContent = safeJsonText({
         schema: data.schema, status, unknown,
         receipt_digest: data.receipt_digest,
         source_cursor: data.source_cursor,
@@ -1500,7 +1511,7 @@
         inbox_ids: data.inbox_ids || [],
         limitations: data.limitations || [],
         receipt: data.receipt
-      }, null, 2) + (unknown ? '\n结果未知；请查询原始回执，不能自动重试。' : '');
+      }, 64 * 1024) + (unknown ? '\n结果未知；请查询原始回执，不能自动重试。' : '');
       document.getElementById('receiptDetail').focus();
       return data;
     }
@@ -1510,10 +1521,10 @@
       const data = await api('/api/artifact/detail?session_id=' + encodeURIComponent(sessionId) +
         '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
       assertProjectionScope(data, sessionId);
-      document.getElementById('artifactDetail').textContent = JSON.stringify({
+      document.getElementById('artifactDetail').textContent = safeJsonText({
         schema: data.schema, scope: data.scope, artifact_page: data.artifact_page,
         status: data.status, limitations: data.limitations || []
-      }, null, 2);
+      }, 64 * 1024);
       document.getElementById('artifactDetail').focus();
       return data;
     }
@@ -1523,10 +1534,10 @@
       const data = await api('/api/diff?session_id=' + encodeURIComponent(sessionId) +
         '&artifact_id=' + encodeURIComponent(artifactId) + '&limit=32');
       assertProjectionScope(data, sessionId);
-      document.getElementById('diffDetail').textContent = JSON.stringify({
+      document.getElementById('diffDetail').textContent = safeJsonText({
         schema: data.schema, scope: data.scope, diff: data.diff,
         status: data.status, limitations: data.limitations || []
-      }, null, 2);
+      }, 64 * 1024);
       document.getElementById('diffDetail').focus();
       return data;
     }
@@ -1536,7 +1547,7 @@
       try {
         const entrypoint = window.kianaDesktop ? 'desktop' : 'web';
         const data = await api('/api/parity?session_id=' + encodeURIComponent(sessionId) + '&entrypoint=' + entrypoint);
-        document.getElementById('parityDetail').textContent = JSON.stringify(data.response, null, 2);
+        document.getElementById('parityDetail').textContent = safeJsonText(data.response, 64 * 1024);
         document.getElementById('parityDetail').focus();
       } catch (error) { reportError(error); }
     };

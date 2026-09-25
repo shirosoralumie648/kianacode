@@ -21,6 +21,9 @@
     "secret_or_raw_content_leakage",
     "stale_session_projection",
     "stale_epoch_projection",
+    "stale_tab_projection",
+    "stale_instance_projection",
+    "unsafe_json_text_sink",
     "csp_violation_swallowed",
     "unknown_result_auto_retry"
   ],

@@ -30,11 +30,13 @@ states remain text-visible and Unknown never enables an automatic retry.
 
 ## Text-only and content security contract
 
-Timeline, inbox, artifact, diff and receipt values are projected through `textContent` only. The
-page has no `innerHTML`, inline event handlers, `eval`, `new Function`, arbitrary URL fetch or
-client diff/authorization path. `sanitizeUntrustedContent` rejects NUL/control/ANSI/OSC and
-executable URL schemes; literal HTML/Markdown remains inert text. The typed client exposes the
-same bounded `validate_text_only`/`sanitize_text_only` contract for non-browser presenters.
+Timeline, inbox, artifact, diff, receipt, checkpoint and command JSON values are projected through
+bounded `textContent` sinks only. The page has no `innerHTML`, inline event handlers, `eval`, `new
+Function`, arbitrary URL fetch or client diff/authorization path. `safeJsonText` routes structured
+values through the same bounded sanitizer, while `sanitizeUntrustedContent` rejects NUL/control/
+ANSI/OSC and executable URL schemes; literal HTML/Markdown remains inert text. Detail projections
+also reject stale tab/instance scope before render. The typed client exposes the same bounded
+`validate_text_only`/`sanitize_text_only` contract for non-browser presenters.
 
 The embedded page carries a per-process nonce on its static style/script blocks (the roadmap's
 migration exception is recorded here; there is no `unsafe-inline` or inline event handler). Every response receives
@@ -49,8 +51,8 @@ bounded host-scoped diagnostic body without echoing blocked URLs or source paths
 |---|---|
 | focus scope | focus cannot escape the modal; close returns only to a connected element in the same UI scope |
 | action state | hidden/unknown/expired/revoked/non-owner actions remain disabled and Unknown cannot auto-retry |
-| session/epoch | stale hydrate/detail/receipt projections are rejected before render/focus |
-| content | HTML/SVG/Markdown/script, `javascript:`/`data:` URL, ANSI/OSC, secret/raw content and `innerHTML` paths are denied or inert text |
+| session/epoch/tab/instance | stale hydrate/detail/receipt projections are rejected before render/focus |
+| content | HTML/SVG/Markdown/script, `javascript:`/`data:` URL, ANSI/OSC, unsafe structured text sinks, secret/raw content and `innerHTML` paths are denied or inert text |
 | CSP | no `unsafe-inline`; nonce binds page to response header and a CSP report is visible rather than swallowed |
 | responsive | keyboard, ARIA/live text, narrow/200% zoom, high contrast, forced colors and reduced motion remain explicit |
 
