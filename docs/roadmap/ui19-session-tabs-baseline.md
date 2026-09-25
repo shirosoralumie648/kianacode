@@ -33,7 +33,7 @@ ControlPlane.
 | Boundary | Contract |
 |---|---|
 | cross-tab mutation | observer tab can consume feed but `session_owner_required` denies action |
-| stale card/CAS | server `claim_ui_headers` rejects old epoch/cursor before dispatch |
+| stale card/CAS | every mutation requires the action envelope; server `claim_ui_headers` rejects missing/old epoch/cursor before dispatch |
 | duplicate click | bounded submission registry returns original response; no second handler effect |
 | close tab | `beforeunload` only closes SSE; it never posts `/api/cancel` or beacon mutation |
 | token rotation | server token generation is included in lease metadata; old token is unauthorized |

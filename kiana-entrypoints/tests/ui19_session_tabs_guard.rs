@@ -9,8 +9,14 @@ fn ui19_deny_first_guard_keeps_tabs_out_of_execution_authority() {
     assert!(run.contains("complete_action_submission"));
     assert!(!run.contains("tab_id = body.session_id"));
 
-    let cancel = web.split("async fn cancel_turn(").nth(1).expect("cancel handler");
-    let cancel = cancel.split("async fn trust_folder(").next().expect("cancel body");
+    let cancel = web
+        .split("async fn cancel_turn(")
+        .nth(1)
+        .expect("cancel handler");
+    let cancel = cancel
+        .split("async fn trust_folder(")
+        .next()
+        .expect("cancel body");
     assert!(cancel.contains("require_session_owner"));
     assert!(!cancel.contains("owner_exit"));
 
