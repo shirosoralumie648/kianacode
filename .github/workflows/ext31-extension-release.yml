@@ -1,0 +1,58 @@
+name: EXT-31 extension release gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/extension_release.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext31_extension_release.rs"
+      - "kiana-domain/tests/fixtures/ext31-extension-release.json"
+      - "kiana-core/tests/ext31_extension_release_guard.rs"
+      - "scripts/release-smoke.sh"
+      - "scripts/harness-golden-smoke.sh"
+      - "scripts/supply-chain-scan.sh"
+      - "docs/module-map.md"
+      - "docs/roadmap/ext31-extension-release-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext31-extension-release.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_workbench.rs"
+      - "kiana-domain/src/extension_release.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ext31_extension_release.rs"
+      - "kiana-domain/tests/fixtures/ext31-extension-release.json"
+      - "kiana-core/tests/ext31_extension_release_guard.rs"
+      - "scripts/release-smoke.sh"
+      - "scripts/harness-golden-smoke.sh"
+      - "scripts/supply-chain-scan.sh"
+      - "docs/module-map.md"
+      - "docs/roadmap/ext31-extension-release-baseline.md"
+      - "docs/roadmap/skills-plugins-hooks.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ext31-extension-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-31 release evidence fixtures
+        run: cargo test -p kiana-domain --test ext31_extension_release --locked -- --test-threads=1
+      - name: Run EXT-31 source guard
+        run: cargo test -p kiana-core --test ext31_extension_release_guard --locked -- --test-threads=1
+      - name: Compile EXT-31 targets
+        run: cargo check --workspace --tests --locked

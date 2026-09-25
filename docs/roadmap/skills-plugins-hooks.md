@@ -404,9 +404,11 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-31 · 性能、供应链回归和文档收口　⏳
+#### EXT-31 · 性能、供应链回归和文档收口　🔄
 
 测量 cold/warm catalog、正文加载、resource read、Hook latency、package verify、snapshot rebuild 的 p50/p95 和内存/磁盘 quota；基准 fixture 固定机器、Rust/toolchain、包大小和并发。将拒绝矩阵、hash、测试命令、未覆盖 provider/平台/远程分发写入 `CURRENT_STATUS.md`，把实际调用入口回填 `module-map.md`，运行 release/harness smoke 后再决定 proof-level 提升。
+
+当前 source slice 与 CI-only 验收见 [`ext31-extension-release-baseline.md`](ext31-extension-release-baseline.md)。新增固定 metric/environment/toolchain/package/concurrency 的 benchmark observation 和 partial release gate，明确 skipped/blocked 不得冒充 ready，并链接既有 release/harness/supply-chain/module-map 边界；EXT-31 保持 🔄，本地不运行 benchmark 或 release smoke。
 
 ### 25.9 依赖波次与并行边界
 
