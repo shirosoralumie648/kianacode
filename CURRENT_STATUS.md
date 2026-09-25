@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-35 旧 Web/CLI 迁移与兼容收口（2026-09-25）
+
+source_snapshot: `ea80e592`（UI-34 已合并 master 基线）加 UI-35 source slice；`kiana-client/src/{legacy_migration.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui35-legacy-migration.json,ui35_legacy_migration.rs}`；`.github/workflows/ui35-legacy-migration.yml`; `docs/roadmap/ui35-legacy-migration-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui35-legacy-migration-20260925`;known old Web/CLI aliases map one-way to typed snapshot/feed/action/receipt operations with Deprecated + requires_typed_client + writes_facts=false; unknown/NUL/oversized routes reject; no EventLog write/retry/second loop
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui35_legacy_migration --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui35-legacy-migration.json`；known aliases/deprecation/canonical mapping、unknown/NUL injection、no-fact-write/no-second-loop metadata；无旧 traffic capture/provider/Broker effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 migration fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-35 one-way legacy mapping、deprecation/unknown guard、CI-only fixture/workflow、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（typed client migration source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实旧 traffic usage、双读 projection、flag rollout/deprecation telemetry、旧 endpoint 删除、跨进程 durable compatibility、provider/Broker/external effect 或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-35 source review；检查 one-way typed mapping、unknown/injection reject、deprecated/read-only/no-fact-write/no-second-loop boundary 与 shared client/server spine；无本地 runtime test reviewer
+
 ### UI-34 性能、资源上限和可访问性验收（2026-09-25）
 
 source_snapshot: `c179388e`（UI-33 已合并 master 基线）加 UI-34 source slice；`kiana-client/src/{ui_budget.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui34-resource-budget.json,ui34_resource_budget.rs}`；`.github/workflows/ui34-resource-budget.yml`; `docs/roadmap/ui34-resource-budget-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

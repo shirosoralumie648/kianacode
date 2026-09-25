@@ -1,0 +1,16 @@
+{
+  "schema": "kiana.ui-legacy-migration-fixture.v1",
+  "forward": [
+    {"surface":"web","legacy":"GET /api/state","canonical":"ui.snapshot"},
+    {"surface":"web","legacy":"GET /api/events","canonical":"ui.feed"},
+    {"surface":"cli","legacy":"run","canonical":"turn.prompt"},
+    {"surface":"cli","legacy":"cancel","canonical":"turn.cancel"},
+    {"surface":"cli","legacy":"receipt","canonical":"receipt.query"}
+  ],
+  "denied": [
+    "unknown route",
+    "legacy route with embedded token/path injection",
+    "compatibility adapter writes facts directly",
+    "legacy route starts a second execution loop"
+  ]
+}

@@ -1,0 +1,42 @@
+name: UI-35 legacy Web CLI migration contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/legacy_migration.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui35-legacy-migration.json"
+      - "kiana-client/tests/ui35_legacy_migration.rs"
+      - "docs/roadmap/ui35-legacy-migration-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui35-legacy-migration.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/legacy_migration.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui35-legacy-migration.json"
+      - "kiana-client/tests/ui35_legacy_migration.rs"
+      - "docs/roadmap/ui35-legacy-migration-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui35-legacy-migration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui35-legacy-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui35_legacy_migration --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

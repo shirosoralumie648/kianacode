@@ -746,13 +746,19 @@ queue 上限；硬 bytes/queue 超限返回 Reject，item/session 超限返回�
 
 
 
-#### UI-35 · 旧 Web/CLI 迁移与兼容收口　⏳
+#### UI-35 · 旧 Web/CLI 迁移与兼容收口　🔄
 
 - 依赖：UI-10–23、UI-31。代码：旧 inline Web、旧 endpoint、旧 CLI 参数的 adapter/feature flag。
 - 步骤：逐路由/命令迁移到 typed client；保留必要兼容窗口和明确 deprecation；双读比较 projection，不双写事实；删除旧路径前记录使用/测试证据。
 - 先拒绝：兼容层重新执行副作用、旧参数扩大 scope、双写造成两个 command、旧缓存污染新 epoch/schema。
 - 成功/回归：新旧入口同一 fixture parity；禁用 flag 后旧请求返回可操作迁移错误；不存在第二执行循环。
 - 完成产物：迁移表、flag 生命周期、兼容窗口和删除前 checklist。
+
+实现基线：[`ui35-legacy-migration-baseline.md`](ui35-legacy-migration-baseline.md)。当前 source slice 位于
+`kiana-client/src/legacy_migration.rs`，将旧 Web `/api/state`、`/api/events` 和旧 CLI run/cancel/
+receipt 映射到 typed snapshot/feed/action/receipt query 名称，全部标记 Deprecated、requires typed
+client、writes_facts=false；未知/注入 route fail-closed。该 adapter 只返回迁移 metadata，不双写
+EventLog、不自行 retry、不启动第二执行循环。
 
 <a id="step-ui-36"></a>
 

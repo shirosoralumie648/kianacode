@@ -21,6 +21,7 @@ mod ide_capability;
 mod surface_parity;
 mod ui_recovery;
 mod ui_budget;
+mod legacy_migration;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -63,6 +64,10 @@ pub use ui_recovery::{
 pub use ui_budget::{
     evaluate_budget, UiBudgetDecision, UiBudgetError, UiBudgetSurface, UiResourceBudget,
     UiResourceUsage, UI_RESOURCE_BUDGET_SCHEMA,
+};
+pub use legacy_migration::{
+    map_legacy_route, validate_mapping, LegacyMigrationError, LegacyRouteMapping, LegacySurface,
+    MigrationDisposition, LEGACY_MIGRATION_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{
