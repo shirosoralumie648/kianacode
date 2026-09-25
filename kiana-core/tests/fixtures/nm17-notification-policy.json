@@ -1,0 +1,27 @@
+{
+  "schema": "kiana.notification-policy-planner.v1",
+  "routes": ["immediate", "same_day_reminder", "digest", "suppressed"],
+  "severity": ["low", "medium", "high", "critical"],
+  "channels": {
+    "primary": "server_selected",
+    "fallback": "server_selected",
+    "external_connector": "disabled_by_default"
+  },
+  "deny_first": [
+    "critical_or_unknown_must_not_enter_digest",
+    "model_or_ui_self_report_does_not_create_unknown",
+    "quiet_hours_cannot_suppress_critical",
+    "low_suppression_has_no_reminder",
+    "deadline_and_source_ids_are_preserved",
+    "duplicate_reminder_interval",
+    "automatic_approve_retry_close",
+    "direct_channel_effect"
+  ],
+  "accepted": [
+    "high_immediate_or_same_day",
+    "medium_digest",
+    "low_can_be_suppressed",
+    "escalation_fact_has_owner_source_and_next_action"
+  ],
+  "proof_ceiling": "source"
+}
