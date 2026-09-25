@@ -1,0 +1,49 @@
+name: NM-09 notification store
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/notification_store.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm09_notification_store.rs"
+      - "kiana-core/tests/nm09_notification_store_guard.rs"
+      - "kiana-core/tests/fixtures/nm09-notification-store.json"
+      - "kiana-domain/src/platform.rs"
+      - "docs/roadmap/nm09-notification-store-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm09-notification-store.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/notification_store.rs"
+      - "kiana-core/src/notification_materializer.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/nm09_notification_store.rs"
+      - "kiana-core/tests/nm09_notification_store_guard.rs"
+      - "kiana-core/tests/fixtures/nm09-notification-store.json"
+      - "kiana-domain/src/platform.rs"
+      - "docs/roadmap/nm09-notification-store-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/nm09-notification-store.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-store:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run notification store fixtures
+        run: cargo test -p kiana-core --test nm09_notification_store --locked -- --test-threads=1
+      - name: Run notification store source guard
+        run: cargo test -p kiana-core --test nm09_notification_store_guard --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked
