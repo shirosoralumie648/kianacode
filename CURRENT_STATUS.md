@@ -329,6 +329,19 @@ proof-level change: `feature_status=implemented`（CI-only fixture/source guard�
 limitations: source matrix 不等于真实 HTTP/browser/Electron/PTY effect-count、EventLog append、approval/cancel race、provider/connector、跨进程 recovery 或 physical/live proof；CI 结果未等待
 reviewer: Codex UI-32 source review；检查 stable deny codes/effect_count zero、Unknown/reconcile boundary、owner/action claim、shared DaemonHost/ControlPlane/EventLog spine、injection/cancel/stale/scope cases；无本地 runtime test reviewer
 
+### UI-32 deny-first CI path rerun (2026-09-26)
+
+source_snapshot: `97f916cd` plus UI-32 CI-boundary rerun; `kiana-entrypoints/src/**`; `kiana-entrypoints/tests/{fixtures/ui32-deny-first.json,ui32_deny_first.rs}`; `kiana-domain/src/memory_workbench.rs` path dependency; `.github/workflows/ui32-deny-first.yml`; `docs/roadmap/ui32-deny-first-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: isolated branch `step/ui-32-ci-rerun-20260926`; existing deny-first matrix/source guard remains unchanged, workflow path filter now includes current CM-36 memory-workbench module for fresh repository-wide fmt coverage; no runtime entrypoint, browser, Electron, PTY, provider/Broker or physical effect added
+command_argv: `git diff --check`; GitHub Actions: `cargo fmt --all --check`; `cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1`; `cargo check --workspace --tests --locked`
+cwd·environment: repository root; Linux x86_64; stable Rust; local tests/build/check/clippy/smoke deliberately not run; GitHub CI is the test authority and is not awaited
+fixture·cassette: existing UI-32 foreign session/token/origin/sender, approval, cursor/revision, digest/scope, cancel Unknown and injection deny fixture; path rerun only broadens fmt dependency coverage
+exit_code: local verification limited to diff review; fresh post-CM-36 remote format, fixture and compile exit codes pending/unobserved
+status change: UI-32 CI path now covers CM-36 fmt dependency; roadmap row/card remain 🔄 pending GitHub CI and real runtime evidence
+proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
+limitations: no real HTTP/browser/Electron/PTY effect counter, EventLog append, approval race, provider/connector, cross-process recovery or physical/live proof
+reviewer: Codex UI-32 path-filter rerun review; no local runtime test reviewer
+
 ### UI-31 CLI/Workbench/Web/Desktop 行为 parity（2026-09-25）
 
 source_snapshot: `9bbbeac9`（UI-30 已合并 master 基线）加 UI-31 source slice；`kiana-client/src/{surface_parity.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui31-parity.json,ui31_surface_parity.rs}`；`.github/workflows/ui31-surface-parity.yml`; `docs/roadmap/ui31-surface-parity-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
