@@ -24,6 +24,7 @@
       "main.js",
       "preload.js",
       "welcome.html",
+      "asset-manifest.json",
       "lib/**/*",
       "icon.png"
     ],

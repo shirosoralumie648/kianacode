@@ -4,6 +4,19 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### UI-28 共享静态资产、版本和生产打包（2026-09-25）
+
+source_snapshot: `b78100d5`（UI-27 已合并 master 基线）加 UI-28 source slice；`contrib/desktop/{package.json,asset-manifest.json,lib/asset-manifest.js}`；`scripts/verify-desktop-assets.js`; `contrib/desktop/tests/{fixtures/ui28-assets.json,ui28_assets.test.js}`; `.github/workflows/ui28-desktop-assets.yml`; `kiana-entrypoints/src/web.rs`; `docs/roadmap/ui28-desktop-assets-packaging-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui28-desktop-assets-packaging-20260925`;新增 versioned asset manifest，绑定 app/protocol/UI schema、bytes/SHA-256/cache/license/CSP、Electron build allowlist 与 package secret/path guards；现有 Web runtime nonce CSP 保持 no unsafe-inline/eval，verifier 不接触 DaemonHost/Broker/runner
+command_argv: 本地仅目标 JavaScript `node --check`、`node scripts/verify-desktop-assets.js` 与 `git diff --check`（未运行测试）；GitHub Actions 将运行 Node syntax/manifest verifier、`node --test contrib/desktop/tests/ui28_assets.test.js`、`cargo fmt --all --check`、`cargo check -p kiana-entrypoints --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui28-assets.json`；hash/size drift、unknown/duplicate/absolute/parent/symlink/secret asset、private/live marker、package `.env`/token glob、old protocol/UI schema、CSP unsafe-inline/eval；无 provider/Broker/Daemon effect
+exit_code: 本地目标 JavaScript `node --check` 与 manifest verifier、`git diff --check`；远程 fixture、Rust compile 与 CI exit code pending/unobserved
+status_change: UI-28 shared asset manifest、package/version/CSP/cache contract、Electron allowlist verifier、deny-first fixture/source guard、baseline 与 workflow 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded asset/package source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明 Electron-builder clean/package/DEB artifact、离线安装/升级/rollback、签名/provenance、真实 browser cache、跨平台 packaging、source-map 发布或 live/physical 结果；CI 结果未等待
+reviewer: Codex UI-28 source review；检查 manifest schema/version/hash/size/cache/license/CSP、package files allowlist、secret/path/symlink/marker deny、runtime nonce CSP 与 verifier 无执行权；无本地 runtime test reviewer
+
 ### UI-27 Desktop 安全持久化和 detach（2026-09-25）
 
 source_snapshot: `43c0e6d8`（UI-26 已合并 master 基线）加 UI-27 source slice；`contrib/desktop/{main.js,preload.js,lib/ipc-security.js,lib/desktop-persistence.js}`；`contrib/desktop/tests/{fixtures/ui24-ipc.json,fixtures/ui27-persistence.json,ui27_persistence.test.js}`；`kiana-entrypoints/src/web_page.html`; `.github/workflows/ui27-desktop-persistence.yml`; `docs/roadmap/ui27-desktop-persistence-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

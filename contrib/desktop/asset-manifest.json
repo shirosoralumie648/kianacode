@@ -1,0 +1,32 @@
+{
+  "schema": "kiana.desktop-assets.v1",
+  "manifest_version": 1,
+  "app_version": "0.1.0",
+  "protocol_schema": "kiana.protocol.v1",
+  "ui_schema": "kiana.ui.v1",
+  "license": "MIT OR Apache-2.0",
+  "csp": {
+    "mode": "runtime_nonce",
+    "hash_algorithm": "sha256",
+    "forbid": ["unsafe-inline", "unsafe-eval"]
+  },
+  "assets": [
+    {"path": "package.json", "sha256": "1edca24f4630387ea747886d92ec6baa47075a2c6295658f718b799acbfaac5f", "bytes": 1165, "cache": "no-store"},
+    {"path": "main.js", "sha256": "2a8f24bcdef66d64a2efffb0671dc25a4d77365d319cf8d78085c6211d084500", "bytes": 19015, "cache": "immutable"},
+    {"path": "preload.js", "sha256": "c6905219e5768fd7b0f7c497a4580a26925154bd3d583e318cf2907ea6a19250", "bytes": 2572, "cache": "immutable"},
+    {"path": "welcome.html", "sha256": "4b0f8018f4cc7cdbe119181e0cf35f0a068f7d36c2478c1be984058ca437e060", "bytes": 5968, "cache": "immutable"},
+    {"path": "icon.png", "sha256": "2bacb094fdbe24db4979317ee9717cb465d1ca3b6a0787f1edc1fdcc872a18cd", "bytes": 158, "cache": "immutable"},
+    {"path": "lib/asset-manifest.js", "sha256": "a222af84d1ccb811d1742f86fd7a370e847f7bfda4ed3bcccef574684e592885", "bytes": 5910, "cache": "immutable"},
+    {"path": "lib/close-policy.js", "sha256": "0741ed8b291f736edf434770fead535f3d357c1cc4f1a85bb2ed23567c0b7f46", "bytes": 1249, "cache": "immutable"},
+    {"path": "lib/deb-layout.js", "sha256": "15ce3fb68eb6f67a47810f068a7dfd5408728887782735d6272200ab31c56398", "bytes": 3335, "cache": "immutable"},
+    {"path": "lib/desktop-persistence.js", "sha256": "e0f00de7d473e8e44e38dd3678ab453e50527fcdfa0f8664c3d50b304677b084", "bytes": 10726, "cache": "immutable"},
+    {"path": "lib/desktop-state.js", "sha256": "173ef1546f56958dada4c94ef8796deaf04756c8e1dadbfc4e632825892adb00", "bytes": 4104, "cache": "immutable"},
+    {"path": "lib/find-kiana.js", "sha256": "0417d421054363997bf73c095fe831c5f7ea41cf0d7d0529ecc74b584af20702", "bytes": 988, "cache": "immutable"},
+    {"path": "lib/ipc-security.js", "sha256": "3c0c20c0f7a502482fee9d823f738ac9a544c593fdd50a3e0307d44a83efbef8", "bytes": 14159, "cache": "immutable"},
+    {"path": "lib/notifications.js", "sha256": "c37c532d08c811536d6a2e1154dd47606b54ff23672ec233cffb88005bdce26a", "bytes": 4834, "cache": "immutable"},
+    {"path": "lib/parse-url.js", "sha256": "af5d3c7d38c546df2de89f55c3872be7095dbd39926b6fe2cd25a1b74c0050e0", "bytes": 587, "cache": "immutable"},
+    {"path": "lib/readiness.js", "sha256": "2f0d909c49d171a6fdb5f64ddef248c1cf26025d2775b7bd135084378d1eabb2", "bytes": 8596, "cache": "immutable"},
+    {"path": "lib/worker.js", "sha256": "df4ede8c394c03a61af267e1224298ae50a1ca98d8526fdd725b507c371e5f83", "bytes": 2406, "cache": "immutable"},
+    {"path": "lib/workspace.js", "sha256": "9c7016e8ac65f97cd1fc618433e904d2f5b6ed6a71aeb81b554f285e0280b882", "bytes": 1758, "cache": "immutable"}
+  ]
+}

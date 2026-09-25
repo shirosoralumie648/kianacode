@@ -1,0 +1,21 @@
+{
+  "schema": "kiana.desktop-assets-fixture.v1",
+  "accepted": [
+    "versioned manifest binds protocol and UI schema",
+    "package assets carry exact size and sha256",
+    "runtime nonce CSP forbids unsafe inline/eval",
+    "immutable hashed assets and no-store dynamic resources have explicit cache policy",
+    "package file allowlist includes manifest and excludes secret patterns"
+  ],
+  "denied": [
+    "manifest hash or size drift",
+    "unknown manifest field or duplicate asset path",
+    "absolute, parent escaping, symlink or secret asset path",
+    "private key or live credential marker in package bytes",
+    "old protocol or UI schema without capability negotiation",
+    "package glob that includes .env, token or secret material",
+    "CSP downgrade to unsafe-inline or unsafe-eval"
+  ],
+  "cache": ["immutable", "no-store"],
+  "csp": {"mode": "runtime_nonce", "hash_algorithm": "sha256"}
+}
