@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use kiana_domain::{json_digest, RequestId, RuntimeEvent};
 use kiana_ports::{EventAppendResult, EventStorePort, PortError, RunnerPort};
 use kiana_protocol::{
-    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor,
-    UiFeedCursorV1, UiFeedFrameKind, UiFeedFrameV1, UiFeedGapReason, UiFeedGapV1,
+    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor, UiFeedCursorV1,
+    UiFeedFrameKind, UiFeedFrameV1, UiFeedGapReason, UiFeedGapV1,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{HashMap, VecDeque};
@@ -413,21 +413,21 @@ impl RunStreamBus {
         }
 
         let from = after.cloned();
+        let snapshot_boundary_after_gap = gap_reason.is_some();
         if let Some(reason) = gap_reason {
             state.gap_frames = state.gap_frames.saturating_add(1);
-            if let Ok(frame) = self.gap_frame(
-                reason,
-                from,
-                current_sequence,
-                current_ui_cursor,
-            ) {
+            if let Ok(frame) = self.gap_frame(reason, from, current_sequence, current_ui_cursor) {
                 frames.push_back(frame);
             }
         }
-        let boundary_sequence = after.map_or(current_sequence, |cursor| cursor.feed_sequence);
-        let boundary_ui_cursor = after.map_or(current_ui_cursor, |cursor| {
-            cursor.snapshot_cursor.sequence
-        });
+        let (boundary_sequence, boundary_ui_cursor) = if snapshot_boundary_after_gap {
+            (current_sequence, current_ui_cursor)
+        } else {
+            (
+                after.map_or(current_sequence, |cursor| cursor.feed_sequence),
+                after.map_or(current_ui_cursor, |cursor| cursor.snapshot_cursor.sequence),
+            )
+        };
         if let Ok(frame) = self.boundary_frame(boundary_sequence, boundary_ui_cursor) {
             frames.push_back(frame);
         }
@@ -451,7 +451,10 @@ impl RunStreamBus {
 
     pub(crate) fn heartbeat(&self, run_id: RunId) -> Result<UiFeedFrameV1, String> {
         let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        let sequence = state.channels.get(&run_id).map_or(0, |channel| channel.sequence);
+        let sequence = state
+            .channels
+            .get(&run_id)
+            .map_or(0, |channel| channel.sequence);
         self.heartbeat_frame(sequence, state.ui_sequence)
     }
 
@@ -611,9 +614,7 @@ impl RunStreamFeedSubscription {
     }
 
     pub fn heartbeat(&self) -> Result<UiFeedFrameV1, String> {
-        self.bus
-            .heartbeat(self.run_id)
-            .map(|frame| frame)
+        self.bus.heartbeat(self.run_id).map(|frame| frame)
     }
 
     pub async fn recv_frame(&mut self) -> Result<UiFeedFrameV1, RunStreamFeedError> {
@@ -1254,6 +1255,9 @@ mod tests {
             frame.gap.as_ref().unwrap().reason,
             UiFeedGapReason::ReplayExpired
         );
+        let boundary = expired.recv_frame().await.unwrap();
+        assert_eq!(boundary.kind, UiFeedFrameKind::SnapshotBoundary);
+        assert_eq!(boundary.cursor.feed_sequence, frame.cursor.feed_sequence);
     }
 
     #[tokio::test]
