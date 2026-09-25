@@ -29,23 +29,69 @@ async fn send_inner(
     sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
 ) -> Result<ModelReply, ModelError> {
     let now = unix_ms()?;
-    {
+    let admission = {
         let mut circuit = connection
             .circuit
             .lock()
             .map_err(|_| ModelError::invalid("provider_circuit_lock_poisoned"))?;
-        circuit.allow(now).map_err(ModelError::invalid)?;
-    }
+        circuit.allow(now).map_err(ModelError::invalid)?
+    };
+    let mut probe_guard = HalfOpenProbeGuard::new(connection.circuit.clone(), admission, now);
     let result = send_inner_attempt(connection, prepared, sink).await;
     let observed_at = unix_ms().unwrap_or(now);
-    if let Ok(mut circuit) = connection.circuit.lock() {
-        if result.is_ok() {
-            let _ = circuit.observe_success();
-        } else if result.as_ref().err().is_some_and(trips_circuit) {
-            let _ = circuit.observe_failure(observed_at);
+    let observation_applied = match connection.circuit.lock() {
+        Ok(mut circuit) if result.is_ok() => circuit.observe_success(),
+        Ok(mut circuit) if result.as_ref().err().is_some_and(trips_circuit) => {
+            circuit.observe_failure(observed_at)
+        }
+        Ok(mut circuit) if probe_guard.is_some() => circuit.abandon_probe(observed_at),
+        Ok(_) => Ok(()),
+        Err(_) => Err("provider_circuit_lock_poisoned".to_owned()),
+    };
+    if observation_applied.is_ok() {
+        if let Some(guard) = probe_guard.as_mut() {
+            guard.disarm();
         }
     }
     result
+}
+
+struct HalfOpenProbeGuard {
+    circuit: std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
+    admitted_at_unix_ms: u64,
+    armed: bool,
+}
+
+impl HalfOpenProbeGuard {
+    fn new(
+        circuit: std::sync::Arc<std::sync::Mutex<ProviderCircuitBreaker>>,
+        admission: CircuitAdmission,
+        admitted_at_unix_ms: u64,
+    ) -> Option<Self> {
+        (admission == CircuitAdmission::HalfOpenProbe).then_some(Self {
+            circuit,
+            admitted_at_unix_ms,
+            armed: true,
+        })
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for HalfOpenProbeGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let now_unix_ms = unix_ms().unwrap_or(self.admitted_at_unix_ms).max(1);
+        let mut circuit = self
+            .circuit
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _ = circuit.abandon_probe(now_unix_ms);
+    }
 }
 
 fn trips_circuit(error: &ModelError) -> bool {
@@ -383,6 +429,38 @@ pub(crate) fn unix_ms() -> Result<u64, ModelError> {
         .ok()
         .and_then(|v| u64::try_from(v.as_millis()).ok())
         .ok_or_else(|| ModelError::invalid("model_clock_untrusted"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HalfOpenProbeGuard;
+    use kiana_domain::{CircuitAdmission, ProviderCircuitBreaker, ProviderCircuitState};
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn dropping_half_open_probe_guard_reopens_breaker_and_clears_busy_fence() {
+        let mut breaker = ProviderCircuitBreaker::new("config.v1", 1, 100).expect("breaker");
+        breaker.observe_failure(1).expect("open breaker");
+        breaker.allow(101).expect("claim half-open probe");
+        let circuit = Arc::new(Mutex::new(breaker));
+        let guard = HalfOpenProbeGuard::new(circuit.clone(), CircuitAdmission::HalfOpenProbe, 101)
+            .expect("half-open guard");
+
+        drop(guard);
+
+        let mut circuit = circuit.lock().expect("circuit lock");
+        assert_eq!(circuit.state, ProviderCircuitState::Open);
+        assert!(!circuit.half_open_probe_in_flight);
+        let open_until = circuit.open_until_unix_ms.expect("reopened cooldown");
+        assert_eq!(
+            circuit.allow(open_until - 1).unwrap_err(),
+            "provider_circuit_open"
+        );
+        assert_eq!(
+            circuit.allow(open_until).expect("probe after cooldown"),
+            CircuitAdmission::HalfOpenProbe
+        );
+    }
 }
 
 struct Framer {

@@ -48,5 +48,7 @@ jobs:
         run: cargo test -p kiana-domain --test p4_j7_25_capacity_fallback --locked -- --test-threads=1
       - name: Run capacity source guard
         run: cargo test -p kiana-core --test p4_j7_25_capacity_fallback_guard --locked -- --test-threads=1
+      - name: Run provider capacity transport fixtures
+        run: cargo test -p kiana-provider --lib --locked transport::tests::dropping_half_open_probe_guard_reopens_breaker_and_clears_busy_fence -- --test-threads=1
       - name: Compile P4-J7-25 targets
         run: cargo check --workspace --tests --locked

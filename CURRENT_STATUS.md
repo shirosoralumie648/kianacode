@@ -729,7 +729,7 @@ command_argv:
   rustfmt --edition 2021 --check kiana-provider/src/transport.rs kiana-runner/src/harness.rs kiana-runner/src/lib.rs kiana-runner/src/retry.rs kiana-runner/tests/p4_j7_23_retry.rs kiana-core/tests/p4_j7_23_provider_retry_guard.rs
   cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline
   GitHub Actions: cargo fmt --all --check
-  GitHub Actions: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-provider --lib --locked transport::tests::dropping_half_open_probe_guard_reopens_breaker_and_clears_busy_fence -- --test-threads=1
   GitHub Actions: cargo test -p kiana-runner --test p4_j7_23_retry --locked -- --test-threads=1
   GitHub Actions: cargo test -p kiana-runner --lib --locked -- --test-threads=1
   GitHub Actions: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
@@ -12582,6 +12582,28 @@ status change: `P4-J7-25` capacity policy, bounded transport queue, circuit brea
 proof-level change: `feature_status=implemented`, `proof_level=source` plus CI wiring; no local_behavior, durable, live or physical promotion
 limitations: no durable cross-process breaker/queue, distributed fair scheduling, automatic fallback selection, provider invoice/capacity telemetry or live/physical external effect proof; future fallback execution must be a new ControlPlane-admitted attempt
 reviewer: Codex source review of bounded waiter ordering, cancellation release, alias scope sharing, typed breaker failures and fresh fallback capability/data/budget re-admission; no local runtime test reviewer
+
+### P4-J7-25 half-open probe cancellation recovery evidence (2026-09-26)
+
+```text
+source_snapshot: base `5f34b8df` plus P4-J7-25 cancellation-recovery slice; `kiana-domain/src/provider_capacity.rs`; `kiana-provider/src/transport.rs`; `kiana-domain/tests/p4_j7_25_capacity_fallback.rs`; `kiana-core/tests/p4_j7_25_capacity_fallback_guard.rs`; P4-J7-25 workflow and baseline
+worktree_status: half-open probe ownership is guarded across provider await; cancel/drop or a non-classifiable result reopens the process-local breaker for a fresh cooldown; no provider request is retried by this repair
+command_argv:
+  rustfmt --edition 2021 kiana-domain/src/provider_capacity.rs kiana-domain/tests/p4_j7_25_capacity_fallback.rs kiana-provider/src/transport.rs kiana-core/tests/p4_j7_25_capacity_fallback_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-domain --test p4_j7_25_capacity_fallback --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_25_capacity_fallback_guard --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only half-open release while in wrong state deny, cooldown re-open timing, overflow deny, and provider RAII guard drop proves stale probe-busy state is cleared; no external provider opened
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: P4-J7-25 now recovers the process-local half-open probe fence after cancellation/unclassified completion; card remains 🔄 because fair session scheduling, durable shared state, fallback execution and CI evidence remain open
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: a dropped provider future may have dispatched a request; this recovery does not retry or reconcile that unknown result, and the breaker/cooldown remains process-local; no distributed fairness, durable circuit store, invoice/capacity telemetry or live/physical proof is claimed
+reviewer: Codex source review of half-open ownership, drop/cancel cleanup, typed failure path, fresh cooldown and no automatic request retry; no runtime test reviewer
+```
 
 ### P4-J7-24 provider usage/price snapshot/settlement evidence (2026-09-24)
 

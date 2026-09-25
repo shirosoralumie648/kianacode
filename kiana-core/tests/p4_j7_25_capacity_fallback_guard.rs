@@ -9,6 +9,10 @@ fn provider_capacity_path_is_bounded_and_fallback_is_re_admitted() {
         "provider_capacity_queue_full",
         "ProviderCircuitBreaker",
         "provider_circuit_open",
+        "HalfOpenProbeGuard",
+        "abandon_probe",
+        "provider_circuit_probe_not_in_flight",
+        "dropping_half_open_probe_guard_reopens_breaker_and_clears_busy_fence",
         "FallbackRoutePlan",
         "admit_fallback",
     ] {
@@ -17,7 +21,12 @@ fn provider_capacity_path_is_bounded_and_fallback_is_re_admitted() {
             "P4-J7-25 marker missing: {marker}"
         );
     }
-    for forbidden in ["fallback.unwrap()", "tokio::spawn", "CapabilityBroker", "EventLog"] {
+    for forbidden in [
+        "fallback.unwrap()",
+        "tokio::spawn",
+        "CapabilityBroker",
+        "EventLog",
+    ] {
         assert!(
             !transport.contains(forbidden),
             "capacity transport boundary widened: {forbidden}"

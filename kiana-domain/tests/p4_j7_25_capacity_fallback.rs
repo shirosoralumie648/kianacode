@@ -12,8 +12,7 @@ fn policy() -> ProviderCapacityPolicy {
         Some("primary".to_owned()),
     )
     .expect("quota group");
-    ProviderCapacityPolicy::new(group, 2, 4, 100, 100_000, 30_000, "config.v1")
-        .expect("policy")
+    ProviderCapacityPolicy::new(group, 2, 4, 100, 100_000, 30_000, "config.v1").expect("policy")
 }
 
 #[test]
@@ -31,10 +30,7 @@ fn circuit_opens_after_typed_failures_and_allows_one_half_open_probe() {
         CircuitAdmission::Allowed
     );
     breaker.observe_failure(12).expect("open failure");
-    assert_eq!(
-        breaker.allow(50).unwrap_err(),
-        "provider_circuit_open"
-    );
+    assert_eq!(breaker.allow(50).unwrap_err(), "provider_circuit_open");
     assert_eq!(
         breaker.allow(30_012).expect("half open probe"),
         CircuitAdmission::HalfOpenProbe
@@ -47,6 +43,38 @@ fn circuit_opens_after_typed_failures_and_allows_one_half_open_probe() {
     assert_eq!(
         breaker.allow(30_014).expect("closed again"),
         CircuitAdmission::Allowed
+    );
+}
+
+#[test]
+fn abandoned_half_open_probe_reopens_for_a_fresh_cooldown() {
+    let mut closed = ProviderCircuitBreaker::new("config.v1", 1, 100).expect("closed breaker");
+    assert_eq!(
+        closed.abandon_probe(1).unwrap_err(),
+        "provider_circuit_probe_not_in_flight"
+    );
+
+    let mut breaker = ProviderCircuitBreaker::new("config.v1", 1, 100).expect("breaker");
+    breaker
+        .observe_failure(1)
+        .expect("open after typed failure");
+    assert_eq!(
+        breaker.allow(101).expect("half-open probe"),
+        CircuitAdmission::HalfOpenProbe
+    );
+
+    breaker.abandon_probe(150).expect("abandon probe");
+    assert_eq!(breaker.state, ProviderCircuitState::Open);
+    assert!(!breaker.half_open_probe_in_flight);
+    assert_eq!(breaker.open_until_unix_ms, Some(250));
+    assert_eq!(breaker.allow(249).unwrap_err(), "provider_circuit_open");
+    assert_eq!(
+        breaker.allow(250).expect("new half-open probe"),
+        CircuitAdmission::HalfOpenProbe
+    );
+    assert_eq!(
+        breaker.abandon_probe(u64::MAX).unwrap_err(),
+        "provider_circuit_open_until_overflow"
     );
 }
 
