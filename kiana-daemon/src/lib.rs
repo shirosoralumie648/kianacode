@@ -30,6 +30,7 @@ mod model_client;
 mod pre_tool_hooks;
 mod process_supervisor;
 mod run_stream;
+mod notification_stream;
 mod shell_plan;
 mod storage;
 mod workflow_ingress;
@@ -69,6 +70,10 @@ use run_stream::RunStreamBus;
 pub use run_stream::{
     RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription, UiFeedBackpressureMetrics,
     UI_FEED_QUEUE_CAPACITY,
+};
+pub use notification_stream::{
+    NotificationStreamBridge, NotificationStreamCursor, NotificationStreamDisposition,
+    NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,
 };
 use std::path::Path;
 use std::sync::Arc;
