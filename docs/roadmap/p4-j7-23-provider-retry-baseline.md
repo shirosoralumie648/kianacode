@@ -52,7 +52,9 @@ cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test
 ```
 
 On integrated snapshot `855aa099`, targeted `rustfmt --check`, `cargo fmt --all --check` and
-`git diff --check` pass. Before CM-36 was merged, the non-test command
+`git diff --check` pass. The workflow path filter now includes the current CM-36
+`kiana-domain/src/memory_workbench.rs` module and requests a fresh remote run after the historical
+fmt blocker; that result is pending/unobserved. Before CM-36 was merged, the non-test command
 `cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` on base d85a4a5
 exited 101 before reaching these crates' changed code: `kiana-domain/src/lib.rs` declared a missing
 `memory_workbench` file and the shared domain baseline also reported unrelated type/derive errors.
@@ -68,7 +70,7 @@ response delta was exposed; provider-specific billing behavior still needs usage
 P4-J7-24. The target integration contains the P4-J7-18 SDK retry-disable setting. The earlier
 workflow attempt stopped at workspace formatting before CM-36 landed its `memory_workbench` module;
 the integrated snapshot now passes `cargo fmt --all --check`. CI fixture results for P4-J7-23 remain
-unverified.
+unverified until the fresh run completes.
 
 Cancellation of a durable `reserve_prepared` commit has no release operation on the current
 `ModelBudgetPort`; if cancellation races with that commit, this step prevents provider dispatch but

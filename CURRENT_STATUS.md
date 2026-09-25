@@ -696,8 +696,8 @@ reviewer: Codex source review of deny-first provider/model claim binding, prompt
 
 ### P4-J7-23 provider retry/deadline/cancellation evidence (2026-09-23)
 
-source_snapshot: initial isolated base d85a4a5b plus integrated snapshot `a2ba7a6e` (CM-36/P4-J7-18) and P4-J7-23 source slice; `kiana-provider/src/transport.rs`, `kiana-runner/src/harness.rs`, `kiana-runner/src/retry.rs`, CI-only behavior fixtures, source guard and workflow
-worktree_status: clean integration branch `p4-j7-23-provider-retry-integration-20260923` at `855aa099`; primary checkout was not modified; target provider config contains `.retry(reqwest::retry::never())`, and this slice guards that integration
+source_snapshot: current master `85c7b6ba` plus integrated P4-J7-23 source slice and CM-36 fmt dependency; `kiana-domain/src/memory_workbench.rs`; `kiana-provider/src/transport.rs`; `kiana-runner/src/{harness.rs,retry.rs}`; CI-only behavior fixtures, source guard and workflow
+worktree_status: integrated provider retry/deadline/cancellation source remains clean; target provider config contains `.retry(reqwest::retry::never())`, and this slice guards that integration; CM-36 module is present and included in workflow path filter for fresh CI
 command_argv:
   git diff --check
   rustfmt --edition 2021 --check kiana-provider/src/transport.rs kiana-runner/src/harness.rs kiana-runner/src/lib.rs kiana-runner/src/retry.rs kiana-runner/tests/p4_j7_23_retry.rs kiana-core/tests/p4_j7_23_provider_retry_guard.rs
@@ -710,8 +710,8 @@ command_argv:
   GitHub Actions: cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test-threads=1
 cwd/environment: isolated worktree; Linux x86_64; stable Rust toolchain; local tests deliberately not run; GitHub CI not awaited
 fixture·cassette: GitHub-only retryable 429→success attempt count and distinct attempt IDs, post-send unknown deny, partial-delta no-retry, cancellation during backoff, oversized Retry-After deadline deny, injected-clock HTTP-date parsing, typed connect/TLS classification and cross-crate source guard
-exit_code: targeted `rustfmt --check`, `cargo fmt --all --check`, and `git diff --check` exit 0 on integrated snapshot `855aa099`; historical `cargo check -p kiana-provider -p kiana-runner -p kiana-core --locked --offline` on initial base d85a4a5 exited 101 in the pre-CM-36 `kiana-domain` baseline, first due missing `memory_workbench` and also unrelated type/derive errors; no build/check or tests were run after integration because requested verification was formatting only; P4-J7-23 CI fixtures have not been awaited
-status change: P4-J7-23 implementation and remote fixtures are wired; roadmap row 400/card remain 🔄 pending CI fixture results; Runner owns the only bounded retry loop, re-admission is per attempt, and unknown/partial output is not retried
+exit_code: targeted `rustfmt --check`, `cargo fmt --all --check`, and `git diff --check` exit 0 on integrated snapshot `855aa099`; historical offline check on pre-CM-36 base exited 101 before changed crates; no build/check or tests were run after integration; fresh post-CM-36 P4-J7-23 CI fixture exit code pending/unobserved
+status change: P4-J7-23 implementation and remote fixtures remain 🔄; CM-36 path-filter rerun is requested, no CI fixture pass claimed; Runner owns the only bounded retry loop, re-admission is per attempt, and unknown/partial output is not retried
 proof-level change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: no live provider requests or durable attempt journal proof; 429/503 billing/usage reconciliation remains P4-J7-24; absolute timeout is in-process and no external timing guarantee is claimed; the historical pre-CM-36 cargo check failure is not a build result for integrated snapshot `855aa099`; current ModelBudgetPort has no durable admission reservation release operation, so cancellation racing a prepared commit is not claimed reconciled
 reviewer: Codex source review; checked typed-only retry classification, no message-substring classification, attempt identity/admission regeneration, deadline coverage, cancellation propagation and CI fixture wiring; no local runtime test reviewer
