@@ -23,6 +23,7 @@
     "client_payload_mutation",
     "stale_artifact_revision",
     "page_digest_mismatch",
+    "content_missing_never_ready",
     "cross_session_artifact_enumeration",
     "cross_tab_cursor_scope",
     "cursor_replay",

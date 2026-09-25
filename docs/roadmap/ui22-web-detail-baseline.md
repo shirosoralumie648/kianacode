@@ -19,7 +19,7 @@
 | Surface | Contract | Deny-first behavior |
 |---|---|---|
 | protocol | `UiDetailScopeV1`, `UiArtifactRefV1`, `UiArtifactPageV1`, `UiDiffDetailV1`, `UiReceiptDetailV1`, `UiArtifactDetailV1` | unknown fields, invalid digest/MIME, cross-session links, stale revision and Unknown/completed conflict fail closed |
-| client | `WebDetailCursor`, `WebArtifactViewer`, `WebDetailProjection` | page digest/revision/reference mismatch, replay scope, HTML/SVG/ANSI/raw content and incomplete digest are denied or remain Partial/Unknown |
+| client | `WebDetailCursor`, `WebArtifactViewer`, `WebDetailProjection` | page digest/revision/reference mismatch, replay scope, HTML/SVG/ANSI/raw content and incomplete/missing content are denied or remain Partial/Unknown; a `none` page can never become Ready |
 | Web server | `/api/artifact/detail`, `/api/diff`, `/api/receipt/detail` | token/host/session/tab checks, artifact reference enumeration returns `artifact_not_found`, source cursor changes conflict, diff stats remain server-owned |
 | browser | artifact/diff/receipt detail controls | only server refs and textContent are rendered; no arbitrary URL/path fetch, no client diff calculation and Unknown cannot be green or auto-retried |
 

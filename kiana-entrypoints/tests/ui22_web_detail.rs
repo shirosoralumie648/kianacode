@@ -39,6 +39,8 @@ fn ui22_fixture_binds_server_owned_detail_contracts() {
         "WebDetailCursor",
         "web_artifact_revision_mismatch",
         "web_artifact_page_digest_mismatch",
+        "artifact_content_unavailable",
+        "all_pages_have_content",
         "WebDetailStatus::Unknown",
         "content_text",
     ] {
@@ -68,6 +70,7 @@ fn ui22_detail_fixture_keeps_unknown_and_security_cases_explicit() {
         "client_payload_mutation",
         "stale_artifact_revision",
         "page_digest_mismatch",
+        "content_missing_never_ready",
         "cross_session_artifact_enumeration",
         "unknown_result_green_success",
         "result_unknown_auto_retry",
