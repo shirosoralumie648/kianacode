@@ -7,9 +7,9 @@ be automatically retried. Each row binds the same DaemonHost, ControlPlane and K
 spine digests and distinguishes fake-provider evidence from explicitly approved live opt-in.
 
 `ReleaseUatEvidence` now binds the matrix digest to a source snapshot and CI run reference,
-provider mode, proof level, receipt references, reviewer and Unknown reconciliation. Fake rows
-cannot claim live/physical proof; a verified bundle requires receipts and reconciliation, while
-fixture/blocked/unknown dispositions retain limitations.
+provider mode, typed `approval:` operator reference, proof level, receipt references, reviewer and
+Unknown reconciliation. Fake rows cannot claim live/physical proof; a verified bundle requires
+receipts and reconciliation, while fixture/blocked/unknown dispositions retain limitations.
 
 GitHub Actions runs the matrix fixture plus the existing entrypoint parity and DaemonHost spine
  fixtures. The gate is fake provider/source-bound: it does not perform a release, upgrade, backup, restore,
