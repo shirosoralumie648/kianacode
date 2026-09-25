@@ -1,0 +1,8 @@
+{
+  "schema": "kiana.extension-release-fixture.v1",
+  "status": "partial",
+  "metrics": ["catalog_cold", "catalog_warm", "resource_read", "hook_latency", "package_verify", "snapshot_rebuild"],
+  "benchmark_execution": "github_ci_pending",
+  "release_published": false,
+  "limitations": ["no_local_benchmark", "supply_chain_scan_pending", "release_smoke_pending"]
+}
