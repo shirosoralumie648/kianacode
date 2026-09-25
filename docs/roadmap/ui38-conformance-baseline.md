@@ -6,7 +6,8 @@
 ## Deliverables
 
 - `kiana-client/src/conformance.rs`：消费四 surface trace 的只读 schema/cursor/action/retry/digest/
-  receipt/Unknown comparator，复用 UI-31 parity 规则。
+  receipt/Unknown comparator，复用 UI-31 parity 规则，并 fail-closed 校验可选 artifact/receipt digest
+  的 SHA-256 形状。
 - `kiana-client/tests/fixtures/ui38-conformance.json` 与 `ui38_conformance.rs`：同一 Unknown trace 的
   四入口一致性、隐藏 Unknown、敏感字段和 capability schema drift deny-first fixture。
 - `.github/workflows/ui38-conformance.yml`：GitHub-only `cargo fmt`、聚焦 conformance test 和 workspace
