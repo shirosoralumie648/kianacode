@@ -200,7 +200,10 @@ impl CliInvocation {
         }
         let encoded = serde_json::to_vec(&self.arguments)
             .map_err(|_| "cli_arguments_invalid".to_owned())?;
-        if encoded.len() > CLI_MAX_ARGUMENT_BYTES || contains_secret_key(&self.arguments) {
+        if encoded.len() > CLI_MAX_ARGUMENT_BYTES
+            || contains_secret_key(&self.arguments)
+            || contains_secret_text_value(&self.arguments)
+        {
             return Err("cli_arguments_sensitive_or_oversized".to_owned());
         }
         Ok(())
@@ -253,7 +256,10 @@ impl CliOutput {
         }
         self.command_id.validate()?;
         let encoded = serde_json::to_vec(self).map_err(|_| "cli_output_invalid".to_owned())?;
-        if encoded.len() > CLI_MAX_OUTPUT_BYTES || contains_secret_key(&self.payload) {
+        if encoded.len() > CLI_MAX_OUTPUT_BYTES
+            || contains_secret_key(&self.payload)
+            || contains_secret_text_value(&self.payload)
+        {
             return Err("cli_output_sensitive_or_oversized".to_owned());
         }
         if self.mode == CliOutputMode::Json && contains_ansi(&self.payload) {
@@ -308,6 +314,15 @@ fn contains_secret_key(value: &Value) -> bool {
             is_secret_key(&key) || contains_secret_key(value)
         }),
         Value::Array(values) => values.iter().any(contains_secret_key),
+        _ => false,
+    }
+}
+
+fn contains_secret_text_value(value: &Value) -> bool {
+    match value {
+        Value::String(value) => contains_secret_text(value),
+        Value::Object(fields) => fields.values().any(contains_secret_text_value),
+        Value::Array(values) => values.iter().any(contains_secret_text_value),
         _ => false,
     }
 }

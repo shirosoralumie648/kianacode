@@ -76,6 +76,13 @@ fn invocation_and_output_reject_secret_fields_and_json_ansi() {
         "cli_arguments_sensitive_or_oversized"
     );
 
+    let mut textual_secret = make_invocation(CliCommand::Run);
+    textual_secret.arguments = json!({"message": "Bearer fixture-secret"});
+    assert_eq!(
+        textual_secret.validate().unwrap_err(),
+        "cli_arguments_sensitive_or_oversized"
+    );
+
     let command_id = CliCommandId::new(CliCommand::Status, RequestId::new());
     let output = CliOutput::new(
         command_id.clone(),
@@ -86,6 +93,18 @@ fn invocation_and_output_reject_secret_fields_and_json_ansi() {
     );
     assert_eq!(
         output.validate().unwrap_err(),
+        "cli_output_sensitive_or_oversized"
+    );
+
+    let textual_output = CliOutput::new(
+        command_id.clone(),
+        CliOutputMode::Json,
+        ExecutionStatus::Completed,
+        json!({"message": "token=fixture-secret"}),
+        None,
+    );
+    assert_eq!(
+        textual_output.validate().unwrap_err(),
         "cli_output_sensitive_or_oversized"
     );
 

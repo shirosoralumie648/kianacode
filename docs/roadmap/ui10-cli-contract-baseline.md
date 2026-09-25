@@ -17,8 +17,9 @@ The contract fixes the ten canonical commands (`run`, `status`, `events`, `appro
 `cancel`, `resume`, `receipt`, `export`, `session`) and keeps compatibility aliases at the parse
 edge. Every invocation carries a workspace, optional session, request-bound command ID, output mode,
 TTY/interactivity flags and bounded JSON arguments. Mutating commands reject implicit retries and
-interactive requests without a TTY. Output validation rejects secret-shaped fields, oversized
-payloads and ANSI escapes in JSON mode.
+interactive requests without a TTY. Output validation rejects secret-shaped fields, secret-shaped
+text values, oversized payloads and ANSI escapes in JSON mode; invocation arguments apply the same
+recursive text fence before dispatch.
 
 ## Failure-first fixture matrix
 
@@ -27,7 +28,7 @@ payloads and ANSI escapes in JSON mode.
 | command aliases and wire names | aliases normalize to one canonical command and stable operation name |
 | workspace/session fences | missing workspace, required session, control characters and overlong values fail closed |
 | interaction/retry policy | non-TTY interaction and implicit mutation retry are rejected before dispatch |
-| redaction and output bounds | argument/output secret fields and oversized payloads are rejected; JSON cannot carry ANSI |
+| redaction and output bounds | argument/output secret fields and secret-shaped text values are rejected; JSON cannot carry ANSI |
 | entrypoint boundary guard | contract has no DaemonHost, ControlPlane, Broker, Harness, process spawn or model loop; CLI uses the client facade |
 
 ## Evidence block
