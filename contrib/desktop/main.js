@@ -4,6 +4,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  Notification,
   Tray,
   dialog,
   ipcMain,
@@ -18,7 +19,13 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 const { waitForReady, readInstanceSidecar, probeReady } = require("./lib/readiness");
 const { findKiana, kianaArgs } = require("./lib/find-kiana");
-const { BUTTONS, closeDecision } = require("./lib/close-policy");
+const { BUTTONS, closeDecision, closePrompt } = require("./lib/close-policy");
+const {
+  closeAttention,
+  createDesktopState,
+  reduceDesktopState,
+} = require("./lib/desktop-state");
+const { NotificationBridge } = require("./lib/notifications");
 const { groupExists, stopWorker } = require("./lib/worker");
 const {
   createScratchWorkspace,
@@ -47,6 +54,8 @@ let workspaceTransition = Promise.resolve();
 let ipcSession = null;
 let lifecycle = "stopped";
 let readyRecord = null;
+let desktopState = createDesktopState();
+const notificationBridge = new NotificationBridge({ workspaceBindingDigest: null });
 
 function welcomeUrl() {
   return pathToFileURL(path.join(__dirname, "welcome.html")).href;
@@ -54,9 +63,14 @@ function welcomeUrl() {
 
 function rotateIpcSession({ origin, workspaceBinding = null }) {
   ipcSession = createIpcSession({ origin, workspaceBinding });
+  notificationBridge.setWorkspaceBindingDigest(ipcSession.workspaceBindingDigest);
 }
 
 rotateIpcSession({ origin: welcomeUrl() });
+
+function applyDesktopState(event) {
+  desktopState = reduceDesktopState(desktopState, event);
+}
 
 function configPath() {
   return path.join(app.getPath("userData"), "desktop.json");
@@ -105,13 +119,16 @@ async function stopChild() {
   const proc = child;
   if (!proc) return;
   lifecycle = "stopping";
+  applyDesktopState({ type: "worker_stopping" });
   proc.kianaStopping = true;
   stopPromise = stopWorker(proc).then(() => {
     if (child === proc) child = null;
     readyRecord = null;
     lifecycle = "stopped";
+    applyDesktopState({ type: "worker_stopped" });
   }).catch(error => {
     lifecycle = "unconfirmed";
+    applyDesktopState({ type: "worker_failed", unconfirmed: true });
     throw error;
   }).finally(() => { stopPromise = null; });
   return stopPromise;
@@ -164,15 +181,18 @@ async function startHarness(folder) {
   // Drain diagnostics during the structured ready handshake, but never interpret stderr.
   child.stderr.resume();
   const proc = child;
+  applyDesktopState({ type: "workspace_requested", workspace });
   proc.on("exit", code => {
     if (child !== proc || proc.kianaStopping || quitting) return;
     readyRecord = null;
     if (process.platform !== "win32" && groupExists(proc.pid)) {
       lifecycle = "unconfirmed";
+      applyDesktopState({ type: "worker_failed", unconfirmed: true });
       lastError = `kiana web stopped (${code ?? "?"}); worker process group exit is unconfirmed.`;
     } else {
       child = null;
       lifecycle = "failed";
+      applyDesktopState({ type: "worker_failed", unconfirmed: false });
       lastError = `kiana web stopped (${code ?? "?"}).`;
     }
     showWelcome();
@@ -205,6 +225,11 @@ async function startHarness(folder) {
   });
   lifecycle = "ready";
   readyRecord = ready;
+  applyDesktopState({
+    type: "worker_ready",
+    instance_id: ready.instance_id,
+    epoch: ready.epoch,
+  });
   saveConfig({ workdir: workspace });
   // The stderr diagnostics pipe is already drained; resume the stdout display stream after ready.
   proc.stdout.resume();
@@ -236,6 +261,7 @@ async function switchWorkspace(folder) {
   } catch (error) {
     lastError = String(error.message || error);
     if (lifecycle !== "unconfirmed") lifecycle = "failed";
+    if (lifecycle === "failed") applyDesktopState({ type: "worker_failed", unconfirmed: false });
     showWelcome();
     throw error;
   }
@@ -288,8 +314,7 @@ function createWindow() {
       cancelId: 2,
       title: "Kiana",
       message: "Close the window?",
-      detail:
-        "Keep in background leaves DaemonHost running in the tray. Quit stops the worker.",
+      detail: closePrompt(closeAttention(desktopState)).detail,
     });
     const decision = closeDecision(choice);
     if (decision === "keep") {
@@ -397,6 +422,7 @@ async function handleContinue() {
 
 function workspaceState() {
   const last = loadConfig().workdir;
+  const attention = closeAttention(desktopState);
   return {
     last: last && fs.existsSync(last) ? last : null,
     current: workdir,
@@ -407,6 +433,8 @@ function workspaceState() {
     } : null,
     error: lastError,
     scratchRoot: path.join(os.homedir(), ".kiana", "workspaces"),
+    workspace_binding_digest: ipcSession && ipcSession.workspaceBindingDigest,
+    attention,
   };
 }
 
@@ -414,6 +442,25 @@ function ipcDenied(reason) {
   const error = new Error(`desktop_ipc_denied:${reason}`);
   error.code = "desktop_ipc_denied";
   return error;
+}
+
+function notifyServerFact(fact) {
+  const result = notificationBridge.accept(fact);
+  if (!result.ok) throw ipcDenied(result.reason);
+  applyDesktopState({ type: "server_fact", fact });
+  if (result.disposition !== "new") {
+    return { ok: true, disposition: result.disposition };
+  }
+  if (typeof Notification !== "function" ||
+      (typeof Notification.isSupported === "function" && !Notification.isSupported())) {
+    return { ok: true, disposition: "unavailable" };
+  }
+  const notification = new Notification({
+    title: result.value.title,
+    body: result.value.body,
+  });
+  notification.show();
+  return { ok: true, disposition: "shown" };
 }
 
 function installWindowSecurity(window) {
@@ -484,6 +531,8 @@ function dispatchDesktopIntent(intent) {
       return handleNewProject();
     case "desktop.workspace.continue.v1":
       return handleContinue();
+    case "desktop.notification.server-fact.v1":
+      return notifyServerFact(intent.fact);
     default:
       throw ipcDenied("unknown_intent");
   }

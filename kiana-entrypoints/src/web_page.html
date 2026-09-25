@@ -255,6 +255,38 @@
     const tabDrafts = new Map();
     const submissionIds = new Map();
     let hydrateState = 'loading';
+    let desktopNotificationBindingPromise = null;
+
+    // Desktop notifications are a presentation bridge only. The browser sends a bounded,
+    // server-derived fact (never user text, a path, a token, or an approval payload); the
+    // Electron main process validates the workspace binding and chooses fixed redacted copy.
+    function desktopNotificationBinding() {
+      if (!window.kianaDesktop) return Promise.resolve(null);
+      if (!desktopNotificationBindingPromise) {
+        desktopNotificationBindingPromise = window.kianaDesktop.state()
+          .then(state => typeof state.workspace_binding_digest === 'string'
+            ? state.workspace_binding_digest : null)
+          .catch(() => null);
+      }
+      return desktopNotificationBindingPromise;
+    }
+    function notifyDesktopServerFact(kind, envelope, status) {
+      if (!window.kianaDesktop || !envelope || !envelope.epoch || !Number.isSafeInteger(envelope.sequence) ||
+          envelope.sequence < 1) return;
+      const event = envelope.event || {};
+      const runId = typeof event.run_id === 'string' && event.run_id.length > 0 ? event.run_id : 'server';
+      const safeStatus = ['pending', 'completed', 'cancelled', 'failed', 'unknown', 'result_unknown'].includes(status)
+        ? status : 'unknown';
+      const notificationId = kind + ':' + runId + ':' + envelope.epoch + ':' + envelope.sequence;
+      desktopNotificationBinding().then(workspaceBindingDigest => {
+        if (!workspaceBindingDigest) return null;
+        return window.kianaDesktop.notifyServerFact({
+          schema: 'kiana.desktop-notification.v1', source: 'server', kind,
+          notification_id: notificationId, feed_epoch: envelope.epoch,
+          sequence: envelope.sequence, status: safeStatus, workspace_binding_digest: workspaceBindingDigest
+        });
+      }).catch(() => {});
+    }
 
     // UI-20 keeps the Web timeline as a bounded presentation projection.  The server's explicit
     // item kind is the only discriminator; title/body text is never parsed to guess a kind.
@@ -534,7 +566,11 @@
       runtimeEvents.push(sanitizeDisplayText(event.type + ': ' + (data.operation || data.error || data.approval_id || JSON.stringify(data)), 2048));
       while (runtimeEvents.length > 12) runtimeEvents.shift();
       document.getElementById('runtimeEvents').textContent = runtimeEvents.join('\n');
-      if (event.type === 'approval_requested') { announce('有新的待审批请求'); refreshApprovals().catch(reportError); }
+      if (event.type === 'approval_requested') {
+        announce('有新的待审批请求');
+        notifyDesktopServerFact('approval', envelope, 'pending');
+        refreshApprovals().catch(reportError);
+      }
     }
     async function queryCommand(name, args = {}, requested = sessionId) {
       const data = await api('/api/command?name=' + encodeURIComponent(name) + '&session_id=' + encodeURIComponent(requested) + '&arguments=' + encodeURIComponent(JSON.stringify(args)));
@@ -1042,6 +1078,7 @@
       streamTerminal = terminal.response || {};
       streamComplete = false;
       const status = streamTerminal.status || 'unknown';
+      notifyDesktopServerFact('terminal', envelope, status);
       setStreamItemKind(
         streamIncomplete ? 'unknown' : 'terminal',
         streamIncomplete ? 'unknown · incomplete / receipt required' : (status === 'completed' ? 'terminal · completed' : 'terminal · ' + status),

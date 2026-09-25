@@ -1,0 +1,21 @@
+{
+  "schema": "kiana.desktop-workspace-tray-fixture.v1",
+  "accepted": [
+    "workspace switch is an explicit typed intent",
+    "server terminal fact produces fixed redacted notification copy",
+    "server pending action fact produces fixed redacted notification copy",
+    "duplicate notification identity is ignored",
+    "close prompt exposes pending and unknown attention without execution mutation"
+  ],
+  "denied": [
+    "renderer supplied notification body or private content",
+    "notification from a different workspace binding",
+    "notification with unknown kind, status, epoch or sequence",
+    "notification replay that changes its payload",
+    "old workspace notification delivered after a workspace switch",
+    "close window implicitly cancel, resume, trust or approve",
+    "tray action dispatching a broad or arbitrary capability"
+  ],
+  "terminal_statuses": ["completed", "cancelled", "failed", "unknown", "result_unknown"],
+  "attention_sources": ["approval", "unknown", "result_unknown", "draft"]
+}

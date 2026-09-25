@@ -574,13 +574,20 @@ durability、升级兼容和 physical process e2e 仍未证明。
 
 
 
-#### UI-26 · Desktop workspace、托盘、通知与关闭策略　⏳
+#### UI-26 · Desktop workspace、托盘、通知与关闭策略　🔄
 
 - 依赖：UI-08/19/24/25。代码：workspace switcher、tray/menu、notification bridge、close confirmation。
 - 步骤：workspace open/new/continue 只发显式 command；通知仅由服务端终态/待办事实触发；关闭提示 pending/unknown，不把窗口状态等同 run 状态。
 - 先拒绝：旧 workspace 数据串入新窗口、通知泄漏私有内容、close 隐式 cancel/resume/trust、托盘调用宽权限 API。
 - 成功/回归：多窗口、托盘隐藏/恢复、OS notification permission、未保存草稿、pending approval、unknown invocation 和 reopen。
 - 完成产物：desktop state machine、通知脱敏策略、关闭/托盘 e2e。
+
+实现基线：[`ui26-desktop-workspace-tray-baseline.md`](ui26-desktop-workspace-tray-baseline.md)。当前 source
+slice 新增 bounded desktop state reducer、workspace switch 时 attention reset、server-bound
+terminal/pending notification fact、workspace binding/feed cursor/replay fence 和固定脱敏通知文案；
+现有 tray/workspace typed intents 继续复用 `DaemonHost`，close 只显示 pending/unknown/draft attention
+并保留 Keep/Quit/Cancel，不提交隐式 cancel/resume/trust/approve。Web SSE 只提交 schema 化且不含
+用户正文、路径或 token 的事实，Electron 主进程是唯一 OS Notification 适配边界。
 
 <a id="step-ui-27"></a>
 
