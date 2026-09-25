@@ -1028,6 +1028,25 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no real legacy browser/CLI traffic, feature-flag telemetry, endpoint removal, durable compatibility, provider/Broker or physical proof
 reviewer: Codex UI-35 source review; checked mapping allowlist, read-only semantics, input bounds and no-fact-write/no-second-loop boundary; no local runtime reviewer
 ```
+
+### UI-36 release secret-scan evidence (2026-09-26)
+
+```text
+source_snapshot: base `e4440a2d` plus UI-36 release-gate slice; `scripts/verify-ui36-release-gate.sh`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap.md`
+worktree_status: release scan excludes the verifier's own regex text and non-packaged desktop tests, then covers private-key/live/bearer/access/refresh/api-key/client-secret markers; CI-only remote build boundary unchanged
+command_argv:
+  bash -n scripts/verify-ui36-release-gate.sh
+  git diff --check
+  GitHub Actions: bash scripts/verify-ui36-release-gate.sh
+  GitHub Actions: asset/lock/format/build/secret gate
+cwd·environment: repository root; shell syntax/whitespace checks only; local build/test/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only source gate, with verifier self-match and desktop test-fixture false positives excluded; no install/trust/resume/approve/provider/Broker effect
+exit_code: 0 for `bash -n` and `git diff --check`; remote release gate pending/unobserved
+status change: UI-36 release scan no longer self-fails on its detection regex and covers more credential marker forms; card remains 🔄 pending CI/build/package evidence
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no local/real build, Electron/DEB/install/upgrade, signature/provenance, OS, provider/Broker or physical proof
+reviewer: Codex UI-36 source review; checked CI-only boundary, scan scope/self-match, lock/format/build and no-effect path; no local release reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

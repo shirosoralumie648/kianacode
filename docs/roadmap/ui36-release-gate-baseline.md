@@ -7,8 +7,8 @@
 
 `scripts/verify-ui36-release-gate.sh` 在非 GitHub Actions 环境主动返回 `remote_ci_required`，避免
 本地工作树被误报成发布证明。GitHub job 依次验证 UI-28 desktop asset manifest、`cargo fmt --all
---check`、锁定依赖下 `cargo build --bin kiana --locked`，再扫描 `contrib/desktop`/`dist`/scripts
-中的 private-key、常见 live credential 和 bearer marker。构建步骤只产生 artifact/build evidence，
+--check`、锁定依赖下 `cargo build --bin kiana --locked`，再扫描 `contrib/desktop`（不含 tests 夹具）/`dist`/scripts（不含 verifier 自身）
+中的 private-key、常见 live credential、bearer/access/api-key/client-secret marker。构建步骤只产生 artifact/build evidence，
 不改变 ProjectTrust、session、approval、runner 或 ControlPlane 状态。
 
 Workflow 仍保持 loopback/sidecar/typed client 边界；安装、upgrade/rollback、空目录、权限不足、
