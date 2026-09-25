@@ -19,7 +19,8 @@ reference and redacted payloads. It emits no credentials and does not launch an 
 The adapter is intentionally transport-free: it does not open a socket, spawn a process, contact a
 provider, or execute a host capability. `LiveAcpSession` remains `OptedIn`/`Unknown` and never
 self-promotes to `Verified`; external host/version/environment, receipt and reconnect evidence
-must be independently captured. CI/source success is not live, durable or physical proof. The
+must be independently captured. Feed gaps and disconnects retain a degraded/reconcile fence even
+after handler installation until an explicit session resume. CI/source success is not live, durable or physical proof. The
 workflow path filter also includes current CM-36 `kiana-domain/src/memory_workbench.rs`, so a fresh
 remote format/source-guard run covers the repository-wide fmt dependency; that result is
 pending/unobserved.

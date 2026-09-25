@@ -219,6 +219,39 @@ fn disconnect_and_feed_gap_remain_unknown_until_reconnect() {
 }
 
 #[test]
+fn feed_gap_cannot_be_cleared_by_handler_reinstallation() {
+    let mut session = LiveAcpSession::start(opt_in()).unwrap();
+    let id = attach(&mut session);
+    session.update(frame(1, false)).unwrap();
+    assert!(matches!(
+        session.update(frame(3, false)),
+        Ok(AcpUpdateDisposition::Gap {
+            expected: 2,
+            received: 3
+        })
+    ));
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+
+    session.install_feed_handler().unwrap();
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    assert!(matches!(
+        session.update(frame(2, false)),
+        Err(LiveAcpError::Adapter(
+            kiana_client::AcpAdapterError::ReconcileRequired
+        ))
+    ));
+
+    session
+        .resume_session(&id, &digest('d'), "epoch-39")
+        .unwrap();
+    assert_eq!(session.state(), LiveAcpState::Attached);
+    assert!(matches!(
+        session.update(frame(2, false)).unwrap(),
+        AcpUpdateDisposition::Accepted { sequence: 2, .. }
+    ));
+}
+
+#[test]
 fn source_adapter_has_no_external_process_or_network_authority() {
     let source = include_str!("../src/live_acp.rs");
     for forbidden in [
