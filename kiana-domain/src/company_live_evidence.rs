@@ -236,9 +236,21 @@ impl CompanyLiveCloseoutEvidence {
                 }
             }
             CompanyLiveMode::LiveOptIn => {
-                if self.operator_approval_ref.is_none()
-                    || self.live_provider_evidence_digest.is_none()
+                let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
+                    return Err("company_live_opt_in_evidence_missing".to_owned());
+                };
+                if approval_ref.trim() != approval_ref
+                    || !approval_ref.to_ascii_lowercase().starts_with("approval:")
                 {
+                    return Err("company_live_opt_in_approval_ref_invalid".to_owned());
+                }
+                if self.provider_id.trim() != self.provider_id
+                    || self.provider_id.eq_ignore_ascii_case("fake")
+                    || self.provider_revision == "none"
+                {
+                    return Err("company_live_opt_in_provider_identity_missing".to_owned());
+                }
+                if self.live_provider_evidence_digest.is_none() {
                     return Err("company_live_opt_in_evidence_missing".to_owned());
                 }
             }

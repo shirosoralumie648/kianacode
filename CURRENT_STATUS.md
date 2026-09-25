@@ -147,6 +147,19 @@ proof-level change: `feature_status=implemented`（DaemonHost fake lifecycle sou
 limitations: 该切片不证明真实模型、真实 provider/connector、外部 delivery、cross-process durable restart、完整取消/Unknown/reconcile、并行/多 packet fault matrix、业务 Outcome 或 physical/live proof；CI 结果未等待
 reviewer: Codex CO-47 source review；检查唯一 DaemonHost 路由、role/missing-project/idempotency deny、rejected facts、file/effect accounting、golden closing receipt、remote-only smoke 与无第二执行循环；无本地 runtime test reviewer
 
+### CO-48 live evidence identity fence（2026-09-26）
+
+source_snapshot: `38b78d97`（CO-47 lifecycle fixture 已合并 master 基线）加 CO-48 live-evidence source slice；`kiana-domain/src/company_live_evidence.rs`; `kiana-domain/tests/co48_company_live_evidence.rs`; `docs/roadmap/co48-company-closeout-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/co-48-live-evidence-fence-20260926`; `LiveOptIn` now requires a trimmed `approval:` reference, non-fake provider identity, concrete provider revision and independent provider evidence; FakeCassette/Unknown proof ceiling remains fail-closed；不执行模型、provider、外部交付或 physical effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/live）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-domain --test co48_company_live_evidence --locked -- --test-threads=1`、CO-48 source guard 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `co48_company_live_evidence.rs` 新增 malformed approval ref 与 missing provider revision deny；FakeCassette cannot verify、Unknown cannot verify、LiveOptIn receipts/provider evidence 仍为 CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain evidence fixture、CO-48 guard、workspace compile 与 CI exit code pending/unobserved
+status_change: CO-48 live evidence contract now binds typed approval/provider identity before any live proof claim，补齐 baseline 与状态账本；roadmap row/card 仍为 ⏳，真实模型/账户/外部交付未执行
+proof-level change: `feature_status=partial`（source evidence boundary）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实模型、provider/account/credential、外部 delivery confirmation、outcome measurement、cross-process Company projection 或 physical/live handoff；CI 结果未等待
+reviewer: Codex CO-48 source review；检查 approval prefix/trim、fake provider、provider revision、provider evidence、FakeCassette/Unknown proof ceiling 与 no external effect；无本地 runtime/live reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
