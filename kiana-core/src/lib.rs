@@ -60,6 +60,7 @@ mod notification_policy;
 mod notification_recovery;
 mod notification_external;
 mod notification_faults;
+mod notification_parity;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -202,6 +203,11 @@ pub use notification_faults::{
     notification_fault_matrix, NotificationFaultCase, NotificationFaultDisposition,
     NotificationFaultMatrix, NotificationFaultScenario, NOTIFICATION_FAULT_CASE_SCHEMA,
     NOTIFICATION_FAULT_MATRIX_SCHEMA,
+};
+pub use notification_parity::{
+    compare_notification_entrypoints, NotificationEntrypoint, NotificationEntrypointParity,
+    NotificationEntrypointSnapshot, NotificationParityDisposition,
+    NOTIFICATION_ENTRYPOINT_PARITY_SCHEMA, NOTIFICATION_ENTRYPOINT_SNAPSHOT_SCHEMA,
 };
 pub use notification_projector::{
     NotificationProjector, NotificationProjectorError, NotificationVisibility,

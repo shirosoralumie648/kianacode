@@ -238,6 +238,19 @@ proof-level change: `feature_status=implemented`（domain/core replay-only matri
 limitations: matrix 只分类预期安全反应，不实际制造 crash/lag/disk/queue/provider/connector fault；critical durability、projector checkpoint、dead-letter、external/live/physical delivery 与 capacity SLO 未证明；CI 结果未等待
 reviewer: Codex NM-20 source review；检查九类 scenario coverage、source binding、critical/secret/effect invariants、snapshot/reconcile/backpressure/quarantine、no kill/send/write_event/direct effect；无本地 runtime/fault reviewer
 
+### NM-21 cross-entry notification/action/result parity（2026-09-26）
+
+source_snapshot: `f83b4543`（NM-20 已合并 master 基线）加 NM-21 parity source slice；`kiana-domain/src/{lib.rs,notification_parity.rs}`；`kiana-core/src/{lib.rs,notification_parity.rs}`；`kiana-core/tests/{nm21_notification_parity.rs,nm21_notification_parity_guard.rs,fixtures/nm21-notification-parity.json}`；`.github/workflows/nm21-notification-parity.yml`; `docs/roadmap/nm21-notification-parity-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm21-entrypoint-notification-parity-20260926`; four typed snapshots (CLI/TTY, Web, Desktop, Workbench) must share source cursor/authority epoch and notification/action/terminal/pending/delivery ID sets；missing surface, set drift or missing fresh-process rebuild yields `Unknown` + query/rebuild next action；IDs/digests only、message text不能改变 run state、no second bus/loop/action/retry/effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/browser/Electron/PTY）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm21_notification_parity --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm21_notification_parity_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Cargo test/build/check/clippy/smoke、four-process/browser/Electron/PTY E2E；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm21-notification-parity.json`、four surface completeness、shared cursor/epoch/notification/action/terminal/pending/delivery sets、fresh-process rebuild flag、drift→Unknown、no second bus/effect source guards；无真实 cross-process inbox/read/delivery/action CAS/fake provider/live/physical proof
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core parity fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-21 four-entry notification/action/result parity comparator、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（domain/core parity source comparator + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: comparator 只比较 server-bound IDs/cursors/digests，未实现真实四进程 E2E、durable inbox/read-state、action CAS/fake provider run、receipt delivery 或 live/physical proof；CI 结果未等待
+reviewer: Codex NM-21 source review；检查四入口 completeness、source cursor/epoch/set drift、fresh-process rebuild/Unknown fallback、text-only non-authority、no bus/loop/action/retry/effect；无本地 cross-entry runtime reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

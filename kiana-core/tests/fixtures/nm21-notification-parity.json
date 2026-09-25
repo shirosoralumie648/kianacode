@@ -1,0 +1,20 @@
+{
+  "schema": "kiana.notification-entrypoint-parity.v1",
+  "entrypoints": ["cli_tty", "web", "desktop", "workbench"],
+  "shared": ["source_cursor", "authority_epoch", "notification_ids", "action_ids", "terminal_result_ids", "pending_ids", "delivery_attempt_ids"],
+  "deny_first": [
+    "missing_entrypoint",
+    "source_cursor_drift",
+    "authority_epoch_drift",
+    "notification_set_drift",
+    "action_set_drift",
+    "terminal_result_drift",
+    "pending_or_delivery_drift",
+    "fresh_process_rebuild_missing",
+    "message_text_changes_run_state",
+    "separate_bus_or_loop"
+  ],
+  "consistent_next_action": "no_entrypoint_drift",
+  "unknown_next_action": "query_original_source_and_rebuild_snapshot",
+  "proof_ceiling": "source"
+}
