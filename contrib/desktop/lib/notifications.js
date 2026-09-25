@@ -22,6 +22,12 @@ const TERMINAL_STATUSES = new Set([
   "unknown",
   "result_unknown",
 ]);
+const DESKTOP_NOTIFICATION_PERMISSION_STATES = Object.freeze([
+  "granted",
+  "denied",
+  "unknown",
+  "unavailable",
+]);
 
 function reject(reason) {
   return { ok: false, reason };
@@ -147,7 +153,71 @@ class NotificationBridge {
   }
 }
 
+class DesktopNotificationAdapter {
+  constructor({
+    bridge = undefined,
+    workspaceBindingDigest = null,
+    maxSeen = 256,
+    permission = "unknown",
+    notifier = null,
+  } = {}) {
+    this.bridge = bridge || new NotificationBridge({ workspaceBindingDigest, maxSeen });
+    this.permission = DESKTOP_NOTIFICATION_PERMISSION_STATES.includes(permission)
+      ? permission
+      : "unknown";
+    this.notifier = notifier;
+  }
+
+  setWorkspaceBindingDigest(workspaceBindingDigest) {
+    this.bridge.setWorkspaceBindingDigest(workspaceBindingDigest);
+  }
+
+  setPermission(permission) {
+    if (!DESKTOP_NOTIFICATION_PERMISSION_STATES.includes(permission)) {
+      return { ok: false, reason: "desktop_notification_permission_invalid" };
+    }
+    this.permission = permission;
+    return { ok: true, state: permission };
+  }
+
+  permissionState() {
+    return this.permission;
+  }
+
+  accept(fact) {
+    const result = this.bridge.accept(fact);
+    if (!result.ok || result.disposition === "duplicate") {
+      return result;
+    }
+    if (this.permission !== "granted") {
+      return {
+        ok: true,
+        disposition: this.permission === "denied" ? "permission_denied" : "unavailable",
+        value: result.value,
+      };
+    }
+    if (typeof this.notifier !== "function") {
+      return { ok: true, disposition: "unavailable", value: result.value };
+    }
+    try {
+      const notification = new this.notifier({
+        title: result.value.title,
+        body: result.value.body,
+      });
+      if (!notification || typeof notification.show !== "function") {
+        return { ok: true, disposition: "unavailable", value: result.value };
+      }
+      notification.show();
+      return { ok: true, disposition: "shown", value: result.value };
+    } catch {
+      return { ok: true, disposition: "unknown", value: result.value };
+    }
+  }
+}
+
 module.exports = {
+  DESKTOP_NOTIFICATION_PERMISSION_STATES,
+  DesktopNotificationAdapter,
   NOTIFICATION_SCHEMA,
   NotificationBridge,
   descriptorForServerFact,

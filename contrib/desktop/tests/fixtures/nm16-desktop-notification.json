@@ -1,0 +1,28 @@
+{
+  "schema": "kiana.desktop-notification-adapter.v1",
+  "permission_states": ["granted", "denied", "unknown", "unavailable"],
+  "dispositions": ["shown", "permission_denied", "unavailable", "unknown", "duplicate"],
+  "redaction": {
+    "title": "fixed_server_fact_copy",
+    "body": "fixed_workbench_pointer_only",
+    "forbidden": ["private payload", "workspace path", "token", "secret", "run id"]
+  },
+  "deny_first": [
+    "permission_denied_is_not_shown",
+    "unknown_permission_is_not_delivered",
+    "unsupported_os_is_not_delivered",
+    "workspace_binding_mismatch",
+    "replay_conflict",
+    "unknown_fields",
+    "tray_does_not_submit_action",
+    "close_does_not_cancel_or_resume",
+    "detach_does_not_resume_or_approve"
+  ],
+  "recovery": [
+    "durable_inbox_remains_server_owned",
+    "reopen_uses_new_handshake",
+    "stale_cursor_is_diagnostic_only",
+    "permission_denial_does_not_change_server_state"
+  ],
+  "proof_ceiling": "source"
+}
