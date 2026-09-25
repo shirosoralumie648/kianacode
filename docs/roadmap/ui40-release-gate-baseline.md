@@ -18,7 +18,7 @@ feature status, proof level, receipt/artifact references, limitations and review
 rejects source drift and duplicate cases. Implemented cannot be source-only, a passed live case
 requires live/physical proof, and skipped/failed/unknown cases retain limitations.
 
-`scripts/verify-ui40-release-evidence.sh` fails closed outside GitHub CI, checks the required evidence
+`scripts/verify-ui40-release-evidence.sh` fails closed unless `GITHUB_ACTIONS=true`, checks the required evidence
 references and rejects blanket live/physical completion claims. The workflow runs deny/recovery before
 parity/resource/conformance, UI-39 protocol/client guards, the UI-40 evidence fixtures, and the existing
 UI-36 release-build/asset gate. It does not run local tests or publish a release in this task. Desktop/

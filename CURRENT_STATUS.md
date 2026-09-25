@@ -95,6 +95,19 @@ proof-level change: `feature_status=implemented`（release/evidence source gate 
 limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
 reviewer: Codex UI-40 source review；检查命令参数 marker coverage、hyphenated secret deny、既有证据 digest/proof/limitation binding、no-publish 与 no second execution loop；无本地 runtime/release reviewer
 
+### UI-40 GitHub-only execution boundary（2026-09-26）
+
+source_snapshot: `202d6d19`（UI-40 evidence secret fence 已合并 master 基线）加 UI-40 remote-boundary source slice；`scripts/verify-ui40-release-evidence.sh`; `kiana-core/tests/ui40_release_gate_guard.rs`; `docs/roadmap/ui40-release-gate-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui-40-github-only-boundary-20260926`; release evidence verifier 只接受 `GITHUB_ACTIONS=true`，任意本地伪造 `CI=true` 不再绕过 remote-only gate；不发布、不执行外部 effect、不把 source/CI 写成 durable/live/physical
+command_argv: 本地仅 `bash -n scripts/verify-ui40-release-evidence.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/release）；GitHub Actions 将运行 UI-40 source guard、deny/recovery/parity/resource/conformance/evidence、UI-36 release gate 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/release/live；GitHub Actions 是 gate/test/build 权威且不等待
+fixture·cassette: `ui40_release_gate_guard.rs` 新增 verifier 只认 `GITHUB_ACTIONS` 的 source assertion；无真实发布、Desktop/browser/PTY、外部 provider/connector 或 physical receipt
+exit_code: 本地 `bash -n` 与 `git diff --check`；远程 UI-40 guards/release asset/build/workspace compile exit code pending/unobserved
+status_change: UI-40 evidence verifier 从宽泛 `CI=true` 收紧为严格 GitHub Actions boundary，补齐 baseline、source guard 与状态账本；roadmap row/card 仍为 🔄
+proof-level change: `feature_status=implemented`（release/evidence source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 Electron/desktop install、browser/PTY/accessibility/performance、外部 host/provider/connector receipt、跨进程 durable recovery、签名发布或 physical/live outcome；CI 结果未等待
+reviewer: Codex UI-40/41 source review；检查 remote-only environment gate、UI-41 reuse、no-publish 与 no second execution loop；无本地 runtime/release reviewer
+
 ### UI-41 交接、审查和后续缺口（2026-09-25）
 
 source_snapshot: `f04d886f`（UI-40 已合并 master 基线）加 UI-41 handoff source/docs slice；`docs/roadmap/ui41-handoff-baseline.md`; `kiana-core/tests/ui41_handoff_guard.rs`; `.github/workflows/ui41-handoff.yml`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`; `docs/module-map.md`; `docs/ui-entrypoints-runbook.md`; `CURRENT_STATUS.md`
