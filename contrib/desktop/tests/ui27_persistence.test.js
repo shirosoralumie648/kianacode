@@ -53,6 +53,12 @@ test("desktop store keeps bounded references and reattach never submits old curs
   assert.equal(plan.cursor_disposition, "discard_until_new_handshake");
   assert.throws(() => mergeDesktopStore(store, { access_token: "secret" }), /sensitive/);
   assert.throws(() => validateDesktopStore({ ...store, unknown: true }), /unknown_field/);
+  const realWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "kiana-ui27-workspace-real-"));
+  const linkedWorkspace = `${realWorkspace}-link`;
+  fs.symlinkSync(realWorkspace, linkedWorkspace);
+  assert.throws(() => workspaceReference(linkedWorkspace), /workspace_symlink/);
+  fs.rmSync(realWorkspace, { recursive: true, force: true });
+  fs.unlinkSync(linkedWorkspace);
 });
 
 test("desktop store writes atomically with restricted mode and rejects symlink targets", t => {
@@ -64,6 +70,9 @@ test("desktop store writes atomically with restricted mode and rejects symlink t
   assert.deepEqual(readDesktopStore(file), store);
   if (process.platform !== "win32") {
     assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    fs.chmodSync(file, 0o644);
+    assert.throws(() => readDesktopStore(file), /permissions/);
+    fs.chmodSync(file, 0o600);
     const link = path.join(root, "link.json");
     fs.symlinkSync(file, link);
     assert.throws(() => writeDesktopStore(link, store), /symlink/);
