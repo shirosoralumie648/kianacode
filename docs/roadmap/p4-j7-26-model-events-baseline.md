@@ -28,7 +28,9 @@ text are represented only by redacted digest references.
 
 `.github/workflows/p4-j7-26-model-events.yml` runs the domain lifecycle/redaction fixture, the
 Core source-boundary guard, formatting and workspace test-target compilation on GitHub Actions.
-Local tests, builds, checks, clippy and smoke commands are intentionally not run.
+Its path filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs` module so a fresh
+remote run can clear the historical repository-wide fmt dependency; that result is pending and
+unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixtures cover redacted provider traces and split markers, bounded delta retention, runtime
 event schema/identity, persistence-before-effect denial, receipt-link digest tampering and the
