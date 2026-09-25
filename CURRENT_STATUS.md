@@ -742,6 +742,29 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: no live provider requests or durable attempt journal proof; 429/503 billing/usage reconciliation remains P4-J7-24; absolute timeout is in-process and no external timing guarantee is claimed; the historical pre-CM-36 cargo check failure is not a build result for integrated snapshot `855aa099`; current ModelBudgetPort has no durable admission reservation release operation, so cancellation racing a prepared commit is not claimed reconciled
 reviewer: Codex source review; checked typed-only retry classification, no message-substring classification, attempt identity/admission regeneration, deadline coverage, cancellation propagation and CI fixture wiring; no local runtime test reviewer
 
+### P4-J7-23 retry/repair budget separation evidence (2026-09-26)
+
+```text
+source_snapshot: base `5e881d2e` plus this P4-J7-23 follow-up; `kiana-runner/src/harness.rs`; `kiana-runner/tests/p4_j7_23_retry.rs`; `kiana-core/tests/p4_j7_23_provider_retry_guard.rs`; `docs/roadmap/p4-j7-23-provider-retry-baseline.md`; roadmap and status overlays
+worktree_status: transport retry no longer reserves H07 repair budget; a GitHub-only regression and Core source guard cover the separation; step remains 🔄 pending remote CI evidence
+command_argv:
+  rustfmt --edition 2021 kiana-runner/src/harness.rs kiana-runner/tests/p4_j7_23_retry.rs kiana-core/tests/p4_j7_23_provider_retry_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-runner --test p4_j7_23_retry --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-runner --lib --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-core --test p4_j7_23_provider_retry_guard --locked -- --test-threads=1
+cwd/environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI result not awaited
+fixture·cassette: GitHub-only 429→503→success sequence under max_attempts=3 and max_repairs=1; assert three distinct attempts/model turns and zero repair count; source guard rejects transport retry charging repair budget
+exit_code: 0 for targeted `rustfmt --edition 2021` and `git diff --check`; no local tests/build/check/clippy/smoke were run; GitHub fixtures pending/unobserved
+status change: provider transport retry remains bounded by the attempt budget and no longer consumes the independent repair allowance; P4-J7-23 remains 🔄 until CI evidence is observed
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no local runtime test or build evidence; no live provider, durable attempt ledger, receipt projection, provider billing reconciliation or external timing guarantee; P4-J7-24 still owns usage settlement
+reviewer: Codex source review of separate attempt/repair budget accounting and retry safety; no runtime test reviewer
+```
+
 ### EXT-06 progressive disclosure evidence (2026-09-20)
 
 source_snapshot: current HEAD plus EXT-06 source slice; `kiana-skills/src/disclosure.rs`, `kiana-skills/src/lib.rs`, `kiana-daemon/src/harness_skills.rs`, CI-only fixtures, source guard and workflow

@@ -26,6 +26,9 @@
 - `post_send_unknown_is_not_retried_automatically` checks one model dispatch and no completion.
 - `retryable_429_then_success_records_two_attempts` checks two ModelTurn attempt records and one
   successful terminal result.
+- `provider_retries_do_not_consume_the_separate_repair_budget` checks that a 429→503→success
+  sequence can use three separately identified attempts with a repair limit of one while the
+  repair counter remains zero; the Core source guard prevents transport retry from charging it.
 - `cancel_during_retry_backoff_prevents_next_attempt` checks cancellation interrupts backoff and
   prevents a second dispatch.
 - `oversized_retry_after_does_not_retry_early` checks a Retry-After beyond the absolute deadline
