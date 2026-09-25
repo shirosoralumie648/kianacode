@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.notification-store-fixture.v1",
+  "accepted": [
+    "committed materialization is queried through bounded recipient-scoped pages",
+    "empty projection and unavailable projection have distinct outcomes",
+    "mark_read and acknowledge are idempotent presentation mutations"
+  ],
+  "denied": [
+    "foreign recipient, stale/unknown cursor or unbounded page",
+    "projection unavailable treated as empty",
+    "read or ACK interpreted as approval, task status mutation or retry",
+    "history deletion or direct EventLog/Broker/Runner effect"
+  ]
+}

@@ -635,7 +635,7 @@
 | 462 | W6 | 专项 | [`OA-22`](#step-oa-22) | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | `OA-06`、`OA-21`、`OA-07`、`OA-08`、`OA-09`、`OA-10`、`OA-11`、`OA-12`、`OA-13`、`OA-14`、`OA-15`、`OA-16`、`OA-17`、`OA-18`、`OA-19`、`OA-20` | ✅ | [专项卡](#step-oa-22) |
 | 463 | W6 | 专项 | [`NM-06`](#step-nm-06) | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | `P2-K3-01`、`NM-04`、`NM-05` | 🔄 | [专项卡](#step-nm-06) |
 | 464 | W6 | 专项 | [`NM-08`](#step-nm-08) | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | `PD-10`、`PD-11`、`PD-12`、`PD-13`、`NM-06`、`NM-07` | 🔄 | [专项卡](#step-nm-08) · [baseline](roadmap/nm08-notification-outbox-baseline.md) |
-| 465 | W6 | 专项 | [`NM-09`](#step-nm-09) | in-process/in-app channel；NotificationStore query/page | `NM-06`、`NM-08` | ⏳ | [专项卡](#step-nm-09) |
+| 465 | W6 | 专项 | [`NM-09`](#step-nm-09) | in-process/in-app channel；NotificationStore query/page | `NM-06`、`NM-08` | 🔄 | [专项卡](#step-nm-09) · [baseline](roadmap/nm09-notification-store-baseline.md) |
 | 466 | W6 | 专项 | [`NM-10`](#step-nm-10) | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | `CP-18`、`CP-19`、`NM-06`、`NM-09` | ⏳ | [专项卡](#step-nm-10) |
 | 467 | W6 | 专项 | [`NM-11`](#step-nm-11) | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | `NM-09`、`NM-10` | ⏳ | [专项卡](#step-nm-11) |
 | 468 | W6 | 专项 | [`NM-12`](#step-nm-12) | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | `P2-K7-01`、`NM-04`、`NM-09` | ⏳ | [专项卡](#step-nm-12) |

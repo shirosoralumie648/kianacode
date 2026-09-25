@@ -82,6 +82,19 @@ proof-level change: `feature_status=implemented`（bounded outbox source contrac
 limitations: 内存 adapter 不证明 durable/restart/cross-process CAS；submitted expired 只生成 Unknown/reconcile plan，不自动 retry；未实现真实 shutdown drain、NotificationStore/query/page、in-app/Web/Desktop/OS channel、external receipt/provider/connector 或 physical/live delivery；CI 结果未等待
 reviewer: Codex NM-08 source review；检查 outbox identity/content/attempt/revision/lease token/authority epoch/expiry/receipt fence、stale worker/reclaim/Unknown ordering、worker no-effect/no-second-loop 与 memory-only proof ceiling；无本地 runtime test reviewer
 
+### NM-09 in-process/in-app NotificationStore query/page（2026-09-25）
+
+source_snapshot: `e90e14e2`（NM-08 已合并 master 基线）加 NM-09 source slice；`kiana-core/src/{notification_store.rs,notification_materializer.rs,lib.rs}`；`kiana-core/tests/{nm09_notification_store.rs,nm09_notification_store_guard.rs,fixtures/nm09-notification-store.json}`；`.github/workflows/nm09-notification-store.yml`; `docs/roadmap/nm09-notification-store-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm09-notification-store-20260925`;新增 committed-only `NotificationStore`，绑定 materializer source cursor，recipient-scoped bounded page(≤30)，empty/unavailable/stale/unknown cursor distinction，process-local read/ack projection mutation；不复制 HumanTask/Approval status、不删除历史、不写 EventLog、不调用 Broker/Runner、不把 read/ACK 当 approval/retry/cancel/resume
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm09_notification_store --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm09_notification_store_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm09-notification-store.json`、committed materialization/query fixture/source guard；foreign recipient, page cap, stale/unknown cursor, unavailable-vs-empty, idempotent read/ACK, no authority/effect mutation；无 durable read state、cross-process rebuild、NM-10 action command、Web/SSE/Desktop channel 或 external receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 store fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-09 bounded NotificationStore query/page、projection-only read/ACK、CI fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（committed-only projection source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: NotificationStore 为进程内可重建展示 projection，不证明 durable/cross-process read state、retention/withdraw/urgency、action command、SSE/Web/Desktop/OS delivery、provider/connector/external effect 或 live/physical proof；CI 结果未等待
+reviewer: Codex NM-09 source review；检查 materializer-only source、recipient scope、page bound/cursor digest、unavailable/empty distinction、read/ACK idempotency/clock fence、no task-status mutation/no EventLog/Broker/Runner/no second loop；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
