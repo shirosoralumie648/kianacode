@@ -395,7 +395,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`rate_limit_queue_is_bounded_and_fair`、`failed_attempt_releases_provider_permit`、`allowed_fallback_has_its_own_route_and_usage_receipt`。
 - **退出 / 证据**：退避不占网络槽；同一 API key 的多个别名不绕过配额；断路器状态是派生健康信息，不能授权执行。
 
-- **已实现切片（CI 待跑）**：Provider connection aliases now share a bounded waiter semaphore and circuit breaker keyed by provider/origin/credential scope; transport rejects queue overflow before network, releases the waiter slot after capacity acquisition/cancellation, and records only typed transport/rejection failures against the breaker. `FallbackRoutePlan` requires fresh capability/data/budget digest matches and cannot reuse a primary permit. See [baseline](p4-j7-25-capacity-fallback-baseline.md).
+- **已实现切片（CI 待跑）**：Provider connection aliases now share a bounded waiter semaphore and circuit breaker keyed by provider/origin/credential scope; transport rejects queue overflow before network, releases the waiter slot after capacity acquisition/cancellation, and records only typed transport/rejection failures against the breaker. A half-open probe dropped by cancellation or an unclassified result now reopens the breaker for a fresh cooldown instead of leaving its probe fence stuck. `FallbackRoutePlan` requires fresh capability/data/budget digest matches and cannot reuse a primary permit. See [baseline](p4-j7-25-capacity-fallback-baseline.md).
 
 <a id="step-p4-j7-26"></a>
 

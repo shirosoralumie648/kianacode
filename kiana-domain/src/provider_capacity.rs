@@ -1127,6 +1127,27 @@ impl ProviderCircuitBreaker {
         self.validate()
     }
 
+    /// A half-open probe that is cancelled or otherwise ends without a classifiable observation
+    /// must not leave the breaker permanently busy. Reopen it for a fresh cooldown rather than
+    /// treating the unobserved request as success.
+    pub fn abandon_probe(&mut self, now_unix_ms: u64) -> Result<(), String> {
+        self.validate()?;
+        if now_unix_ms == 0 {
+            return Err("provider_circuit_clock_invalid".to_owned());
+        }
+        if self.state != ProviderCircuitState::HalfOpen || !self.half_open_probe_in_flight {
+            return Err("provider_circuit_probe_not_in_flight".to_owned());
+        }
+        let open_until_unix_ms = now_unix_ms
+            .checked_add(self.open_duration_ms)
+            .ok_or_else(|| "provider_circuit_open_until_overflow".to_owned())?;
+        self.state = ProviderCircuitState::Open;
+        self.open_until_unix_ms = Some(open_until_unix_ms);
+        self.half_open_probe_in_flight = false;
+        self.health_digest = self.digest();
+        self.validate()
+    }
+
     /// Configuration changes reset derived health.  Health never authorizes a request by itself.
     pub fn reset_for_config(&mut self, config_revision: impl Into<String>) -> Result<(), String> {
         let revision = config_revision.into();
