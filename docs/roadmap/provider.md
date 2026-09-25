@@ -380,7 +380,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`cumulative_cache_and_reasoning_usage_is_not_double_counted`、`failed_attempt_usage_is_retained`、`replayed_usage_is_settled_once`。
 - **退出 / 证据**：重试增加成本可解释；Receipt 显示未知项；不把本机 GPU 调用的外部费用默认为零，也不宣称模型 token 统计等于账单。
 
-- **已实现切片（CI 待跑）**：`ProviderUsageSettlement` 绑定 server-owned provider/model/route、attempt/run、最终 `NormalizedUsage`、idempotency digest 与 observed timestamp；`SettlementCost` 明确区分 unknown、RateCard version-bound estimated 和 provider receipt-bound measured；attempt-local ledger 对相同 digest 幂等、对冲突结算拒绝。Provider adapter 将已准入的 `ModelReply` 归一化为缺失保留 unknown 的 provider observation，不能自行授权预算或写 EventLog。实现与限制见 [baseline](p4-j7-24-usage-settlement-baseline.md)。
+- **已实现切片（CI 待跑）**：`ProviderUsageSettlement` 绑定 server-owned provider/model/route、attempt/run、最终 `NormalizedUsage`、idempotency digest 与 observed timestamp；提供显式 server-owned `ExecutionId` 构造入口并拒绝 nil identity。`SettlementCost` 明确区分 unknown、RateCard version-bound estimated 和 provider receipt-bound measured；attempt-local ledger 对相同 digest 幂等、对冲突结算拒绝。Provider adapter 将已准入的 `ModelReply` 归一化为缺失保留 unknown 的 provider observation，不能自行授权预算或写 EventLog。ExecutionId 目前仅有 domain value seam，尚不声称生产 ControlPlane/EventStore 调用已接通。实现与限制见 [baseline](p4-j7-24-usage-settlement-baseline.md)。
 
 <a id="step-p4-j7-25"></a>
 

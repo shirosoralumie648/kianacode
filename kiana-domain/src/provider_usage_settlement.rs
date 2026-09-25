@@ -17,8 +17,12 @@ pub const PROVIDER_USAGE_SETTLEMENT_VERSION: SchemaVersion = SchemaVersion::new(
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum SettlementCost {
-    Unknown { reason: BillingUnknownReason },
-    Estimated { estimate: CostEstimate },
+    Unknown {
+        reason: BillingUnknownReason,
+    },
+    Estimated {
+        estimate: CostEstimate,
+    },
     Measured {
         amount: Money,
         provider_receipt: ProviderReceiptRef,
@@ -144,6 +148,25 @@ impl ProviderUsageSettlement {
         Ok(result)
     }
 
+    /// Bind a server-owned execution identity when the authoritative admission layer has one.
+    /// Provider response data is never an input to this binding.
+    pub fn from_usage_with_execution_id(
+        usage: &NormalizedUsage,
+        execution_id: crate::ExecutionId,
+        rate_card: Option<&RateCard>,
+        request_count: u64,
+        observed_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        if execution_id.as_uuid().is_nil() {
+            return Err("provider_usage_execution_id_invalid".to_owned());
+        }
+        let mut result = Self::from_usage(usage, rate_card, request_count, observed_at_unix_ms)?;
+        result.execution_id = Some(execution_id);
+        result.settlement_digest = result.digest();
+        result.validate()?;
+        Ok(result)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != PROVIDER_USAGE_SETTLEMENT_SCHEMA
             || !self
@@ -152,6 +175,9 @@ impl ProviderUsageSettlement {
             || self.usage_id.as_uuid().is_nil()
             || self.attempt_id.as_uuid().is_nil()
             || self.run_id.as_uuid().is_nil()
+            || self
+                .execution_id
+                .is_some_and(|execution_id| execution_id.as_uuid().is_nil())
             || self.provider_id.trim().is_empty()
             || self.provider_id.len() > 256
             || self.requested_model_id.trim().is_empty()
