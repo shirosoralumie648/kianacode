@@ -26,7 +26,7 @@ large provider delta from turning the browser buffer into an unbounded stream.
 |---|---|
 | listener ordering | Event listeners are installed before `onopen` can release the snapshot-first caller; the `/api/run` command is sent only by the explicit turn submission path |
 | cursor | `epoch:sequence` is server-owned; duplicate IDs are ignored, sequence gaps and old epochs trigger hydration, and invalid/conflicting cursors are rejected |
-| control frames | explicit bounded heartbeat; gap/error carry schema, epoch, sequence and `hydrate=true`; terminal closes the display stream and remains receipt-authoritative |
+| control frames | explicit bounded heartbeat; gap/error and oversized-frame fallbacks carry schema, epoch, sequence and `hydrate=true`; terminal closes the display stream and remains receipt-authoritative |
 | browser reconnect | six attempts maximum with 250 ms exponential backoff capped at 8 s; reconnect only recreates EventSource and carries the last cursor, never `/api/run`, `/api/cancel` or another side-effect command |
 | gap recovery | the browser closes the stale listener, requests a fresh server snapshot and resumes only after hydration; incomplete display never becomes completed execution |
 | secret boundary | the Web token is accepted only by the existing loopback auth path; SSE data, event IDs, browser history and diagnostics never contain the token |

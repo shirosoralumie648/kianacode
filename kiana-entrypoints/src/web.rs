@@ -2721,7 +2721,15 @@ fn stream_cursor_from_request(
 }
 
 fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
-    let data = bounded_sse_data(serde_json::to_string(envelope), "stream_serialize_failed");
+    let cursor = UiCursor {
+        epoch: envelope.epoch.clone(),
+        sequence: envelope.sequence,
+    };
+    let data = bounded_sse_data(
+        serde_json::to_string(envelope),
+        "stream_serialize_failed",
+        &cursor,
+    );
     Event::default()
         .id(format!("{}:{}", envelope.epoch, envelope.sequence))
         .event(name)
@@ -2797,16 +2805,29 @@ fn stream_event_id(cursor: &UiCursor) -> String {
     }
 }
 
-fn bounded_sse_data(serialized: Result<String, serde_json::Error>, error_prefix: &str) -> String {
+fn bounded_sse_data(
+    serialized: Result<String, serde_json::Error>,
+    error_prefix: &str,
+    cursor: &UiCursor,
+) -> String {
     match serialized {
         Ok(data) if data.len() <= MAX_WEB_SSE_EVENT_BYTES => data,
         Ok(_) => json!({
             "schema": WEB_SSE_SCHEMA,
+            "epoch": cursor.epoch.clone(),
+            "sequence": cursor.sequence,
             "error": "stream_payload_too_large",
             "hydrate": true,
         })
         .to_string(),
-        Err(error) => json!({ "schema": WEB_SSE_SCHEMA, "error": format!("{error_prefix}:{error}"), "hydrate": true }).to_string(),
+        Err(error) => json!({
+            "schema": WEB_SSE_SCHEMA,
+            "epoch": cursor.epoch.clone(),
+            "sequence": cursor.sequence,
+            "error": format!("{error_prefix}:{error}"),
+            "hydrate": true,
+        })
+        .to_string(),
     }
 }
 
