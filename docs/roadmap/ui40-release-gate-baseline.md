@@ -9,6 +9,9 @@ without converting their source rows into live or release success.
 The evidence block records `source_snapshot`, `fixture`, `command_argv`, `exit_code`, `proof_level`
 and `limitations` for every case; missing or drifted fields fail closed.
 
+Evidence command arguments use a marker boundary scan for API keys, client/access/refresh tokens,
+authorization, bearer, password, private key and secret forms, including hyphenated CLI flags.
+
 The protocol now provides `UiEvidenceCase` and `UiEvidenceBundle`. Each case binds a shared source
 snapshot, command argv without raw secrets, fixture/environment digests, exit classification,
 feature status, proof level, receipt/artifact references, limitations and reviewer; the bundle
