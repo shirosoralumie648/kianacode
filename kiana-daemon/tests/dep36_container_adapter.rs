@@ -2,6 +2,7 @@ use kiana_daemon::container_environment::{
     ContainerEnvironmentAdapter, ContainerExecOperation, ContainerLaunchConfig, ContainerProbeKind,
     ContainerProbeRequest, CONTAINER_STOP_SIGNAL,
 };
+use serde_json::json;
 use std::collections::BTreeMap;
 
 const IMAGE: &str =
@@ -53,4 +54,21 @@ fn lifecycle_probe_kinds_keep_startup_inspect_only() {
         ContainerProbeRequest::liveness(operation).kind,
         ContainerProbeKind::Liveness
     );
+}
+
+#[test]
+fn container_wire_shapes_reject_unknown_fields() {
+    let mut operation = serde_json::to_value(ContainerExecOperation {
+        argv: vec![String::from("/bin/true")],
+        cwd: String::from("/workspace"),
+        environment: BTreeMap::new(),
+        timeout_ms: 1_000,
+    })
+    .expect("encode operation");
+    operation["unexpected"] = json!(true);
+    assert!(serde_json::from_value::<ContainerExecOperation>(operation).is_err());
+
+    let mut launch = serde_json::to_value(config()).expect("encode launch config");
+    launch["unexpected"] = json!(true);
+    assert!(serde_json::from_value::<ContainerLaunchConfig>(launch).is_err());
 }
