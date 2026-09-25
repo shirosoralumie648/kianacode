@@ -18,6 +18,7 @@ mod cli_contract;
 mod cli_presenter;
 mod acp;
 mod ide_capability;
+mod surface_parity;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -48,6 +49,10 @@ pub use ide_capability::{
     IdeCapabilityAdapter, IdeCapabilityError, IdeCapabilityPermit, IdeCapabilityRequest, IdeIntent,
     IdeOperation, IDE_CAPABILITY_SCHEMA, IDE_MAX_OUTPUT_BYTES, IDE_MAX_PATH_BYTES,
     IDE_PERMIT_SCHEMA,
+};
+pub use surface_parity::{
+    compare_surface_traces, ParitySurface, SurfaceParityError, SurfaceParityReport, SurfaceTrace,
+    SURFACE_PARITY_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{

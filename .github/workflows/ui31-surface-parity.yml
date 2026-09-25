@@ -1,0 +1,42 @@
+name: UI-31 cross-surface parity contract
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/surface_parity.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui31-parity.json"
+      - "kiana-client/tests/ui31_surface_parity.rs"
+      - "docs/roadmap/ui31-surface-parity-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui31-surface-parity.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/surface_parity.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/fixtures/ui31-parity.json"
+      - "kiana-client/tests/ui31_surface_parity.rs"
+      - "docs/roadmap/ui31-surface-parity-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui31-surface-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui31-surface-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui31_surface_parity --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

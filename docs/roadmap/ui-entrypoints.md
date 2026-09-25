@@ -673,13 +673,19 @@ terminal cancel 只有匹配的未过期 permit 才产生 `UiActionV1`，host �
 
 
 
-#### UI-31 · CLI/Workbench/Web/Desktop 行为 parity　⏳
+#### UI-31 · CLI/Workbench/Web/Desktop 行为 parity　🔄
 
 - 依赖：UI-10–30 中各入口可运行。代码：共享 operation matrix、cross-surface harness。
 - 步骤：用同一 fixture 依次执行 open/status/run/approval/cancel/resume/receipt/export；比较 protocol action、最终 cursor/revision、error code 和 Receipt，而不是比较文案。
 - 先拒绝：某入口绕过 capability、用不同 retry policy、把断线/关闭改写成业务状态、结果字段缺失或敏感字段增多。
 - 成功/回归：同一 command ID 在各 surface 查询结果一致；surface-specific presenter 只改变显示和输入方式。
 - 完成产物：parity matrix、跨入口 trace diff、差异解释和未支持能力清单。
+
+实现基线：[`ui31-surface-parity-baseline.md`](ui31-surface-parity-baseline.md)。当前 source slice 位于
+`kiana-client/src/surface_parity.rs`，要求四个入口提交同一 command/operation/disposition/retry、
+cursor/epoch、revision、receipt/error identity；surface-specific limitation 只做集合并集，不改变
+服务端结果。缺 surface、重复 surface、敏感字段、字段缺失或任何 identity/retry drift 都 fail-closed，
+comparator 只读，不发起 retry、resume、capability 或 effect。
 
 <a id="step-ui-32"></a>
 
