@@ -33,6 +33,9 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
         "result_unknown",
         "ui.action.accepted",
         "ui.action.applied",
+        "ui_action_receipt_digest_invalid",
+        "ui_action_applied_receipt_missing",
+        "ui_action_receipt_state_mismatch",
     ] {
         assert!(
             domain.contains(marker)
@@ -54,7 +57,10 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
         "feature_status",
         "proof_level",
     ] {
-        assert!(baseline.contains(marker), "UI-04 baseline marker missing: {marker}");
+        assert!(
+            baseline.contains(marker),
+            "UI-04 baseline marker missing: {marker}"
+        );
     }
     assert!(core.contains("if !events.supports_atomic_transitions()"));
     assert!(core.contains("result_unknown:ui_action"));

@@ -210,7 +210,7 @@ UiActionResult {
 #### UI-04 · 动作 CAS、idempotency 与响应丢失　🔄
 
 - 依赖：UI-01–03；串接 Event/Receipt §23。代码：ControlPlane action facade、command journal、payload digest。
-- 步骤：为每个 action 绑定 command ID、idempotency key、target、expected epoch/cursor/revision、owner/scope、deadline；持久化 Accepted/Applied/Rejected/Unknown 及原始 digest。
+- 步骤：为每个 action 绑定 command ID、idempotency key、target、expected epoch/cursor/revision、owner/scope、deadline；持久化 Accepted/Applied/Rejected/Unknown 及原始 digest；Applied 必须绑定合法 receipt digest，其他状态拒绝 receipt。
 - 先拒绝：重复 key 不得重复 effect；digest 不同、owner 不同、revision 过期、取消中、旧 epoch、超时和无 permit 必须拒绝或标 Unknown。
 - 成功/回归：模拟 ACK 丢失、进程崩溃、重复请求、并发 CAS 和新旧 payload；query original 能收敛到同一结果，禁止换 ID 自动重做。
 - 完成产物：action journal/adapter、重投策略、effect-count fixture 和 durable proof 记录。

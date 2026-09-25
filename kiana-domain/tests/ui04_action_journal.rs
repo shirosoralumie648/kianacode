@@ -50,12 +50,20 @@ fn action_journal_replays_exact_key_without_second_effect() {
     assert!(replayed);
     assert_eq!(same, accepted);
     let applied = journal
-        .apply(&action.idempotency_key, json_digest(&json!({"receipt":1})), 2_001)
+        .apply(
+            &action.idempotency_key,
+            json_digest(&json!({"receipt":1})),
+            2_001,
+        )
         .unwrap();
     assert_eq!(applied.state, UiActionState::Applied);
     assert_eq!(applied.effect_count, 1);
     let applied_again = journal
-        .apply(&action.idempotency_key, applied.receipt_digest.clone().unwrap(), 2_002)
+        .apply(
+            &action.idempotency_key,
+            applied.receipt_digest.clone().unwrap(),
+            2_002,
+        )
         .unwrap();
     assert_eq!(applied_again.effect_count, 1);
 }
@@ -172,9 +180,61 @@ fn unknown_requires_original_key_and_never_becomes_applied() {
     assert_eq!(unknown.effect_count, 0);
     assert_eq!(
         journal
-            .apply(&action.idempotency_key, json_digest(&json!({"receipt":1})), 1_001)
+            .apply(
+                &action.idempotency_key,
+                json_digest(&json!({"receipt":1})),
+                1_001
+            )
             .unwrap_err(),
         "ui_action_result_unknown"
     );
     assert!(journal.query_original("ui-04-unknown").is_some());
+}
+
+#[test]
+fn action_record_receipt_digest_is_bound_to_applied_state() {
+    let action = command("ui-04-receipt-fence", json!({"decision":"approve"}));
+    let mut journal = UiActionJournal::new();
+    journal
+        .accept(
+            &action,
+            "epoch-1",
+            0,
+            Some(4),
+            "owner-1",
+            &action.scope_digest,
+            1_000,
+        )
+        .unwrap();
+    let accepted = journal
+        .query_original("ui-04-receipt-fence")
+        .cloned()
+        .expect("accepted record");
+    let applied = journal
+        .apply(
+            &action.idempotency_key,
+            json_digest(&json!({"receipt": 1})),
+            1_001,
+        )
+        .unwrap();
+
+    let mut malformed = applied.clone();
+    malformed.receipt_digest = Some("not-a-digest".to_owned());
+    assert_eq!(
+        malformed.validate_for_query().unwrap_err(),
+        "ui_action_receipt_digest_invalid"
+    );
+
+    let mut missing = applied;
+    missing.receipt_digest = None;
+    assert_eq!(
+        missing.validate_for_query().unwrap_err(),
+        "ui_action_applied_receipt_missing"
+    );
+
+    accepted.receipt_digest = Some(json_digest(&json!({"receipt": 2})));
+    assert_eq!(
+        accepted.validate_for_query().unwrap_err(),
+        "ui_action_receipt_state_mismatch"
+    );
 }

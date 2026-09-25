@@ -12,7 +12,7 @@
 | proof_level | `source`；GitHub-only fixture wiring，未提升为 local_behavior/durable/live/physical |
 | canonical path | UI command → UiActionCommand validation → ControlPlane `admit_ui_action` → EventStore CAS → effect receipt → `apply_ui_action` / reject / Unknown → `query_original_ui_action` |
 
-UI-04 固定 command ID、idempotency key、target、owner/scope、authority epoch、cursor、target revision、deadline、permit、payload digest 和 command digest。取消中的 action 或无 permit 在 ControlPlane admission 处拒绝。`UiActionJournal` 只做确定性状态折叠，不执行副作用；ControlPlane action facade 是唯一持久化入口。
+UI-04 固定 command ID、idempotency key、target、owner/scope、authority epoch、cursor、target revision、deadline、permit、payload digest 和 command digest。Applied record 必须携带合法 receipt digest，Accepted/Rejected/Unknown 不得携带 receipt；取消中的 action 或无 permit 在 ControlPlane admission 处拒绝。`UiActionJournal` 只做确定性状态折叠，不执行副作用；ControlPlane action facade 是唯一持久化入口。
 
 ## 2. Failure-first fixture matrix
 
@@ -21,6 +21,7 @@ UI-04 固定 command ID、idempotency key、target、owner/scope、authority epo
 | `action_journal_replays_exact_key_without_second_effect` | 相同 key+digest 返回原记录；重放不增加 `effect_count`，Applied 只计一次 |
 | `action_journal_rejects_changed_digest_owner_scope_and_cas` | payload/digest、owner、epoch、cursor、revision 不匹配拒绝 |
 | `unknown_requires_original_key_and_never_becomes_applied` | ACK 丢失/Unknown 保持 Unknown；不得用新 ID 自动重做；只能 query original |
+| `action_record_receipt_digest_is_bound_to_applied_state` | 缺失、非法或出现在非 Applied 状态的 receipt digest 拒绝 |
 | `ui04_action_journal_guard` | ControlPlane 使用 EventStore `commit_transition`、CAS 和结构化 Unknown，daemon 不创建第二执行循环 |
 
 ## 3. Durable boundary and limitations
