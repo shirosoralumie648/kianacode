@@ -23,7 +23,7 @@ The existing Workbench controller and typed client remain responsible for comman
 
 | Surface | Contract | Deny-first behavior |
 |---|---|---|
-| Human inbox | `WorkbenchInboxCard` and `WorkbenchInbox` | bounded cards/fields, stable action IDs, reason/scope/expiry/fields/allowed decisions visible; duplicate cards rejected |
+| Human inbox | `WorkbenchInboxCard` and `WorkbenchInbox` | bounded cards/fields, stable action IDs, reason/scope/expiry/fields/allowed decisions visible; canonical payload digest must match the retained payload; duplicate cards rejected |
 | Approval decision | `prepare_decision` → `WorkbenchInboxDecision` | expired/revoked card, stale revision, disallowed decision and client payload mutation are rejected before an action exists |
 | Diff/artifact | `ArtifactPage` → `ArtifactViewer` | server `ArtifactRef`, page digest, page bounds, complete digest and expected revision are checked; path/URL fetching is absent |
 | Receipt | `WorkbenchReceipt` | files, cost confidence, `ResultUnknown`, limitations and provenance stay explicit; unknown cannot be green completed |

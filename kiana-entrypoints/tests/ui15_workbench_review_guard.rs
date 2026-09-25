@@ -10,6 +10,8 @@ fn workbench_review_is_a_display_and_validation_boundary() {
         "allowed_decisions",
         "ArtifactRef",
         "artifact_page_digest_mismatch",
+        "inbox_payload_digest_mismatch",
+        "json_digest(&self.payload)",
         "artifact_revision_mismatch",
         "ReceiptFile",
         "ReceiptCost",

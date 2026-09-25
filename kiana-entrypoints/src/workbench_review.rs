@@ -7,8 +7,8 @@
 //! existing `WorkbenchController` and `DaemonHost -> ControlPlane` path.
 
 use kiana_protocol::{
-    ArtifactRef, ArtifactVersion, ExecutionStatus, HumanActionCard, RequestId, RunId, UiActionV1,
-    UI_ACTION_SCHEMA,
+    json_digest, ArtifactRef, ArtifactVersion, ExecutionStatus, HumanActionCard, RequestId, RunId,
+    UiActionV1, UI_ACTION_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -163,10 +163,13 @@ impl WorkbenchInboxCard {
                 return Err("inbox_allowed_decision_duplicate".to_owned());
             }
         }
-        // The client never gets to replace the server payload with a locally edited object.  The
-        // wire digest is still checked for shape here; ControlPlane performs the authoritative
-        // digest and policy check when the action is submitted.
+        // The client never gets to replace the server payload with a locally edited object. The
+        // presenter also rejects a card whose retained payload disagrees with its wire digest;
+        // ControlPlane remains authoritative for policy and approval consumption.
         digest(&self.payload_digest, "inbox_payload_digest")?;
+        if self.payload_digest != json_digest(&self.payload) {
+            return Err("inbox_payload_digest_mismatch".to_owned());
+        }
         if serde_json::to_vec(&self.payload)
             .map(|bytes| bytes.len() > 128 * 1024)
             .unwrap_or(true)

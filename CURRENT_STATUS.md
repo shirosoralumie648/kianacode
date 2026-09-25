@@ -586,6 +586,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: controller remains process-local intent state; no live typed-client transport, server authorization, EventLog append, response-loss recovery or provider/tool effect proof
 reviewer: Codex UI-14 source review; checked target/idempotency bounds, digest validation handoff and display-only controller boundary; no local runtime test reviewer
 ```
+
+### UI-15 Inbox payload digest evidence (2026-09-26)
+
+```text
+source_snapshot: base `9529fd01` plus UI-15 Workbench review slice; `kiana-entrypoints/src/workbench_review.rs`; `kiana-entrypoints/tests/ui15_workbench_review.rs`; `kiana-entrypoints/tests/ui15_workbench_review_guard.rs`; UI-15 baseline/roadmap overlays
+worktree_status: `WorkbenchInboxCard::validate` now compares `payload_digest` with canonical `json_digest(payload)` before a card can be presented or a decision intent prepared; no approval consumption, filesystem, transport or execution path changed
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/workbench_review.rs kiana-entrypoints/tests/ui15_workbench_review.rs kiana-entrypoints/tests/ui15_workbench_review_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui15_workbench_review --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui15_workbench_review_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only tampered Inbox payload digest is rejected as `inbox_payload_digest_mismatch`; the valid card uses the canonical JSON digest and retains expiry/revision/payload mutation deny cases; no provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-15 presenter now rejects internally inconsistent approval cards before display/decision preparation; card remains 🔄 pending CI evidence and durable/live proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: digest equality is a source-side projection fence, not ControlPlane approval or EventLog evidence; no durable artifact store, browser, provider, filesystem or external effect proof
+reviewer: Codex UI-15 source review; checked canonical payload digest, approval deny-first ordering and display-only boundary; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
