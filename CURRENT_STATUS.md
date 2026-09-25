@@ -691,6 +691,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: this strengthens the Web mutation boundary but does not provide owner refresh handoff, token rotation runtime proof or durable lease/submission storage; no browser/HTTP/provider effect proof
 reviewer: Codex UI-19 source review; checked required action identity, CAS ordering, owner/replay fence and no-close-cancel path; no local runtime test reviewer
 ```
+
+### UI-20 protected timeline-window evidence (2026-09-26)
+
+```text
+source_snapshot: base `75c44b2a` plus UI-20 Web timeline bound slice; `kiana-entrypoints/src/web_page.html`; `kiana-entrypoints/tests/fixtures/ui20-web-timeline.json`; `kiana-entrypoints/tests/ui20_web_timeline.rs`; `kiana-entrypoints/tests/ui20_web_timeline_guard.rs`; UI-20 baseline/roadmap overlays
+worktree_status: append path now checks the hard 512-item cap before adding when no ordinary item is removable; existing pending/unknown entries remain protected and the visible state becomes partial/limit
+command_argv:
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui20_web_timeline --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui20_web_timeline_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; documentation/fixture/source-only change plus whitespace check; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `protected_overflow_stays_bounded` source fixture; no browser/HTTP/provider/network effect
+exit_code: 0 for `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-20 all-protected timeline overflow is now bounded and visibly partial instead of growing past the hard item cap; card remains 🔄 pending CI evidence and browser/golden proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: overflow item is deferred until hydrate/history pagination; no browser screenshot/golden, long-stream timing, cross-process cache, provider or physical proof
+reviewer: Codex UI-20 source review; checked typed kind mapping, text-only DOM rendering, stable IDs, protected-item retention and hard overflow behavior; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

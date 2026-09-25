@@ -917,6 +917,15 @@
     function appendTimelineItem(item, state = null) {
       const normalized = normalizeServerTimelineItem(item);
       const existing = timelineProjection.items.has(normalized.id);
+      const hasRemovable = timelineProjection.order.some(key => {
+        const current = timelineProjection.items.get(key);
+        return current && !current.pending && !TIMELINE_PROTECTED_KINDS.has(current.kind);
+      });
+      if (!existing && timelineProjection.order.length >= TIMELINE_MAX_ITEMS && !hasRemovable) {
+        setTimelineState('partial', '时间线达到上限；保留 pending/unknown，等待 hydrate 或历史分页。');
+        renderTimelineProjection();
+        return normalized.id;
+      }
       timelineProjection.items.set(normalized.id, normalized);
       if (!existing) timelineProjection.order.push(normalized.id);
       trimTimelineProjection();

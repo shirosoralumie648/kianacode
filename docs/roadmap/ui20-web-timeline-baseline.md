@@ -42,11 +42,14 @@ TIMELINE_MAX_ITEMS   = 512 retained projection items
 TIMELINE_MAX_BODY_BYTES = 16 KiB per item
 ```
 
-Windowing keeps all `pending` and `unknown` items in the visible projection even when older
-history is paged away. Loading, partial/offline and replay states are explicit status nodes. A
-replay projection is marked as history and cannot be promoted to a live run by the renderer. The
-existing UI-17 hydrate cache, UI-18 SSE gap/reconnect state and UI-19 tab/session scope remain the
-source of those boundaries; this slice only renders their state.
+Windowing keeps all retained `pending` and `unknown` items in the visible projection even when
+older history is paged away. If the projection is full of protected items, a new item is not added
+past the hard 512-item bound; the renderer exposes `partial`/limit state and waits for hydrate or
+history pagination rather than silently evicting a protected item. Loading, partial/offline and
+replay states are explicit status nodes. A replay projection is marked as history and cannot be
+promoted to a live run by the renderer. The existing UI-17 hydrate cache, UI-18 SSE gap/reconnect
+state and UI-19 tab/session scope remain the source of those boundaries; this slice only renders
+their state.
 
 ## Failure-first and parity matrix
 
@@ -55,7 +58,7 @@ source of those boundaries; this slice only renders their state.
 | typed kind fixture | delta/tool/approval/error/unknown/terminal remain distinct |
 | content safety guard | XSS-shaped body is a text node; no `innerHTML` timeline insertion |
 | identity guard | server item ID is the render key; array index is not used |
-| bounded window guard | pending and unknown survive the recent window; old ordinary items are bounded |
+| bounded window guard | pending and unknown survive the recent window; old ordinary items are bounded; an all-protected overflow remains capped and visible as partial |
 | state/replay guard | loading, partial, replay and offline remain visible; replay is not live authority |
 | execution boundary guard | renderer only consumes shared state and does not create an execution loop or resubmit reconnect commands |
 

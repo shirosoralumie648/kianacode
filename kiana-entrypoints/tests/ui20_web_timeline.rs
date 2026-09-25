@@ -35,6 +35,7 @@ fn ui20_fixture_captures_typed_server_kinds_and_bounded_states() {
         "array_index_render_key",
         "window_drops_pending",
         "window_drops_unknown",
+        "protected_overflow_stays_bounded",
         "replay_promoted_to_live",
         "timeline_starts_execution_loop",
     ] {

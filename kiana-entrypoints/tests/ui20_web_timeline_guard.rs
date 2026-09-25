@@ -49,6 +49,13 @@ fn ui20_window_keeps_pending_and_unknown_visible() {
     assert!(trim.contains("!item.pending"));
     assert!(trim.contains("!TIMELINE_PROTECTED_KINDS.has(item.kind)"));
     assert!(!trim.contains("order.shift()"));
+    let append = page
+        .split("function appendTimelineItem(")
+        .nth(1)
+        .and_then(|rest| rest.split("function replaceTimelineFromServer").next())
+        .expect("timeline append boundary");
+    assert!(append.contains("timelineProjection.order.length >= TIMELINE_MAX_ITEMS"));
+    assert!(append.contains("保留 pending/unknown"));
 }
 
 #[test]
