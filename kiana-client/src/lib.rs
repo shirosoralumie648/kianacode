@@ -23,6 +23,7 @@ mod ui_recovery;
 mod ui_budget;
 mod legacy_migration;
 mod conformance;
+mod live_acp;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -73,6 +74,11 @@ pub use legacy_migration::{
 pub use conformance::{
     compare_conformance, ConformanceError, ConformanceReport, ConformanceTrace,
     UI_CONFORMANCE_SCHEMA,
+};
+pub use live_acp::{
+    LiveAcpError, LiveAcpOptIn, LiveAcpSession, LiveAcpState, LiveAcpTransport,
+    LIVE_ACP_MAX_CAPABILITIES, LIVE_ACP_MAX_HOST_ID_BYTES, LIVE_ACP_MAX_HOST_VERSION_BYTES,
+    LIVE_ACP_OPT_IN_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{

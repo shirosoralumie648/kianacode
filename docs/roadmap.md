@@ -908,7 +908,7 @@
 | 730 | W11 | 专项 | [`P4-J7-31`](roadmap/provider.md#step-p4-j7-31) | Provider · 逐协议、逐连接 live 验收与迁移收口 | `P4-J7-30` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-31) |
 | 731 | W11 | 专项 | [`CM-38`](roadmap/context-memory.md#step-cm-38) | Context / Memory · End-to-end fake Provider / live opt-in evidence | `CM-33`、`CM-34`、`CM-35`、`CM-36`、`CM-37` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-38) |
 | 732 | W11 | 专项 | [`CM-39`](roadmap/context-memory.md#step-cm-39) | Context / Memory · 文档、状态和交接收口 | `CM-38` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-39) |
-| 733 | W11 | 专项 | [`UI-39`](roadmap/ui-entrypoints.md#step-ui-39) | UI / Entrypoints · live ACP/IDE opt-in 验证 | `UI-29`、`UI-30`、`UI-33`、`UI-38` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-39) |
+| 733 | W11 | 专项 | [`UI-39`](roadmap/ui-entrypoints.md#step-ui-39) | UI / Entrypoints · live ACP/IDE opt-in 验证 | `UI-29`、`UI-30`、`UI-33`、`UI-38` | 🔄 | [专项卡](roadmap/ui-entrypoints.md#step-ui-39) · [baseline](roadmap/ui39-live-acp-baseline.md) |
 | 734 | W11 | 专项 | [`UI-40`](roadmap/ui-entrypoints.md#step-ui-40) | UI / Entrypoints · 发布门与证据收口 | `UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37`、`UI-38`、`UI-39` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-40) |
 | 735 | W11 | 专项 | [`UI-41`](roadmap/ui-entrypoints.md#step-ui-41) | UI / Entrypoints · 交接、审查和后续缺口 | `UI-40` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-41) |
 | 736 | W11 | 专项 | [`CO-48`](roadmap/companyos.md#step-co-48) | CompanyOS · 真实模型闭环验证、文档回填与交接 | `CO-47` | ⏳ | [专项卡](roadmap/companyos.md#step-co-48) |

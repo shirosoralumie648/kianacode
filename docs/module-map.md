@@ -226,10 +226,10 @@ CLI / TTY Workbench / Web / Electron Desktop / ACP-IDE client adapter
 | TTY Workbench | `workbench_chat` + same `DaemonHost` | 输入/状态/取消 intent；不自建 runner | token streaming/live |
 | Web | `web.rs`/`web_page.html` + typed snapshot/feed/action | loopback auth、hydrate/SSE、action CAS；浏览器缓存是展示层 | SSE/HTML 是事实源或授权 |
 | Desktop | `contrib/desktop` + Web worker readiness/IPC | workspace/attach/tray/persistence/notification intent；OS shell 不执行 Kiana capability | Electron attach 等于 production package/physical proof |
-| ACP/IDE | `kiana-client::{acp,ide_capability}` | fake/source session、UiAction、host capability delegation；direct effect=false | live IDE/editor/terminal/provider effect |
+| ACP/IDE | `kiana-client::{acp,live_acp,ide_capability}` | explicit opt-in source session、UiAction、host capability delegation；local transport metadata；direct effect=false | external live IDE/editor/terminal/provider effect、source/CI 等于 live |
 
 状态、证据和限制的唯一权威仍是 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md)。`feature_status` 与
-`proof_level` 分开填写；UI-26–36 当前 source/CI slices 不把 CI 未观察、类型存在、单次 smoke、
+`proof_level` 分开填写；UI-26–39 当前 source/CI slices 不把 CI 未观察、类型存在、单次 smoke、
 Receipt 或 presenter 输出提升为 `local_behavior`、`durable`、`live` 或 `physical`。任何新 adapter
 都只能返回 typed query/intent，不能在 surface 里复制 policy、EventLog、Broker 或模型循环。
 

@@ -1,7 +1,7 @@
-# Kiana 入口 Runbook（UI-37）
+# Kiana 入口 Runbook（UI-39 source boundary）
 
-本页是当前入口的操作地图，不把设计目标或类型存在写成运行时事实。当前 UI-29/30 仍是
-source + GitHub CI fixture；真实 ACP/IDE 连接要等 UI-39 的显式 opt-in。
+本页是当前入口的操作地图，不把设计目标或类型存在写成运行时事实。UI-29/30/39 当前是
+source + GitHub CI fixture；真实 ACP/IDE host 连接仍需显式 opt-in 和独立 live evidence。
 
 ## 唯一执行脊柱
 
@@ -26,7 +26,7 @@ CLI / TTY Workbench / Web / Electron Desktop / ACP adapter
 | TTY Workbench | `kiana`; `/sandbox read-only|workspace-write`; `Esc`/`Ctrl-C` | 复用同一 DaemonHost；输入/状态是展示层；不声称 token streaming/live |
 | Web | `kiana web --no-open --bind 127.0.0.1:3080` | loopback Host/Origin/token；snapshot→SSE→hydrate；Unknown/gap 需查原 Receipt |
 | Desktop | `bash scripts/install-desktop.sh`; 选择 Open/New/Continue；托盘 Keep/Quit | UI-24–28 typed IPC、sidecar/readiness、metadata-only persistence；关闭不隐式 cancel/resume/trust/approve |
-| ACP/IDE | 当前仅 `kiana-client` fake-peer/source contract | UI-29/30 不连接真实 host、不 spawn、不拥有 permit；UI-39 才能显式 opt-in |
+| ACP/IDE | `kiana-client::LiveAcpSession` source contract | UI-39 固定 IDE/ACP/approval/local transport/redaction；adapter 不连接 host、不 spawn、不拥有 permit，外部 live receipt 仍未观察 |
 
 ## 统一失败处理
 
@@ -41,7 +41,7 @@ CLI / TTY Workbench / Web / Electron Desktop / ACP adapter
 ## 证据口径
 
 - `feature_status=implemented` 只表示本切片源码和 CI wiring 已接入。
-- `proof_level=source` 表示当前 UI-26–35 contracts/fixtures 的边界；不等于 local_behavior、durable、
+- `proof_level=source` 表示当前 UI-26–39 contracts/fixtures 的边界；不等于 local_behavior、durable、
   live 或 physical。
 - GitHub Actions 是本项目测试/build/check 的权威；本次工作约定不在本地运行测试，不等待 CI。
 - 真实 browser/PTY/Electron、多进程 EventLog recovery、provider/connector external effect、签名包、

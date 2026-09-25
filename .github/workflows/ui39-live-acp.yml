@@ -8,6 +8,11 @@ on:
       - "kiana-protocol/src/ui_contracts.rs"
       - "kiana-protocol/tests/ui39_live_acp.rs"
       - "kiana-client/src/lib.rs"
+      - "kiana-client/src/acp.rs"
+      - "kiana-client/src/live_acp.rs"
+      - "kiana-client/tests/fixtures/ui39-live-acp-opt-in.json"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "scripts/verify-ui39-live-acp-opt-in.sh"
       - "kiana-daemon/src/lib.rs"
       - "kiana-entrypoints/src/web.rs"
       - "kiana-entrypoints/src/workbench_chat.rs"
@@ -25,6 +30,11 @@ on:
       - "kiana-protocol/src/ui_contracts.rs"
       - "kiana-protocol/tests/ui39_live_acp.rs"
       - "kiana-client/src/lib.rs"
+      - "kiana-client/src/acp.rs"
+      - "kiana-client/src/live_acp.rs"
+      - "kiana-client/tests/fixtures/ui39-live-acp-opt-in.json"
+      - "kiana-client/tests/ui39_live_acp_opt_in.rs"
+      - "scripts/verify-ui39-live-acp-opt-in.sh"
       - "kiana-daemon/src/lib.rs"
       - "kiana-entrypoints/src/web.rs"
       - "kiana-entrypoints/src/workbench_chat.rs"
@@ -50,7 +60,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fetch --locked
       - run: cargo fmt --all --check
+      - name: Run UI-39 opt-in preflight fixture
+        env:
+          KIANA_UI39_OPT_IN: "1"
+          KIANA_UI39_PROTOCOL: acp.v1
+          KIANA_UI39_HOST_ID: editor-host
+          KIANA_UI39_HOST_VERSION: 1.2.3
+          KIANA_UI39_ENVIRONMENT_DIGEST: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          KIANA_UI39_WORKSPACE_DIGEST: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          KIANA_UI39_APPROVAL_REF: approval:ui39-ci
+          KIANA_UI39_TRANSPORT: local_stdio
+          KIANA_UI39_REDACTED: "1"
+        run: bash scripts/verify-ui39-live-acp-opt-in.sh
       - name: Run UI-39 protocol evidence fixture
         run: cargo test -p kiana-protocol --test ui39_live_acp --locked -- --test-threads=1
+      - name: Run UI-39 client opt-in fixture
+        run: cargo test -p kiana-client --test ui39_live_acp_opt_in --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

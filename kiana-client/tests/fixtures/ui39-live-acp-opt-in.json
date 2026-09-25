@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.live-acp-opt-in-fixture.v1",
+  "accepted": [
+    "explicit IDE opt-in with approval reference, local transport and redacted payloads",
+    "fixed ACP protocol/host/workspace identity routes through the shared adapter",
+    "initialize/session/prompt/update/permission/cancel/reconnect evidence remains typed"
+  ],
+  "denied": [
+    "missing opt-in or operator approval",
+    "remote transport, raw credential or unredacted host payload",
+    "protocol/host version drift, direct host effect or capability delegation failure",
+    "feed gap, disconnect or late host result without server reconciliation"
+  ]
+}

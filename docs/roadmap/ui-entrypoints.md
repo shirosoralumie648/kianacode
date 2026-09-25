@@ -819,13 +819,21 @@ resume、approve 或执行 capability effect。fixture 与 GitHub Actions 只在
 
 
 
-#### UI-39 · live ACP/IDE opt-in 验证　⏳
+#### UI-39 · live ACP/IDE opt-in 验证　🔄
 
 - 依赖：UI-29/30/33/38。代码/fixture：显式 opt-in 的本地 ACP/IDE 连接脚本。
 - 步骤：固定协议版本、workspace、能力和脱敏数据，验证 initialize/session/prompt/update/permission/cancel/reconnect；记录外部 host 版本。
 - 先拒绝：未 opt-in 的网络/远端 provider、host 直接写文件/执行终端、live 结果替代 deny fixture、不可重现环境被写成 durable。
 - 成功/回归：live 只提升到声明的 `live` 上限；断开、旧版本、permission timeout 和 host 重启仍回到本地 recovery 语义。
 - 完成产物：live cassette、host/version/environment、上限与限制；无 live 环境时保持 ⏳。
+
+实现基线：[`ui39-live-acp-baseline.md`](ui39-live-acp-baseline.md)。当前 source slice 位于
+`kiana-client/src/live_acp.rs`，`LiveAcpOptIn` 强制 IDE surface、ACP v1/v2、approval ref、local
+transport、redacted payload、环境/工作区 digest 和 host capability delegation；`LiveAcpSession`
+只包装既有 `AcpSessionAdapter`，记录 initialize/session/prompt/update/permission/cancel/reconnect
+证据，断线/gap 保持 Unknown/reconcile。它不打开 socket、不 spawn、不接 provider/Broker、不 mint
+permit、不执行 host capability；`scripts/verify-ui39-live-acp-opt-in.sh` 只做本地 transport/
+approval/redaction/digest preflight，也不启动 external host 或把 source/CI 结果自升为 live proof。
 
 <a id="step-ui-40"></a>
 

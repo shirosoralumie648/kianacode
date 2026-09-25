@@ -30,6 +30,19 @@ proof-level change: `feature_status=implemented`（read-only conformance source 
 limitations: 未证明真实四入口 trace capture、browser/PTY/Electron/ACP runtime、跨进程 cursor/replay、artifact/receipt 投影、provider/connector/external effect、差异 cassette 持久化或 live/physical proof；CI 结果未等待
 reviewer: Codex UI-38 source review；检查 schema/cursor/sequence/action/retry/digest/receipt/Unknown/sensitive parity、fail-closed mismatch、UI-33 recovery assertion alignment、无执行权与无第二执行循环；无本地 runtime test reviewer
 
+### UI-39 live ACP/IDE opt-in 验证（2026-09-25）
+
+source_snapshot: `718942c6`（UI-38 已合并 master 基线）加 UI-39 opt-in source slice；`kiana-client/src/{live_acp.rs,acp.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui39-live-acp-opt-in.json,ui39_live_acp_opt_in.rs}`；`scripts/verify-ui39-live-acp-opt-in.sh`; `.github/workflows/ui39-live-acp.yml`; `kiana-protocol/src/ui_contracts.rs`; `docs/roadmap/ui39-live-acp-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`; `docs/module-map.md`; `docs/ui-entrypoints-runbook.md`
+worktree_status: branch `step/ui39-live-acp-opt-in-20260925`;新增 `LiveAcpOptIn`/`LiveAcpSession`，强制 IDE surface、ACP v1/v2、approval ref、local stdio/unix-socket transport、redacted payload、environment/workspace digest 和 delegated host capability；所有 lifecycle action 委托既有 `AcpSessionAdapter`，disconnect/gap 保持 Unknown/reconcile；不打开 socket、不 spawn、不接 provider/Broker、不 mint permit、不执行 host effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021`、shell `bash -n scripts/verify-ui39-live-acp-opt-in.sh` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `bash` opt-in preflight、`cargo fmt --all --check`、`cargo test -p kiana-protocol --test ui39_live_acp --locked -- --test-threads=1`、`cargo test -p kiana-client --test ui39_live_acp_opt_in --locked -- --test-threads=1`、`cargo test -p kiana-core --test ui39_live_acp_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/live host；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui39-live-acp-opt-in.json`；missing opt-in/approval、remote transport/raw secret/unredacted payload、protocol/host drift、direct effect/delegation、disconnect/gap/Unknown/reconnect；CI preflight uses fixed redacted digest-only metadata，无外部 host/credential/provider/Broker effect
+exit_code: 本地目标 rustfmt、`bash -n` 与 `git diff --check`；远程 opt-in preflight、protocol/client/core fixtures、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-39 explicit opt-in source session、lifecycle evidence、fail-closed preflight、CI-only fixture/workflow、baseline/runbook/module-map/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded client/source preflight + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实 ACP/IDE host、socket/stdio transport、workspace attach、permission timeout、external receipt、provider/connector、browser/PTY/Electron、跨进程 recovery 或 live/physical proof；`LiveAcpSession` 不自升 Verified，CI 结果未等待
+reviewer: Codex UI-39 source review；检查 explicit opt-in、fixed protocol/host/workspace/approval/redaction/local transport、delegated capability、initialize/session/prompt/update/permission/cancel/reconnect、Unknown/reconcile、no external process/network/effect 与 no second execution loop；无本地 runtime/live reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
