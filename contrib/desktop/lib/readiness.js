@@ -35,7 +35,10 @@ function safeRegularFile(file, maxBytes) {
 
 function safeDirectory(directory) {
   const stat = fs.lstatSync(directory);
-  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("desktop_sidecar_directory_invalid");
+  if (stat.isSymbolicLink() || !stat.isDirectory() ||
+      (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) {
+    throw new Error("desktop_sidecar_directory_invalid");
+  }
 }
 
 function readInstanceSidecar(workspace, ready, expectedPid) {

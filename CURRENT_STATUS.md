@@ -795,6 +795,30 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no real BrowserWindow/senderFrame, popup lifetime, external browser, restart rotation, DevTools extraction or provider/Broker effect proof
 reviewer: Codex UI-24 source review; checked sender/origin/channel/nonce/binding, unknown envelope fields and sensitive query key coverage; no local Electron runtime reviewer
 ```
+
+### UI-25 sidecar directory-permission evidence (2026-09-26)
+
+```text
+source_snapshot: base `d5524f0f` plus UI-25 readiness slice; `contrib/desktop/lib/readiness.js`; `contrib/desktop/tests/ui25_readiness.test.js`; `contrib/desktop/tests/fixtures/ui25-readiness.json`; UI-25 baseline/roadmap overlays
+worktree_status: `safeDirectory` now rejects symlink/non-directory and POSIX group/world-writable `.kiana`/`instances` directories before sidecar lock/record identity checks; worker attach/stop authority unchanged
+command_argv:
+  node --check contrib/desktop/lib/readiness.js
+  node --check contrib/desktop/lib/worker.js
+  node --check contrib/desktop/main.js
+  git diff --check
+  GitHub Actions: node --check sources and JSON parse
+  GitHub Actions: node --test contrib/desktop/tests/ui25_readiness.test.js
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; syntax/whitespace checks only; local Node/Cargo tests and Electron/OS process runs deliberately not run; CI not awaited
+fixture·cassette: GitHub-only broad sidecar-directory-permission denial plus existing nonce/PID/workspace/health/stop-unconfirmed cases; no provider/network/OS process effect
+exit_code: 0 for targeted node --check and `git diff --check`; Node/Rust fixtures and compile pending/unobserved
+status change: UI-25 sidecar trust now includes directory permission fencing; card remains 🔄 pending CI and real process-tree/durable proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no real Electron/worker/PID start-time/OS process-tree, cross-user, restart, port-race or provider/Broker effect proof
+reviewer: Codex UI-25 source review; checked structured ready, sidecar/health identity and stop state boundaries plus directory permission hardening; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

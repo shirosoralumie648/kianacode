@@ -138,6 +138,9 @@ test("sidecar lock and records reject symbolic links and broad permissions", t =
   if (process.platform !== "win32") {
     fs.chmodSync(current.recordPath, 0o644);
     assert.throws(() => readInstanceSidecar(current.workspace, current.ready, process.pid), /record_invalid/);
+    fs.chmodSync(current.recordPath, 0o600);
+    fs.chmodSync(current.directory, 0o755);
+    assert.throws(() => readInstanceSidecar(current.workspace, current.ready, process.pid), /directory_invalid/);
   }
 });
 

@@ -7,7 +7,7 @@
   ],
   "denied": [
     "arbitrary stdout/stderr URL without the structured ready prefix",
-    "stale or reused pid, missing lock, symlinked sidecar path, or dead child",
+    "stale or reused pid, missing lock, symlinked sidecar path, broad sidecar directory permissions, or dead child",
     "wrong workspace, instance id, authority epoch, protocol, endpoint, or record digest",
     "health response for another feed, instance, epoch, pid or workspace",
     "worker action before ready and verified health",
