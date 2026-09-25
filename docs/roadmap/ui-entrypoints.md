@@ -691,13 +691,20 @@ comparator 只读，不发起 retry、resume、capability 或 effect。
 
 
 
-#### UI-32 · deny-first 安全路径集成测试　⏳
+#### UI-32 · deny-first 安全路径集成测试　🔄
 
 - 依赖：UI-04/16/19/21/23/24/30/31。代码：entrypoint/daemon/core integration tests。
 - 步骤：覆盖未授权、越权 session、错误 token/origin/sender、过期 approval、stale cursor/revision、digest mismatch、scope widening、cancel race、unknown effect、注入。
 - 先拒绝：每个拒绝必须无 effect、无错误副作用，或明确记录 Unknown/incident；测试检查 effect count、journal 和 audit event。
 - 成功/回归：拒绝原因稳定、UI 可恢复、CLI exit code 正确、Web/desktop 不泄漏；再执行对应 happy path。
 - 完成产物：deny matrix、effect-count fixtures、审计/receipt 断言。
+
+实现基线：[`ui32-deny-first-baseline.md`](ui32-deny-first-baseline.md)。当前 CI-only matrix 覆盖
+foreign session、token/origin/sender、expired approval、stale cursor/revision、digest/scope widening、
+cancel race/Unknown 和 indirect injection；每个 deny case 要求 stable error、effect_count=0 或明确
+Unknown/reconcile follow-up。source guard 绑定 Web action claim/owner/auth mutation、CLI/Workbench
+cancel/parity 与 `DaemonHost`/`ControlPlane`/`EventLog`/`result_unknown` 共享脊柱，不把拒绝 fixture
+改成 happy path。
 
 <a id="step-ui-33"></a>
 
