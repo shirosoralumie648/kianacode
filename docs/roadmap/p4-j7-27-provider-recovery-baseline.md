@@ -27,7 +27,9 @@ recovery authority.
 ## CI-only fixtures
 
 `.github/workflows/p4-j7-27-provider-recovery.yml` runs the domain recovery fixture, Core source
-boundary guard, formatting and workspace test-target compilation on GitHub Actions. Local tests,
+boundary guard, formatting and workspace test-target compilation on GitHub Actions. Its path filter
+includes the current CM-36 `kiana-domain/src/memory_workbench.rs` module so a fresh remote run can
+clear the repository-wide fmt dependency; that result is pending and unobserved. Local tests,
 builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixtures cover missing replay material, stale route/authority, invalid remote continuation
