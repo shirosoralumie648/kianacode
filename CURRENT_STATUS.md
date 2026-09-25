@@ -212,6 +212,19 @@ proof-level change: `feature_status=implemented`（domain/core recovery source +
 limitations: recovery plan 不生成新授权/交付 key、不访问 connector、不重发、不写 delivered/receipt、不提交 EventLog；实际 re-admission/reconcile/dead-letter/durable delivery 留后续 NM/INT/PD；CI 结果未等待
 reviewer: Codex NM-18 source review；检查 cancel-not-delivered、in-flight/Unknown no retry、revoked/expired/epoch fence、known pre-send bounded retry、新 key requirement、no direct connector/effect；无本地 runtime reviewer
 
+### NM-19 external notification/webhook contract（2026-09-26）
+
+source_snapshot: `3e2b0a23`（NM-18 已合并 master 基线）加 NM-19 default-off external source slice；`kiana-domain/src/{lib.rs,notification_external.rs}`；`kiana-core/src/{lib.rs,notification_external.rs}`；`kiana-core/tests/{nm19_external_notification.rs,nm19_external_notification_guard.rs,fixtures/nm19-external-notification.json}`；`.github/workflows/nm19-external-notification.yml`; `docs/roadmap/nm19-external-notification-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm19-external-notification-contract-20260926`; exact canonical HTTPS origin allowlist、default-off policy、nonce/authority epoch/data epoch/expiry/payload+signature digest envelope、provider receipt binding/Unknown observation；enabled policy 也只返回 `ReadyForExplicitConnector` with `direct_effect=false`；未加入 HTTP/A2A/socket/signer/connector dispatch
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/network）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm19_external_notification --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm19_external_notification_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Cargo test/build/check/clippy/smoke、外部 network/A2A/webhook/connector；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm19-external-notification.json`、default-off/explicit handoff、origin allowlist、nonce/epoch/expiry/signature/payload digest、ack/rejected/Unknown receipt、receipt binding drift、no network/direct effect source guard；无真实 external credential/HTTP/TLS/provider ACK/live/physical proof
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core external fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-19 default-off external notification policy/envelope/receipt contract、deny-first fixtures/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（domain/core source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: policy/receipt validation 不证明 provider signature verification、nonce persistence、HTTP/A2A transport、external ACK correctness 或 physical delivery；默认 external channel 仍 `not_supported`，CI 结果未等待
+reviewer: Codex NM-19 source review；检查 default-off、canonical HTTPS allowlist、nonce/epoch/expiry/digest/receipt fence、Unknown→reconcile、no socket/send/connector/secret signer；无本地 network reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

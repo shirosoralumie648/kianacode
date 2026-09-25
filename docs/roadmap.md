@@ -776,7 +776,7 @@
 | 601 | W8 | 专项 | [`SW-16`](#step-sw-16) | 定向 WorkPacket/Handoff ACK/StatusReport/Evidence/Incident；可选 bounded Symposium | `P1-E-01`、`P1-E-02`、`P4-E-03`、`SW-15` | ⏳ | [专项卡](#step-sw-16) |
 | 602 | W8 | 专项 | [`SW-17`](#step-sw-17) | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | `P4-J7-02`、`P4-J7-03`、`P2-M5-01`、`P2-M5-02`、`SW-16` | ⏳ | [专项卡](#step-sw-17) |
 | 603 | W8 | 专项 | [`SW-18`](#step-sw-18) | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | `P4-J6-01`、`CO-42`、`CO-43`、`CO-44`、`SW-17` | ⏳ | [专项卡](#step-sw-18) |
-| 604 | W8 | 专项 | [`NM-19`](#step-nm-19) | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | `P4-K8-01`、`NM-08`、`NM-18` | ⏳ | [专项卡](#step-nm-19) |
+| 604 | W8 | 专项 | [`NM-19`](#step-nm-19) | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | `P4-K8-01`、`NM-08`、`NM-18` | 🔄 | [专项卡](#step-nm-19) · [baseline](roadmap/nm19-external-notification-baseline.md) |
 | 605 | W8 | 专项 | [`DEP-00`](#step-dep-00) | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | 🔄 | [专项卡](#step-dep-00) · [baseline](roadmap/dep00-deployment-baseline.md) |
 | 606 | W8 | 专项 | [`DEP-01`](#step-dep-01) | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | `DEP-00` | ⏳ | [专项卡](#step-dep-01) |
 | 607 | W8 | 专项 | [`DEP-02`](#step-dep-02) | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | `DEP-00` | ⏳ | [专项卡](#step-dep-02) |

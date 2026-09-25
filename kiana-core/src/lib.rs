@@ -58,6 +58,7 @@ mod notification_action;
 mod notification_priority;
 mod notification_policy;
 mod notification_recovery;
+mod notification_external;
 mod operator_evidence;
 mod provider_diagnostics;
 mod notification_resolver;
@@ -190,6 +191,11 @@ pub use notification_policy::{
 pub use notification_recovery::{
     plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
     NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
+};
+pub use notification_external::{
+    admit_external_notification, observe_external_notification_receipt,
+    ExternalNotificationAdmission, ExternalNotificationDisposition,
+    ExternalNotificationReceiptObservation,
 };
 pub use notification_projector::{
     NotificationProjector, NotificationProjectorError, NotificationVisibility,
