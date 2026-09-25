@@ -16,6 +16,7 @@
     "web_page_cursor_replayed",
     "web_page_cursor_scope_mismatch",
     "web_page_cursor_source_changed",
+    "scope_mismatch_does_not_consume_cursor",
     "artifact_content_client_fetch"
   ],
   "sequence": ["hydrate_snapshot", "install_feed_listener", "resume_or_render"],

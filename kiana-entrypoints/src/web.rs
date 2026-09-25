@@ -1783,12 +1783,13 @@ impl WebApp {
         {
             return Err(ApiError::bad("web_page_cursor_invalid"));
         }
-        let cursor = self
+        let mut cursors = self
             .page_cursors
             .lock()
-            .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?
-            .remove(token);
+            .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?;
+        let cursor = cursors.get(token).cloned();
         let Some(cursor) = cursor else {
+            drop(cursors);
             let replayed = self
                 .consumed_page_cursors
                 .lock()
@@ -1810,6 +1811,10 @@ impl WebApp {
         {
             return Err(ApiError::conflict("web_page_cursor_scope_mismatch"));
         }
+        // Validate the full scope before consuming the token. A foreign tab or stale source
+        // cursor must fail closed without burning a still-valid cursor for its owner.
+        cursors.remove(token);
+        drop(cursors);
         let mut consumed = self
             .consumed_page_cursors
             .lock()

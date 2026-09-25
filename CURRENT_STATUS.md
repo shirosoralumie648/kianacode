@@ -628,6 +628,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: no live HTTP server/browser or cross-process token rotation proof; query token remains an explicit EventSource compatibility path and rate state remains process-local
 reviewer: Codex UI-16 source review; checked Host/Origin/token ordering, dual-token conflict handling and pre-handler rejection; no local runtime test reviewer
 ```
+
+### UI-17 pagination cursor-consumption evidence (2026-09-26)
+
+```text
+source_snapshot: base `aaac546d` plus UI-17 Web pagination slice; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui17-web-hydrate.json`; `kiana-entrypoints/tests/ui17_web_hydrate.rs`; `kiana-entrypoints/tests/ui17_web_hydrate_guard.rs`; UI-17 baseline/roadmap overlays
+worktree_status: page cursor lookup now clones under the cursor lock, validates kind/session/tab/instance/epoch/source scope, then removes the token; mismatch returns without consuming the owner's cursor
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/web.rs kiana-entrypoints/tests/ui17_web_hydrate.rs kiana-entrypoints/tests/ui17_web_hydrate_guard.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui17_web_hydrate --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui17_web_hydrate_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `scope_mismatch_does_not_consume_cursor` fixture/source-order guard; no browser/HTTP/provider/filesystem effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-17 foreign/stale page requests can no longer invalidate a valid owner's cursor before its single-use consumption; card remains 🔄 pending CI evidence and durable/browser proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: cursor state remains process-local and disposable; no live HTTP/browser, cross-process restart, durable cache or artifact-byte proof
+reviewer: Codex UI-17 source review; checked cursor lock ordering, scope validation before removal and replay semantics; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`
