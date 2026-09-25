@@ -20,7 +20,9 @@ Broker。surface-specific limitations 仅按集合排序合并进 read-only repo
 `kiana-client/tests/fixtures/ui31-parity.json` 与 `ui31_surface_parity.rs` 覆盖四 surface happy
 trace、command/disposition/retry/cursor/revision/receipt drift、missing/duplicate surface、
 sensitive field 和 Unknown parity。`.github/workflows/ui31-surface-parity.yml` 运行 Rust format、
-聚焦 comparator fixture 与 workspace test-target compile。
+聚焦 comparator fixture 与 workspace test-target compile。其 push/pull_request path filter 现在同时
+包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，因此 fresh remote run 会覆盖
+repository-wide fmt dependency；该远程结果 pending/unobserved。
 
 `feature_status=implemented`; `proof_level=source`。未接入真实四入口 command harness、CLI/Web/
 Desktop runtime trace capture、跨进程/durable parity index、真实 browser/PTY/Electron timing、
