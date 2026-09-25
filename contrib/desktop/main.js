@@ -16,10 +16,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { pathToFileURL } = require("url");
-const { parseWebUrl } = require("./lib/parse-url");
+const { waitForReady, readInstanceSidecar, probeReady } = require("./lib/readiness");
 const { findKiana, kianaArgs } = require("./lib/find-kiana");
 const { BUTTONS, closeDecision } = require("./lib/close-policy");
-const { stopWorker } = require("./lib/worker");
+const { groupExists, stopWorker } = require("./lib/worker");
 const {
   createScratchWorkspace,
   isScratchWorkspace,
@@ -45,6 +45,8 @@ let quitPromise = null;
 let shutdownComplete = false;
 let workspaceTransition = Promise.resolve();
 let ipcSession = null;
+let lifecycle = "stopped";
+let readyRecord = null;
 
 function welcomeUrl() {
   return pathToFileURL(path.join(__dirname, "welcome.html")).href;
@@ -98,42 +100,19 @@ function resolveKiana() {
   return found;
 }
 
-function waitForUrl(proc, timeoutMs = 20000) {
-  return new Promise((resolve, reject) => {
-    let buf = "";
-    let settled = false;
-    const cleanup = () => {
-      clearTimeout(timer);
-      proc.stdout.off("data", onData);
-      proc.stderr.off("data", onData);
-      proc.off("exit", onExit);
-      proc.off("error", onError);
-    };
-    const finish = (error, url) => {
-      if (settled) return;
-      settled = true; cleanup();
-      error ? reject(error) : resolve(url);
-    };
-    const onData = chunk => {
-      buf = (buf + chunk.toString()).slice(-65536);
-      const url = parseWebUrl(buf);
-      if (url) finish(null, url);
-    };
-    const onExit = code => finish(new Error(`kiana web exited (${code ?? "?"}) before becoming ready`));
-    const onError = error => finish(error);
-    const timer = setTimeout(() => finish(new Error("kiana web startup timed out")), timeoutMs);
-    proc.stdout.on("data", onData); proc.stderr.on("data", onData);
-    proc.once("exit", onExit); proc.once("error", onError);
-  });
-}
-
 async function stopChild() {
   if (stopPromise) return stopPromise;
   const proc = child;
   if (!proc) return;
+  lifecycle = "stopping";
   proc.kianaStopping = true;
   stopPromise = stopWorker(proc).then(() => {
     if (child === proc) child = null;
+    readyRecord = null;
+    lifecycle = "stopped";
+  }).catch(error => {
+    lifecycle = "unconfirmed";
+    throw error;
   }).finally(() => { stopPromise = null; });
   return stopPromise;
 }
@@ -169,40 +148,70 @@ async function startHarness(folder) {
   if (quitting) throw new Error("desktop_shutting_down");
   await stopChild();
   if (quitting) throw new Error("desktop_shutting_down");
+  lifecycle = "starting";
   const kiana = resolveKiana();
-  child = spawn(kiana, kianaArgs(folder), {
+  const workspace = fs.realpathSync(folder);
+  const readyNonce = opaqueToken("ready");
+  child = spawn(kiana, kianaArgs(workspace), {
     stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
-    cwd: folder,
+    env: { ...process.env, KIANA_DESKTOP_READY_NONCE: readyNonce },
+    cwd: workspace,
     detached: process.platform !== "win32",
     windowsHide: true,
   });
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
+  // Drain diagnostics during the structured ready handshake, but never interpret stderr.
+  child.stderr.resume();
   const proc = child;
-  let url;
-  try { url = await waitForUrl(proc); }
-  catch (error) { await stopChild(); throw error; }
-  workdir = folder;
+  proc.on("exit", code => {
+    if (child !== proc || proc.kianaStopping || quitting) return;
+    readyRecord = null;
+    if (process.platform !== "win32" && groupExists(proc.pid)) {
+      lifecycle = "unconfirmed";
+      lastError = `kiana web stopped (${code ?? "?"}); worker process group exit is unconfirmed.`;
+    } else {
+      child = null;
+      lifecycle = "failed";
+      lastError = `kiana web stopped (${code ?? "?"}).`;
+    }
+    showWelcome();
+  });
+  let ready;
+  try {
+    ready = await waitForReady(proc, { nonce: readyNonce, workspace, pid: proc.pid });
+    const verifyInstance = async () => {
+      if (proc.exitCode !== null || proc.signalCode !== null) {
+        throw new Error("desktop_worker_not_live");
+      }
+      readInstanceSidecar(workspace, ready, proc.pid);
+    };
+    await verifyInstance();
+    await probeReady(ready, (url, options) => net.fetch(url, options), { verifyInstance });
+    await verifyInstance();
+  }
+  catch (error) {
+    const original = error;
+    try { await stopChild(); } catch (stopError) { throw stopError; }
+    lifecycle = "failed";
+    throw original;
+  }
+  workdir = workspace;
   // Rotate the desktop bridge with the worker instance. The opaque binding
   // never contains the Web bearer credential or a workspace path.
   rotateIpcSession({
-    origin: new URL(url).origin,
+    origin: new URL(ready.url).origin,
     workspaceBinding: opaqueToken("workspace"),
   });
-  saveConfig({ workdir: folder });
-  // Drain bounded startup pipes after readiness so a quiet UI cannot block the worker.
-  proc.stdout.resume(); proc.stderr.resume();
-  proc.on("exit", (code) => {
-    if (!proc.kianaStopping && child === proc && !quitting && mainWindow && !mainWindow.isDestroyed()) {
-      lastError = `kiana web stopped (${code ?? "?"}).`;
-      showWelcome();
-    }
-  });
-  if (isScratchWorkspace(folder)) {
-    await autoTrust(url);
+  lifecycle = "ready";
+  readyRecord = ready;
+  saveConfig({ workdir: workspace });
+  // The stderr diagnostics pipe is already drained; resume the stdout display stream after ready.
+  proc.stdout.resume();
+  if (isScratchWorkspace(workspace)) {
+    await autoTrust(ready.url);
   }
-  return url;
+  return ready.url;
 }
 
 function showWelcome() {
@@ -215,12 +224,21 @@ function showWelcome() {
 
 async function switchWorkspace(folder) {
   lastError = "";
-  const url = await startHarness(folder);
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    await mainWindow.loadURL(url);
-    mainWindow.show();
+  // The old renderer loses its IPC binding before its worker is stopped.
+  showWelcome();
+  try {
+    const url = await startHarness(folder);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await mainWindow.loadURL(url);
+      mainWindow.show();
+    }
+    return { ok: true, folder: workdir, url };
+  } catch (error) {
+    lastError = String(error.message || error);
+    if (lifecycle !== "unconfirmed") lifecycle = "failed";
+    showWelcome();
+    throw error;
   }
-  return { ok: true, folder, url };
 }
 
 function openWorkspace(folder) {
@@ -382,6 +400,11 @@ function workspaceState() {
   return {
     last: last && fs.existsSync(last) ? last : null,
     current: workdir,
+    lifecycle,
+    instance: lifecycle === "ready" && readyRecord ? {
+      id: readyRecord.instance_id,
+      epoch: readyRecord.epoch,
+    } : null,
     error: lastError,
     scratchRoot: path.join(os.homedir(), ".kiana", "workspaces"),
   };

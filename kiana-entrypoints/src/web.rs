@@ -25,7 +25,7 @@ use futures_util::Stream;
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
     EntryPointKind, ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent,
-    SignalStatus, UiAction, UiCursor, ROLE_BUILDER,
+    SignalStatus, UiAction, UiCursor, UiInstanceRecord, PROTOCOL_SCHEMA, ROLE_BUILDER,
 };
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
@@ -331,12 +331,32 @@ struct WebApp {
     csp_nonce: Arc<String>,
     token_generation: Arc<std::sync::atomic::AtomicU64>,
     bound_addr: SocketAddr,
+    desktop_attach: Option<DesktopAttachIdentity>,
     rate_window: Arc<Mutex<WebRateWindow>>,
     page_cursors: Arc<Mutex<HashMap<String, WebPageCursor>>>,
     consumed_page_cursors: Arc<Mutex<HashMap<String, Instant>>>,
     action_submissions: Arc<Mutex<HashMap<String, WebActionSubmission>>>,
     shutting_down: Arc<AtomicBool>,
     shutdown: tokio::sync::watch::Sender<bool>,
+}
+
+#[derive(Clone)]
+struct DesktopAttachIdentity {
+    instance_id: String,
+    authority_epoch: u64,
+    workspace_digest: String,
+    record_digest: String,
+}
+
+impl From<&UiInstanceRecord> for DesktopAttachIdentity {
+    fn from(record: &UiInstanceRecord) -> Self {
+        Self {
+            instance_id: record.instance_id.clone(),
+            authority_epoch: record.authority_epoch,
+            workspace_digest: record.workspace_digest.clone(),
+            record_digest: record.record_digest.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -721,14 +741,55 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
         .local_addr()
         .context("failed to read bind address")?;
     let host = Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?);
-    let app = WebApp::new(host, workdir.clone(), launch.sandbox.clone(), role, addr);
     let url = format!("http://{addr}");
+    // Desktop launch opts into the workspace lease.  The lease is discovery metadata only;
+    // requests still enter this DaemonHost and ControlPlane path.
+    let desktop_nonce = std::env::var("KIANA_DESKTOP_READY_NONCE").ok();
+    let instance_lease = if desktop_nonce.is_some() {
+        Some(
+            host.acquire_instance(&workdir, kiana_protocol::UiTransportKind::InProcess, &url)
+                .map_err(anyhow::Error::msg)?,
+        )
+    } else {
+        None
+    };
+    let app = WebApp::new(
+        Arc::clone(&host),
+        workdir.clone(),
+        launch.sandbox.clone(),
+        role,
+        addr,
+    )
+    .with_optional_desktop_attach(instance_lease.as_ref().map(|lease| lease.record()));
     let trusted = harness_run::project_trusted(&workdir.to_string_lossy())?;
     println!("Kiana web");
     println!("folder: {}", workdir.display());
     println!("trusted: {}", if trusted { "yes" } else { "no" });
     println!("sandbox: {}", launch.sandbox);
     println!("loopback only. SSE display stream; receipts remain authoritative.");
+    if let Some(ready_nonce) = desktop_nonce {
+        let record = instance_lease
+            .as_ref()
+            .expect("desktop lease was acquired when readiness nonce is present")
+            .record();
+        let ready = json!({
+            "schema": "kiana.desktop-ready.v1",
+            "protocol_schema": PROTOCOL_SCHEMA,
+            "sidecar_schema": record.schema,
+            "instance_id": record.instance_id,
+            "authority_epoch": record.authority_epoch,
+            "feed_instance_id": host.feed_instance_id(),
+            "epoch": host.ui_cursor().epoch,
+            "pid": std::process::id(),
+            "workspace": workdir.to_string_lossy(),
+            "workspace_digest": record.workspace_digest,
+            "endpoint_digest": record.endpoint_digest,
+            "record_digest": record.record_digest,
+            "url": url,
+            "nonce": ready_nonce,
+        });
+        println!("KIANA_DESKTOP_READY={}", ready);
+    }
     println!("KIANA_WEB_URL={url}");
     println!("{url}");
     let _ = io::stdout().flush();
@@ -907,6 +968,7 @@ impl WebApp {
             active: Arc::new(Mutex::new(session_id)),
             csp_nonce: Arc::new(uuid::Uuid::new_v4().simple().to_string()),
             bound_addr,
+            desktop_attach: None,
             rate_window: Arc::new(Mutex::new(WebRateWindow {
                 started: Instant::now(),
                 requests: 0,
@@ -919,6 +981,11 @@ impl WebApp {
             shutting_down: Arc::new(AtomicBool::new(false)),
             shutdown: tokio::sync::watch::channel(false).0,
         }
+    }
+
+    fn with_optional_desktop_attach(mut self, record: Option<&UiInstanceRecord>) -> Self {
+        self.desktop_attach = record.map(DesktopAttachIdentity::from);
+        self
     }
 
     // 汇集 UI 所需的即时状态。Mutex 中的数据可能与 daemon 已持久化的状态不同步，
@@ -1767,7 +1834,17 @@ async fn health(
         "loopback": true,
         "streaming": true,
         "streaming_transport": "sse",
+        "instance_id": app.host.feed_instance_id(),
+        "epoch": app.host.ui_cursor().epoch,
+        "protocol_schema": PROTOCOL_SCHEMA,
     });
+    if let Some(identity) = &app.desktop_attach {
+        payload["pid"] = json!(std::process::id());
+        payload["desktop_instance_id"] = json!(identity.instance_id);
+        payload["desktop_authority_epoch"] = json!(identity.authority_epoch);
+        payload["desktop_workspace_digest"] = json!(identity.workspace_digest);
+        payload["desktop_record_digest"] = json!(identity.record_digest);
+    }
     match app.host.liveness().await {
         Ok(snapshot) => {
             payload["ok"] = Value::Bool(snapshot.status == SignalStatus::Ok);

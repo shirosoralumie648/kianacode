@@ -39,6 +39,14 @@ async function killWindowsTree(pid) {
 // active runs and persist outcomes; SIGKILL is only the bounded final fallback.
 async function stopWorker(proc, { graceMs = 12000, killMs = 2000 } = {}) {
   if (!proc || !proc.pid) return;
+  // A dead leader's numeric PID can be reused.  Never signal a group through a stale PID;
+  // an orphaned group is reported as unconfirmed for operator reconciliation.
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    if (process.platform !== "win32" && groupExists(proc.pid)) {
+      throw new Error("worker_stop_unconfirmed");
+    }
+    return;
+  }
   if (process.platform !== "win32" && !groupExists(proc.pid)) return;
   signalGroup(proc, "SIGTERM");
   if (await waitStopped(proc, Date.now() + graceMs)) return;

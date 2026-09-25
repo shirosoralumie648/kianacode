@@ -555,13 +555,20 @@ fixture、source guard、CI workflow 与 baseline 已加入。真实 Electron/br
 
 
 
-#### UI-25 · Desktop readiness、attach 和 worker 生命周期　⏳
+#### UI-25 · Desktop readiness、attach 和 worker 生命周期　🔄
 
 - 依赖：UI-03/24。代码：worker discovery/readiness、process group stop、single-instance lock。
 - 步骤：ready record 使用结构化 stdout/sidecar，不从任意 stderr URL 猜地址；Electron attach 到正确 instance/workspace；启动失败、崩溃、升级和 stop 有状态。
 - 先拒绝：PID 重用、旧 ready URL、错误 workspace、kill 单进程留下子进程、worker 未 ready 就发 action、关闭自动 resume。
 - 成功/回归：cold start/attach/restart/crash/SIGTERM/子进程、端口占用、重复窗口、升级兼容和 process-group cleanup。
 - 完成产物：桌面生命周期图、readiness fixture、物理进程 e2e 与诊断日志。
+
+实现基线：[`ui25-desktop-readiness-baseline.md`](ui25-desktop-readiness-baseline.md)。当前 source slice
+把 nonce-bound structured stdout、受保护的 workspace instance sidecar 和 `/api/health` identity
+绑定到同一个 worker PID/workspace；侧车 lease identity 与 UI feed identity 分字段核对。Electron
+启动只 attach 到自己刚启动且 sidecar、健康投影一致的 worker，停止不确认时保留 `unconfirmed`。
+deny-first fixture、source guard 与 GitHub Actions 已加入；真实 Electron/OS process-tree、跨重启
+durability、升级兼容和 physical process e2e 仍未证明。
 
 <a id="step-ui-26"></a>
 

@@ -12503,7 +12503,6 @@ status_change: INT-17 connector/account/project rate windows, concurrency and bu
 proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: `ConnectorQuotaLedger` is a source-level reference CAS model; EventStore helpers are not a cross-process restart or two-worker durability proof; legacy connector callers without the additive quota envelope remain readable; provider receipt/invoice truth, external/live/physical effects, durable recovery and CI results remain unobserved and are later INT-18..33 / ER / PD work
 reviewer: Codex INT-17 source review; checked canonical connector/account/project key and alias normalization, credential and authority/config fences, UTC rate/concurrency/budget limits, single-winner claim, owner release, Unknown/replay settlement, ControlPlane/EventStore CAS and Broker/provider/daemon effect-boundary reuse with no second execution loop; no local runtime test reviewer
-```
 
 ### BQ-20 EventLog billing ledger projector and rebuildable rollups evidence (2026-09-25)
 
@@ -12533,4 +12532,19 @@ status_change: INT-18 effect-time permit, scope/digest/epoch/expiry fence, deny-
 proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
 limitations: current fence values are server-owned inputs but this slice does not claim a durable cross-process fence projector, provider receipt truth, cancellation/lease settlement, external/live/physical effects or CI results; legacy requests without an INT-16 reservation remain on the compatibility path and receive no effect permit
 reviewer: Codex INT-18 source review; checked authority/configuration/policy/credential/data epoch and scope digest binding, expiry/revocation/rotation/config drift denial before Broker/fixture dispatch, INT-16 reservation reuse and no second execution path; no local runtime test reviewer
+```
+
+### UI-25 Desktop readiness、attach 和 worker 生命周期证据（2026-09-25）
+
+```text
+source_snapshot: `31d7e43f`（INT-18 plus UI-25 source slice）；`contrib/desktop/{main.js,lib/readiness.js,lib/worker.js,tests/ui25_readiness.test.js,tests/fixtures/ui25-readiness.json}`；`kiana-entrypoints/src/web.rs`；`.github/workflows/ui25-desktop-readiness.yml`；`docs/roadmap/ui25-desktop-readiness-baseline.md`；`docs/roadmap/ui-entrypoints.md`；`docs/roadmap.md`
+worktree_status: isolated `/tmp/kiana-step-ui25` branch `ui-25-desktop-readiness`；Electron accepts only nonce-bound structured stdout and binds child PID/canonical workspace/loopback endpoint to the existing DaemonHost workspace InstanceLease sidecar; protected sidecar digest, feed identity and health claims are rechecked before attach; dead-leader process-group residue and uncertain stop retain `unconfirmed`; no new command/action, authorization path or execution loop
+command_argv: `rustfmt --edition 2021 kiana-entrypoints/src/web.rs`; `git diff --check`; GitHub Actions runs Node 20 syntax/JSON plus deny-first `node --test contrib/desktop/tests/ui25_readiness.test.js`, `cargo fmt --all --check`, serialized Web regression and workspace test-target compilation
+cwd·environment: local source worktree `/tmp/kiana-step-ui25`; Linux; local Node/Cargo tests, build, check, clippy and smoke deliberately not run; GitHub Actions is the test authority and is not awaited
+fixture·cassette: `ui25-readiness.json` and source guards cover arbitrary/stderr URL, stale nonce/PID, missing/symlinked/broad-permission sidecar paths, workspace/instance/protocol/endpoint/digest mismatch, mismatched health peer, no action before ready and no automatic resume; no real Electron, provider, Broker or external effect was contacted
+exit_code: target Rust `rustfmt` exited 0; `git diff --check` exited 0; CI tests, workspace compilation and physical process results are pending/unobserved
+status_change: UI-25 structured stdout + workspace sidecar + health identity attach, worker-group unconfirmed stop, deny-first JS/source guard, baseline and GitHub workflow implemented; roadmap row/card advanced from `⏳` to `🔄`
+proof-level_change: `feature_status=implemented`; `proof_level=source`; no local_behavior/durable/live/physical promotion
+limitations: sidecar and loopback health are attach metadata, not authorization or PID start-time proof; no real Electron/Chromium, cross-platform OS process-tree, PID reuse race, stale-lock recovery, port contention, duplicate-window, crash/restart, upgrade compatibility, cross-restart durability or physical process e2e evidence; CI result intentionally unobserved
+reviewer: UI-25 source-level review by implementation agent and Codex parent; checked exact child stdout schema/nonce/PID/workspace/loopback, sidecar path/file/digest/protocol/endpoint binding, health feed and leased identity, deny-before-window-load ordering, no stderr URL discovery, process-group stop/unconfirmed handling, no automatic resume and reuse of existing DaemonHost → ControlPlane path; no local runtime test reviewer
 ```

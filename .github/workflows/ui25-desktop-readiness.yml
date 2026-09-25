@@ -1,0 +1,61 @@
+name: UI-25 Desktop readiness and worker lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/readiness.js"
+      - "contrib/desktop/lib/worker.js"
+      - "contrib/desktop/tests/fixtures/ui25-readiness.json"
+      - "contrib/desktop/tests/ui25_readiness.test.js"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/ui25-desktop-readiness-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui25-desktop-readiness.yml"
+  pull_request:
+    paths:
+      - "contrib/desktop/main.js"
+      - "contrib/desktop/lib/readiness.js"
+      - "contrib/desktop/lib/worker.js"
+      - "contrib/desktop/tests/fixtures/ui25-readiness.json"
+      - "contrib/desktop/tests/ui25_readiness.test.js"
+      - "kiana-entrypoints/src/web.rs"
+      - "docs/roadmap/ui25-desktop-readiness-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui25-desktop-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui25-desktop-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Check Desktop sources and fixture
+        run: |
+          node --check contrib/desktop/lib/readiness.js
+          node --check contrib/desktop/lib/worker.js
+          node --check contrib/desktop/main.js
+          node --check contrib/desktop/tests/ui25_readiness.test.js
+          node -e 'JSON.parse(require("fs").readFileSync("contrib/desktop/tests/fixtures/ui25-readiness.json", "utf8"))'
+      - name: Run deny-first readiness and source guards
+        run: node --test contrib/desktop/tests/ui25_readiness.test.js
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Run Web entrypoint regression fixture
+        run: cargo test -p kiana-entrypoints --test cli_web --locked -- --test-threads=1
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked

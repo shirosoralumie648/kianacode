@@ -1,0 +1,19 @@
+{
+  "schema": "kiana.desktop-readiness-fixture.v1",
+  "accepted": [
+    "structured stdout record with fresh nonce, canonical workspace, child pid, loopback URL, feed identity and leased instance identity",
+    "workspace sidecar whose lock, pid, protocol, workspace digest, endpoint digest and record digest match the child record",
+    "health response whose feed and desktop lease identities match the discovered sidecar"
+  ],
+  "denied": [
+    "arbitrary stdout/stderr URL without the structured ready prefix",
+    "stale or reused pid, missing lock, symlinked sidecar path, or dead child",
+    "wrong workspace, instance id, authority epoch, protocol, endpoint, or record digest",
+    "health response for another feed, instance, epoch, pid or workspace",
+    "worker action before ready and verified health",
+    "automatic session resume after close or worker restart"
+  ],
+  "limits": [
+    "fixtures and source guards do not prove real Electron, OS process-tree, cross-user, or durable restart behavior"
+  ]
+}
