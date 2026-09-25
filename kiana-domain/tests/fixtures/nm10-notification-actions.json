@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.notification-action-fixture.v1",
+  "accepted": [
+    "registered action ref and exact notification scope bind a typed command",
+    "fresh revision/digest/authority epoch/source cursor reaches ControlPlane admission",
+    "ACK/review/approve/reconcile commands remain opaque payload intents"
+  ],
+  "denied": [
+    "stale target revision or digest",
+    "wrong decider/recipient, expired or non-authoritative action ref",
+    "scope widening, unknown action, raw secret payload or duplicate idempotency",
+    "read/ACK changing HumanTask status or direct Broker effect"
+  ]
+}
