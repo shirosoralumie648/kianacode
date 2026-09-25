@@ -737,7 +737,7 @@
 | 563 | W7 | 专项 | [`AUT-21`](#step-aut-21) | boot recovery、projection/index rebuild、reconcile case；`kiana-daemon`、`kiana-eventlog`、`kiana-core` | `AUT-15`、`AUT-17`、`AUT-18` | ⏳ | [专项卡](#step-aut-21) |
 | 564 | W7 | 专项 | [`NM-17`](#step-nm-17) | severity/digest/reminder/escalation；primary/fallback、quiet hours、deadline | `P2-K3-01`、`CO-39`、`NM-06`、`NM-11` | 🔄 | [专项卡](#step-nm-17) · [baseline](roadmap/nm17-notification-policy-baseline.md) |
 | 565 | W7 | 专项 | [`NM-18`](#step-nm-18) | cancellation/revocation/expiry/reconciliation；`recovery.rs`、`connectors.rs` | `P2-K6-01`、`NM-08`、`NM-10` | 🔄 | [专项卡](#step-nm-18) · [baseline](roadmap/nm18-notification-recovery-baseline.md) |
-| 566 | W7 | 专项 | [`NM-20`](#step-nm-20) | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | `NM-04`、`NM-08`、`NM-13`、`NM-18` | ⏳ | [专项卡](#step-nm-20) |
+| 566 | W7 | 专项 | [`NM-20`](#step-nm-20) | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | `NM-04`、`NM-08`、`NM-13`、`NM-18` | 🔄 | [专项卡](#step-nm-20) · [baseline](roadmap/nm20-notification-faults-baseline.md) |
 | 567 | W7 | 专项 | [`NM-21`](#step-nm-21) | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | `CO-39`、`CO-40`、`CO-41`、`NM-14`、`NM-15`、`NM-16`、`NM-20` | ⏳ | [专项卡](#step-nm-21) |
 | 568 | W7 | 专项 | [`EQ-38`](#step-eq-38) | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `EQ-37` | ⏳ | [专项卡](#step-eq-38) |
 | 569 | W7 | 专项 | [`EQ-39`](#step-eq-39) | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `EQ-38` | ⏳ | [专项卡](#step-eq-39) |

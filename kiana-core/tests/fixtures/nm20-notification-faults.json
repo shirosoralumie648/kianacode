@@ -1,0 +1,25 @@
+{
+  "schema": "kiana.notification-fault-matrix.v1",
+  "scenarios": ["duplicate", "out_of_order", "cursor_gap", "crash_after_claim", "slow_consumer", "queue_full", "disk_full", "secret_sentinel", "projection_loss"],
+  "dispositions": ["rejected", "snapshot_required", "reconcile_required", "backpressure", "quarantined"],
+  "invariants": [
+    "critical_preserved",
+    "no_effect_started",
+    "duplicate_suppressed",
+    "gap_requires_snapshot",
+    "unknown_requires_reconcile",
+    "secret_free"
+  ],
+  "deny_first": [
+    "duplicate_not_delivered_twice",
+    "out_of_order_not_applied",
+    "cursor_gap_not_completed",
+    "crash_after_claim_not_resent",
+    "slow_consumer_bounded",
+    "critical_queue_full_not_silently_dropped",
+    "disk_full_unknown",
+    "secret_sentinel_quarantine",
+    "projection_loss_rebuild_required"
+  ],
+  "proof_ceiling": "source"
+}

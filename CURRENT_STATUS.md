@@ -225,6 +225,19 @@ proof-level change: `feature_status=implemented`（domain/core source contract +
 limitations: policy/receipt validation 不证明 provider signature verification、nonce persistence、HTTP/A2A transport、external ACK correctness 或 physical delivery；默认 external channel 仍 `not_supported`，CI 结果未等待
 reviewer: Codex NM-19 source review；检查 default-off、canonical HTTPS allowlist、nonce/epoch/expiry/digest/receipt fence、Unknown→reconcile、no socket/send/connector/secret signer；无本地 network reviewer
 
+### NM-20 notification fault/capacity/security matrix（2026-09-26）
+
+source_snapshot: `bd0a9976`（NM-19 已合并 master 基线）加 NM-20 replay-only fault source slice；`kiana-domain/src/{lib.rs,notification_faults.rs}`；`kiana-core/src/{lib.rs,notification_faults.rs}`；`kiana-core/tests/{nm20_notification_faults.rs,nm20_notification_faults_guard.rs,fixtures/nm20-notification-faults.json}`；`.github/workflows/nm20-notification-faults.yml`; `docs/roadmap/nm20-notification-faults-baseline.md`; `docs/roadmap.md`
+worktree_status: branch `step/nm20-notification-fault-matrix-20260926`; deterministic nine-scenario matrix covers duplicate/out-of-order/cursor gap/crash-after-claim/slow consumer/queue full/disk full/secret sentinel/projection loss；all cases bind source cursor/event IDs, critical preservation, no effect started, secret-free, snapshot/reconcile/backpressure/quarantine dispositions；no kill/disk fill/queue mutation/EventLog/provider/connector effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/fault injection）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test nm20_notification_faults --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm20_notification_faults_guard --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行 Cargo test/build/check/clippy/smoke、crash/disk-full/network/provider/connector/browser load；GitHub Actions 是测试权威且不等待
+fixture·cassette: `nm20-notification-faults.json`、nine scenario/disposition matrix、critical preservation、duplicate suppression、gap snapshot、Unknown reconcile、queue/backpressure、secret quarantine、no effect source guards；无真实 fault injection、durable checkpoint/rebuild、capacity benchmark、live/physical receipt
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 domain/core matrix fixtures、source guard、workspace compile 与 CI exit code pending/unobserved
+status_change: NM-20 deterministic notification fault/capacity/security matrix、deny-first fixture/source guard、baseline/workflow/status 已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（domain/core replay-only matrix + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: matrix 只分类预期安全反应，不实际制造 crash/lag/disk/queue/provider/connector fault；critical durability、projector checkpoint、dead-letter、external/live/physical delivery 与 capacity SLO 未证明；CI 结果未等待
+reviewer: Codex NM-20 source review；检查九类 scenario coverage、source binding、critical/secret/effect invariants、snapshot/reconcile/backpressure/quarantine、no kill/send/write_event/direct effect；无本地 runtime/fault reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
