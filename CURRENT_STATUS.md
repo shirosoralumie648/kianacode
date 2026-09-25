@@ -733,6 +733,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: source markers cover tuple/key construction but no browser E2E, HTTP race, durable inbox, approval identity or provider/Broker effect proof
 reviewer: Codex UI-21 source review; checked tuple-safe protocol identity, client key isolation and unchanged server-owned approval boundary; no local runtime test reviewer
 ```
+
+### UI-22 artifact missing-content evidence (2026-09-26)
+
+```text
+source_snapshot: base `e266c8a2` plus UI-22 Web detail slice; `kiana-client/src/web_detail.rs`; `kiana-entrypoints/tests/fixtures/ui22-web-detail.json`; `kiana-entrypoints/tests/ui22_web_detail.rs`; UI-22 baseline/roadmap overlays
+worktree_status: `WebArtifactViewer::accept_page` stores a `none`/missing-content page only as Unknown with `complete=false` and requires every page to carry content before Ready; it cannot promote an unavailable artifact to Ready or green empty content
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/web_detail.rs kiana-entrypoints/tests/ui22_web_detail.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui22_web_detail --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui22_web_detail_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `content_missing_never_ready` source fixture; digest/revision/session/tab/HTML/SVG/ANSI/secret/URL/client-diff/Unknown cases remain; no provider/filesystem/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-22 unavailable artifact content now remains Unknown/incomplete instead of Ready; card remains 🔄 pending CI evidence and browser/durable artifact proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no browser E2E, durable artifact store, binary serving, real HTTP/session race, complete diff index, receipt reconstruction or provider/Broker effect proof
+reviewer: Codex UI-22 source review; checked missing-content state, page digest/revision/ref fences, text-only detail path and no client diff/fetch authority; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

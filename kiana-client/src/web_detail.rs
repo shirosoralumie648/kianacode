@@ -180,6 +180,12 @@ impl WebArtifactViewer {
             }
             return Ok(());
         }
+        if page.content.is_none() {
+            self.pages.insert(page.page_index, page);
+            self.mark_unknown("artifact_content_unavailable");
+            self.complete = false;
+            return Ok(());
+        }
         let page_bytes = page.content.as_ref().map_or(0, String::len);
         let total = self
             .total_bytes
@@ -191,7 +197,8 @@ impl WebArtifactViewer {
         self.pages.insert(page.page_index, page);
         self.total_bytes = total;
         let expected = self.expected_page_count.unwrap_or_default() as usize;
-        if expected > 0 && self.pages.len() == expected {
+        let all_pages_have_content = self.pages.values().all(|page| page.content.is_some());
+        if expected > 0 && self.pages.len() == expected && all_pages_have_content {
             let contiguous = self.pages.keys().copied().eq(0..expected as u32);
             if contiguous {
                 self.complete = true;
