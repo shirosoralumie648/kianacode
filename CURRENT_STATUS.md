@@ -865,6 +865,29 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: parent-component symlink and Windows ACL behavior remain unproven; no crash-rename, multi-process CAS, keyring, restart, provider/Broker or physical proof
 reviewer: Codex UI-27 source review; checked canonical workspace reference, store mode checks, metadata-only schema and no-auto-reattach path; no local runtime reviewer
 ```
+
+### UI-28 Desktop asset version evidence (2026-09-26)
+
+```text
+source_snapshot: base `d598fd0d` plus UI-28 asset verifier slice; `contrib/desktop/lib/asset-manifest.js`; `contrib/desktop/tests/ui28_assets.test.js`; `contrib/desktop/tests/fixtures/ui28-assets.json`; UI-28 baseline/roadmap overlays
+worktree_status: `verifyAssetManifest` now passes manifest app version into package allowlist validation and rejects any mismatch with `package.json.version`; hash/size/CSP/license/secret/path checks remain unchanged
+command_argv:
+  node --check contrib/desktop/lib/asset-manifest.js
+  node --check scripts/verify-desktop-assets.js
+  git diff --check
+  GitHub Actions: node --check sources and JSON parse
+  GitHub Actions: node scripts/verify-desktop-assets.js
+  GitHub Actions: node --test contrib/desktop/tests/ui28_assets.test.js
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo check -p kiana-entrypoints --tests --locked
+cwd·environment: repository root; syntax/whitespace checks only; local Node/Cargo tests/build/check/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only package/manifest app-version drift denial plus existing hash/size/path/symlink/secret/CSP/package allowlist cases; no Electron package or OS effect
+exit_code: 0 for targeted node --check and `git diff --check`; Node/Rust fixtures and compile pending/unobserved
+status change: UI-28 package version drift can no longer pass the asset verifier; card remains 🔄 pending CI and real package/signature/cache proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no electron-builder clean package, DEB signature, offline upgrade/rollback, cross-platform packaging, browser cache or provider/Broker effect proof
+reviewer: Codex UI-28 source review; checked manifest/package version binding, hash/size/CSP/license/secret/path fences and no execution authority; no local package-build reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

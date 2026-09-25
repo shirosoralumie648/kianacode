@@ -16,7 +16,7 @@
     {"path": "preload.js", "sha256": "c6905219e5768fd7b0f7c497a4580a26925154bd3d583e318cf2907ea6a19250", "bytes": 2572, "cache": "immutable"},
     {"path": "welcome.html", "sha256": "4b0f8018f4cc7cdbe119181e0cf35f0a068f7d36c2478c1be984058ca437e060", "bytes": 5968, "cache": "immutable"},
     {"path": "icon.png", "sha256": "2bacb094fdbe24db4979317ee9717cb465d1ca3b6a0787f1edc1fdcc872a18cd", "bytes": 158, "cache": "immutable"},
-    {"path": "lib/asset-manifest.js", "sha256": "a222af84d1ccb811d1742f86fd7a370e847f7bfda4ed3bcccef574684e592885", "bytes": 5910, "cache": "immutable"},
+    {"path": "lib/asset-manifest.js", "sha256": "b0e26e4a3cd7b29c0ccd6ac972831f478b019f4faf649d810e839efb82b7d7ec", "bytes": 6115, "cache": "immutable"},
     {"path": "lib/close-policy.js", "sha256": "0741ed8b291f736edf434770fead535f3d357c1cc4f1a85bb2ed23567c0b7f46", "bytes": 1249, "cache": "immutable"},
     {"path": "lib/deb-layout.js", "sha256": "15ce3fb68eb6f67a47810f068a7dfd5408728887782735d6272200ab31c56398", "bytes": 3335, "cache": "immutable"},
     {"path": "lib/desktop-persistence.js", "sha256": "e0f00de7d473e8e44e38dd3678ab453e50527fcdfa0f8664c3d50b304677b084", "bytes": 10726, "cache": "immutable"},

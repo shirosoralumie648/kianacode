@@ -40,6 +40,7 @@ test("UI-28 fixture records package, hash and CSP deny-first cases", () => {
   assert.equal(fixture.schema, "kiana.desktop-assets-fixture.v1");
   assert.ok(fixture.denied.some(item => item.includes("hash")));
   assert.ok(fixture.denied.some(item => item.includes("unsafe-inline")));
+  assert.ok(fixture.denied.some(item => item.includes("version drift")));
   assert.deepEqual(fixture.csp, { mode: "runtime_nonce", hash_algorithm: "sha256" });
 });
 
@@ -49,6 +50,7 @@ test("asset manifest verifies exact package bytes and cache/CSP contracts", t =>
   fs.writeFileSync(path.join(root, "main.js"), "console.log('main');\n");
   fs.writeFileSync(path.join(root, "preload.js"), "'use strict';\n");
   const packageJson = {
+    version: "0.1.0",
     license: "MIT OR Apache-2.0",
     build: { files: ["main.js", "preload.js", "welcome.html", "asset-manifest.json", "lib/**/*"] },
   };
@@ -58,6 +60,7 @@ test("asset manifest verifies exact package bytes and cache/CSP contracts", t =>
   assert.equal(cacheControlForAsset({ cache: "no-store" }), "no-store");
   assert.match(cspHashForBytes(Buffer.from("inline")), /^sha256-[A-Za-z0-9+/]+=*$/);
   assert.throws(() => verifyAssetManifest({ ...manifest, assets: [{ ...manifest.assets[0], bytes: 999 }] }, root, packageJson), /digest_mismatch/);
+  assert.throws(() => verifyAssetManifest(manifest, root, { ...packageJson, version: "0.2.0" }), /version_mismatch/);
   assert.throws(() => validateAssetManifest({ ...manifest, unknown: true }), /unknown_field/);
   assert.throws(() => validatePackageFiles({ ...packageJson, build: { files: ["main.js", "preload.js", "welcome.html", ".env"] } }), /missing|secret_pattern/);
 });

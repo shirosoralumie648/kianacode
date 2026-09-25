@@ -13,6 +13,7 @@
     "absolute, parent escaping, symlink or secret asset path",
     "private key or live credential marker in package bytes",
     "old protocol or UI schema without capability negotiation",
+    "package and manifest app version drift",
     "package glob that includes .env, token or secret material",
     "CSP downgrade to unsafe-inline or unsafe-eval"
   ],
