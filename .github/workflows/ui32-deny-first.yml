@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-entrypoints/src/**"
       - "kiana-entrypoints/tests/fixtures/ui32-deny-first.json"
       - "kiana-entrypoints/tests/ui32_deny_first.rs"
@@ -14,6 +15,7 @@ on:
       - ".github/workflows/ui32-deny-first.yml"
   pull_request:
     paths:
+      - "kiana-domain/src/memory_workbench.rs"
       - "kiana-entrypoints/src/**"
       - "kiana-entrypoints/tests/fixtures/ui32-deny-first.json"
       - "kiana-entrypoints/tests/ui32_deny_first.rs"

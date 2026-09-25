@@ -20,6 +20,7 @@ CLI/Workbench cancel/parity 以及 DaemonHost/ControlPlane/EventLog/result_unkno
 `.github/workflows/ui32-deny-first.yml` 运行 Rust formatting、串行 UI-32 fixture/source guard 和
 workspace test-target compile。后续真实 HTTP/browser/Electron/PTY、effect counter、EventLog append、
 approval race、provider/connector、跨进程恢复和 physical/live proof 仍需 UI-33、UI-38 及 ER/PD/SC
-门禁；CI 结果保持 pending/unobserved。
+门禁；CI 结果保持 pending/unobserved。Workflow path filter 同时包含当前 CM-36
+`kiana-domain/src/memory_workbench.rs`，fresh remote run 会覆盖 repository-wide fmt dependency。
 
 `feature_status=implemented`; `proof_level=source`。
