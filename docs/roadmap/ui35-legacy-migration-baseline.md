@@ -20,6 +20,8 @@ ControlPlane 路径提供。
 route deprecation、canonical mapping、unknown/NUL injection、no-fact-write 和 no-second-loop
 metadata。`.github/workflows/ui35-legacy-migration.yml` 运行 Rust format、聚焦 migration fixture
 和 workspace test-target compile。
+其 push/pull_request path filter 现在同时包含当前 CM-36 `kiana-domain/src/memory_workbench.rs`，
+fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pending/unobserved。
 
 `feature_status=implemented`; `proof_level=source`。未证明真实旧浏览器/CLI traffic usage、双读
 projection capture、feature-flag rollout/deprecation telemetry、实际删除旧 endpoint、跨进程 durable
