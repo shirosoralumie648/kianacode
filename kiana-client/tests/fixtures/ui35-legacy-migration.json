@@ -10,6 +10,7 @@
   "denied": [
     "unknown route",
     "legacy route with embedded token/path injection",
+    "forged mapping widens legacy operation",
     "compatibility adapter writes facts directly",
     "legacy route starts a second execution loop"
   ]

@@ -1008,6 +1008,26 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: source integration is not long-stream/RSS/p50/p95/accessibility automation or cross-process backpressure proof
 reviewer: Codex UI-34 source review; checked hard/degraded/protected budget decisions and registration of UI-20/UI-33 fences without execution authority; no local runtime reviewer
 ```
+
+### UI-35 legacy mapping integrity evidence (2026-09-26)
+
+```text
+source_snapshot: base `4cc1492a` plus UI-35 legacy migration slice; `kiana-client/src/legacy_migration.rs`; `kiana-client/tests/fixtures/ui35-legacy-migration.json`; `kiana-client/tests/ui35_legacy_migration.rs`; UI-35 baseline/roadmap overlays
+worktree_status: mapping validation now enforces known canonical operation, bounded deprecation text and operation-specific read_only semantics; forged legacy mappings cannot widen into arbitrary capabilities
+command_argv:
+  rustfmt --edition 2021 kiana-client/src/legacy_migration.rs kiana-client/tests/ui35_legacy_migration.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-client --test ui35_legacy_migration --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; targeted formatting/whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only forged mapping widening denial plus unknown/NUL/injection/no-fact-write/no-second-loop cases; no legacy traffic/provider/Broker effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; migration fixtures and workspace compile pending/unobserved
+status change: UI-35 legacy compatibility metadata now fails closed on forged operation/read-only drift; card remains 🔄 pending CI and real deprecation traffic proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no real legacy browser/CLI traffic, feature-flag telemetry, endpoint removal, durable compatibility, provider/Broker or physical proof
+reviewer: Codex UI-35 source review; checked mapping allowlist, read-only semantics, input bounds and no-fact-write/no-second-loop boundary; no local runtime reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

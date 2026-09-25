@@ -10,6 +10,9 @@
 `turn.cancel`/`receipt.query`。已知 legacy route 明确标记 Deprecated、`requires_typed_client=true`
 和 `writes_facts=false`；unknown、NUL、超长或恶意输入返回稳定拒绝。
 
+Mapping validation also rechecks the canonical allowlist, deprecation text bounds and the expected
+read-only bit for each operation; a forged mapping cannot widen a legacy route into a new capability.
+
 兼容窗口只能做单向适配/迁移提示；它不能自读写 EventLog、直接执行 capability、改变 retry/Unknown
 语义或生成第二个 runner loop。旧 route 的事实与授权仍由现有 typed client → DaemonHost →
 ControlPlane 路径提供。
