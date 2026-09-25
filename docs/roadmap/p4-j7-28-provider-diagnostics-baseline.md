@@ -24,8 +24,10 @@ provider connection, perform inference, authorize an action or replace the Event
 ## CI-only fixtures
 
 `.github/workflows/p4-j7-28-provider-diagnostics.yml` runs the domain fixtures, Core source guard,
-formatting and client/protocol/core test-target compilation on GitHub Actions. Local tests, builds,
-checks, clippy and smoke commands are intentionally not run.
+formatting and client/protocol/core test-target compilation on GitHub Actions. Its path filter
+includes current CM-36 `kiana-domain/src/memory_workbench.rs` so a fresh remote run can clear the
+repository-wide fmt dependency; that result is pending and unobserved. Local tests, builds, checks,
+clippy and smoke commands are intentionally not run.
 
 The fixtures cover secret-free catalog/configuration round trips, stale authority/config epoch
 rejection, explicit connection-test admission, terminal replay without a second model request and
