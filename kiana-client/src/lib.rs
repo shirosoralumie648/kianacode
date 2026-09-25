@@ -22,6 +22,7 @@ mod surface_parity;
 mod ui_recovery;
 mod ui_budget;
 mod legacy_migration;
+mod conformance;
 mod provider_diagnostics;
 mod typed;
 mod ui_schema_generated;
@@ -68,6 +69,10 @@ pub use ui_budget::{
 pub use legacy_migration::{
     map_legacy_route, validate_mapping, LegacyMigrationError, LegacyRouteMapping, LegacySurface,
     MigrationDisposition, LEGACY_MIGRATION_SCHEMA,
+};
+pub use conformance::{
+    compare_conformance, ConformanceError, ConformanceReport, ConformanceTrace,
+    UI_CONFORMANCE_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
 pub use typed::{
