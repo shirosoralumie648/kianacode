@@ -17,6 +17,19 @@ proof-level change: `feature_status=implemented`（docs/source + CI guard）；`
 limitations: 文档不能证明干净 checkout runtime、真实 browser/PTY/Electron/ACP、durable recovery、provider/connector/live/physical 或 release UAT；CI 结果未等待
 reviewer: Codex UI-37 source/doc review；检查唯一执行脊柱、事实/投影边界、命令/错误/Unknown/recovery、feature/proof 分离、限制完整性、link/status guard 与无 overclaim；无本地 runtime test reviewer
 
+### UI-38 协议/入口 conformance 集成门（2026-09-25）
+
+source_snapshot: `3c8aa752`（UI-37 已合并 master 基线）加 UI-38 conformance source slice；`kiana-client/src/{conformance.rs,lib.rs}`；`kiana-client/tests/{fixtures/ui38-conformance.json,ui38_conformance.rs}`；`.github/workflows/ui38-conformance.yml`; `docs/roadmap/ui38-conformance-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
+worktree_status: branch `step/ui38-conformance-gate-20260925`;新增四 surface trace conformance comparator，复用 UI-31 parity，绑定 protocol/UI/capability schema、command/epoch/feed sequence、disposition/retry、artifact/receipt digest、Unknown visibility 与 sensitive-field deny；不发起 command/retry/cancel/resume/approve、不写 EventLog、不执行 capability effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy）；GitHub Actions 将运行 `cargo fmt --all --check`、`cargo test -p kiana-client --test ui38_conformance --locked -- --test-threads=1`、`cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke；GitHub Actions 是测试权威且不等待
+fixture·cassette: `ui38-conformance.json`；四 surface Unknown trace、一致 schema/cursor/action/retry/digest/receipt、hidden Unknown、sensitive fields、capability drift、duplicate/gap/secret/direct-effect deny；无真实 transport/browser/PTY/Electron/ACP/provider/Broker effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 conformance fixture、workspace compile 与 CI exit code pending/unobserved
+status_change: UI-38 conformance comparator、fixture registry、CI-only workflow、baseline 与 CURRENT_STATUS 已接入，roadmap row/card 由 ⏳ 推进为 🔄；同时修正 UI-33 WorkerKilled recovery 测试断言以匹配已有 ReconcileUnknown 实现
+proof-level change: `feature_status=implemented`（read-only conformance source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实四入口 trace capture、browser/PTY/Electron/ACP runtime、跨进程 cursor/replay、artifact/receipt 投影、provider/connector/external effect、差异 cassette 持久化或 live/physical proof；CI 结果未等待
+reviewer: Codex UI-38 source review；检查 schema/cursor/sequence/action/retry/digest/receipt/Unknown/sensitive parity、fail-closed mismatch、UI-33 recovery assertion alignment、无执行权与无第二执行循环；无本地 runtime test reviewer
+
 ### UI-36 生产构建、安装和发布前 smoke（2026-09-25）
 
 source_snapshot: `72090bec`（UI-35 已合并 master 基线）加 UI-36 source slice；`scripts/verify-ui36-release-gate.sh`; `.github/workflows/ui36-release-gate.yml`; `docs/roadmap/ui36-release-gate-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

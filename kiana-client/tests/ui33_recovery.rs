@@ -54,7 +54,8 @@ fn recovery_plans_preserve_command_and_never_allow_new_effect() {
 
     let unknown =
         plan_recovery(&input(RecoveryPhase::Cancel, RecoveryFault::WorkerKilled)).unwrap();
-    assert_eq!(unknown.decision, RecoveryDecision::QueryOriginalCommand);
+    assert_eq!(unknown.decision, RecoveryDecision::ReconcileUnknown);
+    assert!(unknown.snapshot_required);
     assert!(!unknown.new_effect_allowed);
 
     assert_eq!(

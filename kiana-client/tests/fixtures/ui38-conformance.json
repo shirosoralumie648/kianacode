@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.ui-conformance-fixture.v1",
+  "accepted": [
+    "same protocol/ui/capability schema and cursor/action/receipt trace across four surfaces",
+    "artifact digest and Unknown visibility are compared, presenter fields are ignored"
+  ],
+  "denied": [
+    "missing schema/epoch or duplicate/gapped trace",
+    "wrong retry disposition or hidden Unknown",
+    "sensitive field leakage",
+    "artifact/receipt/capability drift",
+    "surface-specific direct effect or authorization"
+  ]
+}

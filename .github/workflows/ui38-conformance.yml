@@ -1,0 +1,44 @@
+name: UI-38 protocol and surface conformance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-client/src/conformance.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/surface_parity.rs"
+      - "kiana-client/tests/fixtures/ui38-conformance.json"
+      - "kiana-client/tests/ui38_conformance.rs"
+      - "docs/roadmap/ui38-conformance-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui38-conformance.yml"
+  pull_request:
+    paths:
+      - "kiana-client/src/conformance.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/src/surface_parity.rs"
+      - "kiana-client/tests/fixtures/ui38-conformance.json"
+      - "kiana-client/tests/ui38_conformance.rs"
+      - "docs/roadmap/ui38-conformance-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ui38-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui38-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-client --test ui38_conformance --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

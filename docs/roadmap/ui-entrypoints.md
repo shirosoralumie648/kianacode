@@ -800,13 +800,20 @@ runtime/durable/live/physical 证明。
 
 
 
-#### UI-38 · 协议/入口 conformance 集成门　⏳
+#### UI-38 · 协议/入口 conformance 集成门　🔄
 
 - 依赖：UI-01–37。代码：统一 conformance runner，覆盖 Rust client、CLI、Web、Desktop、ACP fake peer。
 - 步骤：对每个 surface 执行 schema decode、capability、snapshot/feed cursor、action disposition、error/retry、artifact digest、receipt reference 检查；生成可比较 JSON trace。
 - 先拒绝：未声明 schema/epoch、重复/跳号、错误 retry、unknown 被吞、敏感字段泄漏、surface 特例绕过协议。
 - 成功/回归：同一 fixture 的事实 trace 一致，差异仅在 presenter；失败输出最小复现 cassette。
 - 完成产物：conformance suite、fixture registry、CI gate 和差异报告格式。
+
+实现基线：[`ui38-conformance-baseline.md`](ui38-conformance-baseline.md)。当前 source slice 位于
+`kiana-client/src/conformance.rs`，在既有四 surface parity comparator 之上统一校验 protocol/UI/
+capability schema、command/cursor/feed sequence、action disposition/retry、artifact/receipt digest、
+Unknown 可见性和敏感字段计数；所有失败 fail-closed，comparator 只消费 trace，不 retry、cancel、
+resume、approve 或执行 capability effect。fixture 与 GitHub Actions 只在远程验证，不把 CI 未观察
+结果升级为 local_behavior/durable/live/physical proof。
 
 <a id="step-ui-39"></a>
 
