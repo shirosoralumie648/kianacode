@@ -14,7 +14,8 @@ cargo fmt --all --check
 cargo build --bin kiana --locked
 
 if rg -n --hidden --glob '!target/**' --glob '!.git/**' --glob '!*.lock' \
-  'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|ghp_|github_pat_|sk-live-|x-kiana-web-token=[^_]' \
+  --glob '!scripts/verify-ui36-release-gate.sh' --glob '!contrib/desktop/tests/**' \
+  'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|ghp_|github_pat_|sk-live-|x-kiana-web-token|access_token|refresh_token|api[_-]?key|client_secret|Authorization:[[:space:]]*Bearer' \
   contrib/desktop dist scripts 2>/dev/null; then
   echo "release_secret_marker_found" >&2
   exit 1
