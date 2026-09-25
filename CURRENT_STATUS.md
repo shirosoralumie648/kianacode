@@ -649,6 +649,27 @@ proof-level change: source plus GitHub CI wiring only; no local_behavior, durabl
 limitations: cursor state remains process-local and disposable; no live HTTP/browser, cross-process restart, durable cache or artifact-byte proof
 reviewer: Codex UI-17 source review; checked cursor lock ordering, scope validation before removal and replay semantics; no local runtime test reviewer
 ```
+
+### UI-18 oversized SSE cursor context evidence (2026-09-26)
+
+```text
+source_snapshot: base `9871a483` plus UI-18 SSE fallback slice; `kiana-entrypoints/src/web.rs`; `kiana-entrypoints/tests/fixtures/ui18-web-sse.json`; `kiana-entrypoints/tests/ui18_web_sse.rs`; UI-18 baseline/roadmap overlays
+worktree_status: oversized and serialization-error SSE fallbacks now retain the source envelope epoch/sequence with `schema`, bounded error and `hydrate=true`; no command submission or provider path changed
+command_argv:
+  rustfmt --edition 2021 kiana-entrypoints/src/web.rs kiana-entrypoints/tests/ui18_web_sse.rs
+  git diff --check
+  GitHub Actions: cargo fmt --all --check
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui18_web_sse --locked -- --test-threads=1
+  GitHub Actions: cargo test -p kiana-entrypoints --test ui18_web_sse_guard --locked -- --test-threads=1
+  GitHub Actions: cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux; targeted source formatting and whitespace checks only; local tests/build/check/clippy/smoke deliberately not run; CI not awaited
+fixture·cassette: GitHub-only `oversized_frame_preserves_cursor_context` fixture/source marker; no browser/HTTP/provider/network effect
+exit_code: 0 for targeted rustfmt and `git diff --check`; no local tests/build/check/clippy/smoke were run; CI fixtures pending/unobserved
+status change: UI-18 bounded fallback frames now preserve cursor identity needed for hydrate/gap diagnosis; card remains 🔄 pending CI evidence and live browser/transport proof
+proof-level change: source plus GitHub CI wiring only; no local_behavior, durable, live or physical promotion
+limitations: no live SSE timing, browser reconnect, cross-process cursor durability, provider stream or external network proof
+reviewer: Codex UI-18 source review; checked oversized/error fallback cursor context, bounded payload behavior and read-only reconnect path; no local runtime test reviewer
+```
 ### BQ-10 normalized provider usage adapters（2026-09-25）
 
 source_snapshot: `53f32107` plus BQ-10 source slice; `kiana-provider/src/{usage.rs,usage_adapters.rs,lib.rs}`; `kiana-provider/tests/bq10_normalized_usage.rs`; `kiana-core/tests/bq10_normalized_usage_guard.rs`; `.github/workflows/bq10-normalized-usage.yml`; `docs/roadmap/bq10-normalized-usage-baseline.md`; `docs/roadmap.md`

@@ -23,6 +23,7 @@
     "old_epoch",
     "cursor_conflict",
     "oversized_frame",
+    "oversized_frame_preserves_cursor_context",
     "sse_token_in_payload_or_log",
     "reconnect_resubmits_command",
     "terminal_then_delta"
