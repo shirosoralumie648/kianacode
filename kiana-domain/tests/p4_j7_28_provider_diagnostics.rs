@@ -133,6 +133,11 @@ fn authority_or_config_epoch_change_discards_projection() {
 }
 
 #[test]
+fn diagnostics_cursor_rejects_zero_sequence() {
+    assert!(ProviderDiagnosticsCursor::new(1, 1, 0).is_err());
+}
+
+#[test]
 fn settings_view_cannot_create_connection_test_admission() {
     let mut request = ProviderConnectionTestRequest {
         schema: PROVIDER_CONNECTION_TEST_SCHEMA.to_owned(),

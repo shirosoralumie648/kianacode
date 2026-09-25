@@ -446,7 +446,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **退出 / 证据**：用户看到可行动错误，不暴露协议调试细节；保持现有默认流式行为，额外上游设置有明确来源与实效。
 
   当前 source slice 与 CI-only 验收见 [`p4-j7-28-provider-diagnostics-baseline.md`](p4-j7-28-provider-diagnostics-baseline.md)。
-  `ProviderDiagnosticsSnapshot`、epoch-bound cursor、explicit connection-test admission 和 terminal receipt replay
+  `ProviderDiagnosticsSnapshot`、non-zero/contiguous epoch-bound cursor、explicit connection-test admission 和 terminal receipt replay
   已登记；真实三界面 transport、durable projector、live provider effect 仍保留在后续步骤。
 
 <a id="step-p4-j7-29"></a>

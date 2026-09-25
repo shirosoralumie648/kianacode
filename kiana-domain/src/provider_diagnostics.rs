@@ -417,6 +417,7 @@ impl ProviderDiagnosticsCursor {
             || self.version != PROVIDER_DIAGNOSTICS_VERSION
             || self.authority_epoch == 0
             || self.config_epoch == 0
+            || self.sequence == 0
         {
             return Err("provider_diagnostics_cursor_header_invalid".to_owned());
         }
