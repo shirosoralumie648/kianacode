@@ -25,7 +25,8 @@ query parameter because `EventSource` cannot set request headers.
 Host and Origin are parsed as exact HTTP authorities for the bound loopback address.  A supplied
 Origin must match the bound address; `null`, credentials, another port, another loopback address,
 an arbitrary hostname, path, query or fragment are rejected.  Missing token, foreign Origin and
-foreign Host fail before a handler reaches `DaemonHost`.
+foreign Host fail before a handler reaches `DaemonHost`. For SSE, a header token and query token
+may not disagree; a conflicting pair is rejected before the stream is authorized.
 
 ## Deny-first boundaries
 

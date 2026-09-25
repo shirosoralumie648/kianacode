@@ -54,6 +54,7 @@ fn ui16_route_fixture_covers_the_deny_first_matrix() {
 
     for expected in [
         "missing_token_state_events_action",
+        "sse_header_query_conflict",
         "foreign_origin",
         "path_traversal",
         "cross_workspace_session",
