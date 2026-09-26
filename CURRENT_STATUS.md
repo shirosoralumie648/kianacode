@@ -303,6 +303,19 @@ proof-level change: `feature_status=implemented`（documentation/source handoff 
 limitations: guard 只证明状态账本/文档结构，不能证明 CM-33–37 runtime、durable index/retention、cross-process recovery、provider/live scope/redaction 或 physical/scale outcome；CI 结果未等待
 reviewer: Codex CM-39 source/handoff review；检查 CM-38 block extraction、ten evidence fields、source ceiling、open limitations 与 no document-based promotion；无本地 runtime/memory reviewer
 
+### PD-33 persistence UAT proof ceiling fence（2026-09-26）
+
+source_snapshot: `846cb97c`（CM-39 handoff evidence fence 已合并 master 基线）加 PD-33 evidence source slice；`kiana-domain/src/persistence_uat_evidence.rs`; `kiana-domain/tests/pd33_persistence_uat_evidence.rs`; `docs/roadmap/pd33-persistence-uat-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/pd-33-persistence-proof-fence-20260926`; `PersistenceUatEvidence::validate` 现在要求 Verified status 使用 `Durable` 或 `Live` proof，不能用 LocalBehavior 加 caller-supplied flags 冒充 durable backup/restore/restart/delete；不写 backup、restore、upgrade、restart 或 governed data
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/storage/UAT）；GitHub Actions 将运行 PD-33 matrix/evidence/source/checkpoint/parity/spine fixtures 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/storage/backup/restore/restart/delete/live；GitHub Actions 是测试权威且不等待
+fixture·cassette: `pd33_persistence_uat_evidence.rs` 新增 LocalBehavior-as-Verified deny；existing matrix, receipts, backup/restore reconcile, restart replay, deletion review and limitation fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 PD-33 domain/source/checkpoint/parity/spine/workspace compile exit code pending/unobserved
+status_change: PD-33 persistence evidence proof ceiling now rejects LocalBehavior verified claims，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（persistence UAT evidence source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明真实 backup bytes、restore quarantine、cross-process replay、power-loss/SQLite、retention/legal-hold/delete cleanup、provider/live receipt 或 physical effect；CI 结果未等待
+reviewer: Codex PD-33 source review；检查 Verified proof level、receipt/reconcile/restart/delete flags、Unknown boundaries 与 no storage effect；无本地 persistence/UAT reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`

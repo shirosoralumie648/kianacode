@@ -57,3 +57,23 @@ fn verified_persistence_evidence_requires_receipts_and_reconciliation() {
     .expect("verified evidence shape");
     verified.validate().expect("verified validates");
 }
+
+#[test]
+fn local_behavior_cannot_verify_persistence_uat() {
+    let local = PersistenceUatEvidence::new(
+        A,
+        B,
+        PersistenceUatProofLevel::LocalBehavior,
+        PersistenceUatEvidenceStatus::Verified,
+        vec![A.to_owned()],
+        true,
+        true,
+        true,
+        "persistence-reviewer",
+        Vec::new(),
+    );
+    assert_eq!(
+        local.expect_err("persistence verification needs durable proof"),
+        "persistence_uat_verified_evidence_incomplete"
+    );
+}

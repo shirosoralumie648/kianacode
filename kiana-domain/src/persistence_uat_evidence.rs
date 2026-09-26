@@ -106,8 +106,10 @@ impl PersistenceUatEvidence {
             bounded(limitation, "persistence_uat_evidence_limitation", 256)?;
         }
         if self.status == PersistenceUatEvidenceStatus::Verified {
-            if self.proof_level == PersistenceUatProofLevel::Source
-                || self.receipt_digests.is_empty()
+            if !matches!(
+                self.proof_level,
+                PersistenceUatProofLevel::Durable | PersistenceUatProofLevel::Live
+            ) || self.receipt_digests.is_empty()
                 || !self.backup_restore_reconciled
                 || !self.restart_replayed
                 || !self.deletion_reviewed
