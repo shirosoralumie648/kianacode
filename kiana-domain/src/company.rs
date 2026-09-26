@@ -1,7 +1,8 @@
 //! Versioned Company business contracts. State is rebuilt exclusively from committed events.
 //! This module is deterministic: clocks, identity and observed runtime evidence are inputs.
 use crate::{
-    ExecutionStatus, RequestId, RunId, RuntimeReceiptRef, SessionId, WorkPacket, WorkPacketStatus,
+    journal_sha256, ExecutionStatus, RequestId, RunId, RuntimeReceiptRef, SessionId, WorkPacket,
+    WorkPacketStatus,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -23,6 +24,13 @@ fn required(value: &str) -> CompanyResult<()> {
     } else {
         Ok(())
     }
+}
+
+fn charter_identity_digest(artifact: &CompanyArtifact) -> String {
+    crate::json_digest(&serde_json::json!({
+        "content_hash": journal_sha256(artifact.text.as_bytes()),
+        "typed_version": artifact.typed_version.as_ref(),
+    }))
 }
 fn list(values: &[String]) -> CompanyResult<()> {
     if values.is_empty() || values.len() > 1024 {
@@ -267,6 +275,37 @@ impl Project {
         list(&self.non_goals)
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectCharterBaseline {
+    pub project_id: String,
+    pub version: u64,
+    pub charter_ref: String,
+    pub scope_baseline: String,
+    pub success_criteria: Vec<String>,
+    pub non_goals: Vec<String>,
+    pub risk_summary: String,
+    pub project_budget_ref: String,
+    pub budget_digest: String,
+}
+
+impl ProjectCharterBaseline {
+    fn from_project(project: &Project, budget: &CompanyBudgetPolicy) -> Self {
+        Self {
+            project_id: project.project_id.clone(),
+            version: 1,
+            charter_ref: project.charter_ref.clone(),
+            scope_baseline: project.scope_baseline.clone(),
+            success_criteria: project.success_criteria.clone(),
+            non_goals: project.non_goals.clone(),
+            risk_summary: project.risk_summary.clone(),
+            project_budget_ref: project.project_budget_ref.clone(),
+            budget_digest: crate::json_digest(&serde_json::json!(budget)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Milestone {
@@ -949,6 +988,14 @@ pub struct CompanyState {
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
+    /// Digest captured when a project proposal references a registered Charter.
+    /// Legacy/replayed projects may omit it and still require a present artifact at approval.
+    #[serde(default)]
+    pub charter_digests: BTreeMap<String, String>,
+    /// Frozen scope/criteria/budget references created by a successful Charter approval. Project
+    /// state revisions continue to advance independently after this snapshot.
+    #[serde(default)]
+    pub charter_baselines: BTreeMap<String, ProjectCharterBaseline>,
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
@@ -1306,10 +1353,41 @@ impl CompanyState {
                     !self.projects.contains_key(&project.project_id),
                     "project_already_exists",
                 )?;
+                let charter_digest = project
+                    .charter_ref
+                    .strip_prefix("artifact:")
+                    .and_then(|id| self.artifacts.get(id))
+                    .map(|artifact| {
+                        ensure(
+                            artifact.registered_at > 0 && !artifact.text.trim().is_empty(),
+                            "project_charter_artifact_required",
+                        )?;
+                        Ok::<_, &'static str>(charter_identity_digest(artifact))
+                    })
+                    .transpose()?;
                 self.projects
                     .insert(project.project_id.clone(), project.clone());
+                if let Some(digest) = charter_digest {
+                    self.charter_digests
+                        .insert(project.project_id.clone(), digest);
+                }
             }
             CompanyCommand::StartChartering { project_id } => {
+                let project = self.project(project_id)?.clone();
+                let charter_id = project
+                    .charter_ref
+                    .strip_prefix("artifact:")
+                    .ok_or("project_charter_artifact_required")?;
+                let charter = self
+                    .artifacts
+                    .get(charter_id)
+                    .ok_or("project_charter_artifact_required")?;
+                ensure(
+                    charter.registered_at > 0 && !charter.text.trim().is_empty(),
+                    "project_charter_artifact_required",
+                )?;
+                self.charter_digests
+                    .insert(project_id.clone(), charter_identity_digest(charter));
                 self.set_project(project_id, ProjectStatus::Chartering)?
             }
             CompanyCommand::ApproveProject {
@@ -1321,13 +1399,54 @@ impl CompanyState {
                 decision_ref,
             } => {
                 let project = self.project(project_id)?;
+                if matches!(c, CompanyCommand::ApproveProject { .. }) {
+                    ensure(
+                        project.status == ProjectStatus::Chartering,
+                        "project_charter_not_ready_for_approval",
+                    )?;
+                    ensure(
+                        self.budgets.contains_key(project_id),
+                        "project_budget_required",
+                    )?;
+                    ensure(project.sponsor_id == a.actor_id, "project_sponsor_mismatch")?;
+                    ensure(
+                        project.objective_refs.iter().all(|objective_id| {
+                            self.objectives.get(objective_id).is_some_and(|objective| {
+                                objective.organization_id == project.organization_id
+                                    && objective.status == ObjectiveStatus::Active
+                            })
+                        }),
+                        "project_objective_not_active",
+                    )?;
+                }
+                let charter_id = project
+                    .charter_ref
+                    .strip_prefix("artifact:")
+                    .ok_or("project_charter_artifact_required")?;
+                let charter = self
+                    .artifacts
+                    .get(charter_id)
+                    .ok_or("project_charter_artifact_required")?;
                 ensure(
-                    project
-                        .charter_ref
-                        .strip_prefix("artifact:")
-                        .is_some_and(|id| self.artifacts.contains_key(id)),
+                    charter.registered_at > 0 && !charter.text.trim().is_empty(),
                     "project_charter_artifact_required",
                 )?;
+                if matches!(c, CompanyCommand::ApproveProject { .. }) {
+                    let charter_digest = charter_identity_digest(charter);
+                    if let Some(expected_digest) = self.charter_digests.get(project_id) {
+                        ensure(
+                            expected_digest == &charter_digest,
+                            "project_charter_changed",
+                        )?;
+                    }
+                    if let Some(version) = charter.typed_version.as_ref() {
+                        ensure(
+                            version.validate().is_ok()
+                                && version.content_hash == journal_sha256(charter.text.as_bytes()),
+                            "project_charter_changed",
+                        )?;
+                    }
+                }
                 Self::evidence(p, &[project.charter_ref.clone(), decision_ref.clone()])?;
                 let status = if matches!(c, CompanyCommand::ApproveProject { .. }) {
                     ProjectStatus::Approved
@@ -1337,6 +1456,20 @@ impl CompanyState {
                 self.set_project(project_id, status)?;
                 self.projects.get_mut(project_id).unwrap().decision_ref =
                     Some(decision_ref.clone());
+                if matches!(c, CompanyCommand::ApproveProject { .. }) {
+                    let approved_project = self
+                        .projects
+                        .get(project_id)
+                        .ok_or("company_project_not_found")?;
+                    let budget = self
+                        .budgets
+                        .get(project_id)
+                        .ok_or("project_budget_required")?;
+                    self.charter_baselines.insert(
+                        project_id.clone(),
+                        ProjectCharterBaseline::from_project(approved_project, budget),
+                    );
+                }
             }
             CompanyCommand::CreateMilestone { milestone } => {
                 milestone.validate()?;
@@ -1628,15 +1761,27 @@ impl CompanyState {
                 );
             }
             CompanyCommand::ConfigureBudget { project_id, policy } => {
-                self.require_project_writable(project_id)?;
+                let project = self.project(project_id)?;
+                ensure(
+                    matches!(
+                        project.status,
+                        ProjectStatus::Proposed | ProjectStatus::Chartering
+                    ),
+                    "company_project_not_budgetable",
+                )?;
                 ensure(
                     !self.runs.values().any(|r| r.project_id == *project_id),
                     "company_budget_already_reserved",
                 )?;
                 ensure(
-                    policy.project.project_id.to_string() == *project_id
+                    (policy.project.project_id.to_string() == *project_id
+                        || policy.quota.scope == *project_id)
                         && policy.quota.scope == *project_id,
                     "company_budget_scope_mismatch",
+                )?;
+                ensure(
+                    !self.budgets.contains_key(project_id),
+                    "company_budget_already_configured",
                 )?;
                 policy.runtime.validate()?;
                 policy

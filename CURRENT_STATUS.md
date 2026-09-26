@@ -14585,3 +14585,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: existing Company state/replay remains the durable authority; measurement observations, Charter/go/no-go, Project approval and downstream plan/packet flow remain later CO steps; organization/authority are derived from existing ControlPlane context and no live business outcome is claimed
 reviewer: Codex CO-09 source review; checked objective measurement/owner gates, initiative sponsor/organization ancestry, approval dependency and shared ControlPlane idempotency route; no local runtime test reviewer
 ```
+
+### CO-10 Charter and project go/no-go evidence (2026-09-26)
+
+```text
+source_snapshot: `1f98250f` plus CO-10 Charter/go-no-go source slice; kiana-domain/src/{company.rs,company_business.rs}; kiana-domain/tests/co10_project_charter.rs; kiana-core/tests/co10_project_charter_guard.rs; kiana-daemon/tests/p3_i06_company_golden.rs; .github/workflows/co10-project-charter.yml; docs/roadmap/co10-project-charter-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: proposal-time Charter identity and approval-time ProjectCharterBaseline are recorded in the existing CompanyState; ApproveProject rejects non-chartering, missing budget, Sponsor/objective drift, missing/empty/changed Charter and invalid typed metadata; RejectProject retains a queryable failure exit; ConfigureBudget is pre-approval and single-use; the existing business ApproveCharter action enters Chartering, configures budget and calls the same CompanyState transition path; unrelated redaction/ui_actions WIP remains in this step worktree
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company.rs kiana-domain/src/company_business.rs kiana-domain/tests/co10_project_charter.rs kiana-core/tests/co10_project_charter_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co10_project_charter --locked -- --test-threads=1; cargo test -p kiana-core --test co10_project_charter_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only missing budget, Charter drift/empty snapshot, inactive objective, Sponsor mismatch, frozen scope/criteria/budget baseline, duplicate budget and queryable reject fixtures; no live model, external budget service, source-code write or physical business effect
+exit_code: targeted rustfmt --check and git diff --check exited 0; remote fixtures, source guard and workspace compilation pending/unobserved
+status_change: CO-10 Charter/go-no-go source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 509/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: legacy projects without a proposal Charter identity digest only receive present/non-empty artifact checks; ProjectBudget.project_id and Company project string/project_budget_ref binding remain a compatibility boundary; durable typed Charter storage, cross-process recovery, live provider and real business outcome remain open
+reviewer: Codex CO-10 source review; checked deny-first budget/Charter/objective/Sponsor gates, reject exit, separate baseline snapshot, business command ordering and single ControlPlane path; no local runtime test reviewer
+```
