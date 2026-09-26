@@ -182,3 +182,25 @@ fn conformance_report_rejects_duplicate_case_and_unknown_fields() {
     value["unexpected"] = json!(true);
     assert!(serde_json::from_value::<ConformanceMatrixReport>(value).is_err());
 }
+
+#[test]
+fn conformance_report_rejects_forged_status_and_reason_counts() {
+    let report = ConformanceMatrixReport::evaluate(&[case(
+        "forged-report",
+        ConformanceBackend::Linux,
+        ConformanceTool::Shell,
+        ConformanceScenario::Success,
+        ConformanceCaseStatus::Verified,
+        "fixture",
+    )])
+    .unwrap();
+    let mut forged = report;
+    forged.status = kiana_domain::ConformanceMatrixStatus::Complete;
+    forged.not_implemented_count = 1;
+    forged.blocking_reasons = vec!["forged:pending".to_owned()];
+    forged.report_digest = forged.digest();
+    assert_eq!(
+        forged.validate().unwrap_err(),
+        "conformance_matrix_status_mismatch"
+    );
+}

@@ -10,4 +10,6 @@ Verified without an Implemented backend fails closed.
 The current matrix is a source/CI closeout shape, not a full product acceptance. CAP-30 ranked
 extension search/runtime, CAP-31 macOS, CAP-32 Windows and CAP-33 container/gVisor rows remain
 partial or not implemented; CAP-34 therefore remains partial and does not turn skipped rows into
-success. Live/physical, performance, cleanup-cost and cross-entry runtime evidence remain open.
+success. The report validator also binds status to the four count fields and requires one blocking
+reason per blocked/not-implemented row. Live/physical, performance, cleanup-cost and cross-entry
+runtime evidence remain open.

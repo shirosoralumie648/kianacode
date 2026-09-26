@@ -241,6 +241,27 @@ impl ConformanceMatrixReport {
         {
             return Err("conformance_matrix_report_invalid".to_owned());
         }
+        let total = self.verified_count
+            + self.not_applicable_count
+            + self.not_implemented_count
+            + self.blocked_count;
+        let expected_status = if self.blocked_count > 0 {
+            ConformanceMatrixStatus::Blocked
+        } else if self.not_applicable_count > 0
+            || self.not_implemented_count > 0
+            || self.verified_count != total
+        {
+            ConformanceMatrixStatus::Partial
+        } else {
+            ConformanceMatrixStatus::Complete
+        };
+        if self.status != expected_status {
+            return Err("conformance_matrix_status_mismatch".to_owned());
+        }
+        if self.blocking_reasons.len() != (self.not_implemented_count + self.blocked_count) as usize
+        {
+            return Err("conformance_matrix_blocking_reasons_mismatch".to_owned());
+        }
         validate_digest(&self.matrix_digest, "conformance_matrix_digest")?;
         validate_digest(&self.report_digest, "conformance_report_digest")?;
         if self.report_digest != self.digest() {

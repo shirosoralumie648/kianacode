@@ -251,6 +251,19 @@ proof-level change: `feature_status=implemented`（default-deny physical/live ha
 limitations: 未证明任何目标 OS、provider/connector/OTLP、隔离账户、external receipt/reconcile、retention/cleanup 或 physical effect；需要人工授权和目标环境，CI 结果未等待
 reviewer: Codex ER-36 source review；检查 approval prefix/trim/newline、credential ref、default deny、receipt/Unknown/cleanup proof ceiling 与 no external effect；无本地 live/physical reviewer
 
+### CAP-34 conformance report integrity fence（2026-09-26）
+
+source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/cap-34-report-integrity-fence-20260926`; `ConformanceMatrixReport::validate` 现在重算 Complete/Partial/Blocked status 与 verified/not-applicable/not-implemented/blocked counts，并要求 blocking reason 数量与 blocked/not-implemented rows 一致；不执行 Broker、backend、OS、container、provider 或 physical effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/cross-backend runtime）；GitHub Actions 将运行 CAP-34 domain matrix fixtures、source guard 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/backend/container/provider/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `cap34_conformance.rs` 新增 forged report status/count/reason deny；existing grant drift/effect-resume fence/duplicate/skip/platform disposition fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 CAP-34 domain/source guard/workspace compile exit code pending/unobserved
+status_change: CAP-34 report integrity now rejects forged status/count/blocking-reason combinations，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded capability conformance source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明 CAP-27..33 的真实 backend/OS/container runtime、跨入口 effect、performance/RSS/cleanup cost、durable lease/fence、provider/live/physical receipt 或 complete matrix coverage；CI 结果未等待
+reviewer: Codex CAP-34 source review；检查 report status/count/reason recomputation、grant/catalog/epoch/effect/resume fences、skip semantics 与 no execution authority；无本地 backend/runtime reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
