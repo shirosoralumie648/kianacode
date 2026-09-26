@@ -1,0 +1,62 @@
+name: cp30-control-plane-product-flow
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/control_plane_product_flow.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp30_control_plane_product_flow.rs"
+      - "kiana-core/src/control_plane_product_flow.rs"
+      - "kiana-core/src/entrypoint_parity.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/cp30_control_plane_product_flow_guard.rs"
+      - "kiana-daemon/tests/harness_runtime.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-entrypoints/src/company_surface_parity.rs"
+      - "docs/roadmap/cp30-control-plane-product-flow-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp30-control-plane-product-flow.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/control_plane_product_flow.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp30_control_plane_product_flow.rs"
+      - "kiana-core/src/control_plane_product_flow.rs"
+      - "kiana-core/src/entrypoint_parity.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/cp30_control_plane_product_flow_guard.rs"
+      - "kiana-daemon/tests/harness_runtime.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "kiana-entrypoints/src/company_surface_parity.rs"
+      - "docs/roadmap/cp30-control-plane-product-flow-baseline.md"
+      - "docs/roadmap/control-plane.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp30-control-plane-product-flow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  control-plane-product-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-30 product-flow evidence fixtures
+        run: cargo test -p kiana-domain --test cp30_control_plane_product_flow --locked -- --test-threads=1
+      - name: Run CP-30 route and receipt boundary guard
+        run: cargo test -p kiana-core --test cp30_control_plane_product_flow_guard --locked -- --test-threads=1
+      - name: Compile CP-30 affected targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon -p kiana-entrypoints --tests --locked
