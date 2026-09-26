@@ -41,6 +41,7 @@ mod company_integration;
 mod company_portfolio;
 mod company_template_registry;
 mod company_process;
+mod control_plane_authority;
 mod connector_quota;
 mod connector_reservation;
 mod connectors;
@@ -172,6 +173,7 @@ pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };
+pub use control_plane_authority::validate_control_plane_authority_scenario;
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use hook_reauthorization::*;
 pub use incident_projection::{

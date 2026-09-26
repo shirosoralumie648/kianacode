@@ -751,7 +751,7 @@ sequenceDiagram
 
 
 
-#### CP-29 — 状态机性质、并发与崩溃验收
+#### CP-29 — 状态机性质、并发与崩溃验收　🔄
 
 - **承接 / 前置**：原 P 卡负向验收的联合补充；CP-05、07、13–20、23–28。
 - **位置**：core/daemon/eventlog/Broker 的合同和集成测试；新增 `control_plane_authority` 类测试 target 可按现有测试布局拆分。
@@ -759,7 +759,7 @@ sequenceDiagram
 - **Step 2**：生成状态转移序列，验证权限只减、预算守恒、terminal 不复活、相同 command 不重复 effect、完整重放与在线投影一致；针对同步临界区可使用已有性质测试设施或小型状态空间枚举。
 - **Step 3**：真实子进程 kill/restart 覆盖写帧、同步、批准、准备、派发、结果与回灌边界；两个 host 竞争相同 authority/lease，断言真实文件/进程结果与 ledger。
 - **验收**：`cp_adversarial_command_sequences_preserve_invariants`、`cp_crash_matrix_preserves_authority_and_effect_uncertainty`；每个故障注入点都有预期结果及命中统计。
-- **交付**：机器可运行的故障矩阵、逐切片失败/通过回执与未覆盖平台清单。
+- **交付**：机器可运行的故障矩阵、逐切片失败/通过回执与未覆盖平台清单；本步 source slice 见 [`cp29-control-plane-authority-baseline.md`](cp29-control-plane-authority-baseline.md)。
 
 <a id="step-cp-30"></a>
 
