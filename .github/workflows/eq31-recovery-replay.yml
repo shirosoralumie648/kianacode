@@ -1,0 +1,38 @@
+name: EQ-31 recovery replay evaluator
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-recovery-replay-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq31-recovery-replay.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-recovery-replay-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq31-recovery-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-31 recovery replay fixtures
+        run: cargo test -p kiana-quality --test eq31_recovery --locked -- --test-threads=1
+      - name: Run EQ-31 source guard
+        run: cargo test -p kiana-quality --test eq31_recovery_guard --locked -- --test-threads=1
+      - name: Compile EQ-31 targets
+        run: cargo check --workspace --tests --locked
