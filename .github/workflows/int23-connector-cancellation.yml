@@ -1,0 +1,54 @@
+name: int23-connector-cancellation
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_cancellation.rs"
+      - "kiana-domain/src/connector_dispatch.rs"
+      - "kiana-domain/src/process_supervisor.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int23_connector_cancellation.rs"
+      - "kiana-core/tests/int23_connector_cancellation_guard.rs"
+      - "kiana-ports/src/connector.rs"
+      - ".github/workflows/int23-connector-cancellation.yml"
+      - "docs/roadmap/int23-connector-cancellation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_cancellation.rs"
+      - "kiana-domain/src/connector_dispatch.rs"
+      - "kiana-domain/src/process_supervisor.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int23_connector_cancellation.rs"
+      - "kiana-core/tests/int23_connector_cancellation_guard.rs"
+      - "kiana-ports/src/connector.rs"
+      - ".github/workflows/int23-connector-cancellation.yml"
+      - "docs/roadmap/int23-connector-cancellation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-cancellation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-23 cancellation settlement fixtures
+        run: cargo test -p kiana-domain --test int23_connector_cancellation --locked -- --test-threads=1
+      - name: Run INT-23 cancellation boundary source guard
+        run: cargo test -p kiana-core --test int23_connector_cancellation_guard --locked -- --test-threads=1
+      - name: Compile INT-23 workspace targets
+        run: cargo check --workspace --tests --locked
