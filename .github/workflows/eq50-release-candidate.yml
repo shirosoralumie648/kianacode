@@ -1,0 +1,45 @@
+name: EQ-50 release candidate evaluation lane
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: "Explicitly enable the release candidate lane"
+        required: true
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check lane guards
+        run: |
+          bash scripts/tests/eq49-eval-scripts-static.sh
+          bash scripts/tests/eq50-ci-lanes-static.sh
+      - name: Require explicit release opt-in
+        env:
+          RELEASE_CANDIDATE: ${{ inputs.release_candidate || 'false' }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && 'true' || 'false' }}
+        run: |
+          if [[ "$RELEASE_CANDIDATE" != "true" && "$RELEASE_TAG" != "true" ]]; then
+            echo "release candidate lane requires release_candidate=true or a version tag" >&2
+            exit 78
+          fi
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Compile release candidate targets
+        run: cargo check -p kiana-commands -p kiana-quality -p kiana-core -p kiana-daemon --tests --locked
+      - name: Run release candidate daemon and core fixtures serially
+        run: |
+          cargo test -p kiana-core --tests --locked -- --test-threads=1
+          cargo test -p kiana-daemon --tests --locked -- --test-threads=1

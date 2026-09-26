@@ -1,0 +1,43 @@
+name: EQ-50 nightly deep evaluation lane
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      deep_enabled:
+        description: "Explicitly enable the provider-independent deep lane"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check lane guards
+        run: |
+          bash scripts/tests/eq49-eval-scripts-static.sh
+          bash scripts/tests/eq50-ci-lanes-static.sh
+      - name: Require explicit deep opt-in
+        env:
+          DEEP_ENABLED: ${{ inputs.deep_enabled || 'false' }}
+        run: |
+          if [[ "$DEEP_ENABLED" != "true" ]]; then
+            echo "deep lane is disabled; rerun workflow_dispatch with deep_enabled=true" >&2
+            exit 78
+          fi
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Compile deep package targets
+        run: cargo check -p kiana-commands -p kiana-quality -p kiana-core -p kiana-daemon --tests --locked
+      - name: Run deep daemon and core fixtures serially
+        run: |
+          cargo test -p kiana-core --tests --locked -- --test-threads=1
+          cargo test -p kiana-daemon --tests --locked -- --test-threads=1
