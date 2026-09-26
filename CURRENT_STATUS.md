@@ -14420,3 +14420,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator compares caller-supplied digest evidence only; owner is a bounded value, not authenticated authority, and no durable refresh/expiry store, target execution, gate decision or live/physical outcome is claimed; EQ-40+ remain open
 reviewer: Codex EQ-39 source review; checked digest/owner/expiry/provenance/duplicate and compatibility fences plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-40 QualityCandidate binding evidence (2026-09-26)
+
+```text
+source_snapshot: `ca03e242` plus EQ-40 candidate binding slice; kiana-quality/src/{candidate.rs,lib.rs}; kiana-quality/tests/{eq40_candidate.rs,eq40_candidate_guard.rs}; .github/workflows/eq40-candidate.yml; docs/roadmap/evaluation-candidate-baseline.md; docs/roadmap.md
+worktree_status: pure CandidateEvaluator validates one changed dimension, explicit passive version refs, base/snapshot version equality, suite/baseline/owner fields and snapshot/candidate digests; hidden model/prompt/tool drift and tampering fail closed; no configuration/route/grant/policy/gate mutation or target execution was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{candidate.rs,lib.rs} kiana-quality/tests/{eq40_candidate.rs,eq40_candidate_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq40_candidate --locked -- --test-threads=1; cargo test -p kiana-quality --test eq40_candidate_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only valid single prompt change, hidden model/passive drift, snapshot/candidate digest tamper and unknown-field fixtures; no target/provider, candidate store, gate or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-40 QualityCandidate source contract, CI fixture/guard and baseline implemented; roadmap row 570/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator validates caller-supplied candidate/version evidence only; no authenticated owner, durable candidate store, target effect, QualityGate decision, promotion/rollback or live/physical outcome is claimed; EQ-41+ remain open
+reviewer: Codex EQ-40 source review; checked single primary dimension, passive version coverage, snapshot digest and no-authority boundary; no local runtime test reviewer
+```

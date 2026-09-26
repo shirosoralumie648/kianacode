@@ -1,0 +1,38 @@
+name: EQ-40 quality candidate binding
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-candidate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq40-candidate.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-candidate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq40-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-40 candidate fixtures
+        run: cargo test -p kiana-quality --test eq40_candidate --locked -- --test-threads=1
+      - name: Run EQ-40 source guard
+        run: cargo test -p kiana-quality --test eq40_candidate_guard --locked -- --test-threads=1
+      - name: Compile EQ-40 targets
+        run: cargo check --workspace --tests --locked
