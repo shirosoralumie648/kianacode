@@ -596,12 +596,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-33 — Performance、容量和迁移演练　⏳
+##### ER-33 — Performance、容量和迁移演练　🔄
 
 - **落点：** EventLog benchmark、projection rebuild、artifact quota、migration tooling；关联 `CP-27/28`、`CAP-34`。
 - **动作：** 建立事件/frame/page、flush、rebuild、receipt query、artifact bytes、queue depth 和恢复时延基线；验证 journal rotation/archive、schema upgrade、downgrade read-only 和容量拒绝。
 - **先拒绝：** `journal_full_does_not_append_partial_frame`、`migration_unknown_version_fails_closed`、`rebuild_over_quota_is_bounded`。
 - **成功/回归：** 目标机器在配额内完成；超限产生稳定 error/Unknown 和 operator action，不隐式删除事实。
+- **ER-33 baseline：** [`er33-capacity-migration-baseline.md`](er33-capacity-migration-baseline.md)；当前固定 source-only bounded metrics、quota rejection、partial-frame and migration safety contract，未宣称真实 benchmark/durable run。
 
 <a id="step-er-34"></a>
 
