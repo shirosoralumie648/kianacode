@@ -14,6 +14,7 @@ mod evaluator;
 mod fixtures;
 mod normalize;
 mod runtime;
+mod safety;
 mod scenario;
 mod volatile;
 
@@ -58,6 +59,12 @@ pub use normalize::{
 pub use runtime::{
     evaluate_runtime_correctness, RuntimeCorrectnessEvaluator, RuntimeCorrectnessInput,
     RUNTIME_CORRECTNESS_EVALUATOR_ID, RUNTIME_CORRECTNESS_INPUT_SCHEMA,
+};
+pub use safety::{
+    evaluate_capability_safety, CapabilitySafetyEvaluator, CapabilitySafetyInput,
+    ObservedSafetyEffect, SafetyAction, SafetyEffectKind, SafetyFinalStatus, SafetyGrant,
+    SafetyVerdict, SafetyVerdictEvidence, CAPABILITY_SAFETY_EVALUATOR_ID,
+    CAPABILITY_SAFETY_INPUT_SCHEMA,
 };
 pub use scenario::{
     CleanupReceipt, ScenarioArtifact, ScenarioError, ScenarioOutcome, ScenarioReport,

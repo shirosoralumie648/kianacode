@@ -645,7 +645,7 @@
 | 472 | W6 | 专项 | [`NM-16`](#step-nm-16) | Desktop local notification adapter；OS permission、tray、close/detach | `UI-24`、`UI-25`、`UI-26`、`UI-27`、`NM-15` | 🔄 | [专项卡](#step-nm-16) · [baseline](roadmap/nm16-desktop-notification-baseline.md) |
 | 473 | W6 | 专项 | [`EQ-27`](#step-eq-27) | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `EQ-26` | 🔄 | [专项卡](#step-eq-27) |
 | 474 | W6 | 专项 | [`EQ-28`](#step-eq-28) | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `EQ-27` | 🔄 | [专项卡](#step-eq-28) · [baseline](roadmap/evaluation-runtime-correctness-baseline.md) |
-| 475 | W6 | 专项 | [`EQ-29`](#step-eq-29) | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `EQ-28` | ⏳ | [专项卡](#step-eq-29) |
+| 475 | W6 | 专项 | [`EQ-29`](#step-eq-29) | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `EQ-28` | 🔄 | [专项卡](#step-eq-29) · [baseline](roadmap/evaluation-capability-safety-baseline.md) |
 | 476 | W6 | 专项 | [`EQ-30`](#step-eq-30) | 实现 evidence/receipt evaluator：artifact hash、receipt assertions、redaction、provenance、source cursor | `EQ-29` | ⏳ | [专项卡](#step-eq-30) |
 | 477 | W6 | 专项 | [`EQ-31`](#step-eq-31) | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `EQ-30` | ⏳ | [专项卡](#step-eq-31) |
 | 478 | W6 | 专项 | [`EQ-32`](#step-eq-32) | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `EQ-31` | ⏳ | [专项卡](#step-eq-32) |

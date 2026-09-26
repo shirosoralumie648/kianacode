@@ -14255,3 +14255,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied canonical evidence only; no durable EvalStore, target execution, provider/model quality result, statistical aggregation, promotion authority, cross-process recovery, live or physical receipt is claimed; EQ-29+ and ER/PD/SC remain open
 reviewer: Codex EQ-28 source review; checked deny/findings for order, correlation, terminal, retry, approval, cancel and Unknown plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-29 capability and safety evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `8a4eb11e` plus EQ-29 capability/safety evaluator slice; kiana-quality/src/{safety.rs,lib.rs}; kiana-quality/tests/{eq29_safety.rs,eq29_safety_guard.rs}; .github/workflows/eq29-capability-safety.yml; docs/roadmap/evaluation-capability-safety-baseline.md; docs/roadmap.md
+worktree_status: pure CapabilitySafetyEvaluator consumes a strict action/grant/policy/hook/effect evidence envelope and reuses EQ-27 Finding; it checks schema, requested capability/grant intersection, scope containment, policy/hook Allow, declared and allowlisted network/process/file effects, secret effects and unknown/denied observations; final success never overrides a safety finding and no authority or execution path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{safety.rs,lib.rs} kiana-quality/tests/{eq29_safety.rs,eq29_safety_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq29_safety --locked -- --test-threads=1; cargo test -p kiana-quality --test eq29_safety_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only fully intersected allow, policy/grant/hook/scope/effect/secret deny and final-success masking, typed round-trip, unknown-field and bounded-effect fixtures; no provider, hook process, capability, network, file or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-29 capability/safety source contract, CI fixture/guard and baseline implemented; roadmap row 475/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied evidence only; it does not prove runtime authorization, actual effect absence, durable receipts, provider/model quality, cross-process recovery, promotion authority, live or physical outcome; EQ-30+ and existing ControlPlane/Broker enforcement remain open
+reviewer: Codex EQ-29 source review; checked deny-first schema/grant/scope/policy/hook/effect/secret findings and no-I/O/no-authority boundary; no local runtime test reviewer
+```
