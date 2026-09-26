@@ -1,0 +1,54 @@
+name: co36-outcome-measurement
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/outcome_measurement.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co36_outcome_measurement.rs"
+      - "kiana-core/src/outcome_measurement.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co36_outcome_measurement_guard.rs"
+      - "docs/roadmap/co36-outcome-measurement-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co36-outcome-measurement.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/outcome_measurement.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co36_outcome_measurement.rs"
+      - "kiana-core/src/outcome_measurement.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co36_outcome_measurement_guard.rs"
+      - "docs/roadmap/co36-outcome-measurement-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co36-outcome-measurement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  outcome-measurement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-36 outcome fixtures
+        run: cargo test -p kiana-domain --test co36_outcome_measurement --locked -- --test-threads=1
+      - name: Run CO-36 measurement source guard
+        run: cargo test -p kiana-core --test co36_outcome_measurement_guard --locked -- --test-threads=1
+      - name: Compile CO-36 outcome targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked

@@ -1018,6 +1018,9 @@ pub struct CompanyState {
     /// CO-35 honest success/failure/cancel/waiver closeout contracts.
     #[serde(default)]
     pub closing_receipt_contracts: crate::CompanyClosingReceiptLedger,
+    /// CO-36 frozen Outcome plans, observations, deterministic assessments and Sponsor decisions.
+    #[serde(default)]
+    pub outcome_measurements: crate::OutcomeMeasurementLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1282,6 +1285,20 @@ impl CompanyState {
         receipt: crate::CompanyClosingReceiptContract,
     ) -> CompanyResult<()> {
         self.closing_receipt_contracts.record(receipt)
+    }
+
+    pub fn publish_outcome_plan(
+        &mut self,
+        plan: crate::OutcomeMeasurementPlan,
+    ) -> CompanyResult<()> {
+        self.outcome_measurements.publish_plan(plan)
+    }
+
+    pub fn record_outcome_observation(
+        &mut self,
+        observation: crate::OutcomeMeasurementObservation,
+    ) -> CompanyResult<()> {
+        self.outcome_measurements.record_observation(observation)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

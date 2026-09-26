@@ -14975,3 +14975,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: typed receipt does not commit Company transitions or replace existing closeout/EventLog; Outcome measurement, read-model projection, cross-process replay and live/physical business proof remain open
 reviewer: Codex CO-35 source review; checked close-kind-specific gates, complete reference sets, stop/Unknown fences, residual/waiver requirements, role independence, idempotency and second-close rejection; no local runtime test reviewer
 ```
+
+### CO-36 Outcome measurement and achievement evidence (2026-09-27)
+
+```text
+source_snapshot: `ebc2a5de` plus CO-36 Outcome measurement source slice; kiana-domain/src/{outcome_measurement.rs,company.rs,company_closeout.rs,lib.rs}; kiana-core/src/{outcome_measurement.rs,lib.rs}; kiana-domain/tests/co36_outcome_measurement.rs; kiana-core/tests/co36_outcome_measurement_guard.rs; .github/workflows/co36-outcome-measurement.yml; docs/roadmap/co36-outcome-measurement-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: OutcomeMeasurementPlan freezes objective/project/baseline, metric/unit/direction, dataset/source, owner, window, minimum samples and aggregation; observations require exact bindings, finite values, in-window observed_at, evidence and deterministic source; OutcomeMeasurementLedger computes all-observation MissingData/Realized/PartiallyRealized/NotRealized assessments; Sponsor OutcomeDecision requires assessment digest, Realized for Achieved and decider independence; CompanyState exposes the ledger and existing closeout measurement commands remain compatibility authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/outcome_measurement.rs kiana-core/src/outcome_measurement.rs kiana-domain/tests/co36_outcome_measurement.rs kiana-core/tests/co36_outcome_measurement_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co36_outcome_measurement --locked -- --test-threads=1; cargo test -p kiana-core --test co36_outcome_measurement_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only frozen plan/idempotency, wrong unit/source/window/NaN rejection, missing sample assessment, deterministic full-observation aggregation, cherry-picked digest denial, Sponsor independent decision and replay; no external dataset, real KPI, durable projector, live or physical business outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-36 OutcomeMeasurementPlan/Observation/Assessment/Decision source slice, CompanyState ledger projection, CI fixture/guard, workflow and baseline implemented; roadmap row 535/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: the ledger does not read external datasets or mutate Objective status; fixture/live distinction, durable query projection, late source policy and full command integration remain open
+reviewer: Codex CO-36 source review; checked frozen rule binding, exact source/unit/window, finite/sample gates, deterministic aggregation, missing data, assessment digest, Sponsor independence, no delivery substitution and idempotency; no local runtime test reviewer
+```
