@@ -8,6 +8,7 @@ mod assertions;
 mod canonical;
 mod capture;
 mod catalog;
+mod context;
 mod diff;
 mod digest;
 mod evaluator;
@@ -36,6 +37,11 @@ pub use capture::{
 pub use catalog::{
     build_catalog, CatalogEntry, CatalogError, CatalogOptions, CatalogScenario, CatalogStatus,
     CatalogTier, ScenarioCatalog, CATALOG_SCHEMA, MAX_CATALOG_ENTRIES,
+};
+pub use context::{
+    evaluate_context_memory, CompactionEvidence, ContextBudgetEvidence, ContextEvidenceStatus,
+    ContextFreshness, ContextMemoryEvaluator, ContextMemoryInput, ContextQueryEvidence,
+    MemoryHitEvidence, CONTEXT_MEMORY_EVALUATOR_ID, CONTEXT_MEMORY_INPUT_SCHEMA,
 };
 pub use diff::{TraceDiff, TraceDiffClass, TraceDivergence, TRACE_DIFF_SCHEMA};
 pub use digest::{
