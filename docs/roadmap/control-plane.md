@@ -765,7 +765,7 @@ sequenceDiagram
 
 
 
-#### CP-30 — 产品流程和证据收口
+#### CP-30 — 产品流程和证据收口　🔄
 
 - **承接 / 前置**：相关原 P 卡与 module-map；CP-21–29。
 - **位置**：daemon/entrypoints 集成测试、现有 release smoke，必要时新增 `scripts/control-plane-smoke.sh`；CURRENT_STATUS/USER/module-map。
@@ -773,7 +773,7 @@ sequenceDiagram
 - **Step 2**：四入口对同一 run/approval/result 达成一致；进程重启后只靠账本和受保护材料恢复，删除缓存仍可查证。测试模型使用 cassette/fake，副作用使用临时目录与受控 MCP fixture。
 - **Step 3**：按 §14.7 跑聚焦检查及必要回归，记录命令/环境/退出码/限制；有证据才回填各 CP/P 状态与 proof level。文档区分可查询、可恢复、已确认现实效果。
 - **验收**：`cp_product_approval_restart_and_receipt_roundtrip`、`cp_product_cancel_and_reconcile_roundtrip`；已有 release-smoke 等门禁通过并绑定实际快照。
-- **交付**：最终来源/实现/测试/限制对照表；提交、推送和 CI 状态按实施时实际授权及回执记录，本次调研不产生代码完成或发布声明。
+- **交付**：最终来源/实现/测试/限制对照表；本步 source slice 见 [`cp30-control-plane-product-flow-baseline.md`](cp30-control-plane-product-flow-baseline.md)；提交、推送和 CI 状态按实施时实际授权及回执记录，不把 source fixture 写成 live/physical 完成。
 
 ### 14.7 联合验收矩阵与验证命令
 
