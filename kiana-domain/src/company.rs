@@ -365,6 +365,16 @@ impl CriteriaSnapshot {
     }
 
     pub fn criteria(&self) -> Vec<String> {
+        if !self.criterion_refs.is_empty() {
+            let mut ids = self
+                .criterion_refs
+                .iter()
+                .map(|criterion| criterion.criterion_id.to_string())
+                .collect::<Vec<_>>();
+            ids.sort();
+            ids.dedup();
+            return ids;
+        }
         let mut all = self
             .project_criteria
             .iter()
