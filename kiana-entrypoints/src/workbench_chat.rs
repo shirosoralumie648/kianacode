@@ -225,6 +225,12 @@ impl WorkbenchView {
                 "governance" if !args.trim().is_empty() => {
                     ChatAction::Governance(args.trim().to_owned())
                 }
+                "company" if !args.trim().is_empty() => {
+                    match crate::company_user_flow::workbench_command(args.trim()) {
+                        Ok((name, arguments)) => ChatAction::Command { name, arguments },
+                        Err(error) => ChatAction::Error(error),
+                    }
+                }
                 "extension" | "extensions" => interpret_extensions(args),
                 "approvals" => ChatAction::Approvals,
                 "inbox" => ChatAction::Command {
