@@ -14720,3 +14720,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: typed Plan edge requirements and external input/artifact versions remain context inputs; durable EventLog materialization and protocol/query transport are open; claim/lease fencing remains CO-19; external budget/assignment authority and live/physical business outcomes remain unproven
 reviewer: Codex CO-18 source review; checked single-domain DAG delegation, deterministic blockers, outcome-type fences, handoff/assignment/input/project/change gates, read-only Company snapshot and no second execution path; no local runtime test reviewer
 ```
+
+### CO-19 Company packet attempt and lease fencing evidence (2026-09-26)
+
+```text
+source_snapshot: `89e4ec6c` plus CO-19 attempt source slice; kiana-domain/src/{company_attempt.rs,company.rs,packet_graph.rs,lib.rs}; kiana-domain/tests/co19_company_attempt.rs; kiana-core/tests/co19_company_attempt_guard.rs; .github/workflows/co19-company-attempt.yml; docs/roadmap/co19-company-attempt-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: PacketAttemptLedger separates packet identity from short-lived attempt/lease epoch, records worker cell/session/execution request/packet revision/effect/stop state, admits one active claimant and keeps ordered history; expiry with started or unknown effect becomes ResultUnknown and blocks reassignment, never-started or confirmed-stopped expiry becomes Fenced and allows a new epoch, stale attempt tokens are rejected, and CompanyState exposes serializable helpers while legacy PacketClaim remains compatible; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_attempt.rs kiana-domain/src/company.rs kiana-domain/tests/co19_company_attempt.rs kiana-core/tests/co19_company_attempt_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co19_company_attempt --locked -- --test-threads=1; cargo test -p kiana-core --test co19_company_attempt_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only duplicate claimant, same worker/request idempotency, stale epoch result/stop, confirmed stop reclaim, unknown effect fencing, ResultUnknown retry denial, terminal history and serialization; no live process stop, provider receipt, external effect reconciliation, source-code write or physical business effect
+exit_code: targeted rustfmt --check (new/changed CO-19 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-19 PacketAttempt/epoch/fence source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 518/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: attempt ledger is not yet the sole durable EventLog CAS reducer; legacy Claim/Renew/Reclaim command path remains, real process stop/effect reconciliation and cross-process projection are open; CO-20 owns resource admission and budget/path settlement
+reviewer: Codex CO-19 source review; checked one-active-claim invariant, epoch/request fencing, unknown-effect deny, confirmed-stop reclaim and full history preservation; no local runtime test reviewer
+```

@@ -341,11 +341,11 @@
 
 
 
-#### CO-19 · 原子 claim、租约 fencing 与执行尝试　⏳
+#### CO-19 · 原子 claim、租约 fencing 与执行尝试　🔄
 
 - **归属**：`P1-D-03`、`P0-J1-01`。
 - **依赖**：CO-07、CO-18。
-- **代码与产物**：PacketClaim/PacketAttempt、core claim/renew/reclaim commands、EventStore CAS、可控时钟 fixture。
+- **代码与产物**：`company_attempt.rs` 的 PacketAttempt/epoch/effect fence、CompanyState attempt history 与 CI fixture/guard；旧 PacketClaim/renew/reclaim commands 保持兼容。
 - **实现顺序**：①分离长期 packet 身份与短期 attempt/lease；②原子认领记录 worker assignment、epoch、expires_at、execution request；③过期先 fence 旧实例，确认未执行/已停止后才允许新 attempt；重试不能复活旧终态。
 - **先拒绝**：`expired_claim_with_unconfirmed_effect_cannot_be_reassigned`、`two_claimers_cannot_start_two_runs_for_one_packet`；迟到心跳/旧 epoch 结果不能释放或覆盖新 lease。
 - **再成功 / 退出**：`confirmed_stopped_attempt_can_be_reclaimed_with_full_history`；所有尝试可查询，预算累计保留；同一 claimant 的幂等重试不把 Reviewing 降回 Running。

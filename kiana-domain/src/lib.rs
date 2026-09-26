@@ -578,6 +578,8 @@ mod company_handoff;
 pub use company_handoff::*;
 mod company_readiness;
 pub use company_readiness::*;
+mod company_attempt;
+pub use company_attempt::*;
 
 mod dispatch;
 mod effect_observation;
