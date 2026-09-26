@@ -15335,3 +15335,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: migrated routes are admission/dispatch contracts only and the current ControlPlane has no EvalStore execution handler; old fixture-path compatibility remains until later quality-port/report steps; no report/JUnit/redaction/archive or actual evaluation result is claimed
 reviewer: Codex EQ-47 source review; checked strict parser, versioned mapping, legacy compatibility fence, ControlPlane route/no-second-loop boundary and eval event registry; no local runtime test reviewer
 ```
+
+### EQ-48 evaluation report artifacts and redaction evidence（2026-09-27）
+
+```text
+source_snapshot: `dc399c83` plus EQ-48 report artifact source slice; kiana-domain/src/{quality_report.rs,lib.rs}; kiana-core/src/{quality_report.rs,lib.rs}; kiana-domain/tests/quality_report.rs; kiana-core/tests/quality_report_guard.rs; .github/workflows/eq48-reports.yml; docs/roadmap/evaluation-report-baseline.md; docs/roadmap.md
+worktree_status: QualityReport is a strict read-only artifact contract over committed evaluation facts; it recomputes status/summary, binds case evidence refs to an EvidenceManifest, requires a redacted reproduction command, and renders JSON/JUnit/human/evidence/reproduction outputs. Shared secret scanning and absolute/path-traversal rejection apply at the report boundary; Core only validates the report and existing DaemonHost/ControlPlane remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/quality_report.rs kiana-core/src/quality_report.rs kiana-domain/tests/quality_report.rs kiana-core/tests/quality_report_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test quality_report --locked -- --test-threads=1; cargo test -p kiana-core --test quality_report_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only machine-readable JSON/JUnit/human/evidence/reproduction render, forged summary/path/secret/missing-reference rejection, redactor helper and Core no-provider/filesystem/publish guard; no EvalStore execution, artifact persistence, JUnit consumer, provider/live quality or physical outcome evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and affected-target compilation pending/unobserved
+status_change: EQ-48 strict report artifact DTO/renderers, redacted path/secret boundary, Core validation facade, CI fixture/guard, workflow and baseline added; roadmap row 671/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical report result
+limitations: report artifacts are rendered from caller-supplied committed facts and are not persisted or executed; no real evaluation, archive, CI lane, provider result or JUnit consumer compatibility is claimed; EQ-49..51 remain open
+reviewer: Codex EQ-48 source review; checked recomputed status/summary, evidence reference closure, shared secret/path fence, XML escaping, command value omission and no-effect Core adapter; no local runtime test reviewer
+```

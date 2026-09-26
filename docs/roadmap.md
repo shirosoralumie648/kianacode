@@ -844,7 +844,7 @@
 | 668 | W9 | 专项 | [`EQ-45`](#step-eq-45) | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `EQ-44` | 🔄 | [专项卡](#step-eq-45) · [baseline](roadmap/evaluation-feedback-baseline.md) |
 | 669 | W9 | 专项 | [`EQ-46`](#step-eq-46) | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `EQ-45` | 🔄 | [专项卡](#step-eq-46) · [baseline](roadmap/evaluation-drift-baseline.md) |
 | 670 | W9 | 专项 | [`EQ-47`](#step-eq-47) | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `EQ-46` | 🔄 | [专项卡](#step-eq-47) · [baseline](roadmap/evaluation-cli-baseline.md) |
-| 671 | W9 | 专项 | [`EQ-48`](#step-eq-48) | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `EQ-47` | ⏳ | [专项卡](#step-eq-48) |
+| 671 | W9 | 专项 | [`EQ-48`](#step-eq-48) | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `EQ-47` | 🔄 | [专项卡](#step-eq-48) · [baseline](roadmap/evaluation-report-baseline.md) |
 | 672 | W9 | 专项 | [`EQ-49`](#step-eq-49) | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `EQ-48` | ⏳ | [专项卡](#step-eq-49) |
 | 673 | W9 | 专项 | [`EQ-50`](#step-eq-50) | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `EQ-49` | ⏳ | [专项卡](#step-eq-50) |
 | 674 | W9 | 专项 | [`EQ-51`](#step-eq-51) | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `EQ-50` | ⏳ | [专项卡](#step-eq-51) |
