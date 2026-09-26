@@ -14555,3 +14555,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: provider query is not wired to a live transport; manual evidence is supplied input, and no provider truth, durable cross-process Human Inbox delivery, compensation, cancel settlement or live/physical business outcome is claimed; INT-23+ remain open
 reviewer: Codex INT-22 source review; checked Unknown quarantine, explicit successor reconciliation, identity/payload/key binding, safe/forbidden action projection and no automatic retry; no local runtime test reviewer
 ```
+
+### INT-23 connector cancellation and late-result fence evidence (2026-09-26)
+
+```text
+source_snapshot: `990925b6` plus INT-23 cancellation settlement slice; kiana-domain/src/{connector_cancellation.rs,connector_dispatch.rs,process_supervisor.rs,lib.rs}; kiana-domain/tests/int23_connector_cancellation.rs; kiana-core/tests/int23_connector_cancellation_guard.rs; kiana-ports/src/connector.rs; .github/workflows/int23-connector-cancellation.yml; docs/roadmap/int23-connector-cancellation-baseline.md; docs/roadmap.md
+worktree_status: ConnectorCancellationSettlement binds StopReport to invocation/attempt/command/permit/lease digests; pre-dispatch confirmed stop is not_executed with Released lease, started stop is StopConfirmed with HeldForReconciliation lease, unconfirmed stop is Unknown, and every terminal settlement fences late results; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/{connector_cancellation.rs,connector_dispatch.rs,process_supervisor.rs} kiana-domain/tests/int23_connector_cancellation.rs kiana-core/tests/int23_connector_cancellation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test int23_connector_cancellation --locked -- --test-threads=1; cargo test -p kiana-core --test int23_connector_cancellation_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only confirmed pre-dispatch not_executed, started stop held lease, unconfirmed Unknown, observed-effect cancellation denial, late-result fence and unknown-field fixtures; no live cancel process, durable lease or provider cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: INT-23 cancellation/stop/late-result source slice, CI fixture/guard and baseline implemented; roadmap row 500/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: settlement is a pure contract and does not signal a live adapter, settle a durable lease, append a cancellation fact or prove provider outcome; INT-24+ remain open
+reviewer: Codex INT-23 source review; checked pre-dispatch versus started effect lease settlement, StopReport confirmation, observed-stage denial and terminal late-result fence; no local runtime test reviewer
+```
