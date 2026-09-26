@@ -15,9 +15,9 @@
 
 ## 2. Protocol rules
 
-`QualityCommandKind` 固定 `eval.run`、`eval.capture`、`eval.compare`、`quality.feedback`、`quality.promote`、`quality.rollback`；`QualityCommandRequest` 使用 `kiana.quality-command.v1`、typed request ID 和 object arguments，unknown schema/ID/non-object fail-closed。`RequestEnvelope::quality_command` 只构造现有通用 Command body，不自行路由或授权。
+`QualityCommandKind` 在 EQ-06 固定 `eval.run`、`eval.capture`、`eval.compare`、`quality.feedback`、`quality.promote`、`quality.rollback`；EQ-47 在同一 versioned family 增加只读 CLI 映射对应的 `eval.explain` 与 `eval.list`。`QualityCommandRequest` 使用 `kiana.quality-command.v1`、typed request ID 和 object arguments，unknown schema/ID/non-object fail-closed。`RequestEnvelope::quality_command` 只构造现有通用 Command body，不自行路由或授权。
 
-RuntimeEvent registry 同时登记六个 versioned quality/eval kinds，required IDs/allowed fields 固定，`eval.`/`quality.` unknown family 不会被当 opaque event 忽略。Schema contract 将 command wire owner 定为 `kiana-protocol`；EventLog/ControlPlane 仍是事实来源，quality command/event 本身不能跳过 authority/approval 或触发第二执行循环。
+RuntimeEvent registry 同时登记 versioned quality/eval kinds，required IDs/allowed fields 固定，`eval.`/`quality.` unknown family 不会被当 opaque event 忽略。Schema contract 将 command wire owner 定为 `kiana-protocol`；EventLog/ControlPlane 仍是事实来源，quality command/event 本身不能跳过 authority/approval 或触发第二执行循环。
 
 ## 3. Failure-first fixture matrix
 

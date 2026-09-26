@@ -1,5 +1,5 @@
 use crate::types::{
-    Command, CommandContext, CommandResult, CommandType, COMMAND_ARGV_APP_STATE_KEY,
+    Command, CommandContext, CommandResult, CommandRoute, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -18,6 +18,22 @@ pub const EVAL_BASELINE_SCHEMA: &str = "kiana.eval-baseline.v1";
 pub const EVAL_MAX_CASES: usize = 256;
 pub const EVAL_MAX_FIXTURE_BYTES: u64 = 16 * 1024 * 1024;
 pub const EVAL_MAX_FIXTURE_LINES: usize = 100_000;
+
+/// Versioned command contract for the migrated evaluation CLI surface.
+///
+/// The legacy `run --suite <path>` form deliberately remains a compatibility adapter. New
+/// subcommands are encoded as bounded, provider-independent requests and sent through the
+/// existing `DaemonHost -> ControlPlane` command route. This module never executes a model,
+/// provider, broker or second runner loop.
+pub const EVAL_CLI_COMMAND_SCHEMA: &str = "kiana.eval-cli.v1";
+pub const EVAL_CLI_COMMAND_VERSION: u32 = 1;
+pub const EVAL_CLI_COMMANDS: &[(&str, &str)] = &[
+    ("run", "eval.run"),
+    ("capture", "eval.capture"),
+    ("compare", "eval.compare"),
+    ("explain", "eval.explain"),
+    ("list", "eval.list"),
+];
 
 /// Fields emitted by the legacy report/baseline command. This inventory is an explicit deletion
 /// fence for the compatibility surface: a field may only disappear with a recorded upcast.
@@ -99,6 +115,16 @@ impl Command for EvalCommand {
         true
     }
 
+    fn route(&self, context: &CommandContext) -> anyhow::Result<CommandRoute> {
+        let args = command_context_argv(context).unwrap_or_else(|| split_words(&context.args));
+        match parse_cli_route(&args)? {
+            EvalCliRoute::Help | EvalCliRoute::LegacyRun => Ok(CommandRoute::Local),
+            EvalCliRoute::ControlPlane { name, arguments } => {
+                Ok(CommandRoute::ControlPlane { name, arguments })
+            }
+        }
+    }
+
     async fn execute(&self, context: CommandContext) -> Result<CommandResult> {
         let args = command_context_argv(&context).unwrap_or_else(|| split_words(&context.args));
         if args.is_empty()
@@ -107,6 +133,9 @@ impl Command for EvalCommand {
                 .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
         {
             return Ok(CommandResult::text(usage()));
+        }
+        if matches!(parse_cli_route(&args)?, EvalCliRoute::ControlPlane { .. }) {
+            return Err(anyhow!("command_requires_control_plane"));
         }
         let options = parse_args(&args)?;
         let report = run_suite(&options.suite, options.baseline.as_deref())?;
@@ -126,6 +155,463 @@ impl Command for EvalCommand {
         }
         Ok(CommandResult::text(render_human(&report)))
     }
+}
+
+#[derive(Debug, PartialEq)]
+enum EvalCliRoute {
+    Help,
+    /// The old fixture-path parser remains a compatibility-only local adapter.
+    LegacyRun,
+    ControlPlane {
+        name: String,
+        arguments: Value,
+    },
+}
+
+/// Parse the migrated CLI surface without opening files or invoking an evaluator.
+///
+/// The parser deliberately keeps references opaque. Filesystem resolution belongs to the
+/// server-owned quality ports, so a new command can never turn a CLI path into a local effect.
+fn parse_cli_route(args: &[String]) -> Result<EvalCliRoute> {
+    if args.is_empty()
+        || args
+            .iter()
+            .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
+    {
+        return Ok(EvalCliRoute::Help);
+    }
+    let action = args
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| anyhow!("{}", usage()))?;
+    if !matches!(action, "run" | "capture" | "compare" | "explain" | "list") {
+        return Err(anyhow!("unknown eval subcommand '{action}'\n\n{}", usage()));
+    }
+
+    // Preserve the exact old form, including its failure behavior for missing paths. The
+    // compatibility parser is intentionally not mixed with the new opaque-reference contract.
+    if action == "run"
+        && args.iter().skip(1).any(|arg| {
+            matches!(arg.as_str(), "--suite" | "--baseline" | "--fail-on-failure")
+                || arg.starts_with("--suite=")
+                || arg.starts_with("--baseline=")
+        })
+    {
+        return Ok(EvalCliRoute::LegacyRun);
+    }
+
+    let (name, arguments) = match action {
+        "run" => parse_run_route(args)?,
+        "capture" => parse_capture_route(args)?,
+        "compare" => parse_compare_route(args)?,
+        "explain" => parse_explain_route(args)?,
+        "list" => parse_list_route(args)?,
+        _ => unreachable!("eval action was checked above"),
+    };
+    Ok(EvalCliRoute::ControlPlane { name, arguments })
+}
+
+fn parse_run_route(args: &[String]) -> Result<(String, Value)> {
+    let mut fields = serde_json::Map::new();
+    let mut output = "text";
+    let mut fail_on_failure = false;
+    let mut index = 1;
+    while index < args.len() {
+        let token = args[index].as_str();
+        match token {
+            "--json" => {
+                ensure_output_flag(&mut output)?;
+            }
+            "--fail-on-failure" => {
+                if fail_on_failure {
+                    return Err(anyhow!("duplicate option --fail-on-failure"));
+                }
+                fail_on_failure = true;
+            }
+            "--suite-id" | "--dataset-id" | "--experiment-id" | "--case-id" | "--target"
+            | "--baseline-id" => {
+                let key = token.trim_start_matches('-').replace('-', "_");
+                let value = next_cli_value(args, &mut index, token)?;
+                insert_unique_ref(&mut fields, &key, value, token)?;
+            }
+            value
+                if value.starts_with("--suite-id=")
+                    || value.starts_with("--dataset-id=")
+                    || value.starts_with("--experiment-id=")
+                    || value.starts_with("--case-id=")
+                    || value.starts_with("--target=")
+                    || value.starts_with("--baseline-id=") =>
+            {
+                let (key, value) = split_equals_ref(value)?;
+                insert_unique_ref(&mut fields, key, value, token)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!("unknown eval run option '{value}'\n\n{}", usage()));
+            }
+            value => {
+                return Err(anyhow!(
+                    "unexpected eval run argument '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+        }
+        index += 1;
+    }
+    if fail_on_failure {
+        fields.insert("fail_on_failure".to_owned(), Value::Bool(true));
+    }
+    Ok((
+        wire_command("run"),
+        versioned_cli_arguments("run", output, fields),
+    ))
+}
+
+fn parse_capture_route(args: &[String]) -> Result<(String, Value)> {
+    let mut fields = serde_json::Map::new();
+    let mut output = "text";
+    let mut source_count = 0usize;
+    let mut index = 1;
+    while index < args.len() {
+        let token = args[index].as_str();
+        match token {
+            "--json" => ensure_output_flag(&mut output)?,
+            "--source" | "--run-id" | "--fixture" | "--name" => {
+                let key = match token {
+                    "--source" => "source_ref",
+                    "--run-id" => "run_id",
+                    "--fixture" => "fixture_ref",
+                    "--name" => "trace_name",
+                    _ => unreachable!(),
+                };
+                let value = next_cli_value(args, &mut index, token)?;
+                if token != "--name" {
+                    source_count += 1;
+                }
+                insert_unique_ref(&mut fields, key, value, token)?;
+            }
+            value
+                if value.starts_with("--source=")
+                    || value.starts_with("--run-id=")
+                    || value.starts_with("--fixture=")
+                    || value.starts_with("--name=") =>
+            {
+                let (key, value) = split_equals_ref(value)?;
+                let canonical = match key {
+                    "source" => "source_ref",
+                    "run_id" => "run_id",
+                    "fixture" => "fixture_ref",
+                    "name" => "trace_name",
+                    _ => unreachable!(),
+                };
+                if canonical != "trace_name" {
+                    source_count += 1;
+                }
+                insert_unique_ref(&mut fields, canonical, value, token)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!(
+                    "unknown eval capture option '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+            value => {
+                return Err(anyhow!(
+                    "unexpected eval capture argument '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+        }
+        index += 1;
+    }
+    if source_count == 0 {
+        return Err(anyhow!(
+            "eval capture requires exactly one source reference\n\n{}",
+            usage()
+        ));
+    }
+    if source_count > 1 {
+        return Err(anyhow!(
+            "eval capture accepts exactly one source reference\n\n{}",
+            usage()
+        ));
+    }
+    Ok((
+        wire_command("capture"),
+        versioned_cli_arguments("capture", output, fields),
+    ))
+}
+
+fn parse_compare_route(args: &[String]) -> Result<(String, Value)> {
+    let mut fields = serde_json::Map::new();
+    let mut output = "text";
+    let mut index = 1;
+    while index < args.len() {
+        let token = args[index].as_str();
+        match token {
+            "--json" => ensure_output_flag(&mut output)?,
+            "--reference" | "--candidate" => {
+                let key = token.trim_start_matches('-').to_owned() + "_ref";
+                let value = next_cli_value(args, &mut index, token)?;
+                insert_unique_ref(&mut fields, &key, value, token)?;
+            }
+            value if value.starts_with("--reference=") || value.starts_with("--candidate=") => {
+                let (key, value) = split_equals_ref(value)?;
+                let key = format!("{key}_ref");
+                insert_unique_ref(&mut fields, &key, value, token)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!(
+                    "unknown eval compare option '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+            value => {
+                return Err(anyhow!(
+                    "unexpected eval compare argument '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+        }
+        index += 1;
+    }
+    for key in ["reference_ref", "candidate_ref"] {
+        if !fields.contains_key(key) {
+            return Err(anyhow!(
+                "eval compare requires --{}\n\n{}",
+                key.trim_end_matches("_ref"),
+                usage()
+            ));
+        }
+    }
+    Ok((
+        wire_command("compare"),
+        versioned_cli_arguments("compare", output, fields),
+    ))
+}
+
+fn parse_explain_route(args: &[String]) -> Result<(String, Value)> {
+    let mut fields = serde_json::Map::new();
+    let mut output = "text";
+    let mut index = 1;
+    while index < args.len() {
+        let token = args[index].as_str();
+        match token {
+            "--json" => ensure_output_flag(&mut output)?,
+            "--case-id" | "--finding" | "--result-id" | "--target" => {
+                let key = match token {
+                    "--case-id" => "case_id",
+                    "--finding" => "finding_code",
+                    "--result-id" => "result_id",
+                    "--target" => "target_ref",
+                    _ => unreachable!(),
+                };
+                let value = next_cli_value(args, &mut index, token)?;
+                insert_unique_ref(&mut fields, key, value, token)?;
+            }
+            value
+                if value.starts_with("--case-id=")
+                    || value.starts_with("--finding=")
+                    || value.starts_with("--result-id=")
+                    || value.starts_with("--target=") =>
+            {
+                let (key, value) = split_equals_ref(value)?;
+                let key = match key {
+                    "case_id" => "case_id",
+                    "finding" => "finding_code",
+                    "result_id" => "result_id",
+                    "target" => "target_ref",
+                    _ => unreachable!(),
+                };
+                insert_unique_ref(&mut fields, key, value, token)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!(
+                    "unknown eval explain option '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+            value => {
+                if fields.contains_key("target_ref") {
+                    return Err(anyhow!(
+                        "eval explain accepts one target reference\n\n{}",
+                        usage()
+                    ));
+                }
+                insert_unique_ref(&mut fields, "target_ref", validate_cli_ref(value)?, value)?;
+            }
+        }
+        index += 1;
+    }
+    if fields.is_empty() {
+        return Err(anyhow!(
+            "eval explain requires a target reference\n\n{}",
+            usage()
+        ));
+    }
+    if fields.len() > 1 && fields.contains_key("target_ref") {
+        return Err(anyhow!(
+            "eval explain accepts one target reference\n\n{}",
+            usage()
+        ));
+    }
+    Ok((
+        wire_command("explain"),
+        versioned_cli_arguments("explain", output, fields),
+    ))
+}
+
+fn parse_list_route(args: &[String]) -> Result<(String, Value)> {
+    let mut fields = serde_json::Map::new();
+    let mut output = "text";
+    let mut index = 1;
+    while index < args.len() {
+        let token = args[index].as_str();
+        match token {
+            "--json" => ensure_output_flag(&mut output)?,
+            "--kind" => {
+                let value = next_cli_value(args, &mut index, token)?;
+                insert_list_kind(&mut fields, value, token)?;
+            }
+            value if value.starts_with("--kind=") => {
+                let (_, value) = split_equals_ref(value)?;
+                insert_list_kind(&mut fields, value, token)?;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!("unknown eval list option '{value}'\n\n{}", usage()));
+            }
+            value => {
+                return Err(anyhow!(
+                    "unexpected eval list argument '{value}'\n\n{}",
+                    usage()
+                ));
+            }
+        }
+        index += 1;
+    }
+    Ok((
+        wire_command("list"),
+        versioned_cli_arguments("list", output, fields),
+    ))
+}
+
+fn versioned_cli_arguments(
+    action: &str,
+    output: &str,
+    mut fields: serde_json::Map<String, Value>,
+) -> Value {
+    fields.insert(
+        "schema".to_owned(),
+        Value::String(EVAL_CLI_COMMAND_SCHEMA.to_owned()),
+    );
+    fields.insert(
+        "version".to_owned(),
+        Value::Number(EVAL_CLI_COMMAND_VERSION.into()),
+    );
+    fields.insert("action".to_owned(), Value::String(action.to_owned()));
+    fields.insert("output".to_owned(), Value::String(output.to_owned()));
+    Value::Object(fields)
+}
+
+fn wire_command(action: &str) -> String {
+    EVAL_CLI_COMMANDS
+        .iter()
+        .find_map(|(cli, wire)| (*cli == action).then_some((*wire).to_owned()))
+        .expect("eval CLI command map must contain every parser action")
+}
+
+fn ensure_output_flag(output: &mut &str) -> Result<()> {
+    if *output == "json" {
+        return Err(anyhow!("duplicate option --json"));
+    }
+    *output = "json";
+    Ok(())
+}
+
+fn next_cli_value(args: &[String], index: &mut usize, option: &str) -> Result<String> {
+    *index += 1;
+    let value = args
+        .get(*index)
+        .ok_or_else(|| anyhow!("{option} requires a value"))?;
+    if value.starts_with('-') {
+        return Err(anyhow!("{option} requires a value"));
+    }
+    validate_cli_ref(value)
+}
+
+fn split_equals_ref(token: &str) -> Result<(&str, String)> {
+    let (raw_key, raw_value) = token
+        .strip_prefix("--")
+        .and_then(|value| value.split_once('='))
+        .ok_or_else(|| anyhow!("invalid eval option '{token}'"))?;
+    if raw_value.is_empty() {
+        return Err(anyhow!("--{raw_key} requires a value"));
+    }
+    let key = raw_key.replace('-', "_");
+    let value = validate_cli_ref(raw_value)?;
+    match key.as_str() {
+        "suite_id" => Ok(("suite_id", value)),
+        "dataset_id" => Ok(("dataset_id", value)),
+        "experiment_id" => Ok(("experiment_id", value)),
+        "case_id" => Ok(("case_id", value)),
+        "target" => Ok(("target", value)),
+        "baseline_id" => Ok(("baseline_id", value)),
+        "source" => Ok(("source", value)),
+        "run_id" => Ok(("run_id", value)),
+        "fixture" => Ok(("fixture", value)),
+        "name" => Ok(("name", value)),
+        "reference" => Ok(("reference", value)),
+        "candidate" => Ok(("candidate", value)),
+        "finding" => Ok(("finding", value)),
+        "result_id" => Ok(("result_id", value)),
+        "kind" => Ok(("kind", value)),
+        _ => Err(anyhow!("unknown eval option '{token}'\n\n{}", usage())),
+    }
+}
+
+fn insert_unique_ref(
+    fields: &mut serde_json::Map<String, Value>,
+    key: &str,
+    value: String,
+    option: &str,
+) -> Result<()> {
+    if fields
+        .insert(key.to_owned(), Value::String(value))
+        .is_some()
+    {
+        return Err(anyhow!("duplicate option {option}"));
+    }
+    Ok(())
+}
+
+fn insert_list_kind(
+    fields: &mut serde_json::Map<String, Value>,
+    value: String,
+    option: &str,
+) -> Result<()> {
+    if !matches!(
+        value.as_str(),
+        "dataset" | "suite" | "case" | "trace" | "experiment" | "result"
+    ) {
+        return Err(anyhow!("invalid eval list kind '{value}'"));
+    }
+    insert_unique_ref(fields, "kind", value, option)
+}
+
+fn validate_cli_ref(value: &str) -> Result<String> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 256 || value.bytes().any(|byte| byte == 0) {
+        return Err(anyhow!(
+            "eval reference must be 1..=256 bytes and contain no NUL"
+        ));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(anyhow!("eval reference contains a control character"));
+    }
+    if value.starts_with('/') || value.starts_with('~') || value.split('/').any(|part| part == "..")
+    {
+        return Err(anyhow!("eval reference must not escape the project scope"));
+    }
+    Ok(value.to_owned())
 }
 
 #[derive(Debug)]
@@ -1100,5 +1586,5 @@ fn split_words(input: &str) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana eval run --suite <path> [--baseline <path>] [--json] [--fail-on-failure]\n\nRuns a deterministic, read-only RuntimeEvent JSONL evaluation suite."
+    "Usage: kiana eval <run|capture|compare|explain|list> [options]\n\n  kiana eval run --suite <path> [--baseline <path>] [--json] [--fail-on-failure]\n      Legacy fixture-path compatibility form.\n  kiana eval run [--suite-id ID] [--dataset-id ID] [--experiment-id ID] [--json]\n      Route a provider-independent evaluation request through ControlPlane.\n  kiana eval capture --source REF [--name NAME] [--json]\n  kiana eval compare --reference REF --candidate REF [--json]\n  kiana eval explain (--case-id ID|--finding CODE|--result-id ID|--target REF) [--json]\n  kiana eval list [--kind dataset|suite|case|trace|experiment|result] [--json]"
 }

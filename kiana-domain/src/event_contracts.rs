@@ -679,6 +679,22 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         None
     ),
     spec!(
+        "eval.explain",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "eval.list",
+        "quality",
+        QUALITY_IDS,
+        QUALITY_FIELDS,
+        false,
+        None
+    ),
+    spec!(
         "quality.feedback",
         "quality",
         QUALITY_IDS,
