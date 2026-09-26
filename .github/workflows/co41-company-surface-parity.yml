@@ -1,0 +1,54 @@
+name: co41-company-surface-parity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/company_surface_parity.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/co41_company_surface_parity.rs"
+      - "kiana-entrypoints/tests/co41_company_surface_parity_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/co41-company-surface-parity-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co41-company-surface-parity.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/company_surface_parity.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/co41_company_surface_parity.rs"
+      - "kiana-entrypoints/tests/co41_company_surface_parity_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/co41-company-surface-parity-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co41-company-surface-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-surface-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-41 surface parity fixtures
+        run: cargo test -p kiana-entrypoints --test co41_company_surface_parity --locked -- --test-threads=1
+      - name: Run CO-41 surface source guard
+        run: cargo test -p kiana-entrypoints --test co41_company_surface_parity_guard --locked -- --test-threads=1
+      - name: Compile CO-41 entrypoint targets
+        run: cargo check -p kiana-entrypoints --tests --locked

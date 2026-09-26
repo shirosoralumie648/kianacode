@@ -11,6 +11,7 @@
 pub mod bg;
 pub mod cli;
 pub mod command_dispatch;
+pub mod company_surface_parity;
 pub mod company_user_flow;
 pub mod extension_projection;
 pub mod harness_run;
