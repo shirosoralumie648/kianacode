@@ -719,7 +719,7 @@
 
 
 
-#### CO-43 · 有界多角色/多 Builder 并行　⏳
+#### CO-43 · 有界多角色/多 Builder 并行　🔄
 
 - **归属**：`P4-J6-01`、`P1-C-02`。
 - **依赖**：CO-18、CO-19、CO-20、CO-21、CO-29、CO-42。
@@ -727,6 +727,7 @@
 - **实现顺序**：①固定 parent/root、分区、输入版本、输出合同与 merge owner；②按授权上限预留并发、深度、TTL、预算，写者工作区隔离；③失败按计划传播，成功 sibling 保留证据，未启动依赖取消，全部 child 最终 retire。
 - **先拒绝**：`swarm_rejects_overlapping_writers_duplicate_fingerprints_and_excess_delegation`；子权限不超过父/模板/部门/项目/packet/approval 交集，旧 epoch child 不得写回。
 - **再成功 / 退出**：`bounded_swarm_completes_independent_packets_with_a_full_responsibility_chain`；观察真实两任务并发、停机与预算释放，不用虚构消息数量或仅校验 SwarmPlan 类型充当证明。
+- **本步交付**：`company_parallel.rs` 绑定 Company parent/project/merge owner/partition/input/epoch/isolation/output 合同，按完整 child outcome 生成 merge eligibility；复用既有 SwarmWorkGraph/Cell/ControlPlane，不新增自由消息总线或执行循环。
 
 <a id="co-44"></a>
 

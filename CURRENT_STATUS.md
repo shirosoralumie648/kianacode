@@ -15080,3 +15080,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source contract does not perform actual process destruction/restart or EventStore migration; full cross-process business chain and effect reconciliation remain open
 reviewer: Codex CO-42 source review; checked schema/cursor/sequence/evidence fences, default pause, Unknown preservation, explicit approval/epoch/digest Resume and no blind retry; no local runtime test reviewer
 ```
+
+### CO-43 bounded Company parallel evidence (2026-09-27)
+
+```text
+source_snapshot: `92a81df3` plus CO-43 Company parallel source slice; kiana-domain/src/{company_parallel.rs,swarm.rs,swarm_graph.rs,lib.rs}; kiana-core/src/{company_parallel.rs,lib.rs,cell_registry.rs}; kiana-domain/tests/co43_company_parallel.rs; kiana-core/tests/co43_company_parallel_guard.rs; .github/workflows/co43-company-parallel.yml; docs/roadmap/co43-company-parallel-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyParallelPlan binds project/parent packet/merge owner/partitions/input version/authority epoch/isolation/output/concurrency/expiry; CompanyParallelSettlement requires complete partition coverage/evidence and only all-success children become mergeable; Pending/Failed/Cancelled/ResultUnknown remain fenced; existing SwarmWorkGraph/WorkFingerprint/CellRegistry/ControlPlane remain admission and dispatch authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_parallel.rs kiana-core/src/company_parallel.rs kiana-domain/tests/co43_company_parallel.rs kiana-core/tests/co43_company_parallel_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co43_company_parallel --locked -- --test-threads=1; cargo test -p kiana-core --test co43_company_parallel_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only duplicate partition/invalid epoch denial, complete success settlement, partial/Unknown non-mergeability, evidence coverage and Swarm/Cell/ControlPlane boundary; no real concurrent worker, isolated workspace, power-loss, durable fan-out, Integrator merge or live/physical effect
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-43 CompanyParallelPlan/Settlement source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 591/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: wrapper does not perform actual parallel admission or workspace isolation; existing process-local Swarm/Cell runtime and Integrator/MergeReceipt remain open
+reviewer: Codex CO-43 source review; checked parent/project/partition/owner/epoch/isolation binding, outcome coverage, Unknown/partial merge fence, reuse of Swarm/Cell/ControlPlane and no free-message bus; no local runtime test reviewer
+```

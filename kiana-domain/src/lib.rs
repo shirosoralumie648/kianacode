@@ -622,6 +622,8 @@ mod company_inbox;
 pub use company_inbox::*;
 mod company_recovery;
 pub use company_recovery::*;
+mod company_parallel;
+pub use company_parallel::*;
 
 mod dispatch;
 mod effect_observation;
