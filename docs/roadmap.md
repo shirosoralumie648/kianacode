@@ -797,7 +797,7 @@
 | 622 | W8 | 专项 | [`SC-34`](roadmap/security-compliance.md#step-sc-34) | docs control crosswalk、policy registry | `SC-01`、`SC-05`、`SC-31`、`SC-33` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-34) |
 | 623 | W8 | 专项 | [`SC-35`](roadmap/security-compliance.md#step-sc-35) | scripts EvidenceManifest、fixture/cassette registry | `SC-29`、`SC-31`、`SC-34` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-35) |
 | **W9** | **离线联合验收** |  |  |  |  |  |  |
-| 624 | W9 | 专项 | [`CP-29`](roadmap/control-plane.md#step-cp-29) | ControlPlane · 状态机性质、并发与崩溃验收 | `CP-05`、`CP-07`、`CP-13`、`CP-14`、`CP-15`、`CP-16`、`CP-17`、`CP-18`、`CP-19`、`CP-20`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-29) |
+| 624 | W9 | 专项 | [`CP-29`](roadmap/control-plane.md#step-cp-29) | ControlPlane · 状态机性质、并发与崩溃验收 | `CP-05`、`CP-07`、`CP-13`、`CP-14`、`CP-15`、`CP-16`、`CP-17`、`CP-18`、`CP-19`、`CP-20`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-29) · [baseline](roadmap/cp29-control-plane-authority-baseline.md) |
 | 625 | W9 | 专项 | [`CP-30`](roadmap/control-plane.md#step-cp-30) | ControlPlane · 产品流程和证据收口 | `CP-21`、`CP-22`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28`、`CP-29` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-30) |
 | 626 | W9 | 专项 | [`ER-31`](roadmap/event-receipt-recovery.md#step-er-31) | Event / Receipt / Recovery · Crash-point and fault-injection matrix | `ER-30` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-31) |
 | 627 | W9 | 专项 | [`ER-32`](roadmap/event-receipt-recovery.md#step-er-32) | Event / Receipt / Recovery · Property/conformance tests for adapters | `ER-31` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-32) |

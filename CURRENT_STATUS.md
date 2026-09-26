@@ -15126,6 +15126,21 @@ limitations: ledger is a pure capacity/cost-state contract and does not schedule
 reviewer: Codex CO-45 source review; checked project/org limit binding, fair release, Unknown hold, missing budget, idempotent replay and cross-org denial; no local runtime test reviewer
 ```
 
+### CP-29 ControlPlane authority and crash-matrix evidence (2026-09-27)
+
+```text
+source_snapshot: `aa936377` plus CP-29 authority scenario source slice; kiana-domain/src/{control_plane_authority.rs,journal.rs,lib.rs}; kiana-core/src/{control_plane_authority.rs,lib.rs}; kiana-eventlog/src/journal_core.rs; kiana-domain/tests/cp29_control_plane_authority.rs; kiana-core/tests/cp29_control_plane_authority_guard.rs; .github/workflows/cp29-control-plane-authority.yml; docs/roadmap/cp29-control-plane-authority-baseline.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: Cp29CommandFact checks authority epoch/permission narrowing, budget reservation and settlement bounds, legal lifecycle transitions, terminal non-revival, same-command replay and payload drift; Cp29CrashObservation requires Unknown plus resource fencing for an unconfirmed started effect; Cp29AuthorityScenario checks continuous sequence, complete seven-point crash coverage and online/replay fold equality; Core is a read-only validator over existing TransitionBatch/EventStore boundaries; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/control_plane_authority.rs kiana-core/src/control_plane_authority.rs kiana-domain/tests/cp29_control_plane_authority.rs kiana-core/tests/cp29_control_plane_authority_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test cp29_control_plane_authority --locked -- --test-threads=1; cargo test -p kiana-core --test cp29_control_plane_authority_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-eventlog --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only adversarial permission widening, budget overrun, terminal revival, command payload drift, replay zero-effect, seven crash-point coverage, Unknown fencing, duplicate-effect denial and online/replay digest mismatch; no real two-host race, subprocess kill/restart, storage latency or physical file/process evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CP-29 deterministic authority/state/crash evidence validator, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 624/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: this contract validates supplied facts and cannot prove production ControlPlane concurrency, crash timing, durable restart or physical effect outcomes; runtime matrix remains open for later ER/PD/DEP/CP-30 evidence
+reviewer: Codex CP-29 source review; checked monotonic permissions/budget/epoch, terminal/replay/payload fences, Unknown crash handling, complete crash matrix and no Broker/Runner/process second loop; no local runtime test reviewer
+```
+
 ### CO-46 Company template registry and research-report evidence (2026-09-27)
 
 ```text
