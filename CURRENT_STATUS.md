@@ -15050,3 +15050,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: delivery/close still require existing versioned business JSON arguments and server gates; full interactive Company lifecycle and other entrypoint parity remain CO-41+
 reviewer: Codex CO-40 source review; checked explicit target/session parsing, shared envelope mapping, Workbench reuse, no CLI split, DaemonHost-only route and absence of second execution loop; no local runtime test reviewer
 ```
+
+### CO-41 Company Web/Desktop surface parity evidence (2026-09-27)
+
+```text
+source_snapshot: `c8a984c7` plus CO-41 surface parity source slice; kiana-entrypoints/src/{company_surface_parity.rs,lib.rs,web.rs,workbench_chat.rs}; kiana-protocol/src/lib.rs; kiana-entrypoints/tests/co41_company_surface_parity.rs; kiana-entrypoints/tests/co41_company_surface_parity_guard.rs; .github/workflows/co41-company-surface-parity.yml; docs/roadmap/co41-company-surface-parity-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanySurfaceFrame binds CLI/Workbench/Web/Desktop to one CompanyReadModelSnapshot digest, source/projection cursor, revision, authority epoch, status and next action; CompanySurfaceParity requires all four unique surfaces; StaleSurfaceAction rejects old digest/revision/epoch; no second state store/model loop; existing Web/Workbench/Protocol/DaemonHost paths remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-entrypoints/src/company_surface_parity.rs kiana-entrypoints/src/lib.rs kiana-entrypoints/tests/co41_company_surface_parity.rs kiana-entrypoints/tests/co41_company_surface_parity_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-entrypoints --test co41_company_surface_parity --locked -- --test-threads=1; cargo test -p kiana-entrypoints --test co41_company_surface_parity_guard --locked -- --test-threads=1; cargo check -p kiana-entrypoints --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only four-surface parity, stale Web action/reconnected delta denial, duplicate/missing surface, shared snapshot digest/cursor/revision/epoch and no second-state source guard; no UI E2E, durable reconnect, browser identity or live/physical outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-41 CompanySurfaceFrame/Parity/StaleSurfaceAction source slice, entrypoint fixture/guard, workflow and baseline implemented; roadmap row 540/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: parity contract does not implement rendering, EventLog hydration or external identity/reconnect; full Web/Desktop/CLI E2E remains later UI/NM/CO work
+reviewer: Codex CO-41 source review; checked four-surface exact snapshot binding, stale action rejection, shared cursor/revision/epoch, existing DaemonHost reuse and no second business state/loop; no local runtime test reviewer
+```

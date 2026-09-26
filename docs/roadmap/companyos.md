@@ -685,7 +685,7 @@
 
 
 
-#### CO-41 · Web 与 Desktop 复用同一 Company 状态　⏳
+#### CO-41 · Web 与 Desktop 复用同一 Company 状态　🔄
 
 - **归属**：`P2-M2-01`、`P2-M3-01`、`P2-M4-01`、`P2-M5-01`、`P4-M6-01`。
 - **依赖**：CO-38、CO-39、CO-40；复用既有 stream cursor/epoch 接线。
@@ -693,6 +693,7 @@
 - **实现顺序**：①订阅 snapshot+events 渲染同一业务对象；②会议讨论/执行进度与权威决定分开显示；③重连补 cursor，按钮由 server actions 驱动，键盘/窄屏/文本回退可用。
 - **先拒绝**：`stale_web_action_and_reconnected_delta_cannot_repeat_company_transition`；不可信 Origin/身份、旧审批卡、过期表单都不能触发业务操作。
 - **再成功 / 退出**：`cli_workbench_web_and_desktop_show_the_same_company_terminal_and_next_action`；同一项目在四入口对账一致，Desktop 不另存业务事实或另起 Agent 循环。
+- **本步交付**：`company_surface_parity.rs` 要求 CLI/Workbench/Web/Desktop 共享同一 read-model digest/cursor/revision/epoch/status/next action，旧 action fail-closed；既有 Web/Workbench/Protocol/DaemonHost 路径继续复用。
 
 <a id="co-42"></a>
 
