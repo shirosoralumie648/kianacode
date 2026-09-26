@@ -832,7 +832,7 @@
 | 656 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ✅ | [基础卡](#step-p2-l2-01) |
 | 657 | W9 | 基础 | [`P3-I-06`](#step-p3-i-06) | P3 基础 · fake-model coding 黄金闭环 | `P3-I-05` | ✅ | [基础卡](#step-p3-i-06) |
 | 658 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ✅ | [基础卡](#step-p4-l3-01) |
-| 659 | W9 | 专项 | [`CI-12`](#step-ci-12) | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | `CI-01`、`CI-11`、`CI-02`、`CI-03`、`CI-04`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09`、`CI-10` | ⏳ | [专项卡](#step-ci-12) |
+| 659 | W9 | 专项 | [`CI-12`](#step-ci-12) | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | `CI-01`、`CI-11`、`CI-02`、`CI-03`、`CI-04`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09`、`CI-10` | 🔄 | [专项卡](#step-ci-12) · [baseline](roadmap/ci12-product-gate-baseline.md) |
 | 660 | W9 | 专项 | [`OA-23`](#step-oa-23) | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | `P1-L1-01`、`OA-08`、`OA-09`、`OA-21` | ✅ | [专项卡](#step-oa-23) |
 | 661 | W9 | 专项 | [`OA-24`](#step-oa-24) | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | `P2-M2-01`、`P2-M3-01`、`P2-M4-01`、`P2-M5-01`、`P2-M5-02`、`OA-16`、`OA-23`、`OA-17`、`OA-18`、`OA-19`、`OA-20`、`OA-21`、`OA-22` | ✅ | [专项卡](#step-oa-24) |
 | 662 | W9 | 专项 | [`OA-25`](#step-oa-25) | 容量、性能和迁移演练；journal/projector/query/export benchmark | `OA-12`、`OA-13`、`OA-17`、`OA-20` | ✅ | [专项卡](#step-oa-25) |
