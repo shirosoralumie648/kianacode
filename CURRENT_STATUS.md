@@ -15245,3 +15245,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source matrix does not prove all four runtime surfaces or real provider/live opt-in; CI result is not awaited and live claims require separate evidence
 reviewer: Codex CI-12 source review; checked zero-effect denial, Unknown/reconcile receipt, fake-provider boundary, typed live approval/evidence and single-spine/no-second-loop guard; no local runtime test reviewer
 ```
+
+### AUT-22 automation snapshot and read-only query evidence (2026-09-27)
+
+```text
+source_snapshot: `db99a49b` plus AUT-22 automation snapshot source slice; kiana-domain/src/{automation_snapshot.rs,lib.rs}; kiana-core/src/{automation_snapshot.rs,automation.rs,workflow_queue.rs,receipts.rs,incident_projection.rs,lib.rs}; kiana-domain/tests/automation_snapshot.rs; kiana-core/tests/automation_snapshot_guard.rs; .github/workflows/aut22-automation-snapshot.yml; docs/roadmap/aut22-automation-snapshot-baseline.md; docs/roadmap.md
+worktree_status: AutomationSnapshot binds committed source cursor/projection version/authority epoch, workflow due/blocked/Unknown views, trigger occurrence, runtime Receipt versus business outcome evidence, incident reconcile and limitations; Core only validates read-only projection and existing planner/queue/Receipt/incident owners remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_snapshot.rs kiana-core/src/automation_snapshot.rs kiana-domain/tests/automation_snapshot.rs kiana-core/tests/automation_snapshot_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_snapshot --locked -- --test-threads=1; cargo test -p kiana-core --test automation_snapshot_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only due/deadline, Unknown/reconcile, foreign Receipt, business-outcome evidence, source cursor/epoch and read-only/no-claim markers; no scheduler worker, claim/approval mutation, durable query index, UI E2E or provider/physical effect
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: AUT-22 automation snapshot/Receipt/incident query contract, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 665 advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: projection contract does not implement scheduler/UI query service, cross-process rebuild or actual claim/effect behavior; AUT-23/24 remain open
+reviewer: Codex AUT-22 source review; checked source cursor/epoch, due/blocked/Unknown reason, Receipt/business outcome separation, incident reconciliation, workflow bindings and no query-side execution authority; no local runtime test reviewer
+```

@@ -1,0 +1,58 @@
+name: aut22-automation-snapshot
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation_snapshot.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/automation_snapshot.rs"
+      - "kiana-core/src/automation_snapshot.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/incident_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/automation_snapshot_guard.rs"
+      - "docs/roadmap/aut22-automation-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut22-automation-snapshot.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation_snapshot.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/automation_snapshot.rs"
+      - "kiana-core/src/automation_snapshot.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/src/workflow_queue.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/incident_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/automation_snapshot_guard.rs"
+      - "docs/roadmap/aut22-automation-snapshot-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut22-automation-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  automation-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run AUT-22 snapshot fixtures
+        run: cargo test -p kiana-domain --test automation_snapshot --locked -- --test-threads=1
+      - name: Run AUT-22 read-only boundary guard
+        run: cargo test -p kiana-core --test automation_snapshot_guard --locked -- --test-threads=1
+      - name: Compile AUT-22 affected targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
