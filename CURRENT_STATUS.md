@@ -14450,3 +14450,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator validates caller-supplied gate evidence only; no durable decision history, ControlPlane authorization, immutable persistence, promotion/rollback or live/physical outcome is claimed; EQ-42+ remain open
 reviewer: Codex EQ-41 source review; checked config/decision digest binding, versioned update and blocker/pass separation plus pure no-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-42 blocking-rule precedence evidence (2026-09-26)
+
+```text
+source_snapshot: `222bbc9d` plus EQ-42 blocking-rule slice; kiana-quality/src/{rules.rs,lib.rs}; kiana-quality/tests/{eq42_rules.rs,eq42_rules_guard.rs}; .github/workflows/eq42-blocking-rules.yml; docs/roadmap/evaluation-blocking-rules-baseline.md; docs/roadmap.md
+worktree_status: pure BlockingRuleEvaluator requires safety/evidence/replay/forbidden_effect/fixture_integrity/infra rule rows and finding refs, and makes triggered blockers precedence over weighted score; below-threshold score cannot pass; no gate mutation, execution, authorization or promotion path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{rules.rs,lib.rs} kiana-quality/tests/{eq42_rules.rs,eq42_rules_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq42_rules --locked -- --test-threads=1; cargo test -p kiana-quality --test eq42_rules_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only complete rule matrix, high score with safety blocker, below-threshold false pass, missing rule/finding ref and unknown-field fixtures; no target/provider/external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-42 blocking-rule precedence contract, CI fixtures/guard and baseline implemented; roadmap row 572/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator validates caller-supplied blocking-rule evidence only; no immutable persisted gate decision, ControlPlane promotion authority, durable EvalStore or live/physical outcome is claimed; EQ-43+ remain open
+reviewer: Codex EQ-42 source review; checked required rule matrix, finding refs and block-before-score precedence plus pure no-I/O boundary; no local runtime test reviewer
+```
