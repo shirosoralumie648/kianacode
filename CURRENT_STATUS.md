@@ -14525,3 +14525,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: receipt and observation are still caller/adapter supplied projections; no provider truth, durable cross-process receipt store, query reconciliation, retry/cancel settlement or live/physical outcome is claimed; INT-21+ remain open
 reviewer: Codex INT-20 source review; checked receipt identity/hash/secret fence, owner/audience scope, payload/idempotency/provider-ID binding and outcome separation; no local runtime test reviewer
 ```
+
+### INT-21 connector retry classifier evidence (2026-09-26)
+
+```text
+source_snapshot: `f755ab30` plus INT-21 connector retry slice; kiana-domain/src/{connector_retry.rs,connector_operation.rs,lib.rs}; kiana-domain/tests/int21_connector_retry.rs; kiana-core/tests/int21_connector_retry_guard.rs; .github/workflows/int21-connector-retry.yml; docs/roadmap/int21-connector-retry-baseline.md; docs/roadmap.md
+worktree_status: ConnectorRetryObservation is bounded/digest-bound; ConnectorRetryPolicy enforces attempt/deadline/backoff bounds and admits only known-no-effect or declared-idempotent no-effect observations; Unknown/non-idempotent/approval/epoch/scope/validation/cancel classes deny; decision only returns fresh next_attempt and never dispatches or writes state; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_retry.rs kiana-domain/tests/int21_connector_retry.rs kiana-core/tests/int21_connector_retry_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test int21_connector_retry --locked -- --test-threads=1; cargo test -p kiana-core --test int21_connector_retry_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only known-no-effect retry, declared-idempotent throttled retry, Unknown/authority/non-idempotent/attempt/deadline denials, bounded Retry-After and unknown-field fixtures; no scheduler, permit consumption, durable retry ledger or live provider cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: INT-21 connector retry classifier/policy source slice, CI fixture/guard and baseline implemented; roadmap row 498/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: classifier consumes caller/adapter-supplied effect state and does not prove no-effect, schedule backoff, create a fresh reservation, perform timeout cancellation, reconcile Unknown or claim provider/live/physical outcome; INT-22+ remain open
+reviewer: Codex INT-21 source review; checked no-retry Unknown/authority/non-idempotent precedence, fresh attempt increment, idempotency-key requirement, absolute deadline and bounded backoff; no local runtime test reviewer
+```

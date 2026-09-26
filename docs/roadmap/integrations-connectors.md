@@ -41,6 +41,10 @@ ConnectorDefinition + AccountBinding + OperationContract
   validation and binds `EffectObservation` to receipt payload hash, idempotency digest, receipt ID,
   owner/audience and outcome. Fixture, ports and daemon projections share the same validation;
   succeeded/failed/unknown remain distinct and raw provider response material is rejected.
+- INT-21 source slice now supplies a connector retry classifier and bounded absolute-deadline
+  policy. Only known-no-effect or explicitly declared-idempotent observations with an idempotency
+  key can return a fresh next attempt; Unknown, non-idempotent, approval, epoch, scope, validation
+  and cancellation findings deny without touching Broker/EventStore/adapter state.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界
