@@ -251,6 +251,19 @@ proof-level change: `feature_status=implemented`（default-deny physical/live ha
 limitations: 未证明任何目标 OS、provider/connector/OTLP、隔离账户、external receipt/reconcile、retention/cleanup 或 physical effect；需要人工授权和目标环境，CI 结果未等待
 reviewer: Codex ER-36 source review；检查 approval prefix/trim/newline、credential ref、default deny、receipt/Unknown/cleanup proof ceiling 与 no external effect；无本地 live/physical reviewer
 
+### H36 Desktop live-closeout state fence（2026-09-26）
+
+source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 H36 desktop-state source slice；`kiana-domain/src/harness_integration.rs`; `kiana-domain/tests/h36_harness_integration.rs`; `docs/roadmap/h36-harness-integration-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/h36-desktop-state-fence-20260926`; `live_closeout_blockers()` 只有在 Desktop live case 同时具备 receipt、stream 和 `desktop_state_receipt` 时才允许计入 surface evidence；不执行 provider、Desktop/Electron runtime、Broker 或 physical effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/live）；GitHub Actions 将运行 H36 matrix/parity/spine/source/provider-live guards 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/Desktop/Electron/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `h36_harness_integration.rs` 新增 Desktop live case 缺失 state receipt deny；existing 32-case surface/scenario, cancel fence, verified Unknown, provider/live handoff and parity fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 H36 domain/source/parity/spine/provider-live/workspace compile exit code pending/unobserved
+status_change: H36 live closeout now fails closed when Desktop state receipt is missing，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（bounded harness integration source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实 Provider/account/model、Desktop/browser/PTY、三入口 runtime、restart/steer/approval/compaction、latency/stream/RSS/cleanup、external receipt 或 live/physical outcome；CI 结果未等待
+reviewer: Codex H36 source review；检查 Desktop live surface receipt/stream/state binding、existing cancel/Unknown/live blockers、shared spine and no second loop；无本地 runtime/live reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
