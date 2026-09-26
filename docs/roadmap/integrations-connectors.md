@@ -45,6 +45,10 @@ ConnectorDefinition + AccountBinding + OperationContract
   policy. Only known-no-effect or explicitly declared-idempotent observations with an idempotency
   key can return a fresh next attempt; Unknown, non-idempotent, approval, epoch, scope, validation
   and cancellation findings deny without touching Broker/EventStore/adapter state.
+- INT-22 source slice now quarantines Unknown connector receipts in a digest-bound
+  `ConnectorReconciliationCase`. Provider query/manual evidence must match invocation, attempt,
+  binding, account, operation, idempotency and payload identity; only an explicit successor fact
+  can close the case, with safe/forbidden actions exposed through a Human Inbox item.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界

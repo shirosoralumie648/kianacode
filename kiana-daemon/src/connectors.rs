@@ -11,6 +11,7 @@ use kiana_domain::{
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
     ConnectorCredentialEvidence, ConnectorCredentialInvocation, ConnectorDispatchLifecycle,
     ConnectorDispatchStage, ConnectorFixture, ConnectorHealthFact, ConnectorHealthStatus,
+    ConnectorReconciliationCase, ConnectorReconciliationReason, ConnectorReconciliationSource,
     EffectObservation, ExecutionId, InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent,
     CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
     CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND, CONNECTOR_HEALTH_OPERATION,
@@ -949,6 +950,15 @@ impl ConnectorRegistry {
                 {
                     return Err(failed("connector_reconciliation_not_pending"));
                 }
+                let prior_observation =
+                    EffectObservation::from_json(&original.data["effect_observation"])
+                        .map_err(failed)?;
+                let pending_case = ConnectorReconciliationCase::from_unknown(
+                    &prior,
+                    &prior_observation,
+                    ConnectorReconciliationReason::ProviderUnknown,
+                )
+                .map_err(failed)?;
                 let bytes = read_project_file(
                     project,
                     string(args, "receipt_path")?,
@@ -978,14 +988,29 @@ impl ConnectorRegistry {
                 let now = now_ms()?;
                 let observation = LocalFixtureEffectObserver
                     .observe(&receipt, request, project, actor, 1, now)?;
+                let evidence_ref = kiana_domain::json_digest(&json!({
+                    "receipt_sha256": args["receipt_sha256"],
+                }));
+                let reconciliation_case = pending_case
+                    .attach_evidence(
+                        ConnectorReconciliationSource::ManualEvidence,
+                        receipt.clone(),
+                        observation.clone(),
+                        vec![evidence_ref],
+                    )
+                    .map_err(failed)?
+                    .commit_reconciled()
+                    .map_err(failed)?;
                 let mut output = receipt_output(&receipt, next_version);
                 output["effect_observation"] = serde_json::to_value(&observation)
                     .map_err(|_| failed("effect_observation_encode_failed"))?;
+                output["reconciliation_case"] = serde_json::to_value(&reconciliation_case)
+                    .map_err(|_| failed("connector_reconciliation_case_encode_failed"))?;
                 output["reconciled"] = json!(true);
                 output["invocation_event_id"] = json!(invocation);
                 (
                     "connector.reconciled",
-                    json!({"receipt":receipt,"effect_observation":observation,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
+                    json!({"receipt":receipt,"effect_observation":observation,"reconciliation_case":reconciliation_case,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
                     output,
                     next_version,
                     version,

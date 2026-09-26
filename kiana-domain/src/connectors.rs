@@ -3,8 +3,9 @@
 
 use crate::{
     connector_fixture_hash_valid, is_sha256_hex, json_digest, valid_extension_identifier,
-    valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage, EffectObservation,
-    InvocationId, RiskLevel, SecretRef, SecretScanChannel,
+    valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage,
+    ConnectorReconciliationCase, ConnectorReconciliationState, EffectObservation, InvocationId,
+    RiskLevel, SecretRef, SecretScanChannel,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -483,6 +484,19 @@ pub fn connector_bindings(
                     &observation.audience_digest,
                 )
                 .map_err(|_| "connector_registry_event_invalid")?;
+            if let Some(raw_case) = event.data.get("reconciliation_case") {
+                let case: ConnectorReconciliationCase = serde_json::from_value(raw_case.clone())
+                    .map_err(|_| "connector_registry_event_invalid")?;
+                case.validate()
+                    .map_err(|_| "connector_registry_event_invalid")?;
+                if case.state != ConnectorReconciliationState::Reconciled
+                    || case.evidence.as_ref().is_none_or(|evidence| {
+                        evidence.receipt != receipt || evidence.observation != observation
+                    })
+                {
+                    return Err("connector_registry_event_invalid");
+                }
+            }
         } else if event.kind == CONNECTOR_HEALTH_EVENT_KIND {
             let fact: ConnectorHealthFact = serde_json::from_value(event.data["health"].clone())
                 .map_err(|_| "connector_registry_event_invalid")?;
