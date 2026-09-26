@@ -1,0 +1,38 @@
+name: EQ-37 flake classifier
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-flake-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq37-flake.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-flake-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq37-flake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-37 flake fixtures
+        run: cargo test -p kiana-quality --test eq37_flake --locked -- --test-threads=1
+      - name: Run EQ-37 source guard
+        run: cargo test -p kiana-quality --test eq37_flake_guard --locked -- --test-threads=1
+      - name: Compile EQ-37 targets
+        run: cargo check --workspace --tests --locked

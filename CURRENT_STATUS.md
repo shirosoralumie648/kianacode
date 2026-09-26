@@ -14375,3 +14375,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator checks caller-supplied aggregate summaries and does not prove statistical method/sample representativeness, immutable QualityGate decision, durable experiment state, promotion authority or live/physical outcome; EQ-37+ remain open
 reviewer: Codex EQ-36 source review; checked minimum sample, absolute/relative thresholds, confidence evidence and false-pass denial plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-37 retry-once flake classifier evidence (2026-09-26)
+
+```text
+source_snapshot: `55020118` plus EQ-37 flake classifier slice; kiana-quality/src/{flake.rs,lib.rs}; kiana-quality/tests/{eq37_flake.rs,eq37_flake_guard.rs}; .github/workflows/eq37-flake.yml; docs/roadmap/evaluation-flake-baseline.md; docs/roadmap.md
+worktree_status: pure FlakeClassifierEvaluator bounds classification to one retry, keeps first-fail/second-pass flaky cases out of Pass, requires expiring quarantine evidence and classifies infra failures; retry-after-pass, unclassified infra, missing quarantine and forged result status fail closed; no rerun, file quarantine, suite/gate mutation or promotion path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{flake.rs,lib.rs} kiana-quality/tests/{eq37_flake.rs,eq37_flake_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq37_flake --locked -- --test-threads=1; cargo test -p kiana-quality --test eq37_flake_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only stable pass, flaky first-fail/second-pass, quarantine, infra classification, retry-after-pass and unknown-field fixtures; no actual rerun, durable quarantine or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-37 flake/quarantine/infra source contract, CI fixture/guard and baseline implemented; roadmap row 483/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator classifies caller-supplied attempts only; it does not prove rerun determinism, infra telemetry, durable quarantine lifecycle, statistical flake confidence, promotion authority or live/physical outcome; EQ-38+ remain open
+reviewer: Codex EQ-37 source review; checked retry-once, flaky-not-pass, quarantine and infra classification boundaries plus pure no-I/O boundary; no local runtime test reviewer
+```
