@@ -842,7 +842,7 @@
 | 666 | W9 | 专项 | [`AUT-23`](#step-aut-23) | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | `AUT-09`、`AUT-11`、`AUT-18`、`AUT-22` | 🔄 | [专项卡](#step-aut-23) · [baseline](roadmap/aut23-surface-uat-baseline.md) |
 | 667 | W9 | 专项 | [`AUT-24`](#step-aut-24) | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | `AUT-01`、`AUT-23`、`AUT-02`、`AUT-03`、`AUT-04`、`AUT-05`、`AUT-06`、`AUT-07`、`AUT-08`、`AUT-09`、`AUT-10`、`AUT-11`、`AUT-12`、`AUT-13`、`AUT-14`、`AUT-15`、`AUT-16`、`AUT-17`、`AUT-18`、`AUT-19`、`AUT-20`、`AUT-21`、`AUT-22` | 🔄 | [专项卡](#step-aut-24) · [baseline](roadmap/aut24-release-evidence-baseline.md) |
 | 668 | W9 | 专项 | [`EQ-45`](#step-eq-45) | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `EQ-44` | 🔄 | [专项卡](#step-eq-45) · [baseline](roadmap/evaluation-feedback-baseline.md) |
-| 669 | W9 | 专项 | [`EQ-46`](#step-eq-46) | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `EQ-45` | ⏳ | [专项卡](#step-eq-46) |
+| 669 | W9 | 专项 | [`EQ-46`](#step-eq-46) | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `EQ-45` | 🔄 | [专项卡](#step-eq-46) · [baseline](roadmap/evaluation-drift-baseline.md) |
 | 670 | W9 | 专项 | [`EQ-47`](#step-eq-47) | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `EQ-46` | ⏳ | [专项卡](#step-eq-47) |
 | 671 | W9 | 专项 | [`EQ-48`](#step-eq-48) | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `EQ-47` | ⏳ | [专项卡](#step-eq-48) |
 | 672 | W9 | 专项 | [`EQ-49`](#step-eq-49) | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `EQ-48` | ⏳ | [专项卡](#step-eq-49) |
