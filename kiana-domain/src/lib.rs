@@ -628,6 +628,8 @@ mod company_integration;
 pub use company_integration::*;
 mod company_portfolio;
 pub use company_portfolio::*;
+mod company_template_registry;
+pub use company_template_registry::*;
 
 mod dispatch;
 mod effect_observation;

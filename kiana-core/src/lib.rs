@@ -39,6 +39,7 @@ mod company_recovery;
 mod company_parallel;
 mod company_integration;
 mod company_portfolio;
+mod company_template_registry;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;
