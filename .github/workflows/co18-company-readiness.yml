@@ -1,0 +1,54 @@
+name: co18-company-readiness
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_readiness.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co18_company_readiness.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co18_company_readiness_guard.rs"
+      - "docs/roadmap/co18-company-readiness-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co18-company-readiness.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_readiness.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co18_company_readiness.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co18_company_readiness_guard.rs"
+      - "docs/roadmap/co18-company-readiness-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co18-company-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-18 readiness fixtures
+        run: cargo test -p kiana-domain --test co18_company_readiness --locked -- --test-threads=1
+      - name: Run CO-18 readiness source guard
+        run: cargo test -p kiana-core --test co18_company_readiness_guard --locked -- --test-threads=1
+      - name: Compile CO-18 Company targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

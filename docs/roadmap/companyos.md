@@ -326,11 +326,11 @@
 
 
 
-#### CO-18 · 唯一 ready 谓词与可解释阻塞原因　⏳
+#### CO-18 · 唯一 ready 谓词与可解释阻塞原因　🔄
 
 - **归属**：`P1-D-01`、`P1-D-02`。
 - **依赖**：CO-08、CO-12、CO-17。
-- **代码与产物**：domain `ready_packets`/依赖判定、core spawn admission、daemon query、入口 next/看板。
+- **代码与产物**：domain `company_readiness.rs`/`ready_packets` 组合谓词、结构化 blockers、Company snapshot 投影与 CI fixture/guard；兼容队列/看板继续复用 domain 基础谓词。
 - **实现顺序**：①给定图快照和显式 now 计算就绪；②检查批准/接单、依赖满足类型、输入版本、暂停/变更、有效 lease；③返回 Ready 或结构化 blockers，所有消费者调用同一实现。
 - **先拒绝**：`ready_packet_requires_the_declared_dependency_outcome`；RequiresAcceptance 不被 Run Completed 满足，Unknown/失败依赖、缺件、有效旧 claim 都不能派发。
 - **再成功 / 退出**：`ready_predicate_agrees_between_scheduler_spawn_and_project_view`；同一输入的排序/原因一致；查询本身不取得 claim、预算或写权限。
