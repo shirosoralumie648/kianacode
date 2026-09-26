@@ -1,0 +1,38 @@
+name: EQ-39 baseline registry
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-baseline-registry.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq39-baseline.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-baseline-registry.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq39-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-39 baseline fixtures
+        run: cargo test -p kiana-quality --test eq39_baseline --locked -- --test-threads=1
+      - name: Run EQ-39 source guard
+        run: cargo test -p kiana-quality --test eq39_baseline_guard --locked -- --test-threads=1
+      - name: Compile EQ-39 targets
+        run: cargo check --workspace --tests --locked
