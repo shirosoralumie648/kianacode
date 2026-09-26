@@ -15305,3 +15305,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source contract and adapter do not persist feedback, append EventLog, authenticate external identities beyond RequestContext, review/promote it, change policy/receipt/route/grant or prove online quality; EQ-46 drift monitoring remains open
 reviewer: Codex EQ-45 source review; checked typed target binding, server-only provenance/privacy derivation, policy/receipt reference immutability, redaction and no-side-effect adapter boundary; no local runtime test reviewer
 ```
+
+### EQ-46 version drift metrics and alert evidence (2026-09-27)
+
+```text
+source_snapshot: `e421200b` plus EQ-46 drift source slice; kiana-domain/src/{quality_drift.rs,versioning.rs,lib.rs}; kiana-core/src/{quality_drift.rs,lib.rs}; kiana-domain/tests/quality_drift.rs; kiana-core/tests/quality_drift_guard.rs; .github/workflows/eq46-drift.yml; docs/roadmap/evaluation-drift-baseline.md; docs/roadmap.md
+worktree_status: DriftEvaluationInput consumes the existing read-only DriftReport, binds canonical target/source cursor/threshold and equal route/grant before-after snapshots; DriftMetrics derives bounded error-rate/mean-latency buckets; threshold breach creates strict DriftAlert and `drift.alerted` payload with authority_changes_applied=false; Core only evaluates evidence and does not append, switch or grant; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/quality_drift.rs kiana-core/src/quality_drift.rs kiana-domain/tests/quality_drift.rs kiana-core/tests/quality_drift_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test quality_drift --locked -- --test-threads=1; cargo test -p kiana-core --test quality_drift_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only version bucket metrics, threshold alert, minimum-sample NeedsReview, route/grant drift denial, digest and unknown-field denial; no online stream, EventLog append/replay, automatic rollback, provider/live quality or business outcome evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and workspace test-target compilation pending/unobserved
+status_change: EQ-46 version-bucket metrics, minimum-sample/threshold contract, `drift.alerted` evidence payload, Core read-only adapter, CI fixture/guard, workflow and baseline added; roadmap row 669/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: alert DTO is append-ready evidence only; version.drift remains query-only and no code authenticates an external stream, persists alerts, changes route/grant or proves automatic mitigation; EQ-47 CLI surface remains open
+reviewer: Codex EQ-46 source review; checked stable version buckets, bounded metrics, explicit thresholds/minimum samples, route/grant equality fence, authority false and no-effect Core path; no local runtime test reviewer
+```
