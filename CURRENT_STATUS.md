@@ -15350,3 +15350,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: report artifacts are rendered from caller-supplied committed facts and are not persisted or executed; no real evaluation, archive, CI lane, provider result or JUnit consumer compatibility is claimed; EQ-49..51 remain open
 reviewer: Codex EQ-48 source review; checked recomputed status/summary, evidence reference closure, shared secret/path fence, XML escaping, command value omission and no-effect Core adapter; no local runtime test reviewer
 ```
+
+### EQ-49 evaluation script wrappers evidence (2026-09-27)
+
+```text
+source_snapshot: `fda56cdc` plus EQ-49 script wrapper source slice; scripts/eval-{curated,deep,capture-golden,compare}.sh; scripts/tests/eq49-eval-scripts-static.sh; .github/workflows/eq49-eval-scripts.yml; docs/roadmap/evaluation-scripts-baseline.md; docs/roadmap.md
+worktree_status: four executable wrappers route only existing `kiana eval run/capture/compare` ControlPlane commands; every child receives an explicit env -i allowlist with temporary 0700 HOME/KIANA_HOME/TMPDIR and fixed PATH/locale; selectors and opaque refs reject duplicate/missing/unknown options, absolute/traversal/control/secret-like values; unrelated shared WIP remains uncommitted
+command_argv: bash -n scripts/eval-curated.sh scripts/eval-deep.sh scripts/eval-capture-golden.sh scripts/eval-compare.sh; git diff --check; GitHub Actions: bash scripts/tests/eq49-eval-scripts-static.sh
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; local syntax check only; GitHub Actions is the static guard authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only executable/shebang/strict-mode, env allowlist, path/secret rejection, route/no-second-loop and legacy filesystem option guards; no binary invocation, fixture read, provider/proxy/MCP environment, report archive or live evaluation result
+exit_code: local bash -n and git diff --check passed; GitHub static guard pending/unobserved
+status change: EQ-49 four script wrappers, explicit environment/path/secret/argv failure fences, static guard, CI workflow and baseline added; roadmap row 672/card advanced from ⏳ to 🔄 pending remote verification
+proof-level change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical evaluation evidence
+limitations: wrappers do not execute an evaluator or persist report/GoldenTrace artifacts; curated/deep CI lane wiring, artifact archival and final evidence handoff remain EQ-50/EQ-51; real provider quality, compare semantics and physical outcomes are unproven
+reviewer: Codex EQ-49 source review; checked env -i allowlist, temporary home isolation, strict refs/secret/path handling, array argv, non-zero propagation, existing ControlPlane route names and no second loop; no local runtime/evaluation reviewer
+```
