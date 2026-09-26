@@ -14360,3 +14360,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: this is a fixed contract/evaluator around the existing Judge port, not a semantic quality result or live judge execution; no durable EvalStore, external model evidence, promotion authority or live/physical outcome is claimed; EQ-36+ remain open
 reviewer: Codex EQ-35 source review; checked unavailable-not-pass, configuration/request/result digest binding and no-model/no-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-36 dimension aggregation evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `4d6277be` plus EQ-36 aggregation evaluator slice; kiana-quality/src/{aggregation.rs,lib.rs}; kiana-quality/tests/{eq36_aggregation.rs,eq36_aggregation_guard.rs}; .github/workflows/eq36-aggregation.yml; docs/roadmap/evaluation-aggregation-baseline.md; docs/roadmap.md
+worktree_status: pure AggregationEvaluator validates bounded per-dimension absolute/relative threshold, minimum sample and confidence interval evidence; insufficient samples cannot be Pass and contradictory pass emits false_pass; no experiment execution, statistical sampler, QualityGate mutation or promotion path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{aggregation.rs,lib.rs} kiana-quality/tests/{eq36_aggregation.rs,eq36_aggregation_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq36_aggregation --locked -- --test-threads=1; cargo test -p kiana-quality --test eq36_aggregation_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only adequate/insufficient sample, absolute/relative threshold, confidence interval, missing baseline and forged-pass fixtures; no experiment sampling, provider, durable EvalStore or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-36 aggregation source contract, CI fixture/guard and baseline implemented; roadmap row 482/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator checks caller-supplied aggregate summaries and does not prove statistical method/sample representativeness, immutable QualityGate decision, durable experiment state, promotion authority or live/physical outcome; EQ-37+ remain open
+reviewer: Codex EQ-36 source review; checked minimum sample, absolute/relative thresholds, confidence evidence and false-pass denial plus pure no-I/O boundary; no local runtime test reviewer
+```

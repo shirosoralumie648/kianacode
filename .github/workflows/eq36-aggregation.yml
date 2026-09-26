@@ -1,0 +1,38 @@
+name: EQ-36 aggregation evaluator
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-aggregation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq36-aggregation.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-aggregation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq36-aggregation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  aggregation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-36 aggregation fixtures
+        run: cargo test -p kiana-quality --test eq36_aggregation --locked -- --test-threads=1
+      - name: Run EQ-36 source guard
+        run: cargo test -p kiana-quality --test eq36_aggregation_guard --locked -- --test-threads=1
+      - name: Compile EQ-36 targets
+        run: cargo check --workspace --tests --locked
