@@ -623,6 +623,11 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **验收：** 入口不产生第二执行循环；业务 Delivery/ClosingReceipt 不越权改写 RunReceipt；未知、撤销、删除和旧 schema 在每个入口可见。
 - **交付：** 记录跨入口 command/event/receipt correlation、fixture hash、精确命中数和不适用组合。
 
+实现基线：[`er35-cross-entry-company-baseline.md`](er35-cross-entry-company-baseline.md)。当前 CI-only
+gate 复用 OA-24 entrypoint parity、OA-27 Company governance 和 EQ-12 DaemonHost spine；source
+fixture 绑定四入口 committed facts、Review/Delivery/ClosingReceipt、Unknown/reconcile 与 gap，
+不把 source/CI 提升为 durable/live/physical。
+
 <a id="step-er-36"></a>
 
 

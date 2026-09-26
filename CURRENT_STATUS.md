@@ -264,6 +264,19 @@ proof-level change: `feature_status=implemented`（bounded capability conformanc
 limitations: 未证明 CAP-27..33 的真实 backend/OS/container runtime、跨入口 effect、performance/RSS/cleanup cost、durable lease/fence、provider/live/physical receipt 或 complete matrix coverage；CI 结果未等待
 reviewer: Codex CAP-34 source review；检查 report status/count/reason recomputation、grant/catalog/epoch/effect/resume fences、skip semantics 与 no execution authority；无本地 backend/runtime reviewer
 
+### ER-35 cross-entry CompanyOS gate（2026-09-26）
+
+source_snapshot: `2d692b74`（CAP-34 report integrity fence 已合并 master 基线）加 ER-35 cross-entry source slice；`kiana-core/tests/{er35_cross_entry_company_guard.rs,fixtures/er35-cross-entry-company.json,oa24_entrypoint_parity.rs,oa27_company_governance.rs}`; `kiana-daemon/tests/eq12_daemon_spine.rs`; `kiana-entrypoints/src/harness_run.rs`; `.github/workflows/er35-cross-entry-company.yml`; `docs/roadmap/er35-cross-entry-company-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: branch `step/er-35-cross-entry-company-20260926`; CI gate reuses one DaemonHost→ControlPlane→Harness/Broker spine and existing parity/governance fixtures, with source catalog for same committed facts, Review/Delivery/ClosingReceipt, Unknown/reconcile and gap; no second execution loop or external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/E2E）；GitHub Actions 将运行 ER-35 source guard、OA-24 parity、OA-27 governance、EQ-12 daemon spine 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/browser/Desktop/durable/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `er35-cross-entry-company.json`、source guard、OA-24/OA-27/EQ-12 focused fixtures；four-entry same facts、Company close chain、Unknown/reconcile、cursor gap、Desktop spine reuse；无真实跨进程 query index、browser/PTY/Electron、外部 delivery/provider 或 physical effect
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 ER-35 guard/parity/governance/spine/workspace compile exit code pending/unobserved
+status_change: ER-35 cross-entry/CompanyOS source gate、fixture、baseline、workflow 与状态账本已接入，roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（cross-entry source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: source gate 不证明真实四入口运行时、跨进程 EventStore/query index、断线补游标、外部 delivery/provider receipt、业务 Outcome 或 live/physical cleanup；CI 结果未等待
+reviewer: Codex ER-35 source review；检查 OA-24 parity/OA-27 governance/EQ-12 spine reuse、Company receipt boundaries、Unknown/reconcile/gap catalog、no second loop/direct Broker path 与 no external effect；无本地 runtime/E2E reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`
