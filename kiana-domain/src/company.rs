@@ -132,6 +132,9 @@ pub struct Objective {
     pub baseline: f64,
     pub target: f64,
     pub unit: String,
+    /// How the metric is observed. Legacy proposals may omit it, but activation requires it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub measurement_method: Option<String>,
     pub direction: MetricDirection,
     pub period_start: u64,
     pub period_end: u64,
@@ -157,7 +160,16 @@ impl Objective {
         ensure(
             self.baseline.is_finite()
                 && self.target.is_finite()
+                && match self.direction {
+                    MetricDirection::AtLeast => self.target > self.baseline,
+                    MetricDirection::AtMost => self.target < self.baseline,
+                }
+                && self
+                    .measurement_method
+                    .as_deref()
+                    .is_none_or(|method| !method.trim().is_empty() && method.len() <= 16_384)
                 && self.period_end > self.period_start
+                && self.period_start > 0
                 && self.version > 0,
             "objective_measurement_invalid",
         )
@@ -1150,6 +1162,18 @@ impl CompanyState {
                     .objectives
                     .get_mut(objective_id)
                     .ok_or("objective_not_found")?;
+                ensure(
+                    o.owner_principal_id == a.actor_id,
+                    "objective_owner_mismatch",
+                )?;
+                if *approve {
+                    ensure(
+                        o.measurement_method
+                            .as_deref()
+                            .is_some_and(|method| !method.trim().is_empty()),
+                        "objective_measurement_method_required",
+                    )?;
+                }
                 o.status = o.status.transition(if *approve {
                     ObjectiveStatus::Active
                 } else {
@@ -1177,14 +1201,16 @@ impl CompanyState {
                     initiative.status == InitiativeStatus::Intake
                         && initiative.version == 1
                         && initiative.decision.is_none()
-                        && initiative.project_id.is_none(),
+                        && initiative.project_id.is_none()
+                        && initiative.sponsor_id == a.actor_id,
                     "initiative_initial_state_invalid",
                 )?;
                 ensure(
-                    initiative
-                        .objective_refs
-                        .iter()
-                        .all(|r| self.objectives.contains_key(r)),
+                    initiative.objective_refs.iter().all(|r| {
+                        self.objectives.get(r).is_some_and(|objective| {
+                            objective.organization_id == initiative.organization_id
+                        })
+                    }),
                     "initiative_objective_missing",
                 )?;
                 ensure(
@@ -1200,6 +1226,10 @@ impl CompanyState {
                 decision,
                 project_id,
             } => {
+                let current = self
+                    .initiatives
+                    .get(initiative_id)
+                    .ok_or("initiative_not_found")?;
                 if matches!(
                     status,
                     InitiativeStatus::Approved
@@ -1214,8 +1244,28 @@ impl CompanyState {
                         "company_role_denied",
                     )?;
                 }
+                if *status == InitiativeStatus::Approved {
+                    ensure(
+                        current.objective_refs.iter().all(|objective_id| {
+                            self.objectives.get(objective_id).is_some_and(|objective| {
+                                objective.organization_id == current.organization_id
+                                    && objective.status == ObjectiveStatus::Active
+                            })
+                        }),
+                        "initiative_objective_approval_required",
+                    )?;
+                }
                 if *status == InitiativeStatus::ConvertedToProject {
-                    self.project(project_id.as_deref().ok_or("initiative_project_required")?)?;
+                    let project =
+                        self.project(project_id.as_deref().ok_or("initiative_project_required")?)?;
+                    ensure(
+                        project.organization_id == current.organization_id
+                            && current
+                                .objective_refs
+                                .iter()
+                                .all(|objective_id| project.objective_refs.contains(objective_id)),
+                        "initiative_project_objective_ancestry_mismatch",
+                    )?;
                 }
                 let i = self
                     .initiatives

@@ -189,11 +189,11 @@
 
 
 
-#### CO-09 · Objective 与 Initiative 受理和取舍　⏳
+#### CO-09 · Objective 与 Initiative 受理和取舍　🔄
 
 - **归属**：`P3-I-01`、`P3-I-02`。
 - **依赖**：CO-08。
-- **代码与产物**：domain Objective/Initiative、core Company handlers、受理提案 schema。
+- **代码与产物**：domain Objective/Initiative、core Company handlers、受理提案 schema；当前 source slice 与 CI-only 证据见 [`co09-company-intake-baseline.md`](co09-company-intake-baseline.md)。
 - **实现顺序**：①录入问题、目标 owner、metric/baseline/target/单位/方向/窗口；②Initiative 补 hypothesis、价值/成本/风险、资料缺口和取舍决定；③批准后转换为 Project 引用，重复转换返回原结果，拒绝/撤回保留历史。
 - **先拒绝**：`initiative_cannot_convert_without_approved_objective_and_sponsor_decision`；NaN、时间窗倒置、错误 owner/organization 和缺测量方法均不能批准。
 - **再成功 / 退出**：`approved_initiative_converts_once_and_keeps_objective_ancestry`；允许直接立项但需记录跳过 Initiative 的明确入口，不能丢失目标关系。

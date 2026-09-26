@@ -18,6 +18,7 @@ fn objective() -> Objective {
         baseline: 100.0,
         target: 50.0,
         unit: "ms".to_owned(),
+        measurement_method: Some("request latency sample p95".to_owned()),
         direction: MetricDirection::AtMost,
         period_start: 1,
         period_end: 2,
