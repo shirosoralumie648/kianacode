@@ -650,7 +650,7 @@
 | 477 | W6 | 专项 | [`EQ-31`](#step-eq-31) | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `EQ-30` | 🔄 | [专项卡](#step-eq-31) · [baseline](roadmap/evaluation-recovery-replay-baseline.md) |
 | 478 | W6 | 专项 | [`EQ-32`](#step-eq-32) | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `EQ-31` | 🔄 | [专项卡](#step-eq-32) · [baseline](roadmap/evaluation-context-memory-baseline.md) |
 | 479 | W6 | 专项 | [`EQ-33`](#step-eq-33) | 实现 workflow/swarm evaluator：DAG、attempt、fan-in/out、child scope、merge、compensation | `EQ-32` | 🔄 | [专项卡](#step-eq-33) · [baseline](roadmap/evaluation-workflow-swarm-baseline.md) |
-| 480 | W6 | 专项 | [`EQ-34`](#step-eq-34) | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `P1-J8-01`、`P1-K5-01`、`EQ-33` | ⏳ | [专项卡](#step-eq-34) |
+| 480 | W6 | 专项 | [`EQ-34`](#step-eq-34) | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `P1-J8-01`、`P1-K5-01`、`EQ-33` | 🔄 | [专项卡](#step-eq-34) · [baseline](roadmap/evaluation-performance-cost-baseline.md) |
 | 481 | W6 | 专项 | [`EQ-35`](#step-eq-35) | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `EQ-34` | ⏳ | [专项卡](#step-eq-35) |
 | 482 | W6 | 专项 | [`EQ-36`](#step-eq-36) | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `EQ-35` | ⏳ | [专项卡](#step-eq-36) |
 | 483 | W6 | 专项 | [`EQ-37`](#step-eq-37) | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `EQ-36` | ⏳ | [专项卡](#step-eq-37) |
