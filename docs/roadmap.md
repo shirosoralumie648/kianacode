@@ -847,7 +847,7 @@
 | 671 | W9 | 专项 | [`EQ-48`](#step-eq-48) | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `EQ-47` | 🔄 | [专项卡](#step-eq-48) · [baseline](roadmap/evaluation-report-baseline.md) |
 | 672 | W9 | 专项 | [`EQ-49`](#step-eq-49) | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `EQ-48` | 🔄 | [专项卡](#step-eq-49) · [baseline](roadmap/evaluation-scripts-baseline.md) |
 | 673 | W9 | 专项 | [`EQ-50`](#step-eq-50) | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `EQ-49` | 🔄 | [专项卡](#step-eq-50) · [baseline](roadmap/evaluation-ci-lanes-baseline.md) |
-| 674 | W9 | 专项 | [`EQ-51`](#step-eq-51) | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `EQ-50` | ⏳ | [专项卡](#step-eq-51) |
+| 674 | W9 | 专项 | [`EQ-51`](#step-eq-51) | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `EQ-50` | 🔄 | [专项卡](#step-eq-51) · [baseline](roadmap/evaluation-evidence-archive-baseline.md) |
 | 675 | W9 | 专项 | [`BQ-24`](#step-bq-24) | UI/入口展示与命令；只读预算卡、队列、超额原因、correction approval | `UI-00`、`BQ-23` | ⏳ | [专项卡](#step-bq-24) |
 | 676 | W9 | 专项 | [`BQ-25`](#step-bq-25) | Redaction、DataClass、telemetry separation；Event/Log/Metric/Trace/Receipt 安全 | `OA-08`、`BQ-11`、`BQ-13`、`BQ-23` | ⏳ | [专项卡](#step-bq-25) |
 | 677 | W9 | 专项 | [`BQ-26`](#step-bq-26) | 并发、崩溃、磁盘满、网络 EOF、provider 429/5xx、clock fault 注入 | `BQ-08`、`BQ-12`、`BQ-16`、`BQ-20` | ⏳ | [专项卡](#step-bq-26) |
