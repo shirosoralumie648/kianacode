@@ -386,11 +386,11 @@
 
 
 
-#### CO-22 · 确定性 Company ProcessManager　⏳
+#### CO-22 · 确定性 Company ProcessManager　🔄
 
 - **归属**：`P2-J5-01`、`P3-I-03`。
 - **依赖**：CO-08、CO-16、CO-17、CO-21。
-- **代码与产物**：复用 `kiana-workflow/src/durable.rs` 的 plan_command 和 core `automation.rs`；拟新增 `company_process.rs` 作为业务适配层，ProcessState 关联既有 WorkflowInstance。
+- **代码与产物**：domain/core `company_process.rs` 纯 planner adapter，固定模板/ProcessState/CompanyProcessIntent 并关联既有 WorkflowInstance；复用 `kiana-workflow` 的 plan_command 作为唯一 workflow 规划路径。
 - **实现顺序**：①核对已有节点，补角色任务、业务验证、人工等待、交接与收尾的 Company 合同；②模板固定版本/hash，在同一纯 planner 上用已记录事件/时间计算下一动作；③每个 activation 生成稳定 intent ID，业务 stream 原子记录意图、workflow stream 幂等消费，不假定跨流事务。
 - **先拒绝**：`company_process_cannot_execute_tools_or_complete_on_model_text`；未通过 gate、模板漂移、未知节点/事件不能推进，重放不产生真实模型请求。
 - **再成功 / 退出**：`same_business_events_produce_the_same_process_intents`；Planner/Builder/Reviewer/Closer 通过各自任命的受限子实例/Run 切换，调度者不能覆写自身 role 来冒充；Sponsor 节点进入 HumanTask，编排器没有第二模型循环。
