@@ -995,6 +995,10 @@ pub struct CompanyState {
     pub budgets: BTreeMap<String, CompanyBudgetPolicy>,
     #[serde(default)]
     pub handoffs: BTreeMap<String, crate::PacketHandoff>,
+    /// CO-17 accountability handoffs are kept as a typed projection alongside the legacy
+    /// planning-to-executing handoff map.  Both maps remain replay/serde compatible.
+    #[serde(default)]
+    pub accountability_handoffs: crate::CompanyHandoffLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1033,6 +1037,44 @@ pub struct CompanyEvent {
 }
 
 impl CompanyState {
+    /// Record a versioned cross-department handoff without acquiring a runtime lease.
+    pub fn offer_accountability_handoff(
+        &mut self,
+        handoff: crate::CompanyHandoff,
+    ) -> CompanyResult<()> {
+        self.accountability_handoffs.offer(handoff)
+    }
+
+    /// Apply the recipient ACK/reject to the same state projection used by both departments.
+    pub fn acknowledge_accountability_handoff(
+        &mut self,
+        handoff_id: &str,
+        receiver: &crate::HandoffAssignment,
+        accepted: bool,
+        reason: impl Into<String>,
+        evidence: crate::HandoffAcceptanceEvidence,
+        now_ms: u64,
+    ) -> CompanyResult<()> {
+        self.accountability_handoffs
+            .acknowledge(handoff_id, receiver, accepted, reason, evidence, now_ms)
+    }
+
+    /// Expiry is an explicit state transition so reopen/replay sees the same owner and escalation.
+    pub fn expire_accountability_handoff(
+        &mut self,
+        handoff_id: &str,
+        now_ms: u64,
+    ) -> CompanyResult<()> {
+        self.accountability_handoffs.expire(handoff_id, now_ms)
+    }
+
+    pub fn accountability_handoff_projection(
+        &self,
+        handoff_id: &str,
+    ) -> Option<crate::HandoffProjection> {
+        self.accountability_handoffs.projection(handoff_id)
+    }
+
     /// Canonical packet status is derived from the durable Company run observations.
     pub fn project_packets(&self, project_id: &str) -> BTreeMap<String, WorkPacket> {
         self.packets
