@@ -735,7 +735,7 @@
 
 
 
-#### CO-44 · Integrator、冲突处理与 MergeReceipt　⏳
+#### CO-44 · Integrator、冲突处理与 MergeReceipt　🔄
 
 - **归属**：`P4-J6-01`、`P2-K4-01`、`P3-I-04`。
 - **依赖**：CO-25、CO-26、CO-43。
@@ -743,6 +743,7 @@
 - **实现顺序**：①基于固定 base 和 child 输出版本生成合并候选；②冲突成为具名集成任务，重新验证组合后行为；③在相应授权下写入目标工作区并保存准确 merge receipt，再进入上层验收。
 - **先拒绝**：`integration_rejects_stale_base_unreviewed_outputs_and_hidden_conflict_resolution`；并行单测各自绿不证明合并结果绿，自动 push/发布不能由 MergeReceipt 推出。
 - **再成功 / 退出**：`integrated_output_is_revalidated_and_traced_to_all_child_artifacts`；可定位每个 child、集成人、冲突决定、结果版本与测试，merge 成功仍不直接接受项目。
+- **本步交付**：`company_integration.rs` 固定 base/child output digest/output contract/integrator/approval，要求完整 conflict decision 与 revalidated MergeReceipt，明确 push/publish=false，复用既有 Swarm merge/review 边界。
 
 <a id="co-45"></a>
 

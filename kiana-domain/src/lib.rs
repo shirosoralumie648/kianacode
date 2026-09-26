@@ -624,6 +624,8 @@ mod company_recovery;
 pub use company_recovery::*;
 mod company_parallel;
 pub use company_parallel::*;
+mod company_integration;
+pub use company_integration::*;
 
 mod dispatch;
 mod effect_observation;

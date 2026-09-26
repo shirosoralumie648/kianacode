@@ -37,6 +37,7 @@ mod company_read_model;
 mod company_inbox;
 mod company_recovery;
 mod company_parallel;
+mod company_integration;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;
