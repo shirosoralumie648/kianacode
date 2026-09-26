@@ -582,6 +582,8 @@ mod company_attempt;
 pub use company_attempt::*;
 mod cell_admission;
 pub use cell_admission::*;
+mod company_task_scope;
+pub use company_task_scope::*;
 
 mod dispatch;
 mod effect_observation;

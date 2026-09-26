@@ -70,9 +70,25 @@ impl ControlPlane {
                 "packet_status_not_spawnable",
             ));
         }
+        let company_mode = context.work_packet_id.is_some();
         context.assign_role(&RoleSpec::builder());
         context.work_packet_id = Some(packet.id.clone());
         context.path_allow = packet.path_allow.clone();
+        let task_scope = if company_mode {
+            kiana_domain::CompanyTaskScope::company_builder(&context, &packet)
+        } else {
+            kiana_domain::CompanyTaskScope::standalone(&context, &packet)
+        };
+        if let Err(reason) = task_scope {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({"reason": reason, "command": "run.spawn", "packet_id": &packet.id}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
         let session_id = context.session_id.as_str().to_owned();
         let project_root = context.project_root.clone();
         if let Err(reason) =
