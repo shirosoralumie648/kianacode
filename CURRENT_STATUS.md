@@ -14330,3 +14330,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied topology evidence only; it does not prove durable queue/child lifecycle, real concurrency, independent merge/review receipt, recovery, compensation success, promotion authority or live/physical outcome; EQ-34+ and SW/AUT/ER/PD remain open
 reviewer: Codex EQ-33 source review; checked cycle/attempt/fan-out/fan-in/scope/merge/compensation findings and no-execution/no-free-message boundary; no local runtime test reviewer
 ```
+
+### EQ-34 performance and cost evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `10604cb1` plus EQ-34 performance/cost evaluator slice; kiana-quality/src/{metrics.rs,lib.rs}; kiana-quality/tests/{eq34_metrics.rs,eq34_metrics_guard.rs}; .github/workflows/eq34-performance-cost.yml; docs/roadmap/evaluation-performance-cost-baseline.md; docs/roadmap.md
+worktree_status: pure PerformanceCostEvaluator consumes bounded performance metrics and explicit thresholds; it checks duration/tokens/tool-call limits, token total/usage completeness, cache-key binding, measurement provenance and separate estimated/measured/unknown cost buckets; no metrics reader, CostLedger/rate-card authority, provider call, budget mutation or execution path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{metrics.rs,lib.rs} kiana-quality/tests/{eq34_metrics.rs,eq34_metrics_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq34_metrics --locked -- --test-threads=1; cargo test -p kiana-quality --test eq34_metrics_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only measured success, duration/token/tool/cache/usage/cost violations, unknown cost, missing threshold and unknown-field fixtures; no provider/tokenizer, production metric sink, billing invoice or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-34 performance/cost source contract, CI fixture/guard and baseline implemented; roadmap row 480/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied metric evidence only; it does not prove production p95/p99/capacity, exact provider tokenization, measured invoice truth, durable metric artifact, statistical confidence or live/physical outcome; EQ-35+ and OA/P4/BQ remain open
+reviewer: Codex EQ-34 source review; checked explicit thresholds, token/cache/cost bucket boundaries and pure no-I/O/no-ledger-authority boundary; no local runtime test reviewer
+```

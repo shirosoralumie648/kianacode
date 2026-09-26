@@ -14,6 +14,7 @@ mod digest;
 mod evaluator;
 mod evidence;
 mod fixtures;
+mod metrics;
 mod normalize;
 mod recovery;
 mod runtime;
@@ -65,6 +66,11 @@ pub use evidence::{
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
     FixtureFamily, TraceFixture, FIXTURE_SCHEMA,
+};
+pub use metrics::{
+    evaluate_performance_cost, CostBucket, PerformanceCostEvaluator, PerformanceCostInput,
+    PerformanceMetrics, PerformanceThresholds, PERFORMANCE_COST_EVALUATOR_ID,
+    PERFORMANCE_COST_INPUT_SCHEMA,
 };
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
