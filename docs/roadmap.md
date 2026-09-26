@@ -740,7 +740,7 @@
 | 566 | W7 | 专项 | [`NM-20`](#step-nm-20) | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | `NM-04`、`NM-08`、`NM-13`、`NM-18` | 🔄 | [专项卡](#step-nm-20) · [baseline](roadmap/nm20-notification-faults-baseline.md) |
 | 567 | W7 | 专项 | [`NM-21`](#step-nm-21) | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | `CO-39`、`CO-40`、`CO-41`、`NM-14`、`NM-15`、`NM-16`、`NM-20` | 🔄 | [专项卡](#step-nm-21) · [baseline](roadmap/nm21-notification-parity-baseline.md) |
 | 568 | W7 | 专项 | [`EQ-38`](#step-eq-38) | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `EQ-37` | 🔄 | [专项卡](#step-eq-38) · [baseline](roadmap/evaluation-experiment-baseline.md) |
-| 569 | W7 | 专项 | [`EQ-39`](#step-eq-39) | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `EQ-38` | ⏳ | [专项卡](#step-eq-39) |
+| 569 | W7 | 专项 | [`EQ-39`](#step-eq-39) | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `EQ-38` | 🔄 | [专项卡](#step-eq-39) · [baseline](roadmap/evaluation-baseline-registry.md) |
 | 570 | W7 | 专项 | [`EQ-40`](#step-eq-40) | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `EQ-39` | ⏳ | [专项卡](#step-eq-40) |
 | 571 | W7 | 专项 | [`EQ-41`](#step-eq-41) | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `EQ-40` | ⏳ | [专项卡](#step-eq-41) |
 | 572 | W7 | 专项 | [`EQ-42`](#step-eq-42) | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `EQ-41` | ⏳ | [专项卡](#step-eq-42) |

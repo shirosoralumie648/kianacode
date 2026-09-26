@@ -6,6 +6,7 @@
 
 mod aggregation;
 mod assertions;
+mod baseline;
 mod canonical;
 mod capture;
 mod catalog;
@@ -34,6 +35,10 @@ pub use aggregation::{
 pub use assertions::{
     evaluate_assertion, evaluate_assertions, Assertion, AssertionError, AssertionMode,
     AssertionResult, ASSERTION_SCHEMA, MAX_ASSERTIONS,
+};
+pub use baseline::{
+    evaluate_baseline_comparison, BaselineComparisonInput, BaselineEvaluator, BaselineRecord,
+    BaselineRegistry, BASELINE_EVALUATOR_ID, BASELINE_INPUT_SCHEMA,
 };
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,

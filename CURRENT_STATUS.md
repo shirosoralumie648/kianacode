@@ -14405,3 +14405,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: reducer validates caller-supplied event history only; it does not prove durable EvalStore replay, real target execution, provider/judge result, gate immutability or live/physical outcome; EQ-39+ remain open
 reviewer: Codex EQ-38 source review; checked admission/terminal transitions, sequence, case index conflict and replay digest plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-39 baseline registry and comparison evidence (2026-09-26)
+
+```text
+source_snapshot: `7f9ac901` plus EQ-39 baseline registry slice; kiana-quality/src/{baseline.rs,lib.rs}; kiana-quality/tests/{eq39_baseline.rs,eq39_baseline_guard.rs}; .github/workflows/eq39-baseline.yml; docs/roadmap/evaluation-baseline-registry.md; docs/roadmap.md
+worktree_status: pure BaselineEvaluator and BaselineRegistry bind suite/case/target/evaluator digests, owner, expiry, refresh provenance and registry/record digests; stale, tampered, duplicate and incompatible baselines cannot compare; no refresh, target execution, EvalStore, judge or gate path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{baseline.rs,lib.rs} kiana-quality/tests/{eq39_baseline.rs,eq39_baseline_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq39_baseline --locked -- --test-threads=1; cargo test -p kiana-quality --test eq39_baseline_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only compatible baseline, expiry/incompatibility, duplicate/tampered registry and unknown-field fixtures; no refresh command, target/provider/judge, durable store or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-39 baseline registry/comparison source contract, CI fixture/guard and baseline implemented; roadmap row 569/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator compares caller-supplied digest evidence only; owner is a bounded value, not authenticated authority, and no durable refresh/expiry store, target execution, gate decision or live/physical outcome is claimed; EQ-40+ remain open
+reviewer: Codex EQ-39 source review; checked digest/owner/expiry/provenance/duplicate and compatibility fences plus pure no-I/O boundary; no local runtime test reviewer
+```
