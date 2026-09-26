@@ -8,8 +8,8 @@ authorization. `result_unknown` rows require reconcile and forbid automatic retr
 
 `PersistenceUatEvidence` now binds the matrix/source digests to receipt references, backup/restore
 reconciliation, restart replay, deletion review, reviewer and proof level. Fixture/source rows
-cannot be treated as durable proof; verified evidence requires all three recovery/governance
-checks and receipts.
+cannot be treated as durable proof; verified evidence requires `Durable`/`Live` proof, all three
+recovery/governance checks and receipts.
 
 The workflow reuses the existing workspace checkpoint restore guard, entrypoint parity and
 DaemonHost spine fixtures. It does not write a backup, restore a root, apply an upgrade, restart a
