@@ -606,6 +606,8 @@ mod project_control;
 pub use project_control::*;
 mod company_reconciliation;
 pub use company_reconciliation::*;
+mod delivery_manifest;
+pub use delivery_manifest::*;
 
 mod dispatch;
 mod effect_observation;

@@ -557,7 +557,7 @@
 
 
 
-#### CO-33 · 版本化 DeliveryManifest 与本地交付包　⏳
+#### CO-33 · 版本化 DeliveryManifest 与本地交付包　🔄
 
 - **归属**：`P3-I-05`、`P2-K4-01`。
 - **依赖**：CO-06、CO-28、CO-32。
@@ -565,6 +565,7 @@
 - **实现顺序**：①引用验收的精确产物集合、版本和 hash；②列出接收者、位置/渠道、确认方式、基线及残余事项；③生成可检查的本地交付目录/归档和 manifest，把 package 完成与真实交接分开。
 - **先拒绝**：`delivery_preparation_rejects_unaccepted_changed_or_foreign_artifacts`；空交付、缺件、跨项目、symlink/路径逃逸和陈旧 acceptance 被拒。
 - **再成功 / 退出**：`local_delivery_package_matches_the_accepted_manifest`；检查得到的每件产物都能追到验收与原始 Run，channel 明确标 local_package，不声称外部发送。
+- **本步交付**：`delivery_manifest.rs` 提供 Accepted/baseline 绑定的精确 artifact manifest、hash/size/producer run 集合和 `LocalDeliveryPackage` 完整匹配校验；路径、symlink、跨项目、陈旧 digest 与重复发布 fail-closed，实际 Broker 打包/发送交给 CO-34。
 
 <a id="co-34"></a>
 

@@ -28,6 +28,7 @@ mod rework_contract;
 mod change_contract;
 mod project_control;
 mod company_reconciliation;
+mod delivery_manifest;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;
