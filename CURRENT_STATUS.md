@@ -14825,3 +14825,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: strict review ledger is not yet sole durable projector; semantic evaluator validity, cross-process recovery and packet acceptance/dependency unlock remain CO-26+; no live/physical outcome claimed
 reviewer: Codex CO-25 source review; checked assignment independence, frozen target/evidence digests, per-criterion coverage, waiver fence, idempotency and no Builder fact mutation; no local runtime test reviewer
 ```
+
+### CO-26 packet-level acceptance and output receipt evidence (2026-09-26)
+
+```text
+source_snapshot: `8e41f201` plus CO-26 packet acceptance source slice; kiana-domain/src/{packet_acceptance.rs,company_review.rs,company_evidence.rs,company.rs,lib.rs}; kiana-core/src/{packet_acceptance.rs,company.rs,lib.rs}; kiana-domain/tests/co26_packet_acceptance.rs; kiana-core/tests/co26_packet_acceptance_guard.rs; .github/workflows/co26-packet-acceptance.yml; docs/roadmap/co26-packet-acceptance-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: PacketAcceptanceRequest binds packet/project/version, attempt ref, author sessions, CO-25 IndependentReview, CO-24 EvidenceReady and named acceptor; Accept rejects failed/insufficient criteria, Reject requires reasons, Waive requires Sponsor/waiver, ACK is not an acceptance input, and declared dependents are retained for narrow unlock; ledger record is idempotent and core adapter remains pure; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/packet_acceptance.rs kiana-domain/src/lib.rs kiana-core/src/packet_acceptance.rs kiana-core/src/lib.rs kiana-domain/tests/co26_packet_acceptance.rs kiana-core/tests/co26_packet_acceptance_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co26_packet_acceptance --locked -- --test-threads=1; cargo test -p kiana-core --test co26_packet_acceptance_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only RunSuccess-without-review/evidence rejection, review/evidence binding drift, explicit dependent projection, NotApplicable/waiver fence, acceptor independence and idempotent record; no external delivery/live/physical outcome
+exit_code: targeted rustfmt --check (new/changed CO-26 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-26 packet acceptance source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 525/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: durable acceptance projector and ready-query dependent consumption remain open; semantic review validity, external output delivery, milestone/project closure and live/physical outcomes remain later steps
+reviewer: Codex CO-26 source review; checked packet revision/attempt/evidence/review binding, criterion/waiver/acceptor gates, ACK separation, narrow dependent projection and idempotency; no local runtime test reviewer
+```

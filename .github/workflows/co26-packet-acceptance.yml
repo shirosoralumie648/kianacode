@@ -1,0 +1,58 @@
+name: co26-packet-acceptance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/packet_acceptance.rs"
+      - "kiana-domain/src/company_review.rs"
+      - "kiana-domain/src/company_evidence.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co26_packet_acceptance.rs"
+      - "kiana-core/src/packet_acceptance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co26_packet_acceptance_guard.rs"
+      - "docs/roadmap/co26-packet-acceptance-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co26-packet-acceptance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/packet_acceptance.rs"
+      - "kiana-domain/src/company_review.rs"
+      - "kiana-domain/src/company_evidence.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co26_packet_acceptance.rs"
+      - "kiana-core/src/packet_acceptance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co26_packet_acceptance_guard.rs"
+      - "docs/roadmap/co26-packet-acceptance-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co26-packet-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packet-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-26 packet acceptance fixtures
+        run: cargo test -p kiana-domain --test co26_packet_acceptance --locked -- --test-threads=1
+      - name: Run CO-26 packet acceptance source guard
+        run: cargo test -p kiana-core --test co26_packet_acceptance_guard --locked -- --test-threads=1
+      - name: Compile CO-26 acceptance targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
