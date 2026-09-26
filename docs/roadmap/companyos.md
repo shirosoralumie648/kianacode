@@ -401,11 +401,11 @@
 
 
 
-#### CO-23 · 持久唤醒队列与意图消费　⏳
+#### CO-23 · 持久唤醒队列与意图消费　🔄
 
 - **归属**：`P2-J5-01`、`P4-K2-01`、`P2-K6-01`。
 - **依赖**：CO-07、CO-19、CO-22。
-- **代码与产物**：既有 core `automation.rs` 的 trigger/tick/advance、拟新增 daemon `company_dispatch.rs` 的唤醒 adapter、wake/dispatch 事实与消费 receipt；复用现有队列/触发合同并补事件自动唤醒。
+- **代码与产物**：domain `company_wake.rs` 的 wake/dispatch receipt ledger、daemon `company_dispatch.rs` 唤醒 adapter 与现有 core `automation.rs`/workflow trigger 复用；source cursor 扫描和 intent 去重边界已固定。
 - **实现顺序**：①从已提交事件创建/重建等待队列；②按 intent ID 合并重复通知、claim 后回到 core 重新验权；③通知丢失/daemon 重启可扫描补齐，消费结果与 cursor 持久化，先恢复后新派发。
 - **先拒绝**：`duplicate_wakeup_and_crash_after_intent_cannot_duplicate_effects`；无法判断是否已派发时记录 Unknown/reconciliation，不用重试吞掉窗口。
 - **再成功 / 退出**：`committed_human_decision_wakes_exactly_one_next_activation_after_restart`；wait key 关联原任务，不重复问已决定的问题；模型调用计数和队列事实可核对。
