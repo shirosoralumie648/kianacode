@@ -4,6 +4,7 @@
 //! capability. EQ-17--19 only select and normalize bounded durable evidence; digests, diffing,
 //! evaluation and persistence are explicit later stages.
 
+mod aggregation;
 mod assertions;
 mod canonical;
 mod capture;
@@ -24,6 +25,10 @@ mod scenario;
 mod volatile;
 mod workflow;
 
+pub use aggregation::{
+    evaluate_aggregation, AggregateVerdict, AggregationEvaluator, AggregationInput,
+    DimensionAggregate, AGGREGATION_EVALUATOR_ID, AGGREGATION_INPUT_SCHEMA,
+};
 pub use assertions::{
     evaluate_assertion, evaluate_assertions, Assertion, AssertionError, AssertionMode,
     AssertionResult, ASSERTION_SCHEMA, MAX_ASSERTIONS,
