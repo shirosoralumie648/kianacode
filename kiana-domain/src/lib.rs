@@ -223,6 +223,7 @@ mod swarm_graph;
 mod swarm_identity;
 mod swarm_reducer;
 mod symposiums;
+mod symposium_governance;
 #[cfg(test)]
 mod tests;
 mod text_normalization;
@@ -454,6 +455,7 @@ pub use swarm_graph::*;
 pub use swarm_identity::*;
 pub use swarm_reducer::*;
 pub use symposiums::*;
+pub use symposium_governance::*;
 pub use text_normalization::*;
 pub use tool_output_spill::*;
 pub use tool_scheduling::*;
