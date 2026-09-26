@@ -14,6 +14,7 @@ mod digest;
 mod evaluator;
 mod evidence;
 mod fixtures;
+mod judge;
 mod metrics;
 mod normalize;
 mod recovery;
@@ -66,6 +67,11 @@ pub use evidence::{
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
     FixtureFamily, TraceFixture, FIXTURE_SCHEMA,
+};
+pub use judge::{
+    evaluate_semantic_judge, JudgeAvailability, JudgeVerdict, SemanticJudgeConfig,
+    SemanticJudgeEvaluator, SemanticJudgeInput, SemanticJudgeRequest, SemanticJudgeResult,
+    SEMANTIC_JUDGE_EVALUATOR_ID, SEMANTIC_JUDGE_INPUT_SCHEMA,
 };
 pub use metrics::{
     evaluate_performance_cost, CostBucket, PerformanceCostEvaluator, PerformanceCostInput,

@@ -14345,3 +14345,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied metric evidence only; it does not prove production p95/p99/capacity, exact provider tokenization, measured invoice truth, durable metric artifact, statistical confidence or live/physical outcome; EQ-35+ and OA/P4/BQ remain open
 reviewer: Codex EQ-34 source review; checked explicit thresholds, token/cache/cost bucket boundaries and pure no-I/O/no-ledger-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-35 semantic judge contract evidence (2026-09-26)
+
+```text
+source_snapshot: `517e2a81` plus EQ-35 semantic judge contract slice; kiana-quality/src/{judge.rs,lib.rs}; kiana-quality/tests/{eq35_judge.rs,eq35_judge_guard.rs}; kiana-ports/src/lib.rs existing Judge boundary; .github/workflows/eq35-semantic-judge.yml; docs/roadmap/evaluation-semantic-judge-baseline.md; docs/roadmap.md
+worktree_status: quality-side SemanticJudgeEvaluator binds fixed provider/model/prompt/temperature/configuration identity, sanitized input/reference/output digests and bounded result; Available/Unavailable/NotConfigured are explicit, and unavailable judge evidence can never be represented as Pass; no model call, network adapter, authority mutation or promotion path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{judge.rs,lib.rs} kiana-quality/tests/{eq35_judge.rs,eq35_judge_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq35_judge --locked -- --test-threads=1; cargo test -p kiana-quality --test eq35_judge_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only available fixed judge, unavailable-not-pass, config/result drift and unknown-field fixtures; no model/account/network/judge adapter or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-35 semantic judge evidence contract, CI fixture/guard and baseline implemented; roadmap row 481/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: this is a fixed contract/evaluator around the existing Judge port, not a semantic quality result or live judge execution; no durable EvalStore, external model evidence, promotion authority or live/physical outcome is claimed; EQ-36+ remain open
+reviewer: Codex EQ-35 source review; checked unavailable-not-pass, configuration/request/result digest binding and no-model/no-authority boundary; no local runtime test reviewer
+```
