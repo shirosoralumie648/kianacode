@@ -433,11 +433,11 @@
 
 
 
-#### CO-25 · 独立 Reviewer 与逐条证据结论　⏳
+#### CO-25 · 独立 Reviewer 与逐条证据结论　🔄
 
 - **归属**：`P3-I-04`、`P1-E-01`。
 - **依赖**：CO-03、CO-11、CO-24。
-- **代码与产物**：core `review_author_run`、Company RecordReview、domain ReviewResult/ReviewerAssignment、QA 验证 packet。
+- **代码与产物**：domain `company_review.rs` 的 ReviewerAssignment/IndependentReview/逐条证据 ledger，core adapter 与既有 `review_author_run`/RecordReview guard；QA 验证继续复用现有路径。
 - **实现顺序**：①从全部受评输出提取作者 principal/role instance/session 集合；②分配独立 Reviewer，提供冻结标准、diff 与证据；③每个 Criterion 给 Pass/Fail/InsufficientEvidence/NotApplicable、引用与理由，QA 的执行证据独立登记。
 - **先拒绝**：`review_denies_every_author_even_after_session_rotation`；多作者中任一作者、标准/证据被替换、只提交总括 LGTM 均不满足；Reviewer 不可修改 Builder 原件。
 - **再成功 / 退出**：`independent_review_records_per_criterion_evidence_and_missing_coverage`；review 事实关联精确 target/baseline/evidence revision；不同模型不被误当成身份独立证明。
