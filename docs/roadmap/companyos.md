@@ -508,11 +508,11 @@
 
 
 
-#### CO-30 · ChangeRequest 实际应用到整组基线　⏳
+#### CO-30 · ChangeRequest 实际应用到整组基线　🔄
 
 - **归属**：`P3-I-01`、`P3-I-04`、`P4-L3-01`。
 - **依赖**：CO-07、CO-11、CO-16、CO-28、CO-29。
-- **代码与产物**：ChangeImpact、Charter/Plan/Packet baseline publication、core Decide/Implement/VerifyChange、审批和调度 fencing。
+- **代码与产物**：domain `change_contract.rs` 的完整影响集合/基线发布 ledger，core adapter 与既有 DecideChange/business baseline guard；旧授权/评审/交付 invalidation refs 已纳入合同。
 - **实现顺序**：①基于旧 baseline 列出范围、标准、预算、依赖、活跃 Run、Review 和 Delivery 的影响；②批准与应用分开，CAS 发布完整新引用；③使受影响旧授权/评审失效，验证新计划；未受影响证据按明确规则复用。
 - **先拒绝**：`approved_change_cannot_leave_old_packets_or_approvals_authoritative`；两个变更竞态、部分写入、批准后输入漂移、正在执行但未被 fence 都不能默默应用。
 - **再成功 / 退出**：`baseline_change_updates_the_affected_graph_and_preserves_historical_decisions`；不能只修改 Project.scope_baseline/success_criteria 字符串而留下旧 Milestone/Packet 生效。
