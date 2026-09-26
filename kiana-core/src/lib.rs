@@ -105,6 +105,7 @@ mod provider_diagnostics;
 mod quality_gate;
 mod quality_drift;
 mod quality_feedback;
+mod quality_report;
 mod receipts;
 mod recovery;
 mod redaction;
@@ -182,6 +183,7 @@ pub use entrypoint_parity::{
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
 pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
 pub use quality_drift::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
+pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
