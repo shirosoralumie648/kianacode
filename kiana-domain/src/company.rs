@@ -1075,6 +1075,66 @@ impl CompanyState {
         self.accountability_handoffs.projection(handoff_id)
     }
 
+    /// Project Company readiness from one explicit snapshot and clock.  The projection is
+    /// read-only: it never acquires a claim, lease, budget or write scope.
+    pub fn project_company_readiness(
+        &self,
+        project_id: &str,
+        now_ms: u64,
+    ) -> Result<crate::CompanyReadiness, crate::PacketGraphError> {
+        let project_active = self.projects.get(project_id).map(|project| {
+            matches!(
+                project.status,
+                ProjectStatus::Planned | ProjectStatus::Active
+            )
+        });
+        let packets = self.project_packets(project_id);
+        let mut context = crate::CompanyReadinessContext {
+            project_active,
+            ..Default::default()
+        };
+        for (packet_id, packet) in &self.packets {
+            if packet.project_id != project_id {
+                continue;
+            }
+            context.packet_approved.insert(
+                packet_id.clone(),
+                matches!(
+                    packet.packet.status,
+                    WorkPacketStatus::Approved | WorkPacketStatus::Assigned
+                ),
+            );
+            if let Some(blockers) = (!self.business_packet_blockers(packet_id, now_ms).is_empty())
+                .then(|| self.business_packet_blockers(packet_id, now_ms))
+            {
+                context.extra_blockers.insert(packet_id.clone(), blockers);
+            }
+        }
+        for handoff in self
+            .handoffs
+            .values()
+            .filter(|handoff| packets.contains_key(&handoff.packet_id))
+        {
+            let status = match handoff.status {
+                crate::HandoffStatus::Pending => crate::CompanyHandoffStatus::Pending,
+                crate::HandoffStatus::Acknowledged => crate::CompanyHandoffStatus::Acknowledged,
+                crate::HandoffStatus::Rejected => crate::CompanyHandoffStatus::Rejected,
+            };
+            context.handoffs.insert(handoff.packet_id.clone(), status);
+        }
+        for handoff in self
+            .accountability_handoffs
+            .handoffs
+            .values()
+            .filter(|handoff| packets.contains_key(&handoff.packet.packet.packet_id))
+        {
+            context
+                .handoffs
+                .insert(handoff.packet.packet.packet_id.clone(), handoff.status);
+        }
+        crate::company_ready_packets(&packets, now_ms, &context)
+    }
+
     /// Canonical packet status is derived from the durable Company run observations.
     pub fn project_packets(&self, project_id: &str) -> BTreeMap<String, WorkPacket> {
         self.packets

@@ -140,29 +140,12 @@ impl ControlPlane {
             .projects
             .keys()
             .map(|id| {
-                let projection =
-                    match kiana_domain::ready_packets(&state.project_packets(id), company_now()) {
-                        Ok(mut ready) => {
-                            let mut value = serde_json::to_value(&ready).unwrap_or(Value::Null);
-                            let business = state
-                                .project_packets(id)
-                                .keys()
-                                .map(|packet| {
-                                    (
-                                        packet.clone(),
-                                        state.business_packet_blockers(packet, company_now()),
-                                    )
-                                })
-                                .collect::<std::collections::BTreeMap<_, _>>();
-                            ready
-                                .ready
-                                .retain(|packet| business.get(packet).is_none_or(Vec::is_empty));
-                            value["ready"] = json!(ready.ready);
-                            value["business_blockers"] = json!(business);
-                            value
-                        }
-                        Err(error) => json!({"error":error}),
-                    };
+                // CompanyReadiness delegates the DAG portion to the canonical
+                // kiana_domain::ready_packets predicate before applying typed Company gates.
+                let projection = match state.project_company_readiness(id, company_now()) {
+                    Ok(readiness) => serde_json::to_value(readiness).unwrap_or(Value::Null),
+                    Err(error) => json!({"error":error}),
+                };
                 (id.clone(), projection)
             })
             .collect::<std::collections::BTreeMap<_, _>>();
