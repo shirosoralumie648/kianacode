@@ -598,6 +598,8 @@ mod milestone_acceptance;
 pub use milestone_acceptance::*;
 mod project_acceptance;
 pub use project_acceptance::*;
+mod rework_contract;
+pub use rework_contract::*;
 
 mod dispatch;
 mod effect_observation;
