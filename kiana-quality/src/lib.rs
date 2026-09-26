@@ -14,6 +14,7 @@ mod diff;
 mod digest;
 mod evaluator;
 mod evidence;
+mod experiment;
 mod fixtures;
 mod flake;
 mod judge;
@@ -69,6 +70,11 @@ pub use evidence::{
     evaluate_evidence_receipt, ArtifactEvidence, EvidenceReceiptEvaluator, EvidenceReceiptInput,
     ProvenanceEvidence, ReceiptAssertion, ReceiptEvidence, RedactionEvidence, SourceCursorEvidence,
     EVIDENCE_RECEIPT_EVALUATOR_ID, EVIDENCE_RECEIPT_INPUT_SCHEMA,
+};
+pub use experiment::{
+    replay_experiment, EvalExperiment, EvalResultIndex, ExperimentEvent, ExperimentEventKind,
+    ExperimentReplayError, ExperimentReplayEvaluator, ExperimentReplayInput, ExperimentStatus,
+    EXPERIMENT_REPLAY_EVALUATOR_ID, EXPERIMENT_REPLAY_INPUT_SCHEMA,
 };
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,

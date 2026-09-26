@@ -14390,3 +14390,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator classifies caller-supplied attempts only; it does not prove rerun determinism, infra telemetry, durable quarantine lifecycle, statistical flake confidence, promotion authority or live/physical outcome; EQ-38+ remain open
 reviewer: Codex EQ-37 source review; checked retry-once, flaky-not-pass, quarantine and infra classification boundaries plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-38 EvalExperiment replay and case index evidence (2026-09-26)
+
+```text
+source_snapshot: `038f55e8` plus EQ-38 experiment replay slice; kiana-quality/src/{experiment.rs,lib.rs}; kiana-quality/tests/{eq38_experiment.rs,eq38_experiment_guard.rs}; .github/workflows/eq38-experiment.yml; docs/roadmap/evaluation-experiment-baseline.md; docs/roadmap.md
+worktree_status: pure ExperimentReplayEvaluator reduces admitted/started/case-completed/terminal events into EvalExperiment status, terminal sequence, replay digest and deterministic case-result index; sequence/transition/admission/terminal/duplicate-result/post-terminal failures are explicit; no EvalStore, target execution, judge, budget or gate path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{experiment.rs,lib.rs} kiana-quality/tests/{eq38_experiment.rs,eq38_experiment_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq38_experiment --locked -- --test-threads=1; cargo test -p kiana-quality --test eq38_experiment_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only replayable completed experiment/index, case-result digest conflict, post-terminal event, missing terminal and unknown-field fixtures; no durable store, target, judge/provider or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-38 experiment replay/value contract, CI fixture/guard and baseline implemented; roadmap row 568/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: reducer validates caller-supplied event history only; it does not prove durable EvalStore replay, real target execution, provider/judge result, gate immutability or live/physical outcome; EQ-39+ remain open
+reviewer: Codex EQ-38 source review; checked admission/terminal transitions, sequence, case index conflict and replay digest plus pure no-I/O boundary; no local runtime test reviewer
+```

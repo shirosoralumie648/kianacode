@@ -1,0 +1,38 @@
+name: EQ-38 experiment replay
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-experiment-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq38-experiment.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-experiment-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq38-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-38 experiment fixtures
+        run: cargo test -p kiana-quality --test eq38_experiment --locked -- --test-threads=1
+      - name: Run EQ-38 source guard
+        run: cargo test -p kiana-quality --test eq38_experiment_guard --locked -- --test-threads=1
+      - name: Compile EQ-38 targets
+        run: cargo check --workspace --tests --locked
