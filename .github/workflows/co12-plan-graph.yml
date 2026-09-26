@@ -1,0 +1,52 @@
+name: co12-plan-graph
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/plan.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/tests/co12_plan_graph.rs"
+      - "kiana-core/tests/co12_plan_graph_guard.rs"
+      - "docs/roadmap/co12-plan-graph-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co12-plan-graph.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/plan.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/tests/co12_plan_graph.rs"
+      - "kiana-core/tests/co12_plan_graph_guard.rs"
+      - "docs/roadmap/co12-plan-graph-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co12-plan-graph.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-12 Plan graph fixtures
+        run: cargo test -p kiana-domain --test co12_plan_graph --locked -- --test-threads=1
+      - name: Run CO-12 Plan source guard
+        run: cargo test -p kiana-core --test co12_plan_graph_guard --locked -- --test-threads=1
+      - name: Compile CO-12 Company targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

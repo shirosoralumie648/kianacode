@@ -554,7 +554,9 @@ pub use tool_catalog::*;
 mod governance;
 pub use governance::*;
 mod packet_graph;
+mod plan;
 pub use packet_graph::*;
+pub use plan::*;
 
 mod automation;
 pub use automation::*;

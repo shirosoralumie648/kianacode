@@ -234,11 +234,11 @@
 
 
 
-#### CO-12 · Milestone、Plan 与依赖图提案　⏳
+#### CO-12 · Milestone、Plan 与依赖图提案　🔄
 
 - **归属**：`P3-I-01`、`P1-D-02`。
 - **依赖**：CO-10、CO-11。
-- **代码与产物**：Milestone、版本化 Plan/WorkGraph、domain DAG helper、core Plan validation。
+- **代码与产物**：Milestone、版本化 Plan/WorkGraph、domain DAG helper、core Plan validation；当前 source slice 与 CI-only 证据见 [`co12-plan-graph-baseline.md`](co12-plan-graph-baseline.md)。
 - **实现顺序**：①把目标拆成可独立验收的里程碑与输出；②分清 parent/child、阻塞依赖、资料引用及信息关联；③批量验证候选图，冻结依赖版本，提供稳定拓扑顺序、missing refs 和 cycle path。
 - **先拒绝**：`plan_rejects_missing_dependencies_cycles_and_cross_project_edges`；空必需里程碑、孤立标准和读取范围不足都返回具体原因。
 - **再成功 / 退出**：`two_milestone_plan_preserves_dependency_and_acceptance_boundaries`；先允许草稿批量创建，再在批准事务核验完整图，避免只能逐个插入造成顺序限制。

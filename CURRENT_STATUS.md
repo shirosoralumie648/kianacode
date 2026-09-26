@@ -14615,3 +14615,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: graph is not yet the sole Plan/Acceptance admission authority; existing legacy BusinessCriterion/refines and text snapshots remain compatibility adapters; typed evidence refs are bounded strings without blob lookup; semantic sufficiency, durable recovery and live/physical outcomes remain open
 reviewer: Codex CO-11 source review; checked reuse of CO-06 Criterion identity, deny-first graph invariants, explicit pending gaps, typed snapshot precedence and no second execution path; no local runtime test reviewer
 ```
+
+### CO-12 Plan and WorkGraph proposal evidence (2026-09-26)
+
+```text
+source_snapshot: `d116d0a0` plus CO-12 Plan/WorkGraph source slice; kiana-domain/src/{plan.rs,lib.rs,company.rs,packet_graph.rs}; kiana-domain/tests/co12_plan_graph.rs; kiana-core/tests/co12_plan_graph_guard.rs; .github/workflows/co12-plan-graph.yml; docs/roadmap/co12-plan-graph-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: PlanProposal batches versioned Milestone/Packet nodes with Charter baseline and typed coverage digest, validates cross-project/version identity, parent-child/artifact/run-success/acceptance/related edge kinds, missing endpoints, duplicate edges, cycles and required-node isolation, and exposes deterministic topological order; no scheduler, packet claim, lease, broker or second execution loop was added; unrelated redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/plan.rs kiana-domain/src/lib.rs kiana-domain/tests/co12_plan_graph.rs kiana-core/tests/co12_plan_graph_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co12_plan_graph --locked -- --test-threads=1; cargo test -p kiana-core --test co12_plan_graph_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only missing dependency, cycle, foreign project, parent-child kind, isolated required node and deterministic two-milestone topology fixtures; no live scheduler, artifact/acceptance lookup, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check exited 0; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-12 Plan/WorkGraph proposal source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 511/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: PlanProposal is not yet the sole Company PublishPlan admission authority; legacy BusinessCriterion/packet adapters remain, typed artifact/acceptance truth and durable plan persistence are open, and no live/physical outcome is claimed
+reviewer: Codex CO-12 source review; checked batch validation, typed edge semantics, deterministic DAG order, scope/baseline/digest binding and no execution bypass; no local runtime test reviewer
+```
