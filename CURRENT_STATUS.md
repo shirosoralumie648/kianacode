@@ -14240,3 +14240,18 @@ proof-level change: `feature_status=implemented`, `proof_level=source` plus CI w
 limitations: no real Electron/browser/PTY/provider/connector receipt, durable recovery, signed publication, release artifact or physical/live outcome; source/CI evidence is not release success
 reviewer: Codex UI-40 path-filter rerun review; no local release/runtime reviewer
 ```
+
+### EQ-28 runtime correctness evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `01549151` plus EQ-28 runtime evaluator slice; kiana-quality/src/{runtime.rs,lib.rs}; kiana-quality/tests/{eq28_runtime.rs,eq28_runtime_guard.rs}; .github/workflows/eq28-runtime-correctness.yml; docs/roadmap/evaluation-runtime-correctness-baseline.md; docs/roadmap.md
+worktree_status: pure RuntimeCorrectnessEvaluator consumes the EQ-18 canonical trace envelope and reuses the EQ-27 Finding boundary; it checks source cursor/request sequence order, correlation and invocation aliases, terminal uniqueness/indexes, approval request/decision/consumption ordering, retry metadata/order, cancel fence/terminal, and Unknown-before-retry; no EventLog, Runner, Provider, Broker, filesystem or second evaluator loop was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/runtime.rs kiana-quality/src/lib.rs kiana-quality/tests/eq28_runtime.rs kiana-quality/tests/eq28_runtime_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq28_runtime --locked -- --test-threads=1; cargo test -p kiana-quality --test eq28_runtime_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only valid run/approval/invocation lifecycle, unmatched and duplicate terminal, Unknown retry denial, cancel fence and malformed canonical-input fixtures; no provider/model, capability, EventLog or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-28 runtime correctness source contract, CI fixture/guard and baseline implemented; roadmap row 474/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied canonical evidence only; no durable EvalStore, target execution, provider/model quality result, statistical aggregation, promotion authority, cross-process recovery, live or physical receipt is claimed; EQ-29+ and ER/PD/SC remain open
+reviewer: Codex EQ-28 source review; checked deny/findings for order, correlation, terminal, retry, approval, cancel and Unknown plus pure no-I/O boundary; no local runtime test reviewer
+```

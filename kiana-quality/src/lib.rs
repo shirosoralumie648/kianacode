@@ -13,6 +13,7 @@ mod digest;
 mod evaluator;
 mod fixtures;
 mod normalize;
+mod runtime;
 mod scenario;
 mod volatile;
 
@@ -53,6 +54,10 @@ pub use fixtures::{
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
     TRACE_NORMALIZATION_VERSION,
+};
+pub use runtime::{
+    evaluate_runtime_correctness, RuntimeCorrectnessEvaluator, RuntimeCorrectnessInput,
+    RUNTIME_CORRECTNESS_EVALUATOR_ID, RUNTIME_CORRECTNESS_INPUT_SCHEMA,
 };
 pub use scenario::{
     CleanupReceipt, ScenarioArtifact, ScenarioError, ScenarioOutcome, ScenarioReport,
