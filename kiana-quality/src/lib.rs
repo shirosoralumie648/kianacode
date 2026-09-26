@@ -19,6 +19,7 @@ mod evidence;
 mod experiment;
 mod fixtures;
 mod flake;
+mod gate;
 mod judge;
 mod metrics;
 mod normalize;
@@ -93,6 +94,10 @@ pub use fixtures::{
 pub use flake::{
     evaluate_flake, AttemptOutcome, FlakeAttempt, FlakeClassifierEvaluator, FlakeFinalStatus,
     FlakeInput, FlakeQuarantine, InfraFailureClass, FLAKE_EVALUATOR_ID, FLAKE_INPUT_SCHEMA,
+};
+pub use gate::{
+    evaluate_gate, GateEvaluator, GateInput, GateVerdict, QualityGateConfig, QualityGateDecision,
+    GATE_EVALUATOR_ID, GATE_INPUT_SCHEMA,
 };
 pub use judge::{
     evaluate_semantic_judge, JudgeAvailability, JudgeVerdict, SemanticJudgeConfig,
