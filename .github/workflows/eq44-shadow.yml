@@ -1,0 +1,38 @@
+name: EQ-44 shadow admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-shadow-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq44-shadow.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-shadow-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq44-shadow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-44 shadow fixtures
+        run: cargo test -p kiana-quality --test eq44_shadow --locked -- --test-threads=1
+      - name: Run EQ-44 source guard
+        run: cargo test -p kiana-quality --test eq44_shadow_guard --locked -- --test-threads=1
+      - name: Compile EQ-44 targets
+        run: cargo check --workspace --tests --locked

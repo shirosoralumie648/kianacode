@@ -14480,3 +14480,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: candidate/gate durable stores and actual provider route/grant mutation are not wired; the current command records an authorized admission fact and requires a later effect receipt/second transition; no live/physical outcome is claimed
 reviewer: Codex EQ-43 source review; checked unique DaemonHost/ControlPlane route, approval state/identity/request hash, scope digest, authority epoch and event schema; no local runtime test reviewer
 ```
+
+### EQ-44 shadow admission and rollback evidence (2026-09-26)
+
+```text
+source_snapshot: `dfe313b4` plus EQ-44 shadow evidence slice; kiana-quality/src/{shadow.rs,lib.rs}; kiana-quality/tests/{eq44_shadow.rs,eq44_shadow_guard.rs}; .github/workflows/eq44-shadow.yml; docs/roadmap/evaluation-shadow-baseline.md; docs/roadmap.md
+worktree_status: pure ShadowEvaluator binds candidate/baseline/route/grant digests, sample limit and TTL; regression requires a baseline rollback route and unchanged grant digest, while expiry/overflow/missing rollback/drift fail closed; no shadow target, route switch, grant mutation or durable rollback path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{shadow.rs,lib.rs} kiana-quality/tests/{eq44_shadow.rs,eq44_shadow_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq44_shadow --locked -- --test-threads=1; cargo test -p kiana-quality --test eq44_shadow_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only valid regression rollback, wrong/missing rollback route or grant, TTL/sample bound and unknown-field fixtures; no shadow traffic, route switch, provider, durable rollback or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-44 shadow admission/rollback source contract, CI fixture/guard and baseline implemented; roadmap row 574/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator checks caller-supplied shadow evidence only; no real sample stream, route change, grant-preserving rollback execution, durable state, live or physical outcome is claimed; EQ-45+ remain open
+reviewer: Codex EQ-44 source review; checked sample/TTL/regression/rollback route/grant invariants and pure no-I/O boundary; no local runtime test reviewer
+```
