@@ -14765,3 +14765,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: task scope is source-wired at spawn and compatible lifecycle guards; durable assignment/attempt materialization, full protocol DepartmentPacket routing, process manager/wakeup and external/live/physical outcomes remain open
 reviewer: Codex CO-21 source review; checked Company/standalone separation, packet/path/role binding, private-history denial, DepartmentPacket prerequisite and fresh lineage, plus existing ControlPlane single Harness route; no local runtime test reviewer
 ```
+
+### CO-22 deterministic Company ProcessManager evidence (2026-09-26)
+
+```text
+source_snapshot: `d2c3eb7b` plus CO-22 process source slice; kiana-domain/src/{company_process.rs,lib.rs}; kiana-core/src/{company_process.rs,lib.rs,automation.rs}; kiana-workflow/src/durable.rs; kiana-domain/tests/co22_company_process.rs; kiana-core/tests/co22_company_process_guard.rs; .github/workflows/co22-company-process.yml; docs/roadmap/co22-company-process-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: fixed CompanyProcessTemplate hash/version and role order, typed CompanyProcessEvent gate transitions, ProcessState revision/assignment/workflow-instance association, deterministic CompanyProcessIntent and replay no-op fact digests; Sponsor transitions are HumanTask intents, model text/tool/Broker/Runner calls are absent, and core company_process.rs delegates to the existing workflow planner boundary; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_process.rs kiana-domain/src/lib.rs kiana-core/src/company_process.rs kiana-core/src/lib.rs kiana-domain/tests/co22_company_process.rs kiana-core/tests/co22_company_process_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co22_company_process --locked -- --test-threads=1; cargo test -p kiana-core --test co22_company_process_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-workflow -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only template drift, unknown gate/event, private evidence, typed Sponsor HumanTask, fixed Planner/Builder/Reviewer/Closer role sequence, stable intent IDs, duplicate fact replay no-op and WorkflowInstance association; no model text execution, Broker/Runner call, source-code write or external/live/physical effect
+exit_code: targeted rustfmt --check (new/changed CO-22 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-22 deterministic Company ProcessManager source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 521/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: process planner is source-only and not yet durable across Company/workflow streams; CO-23 owns wakeup/intent consumption; assignment/approval/attempt references, external effects, live/physical outcomes and cross-process recovery remain open
+reviewer: Codex CO-22 source review; checked fixed template/digest, typed gates, role assignment, HumanTask separation, deterministic intent/replay and existing workflow planner reuse without a second loop; no local runtime test reviewer
+```
