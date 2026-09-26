@@ -21,6 +21,7 @@ mod company;
 mod company_governance;
 mod company_evidence;
 mod company_review;
+mod packet_acceptance;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;

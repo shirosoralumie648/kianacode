@@ -448,11 +448,11 @@
 
 
 
-#### CO-26 · Packet 级验收与输出接收　⏳
+#### CO-26 · Packet 级验收与输出接收　🔄
 
 - **归属**：`P3-I-04`、`P1-D-01`。
 - **依赖**：CO-24、CO-25。
-- **代码与产物**：domain AcceptanceTarget::Packet、core Request/DecideAcceptance、packet completion 与依赖投影。
+- **代码与产物**：domain `packet_acceptance.rs` 的 packet revision/attempt/review/evidence/acceptor 合同与 declared dependents，core adapter 与既有 Request/DecideAcceptance guard。
 - **实现顺序**：①申请时固定 packet revision、有效 attempt、作者集合与 criteria/evidence snapshot；②等待独立 review 与具名 acceptor 决定；③只有所有必需标准通过才形成 packet 验收事实并满足相应依赖。
 - **先拒绝**：`packet_acceptance_rejects_run_success_without_review_or_complete_evidence`；NotApplicable/waiver 不静默算通过；接单 ACK 不能冒充工作成果被接受。
 - **再成功 / 退出**：`accepted_packet_unlocks_only_its_declared_dependents`；不等其他无关 packet，全程可见尚未满足的标准及接受决定者。

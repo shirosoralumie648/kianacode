@@ -592,6 +592,8 @@ mod company_evidence;
 pub use company_evidence::*;
 mod company_review;
 pub use company_review::*;
+mod packet_acceptance;
+pub use packet_acceptance::*;
 
 mod dispatch;
 mod effect_observation;
