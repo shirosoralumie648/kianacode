@@ -14570,3 +14570,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: settlement is a pure contract and does not signal a live adapter, settle a durable lease, append a cancellation fact or prove provider outcome; INT-24+ remain open
 reviewer: Codex INT-23 source review; checked pre-dispatch versus started effect lease settlement, StopReport confirmation, observed-stage denial and terminal late-result fence; no local runtime test reviewer
 ```
+
+### CO-09 Objective and Initiative intake evidence (2026-09-26)
+
+```text
+source_snapshot: `0e665ba0` plus CO-09 Company intake slice; kiana-domain/src/company.rs; kiana-domain/tests/{co09_objective_initiative.rs,co08_replay.rs,p3_i01_company_objects.rs}; kiana-daemon/tests/p3_i06_company_golden.rs; kiana-core/src/company.rs; kiana-core/tests/co09_company_intake_guard.rs; .github/workflows/co09-company-intake.yml; docs/roadmap/co09-company-intake-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: Objective approval now requires owner and measurement method with finite improving target/time window; Initiative intake requires sponsor identity and same-organization objective refs; approval requires active objectives and conversion preserves project objective ancestry; existing ControlPlane company handler/idempotency route remains authoritative; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company.rs kiana-domain/tests/co09_objective_initiative.rs kiana-core/tests/co09_company_intake_guard.rs kiana-domain/tests/{co08_replay.rs,p3_i01_company_objects.rs} kiana-daemon/tests/p3_i06_company_golden.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co09_objective_initiative --locked -- --test-threads=1; cargo test -p kiana-core --test co09_company_intake_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only missing measurement method, owner mismatch, NaN/non-improving target, wrong sponsor, cross-organization objective and valid approved intake fixtures; no new durable business store or live outcome cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: CO-09 Objective/Initiative intake source slice, CI fixture/guard and baseline implemented; roadmap row 508/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: existing Company state/replay remains the durable authority; measurement observations, Charter/go/no-go, Project approval and downstream plan/packet flow remain later CO steps; organization/authority are derived from existing ControlPlane context and no live business outcome is claimed
+reviewer: Codex CO-09 source review; checked objective measurement/owner gates, initiative sponsor/organization ancestry, approval dependency and shared ControlPlane idempotency route; no local runtime test reviewer
+```

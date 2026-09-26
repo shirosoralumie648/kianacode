@@ -1,0 +1,56 @@
+name: co09-company-intake
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/tests/co09_objective_initiative.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co09_company_intake_guard.rs"
+      - "kiana-domain/tests/co08_replay.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - ".github/workflows/co09-company-intake.yml"
+      - "docs/roadmap/co09-company-intake-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/tests/co09_objective_initiative.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co09_company_intake_guard.rs"
+      - "kiana-domain/tests/co08_replay.rs"
+      - "kiana-domain/tests/p3_i01_company_objects.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - ".github/workflows/co09-company-intake.yml"
+      - "docs/roadmap/co09-company-intake-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-intake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-09 objective and initiative fixtures
+        run: cargo test -p kiana-domain --test co09_objective_initiative --locked -- --test-threads=1
+      - name: Run CO-09 Company intake source guard
+        run: cargo test -p kiana-core --test co09_company_intake_guard --locked -- --test-threads=1
+      - name: Compile CO-09 workspace targets
+        run: cargo check --workspace --tests --locked

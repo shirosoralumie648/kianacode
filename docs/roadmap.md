@@ -679,7 +679,7 @@
 | 505 | W7 | 专项 | [`CP-23`](roadmap/control-plane.md#step-cp-23) | ControlPlane · Company 命令也使用控制面事务 | `CP-04`、`CP-07`、`CP-08`、`CP-13` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-23) |
 | 506 | W7 | 专项 | [`CP-24`](roadmap/control-plane.md#step-cp-24) | ControlPlane · 调度、WorkPacket、委派与 Workflow | `CP-11`、`CP-12`、`CP-17`、`CP-23` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-24) |
 | 507 | W7 | 专项 | [`ER-28`](roadmap/event-receipt-recovery.md#step-er-28) | Event / Receipt / Recovery · CompanyOS / Workflow / Artifact 业务引用 | `ER-27` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-28) · [baseline](roadmap/er28-company-workflow-artifact-baseline.md) |
-| 508 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | ⏳ | [专项卡](roadmap/companyos.md#step-co-09) |
+| 508 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | 🔄 | [专项卡](roadmap/companyos.md#step-co-09) · [baseline](roadmap/co09-company-intake-baseline.md) |
 | 509 | W7 | 专项 | [`CO-10`](roadmap/companyos.md#step-co-10) | CompanyOS · Charter 与项目 go/no-go | `CO-09`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-10) |
 | 510 | W7 | 专项 | [`CO-11`](roadmap/companyos.md#step-co-11) | CompanyOS · 建立标准覆盖图，替换文本集合推断 | `CO-06`、`CO-10` | ⏳ | [专项卡](roadmap/companyos.md#step-co-11) |
 | 511 | W7 | 专项 | [`CO-12`](roadmap/companyos.md#step-co-12) | CompanyOS · Milestone、Plan 与依赖图提案 | `CO-10`、`CO-11` | ⏳ | [专项卡](roadmap/companyos.md#step-co-12) |

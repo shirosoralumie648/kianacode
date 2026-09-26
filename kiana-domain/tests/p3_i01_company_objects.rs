@@ -12,6 +12,7 @@ fn objective() -> Objective {
         baseline: 0.0,
         target: 1.0,
         unit: "ratio".to_owned(),
+        measurement_method: Some("release acceptance ratio".to_owned()),
         direction: MetricDirection::AtLeast,
         period_start: 1,
         period_end: 100,

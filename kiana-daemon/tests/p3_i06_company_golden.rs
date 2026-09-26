@@ -96,6 +96,7 @@ fn objective() -> Objective {
         baseline: 0.0,
         target: 1.0,
         unit: "ratio".to_owned(),
+        measurement_method: Some("golden fixture acceptance ratio".to_owned()),
         direction: MetricDirection::AtLeast,
         period_start: 1,
         period_end: u64::MAX - 1,
