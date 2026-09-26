@@ -1,0 +1,60 @@
+name: co27-milestone-acceptance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/milestone_acceptance.rs"
+      - "kiana-domain/src/packet_acceptance.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_readiness.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co27_milestone_acceptance.rs"
+      - "kiana-core/src/milestone_acceptance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co27_milestone_acceptance_guard.rs"
+      - "docs/roadmap/co27-milestone-acceptance-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co27-milestone-acceptance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/milestone_acceptance.rs"
+      - "kiana-domain/src/packet_acceptance.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_readiness.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co27_milestone_acceptance.rs"
+      - "kiana-core/src/milestone_acceptance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co27_milestone_acceptance_guard.rs"
+      - "docs/roadmap/co27-milestone-acceptance-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co27-milestone-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  milestone-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-27 milestone acceptance fixtures
+        run: cargo test -p kiana-domain --test co27_milestone_acceptance --locked -- --test-threads=1
+      - name: Run CO-27 milestone acceptance source guard
+        run: cargo test -p kiana-core --test co27_milestone_acceptance_guard --locked -- --test-threads=1
+      - name: Compile CO-27 acceptance targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

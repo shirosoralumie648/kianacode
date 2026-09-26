@@ -594,6 +594,8 @@ mod company_review;
 pub use company_review::*;
 mod packet_acceptance;
 pub use packet_acceptance::*;
+mod milestone_acceptance;
+pub use milestone_acceptance::*;
 
 mod dispatch;
 mod effect_observation;

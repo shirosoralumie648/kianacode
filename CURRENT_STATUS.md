@@ -14840,3 +14840,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: durable acceptance projector and ready-query dependent consumption remain open; semantic review validity, external output delivery, milestone/project closure and live/physical outcomes remain later steps
 reviewer: Codex CO-26 source review; checked packet revision/attempt/evidence/review binding, criterion/waiver/acceptor gates, ACK separation, narrow dependent projection and idempotency; no local runtime test reviewer
 ```
+
+### CO-27 milestone-local acceptance evidence (2026-09-26)
+
+```text
+source_snapshot: `a4dd5fd9` plus CO-27 milestone acceptance source slice; kiana-domain/src/{milestone_acceptance.rs,packet_acceptance.rs,company.rs,company_readiness.rs,lib.rs}; kiana-core/src/{milestone_acceptance.rs,company.rs,lib.rs}; kiana-domain/tests/co27_milestone_acceptance.rs; kiana-core/tests/co27_milestone_acceptance_guard.rs; .github/workflows/co27-milestone-acceptance.yml; docs/roadmap/co27-milestone-acceptance-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: MilestoneAcceptanceRequest fixes current milestone/project version, required packet IDs, accepted packet acceptance digests, criteria and evidence; missing/foreign packet/evidence rejects, Accept requires every declared packet, Reject remains distinct, and ledger recording does not traverse/mutate dependent milestones; existing project-wide RequestAcceptance remains compatibility path; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/milestone_acceptance.rs kiana-domain/src/lib.rs kiana-core/src/milestone_acceptance.rs kiana-core/src/lib.rs kiana-domain/tests/co27_milestone_acceptance.rs kiana-core/tests/co27_milestone_acceptance_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co27_milestone_acceptance --locked -- --test-threads=1; cargo test -p kiana-core --test co27_milestone_acceptance_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only missing required packet, foreign evidence, M1 accepted before M2 Run, rejection, narrow packet set and serialization-compatible ledger; no full project traversal, external review/delivery or live/physical outcome
+exit_code: targeted rustfmt --check (new/changed CO-27 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-27 milestone-local acceptance source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 526/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: durable acceptance projector and ready-query consumption remain open; existing project-wide RequestAcceptance compatibility semantics remain, with semantic evaluator, cross-process recovery and live/physical outcomes deferred
+reviewer: Codex CO-27 source review; checked local packet completeness, foreign evidence rejection, independent milestone state, no dependent mutation and no second scheduling path; no local runtime test reviewer
+```
