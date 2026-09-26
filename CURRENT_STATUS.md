@@ -14900,3 +14900,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: full durable graph CAS publication and projector replacement remain open; active process/cancel fencing, semantic change evaluation, external approvals and live/physical outcomes remain CO-31+
 reviewer: Codex CO-30 source review; checked complete impact/invalidation set, old/new version fencing, partial publication rejection, idempotent replay and historical preservation; no local runtime test reviewer
 ```
+
+### CO-31 project control propagation evidence (2026-09-27)
+
+```text
+source_snapshot: `04bd7994` plus CO-31 project control source slice; kiana-domain/src/{project_control.rs,company.rs,lib.rs}; kiana-core/src/{project_control.rs,lib.rs}; kiana-domain/tests/co31_project_control.rs; kiana-core/tests/co31_project_control_guard.rs; .github/workflows/co31-project-control.yml; docs/roadmap/co31-project-control-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: ProjectControlPlan distinguishes pause/resume/cancel request/cancel confirmation, blocks new dispatch, binds baseline and authority epoch, repeats project/department/packet/run/dispatch identities, and requires stopped or not-started children before Cancelled; Unknown or stopping children force ResultUnknown/reconciliation; ProjectControlLedger is idempotent and preserves historical plans; existing Company commands, RunCancellationFact, DispatchIntent and CellRegistry remain compatibility/effect authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/project_control.rs kiana-core/src/project_control.rs kiana-domain/tests/co31_project_control.rs kiana-core/tests/co31_project_control_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co31_project_control --locked -- --test-threads=1; cargo test -p kiana-core --test co31_project_control_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only pause and unrelated-project propagation, cancel request versus stop confirmation, Unknown/reconciliation, resume approval/epoch fence, duplicate/idempotent and cross-project rejection; no durable EventLog consumption, live process stop or external/physical outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-31 ProjectControlPlan/ProjectControlLedger source slice, CompanyState projection, CI fixture/guard, workflow and baseline implemented; roadmap row 530/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: runtime effect consumption remains in existing ControlPlane cancellation/dispatch/cell paths; durable child stop projection, late-result reconciliation, revoked-session resume and incident workflow remain open for CO-32+
+reviewer: Codex CO-31 source review; checked project/department binding, pause versus cancel distinction, Cancelled fail-closed rule, ResultUnknown reconciliation, resume approval/epoch gate, idempotency and historical preservation; no local runtime test reviewer
+```

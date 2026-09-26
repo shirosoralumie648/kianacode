@@ -602,6 +602,8 @@ mod rework_contract;
 pub use rework_contract::*;
 mod change_contract;
 pub use change_contract::*;
+mod project_control;
+pub use project_control::*;
 
 mod dispatch;
 mod effect_observation;

@@ -1002,6 +1002,10 @@ pub struct CompanyState {
     /// CO-19 append-only attempt/epoch history; legacy PacketClaim remains readable.
     #[serde(default)]
     pub packet_attempts: crate::PacketAttemptLedger,
+    /// CO-31 append-only project pause/resume/cancel propagation plans. Runtime effects remain
+    /// fenced by the existing cancellation, dispatch and cell registries.
+    #[serde(default)]
+    pub project_controls: crate::ProjectControlLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1171,6 +1175,21 @@ impl CompanyState {
 
     pub fn packet_attempt_history(&self, packet_id: &str) -> &[crate::PacketAttempt] {
         self.packet_attempts.history(packet_id)
+    }
+
+    /// Record a project control plan without claiming that child effects have stopped.
+    pub fn record_project_control(
+        &mut self,
+        plan: crate::ProjectControlPlan,
+    ) -> CompanyResult<()> {
+        self.project_controls.record(plan)
+    }
+
+    pub fn latest_project_control(
+        &self,
+        project_id: &str,
+    ) -> Option<&crate::ProjectControlPlan> {
+        self.project_controls.latest(project_id)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is
