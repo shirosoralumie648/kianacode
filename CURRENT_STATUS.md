@@ -14675,3 +14675,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: runtime budget is pure accounting, not live clock/provider settlement; existing symposium path remains the integration authority, and durable replay/UI/live/physical outcome remain open
 reviewer: Codex CO-15 source review; checked finite limit/cancel fences, existing Harness/ControlPlane reuse and common anti-meeting/convened gate; no local runtime test reviewer
 ```
+
+### CO-16 structured Company proposal evidence (2026-09-26)
+
+```text
+source_snapshot: `4ad3cc22` plus CO-16 Company proposal source slice; kiana-domain/src/{company_proposals.rs,plan.rs,department_packets.rs,lib.rs}; kiana-domain/tests/co16_company_proposals.rs; kiana-core/tests/co16_company_proposals_guard.rs; .github/workflows/co16-company-proposals.yml; docs/roadmap/co16-company-proposals-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyPlanProposal validates a typed Plan/ResultContract and source assignment/session without parsing command text; CompanyPlanApproval binds exact proposal digest, expected revision, decision ref and Sponsor role; CompanyProposalLedger rejects invalid/stale/duplicate approvals and exposes only the exact reviewed plan; no execution, Broker, Grant/Lease or second CAS path added; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_proposals.rs kiana-domain/tests/co16_company_proposals.rs kiana-core/tests/co16_company_proposals_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co16_company_proposals --locked -- --test-threads=1; cargo test -p kiana-core --test co16_company_proposals_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only forged proposal digest, invalid plan, duplicate approval, Sponsor approval and exact approved graph fixtures; no model text execution, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check pending; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-16 structured Company proposal source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 515/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: proposal ledger is not yet wired as the sole ControlPlane protocol/materialization fact; durable CAS/restart, live artifact/coverage validation and external business outcome remain open
+reviewer: Codex CO-16 source review; checked typed proposal boundary, exact digest/revision/decision binding, Sponsor-only approval, duplicate/invalid no-mutation behavior and no text command execution path; no local runtime test reviewer
+```
