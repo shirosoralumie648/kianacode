@@ -1,0 +1,56 @@
+name: co15-symposium-runtime
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/symposium_runtime.rs"
+      - "kiana-domain/src/symposium_governance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/control_plane.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-domain/tests/co15_symposium_runtime.rs"
+      - "kiana-core/tests/co15_symposium_runtime_guard.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "docs/roadmap/co15-symposium-runtime-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co15-symposium-runtime.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/symposium_runtime.rs"
+      - "kiana-domain/src/symposium_governance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/control_plane.rs"
+      - "kiana-core/src/collaboration.rs"
+      - "kiana-domain/tests/co15_symposium_runtime.rs"
+      - "kiana-core/tests/co15_symposium_runtime_guard.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "docs/roadmap/co15-symposium-runtime-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co15-symposium-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  symposium-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-15 runtime-bound fixtures
+        run: cargo test -p kiana-domain --test co15_symposium_runtime --locked -- --test-threads=1
+      - name: Run CO-15 symposium source guard
+        run: cargo test -p kiana-core --test co15_symposium_runtime_guard --locked -- --test-threads=1
+      - name: Compile CO-15 symposium targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

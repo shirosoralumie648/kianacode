@@ -14660,3 +14660,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: governance board is not yet the sole durable symposium projector/admission path; assignment/ProjectTrust/approval authority and cross-process replay remain open, and no live/physical outcome is claimed
 reviewer: Codex CO-14 source review; checked invitation/baseline/visibility/duplicate fences, chair versus Sponsor decision separation and no second meeting loop; no local runtime test reviewer
 ```
+
+### CO-15 bounded symposium runtime evidence (2026-09-26)
+
+```text
+source_snapshot: `9e0b7f6b` plus CO-15 bounded symposium runtime source slice; kiana-domain/src/{symposium_runtime.rs,symposium_governance.rs,lib.rs}; kiana-core/src/{control_plane.rs,collaboration.rs}; kiana-domain/tests/co15_symposium_runtime.rs; kiana-core/tests/co15_symposium_runtime_guard.rs; kiana-core/tests/control_plane.rs; .github/workflows/co15-symposium-runtime.yml; docs/roadmap/co15-symposium-runtime-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: SymposiumRunBudget bounds rounds/messages/tokens/wall-time/stalls and cancellation, and decision_allowed fails closed at exhaustion; source guard ties it to the existing ControlPlane convene_symposium and anti-meeting fixtures, with no second Runner/Broker path; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/symposium_runtime.rs kiana-domain/tests/co15_symposium_runtime.rs kiana-core/tests/co15_symposium_runtime_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co15_symposium_runtime --locked -- --test-threads=1; cargo test -p kiana-core --test co15_symposium_runtime_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only budget exhaustion, cancellation, existing convene_symposium role sessions, anti-meeting shared decision gate and bounded limit fixtures; no live model call, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check pending; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-15 bounded symposium runtime source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 514/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: runtime budget is pure accounting, not live clock/provider settlement; existing symposium path remains the integration authority, and durable replay/UI/live/physical outcome remain open
+reviewer: Codex CO-15 source review; checked finite limit/cancel fences, existing Harness/ControlPlane reuse and common anti-meeting/convened gate; no local runtime test reviewer
+```
