@@ -19,9 +19,9 @@ mod commands;
 mod communication;
 mod company;
 mod company_governance;
-mod connectors;
-mod connector_reservation;
 mod connector_quota;
+mod connector_reservation;
+mod connectors;
 mod context_query;
 mod cost_correction;
 mod credential_recovery;
@@ -31,8 +31,8 @@ mod dispatch;
 mod effect_usage_projection;
 mod eval;
 mod events;
-mod fault_injection;
 mod fallback_admission;
+mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
 mod health;
@@ -50,26 +50,27 @@ mod memory_proposals;
 mod metrics;
 mod model_attempt_lifecycle;
 mod model_attempt_projection;
-mod notification_projector;
-mod notification_materializer;
-mod notification_delivery;
-mod notification_store;
 mod notification_action;
-mod notification_priority;
-mod notification_policy;
-mod notification_recovery;
+mod notification_delivery;
 mod notification_external;
 mod notification_faults;
+mod notification_materializer;
 mod notification_parity;
-mod operator_evidence;
-mod provider_diagnostics;
+mod notification_policy;
+mod notification_priority;
+mod notification_projector;
+mod notification_recovery;
 mod notification_resolver;
+mod notification_store;
+mod operator_evidence;
 mod parity;
 mod performance;
 mod persistence_read_model;
 mod platform;
 mod projection;
 mod projection_checkpoint;
+mod provider_diagnostics;
+mod quality_gate;
 mod receipts;
 mod recovery;
 mod redaction;
@@ -106,8 +107,7 @@ pub use authority_read_model::{
 };
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
 pub use billing_projection::{
-    BillingProjectionFence, BillingProjectionFenceError,
-    BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
+    BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
 };
 pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
@@ -123,6 +123,8 @@ pub use clarification::{
 };
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
+pub use connector_quota::ControlPlaneConnectorQuota;
+pub use connector_reservation::ControlPlaneConnectorReservation;
 pub use cost_correction::{CostCorrectionAdmission, CostCorrectionAdmissionError};
 pub use credential_recovery::{
     explicit_re_admit_credential_recovery, project_credential_recovery,
@@ -136,17 +138,15 @@ pub use data_governance::{
 pub use deletion::{
     plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
 };
+pub use effect_usage_projection::{
+    project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
+};
 pub use entrypoint_parity::{
     EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,
 };
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
-pub use effect_usage_projection::{
-    project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
-};
 pub use fallback_admission::ControlPlaneFallbackAdmission;
-pub use connector_reservation::ControlPlaneConnectorReservation;
-pub use connector_quota::ControlPlaneConnectorQuota;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };
@@ -167,32 +167,12 @@ pub use model_attempt_lifecycle::{
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };
-pub use notification_projector::NotificationProjection;
-pub use notification_materializer::NotificationMaterializer;
-pub use notification_delivery::{
-    NotificationDeliveryPlan, NotificationDeliveryWorker, NOTIFICATION_DELIVERY_WORKER_SCHEMA,
-};
-pub use notification_store::{
-    NotificationListRequest, NotificationPage, NotificationPageItem,
-    NotificationProjectionMutation, NotificationStore, NotificationStoreError,
-    NOTIFICATION_MUTATION_SCHEMA, NOTIFICATION_PAGE_SCHEMA, NOTIFICATION_STORE_MAX_PAGE_SIZE,
-    NOTIFICATION_STORE_SCHEMA,
-};
 pub use notification_action::{
     NotificationActionAdmission, NotificationActionGate, NotificationActionGateError,
     NOTIFICATION_ACTION_GATE_SCHEMA,
 };
-pub use notification_priority::{
-    classify_notification, compare_notification_priority, NotificationPriority,
-    NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
-};
-pub use notification_policy::{
-    plan_notification_policy, NotificationPolicyConfig, NotificationPolicyError,
-    NOTIFICATION_POLICY_PLANNER_SCHEMA,
-};
-pub use notification_recovery::{
-    plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
-    NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
+pub use notification_delivery::{
+    NotificationDeliveryPlan, NotificationDeliveryWorker, NOTIFICATION_DELIVERY_WORKER_SCHEMA,
 };
 pub use notification_external::{
     admit_external_notification, observe_external_notification_receipt,
@@ -204,20 +184,37 @@ pub use notification_faults::{
     NotificationFaultMatrix, NotificationFaultScenario, NOTIFICATION_FAULT_CASE_SCHEMA,
     NOTIFICATION_FAULT_MATRIX_SCHEMA,
 };
+pub use notification_materializer::NotificationMaterializer;
 pub use notification_parity::{
     compare_notification_entrypoints, NotificationEntrypoint, NotificationEntrypointParity,
     NotificationEntrypointSnapshot, NotificationParityDisposition,
     NOTIFICATION_ENTRYPOINT_PARITY_SCHEMA, NOTIFICATION_ENTRYPOINT_SNAPSHOT_SCHEMA,
 };
+pub use notification_policy::{
+    plan_notification_policy, NotificationPolicyConfig, NotificationPolicyError,
+    NOTIFICATION_POLICY_PLANNER_SCHEMA,
+};
+pub use notification_priority::{
+    classify_notification, compare_notification_priority, NotificationPriority,
+    NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
+};
+pub use notification_projector::NotificationProjection;
 pub use notification_projector::{
     NotificationProjector, NotificationProjectorError, NotificationVisibility,
     NOTIFICATION_PROJECTOR_SCHEMA,
 };
-pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
-pub use provider_diagnostics::{
-    project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
+pub use notification_recovery::{
+    plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
+    NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
 };
 pub use notification_resolver::resolve_notification_subscriptions;
+pub use notification_store::{
+    NotificationListRequest, NotificationPage, NotificationPageItem,
+    NotificationProjectionMutation, NotificationStore, NotificationStoreError,
+    NOTIFICATION_MUTATION_SCHEMA, NOTIFICATION_PAGE_SCHEMA, NOTIFICATION_STORE_MAX_PAGE_SIZE,
+    NOTIFICATION_STORE_SCHEMA,
+};
+pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
 pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use performance::{
     build_performance_baseline, percentile_micros, summarize_benchmark, PerformanceError,
@@ -228,6 +225,9 @@ pub use persistence_read_model::{
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
+pub use provider_diagnostics::{
+    project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
+};
 pub use receipts::aggregate_receipt_facts;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;

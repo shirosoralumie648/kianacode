@@ -277,6 +277,11 @@ impl ControlPlane {
                 .handle_memory_distillation(context, intent.arguments)
                 .await;
         }
+        if matches!(intent.name.as_str(), "quality.promote" | "quality.rollback") {
+            return self
+                .handle_quality_mutation(context, intent.name, intent.arguments)
+                .await;
+        }
         if matches!(
             intent.name.as_str(),
             kiana_domain::CONNECTOR_MANAGE_OPERATION
