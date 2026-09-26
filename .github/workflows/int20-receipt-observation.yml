@@ -1,0 +1,54 @@
+name: int20-receipt-observation
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/connector_fixture.rs"
+      - "kiana-domain/tests/int20_receipt_observation.rs"
+      - "kiana-ports/src/connector.rs"
+      - "kiana-core/tests/int20_receipt_observation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int20-receipt-observation.yml"
+      - "docs/roadmap/int20-receipt-observation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/connector_fixture.rs"
+      - "kiana-domain/tests/int20_receipt_observation.rs"
+      - "kiana-ports/src/connector.rs"
+      - "kiana-core/tests/int20_receipt_observation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int20-receipt-observation.yml"
+      - "docs/roadmap/int20-receipt-observation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-observation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-20 receipt and observation fixtures
+        run: cargo test -p kiana-domain --test int20_receipt_observation --locked -- --test-threads=1
+      - name: Run INT-20 shared contract source guard
+        run: cargo test -p kiana-core --test int20_receipt_observation_guard --locked -- --test-threads=1
+      - name: Compile INT-20 workspace targets
+        run: cargo check --workspace --tests --locked

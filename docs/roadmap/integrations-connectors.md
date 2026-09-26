@@ -37,6 +37,10 @@ ConnectorDefinition + AccountBinding + OperationContract
   connector journal. The local fixture adapter and effect observer are separate objects; replayed
   incomplete/terminal lifecycles return `result_unknown` without re-entering the adapter. This is
   still source-level evidence, not durable/live provider proof.
+- INT-20 source slice now gives `ProviderReceipt` a bounded schema/identity/hash/secret-free
+  validation and binds `EffectObservation` to receipt payload hash, idempotency digest, receipt ID,
+  owner/audience and outcome. Fixture, ports and daemon projections share the same validation;
+  succeeded/failed/unknown remain distinct and raw provider response material is rejected.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界

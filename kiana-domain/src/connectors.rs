@@ -4,7 +4,7 @@
 use crate::{
     connector_fixture_hash_valid, is_sha256_hex, json_digest, valid_extension_identifier,
     valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage, EffectObservation,
-    InvocationId, RiskLevel, SecretRef,
+    InvocationId, RiskLevel, SecretRef, SecretScanChannel,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -27,6 +27,8 @@ pub const CONNECTOR_MCP_HANDSHAKE_EVENT_KIND: &str = "connector.mcp_handshake";
 pub const CONNECTOR_HEALTH_FACT_SCHEMA: &str = "kiana.connector-health-fact.v1";
 pub const CONNECTOR_HEALTH_PROJECTION_SCHEMA: &str = "kiana.connector-health-projection.v1";
 pub const CONNECTOR_HEALTH_MAX_LIMITATIONS: usize = 16;
+pub const PROVIDER_RECEIPT_SCHEMA: &str = "kiana.provider-receipt.v1";
+pub const PROVIDER_RECEIPT_MAX_RESULT_BYTES: usize = 64 * 1024;
 
 /// Safe status vocabulary shared by adapter probes, EventLog facts and query/UI projections.
 /// No variant carries provider response material or credential values.
@@ -352,6 +354,39 @@ pub struct ProviderReceipt {
     pub result: Value,
 }
 
+/// Accept the historical unprefixed hash and the newer `sha256:` envelope spelling while keeping
+/// the payload hash strictly hex and fixed-width.
+pub fn provider_payload_hash_valid(value: &str) -> bool {
+    is_sha256_hex(value) || value.strip_prefix("sha256:").is_some_and(is_sha256_hex)
+}
+
+impl ProviderReceipt {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_RECEIPT_SCHEMA
+            || !valid_extension_identifier(&self.connector_id)
+            || !valid_extension_identifier(&self.binding_id)
+            || !valid_extension_identifier(&self.account_id)
+            || !valid_extension_identifier(&self.operation)
+            || self.idempotency_key.trim().is_empty()
+            || self.idempotency_key.len() > 128
+            || self.idempotency_key.chars().any(char::is_control)
+            || !provider_payload_hash_valid(&self.final_payload_sha256)
+            || !valid_extension_identifier(&self.provider_receipt_id)
+            || !valid_extension_identifier(&self.source)
+        {
+            return Err("provider_receipt_header_invalid".to_owned());
+        }
+        let result_bytes = serde_json::to_vec(&self.result)
+            .map_err(|_| "provider_receipt_result_invalid".to_owned())?;
+        if result_bytes.len() > PROVIDER_RECEIPT_MAX_RESULT_BYTES {
+            return Err("provider_receipt_result_too_large".to_owned());
+        }
+        crate::scan_secret_value(SecretScanChannel::Receipt, &self.result)
+            .map_err(|_| "provider_receipt_raw_response_forbidden".to_owned())?;
+        Ok(())
+    }
+}
+
 pub fn connector_bindings(
     events: &[crate::RuntimeEvent],
 ) -> Result<(u64, BTreeMap<String, ConnectorBindingSnapshot>), &'static str> {
@@ -382,6 +417,11 @@ pub fn connector_bindings(
             }
             bindings.insert(state.binding.binding_id.clone(), state);
         } else if event.kind == "connector.invoked" {
+            let receipt: ProviderReceipt = serde_json::from_value(event.data["receipt"].clone())
+                .map_err(|_| "connector_registry_event_invalid")?;
+            receipt
+                .validate()
+                .map_err(|_| "connector_registry_event_invalid")?;
             if let Some(raw_lifecycle) = event.data.get("dispatch_lifecycle") {
                 let lifecycle: ConnectorDispatchLifecycle =
                     serde_json::from_value(raw_lifecycle.clone())
@@ -389,9 +429,6 @@ pub fn connector_bindings(
                 lifecycle
                     .validate()
                     .map_err(|_| "connector_registry_event_invalid")?;
-                let receipt: ProviderReceipt =
-                    serde_json::from_value(event.data["receipt"].clone())
-                        .map_err(|_| "connector_registry_event_invalid")?;
                 let observation = EffectObservation::from_json(&event.data["effect_observation"])
                     .map_err(|_| "connector_registry_event_invalid")?;
                 let identity = (lifecycle.invocation_id, lifecycle.attempt);
@@ -408,6 +445,13 @@ pub fn connector_bindings(
                     &serde_json::to_value(&receipt)
                         .map_err(|_| "connector_registry_event_invalid")?,
                 );
+                observation
+                    .validate_for_receipt(
+                        &receipt,
+                        &observation.owner_digest,
+                        &observation.audience_digest,
+                    )
+                    .map_err(|_| "connector_registry_event_invalid")?;
                 let result_digest = json_digest(&serde_json::json!({
                     "receipt": receipt,
                     "observation": observation,
@@ -424,6 +468,21 @@ pub fn connector_bindings(
                     return Err("connector_registry_event_invalid");
                 }
             }
+        } else if event.kind == "connector.reconciled" {
+            let receipt: ProviderReceipt = serde_json::from_value(event.data["receipt"].clone())
+                .map_err(|_| "connector_registry_event_invalid")?;
+            receipt
+                .validate()
+                .map_err(|_| "connector_registry_event_invalid")?;
+            let observation = EffectObservation::from_json(&event.data["effect_observation"])
+                .map_err(|_| "connector_registry_event_invalid")?;
+            observation
+                .validate_for_receipt(
+                    &receipt,
+                    &observation.owner_digest,
+                    &observation.audience_digest,
+                )
+                .map_err(|_| "connector_registry_event_invalid")?;
         } else if event.kind == CONNECTOR_HEALTH_EVENT_KIND {
             let fact: ConnectorHealthFact = serde_json::from_value(event.data["health"].clone())
                 .map_err(|_| "connector_registry_event_invalid")?;

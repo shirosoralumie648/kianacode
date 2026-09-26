@@ -1,8 +1,8 @@
 //! Provider/external effect observations kept separate from local result success.
 
 use crate::{
-    is_sha256_hex, json_digest, valid_extension_identifier, ExecutionId, InvocationId,
-    ProviderOutcome, ProviderReceipt, SchemaVersion,
+    json_digest, provider_payload_hash_valid, valid_extension_identifier, ExecutionId,
+    InvocationId, ProviderOutcome, ProviderReceipt, SchemaVersion,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -32,6 +32,8 @@ pub struct EffectObservation {
     pub audience_digest: String,
     pub idempotency_key_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_receipt_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_status: Option<String>,
@@ -60,6 +62,39 @@ impl EffectObservation {
         mut evidence_ref_digests: Vec<String>,
         state: EffectObservationState,
     ) -> Result<Self, String> {
+        Self::new_with_payload_sha256(
+            execution_id,
+            invocation_id,
+            attempt,
+            owner_digest,
+            audience_digest,
+            idempotency_key_digest,
+            provider_receipt_id,
+            remote_status,
+            observed_at_unix_ms,
+            query_digest,
+            evidence_ref_digests,
+            None,
+            state,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_payload_sha256(
+        execution_id: ExecutionId,
+        invocation_id: InvocationId,
+        attempt: u32,
+        owner_digest: impl Into<String>,
+        audience_digest: impl Into<String>,
+        idempotency_key_digest: impl Into<String>,
+        provider_receipt_id: Option<String>,
+        remote_status: Option<String>,
+        observed_at_unix_ms: u64,
+        query_digest: Option<String>,
+        mut evidence_ref_digests: Vec<String>,
+        payload_sha256: Option<String>,
+        state: EffectObservationState,
+    ) -> Result<Self, String> {
         evidence_ref_digests.sort();
         evidence_ref_digests.dedup();
         let mut observation = Self {
@@ -71,6 +106,7 @@ impl EffectObservation {
             owner_digest: owner_digest.into(),
             audience_digest: audience_digest.into(),
             idempotency_key_digest: idempotency_key_digest.into(),
+            payload_sha256,
             provider_receipt_id,
             remote_status,
             observed_at_unix_ms,
@@ -93,14 +129,14 @@ impl EffectObservation {
         audience_digest: impl Into<String>,
         observed_at_unix_ms: u64,
     ) -> Result<Self, String> {
-        if receipt.schema != "kiana.provider-receipt.v1"
-            || !valid_extension_identifier(&receipt.connector_id)
+        receipt
+            .validate()
+            .map_err(|_| "effect_observation_provider_receipt_invalid".to_owned())?;
+        if !valid_extension_identifier(&receipt.connector_id)
             || !valid_extension_identifier(&receipt.binding_id)
             || !valid_extension_identifier(&receipt.account_id)
             || !valid_extension_identifier(&receipt.operation)
-            || receipt.idempotency_key.trim().is_empty()
-            || !is_sha256_hex(&receipt.final_payload_sha256)
-            || !valid_extension_identifier(&receipt.provider_receipt_id)
+            || !provider_payload_hash_valid(&receipt.final_payload_sha256)
         {
             return Err("effect_observation_provider_receipt_invalid".to_owned());
         }
@@ -109,7 +145,7 @@ impl EffectObservation {
             ProviderOutcome::Failed => EffectObservationState::ConfirmedFailure,
             ProviderOutcome::Unknown => EffectObservationState::Unknown,
         };
-        Self::new(
+        Self::new_with_payload_sha256(
             execution_id,
             invocation_id,
             attempt,
@@ -121,6 +157,7 @@ impl EffectObservation {
             observed_at_unix_ms,
             None,
             Vec::new(),
+            Some(receipt.final_payload_sha256.clone()),
             state,
         )
     }
@@ -148,6 +185,36 @@ impl EffectObservation {
         Ok(())
     }
 
+    pub fn validate_for_receipt(
+        &self,
+        receipt: &ProviderReceipt,
+        owner_digest: &str,
+        audience_digest: &str,
+    ) -> Result<(), String> {
+        receipt.validate()?;
+        self.validate_for_scope(owner_digest, audience_digest)?;
+        let expected_remote_status = format!("{:?}", receipt.outcome).to_ascii_lowercase();
+        if self.payload_sha256.as_deref() != Some(receipt.final_payload_sha256.as_str())
+            || self.idempotency_key_digest
+                != json_digest(&json!({"idempotency_key": receipt.idempotency_key}))
+            || self.provider_receipt_id.as_deref() != Some(receipt.provider_receipt_id.as_str())
+            || self.remote_status.as_deref() != Some(expected_remote_status.as_str())
+            || !matches!(
+                (self.state, receipt.outcome),
+                (
+                    EffectObservationState::ConfirmedSuccess,
+                    ProviderOutcome::Succeeded
+                ) | (
+                    EffectObservationState::ConfirmedFailure,
+                    ProviderOutcome::Failed
+                ) | (EffectObservationState::Unknown, ProviderOutcome::Unknown)
+            )
+        {
+            return Err("effect_observation_receipt_binding_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != EFFECT_OBSERVATION_SCHEMA
             || !self.version.is_compatible_with(&EFFECT_OBSERVATION_VERSION)
@@ -157,6 +224,10 @@ impl EffectObservation {
             || !valid_digest(&self.owner_digest)
             || !valid_digest(&self.audience_digest)
             || !valid_digest(&self.idempotency_key_digest)
+            || self
+                .payload_sha256
+                .as_deref()
+                .is_some_and(|digest| !provider_payload_hash_valid(digest))
             || self.observed_at_unix_ms == 0
             || self.evidence_ref_digests.len() > MAX_EFFECT_EVIDENCE
             || self
@@ -207,6 +278,7 @@ impl EffectObservation {
             "owner_digest": self.owner_digest,
             "audience_digest": self.audience_digest,
             "idempotency_key_digest": self.idempotency_key_digest,
+            "payload_sha256": self.payload_sha256,
             "provider_receipt_id": self.provider_receipt_id,
             "remote_status": self.remote_status,
             "observed_at_unix_ms": self.observed_at_unix_ms,
