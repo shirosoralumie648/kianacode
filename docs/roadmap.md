@@ -695,7 +695,7 @@
 | 521 | W7 | 专项 | [`CO-22`](roadmap/companyos.md#step-co-22) | CompanyOS · 确定性 Company ProcessManager | `CO-08`、`CO-16`、`CO-17`、`CO-21` | 🔄 | [专项卡](roadmap/companyos.md#step-co-22) · [baseline](roadmap/co22-company-process-baseline.md) |
 | 522 | W7 | 专项 | [`CO-23`](roadmap/companyos.md#step-co-23) | CompanyOS · 持久唤醒队列与意图消费 | `CO-07`、`CO-19`、`CO-22` | 🔄 | [专项卡](roadmap/companyos.md#step-co-23) · [baseline](roadmap/co23-company-wake-baseline.md) |
 | 523 | W7 | 专项 | [`CO-24`](roadmap/companyos.md#step-co-24) | CompanyOS · 执行结果归集为不可变 EvidenceBundle | `CO-06`、`CO-21`、`CO-23` | 🔄 | [专项卡](roadmap/companyos.md#step-co-24) · [baseline](roadmap/co24-company-evidence-baseline.md) |
-| 524 | W7 | 专项 | [`CO-25`](roadmap/companyos.md#step-co-25) | CompanyOS · 独立 Reviewer 与逐条证据结论 | `CO-03`、`CO-11`、`CO-24` | ⏳ | [专项卡](roadmap/companyos.md#step-co-25) |
+| 524 | W7 | 专项 | [`CO-25`](roadmap/companyos.md#step-co-25) | CompanyOS · 独立 Reviewer 与逐条证据结论 | `CO-03`、`CO-11`、`CO-24` | 🔄 | [专项卡](roadmap/companyos.md#step-co-25) · [baseline](roadmap/co25-company-review-baseline.md) |
 | 525 | W7 | 专项 | [`CO-26`](roadmap/companyos.md#step-co-26) | CompanyOS · Packet 级验收与输出接收 | `CO-24`、`CO-25` | ⏳ | [专项卡](roadmap/companyos.md#step-co-26) |
 | 526 | W7 | 专项 | [`CO-27`](roadmap/companyos.md#step-co-27) | CompanyOS · Milestone 独立验收，消除阶段依赖等待环 | `CO-12`、`CO-18`、`CO-26` | ⏳ | [专项卡](roadmap/companyos.md#step-co-27) |
 | 527 | W7 | 专项 | [`CO-28`](roadmap/companyos.md#step-co-28) | CompanyOS · Project 验收、拒绝与显式豁免 | `CO-05`、`CO-25`、`CO-27` | ⏳ | [专项卡](roadmap/companyos.md#step-co-28) |

@@ -14810,3 +14810,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: full durable EventLog result ingestion, artifact byte persistence, workspace snapshot capture and cross-process evidence projection remain open; bounded command/test fields still require actual adapters, with no external/live/physical outcome claimed
 reviewer: Codex CO-24 source review; checked actual receipt/run/invocation binding, exit/source/test/artifact fences, model/Unknown rejection and immutable ready projection; no local runtime test reviewer
 ```
+
+### CO-25 independent Company review evidence (2026-09-26)
+
+```text
+source_snapshot: `8cacfa11` plus CO-25 review source slice; kiana-domain/src/{company_review.rs,company.rs,company_business.rs,lib.rs}; kiana-core/src/{company_review.rs,company.rs,collaboration.rs,lib.rs}; kiana-domain/tests/co25_company_review.rs; kiana-core/tests/co25_company_review_guard.rs; .github/workflows/co25-company-review.yml; docs/roadmap/co25-company-review-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: ReviewerAssignment freezes target packet/baseline/criteria/evidence digests and author principal/session set; reviewer role/session/role-instance must be independent; IndependentReview requires per-criterion verdict/reason/evidence and explicit NotApplicable waiver, with idempotent ledger record; existing Company RecordReview/review_author_run remain the runtime authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_review.rs kiana-domain/src/lib.rs kiana-core/src/company_review.rs kiana-core/src/lib.rs kiana-domain/tests/co25_company_review.rs kiana-core/tests/co25_company_review_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co25_company_review --locked -- --test-threads=1; cargo test -p kiana-core --test co25_company_review_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only reviewer/author session overlap, duplicate author sessions, missing criterion evidence, NotApplicable without waiver, idempotent duplicate record and serialization; no semantic evaluator/live reviewer/external effect
+exit_code: targeted rustfmt --check (new/changed CO-25 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-25 independent review source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 524/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: strict review ledger is not yet sole durable projector; semantic evaluator validity, cross-process recovery and packet acceptance/dependency unlock remain CO-26+; no live/physical outcome claimed
+reviewer: Codex CO-25 source review; checked assignment independence, frozen target/evidence digests, per-criterion coverage, waiver fence, idempotency and no Builder fact mutation; no local runtime test reviewer
+```
