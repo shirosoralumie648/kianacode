@@ -15095,3 +15095,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: wrapper does not perform actual parallel admission or workspace isolation; existing process-local Swarm/Cell runtime and Integrator/MergeReceipt remain open
 reviewer: Codex CO-43 source review; checked parent/project/partition/owner/epoch/isolation binding, outcome coverage, Unknown/partial merge fence, reuse of Swarm/Cell/ControlPlane and no free-message bus; no local runtime test reviewer
 ```
+
+### CO-44 Company Integrator and MergeReceipt evidence (2026-09-27)
+
+```text
+source_snapshot: `27a026f7` plus CO-44 integration source slice; kiana-domain/src/{company_integration.rs,swarm.rs,work_packets.rs,lib.rs}; kiana-core/src/{company_integration.rs,lib.rs}; kiana-domain/tests/co44_company_integration.rs; kiana-core/tests/co44_company_integration_guard.rs; .github/workflows/co44-company-integration.yml; docs/roadmap/co44-company-integration-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyIntegrationPlan freezes project/base revision, output contract, every child output digest, conflict IDs, Integrator and approval; CompanyConflictDecision requires named path/resolution/reviewer/evidence; CompanyMergeReceipt requires complete conflict coverage, revalidated output, result revision and preserved child digests, with pushed_or_published=false; existing Swarm MergeReceipt/Review/ControlPlane remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_integration.rs kiana-core/src/company_integration.rs kiana-domain/tests/co44_company_integration.rs kiana-core/tests/co44_company_integration_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co44_company_integration --locked -- --test-threads=1; cargo test -p kiana-core --test co44_company_integration_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only stale-base digest, hidden conflict coverage, revalidation/output trace, changed child digest, no push/publish and existing Swarm/MergeReceipt boundary; no filesystem/Git merge, durable Integrator workflow or live/physical result
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-44 CompanyIntegrationPlan/ConflictDecision/MergeReceipt source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 592/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: receipt validates source evidence only and does not merge files, push, publish or accept the project; durable conflict resolution and live/physical output remain open
+reviewer: Codex CO-44 source review; checked fixed base/child digest binding, conflict coverage, independent review evidence, revalidation, result revision and no publish inference; no local runtime test reviewer
+```
