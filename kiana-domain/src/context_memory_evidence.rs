@@ -185,10 +185,16 @@ impl ContextMemoryGoldenPathEvidence {
                 }
             }
             ContextMemoryProviderMode::LiveOptIn => {
-                if self.provider_live_evidence_digest.is_none()
-                    || self.operator_approval_ref.is_none()
-                {
+                if self.provider_live_evidence_digest.is_none() {
                     return Err("context_memory_live_opt_in_evidence_missing".to_owned());
+                }
+                let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
+                    return Err("context_memory_live_opt_in_evidence_missing".to_owned());
+                };
+                if approval_ref.trim() != approval_ref
+                    || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+                {
+                    return Err("context_memory_live_approval_ref_invalid".to_owned());
                 }
             }
         }

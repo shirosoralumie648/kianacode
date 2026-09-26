@@ -103,3 +103,20 @@ fn live_proof_requires_explicit_opt_in_and_independent_evidence() {
     .expect("explicit live evidence");
     evidence.validate().expect("live evidence validates");
 }
+
+#[test]
+fn live_context_memory_evidence_requires_typed_operator_approval() {
+    let error = ContextMemoryGoldenPathEvidence::new(
+        ContextMemoryProviderMode::LiveOptIn,
+        ContextMemoryProofLevel::Live,
+        digest('3'),
+        digest('4'),
+        stages(),
+        Some(digest('5')),
+        Some("operator-approval".to_owned()),
+        ContextMemoryEvidenceStatus::Verified,
+        Vec::new(),
+    )
+    .expect_err("approval ref must be typed");
+    assert_eq!(error, "context_memory_live_approval_ref_invalid");
+}
