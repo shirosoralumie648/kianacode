@@ -1,0 +1,50 @@
+name: EQ-47 evaluation CLI routing
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq47_cli.rs"
+      - "kiana-entrypoints/tests/eq47_cli_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "docs/roadmap/evaluation-protocol-baseline.md"
+      - "docs/roadmap/evaluation-cli-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq47-cli.yml"
+  pull_request:
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eq47_cli.rs"
+      - "kiana-entrypoints/tests/eq47_cli_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "docs/roadmap/evaluation-protocol-baseline.md"
+      - "docs/roadmap/evaluation-cli-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq47-cli.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-47 command contract fixture
+        run: cargo test -p kiana-commands --test eq47_cli --locked -- --test-threads=1
+      - name: Run EQ-47 source and registry guard
+        run: cargo test -p kiana-entrypoints --test eq47_cli_guard --locked -- --test-threads=1
+      - name: Re-run quality wire registry fixture
+        run: cargo test -p kiana-protocol --test eq06_quality_protocol --locked -- --test-threads=1
+      - name: Compile EQ-47 targets
+        run: cargo check --workspace --tests --locked

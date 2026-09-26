@@ -15320,3 +15320,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: alert DTO is append-ready evidence only; version.drift remains query-only and no code authenticates an external stream, persists alerts, changes route/grant or proves automatic mitigation; EQ-47 CLI surface remains open
 reviewer: Codex EQ-46 source review; checked stable version buckets, bounded metrics, explicit thresholds/minimum samples, route/grant equality fence, authority false and no-effect Core path; no local runtime test reviewer
 ```
+
+### EQ-47 evaluation CLI routing evidence (2026-09-27)
+
+```text
+source_snapshot: `78816c25` plus EQ-47 CLI routing source slice; kiana-commands/src/eval.rs; kiana-commands/tests/eq47_cli.rs; kiana-entrypoints/tests/eq47_cli_guard.rs; kiana-protocol/src/lib.rs; kiana-domain/src/event_contracts.rs; .github/workflows/eq47-cli.yml; docs/roadmap/evaluation-cli-baseline.md; docs/roadmap.md
+worktree_status: versioned `kiana.eval-cli.v1` parser maps run/capture/compare/explain/list to eval.run/eval.capture/eval.compare/eval.explain/eval.list ControlPlane routes; strict unknown/duplicate/missing/path-escape/list-kind checks are provider-independent; legacy run --suite remains an explicit local compatibility adapter; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-commands/src/eval.rs kiana-commands/tests/eq47_cli.rs kiana-entrypoints/tests/eq47_cli_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-commands --test eq47_cli --locked -- --test-threads=1; cargo test -p kiana-entrypoints --test eq47_cli_guard --locked -- --test-threads=1; cargo test -p kiana-protocol --test eq06_quality_protocol --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only five command mappings, version/schema/output fields, legacy route preservation, duplicate/unknown/incomplete/path escape denial, no-local-second-loop guard and eval event registry; no EvalStore/target execution/provider/Broker/Runner/Report/JUnit/durable/live/physical evidence
+exit_code: targeted rustfmt formatting and git diff --check passed; full-workspace formatting, remote fixtures, source guard and workspace test-target compilation pending/unobserved
+status_change: EQ-47 CLI parser/ControlPlane route contract, extended eval wire/event names, CI fixture/guard, workflow and evaluation-cli baseline added; roadmap row 670/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: migrated routes are admission/dispatch contracts only and the current ControlPlane has no EvalStore execution handler; old fixture-path compatibility remains until later quality-port/report steps; no report/JUnit/redaction/archive or actual evaluation result is claimed
+reviewer: Codex EQ-47 source review; checked strict parser, versioned mapping, legacy compatibility fence, ControlPlane route/no-second-loop boundary and eval event registry; no local runtime test reviewer
+```
