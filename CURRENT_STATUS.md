@@ -14540,3 +14540,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: classifier consumes caller/adapter-supplied effect state and does not prove no-effect, schedule backoff, create a fresh reservation, perform timeout cancellation, reconcile Unknown or claim provider/live/physical outcome; INT-22+ remain open
 reviewer: Codex INT-21 source review; checked no-retry Unknown/authority/non-idempotent precedence, fresh attempt increment, idempotency-key requirement, absolute deadline and bounded backoff; no local runtime test reviewer
 ```
+
+### INT-22 connector Unknown reconciliation evidence (2026-09-26)
+
+```text
+source_snapshot: `f65255e8` plus INT-22 reconciliation slice; kiana-domain/src/{connector_reconciliation.rs,connectors.rs,effect_observation.rs,lib.rs}; kiana-domain/tests/int22_connector_reconciliation.rs; kiana-core/tests/int22_connector_reconciliation_guard.rs; kiana-daemon/src/connectors.rs; .github/workflows/int22-connector-reconciliation.yml; docs/roadmap/int22-connector-reconciliation-baseline.md; docs/roadmap.md
+worktree_status: ConnectorReconciliationCase quarantines Unknown and forbids automatic retry, idempotency-key reuse and original receipt replacement; provider query/manual evidence is bound to invocation/attempt/binding/account/operation/key/payload/owner/audience; daemon connector.reconcile carries a reconciled successor case; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/{connector_reconciliation.rs,connectors.rs,effect_observation.rs} kiana-domain/tests/int22_connector_reconciliation.rs kiana-core/tests/int22_connector_reconciliation_guard.rs kiana-daemon/src/connectors.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test int22_connector_reconciliation --locked -- --test-threads=1; cargo test -p kiana-core --test int22_connector_reconciliation_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only Unknown quarantine, Human Inbox safe/forbidden actions, matching manual evidence, cross-binding/payload/key/attempt denial, unknown evidence denial and unknown-field fixtures; no live provider query or external effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: INT-22 Unknown reconciliation source slice, CI fixture/guard and baseline implemented; roadmap row 499/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: provider query is not wired to a live transport; manual evidence is supplied input, and no provider truth, durable cross-process Human Inbox delivery, compensation, cancel settlement or live/physical business outcome is claimed; INT-23+ remain open
+reviewer: Codex INT-22 source review; checked Unknown quarantine, explicit successor reconciliation, identity/payload/key binding, safe/forbidden action projection and no automatic retry; no local runtime test reviewer
+```

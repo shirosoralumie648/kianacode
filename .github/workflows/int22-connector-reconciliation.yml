@@ -1,0 +1,54 @@
+name: int22-connector-reconciliation
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_reconciliation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int22_connector_reconciliation.rs"
+      - "kiana-core/tests/int22_connector_reconciliation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int22-connector-reconciliation.yml"
+      - "docs/roadmap/int22-connector-reconciliation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_reconciliation.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/effect_observation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int22_connector_reconciliation.rs"
+      - "kiana-core/tests/int22_connector_reconciliation_guard.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - ".github/workflows/int22-connector-reconciliation.yml"
+      - "docs/roadmap/int22-connector-reconciliation-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-reconciliation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-22 reconciliation fixtures
+        run: cargo test -p kiana-domain --test int22_connector_reconciliation --locked -- --test-threads=1
+      - name: Run INT-22 reconciliation boundary source guard
+        run: cargo test -p kiana-core --test int22_connector_reconciliation_guard --locked -- --test-threads=1
+      - name: Compile INT-22 workspace targets
+        run: cargo check --workspace --tests --locked
