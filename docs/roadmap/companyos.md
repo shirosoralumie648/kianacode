@@ -701,7 +701,7 @@
 
 
 
-#### CO-42 · 全业务链跨进程恢复与 schema 升级演练　⏳
+#### CO-42 · 全业务链跨进程恢复与 schema 升级演练　🔄
 
 - **归属**：`P3-I-03`、`P0-F-03`、`P2-J5-01`、`P2-K6-01`。
 - **依赖**：CO-08、CO-23、CO-29、CO-30、CO-32、CO-35、CO-39。
@@ -709,6 +709,7 @@
 - **实现顺序**：①在 intent 提交、派发、模型结果、工具效果、评审、人工决定、交付、收尾边界注入崩溃；②销毁原进程和缓存后重建；③先只读核对，再显式恢复/对账，验证升级后的旧记录读取与待决流程版本固定。
 - **先拒绝**：`company_restart_with_missing_result_or_corrupt_evidence_never_reexecutes_blindly`；无授权/续接材料、断裂 stream、旧 assignment、未知 schema 都保持可诊断阻塞。
 - **再成功 / 退出**：`new_process_rebuilds_and_resumes_the_company_chain_from_durable_facts`；业务图、责任、预算、等待任务与原 receipt 一致。仅重复构造同进程对象不足以声称跨进程 durable。
+- **本步交付**：`company_recovery.rs` 以 versioned durable facts hydration 生成默认暂停 snapshot，拒绝 gap/cursor/schema/evidence/Unknown，Resume 必须绑定当前 epoch/digest 与显式 approval；不执行重试或副作用。
 
 ### 批次 F：并行、复用与总验收
 

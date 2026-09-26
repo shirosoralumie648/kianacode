@@ -620,6 +620,8 @@ mod company_read_model;
 pub use company_read_model::*;
 mod company_inbox;
 pub use company_inbox::*;
+mod company_recovery;
+pub use company_recovery::*;
 
 mod dispatch;
 mod effect_observation;
