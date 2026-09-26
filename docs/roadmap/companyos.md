@@ -782,7 +782,7 @@
 
 
 
-#### CO-47 · fake-model Company 黄金闭环与故障矩阵　⏳
+#### CO-47 · fake-model Company 黄金闭环与故障矩阵　🔄
 
 - **归属**：`P3-I-06`、`P1-L1-01`。
 - **依赖**：CO-35、CO-36、CO-37、CO-40、CO-41、CO-42、CO-44、CO-46。
