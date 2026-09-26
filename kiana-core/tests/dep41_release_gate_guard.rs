@@ -95,6 +95,8 @@ fn dep41_keeps_evidence_fields_and_proof_ceiling_explicit() {
     assert!(roadmap.contains("<a id=\"step-dep-41\"></a>`DEP-41`"));
     assert!(script.contains("feature_status"));
     assert!(script.contains("result_unknown"));
+    assert!(script.contains("matrix_rows"));
+    assert!(script.contains("allowed_feature_status"));
     assert!(matrix.contains("| DEP-41 handoff gate | partial | source |"));
     assert!(!matrix.contains("DEP-41 handoff gate | implemented | durable"));
 }

@@ -68,6 +68,35 @@ for marker in [
     if marker not in matrix:
         raise SystemExit(f"DEP-41 matrix missing {marker}")
 
+header = "| Slice | feature_status | proof_level | Current evidence | Hard limit / next gate |"
+start = matrix.find(header)
+if start < 0:
+    raise SystemExit("DEP-41 matrix table header missing")
+
+allowed_feature_status = {"implemented", "partial", "target", "deferred", "not_supported"}
+allowed_proof_level = {"source", "local_behavior", "durable", "live", "physical"}
+matrix_rows = []
+for line in matrix[start:].splitlines()[1:]:
+    if not line.strip():
+        break
+    if not line.startswith("|"):
+        raise SystemExit("DEP-41 matrix contains a non-table line")
+    cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+    if cells and all(set(cell) <= {"-", ":", " "} for cell in cells):
+        continue
+    if len(cells) != 5 or any(not cell for cell in cells):
+        raise SystemExit("DEP-41 matrix rows must have five non-empty columns")
+    if cells[1] not in allowed_feature_status:
+        raise SystemExit(f"DEP-41 invalid feature_status: {cells[1]}")
+    if cells[2] not in allowed_proof_level:
+        raise SystemExit(f"DEP-41 invalid proof_level: {cells[2]}")
+    matrix_rows.append(cells)
+
+if len(matrix_rows) < 10:
+    raise SystemExit("DEP-41 matrix lost required handoff rows")
+if any("overall project complete" in " ".join(row).lower() for row in matrix_rows):
+    raise SystemExit("DEP-41 matrix contains blanket completion language")
+
 if "| DEP-41 handoff gate | partial | source |" not in matrix:
     raise SystemExit("DEP-41 matrix must keep its own gate partial/source")
 if "### DEP-41" not in status:

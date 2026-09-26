@@ -33,3 +33,7 @@ durable/live/physical.
 Each row must link or name `source_snapshot`, `worktree_status`, `command_argv`, `cwd·environment`,
 `fixture·cassette`, `exit_code`, `status change`, `proof-level change`, `limitations` and
 `reviewer`. The reviewer must be a concrete owner/reviewer statement, not a model self-report.
+
+The GitHub-only validator parses every matrix row, requiring five non-empty columns, an allowed
+`feature_status`/`proof_level` pair and a concrete evidence/next-gate cell; marker presence alone
+cannot close the handoff.
