@@ -252,6 +252,7 @@ impl HarnessIntegrationMatrix {
                     && case.operator_approved
                     && case.receipt_digest.is_some()
                     && case.stream_evidence
+                    && (case.surface != HarnessSurface::Desktop || case.desktop_state_receipt)
                     && !case.result_unknown
             })
             .map(|case| case.surface)

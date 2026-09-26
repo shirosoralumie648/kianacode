@@ -16,6 +16,8 @@ Web and Desktop, requiring reasoned non-verified rows and receipt/fence/stream/D
 evidence for Verified rows. `live_closeout_blockers()` and `live_closeout_ready()` now make the
 missing per-surface live evidence, approval, Receipt and result-unknown reconciliation explicit.
 They are coverage contracts, not runtime execution or live proof.
+Desktop live closeout additionally requires a `desktop_state_receipt`; a stream/receipt alone cannot
+promote a Desktop surface.
 
 The H36 CI gate also indexes the existing ProviderLiveConnectionEvidence and LiveHandoffManifest
 contracts and the common DaemonHost → ControlPlane → KianaHarness → ProviderGateway source spine.

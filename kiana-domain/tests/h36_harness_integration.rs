@@ -137,3 +137,29 @@ fn verified_and_desktop_receipts_are_required() {
         "harness_integration_verified_unknown_conflict"
     );
 }
+
+#[test]
+fn live_closeout_does_not_count_desktop_without_state_receipt() {
+    let mut value = matrix();
+    let desktop = value
+        .cases
+        .iter_mut()
+        .find(|case| {
+            case.surface == HarnessSurface::Desktop && case.scenario == HarnessScenario::ShortTask
+        })
+        .expect("desktop short-task case");
+    desktop.status = HarnessCaseStatus::Verified;
+    desktop.provider_mode = "live_opt_in".to_owned();
+    desktop.operator_approved = true;
+    desktop.receipt_digest = Some(RECEIPT.to_owned());
+    desktop.stream_evidence = true;
+    desktop.desktop_state_receipt = false;
+    desktop.result_unknown = false;
+    desktop.case_digest = desktop.digest();
+    value.matrix_digest = value.digest();
+    value.validate().unwrap();
+    assert!(value
+        .live_closeout_blockers()
+        .iter()
+        .any(|blocker| blocker == "live_evidence_missing:desktop"));
+}
