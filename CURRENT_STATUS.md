@@ -14990,3 +14990,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: the ledger does not read external datasets or mutate Objective status; fixture/live distinction, durable query projection, late source policy and full command integration remain open
 reviewer: Codex CO-36 source review; checked frozen rule binding, exact source/unit/window, finite/sample gates, deterministic aggregation, missing data, assessment digest, Sponsor independence, no delivery substitution and idempotency; no local runtime test reviewer
 ```
+
+### CO-37 Company decision, lesson candidate and Memory promotion evidence (2026-09-27)
+
+```text
+source_snapshot: `c63fde67` plus CO-37 Company knowledge source slice; kiana-domain/src/{company_knowledge.rs,company.rs,lib.rs,memory_distillation.rs,memory_proposals.rs}; kiana-core/src/{company_knowledge.rs,lib.rs}; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/co37_company_knowledge.rs; kiana-core/tests/co37_company_knowledge_guard.rs; .github/workflows/co37-company-knowledge.yml; docs/roadmap/co37-company-knowledge-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyDecisionRecord binds project/department/kind/source event/ClosingReceipt/evidence; CompanyLessonCandidate binds candidate text, role/scope collection and decision evidence, rejecting private/scratch, foreign scope and self-review; CompanyKnowledgePromotion requires Approved candidate/reviewer and preserves source evidence; CompanyState exposes the ledger while existing MemoryProposal/MemoryDistillationSource/memory.review remain ACL/write authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_knowledge.rs kiana-core/src/company_knowledge.rs kiana-domain/tests/co37_company_knowledge.rs kiana-core/tests/co37_company_knowledge_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co37_company_knowledge --locked -- --test-threads=1; cargo test -p kiana-core --test co37_company_knowledge_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only ClosingReceipt/decision binding, private/scratch collection denial, evidence drift, duplicate distillation, self-review, cross-project candidate, approved department promotion, source evidence preservation and idempotent replay; no actual distillation, MemoryRecord write, retrieval/live policy outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-37 CompanyDecisionRecord/LessonCandidate/KnowledgePromotion source slice, CompanyState ledger projection, CI fixture/guard, workflow and baseline implemented; roadmap row 536/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: approved promotion remains a validated handoff to existing memory.review and does not write/search MemoryRecord; durable projection, retrieval freshness and UI remain CO-38+
+reviewer: Codex CO-37 source review; checked decision/receipt/evidence binding, collection scope, private/scratch deny, cross-project/self-review fences, approved reviewer binding, promotion idempotency and existing Memory ACL boundary; no local runtime test reviewer
+```

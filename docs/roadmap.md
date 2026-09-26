@@ -707,7 +707,7 @@
 | 533 | W7 | 专项 | [`CO-34`](roadmap/companyos.md#step-co-34) | CompanyOS · 交付授权、效果记录与接收确认 | `CO-05`、`CO-07`、`CO-32`、`CO-33` | 🔄 | [专项卡](roadmap/companyos.md#step-co-34) · [baseline](roadmap/co34-delivery-authorization-baseline.md) |
 | 534 | W7 | 专项 | [`CO-35`](roadmap/companyos.md#step-co-35) | CompanyOS · 成功、失败、取消和豁免的 ClosingReceipt | `CO-28`、`CO-31`、`CO-32`、`CO-34` | 🔄 | [专项卡](roadmap/companyos.md#step-co-35) · [baseline](roadmap/co35-closing-receipt-baseline.md) |
 | 535 | W7 | 专项 | [`CO-36`](roadmap/companyos.md#step-co-36) | CompanyOS · Outcome 测量与目标实现判定 | `CO-09`、`CO-10`、`CO-35` | 🔄 | [专项卡](roadmap/companyos.md#step-co-36) · [baseline](roadmap/co36-outcome-measurement-baseline.md) |
-| 536 | W7 | 专项 | [`CO-37`](roadmap/companyos.md#step-co-37) | CompanyOS · 部门决议、收尾经验与 Memory 候选晋升 | `CO-15`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-37) |
+| 536 | W7 | 专项 | [`CO-37`](roadmap/companyos.md#step-co-37) | CompanyOS · 部门决议、收尾经验与 Memory 候选晋升 | `CO-15`、`CO-35` | 🔄 | [专项卡](roadmap/companyos.md#step-co-37) · [baseline](roadmap/co37-company-knowledge-baseline.md) |
 | 537 | W7 | 专项 | [`CO-38`](roadmap/companyos.md#step-co-38) | CompanyOS · 组织与项目的可重建读模型 | `CO-18`、`CO-22`、`CO-28`、`CO-35`、`CO-36` | ⏳ | [专项卡](roadmap/companyos.md#step-co-38) |
 | 538 | W7 | 专项 | [`CO-39`](roadmap/companyos.md#step-co-39) | CompanyOS · 统一 Human Inbox 与有后续动作的决定卡 | `CO-05`、`CO-23`、`CO-28`、`CO-34`、`CO-38` | ⏳ | [专项卡](roadmap/companyos.md#step-co-39) |
 | 539 | W7 | 专项 | [`CO-40`](roadmap/companyos.md#step-co-40) | CompanyOS · CLI 与 Workbench 的 Company 用户流程 | `CO-38`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-40) |
