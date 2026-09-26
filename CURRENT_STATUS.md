@@ -15365,3 +15365,18 @@ proof-level change: feature_status=partial; proof_level=source; no local_behavio
 limitations: wrappers do not execute an evaluator or persist report/GoldenTrace artifacts; curated/deep CI lane wiring, artifact archival and final evidence handoff remain EQ-50/EQ-51; real provider quality, compare semantics and physical outcomes are unproven
 reviewer: Codex EQ-49 source review; checked env -i allowlist, temporary home isolation, strict refs/secret/path handling, array argv, non-zero propagation, existing ControlPlane route names and no second loop; no local runtime/evaluation reviewer
 ```
+
+### EQ-50 evaluation CI lanes evidence (2026-09-27)
+
+```text
+source_snapshot: `95b95a26` plus EQ-50 CI lane source slice; .github/workflows/{eq50-pr-curated.yml,eq50-nightly-deep.yml,eq50-release-candidate.yml}; scripts/tests/{eq49-eval-scripts-static.sh,eq50-ci-lanes-static.sh}; scripts/eval-{curated,deep,capture-golden,compare}.sh; docs/roadmap/evaluation-ci-lanes-baseline.md; docs/roadmap.md
+worktree_status: PR curated/package, scheduled nightly deep and release candidate/tag lanes have distinct triggers and package scopes; all use read-only contents permission, EQ-49 static guard, explicit formatting/compile gates and serial daemon/core test flags; nightly/release require explicit opt-in or tag and fail closed when absent; unrelated shared WIP remains uncommitted
+command_argv: bash -n scripts/tests/eq50-ci-lanes-static.sh; git diff --check; GitHub Actions: bash scripts/tests/eq49-eval-scripts-static.sh; bash scripts/tests/eq50-ci-lanes-static.sh; cargo fetch --locked; cargo fmt --all --check; cargo check -p kiana-commands -p kiana-quality -p kiana-core -p kiana-daemon --tests --locked; cargo test -p kiana-core --tests --locked -- --test-threads=1; cargo test -p kiana-daemon --tests --locked -- --test-threads=1
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push/schedule/manual dispatch but not awaited
+fixture·cassette: GitHub-only lane trigger/permission/scope/opt-in/static guard fixtures; no provider credentials, proxy/MCP variables, EvalStore execution, report archive, provider/live quality or physical outcome evidence
+exit_code: bash syntax and git diff check pending; remote static guard, formatting, compile and serial daemon/core test results pending/unobserved
+status_change: EQ-50 three distinct evaluation CI lanes, explicit fail-closed opt-in, read-only permissions, serial daemon/core commands, static guard, workflow baseline and roadmap evidence added; roadmap row 673/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: workflow definitions and static guard do not prove GitHub runner execution, nightly scheduling, actual EvalStore/report/provider behavior or release promotion; EQ-51 evidence archive and status closeout remain open
+reviewer: Codex EQ-50 source review; checked distinct triggers, read-only permissions, explicit nightly/release opt-in, serial test flags, EQ-49 guard reuse and ambient credential exclusion; no local runtime/CI execution reviewer
+```
