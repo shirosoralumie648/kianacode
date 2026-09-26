@@ -15230,3 +15230,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: user instruction prohibits local tests and the remote CI result is not awaited; no durable completion claim is valid until an authorized run produces its own evidence block
 reviewer: Codex ER-34 source review; checked source-vs-durable distinction, origin/execution consistency, hash/fact/cache requirements and fail-closed forged proof; no local runtime/durable reviewer
 ```
+
+### CI-12 product-chain deny-first gate evidence (2026-09-27)
+
+```text
+source_snapshot: `ed8d24e8` plus CI-12 product gate source slice; kiana-domain/src/{ci12_product_gate.rs,lib.rs}; kiana-core/src/{ci12_product_gate.rs,lib.rs}; kiana-daemon/src/lib.rs; kiana-entrypoints/src/company_user_flow.rs; kiana-domain/tests/ci12_product_gate.rs; kiana-core/tests/ci12_product_gate_guard.rs; .github/workflows/ci12-product-gate.yml; docs/roadmap/ci12-product-gate-baseline.md; docs/roadmap.md
+worktree_status: Ci12ProductGate covers missing authentication, untrusted project, cross-project scope, expired approval, secret, TOCTOU, replay, Unknown, fake provider success and live opt-in; denial cases require zero handler/provider/effect calls, Unknown keeps receipt/reconcile limits, fake success stays offline, live requires typed approval/provider evidence; existing DaemonHost/ControlPlane spine remains owner; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/ci12_product_gate.rs kiana-core/src/ci12_product_gate.rs kiana-domain/tests/ci12_product_gate.rs kiana-core/tests/ci12_product_gate_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test ci12_product_gate --locked -- --test-threads=1; cargo test -p kiana-core --test ci12_product_gate_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon -p kiana-entrypoints --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only ten-scenario deny-first matrix, fake provider success, Unknown/reconcile, live opt-in approval/evidence ceiling, duplicate/secret guard and existing company user-flow/spine markers; no CLI/Web/Workbench/Desktop E2E, external provider, durable restart or physical effect
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CI-12 product gate contract, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 659 advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source matrix does not prove all four runtime surfaces or real provider/live opt-in; CI result is not awaited and live claims require separate evidence
+reviewer: Codex CI-12 source review; checked zero-effect denial, Unknown/reconcile receipt, fake-provider boundary, typed live approval/evidence and single-spine/no-second-loop guard; no local runtime test reviewer
+```
