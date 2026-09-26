@@ -16,8 +16,8 @@ The domain now also exposes `ProviderLiveConnectionMetadata` and
 (`provider_id`, connection, protocol, requested model, configuration digest, credential revision
 and provider-account digest); the latter requires separate per-connection status, authorization,
 budget, reported model, usage/Unknown, text/tools, delta, cancel, Receipt and artifact evidence.
-Verified evidence rejects synthetic sources and incomplete observations; skipped/unverified rows
-must retain a bounded limitation.
+Verified evidence rejects synthetic sources, incomplete observations and untyped operator approval;
+skipped/unverified rows must retain a bounded limitation.
 
 No live request is executed by this source gate. P4-J7-31 remains partial/unverified until each
 authorized connection supplies an isolated account, fixed protocol/model/profile, budget, text

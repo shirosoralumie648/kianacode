@@ -264,6 +264,19 @@ proof-level change: `feature_status=implemented`（bounded harness integration s
 limitations: 未执行真实 Provider/account/model、Desktop/browser/PTY、三入口 runtime、restart/steer/approval/compaction、latency/stream/RSS/cleanup、external receipt 或 live/physical outcome；CI 结果未等待
 reviewer: Codex H36 source review；检查 Desktop live surface receipt/stream/state binding、existing cancel/Unknown/live blockers、shared spine and no second loop；无本地 runtime/live reviewer
 
+### P4-J7-31 provider live approval identity fence（2026-09-26）
+
+source_snapshot: `7e411030`（H36 Desktop state fence 已合并 master 基线）加 P4-J7-31 provider-evidence source slice；`kiana-domain/src/provider_live.rs`; `kiana-domain/tests/p4_j7_31_live_evidence.rs`; `docs/roadmap/p4-j7-31-provider-live-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/p4-j7-31-provider-approval-fence-20260926`; Verified provider connection evidence now requires trimmed `approval:` operator ref in addition to non-synthetic source, per-connection model/usage/receipt/artifact/text/tools/delta/cancel evidence；不发 provider request、不使用 credential、不执行 external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/provider/live）；GitHub Actions 将运行 P4-J7-31 domain/provider-live/source guards、default-deny smoke path 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/account/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `p4_j7_31_live_evidence.rs` 新增 malformed approval ref deny；existing synthetic/unverified/credential-free/local and required/skip provider smoke boundaries remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 P4-J7-31 domain/provider/source guard/workspace compile exit code pending/unobserved
+status_change: P4-J7-31 Verified live evidence now binds typed operator approval before any live proof claim，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=partial`（provider live source boundary）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行任何 authorized provider/account/model/profile、live text/tools/delta/cancel、usage/Receipt/artifact/retention/cleanup 或 live/physical outcome；CI 结果未等待
+reviewer: Codex P4-J7-31 source review；检查 approval prefix/trim、synthetic deny、connection/model/credential/budget/usage/receipt/artifact/cancel evidence 与 no external request；无本地 provider/live reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
