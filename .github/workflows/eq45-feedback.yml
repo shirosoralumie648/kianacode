@@ -1,0 +1,48 @@
+name: EQ-45 quality feedback
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/quality_feedback.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/quality_feedback.rs"
+      - "kiana-core/src/quality_feedback.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/quality_feedback_guard.rs"
+      - "docs/roadmap/evaluation-feedback-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq45-feedback.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/quality_feedback.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/quality_feedback.rs"
+      - "kiana-core/src/quality_feedback.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/quality_feedback_guard.rs"
+      - "docs/roadmap/evaluation-feedback-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq45-feedback.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-45 domain feedback fixtures
+        run: cargo test -p kiana-domain --test quality_feedback --locked -- --test-threads=1
+      - name: Run EQ-45 core source guard
+        run: cargo test -p kiana-core --test quality_feedback_guard --locked -- --test-threads=1
+      - name: Compile EQ-45 targets
+        run: cargo check --workspace --tests --locked
