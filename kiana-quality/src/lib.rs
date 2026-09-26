@@ -14,6 +14,7 @@ mod evaluator;
 mod evidence;
 mod fixtures;
 mod normalize;
+mod recovery;
 mod runtime;
 mod safety;
 mod scenario;
@@ -61,6 +62,11 @@ pub use fixtures::{
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
     TRACE_NORMALIZATION_VERSION,
+};
+pub use recovery::{
+    evaluate_recovery_replay, CrashRestartEvidence, RecoveryReplayEvaluator, RecoveryReplayInput,
+    ReplayEvidence, ReplayFenceEvidence, UnknownReconcileEvidence, RECOVERY_REPLAY_EVALUATOR_ID,
+    RECOVERY_REPLAY_INPUT_SCHEMA,
 };
 pub use runtime::{
     evaluate_runtime_correctness, RuntimeCorrectnessEvaluator, RuntimeCorrectnessInput,

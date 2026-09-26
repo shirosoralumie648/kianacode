@@ -14285,3 +14285,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied evidence only; it does not prove durable artifact/receipt truth, actual provider receipt, cross-process recovery, quality aggregation, promotion authority, live or physical outcome; EQ-31+ and ER/PD/SC remain open
 reviewer: Codex EQ-30 source review; checked missing/hash/assertion/redaction/provenance/cursor findings and pure no-I/O/no-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-31 recovery and replay evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `38ab7752` plus EQ-31 recovery/replay evaluator slice; kiana-quality/src/{recovery.rs,lib.rs}; kiana-quality/tests/{eq31_recovery.rs,eq31_recovery_guard.rs}; .github/workflows/eq31-recovery-replay.yml; docs/roadmap/evaluation-recovery-replay-baseline.md; docs/roadmap.md
+worktree_status: pure RecoveryReplayEvaluator consumes crash/restart, fence, Unknown/reconcile and replay evidence; it separately reports replay digest divergence and result_unknown, checks logic-version drift, cursor order, old-fence revocation, new-fence binding, explicit resume and no retry before reconciliation; no restart, EventLog, fence mutation, provider query, reconcile action or authority path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{recovery.rs,lib.rs} kiana-quality/tests/{eq31_recovery.rs,eq31_recovery_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq31_recovery --locked -- --test-threads=1; cargo test -p kiana-quality --test eq31_recovery_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only equivalent restart replay, digest/version divergence plus Unknown, missing restart/resume/fence and strict unknown-field fixtures; no process kill/restart, durable checkpoint, EventLog replay, provider receipt or external reconciliation cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-31 recovery/replay source contract, CI fixture/guard and baseline implemented; roadmap row 477/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied recovery evidence only; it does not prove real crash/power-loss recovery, durable replay, cross-process fences, external reconciliation/provider receipt or live/physical outcome; EQ-32+ and ER/PD/SC remain open
+reviewer: Codex EQ-31 source review; checked distinct divergence/Unknown findings, fence/resume/reconcile/retry denial and pure no-I/O boundary; no local runtime test reviewer
+```
