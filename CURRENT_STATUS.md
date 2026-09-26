@@ -290,6 +290,19 @@ proof-level change: `feature_status=partial`（context/memory source evidence bo
 limitations: 未执行真实 context selection、candidate approval、restart recovery、index/retention、provider/account、live scope/redaction、durable golden path 或 physical effect；CI 结果未等待
 reviewer: Codex CM-38 source review；检查 approval prefix/trim、FakeCassette/live proof ceiling、stage completeness/scope/redaction/provider evidence 与 no effect；无本地 memory/provider/live reviewer
 
+### CM-39 handoff evidence-block fence（2026-09-26）
+
+source_snapshot: `26813ec6`（CM-38 live approval fence 已合并 master 基线）加 CM-39 status-parser source slice；`kiana-core/tests/cm39_context_memory_closeout_guard.rs`; `docs/roadmap/cm39-context-memory-closeout-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/cm-39-handoff-evidence-fence-20260926`; guard 截取 CM-38 当前 CURRENT_STATUS block，逐项要求 source/worktree/argv/environment/fixture/exit/status/proof/limitations/reviewer 十个字段和 `proof_level=source` ceiling；不执行 memory/provider/Broker、durable/live/physical effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/memory/provider/live）；GitHub Actions 将运行 CM-39 source guard、`cargo fmt --all --check` 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/memory/durable/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: CM-38 block extraction in `CURRENT_STATUS.md` plus CM-39 baseline/source guard；requires ten evidence fields and source proof ceiling, no runtime cassette
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 CM-39 source guard/workspace compile exit code pending/unobserved
+status_change: CM-39 handoff guard 从全文 marker 检查升级为 CM-38 evidence block 字段/ceiling 校验，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（documentation/source handoff gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: guard 只证明状态账本/文档结构，不能证明 CM-33–37 runtime、durable index/retention、cross-process recovery、provider/live scope/redaction 或 physical/scale outcome；CI 结果未等待
+reviewer: Codex CM-39 source/handoff review；检查 CM-38 block extraction、ten evidence fields、source ceiling、open limitations 与 no document-based promotion；无本地 runtime/memory reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
