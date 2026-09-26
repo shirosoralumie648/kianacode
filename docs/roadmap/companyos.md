@@ -605,7 +605,7 @@
 
 
 
-#### CO-36 · Outcome 测量与目标实现判定　⏳
+#### CO-36 · Outcome 测量与目标实现判定　🔄
 
 - **归属**：`P3-I-05`、`P1-L1-01`。
 - **依赖**：CO-09、CO-10、CO-35。
@@ -613,6 +613,7 @@
 - **实现顺序**：①立项时固定测量方法、窗口、采样/聚合、数据来源和 owner；②窗口内追加观测，去重并保留 observed_at/recorded_at；③窗口结束后按规则计算结果，迟到观测形成新 assessment；Sponsor 独立决定 Objective Achieved。
 - **先拒绝**：`objective_cannot_be_achieved_from_delivery_tests_or_cherry_picked_observation`；单位错误、过期来源、窗口外数据、NaN、缺样本/缺来源均不宣称实现。
 - **再成功 / 退出**：`outcome_assessment_replays_from_frozen_measurement_rules_and_observations`；区分 Realized、PartiallyRealized、NotRealized 和缺数据；fixture 与真实观测明确标记。
+- **本步交付**：`outcome_measurement.rs` 冻结计划并以全量观测确定性生成 MissingData/Realized/PartiallyRealized/NotRealized assessment，Sponsor 决策绑定 assessment digest 且与 owner 独立；delivery/runtime 完成不能替代 Outcome，外部数据接入留后续步骤。
 
 <a id="co-37"></a>
 

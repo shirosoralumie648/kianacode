@@ -612,6 +612,8 @@ mod delivery_authorization;
 pub use delivery_authorization::*;
 mod closing_receipt;
 pub use closing_receipt::*;
+mod outcome_measurement;
+pub use outcome_measurement::*;
 
 mod dispatch;
 mod effect_observation;
