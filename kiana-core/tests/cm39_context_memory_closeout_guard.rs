@@ -64,4 +64,30 @@ fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
             "CM-39 baseline marker missing: {marker}"
         );
     }
+
+    let cm38_start = status
+        .find("### CM-38 live evidence approval identity fence")
+        .expect("CM-38 status block");
+    let cm38_tail = &status[cm38_start..];
+    let cm38_end = cm38_tail.find("\n### ").unwrap_or(cm38_tail.len());
+    let cm38_block = &cm38_tail[..cm38_end];
+    for field in [
+        "source_snapshot:",
+        "worktree_status:",
+        "command_argv:",
+        "cwd·environment:",
+        "fixture·cassette:",
+        "exit_code:",
+        "status_change:",
+        "proof-level change:",
+        "limitations:",
+        "reviewer:",
+    ] {
+        assert!(
+            cm38_block.contains(field),
+            "CM-38 evidence field missing: {field}"
+        );
+    }
+    assert!(cm38_block.contains("proof_level=source"));
+    assert!(cm38_block.contains("未提升 local_behavior/durable/live/physical"));
 }
