@@ -14495,3 +14495,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: evaluator checks caller-supplied shadow evidence only; no real sample stream, route change, grant-preserving rollback execution, durable state, live or physical outcome is claimed; EQ-45+ remain open
 reviewer: Codex EQ-44 source review; checked sample/TTL/regression/rollback route/grant invariants and pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### INT-19 connector dispatch and observation separation evidence (2026-09-26)
+
+```text
+source_snapshot: `cde0cdf5` plus INT-19 connector dispatch slice; kiana-domain/src/{connector_dispatch.rs,connectors.rs,lib.rs}; kiana-domain/tests/int19_connector_dispatch.rs; kiana-daemon/src/connectors.rs; kiana-daemon/tests/int19_connector_dispatch_guard.rs; .github/workflows/int19-connector-dispatch.yml; docs/roadmap/int19-connector-dispatch-baseline.md; docs/roadmap.md
+worktree_status: ConnectorDispatchLifecycle enforces prepared/dispatching/observed/result_committed or terminal unknown; ConnectorEventJournal owns the EventStorePort boundary; LocalFixtureAdapter and LocalFixtureEffectObserver are separate; incomplete and terminal replay returns result_unknown without adapter re-entry; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/{connector_dispatch.rs,connectors.rs,lib.rs} kiana-daemon/src/connectors.rs kiana-domain/tests/int19_connector_dispatch.rs kiana-daemon/tests/int19_connector_dispatch_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test int19_connector_dispatch --locked -- --test-threads=1; cargo test -p kiana-daemon --test int19_connector_dispatch_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only lifecycle transition fixtures, malformed/unknown-field denial, daemon source guard for journal ownership and prepared→dispatching→adapter→observation→terminal ordering; local fixture remains deterministic and external effect is disabled
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: INT-19 dispatch/observation source slice, CI fixture/guard and baseline implemented; roadmap row 496/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: local fixture adapter is not a live provider; journal ownership is within the daemon composition and does not prove cross-process durable recovery; provider receipt truth, retry policy, reconciliation and cancel settlement remain INT-20/INT-21/INT-22/INT-23 work; no live/physical outcome is claimed
+reviewer: Codex INT-19 source review; checked terminal resurrection denial, journal/handler boundary, pre-effect lifecycle commits, separate adapter/observer ordering and no second authorization loop; no local runtime test reviewer
+```

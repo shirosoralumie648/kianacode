@@ -1,0 +1,52 @@
+name: int19-connector-dispatch
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_dispatch.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int19_connector_dispatch.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int19_connector_dispatch_guard.rs"
+      - ".github/workflows/int19-connector-dispatch.yml"
+      - "docs/roadmap/int19-connector-dispatch-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_dispatch.rs"
+      - "kiana-domain/src/connectors.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int19_connector_dispatch.rs"
+      - "kiana-daemon/src/connectors.rs"
+      - "kiana-daemon/tests/int19_connector_dispatch_guard.rs"
+      - ".github/workflows/int19-connector-dispatch.yml"
+      - "docs/roadmap/int19-connector-dispatch-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-19 domain lifecycle fixtures
+        run: cargo test -p kiana-domain --test int19_connector_dispatch --locked -- --test-threads=1
+      - name: Run INT-19 daemon dispatch boundary guard
+        run: cargo test -p kiana-daemon --test int19_connector_dispatch_guard --locked -- --test-threads=1
+      - name: Compile INT-19 workspace targets
+        run: cargo check --workspace --tests --locked
