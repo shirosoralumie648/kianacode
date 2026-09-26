@@ -33,6 +33,7 @@ mod delivery_authorization;
 mod closing_receipt;
 mod outcome_measurement;
 mod company_knowledge;
+mod company_read_model;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;

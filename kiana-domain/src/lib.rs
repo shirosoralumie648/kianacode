@@ -616,6 +616,8 @@ mod outcome_measurement;
 pub use outcome_measurement::*;
 mod company_knowledge;
 pub use company_knowledge::*;
+mod company_read_model;
+pub use company_read_model::*;
 
 mod dispatch;
 mod effect_observation;
