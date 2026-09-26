@@ -8,7 +8,7 @@ non-secret reference, fixed scope, operator approval, redaction, independent rec
 `ContextMemoryGoldenPathEvidence` now gives the checklist a typed, digest-bound shape. It requires
 scope and redaction profile digests, records ContextPlan/provider request/tool receipt/retrieval/
 candidate/approval/projection/recovery/run-receipt stage digests, and keeps fake cassette,
-explicit live opt-in, proof level, usage-independent limitations and provider-live evidence
+explicit live opt-in with a trimmed `approval:` operator ref, proof level, usage-independent limitations and provider-live evidence
 separate. A fake cassette cannot claim live proof; incomplete or non-verified paths must retain a
 bounded limitation.
 

@@ -277,6 +277,19 @@ proof-level change: `feature_status=partial`（provider live source boundary）�
 limitations: 未执行任何 authorized provider/account/model/profile、live text/tools/delta/cancel、usage/Receipt/artifact/retention/cleanup 或 live/physical outcome；CI 结果未等待
 reviewer: Codex P4-J7-31 source review；检查 approval prefix/trim、synthetic deny、connection/model/credential/budget/usage/receipt/artifact/cancel evidence 与 no external request；无本地 provider/live reviewer
 
+### CM-38 live evidence approval identity fence（2026-09-26）
+
+source_snapshot: `f1b0ad1d`（P4-J7-31 provider approval fence 已合并 master 基线）加 CM-38 evidence source slice；`kiana-domain/src/context_memory_evidence.rs`; `kiana-domain/tests/cm38_context_memory_evidence.rs`; `docs/roadmap/cm38-context-memory-live-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/cm-38-live-approval-fence-20260926`; LiveOptIn context/memory evidence now requires provider-live evidence plus trimmed `approval:` operator ref; FakeCassette, incomplete stages and nonverified limitations remain fail-closed；不执行 provider、Memory mutation、durable projection 或 external effect
+command_argv: 本地仅目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/provider/live/memory）；GitHub Actions 将运行 CM-38 fake provider/domain/source fixtures 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/account/live/durable/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `cm38_context_memory_evidence.rs` 新增 malformed LiveOptIn approval ref deny；existing fake golden/stage completeness/live provider evidence/scope/redaction/recovery fixtures remain CI-only
+exit_code: 本地目标 rustfmt 与 `git diff --check`；远程 CM-38 fake provider/domain/source guard/workspace compile exit code pending/unobserved
+status_change: CM-38 LiveOptIn evidence now binds typed operator approval before live proof claim，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=partial`（context/memory source evidence boundary）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未执行真实 context selection、candidate approval、restart recovery、index/retention、provider/account、live scope/redaction、durable golden path 或 physical effect；CI 结果未等待
+reviewer: Codex CM-38 source review；检查 approval prefix/trim、FakeCassette/live proof ceiling、stage completeness/scope/redaction/provider evidence 与 no effect；无本地 memory/provider/live reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
