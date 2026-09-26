@@ -1006,6 +1006,9 @@ pub struct CompanyState {
     /// fenced by the existing cancellation, dispatch and cell registries.
     #[serde(default)]
     pub project_controls: crate::ProjectControlLedger,
+    /// CO-32 separates risk signals, named incidents and append-only Unknown reconciliation.
+    #[serde(default)]
+    pub company_reconciliation: crate::CompanyReconciliationLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1190,6 +1193,27 @@ impl CompanyState {
         project_id: &str,
     ) -> Option<&crate::ProjectControlPlan> {
         self.project_controls.latest(project_id)
+    }
+
+    pub fn record_company_risk_trigger(
+        &mut self,
+        trigger: crate::CompanyRiskTrigger,
+    ) -> CompanyResult<()> {
+        self.company_reconciliation.record_trigger(trigger)
+    }
+
+    pub fn open_company_incident(
+        &mut self,
+        incident: crate::CompanyIncident,
+    ) -> CompanyResult<()> {
+        self.company_reconciliation.open_incident(incident)
+    }
+
+    pub fn record_company_reconciliation(
+        &mut self,
+        case: crate::CompanyReconciliationCase,
+    ) -> CompanyResult<()> {
+        self.company_reconciliation.record_case(case)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

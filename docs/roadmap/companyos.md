@@ -539,7 +539,7 @@
 
 
 
-#### CO-32 · 风险、事故、Unknown 与对账工作流　⏳
+#### CO-32 · 风险、事故、Unknown 与对账工作流　🔄
 
 - **归属**：`P2-K6-01`、`P3-I-01`。
 - **依赖**：CO-24、CO-30、CO-31。
@@ -547,6 +547,7 @@
 - **实现顺序**：①Risk trigger 与实际 Incident 分开；②MissingResult、worker lost、证据损坏、预算不确定等生成具名事故和处理期限；③只读检查效果、提出补偿/重试决定，记录后续 reconciliation fact，不修改原 Unknown 终态。
 - **先拒绝**：`unknown_effect_cannot_be_retried_or_closed_by_status_report`；错误对象/账户/范围证据、模型自报、未确认停止不算对账完成。
 - **再成功 / 退出**：`reconciliation_resolves_the_business_blocker_without_rewriting_original_run`；恢复或失败结果可核验；失败依赖停止后续工作，成功 sibling 证据保留。
+- **本步交付**：`company_reconciliation.rs` 分离 RiskTrigger/CompanyIncident，按原 Unknown digest、项目对象、账户/作用域、baseline/epoch 绑定 Run/Delivery observation，追加 Reconciled/Failed successor；不消费 provider、不重试、不改写原始 Unknown，完整 durable incident/reconcile projection 留后续步骤。
 
 ### 批次 E：交付与可用入口
 
