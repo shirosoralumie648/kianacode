@@ -294,11 +294,11 @@
 
 
 
-#### CO-16 · 角色提案进入业务命令，原子批准计划　⏳
+#### CO-16 · 角色提案进入业务命令，原子批准计划　🔄
 
 - **归属**：`P3-I-02`、`P1-E-02`、`P1-D-02`。
 - **依赖**：CO-07、CO-12、CO-13、CO-15。
-- **代码与产物**：CompanyProposal intake、PlanApproved 事实、core Company handlers；protocol 计划预览与批准 DTO。
+- **代码与产物**：`company_proposals.rs` CompanyProposal intake、PlanApproved 事实、core Company handlers；protocol 计划预览与批准 DTO；当前 source slice 与 CI-only 证据见 [`co16-company-proposals-baseline.md`](co16-company-proposals-baseline.md)。
 - **实现顺序**：①只接收授权角色任务的明确结构化结果；②校验输入版本、图、范围、预算与标准覆盖，生成待批准的完整 Plan 预览；③一次 CAS 固定 Plan/Milestone/Packet 引用集合，产生后续 Handoff 意图。
 - **先拒绝**：`proposal_text_cannot_execute_commands_and_invalid_plan_commits_nothing`；README、stdout 或 assistant 文本里的命令 JSON 不触发副作用；第 N 个 packet 校验失败不留下半套批准计划。
 - **再成功 / 退出**：`approved_plan_materializes_the_exact_reviewed_packet_graph_once`；用户看到并批准的计划 hash 与生效图一致，重复批准不重复创建包。
