@@ -1,0 +1,57 @@
+name: ER-35 cross-entry CompanyOS gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/tests/er35_cross_entry_company_guard.rs"
+      - "kiana-core/tests/fixtures/er35-cross-entry-company.json"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/er35-cross-entry-company-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-domain/src/memory_workbench.rs"
+      - ".github/workflows/er35-cross-entry-company.yml"
+  pull_request:
+    paths:
+      - "kiana-core/tests/er35_cross_entry_company_guard.rs"
+      - "kiana-core/tests/fixtures/er35-cross-entry-company.json"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-core/tests/oa27_company_governance.rs"
+      - "kiana-daemon/tests/eq12_daemon_spine.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/er35-cross-entry-company-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - "kiana-domain/src/memory_workbench.rs"
+      - ".github/workflows/er35-cross-entry-company.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cross-entry-company:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-core --test er35_cross_entry_company_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test oa27_company_governance --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
+      - run: cargo check --workspace --tests --locked

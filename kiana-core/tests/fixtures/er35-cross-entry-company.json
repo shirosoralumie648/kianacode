@@ -1,0 +1,15 @@
+{
+  "schema": "kiana.er35-cross-entry-company-fixture.v1",
+  "cases": [
+    "four_entrypoint_same_facts",
+    "company_close_requires_review_delivery_receipt",
+    "unknown_requires_reconcile",
+    "source_cursor_gap_is_not_empty_success",
+    "desktop_reuses_daemon_spine"
+  ],
+  "limitations": [
+    "CI source and focused fixtures only",
+    "no durable cross-process query index",
+    "no external delivery or physical effect"
+  ]
+}
