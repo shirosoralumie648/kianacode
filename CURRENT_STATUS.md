@@ -14300,3 +14300,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied recovery evidence only; it does not prove real crash/power-loss recovery, durable replay, cross-process fences, external reconciliation/provider receipt or live/physical outcome; EQ-32+ and ER/PD/SC remain open
 reviewer: Codex EQ-31 source review; checked distinct divergence/Unknown findings, fence/resume/reconcile/retry denial and pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-32 context and memory evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `b0841346` plus EQ-32 context/memory evaluator slice; kiana-quality/src/{context.rs,lib.rs}; kiana-quality/tests/{eq32_context.rs,eq32_context_guard.rs}; .github/workflows/eq32-context-memory.yml; docs/roadmap/evaluation-context-memory-baseline.md; docs/roadmap.md
+worktree_status: pure ContextMemoryEvaluator consumes query/hit/budget/compaction evidence; it requires ACL-before-ranking, rejects unauthorized selected/ranked memory, binds source/provenance digests, makes freshness/evidence status explicit, checks compaction goal/pending/completed preservation and enforces token/wire budgets; no Memory/index query, ranking, ContextPlan compile, model call or authority path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{context.rs,lib.rs} kiana-quality/tests/{eq32_context.rs,eq32_context_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq32_context --locked -- --test-threads=1; cargo test -p kiana-quality --test eq32_context_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only admitted current hit, ACL-before-ranking denial, provenance/freshness/evidence gaps, budget overflow/enforcement and compaction integrity fixtures; no Memory/index query, semantic provider, model, cross-process or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-32 context/memory source contract, CI fixture/guard and baseline implemented; roadmap row 478/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied context evidence only; it does not prove semantic retrieval quality, durable memory/index state, exact provider tokenizer behavior, cross-process compaction recovery, retention/deletion propagation or live/physical outcome; EQ-33+ and CM/PD/SC remain open
+reviewer: Codex EQ-32 source review; checked ACL-before-ranking, unauthorized hit, provenance/freshness, compaction and token/wire budget findings plus pure no-I/O boundary; no local runtime test reviewer
+```
