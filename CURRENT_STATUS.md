@@ -14735,3 +14735,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: attempt ledger is not yet the sole durable EventLog CAS reducer; legacy Claim/Renew/Reclaim command path remains, real process stop/effect reconciliation and cross-process projection are open; CO-20 owns resource admission and budget/path settlement
 reviewer: Codex CO-19 source review; checked one-active-claim invariant, epoch/request fencing, unknown-effect deny, confirmed-stop reclaim and full history preservation; no local runtime test reviewer
 ```
+
+### CO-20 Cell admission and resource lifecycle evidence (2026-09-26)
+
+```text
+source_snapshot: `982c2afd` plus CO-20 admission source slice; kiana-domain/src/{cell_admission.rs,lib.rs}; kiana-core/src/{cell_registry.rs,collaboration.rs}; kiana-domain/tests/co20_cell_admission.rs; kiana-core/tests/co20_cell_admission_guard.rs; .github/workflows/co20-cell-admission.yml; docs/roadmap/co20-cell-admission-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CellAdmissionResources binds SpawnPlan/Cell/BudgetLease/CapabilityGrant/SupervisionLease and canonical owned paths; CellAdmissionLedger rejects identity/path/resource overlap, records Reserved→Committed/RolledBack→Retired or Unknown, blocks release with active capabilities, releases only its own set idempotently and retains Unknown for reconciliation; existing MemoryCellRegistry reserve/commit/abort/retire and path/budget cleanup remain the local adapter; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/cell_admission.rs kiana-domain/src/lib.rs kiana-domain/tests/co20_cell_admission.rs kiana-core/tests/co20_cell_admission_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co20_cell_admission --locked -- --test-threads=1; cargo test -p kiana-core --test co20_cell_admission_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only resource/path conflict without leak, rollback/reuse, active capability retirement denial, own-resource-only release, idempotent retire, Unknown reconciliation and serialized ledger; no live OS process stop, provider receipt, durable cross-process registry or physical business effect
+exit_code: targeted rustfmt --check (new/changed CO-20 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-20 Cell admission resource-set source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 519/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: durable EventLog/CellRegistry persistence and cross-process recovery remain open; MemoryCellRegistry remains process-local; real budget settlement, OS stop, external effect receipts and live/physical outcomes remain unproven, with Unknown admissions requiring reconciliation
+reviewer: Codex CO-20 source review; checked typed resource binding, conflict/partial failure fences, own-resource release, capability-active retirement denial, Unknown retention and existing Core registry cleanup order; no local runtime test reviewer
+```

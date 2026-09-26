@@ -356,11 +356,11 @@
 
 
 
-#### CO-20 · Cell 资源预留、提交与回收闭环　⏳
+#### CO-20 · Cell 资源预留、提交与回收闭环　🔄
 
 - **归属**：`P1-C-02`、`P1-K5-01`。
 - **依赖**：CO-03、CO-19。
-- **代码与产物**：core `cell_registry.rs`、CellRegistryPort、SpawnPlan、BudgetLease、PathLock、CapabilityGrant、SupervisionLease。
+- **代码与产物**：domain `cell_admission.rs` 的资源集合/状态合同，Core `cell_registry.rs` 的 reserve/commit/abort/retire 路径与 CI fixture/guard。
 - **实现顺序**：①在派发前预留预算、路径、模板与监督资源；②成功写入 admission 决定后才启动 Cell；③partial failure 撤销未生效资源，terminal/retire 幂等撤权，仍不确定的实际费用/副作用保留待对账责任。
 - **先拒绝**：`cell_admission_failure_cannot_leak_budget_paths_or_live_grants`；父权限不足、路径重叠、模板过期、监督无效和预算耗尽都不能触发模型/工具调用。
 - **再成功 / 退出**：`cell_retirement_releases_only_its_own_resources_once`；两个实例可独立完成，无交叉释放；重启后能定位预留记录，不把进程内 mutex 当 durable 证明。
