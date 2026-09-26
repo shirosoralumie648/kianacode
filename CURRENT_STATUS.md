@@ -14645,3 +14645,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: DepartmentPacket is not yet the sole Company/ControlPlane admission DTO; assignment validity, ProjectTrust, Plan publication and durable persistence remain open, and no Grant/Lease/live/physical outcome is claimed
 reviewer: Codex CO-13 source review; checked old Builder compatibility, kind/basis/role mapping, controlled writes, Plan prerequisite and explicit runtime authority rejection; no local runtime test reviewer
 ```
+
+### CO-14 symposium governance evidence (2026-09-26)
+
+```text
+source_snapshot: `7f4dd67a` plus CO-14 symposium governance source slice; kiana-domain/src/{symposium_governance.rs,symposiums.rs,lib.rs}; kiana-domain/tests/co14_symposium_governance.rs; kiana-core/tests/co14_symposium_governance_guard.rs; .github/workflows/co14-symposium-governance.yml; docs/roadmap/co14-symposium-governance-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: SymposiumGovernance binds project/baseline/agenda/chair/attendee assignments, round bounds and output schema; SymposiumBoard rejects uninvited, stale, duplicate and unauthorized private contributions; decisions preserve alternatives/dissent/unresolved/evidence and require chair plus a separate named Sponsor approval attachment; existing Symposium/DecisionRecord path remains and no second meeting runner was added; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/symposium_governance.rs kiana-domain/tests/co14_symposium_governance.rs kiana-core/tests/co14_symposium_governance_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co14_symposium_governance --locked -- --test-threads=1; cargo test -p kiana-core --test co14_symposium_governance_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only uninvited/stale/duplicate contribution, private brief visibility, chair decision, preserved alternatives/dissent/unresolved/evidence and separate Sponsor approval fixtures; no model meeting, UI projection, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check pending; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-14 symposium governance source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 513/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: governance board is not yet the sole durable symposium projector/admission path; assignment/ProjectTrust/approval authority and cross-process replay remain open, and no live/physical outcome is claimed
+reviewer: Codex CO-14 source review; checked invitation/baseline/visibility/duplicate fences, chair versus Sponsor decision separation and no second meeting loop; no local runtime test reviewer
+```

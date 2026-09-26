@@ -264,11 +264,11 @@
 
 
 
-#### CO-14 · 会议、黑板和决议对象补齐　⏳
+#### CO-14 · 会议、黑板和决议对象补齐　🔄
 
 - **归属**：`P1-E-02`、`P4-E-03`。
 - **依赖**：CO-04、CO-06、CO-13。
-- **代码与产物**：`symposiums.rs`、DecisionProposal/DecisionRecord、domain 会议状态和公开/私有上下文视图。
+- **代码与产物**：`symposiums.rs`、`symposium_governance.rs`、DecisionProposal/DecisionRecord、domain 会议状态和公开/私有上下文视图；当前 source slice 与 CI-only 证据见 [`co14-symposium-governance-baseline.md`](co14-symposium-governance-baseline.md)。
 - **实现顺序**：①绑定 Project/baseline、议程、具名 assignment、主席、限额与输出合同；②Claim/Vote/Draft 带来源、版本和证据；③声明会议/异步处理选择、分歧、未决项和明确决定者，私有 brief 单独保存。
 - **先拒绝**：`symposium_rejects_uninvited_stale_and_duplicate_contributions`；投票数不等于批准权，未点名角色不能读主席准备或伪造票。
 - **再成功 / 退出**：`symposium_decision_preserves_alternatives_dissent_and_evidence`；五部门可使用相同合同；联席会议明确列出各 assignment 的可见与决策范围。
