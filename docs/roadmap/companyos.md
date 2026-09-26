@@ -751,7 +751,7 @@
 
 
 
-#### CO-45 · 多项目优先级、容量与组织成本账　⏳
+#### CO-45 · 多项目优先级、容量与组织成本账　🔄
 
 - **归属**：`P1-K5-01`、`P4-K2-01`；关联 `P3-I-01` 的 Portfolio/Program 领域扩展。
 - **依赖**：CO-02、CO-20、CO-23、CO-36、CO-38、CO-43。
@@ -759,6 +759,7 @@
 - **实现顺序**：①区分 reserved/spent/released/unknown costs，按 project/role/run/model 归集；②Portfolio 记录目标投资优先级，Program 记录跨项目依赖/风险责任；③同一授权范围内按容量、截止期和 aging 调度，跨项目共享证据需要显式 grant。
 - **先拒绝**：`organization_budget_cannot_be_bypassed_by_new_attempt_project_or_role`；预算引用不存在、重复使用费、跨项目权限并集和容量超售被拒。
 - **再成功 / 退出**：`two_projects_share_capacity_fairly_with_independent_evidence_and_budgets`；预算耗尽一方不吞掉另一方可用配额，计划成本和实际模型成本不混写为业务收益。
+- **本步交付**：`company_portfolio.rs` 区分 organization/project limit 与 Reserved/Spent/Released/Unknown reservation，unknown 持续占用容量，跨项目/新 budget 引用不能绕过；复用既有 billing/quota 事实。
 
 <a id="co-46"></a>
 

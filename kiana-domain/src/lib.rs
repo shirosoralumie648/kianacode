@@ -626,6 +626,8 @@ mod company_parallel;
 pub use company_parallel::*;
 mod company_integration;
 pub use company_integration::*;
+mod company_portfolio;
+pub use company_portfolio::*;
 
 mod dispatch;
 mod effect_observation;
