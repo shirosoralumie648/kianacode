@@ -999,6 +999,9 @@ pub struct CompanyState {
     /// planning-to-executing handoff map.  Both maps remain replay/serde compatible.
     #[serde(default)]
     pub accountability_handoffs: crate::CompanyHandoffLedger,
+    /// CO-19 append-only attempt/epoch history; legacy PacketClaim remains readable.
+    #[serde(default)]
+    pub packet_attempts: crate::PacketAttemptLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1073,6 +1076,101 @@ impl CompanyState {
         handoff_id: &str,
     ) -> Option<crate::HandoffProjection> {
         self.accountability_handoffs.projection(handoff_id)
+    }
+
+    /// Claim a short-lived attempt for a packet.  Repeating the same worker/request is idempotent;
+    /// a different claimant cannot create a second active attempt.
+    #[allow(clippy::too_many_arguments)]
+    pub fn claim_packet_attempt(
+        &mut self,
+        packet_id: impl Into<String>,
+        packet_version: u64,
+        worker_cell_id: crate::CellId,
+        worker_session_id: crate::SessionId,
+        execution_request_id: crate::RequestId,
+        now_ms: u64,
+        lease_expires_at: u64,
+    ) -> CompanyResult<crate::PacketAttempt> {
+        self.packet_attempts.claim(
+            packet_id,
+            packet_version,
+            worker_cell_id,
+            worker_session_id,
+            execution_request_id,
+            now_ms,
+            lease_expires_at,
+        )
+    }
+
+    pub fn fence_expired_packet_attempt(
+        &mut self,
+        packet_id: &str,
+        attempt_id: crate::AttemptId,
+        epoch: u64,
+        now_ms: u64,
+    ) -> CompanyResult<crate::PacketAttemptStatus> {
+        self.packet_attempts
+            .fence_expired(packet_id, attempt_id, epoch, now_ms)
+    }
+
+    pub fn mark_packet_attempt_started(
+        &mut self,
+        packet_id: &str,
+        attempt_id: crate::AttemptId,
+        epoch: u64,
+        execution_request_id: crate::RequestId,
+        now_ms: u64,
+    ) -> CompanyResult<()> {
+        self.packet_attempts.mark_started(
+            packet_id,
+            attempt_id,
+            epoch,
+            execution_request_id,
+            now_ms,
+        )
+    }
+
+    pub fn confirm_packet_attempt_stopped(
+        &mut self,
+        packet_id: &str,
+        attempt_id: crate::AttemptId,
+        epoch: u64,
+        execution_request_id: crate::RequestId,
+        now_ms: u64,
+    ) -> CompanyResult<()> {
+        self.packet_attempts.confirm_stopped(
+            packet_id,
+            attempt_id,
+            epoch,
+            execution_request_id,
+            now_ms,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn complete_packet_attempt(
+        &mut self,
+        packet_id: &str,
+        attempt_id: crate::AttemptId,
+        epoch: u64,
+        execution_request_id: crate::RequestId,
+        status: crate::PacketAttemptStatus,
+        result_digest: Option<String>,
+        now_ms: u64,
+    ) -> CompanyResult<()> {
+        self.packet_attempts.complete(
+            packet_id,
+            attempt_id,
+            epoch,
+            execution_request_id,
+            status,
+            result_digest,
+            now_ms,
+        )
+    }
+
+    pub fn packet_attempt_history(&self, packet_id: &str) -> &[crate::PacketAttempt] {
+        self.packet_attempts.history(packet_id)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

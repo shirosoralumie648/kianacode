@@ -689,7 +689,7 @@
 | 515 | W7 | 专项 | [`CO-16`](roadmap/companyos.md#step-co-16) | CompanyOS · 角色提案进入业务命令，原子批准计划 | `CO-07`、`CO-12`、`CO-13`、`CO-15` | 🔄 | [专项卡](roadmap/companyos.md#step-co-16) · [baseline](roadmap/co16-company-proposals-baseline.md) |
 | 516 | W7 | 专项 | [`CO-17`](roadmap/companyos.md#step-co-17) | CompanyOS · 跨部门交接与 ACK 责任转移 | `CO-13`、`CO-16` | 🔄 | [专项卡](roadmap/companyos.md#step-co-17) · [baseline](roadmap/co17-company-handoff-baseline.md) |
 | 517 | W7 | 专项 | [`CO-18`](roadmap/companyos.md#step-co-18) | CompanyOS · 唯一 ready 谓词与可解释阻塞原因 | `CO-08`、`CO-12`、`CO-17` | 🔄 | [专项卡](roadmap/companyos.md#step-co-18) · [baseline](roadmap/co18-company-readiness-baseline.md) |
-| 518 | W7 | 专项 | [`CO-19`](roadmap/companyos.md#step-co-19) | CompanyOS · 原子 claim、租约 fencing 与执行尝试 | `CO-07`、`CO-18` | ⏳ | [专项卡](roadmap/companyos.md#step-co-19) |
+| 518 | W7 | 专项 | [`CO-19`](roadmap/companyos.md#step-co-19) | CompanyOS · 原子 claim、租约 fencing 与执行尝试 | `CO-07`、`CO-18` | 🔄 | [专项卡](roadmap/companyos.md#step-co-19) · [baseline](roadmap/co19-company-attempt-baseline.md) |
 | 519 | W7 | 专项 | [`CO-20`](roadmap/companyos.md#step-co-20) | CompanyOS · Cell 资源预留、提交与回收闭环 | `CO-03`、`CO-19` | ⏳ | [专项卡](roadmap/companyos.md#step-co-20) |
 | 520 | W7 | 专项 | [`CO-21`](roadmap/companyos.md#step-co-21) | CompanyOS · 角色任务接入 fresh Run 与明确 Company scope | `CO-04`、`CO-13`、`CO-20` | ⏳ | [专项卡](roadmap/companyos.md#step-co-21) |
 | 521 | W7 | 专项 | [`CO-22`](roadmap/companyos.md#step-co-22) | CompanyOS · 确定性 Company ProcessManager | `CO-08`、`CO-16`、`CO-17`、`CO-21` | ⏳ | [专项卡](roadmap/companyos.md#step-co-22) |
