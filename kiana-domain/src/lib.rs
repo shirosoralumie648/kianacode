@@ -600,6 +600,8 @@ mod project_acceptance;
 pub use project_acceptance::*;
 mod rework_contract;
 pub use rework_contract::*;
+mod change_contract;
+pub use change_contract::*;
 
 mod dispatch;
 mod effect_observation;

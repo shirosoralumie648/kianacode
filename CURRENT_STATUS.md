@@ -14885,3 +14885,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: provenance ledger is not yet sole durable successor/attempt projector; dependency closure, semantic re-review, budget settlement and Unknown reconciliation remain open, with no live/physical outcome claimed
 reviewer: Codex CO-29 source review; checked predecessor/rejection/baseline binding, bounded attempts/budget, terminal/Unknown deny, cycle prevention and historical retention plus existing business Rework fences; no local runtime test reviewer
 ```
+
+### CO-30 baseline change impact and publication evidence (2026-09-27)
+
+```text
+source_snapshot: `43b2e0c5` plus CO-30 change source slice; kiana-domain/src/{change_contract.rs,company_business.rs,company.rs,lib.rs}; kiana-core/src/{change_contract.rs,company.rs,lib.rs}; kiana-domain/tests/co30_change_contract.rs; kiana-core/tests/co30_change_contract_guard.rs; .github/workflows/co30-change-contract.yml; docs/roadmap/co30-change-contract-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: ChangeImpact binds affected milestones/packets/runs/reviews/acceptances/deliveries, old/new baseline, budget and schedule; BaselinePublication requires complete charter/plan/packet/criteria/budget/schedule set plus invalidated refs; ChangePublicationLedger rejects stale/partial/conflicting publication and preserves historical impacts; existing DecideChange/business baseline guards remain compatibility authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/change_contract.rs kiana-domain/src/lib.rs kiana-core/src/change_contract.rs kiana-core/src/lib.rs kiana-domain/tests/co30_change_contract.rs kiana-core/tests/co30_change_contract_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co30_change_contract --locked -- --test-threads=1; cargo test -p kiana-core --test co30_change_contract_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only complete impact set, idempotent publication, stale old/new baseline, partial packet set, missing invalidations and historical change preservation; no external approval, active process fence, live/physical outcome
+exit_code: targeted rustfmt --check (new/changed CO-30 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-30 ChangeImpact/BaselinePublication source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 529/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: full durable graph CAS publication and projector replacement remain open; active process/cancel fencing, semantic change evaluation, external approvals and live/physical outcomes remain CO-31+
+reviewer: Codex CO-30 source review; checked complete impact/invalidation set, old/new version fencing, partial publication rejection, idempotent replay and historical preservation; no local runtime test reviewer
+```
