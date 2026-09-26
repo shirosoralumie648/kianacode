@@ -1,0 +1,56 @@
+name: co24-company-evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_evidence.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co24_company_evidence.rs"
+      - "kiana-core/src/company_evidence.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/co24_company_evidence_guard.rs"
+      - "docs/roadmap/co24-company-evidence-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co24-company-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_evidence.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co24_company_evidence.rs"
+      - "kiana-core/src/company_evidence.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/tests/co24_company_evidence_guard.rs"
+      - "docs/roadmap/co24-company-evidence-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co24-company-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-24 evidence fixtures
+        run: cargo test -p kiana-domain --test co24_company_evidence --locked -- --test-threads=1
+      - name: Run CO-24 evidence source guard
+        run: cargo test -p kiana-core --test co24_company_evidence_guard --locked -- --test-threads=1
+      - name: Compile CO-24 evidence targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
