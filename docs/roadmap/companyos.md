@@ -249,11 +249,11 @@
 
 
 
-#### CO-13 · WorkPacket 扩为通用部门工作合同　⏳
+#### CO-13 · WorkPacket 扩为通用部门工作合同　🔄
 
 - **归属**：`P1-D-01`、`P1-E-01`、`P1-C-01`。
 - **依赖**：CO-04、CO-06、CO-12。
-- **代码与产物**：`work_packets.rs`、schema registry、domain ResultContract/CompanyProposal；现有 Builder packet adapter。
+- **代码与产物**：`work_packets.rs`、`department_packets.rs`、schema registry、domain ResultContract/CompanyProposal；现有 Builder packet adapter；当前 source slice 与 CI-only 证据见 [`co13-department-packets-baseline.md`](co13-department-packets-baseline.md)。
 - **实现顺序**：①新增受版本控制的工作种类、输入/输出 schema、责任方和目标角色任命；②输入依据区分 Intake/Initiative/Charter/Plan，分析/规划包可在相应批准阶段运行、只写受控提案，实现包必须绑定批准 Plan 与写集；③业务 packet 不携带可自行生效的 Grant/Lease，运行权限仍由 core 派生。
 - **先拒绝**：`department_packet_cannot_smuggle_builder_write_scope_or_runtime_grants`；旧 v1 的 `packet_role_must_be_builder` 测试保持原语义，新 schema 单独验证岗位/任务种类。
 - **再成功 / 退出**：`analysis_and_implementation_packets_validate_through_versioned_contracts`；可表达立项调查、规划、实现、验证、交付准备和知识整理；未生成 Plan 时分析包可在受理授权下工作，实现包仍拒绝，消除“先有计划才能生成计划”的循环。

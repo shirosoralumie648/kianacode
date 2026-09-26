@@ -14630,3 +14630,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: PlanProposal is not yet the sole Company PublishPlan admission authority; legacy BusinessCriterion/packet adapters remain, typed artifact/acceptance truth and durable plan persistence are open, and no live/physical outcome is claimed
 reviewer: Codex CO-12 source review; checked batch validation, typed edge semantics, deterministic DAG order, scope/baseline/digest binding and no execution bypass; no local runtime test reviewer
 ```
+
+### CO-13 versioned department packet evidence (2026-09-26)
+
+```text
+source_snapshot: `297071e6` plus CO-13 department packet source slice; kiana-domain/src/{department_packets.rs,work_packets.rs,lib.rs,roles.rs}; kiana-domain/tests/co13_department_packets.rs; kiana-core/tests/co13_department_packets_guard.rs; .github/workflows/co13-department-packets.yml; docs/roadmap/co13-department-packets-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: DepartmentPacket/ResultContract define versioned work kinds, role/department assignment, typed Intake/Initiative/Charter/Plan basis and controlled write prefixes; Implementation requires a Plan reference and write set; explicit runtime_grant/budget_lease fields are rejected; legacy WorkPacket remains Builder-only and unchanged; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/department_packets.rs kiana-domain/tests/co13_department_packets.rs kiana-core/tests/co13_department_packets_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co13_department_packets --locked -- --test-threads=1; cargo test -p kiana-core --test co13_department_packets_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only runtime authority smuggling, analysis write-scope, missing implementation Plan, valid analysis and valid Plan-bound implementation fixtures; no role session, Broker dispatch, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check pending; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-13 versioned department packet source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 512/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: DepartmentPacket is not yet the sole Company/ControlPlane admission DTO; assignment validity, ProjectTrust, Plan publication and durable persistence remain open, and no Grant/Lease/live/physical outcome is claimed
+reviewer: Codex CO-13 source review; checked old Builder compatibility, kind/basis/role mapping, controlled writes, Plan prerequisite and explicit runtime authority rejection; no local runtime test reviewer
+```
