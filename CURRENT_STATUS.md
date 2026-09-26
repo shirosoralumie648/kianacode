@@ -15200,3 +15200,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: logical conformance does not prove durable JSONL behavior, property shrinking, migration or restart convergence; ER-33/34 and PD remain open
 reviewer: Codex ER-32 source review; checked Memory durability ceiling, JSONL sync requirement, logical result parity, replay/conflict/cursor/Unknown classification and no file/effect path; no local runtime test reviewer
 ```
+
+### ER-33 capacity and migration drill evidence (2026-09-27)
+
+```text
+source_snapshot: `4a6840cc` plus ER-33 bounded drill source slice; kiana-domain/src/{er33_capacity_migration.rs,persistence_capacity.rs,migration_preflight.rs,lib.rs}; kiana-core/src/{er33_capacity_migration.rs,lib.rs}; kiana-eventlog/src/jsonl.rs; kiana-domain/tests/er33_capacity_migration.rs; kiana-core/tests/er33_capacity_migration_guard.rs; .github/workflows/er33-capacity-migration.yml; docs/roadmap/er33-capacity-migration-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: Er33CapacityMigrationDrill binds seven bounded metric classes, over-quota rejection, partial-frame non-append, known schema/downgrade read-only migration and fact preservation; existing persistence-capacity/migration-preflight/EventLog paths remain authorities; no benchmark, migration, deletion or physical storage effect was run; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/er33_capacity_migration.rs kiana-core/src/er33_capacity_migration.rs kiana-domain/tests/er33_capacity_migration.rs kiana-core/tests/er33_capacity_migration_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test er33_capacity_migration --locked -- --test-threads=1; cargo test -p kiana-core --test er33_capacity_migration_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-eventlog --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only bounded event/frame/flush/rebuild/query/artifact/queue/recovery metric fixtures, quota overflow, partial frame, unknown migration version, downgrade read-only, duplicate metric and fact deletion denial; no host benchmark, fsync, journal rotation, migration runner, disk-full or durable restart evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: ER-33 capacity/migration drill report, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 628/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: metric values are fixture bounds rather than measurements; durable performance, migration execution, rollback and physical storage outcomes remain ER-34/PD/DEP
+reviewer: Codex ER-33 source review; checked seven metric coverage, bounded limits, quota/partial-frame/fact-retention fences, migration known-version/read-only downgrade and no destructive path; no local runtime test reviewer
+```
