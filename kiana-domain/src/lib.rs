@@ -614,6 +614,8 @@ mod closing_receipt;
 pub use closing_receipt::*;
 mod outcome_measurement;
 pub use outcome_measurement::*;
+mod company_knowledge;
+pub use company_knowledge::*;
 
 mod dispatch;
 mod effect_observation;

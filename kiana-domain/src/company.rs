@@ -1021,6 +1021,9 @@ pub struct CompanyState {
     /// CO-36 frozen Outcome plans, observations, deterministic assessments and Sponsor decisions.
     #[serde(default)]
     pub outcome_measurements: crate::OutcomeMeasurementLedger,
+    /// CO-37 published Company decisions, lesson candidates and promotion facts.
+    #[serde(default)]
+    pub company_knowledge: crate::CompanyKnowledgeLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1299,6 +1302,20 @@ impl CompanyState {
         observation: crate::OutcomeMeasurementObservation,
     ) -> CompanyResult<()> {
         self.outcome_measurements.record_observation(observation)
+    }
+
+    pub fn publish_company_decision(
+        &mut self,
+        decision: crate::CompanyDecisionRecord,
+    ) -> CompanyResult<()> {
+        self.company_knowledge.publish_decision(decision)
+    }
+
+    pub fn propose_company_candidate(
+        &mut self,
+        candidate: crate::CompanyLessonCandidate,
+    ) -> CompanyResult<()> {
+        self.company_knowledge.propose_candidate(candidate)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

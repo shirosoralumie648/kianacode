@@ -621,7 +621,7 @@
 
 
 
-#### CO-37 · 部门决议、收尾经验与 Memory 候选晋升　⏳
+#### CO-37 · 部门决议、收尾经验与 Memory 候选晋升　🔄
 
 - **归属**：`P4-E-03`、`P4-J3-05`、`P1-J3-03`。
 - **依赖**：CO-15、CO-35；`P1-J3-01`–`P1-J3-03` 的候选写入、ACL 和审批已可用。
@@ -629,6 +629,7 @@
 - **实现顺序**：①决议和 ClosingReceipt 的事件触发一次提取；②产出带原始证据、适用范围、密级/期限、相似记录的 candidate；③通过既有准入通道晋升；后续检索带来源和新鲜度，不因索引失败阻断已确认业务交付。
 - **先拒绝**：`closing_lesson_cannot_publish_private_scratch_or_change_role_policy`；重复蒸馏、自批、跨项目可见性泄漏、过期决议回灌被拒。
 - **再成功 / 退出**：`approved_department_lesson_is_retrievable_with_its_original_decision_evidence`；事实账本、知识候选与批准知识三种状态清楚分开。
+- **本步交付**：`company_knowledge.rs` 绑定 Decision/ClosingReceipt/source evidence 与 department/role/project candidate scope，拒绝 private/scratch、跨项目、自批和证据漂移；Promotion 只记录 approved fact，继续复用既有 MemoryProposal/MemoryDistillation/memory.review。
 
 <a id="co-38"></a>
 
