@@ -580,6 +580,8 @@ mod company_readiness;
 pub use company_readiness::*;
 mod company_attempt;
 pub use company_attempt::*;
+mod cell_admission;
+pub use cell_admission::*;
 
 mod dispatch;
 mod effect_observation;
