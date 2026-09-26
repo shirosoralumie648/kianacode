@@ -1,0 +1,42 @@
+name: EQ-43 quality mutation admission
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/quality_gate.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/eq43_quality_mutation_guard.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "docs/roadmap/evaluation-quality-mutation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq43-quality-mutation.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/quality_gate.rs"
+      - "kiana-core/src/commands.rs"
+      - "kiana-core/tests/eq43_quality_mutation_guard.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "docs/roadmap/evaluation-quality-mutation-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq43-quality-mutation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-43 source guard
+        run: cargo test -p kiana-core --test eq43_quality_mutation_guard --locked -- --test-threads=1
+      - name: Compile EQ-43 targets
+        run: cargo check --workspace --tests --locked

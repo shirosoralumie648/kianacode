@@ -207,6 +207,13 @@ const QUALITY_FIELDS: &[&str] = &[
     "status",
     "verdict",
     "evidence_refs",
+    "candidate_digest",
+    "gate_decision_digest",
+    "approval_ref",
+    "approval_request_hash",
+    "scope_digest",
+    "authority_epoch",
+    "operation",
 ];
 const RECOVERY_FIELDS: &[&str] = &["run_id", "recovery"];
 const INVOCATION_FIELDS: &[&str] = &[

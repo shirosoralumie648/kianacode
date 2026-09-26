@@ -744,7 +744,7 @@
 | 570 | W7 | 专项 | [`EQ-40`](#step-eq-40) | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `EQ-39` | 🔄 | [专项卡](#step-eq-40) · [baseline](roadmap/evaluation-candidate-baseline.md) |
 | 571 | W7 | 专项 | [`EQ-41`](#step-eq-41) | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `EQ-40` | 🔄 | [专项卡](#step-eq-41) · [baseline](roadmap/evaluation-gate-baseline.md) |
 | 572 | W7 | 专项 | [`EQ-42`](#step-eq-42) | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `EQ-41` | 🔄 | [专项卡](#step-eq-42) · [baseline](roadmap/evaluation-blocking-rules-baseline.md) |
-| 573 | W7 | 专项 | [`EQ-43`](#step-eq-43) | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `EQ-42` | ⏳ | [专项卡](#step-eq-43) |
+| 573 | W7 | 专项 | [`EQ-43`](#step-eq-43) | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `EQ-42` | 🔄 | [专项卡](#step-eq-43) · [baseline](roadmap/evaluation-quality-mutation-baseline.md) |
 | 574 | W7 | 专项 | [`EQ-44`](#step-eq-44) | 实现 shadow admission、sample/TTL/rollback route 和自动回滚证据 | `EQ-43` | ⏳ | [专项卡](#step-eq-44) |
 | 575 | W7 | 专项 | [`BQ-21`](#step-bq-21) | Restart/continue/replay/recovery；in-flight reservation、unknown attempt 和 fencing | `ER-21`、`BQ-08`、`BQ-12`、`BQ-20` | ⏳ | [专项卡](#step-bq-21) |
 | 576 | W7 | 专项 | [`BQ-22`](#step-bq-22) | Provider invoice/receipt import、差异检测、correction workflow | `BQ-05`、`BQ-14`、`BQ-20` | ⏳ | [专项卡](#step-bq-22) |
