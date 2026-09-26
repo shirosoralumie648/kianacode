@@ -610,6 +610,8 @@ mod delivery_manifest;
 pub use delivery_manifest::*;
 mod delivery_authorization;
 pub use delivery_authorization::*;
+mod closing_receipt;
+pub use closing_receipt::*;
 
 mod dispatch;
 mod effect_observation;

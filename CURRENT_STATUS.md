@@ -14960,3 +14960,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: the ledger does not dispatch or send packages, and Unknown remains fenced pending reconciliation; durable EventLog/HumanTask/notification wiring and external/live recipient effect remain open
 reviewer: Codex CO-34 source review; checked exact manifest/package/recipient binding, expiry, one-shot dispatch, Broker-only effect, Unknown fence, sender-claim denial, human recipient confirmation and idempotent replay; no local runtime test reviewer
 ```
+
+### CO-35 honest Company ClosingReceipt evidence (2026-09-27)
+
+```text
+source_snapshot: `007d3f52` plus CO-35 closing receipt source slice; kiana-domain/src/{closing_receipt.rs,company.rs,company_closeout.rs,lib.rs}; kiana-core/src/{closing_receipt.rs,lib.rs}; kiana-domain/tests/co35_closing_receipt.rs; kiana-core/tests/co35_closing_receipt_guard.rs; .github/workflows/co35-closing-receipt.yml; docs/roadmap/co35-closing-receipt-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyClosingReceiptContract distinguishes Success/Failure/Cancelled/Waived and aggregates baseline, packet/attempt, run, review/acceptance, delivery, incident, evidence, residual obligations, stop state and role separation; success requires Accepted + Confirmed delivery + stopped runs + no residual/unresolved incident; failure/cancel/waiver have separate honest gates; CompanyClosingReceiptLedger is idempotent and rejects a second project close; existing Company closeout/EventLog remains compatibility authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/closing_receipt.rs kiana-core/src/closing_receipt.rs kiana-domain/tests/co35_closing_receipt.rs kiana-core/tests/co35_closing_receipt_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co35_closing_receipt --locked -- --test-threads=1; cargo test -p kiana-core --test co35_closing_receipt_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only missing delivery, unresolved incident, role overlap, all four close kinds, stop/Unknown cancellation denial, explicit waiver/self-approval denial, duplicate/idempotent and project-level close fencing; no durable projector, semantic Outcome, live or physical business result
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-35 CompanyClosingReceiptContract/Ledger source slice, CompanyState projection, CI fixture/guard, workflow and baseline implemented; roadmap row 534/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: typed receipt does not commit Company transitions or replace existing closeout/EventLog; Outcome measurement, read-model projection, cross-process replay and live/physical business proof remain open
+reviewer: Codex CO-35 source review; checked close-kind-specific gates, complete reference sets, stop/Unknown fences, residual/waiver requirements, role independence, idempotency and second-close rejection; no local runtime test reviewer
+```

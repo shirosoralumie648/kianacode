@@ -1015,6 +1015,9 @@ pub struct CompanyState {
     /// CO-34 authorization, one-shot dispatch, Broker effect and recipient confirmation facts.
     #[serde(default)]
     pub delivery_authorizations: crate::DeliveryAuthorizationLedger,
+    /// CO-35 honest success/failure/cancel/waiver closeout contracts.
+    #[serde(default)]
+    pub closing_receipt_contracts: crate::CompanyClosingReceiptLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1272,6 +1275,13 @@ impl CompanyState {
     ) -> CompanyResult<()> {
         self.delivery_authorizations
             .confirm_recipient(confirmation)
+    }
+
+    pub fn record_closing_receipt(
+        &mut self,
+        receipt: crate::CompanyClosingReceiptContract,
+    ) -> CompanyResult<()> {
+        self.closing_receipt_contracts.record(receipt)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is
