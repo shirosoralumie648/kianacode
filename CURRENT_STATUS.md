@@ -14270,3 +14270,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied evidence only; it does not prove runtime authorization, actual effect absence, durable receipts, provider/model quality, cross-process recovery, promotion authority, live or physical outcome; EQ-30+ and existing ControlPlane/Broker enforcement remain open
 reviewer: Codex EQ-29 source review; checked deny-first schema/grant/scope/policy/hook/effect/secret findings and no-I/O/no-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-30 evidence and receipt evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `d3bc8787` plus EQ-30 evidence/receipt evaluator slice; kiana-quality/src/{evidence.rs,lib.rs}; kiana-quality/tests/{eq30_evidence.rs,eq30_evidence_guard.rs}; .github/workflows/eq30-evidence-receipt.yml; docs/roadmap/evaluation-evidence-receipt-baseline.md; docs/roadmap.md
+worktree_status: pure EvidenceReceiptEvaluator consumes strict artifact/receipt/assertion/redaction/provenance/source-cursor evidence and reuses EQ-27 Finding; it checks SHA-256 artifact and receipt digests, artifact references, required receipt assertions, redaction/secret-free status, provenance equality and cursor/event-id bounds; no storage reader, EventLog recomputation, provider query, execution or authority path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{evidence.rs,lib.rs} kiana-quality/tests/{eq30_evidence.rs,eq30_evidence_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq30_evidence --locked -- --test-threads=1; cargo test -p kiana-quality --test eq30_evidence_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only complete evidence bundle, missing artifact, hash/redaction/provenance/cursor/assertion drift, unknown-field and bound fixtures; no ArtifactStore/Receipt projection, provider, network, capability or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-30 evidence/receipt source contract, CI fixture/guard and baseline implemented; roadmap row 476/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied evidence only; it does not prove durable artifact/receipt truth, actual provider receipt, cross-process recovery, quality aggregation, promotion authority, live or physical outcome; EQ-31+ and ER/PD/SC remain open
+reviewer: Codex EQ-30 source review; checked missing/hash/assertion/redaction/provenance/cursor findings and pure no-I/O/no-authority boundary; no local runtime test reviewer
+```

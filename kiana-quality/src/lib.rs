@@ -11,6 +11,7 @@ mod catalog;
 mod diff;
 mod digest;
 mod evaluator;
+mod evidence;
 mod fixtures;
 mod normalize;
 mod runtime;
@@ -47,6 +48,11 @@ pub use evaluator::{
     FINDING_SCHEMA, MAX_EVALUATORS, MAX_EVALUATOR_INPUT_BYTES, MAX_FINDINGS,
     MAX_FINDING_CODE_BYTES, MAX_FINDING_EVIDENCE_REF_BYTES, MAX_FINDING_MESSAGE_BYTES,
     MAX_FINDING_VALUE_BYTES, MAX_FINDING_VALUE_DEPTH,
+};
+pub use evidence::{
+    evaluate_evidence_receipt, ArtifactEvidence, EvidenceReceiptEvaluator, EvidenceReceiptInput,
+    ProvenanceEvidence, ReceiptAssertion, ReceiptEvidence, RedactionEvidence, SourceCursorEvidence,
+    EVIDENCE_RECEIPT_EVALUATOR_ID, EVIDENCE_RECEIPT_INPUT_SCHEMA,
 };
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
