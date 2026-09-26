@@ -9,14 +9,16 @@ use kiana_capability_broker::{
 use kiana_domain::{
     connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
     AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
-    ConnectorCredentialInvocation, ConnectorFixture, ConnectorHealthFact, ConnectorHealthStatus,
+    ConnectorCredentialEvidence, ConnectorCredentialInvocation, ConnectorDispatchLifecycle,
+    ConnectorDispatchStage, ConnectorFixture, ConnectorHealthFact, ConnectorHealthStatus,
     EffectObservation, ExecutionId, InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent,
-    CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND,
-    CONNECTOR_HEALTH_OPERATION, CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION,
-    CONNECTOR_MCP_HANDSHAKE_EVENT_KIND, CONNECTOR_MCP_HANDSHAKE_OPERATION, CONNECTOR_STREAM,
+    CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
+    CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND, CONNECTOR_HEALTH_OPERATION,
+    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_MCP_HANDSHAKE_EVENT_KIND,
+    CONNECTOR_MCP_HANDSHAKE_OPERATION, CONNECTOR_STREAM,
 };
 use kiana_ports::{
-    EventStorePort, McpCapabilityHandshakeRequest, PortError,
+    EventAppendResult, EventStorePort, McpCapabilityHandshakeRequest, PortError,
     CONNECTOR_MCP_HANDSHAKE_REQUEST_SCHEMA,
 };
 use serde_json::{json, Value};
@@ -29,7 +31,8 @@ pub(crate) fn register(
     events: Arc<dyn EventStorePort>,
     mcp: Arc<crate::harness_mcp::McpRegistry>,
 ) -> Result<(), PortError> {
-    let registry = Arc::new(ConnectorRegistry { events, mcp });
+    let journal = Arc::new(ConnectorEventJournal { events });
+    let registry = Arc::new(ConnectorRegistry { journal, mcp });
     broker.register_static(
         CapabilityKind::Tool,
         CONNECTOR_MANAGE_OPERATION,
@@ -49,8 +52,73 @@ pub(crate) fn register(
 }
 
 struct ConnectorRegistry {
-    events: Arc<dyn EventStorePort>,
+    journal: Arc<ConnectorEventJournal>,
     mcp: Arc<crate::harness_mcp::McpRegistry>,
+}
+
+/// The capability handler never receives an EventStore directly.  This narrow journal owns
+/// connector fact persistence and gives the dispatch path an explicit commit boundary.
+struct ConnectorEventJournal {
+    events: Arc<dyn EventStorePort>,
+}
+
+struct ConnectorDispatchOutcome {
+    receipt: ProviderReceipt,
+    observation: EffectObservation,
+    lifecycle: ConnectorDispatchLifecycle,
+    version: u64,
+    credential_evidence: Option<ConnectorCredentialEvidence>,
+}
+
+impl ConnectorEventJournal {
+    async fn read_stream(
+        &self,
+        stream: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.events.read_stream(stream, aggregate_id).await
+    }
+
+    async fn append_idempotent_expected(
+        &self,
+        event: RuntimeEvent,
+        expected_version: Option<u64>,
+    ) -> Result<EventAppendResult, PortError> {
+        self.events
+            .append_idempotent_expected(event, expected_version)
+            .await
+    }
+
+    async fn append_lifecycle(
+        &self,
+        request_id: kiana_domain::RequestId,
+        project: &str,
+        lifecycle: &ConnectorDispatchLifecycle,
+        expected_version: u64,
+    ) -> Result<EventAppendResult, PortError> {
+        lifecycle.validate().map_err(failed)?;
+        let event = RuntimeEvent::new(
+            request_id,
+            1,
+            CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
+            json!({
+                "schema": "kiana.connector-dispatch-lifecycle-event.v1",
+                "project_root": project,
+                "invocation_id": lifecycle.invocation_id,
+                "attempt": lifecycle.attempt,
+                "lifecycle": lifecycle,
+                "proof_level": "source",
+            }),
+        )
+        .map_err(|error| failed(error.to_string()))?
+        .with_stream_metadata(
+            CONNECTOR_STREAM,
+            project,
+            expected_version.saturating_add(1),
+        );
+        self.append_idempotent_expected(event, Some(expected_version))
+            .await
+    }
 }
 
 impl ConnectorRegistry {
@@ -190,7 +258,7 @@ impl ConnectorRegistry {
         .with_stream_metadata(CONNECTOR_STREAM, project, next_version)
         .with_idempotency_key(key);
         let appended = self
-            .events
+            .journal
             .append_idempotent_expected(event, Some(next_version - 1))
             .await
             .map_err(|error| match error {
@@ -290,7 +358,7 @@ impl ConnectorRegistry {
             server
         ));
         let appended = self
-            .events
+            .journal
             .append_idempotent_expected(event, Some(next_version - 1))
             .await
             .map_err(|error| match error {
@@ -311,6 +379,153 @@ impl ConnectorRegistry {
         }))
     }
 
+    async fn dispatch_local_fixture(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        project: &str,
+        actor: &str,
+        adapter: &LocalFixtureAdapter,
+        credential_evidence: Option<ConnectorCredentialEvidence>,
+        command_digest: &str,
+        starting_version: u64,
+        now: u64,
+    ) -> Result<ConnectorDispatchOutcome, PortError> {
+        let attempt = adapter.attempt;
+        let prepared = ConnectorDispatchLifecycle::prepared(
+            InvocationId::from_uuid(request.request.request_id.as_uuid()),
+            attempt,
+            command_digest.to_owned(),
+            kiana_domain::json_digest(&json!({"binding": &adapter.binding})),
+            kiana_domain::json_digest(&kiana_domain::canonical_json(adapter.payload.clone())),
+            kiana_domain::json_digest(&json!({
+                "idempotency_key": &adapter.idempotency_key
+            })),
+        )
+        .map_err(failed)?;
+        self.append_lifecycle(request, project, &prepared, starting_version)
+            .await?;
+        let dispatching = prepared
+            .advance(ConnectorDispatchStage::Dispatching, None, None, None, None)
+            .map_err(failed)?;
+        self.append_lifecycle(request, project, &dispatching, starting_version + 1)
+            .await?;
+
+        let receipt = match adapter.dispatch().await {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                let unknown = dispatching
+                    .advance(
+                        ConnectorDispatchStage::Unknown,
+                        None,
+                        None,
+                        None,
+                        Some("connector_adapter_dispatch_unknown".to_owned()),
+                    )
+                    .map_err(failed)?;
+                self.append_lifecycle(request, project, &unknown, starting_version + 2)
+                    .await?;
+                return Err(failed(format!(
+                    "result_unknown:connector_adapter_dispatch:{error}"
+                )));
+            }
+        };
+        let observer = LocalFixtureEffectObserver;
+        let observation = match observer.observe(&receipt, request, project, actor, attempt, now) {
+            Ok(observation) => observation,
+            Err(error) => {
+                let unknown = dispatching
+                    .advance(
+                        ConnectorDispatchStage::Unknown,
+                        None,
+                        None,
+                        None,
+                        Some("connector_effect_observation_unknown".to_owned()),
+                    )
+                    .map_err(failed)?;
+                self.append_lifecycle(request, project, &unknown, starting_version + 2)
+                    .await?;
+                return Err(failed(format!(
+                    "result_unknown:connector_effect_observation:{error}"
+                )));
+            }
+        };
+        let receipt_digest = kiana_domain::json_digest(
+            &serde_json::to_value(&receipt)
+                .map_err(|_| failed("connector_receipt_encode_failed"))?,
+        );
+        let observation_digest = observation.observation_digest.clone();
+        let observed = dispatching
+            .advance(
+                ConnectorDispatchStage::Observed,
+                Some(receipt_digest.clone()),
+                Some(observation_digest.clone()),
+                None,
+                None,
+            )
+            .map_err(failed)?;
+        self.append_lifecycle(request, project, &observed, starting_version + 2)
+            .await?;
+        let result_digest = kiana_domain::json_digest(&json!({
+            "receipt": receipt,
+            "observation": observation,
+            "credential_evidence": credential_evidence,
+        }));
+        let lifecycle = if receipt.outcome == ProviderOutcome::Unknown {
+            observed
+                .advance(
+                    ConnectorDispatchStage::Unknown,
+                    Some(receipt_digest),
+                    Some(observation_digest),
+                    None,
+                    Some("connector_provider_outcome_unknown".to_owned()),
+                )
+                .map_err(failed)?
+        } else {
+            observed
+                .advance(
+                    ConnectorDispatchStage::ResultCommitted,
+                    Some(receipt_digest),
+                    Some(observation_digest),
+                    Some(result_digest),
+                    None,
+                )
+                .map_err(failed)?
+        };
+        self.append_lifecycle(request, project, &lifecycle, starting_version + 3)
+            .await?;
+        Ok(ConnectorDispatchOutcome {
+            receipt,
+            observation,
+            lifecycle,
+            version: starting_version + 4,
+            credential_evidence,
+        })
+    }
+
+    async fn append_lifecycle(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        project: &str,
+        lifecycle: &ConnectorDispatchLifecycle,
+        expected_version: u64,
+    ) -> Result<(), PortError> {
+        self.journal
+            .append_lifecycle(
+                request.request.request_id,
+                project,
+                lifecycle,
+                expected_version,
+            )
+            .await
+            .map(|_| ())
+            .map_err(|error| match error {
+                PortError::Conflict(_) => error,
+                other => failed(format!(
+                    "result_unknown:connector_dispatch_lifecycle_persist:{other}"
+                )),
+            })
+    }
+
     async fn handle(&self, request: &AuthorizedCapabilityRequest) -> Result<Value, PortError> {
         let args = &request.request.arguments;
         if request.request.cell_id.is_some() || args["operator_authorized"] != true {
@@ -318,7 +533,7 @@ impl ConnectorRegistry {
         }
         let project = string(args, "project_root")?;
         let actor = string(args, "actor_id")?;
-        let history = self.events.read_stream(CONNECTOR_STREAM, project).await?;
+        let history = self.journal.read_stream(CONNECTOR_STREAM, project).await?;
         let (version, bindings) = connector_bindings(&history).map_err(failed)?;
         let action = if request.request.operation == CONNECTOR_INVOKE_OPERATION {
             "invoke"
@@ -376,10 +591,10 @@ impl ConnectorRegistry {
         // request fingerprint for compatibility with pre-reservation connector events.
         let command_digest = kiana_domain::json_digest(&kiana_domain::canonical_json(args.clone()));
         let key = format!("connector:{}:{idempotency}", sha256(project.as_bytes()));
-        if let Some(previous) = history
-            .iter()
-            .find(|event| event.idempotency_key.as_deref() == Some(key.as_str()))
-        {
+        if let Some(previous) = history.iter().find(|event| {
+            event.idempotency_key.as_deref() == Some(key.as_str())
+                && event.data.get("output").is_some()
+        }) {
             let previous_digest = previous.data["command_digest"]
                 .as_str()
                 .map(str::to_owned)
@@ -403,6 +618,30 @@ impl ConnectorRegistry {
             // command, never an implicit second invocation of the adapter.
             return Ok(output);
         }
+        if let Some(lifecycle) = history.iter().rev().find_map(|event| {
+            (event.kind == CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND
+                && event.data["lifecycle"]["command_digest"] == command_digest)
+                .then(|| {
+                    serde_json::from_value::<ConnectorDispatchLifecycle>(
+                        event.data["lifecycle"].clone(),
+                    )
+                })
+                .transpose()
+                .ok()
+                .flatten()
+        }) {
+            return Err(failed(match lifecycle.stage {
+                ConnectorDispatchStage::Prepared
+                | ConnectorDispatchStage::Dispatching
+                | ConnectorDispatchStage::Observed => {
+                    "result_unknown:connector_dispatch_incomplete"
+                }
+                ConnectorDispatchStage::ResultCommitted => {
+                    "result_unknown:connector_result_commit_missing"
+                }
+                ConnectorDispatchStage::Unknown => "result_unknown:connector_dispatch_terminal",
+            }));
+        }
         if action != "invoke" {
             if !matches!(
                 request.request.risk,
@@ -422,7 +661,7 @@ impl ConnectorRegistry {
         let next_version = version
             .checked_add(1)
             .ok_or_else(|| failed("connector_registry_version_exhausted"))?;
-        let (kind, mut data, output) = match action {
+        let (kind, mut data, mut output, event_version, expected_version) = match action {
             "bind" => {
                 let state = ConnectorBindingSnapshot {
                     definition: serde_json::from_value(args["definition"].clone())
@@ -451,7 +690,13 @@ impl ConnectorRegistry {
                 let output = json!({"schema":"kiana.connector-binding-result.v1","binding_id":state.binding.binding_id,
                     "account_id":state.binding.account_id,"registry_version":next_version,"state":"active","fixture_sha256":state.binding.fixture_sha256,
                     "health":"local_fixture_parsed","external_transport":"not_supported","replayed":false});
-                ("connector.binding", json!({"state":state}), output)
+                (
+                    "connector.binding",
+                    json!({"state":state}),
+                    output,
+                    next_version,
+                    version,
+                )
             }
             "revoke" => {
                 let mut state = bindings
@@ -465,7 +710,13 @@ impl ConnectorRegistry {
                 state.revision = next_version;
                 let output = json!({"schema":"kiana.connector-binding-result.v1","binding_id":state.binding.binding_id,
                     "registry_version":next_version,"state":"revoked","external_transport":"not_supported","replayed":false});
-                ("connector.binding", json!({"state":state}), output)
+                (
+                    "connector.binding",
+                    json!({"state":state}),
+                    output,
+                    next_version,
+                    version,
+                )
             }
             "invoke" => {
                 let snapshot: ConnectorBindingSnapshot =
@@ -607,10 +858,25 @@ impl ConnectorRegistry {
                 if payload_bytes.len() > 64 * 1024 {
                     return Err(failed("connector_payload_too_large"));
                 }
-                let fixture = load_fixture(&snapshot).await?;
-                // Validate operation and canonical payload before consuming a one-shot
-                // credential lease. A malformed fixture request must have no effect boundary.
-                fixture.find_case(operation, payload).map_err(failed)?;
+                let attempt = args
+                    .get("connector_reservation")
+                    .and_then(|value| {
+                        serde_json::from_value::<kiana_domain::ConnectorInvocationReservation>(
+                            value.clone(),
+                        )
+                        .ok()
+                    })
+                    .map_or(1, |reservation| reservation.command.attempt);
+                let adapter = LocalFixtureAdapter {
+                    binding: snapshot.clone(),
+                    operation: operation.to_owned(),
+                    idempotency_key: idempotency.clone(),
+                    payload: payload.clone(),
+                    attempt,
+                };
+                // Payload and fixture validation happen through the adapter boundary before a
+                // one-shot credential lease is consumed. The handler never opens fixture bytes.
+                adapter.validate_payload().await?;
                 let credential_evidence = if let Some(secret_ref) = &snapshot.binding.credential_ref
                 {
                     let mut credential = ConnectorCredentialInvocation::issue(
@@ -634,21 +900,33 @@ impl ConnectorRegistry {
                 } else {
                     None
                 };
-                let receipt = fixture
-                    .provider_receipt(&snapshot, operation, &idempotency, payload)
-                    .map_err(failed)?;
-                let observation = effect_observation_for(&receipt, request, project, actor, now)?;
-                let mut output = receipt_output(&receipt, next_version);
-                if let Some(evidence) = &credential_evidence {
+                let dispatch = self
+                    .dispatch_local_fixture(
+                        request,
+                        project,
+                        actor,
+                        &adapter,
+                        credential_evidence,
+                        &command_digest,
+                        version,
+                        now,
+                    )
+                    .await?;
+                let mut output = receipt_output(&dispatch.receipt, dispatch.version);
+                if let Some(evidence) = &dispatch.credential_evidence {
                     output["credential_evidence"] = serde_json::to_value(evidence)
                         .map_err(|_| failed("connector_credential_evidence_encode_failed"))?;
                 }
-                output["effect_observation"] = serde_json::to_value(&observation)
+                output["effect_observation"] = serde_json::to_value(&dispatch.observation)
                     .map_err(|_| failed("effect_observation_encode_failed"))?;
+                output["dispatch_lifecycle"] = serde_json::to_value(&dispatch.lifecycle)
+                    .map_err(|_| failed("connector_dispatch_lifecycle_encode_failed"))?;
                 (
                     "connector.invoked",
-                    json!({"receipt":receipt,"credential_evidence":credential_evidence,"effect_observation":observation,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
+                    json!({"receipt":dispatch.receipt,"credential_evidence":dispatch.credential_evidence,"effect_observation":dispatch.observation,"dispatch_lifecycle":dispatch.lifecycle,"binding_revision":snapshot.revision,"occurred_at_ms":now}),
                     output,
+                    dispatch.version + 1,
+                    dispatch.version,
                 )
             }
             "reconcile" => {
@@ -697,7 +975,8 @@ impl ConnectorRegistry {
                     ..receipt
                 };
                 let now = now_ms()?;
-                let observation = effect_observation_for(&receipt, request, project, actor, now)?;
+                let observation = LocalFixtureEffectObserver
+                    .observe(&receipt, request, project, actor, 1, now)?;
                 let mut output = receipt_output(&receipt, next_version);
                 output["effect_observation"] = serde_json::to_value(&observation)
                     .map_err(|_| failed("effect_observation_encode_failed"))?;
@@ -707,6 +986,8 @@ impl ConnectorRegistry {
                     "connector.reconciled",
                     json!({"receipt":receipt,"effect_observation":observation,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
                     output,
+                    next_version,
+                    version,
                 )
             }
             _ => unreachable!(),
@@ -721,11 +1002,11 @@ impl ConnectorRegistry {
         data["output"] = output;
         let event = RuntimeEvent::new(request.request.request_id, 1, kind, data)
             .map_err(|e| failed(e.to_string()))?
-            .with_stream_metadata(CONNECTOR_STREAM, project, next_version)
+            .with_stream_metadata(CONNECTOR_STREAM, project, event_version)
             .with_idempotency_key(key);
         let appended = self
-            .events
-            .append_idempotent_expected(event, Some(version))
+            .journal
+            .append_idempotent_expected(event, Some(expected_version))
             .await
             .map_err(|e| match e {
                 PortError::Conflict(_) => e,
@@ -771,6 +1052,75 @@ impl CapabilityHandler for ConnectorRegistry {
     }
 }
 
+/// Local fixture adapter: it only produces a deterministic provider receipt and has no journal
+/// or authorization authority. The dispatch coordinator enters it only after the dispatching
+/// lifecycle fact is committed.
+struct LocalFixtureAdapter {
+    binding: ConnectorBindingSnapshot,
+    operation: String,
+    idempotency_key: String,
+    payload: Value,
+    attempt: u32,
+}
+
+impl LocalFixtureAdapter {
+    async fn validate_payload(&self) -> Result<(), PortError> {
+        let fixture = load_fixture(&self.binding).await?;
+        fixture
+            .find_case(&self.operation, &self.payload)
+            .map(|_| ())
+            .map_err(failed)
+    }
+
+    async fn dispatch(&self) -> Result<ProviderReceipt, PortError> {
+        let fixture = load_fixture(&self.binding).await?;
+        fixture
+            .provider_receipt(
+                &self.binding,
+                &self.operation,
+                &self.idempotency_key,
+                &self.payload,
+            )
+            .map_err(failed)
+    }
+}
+
+/// Observation is a distinct phase and projection. It never writes the journal and cannot
+/// authorize, retry or mutate the connector binding.
+struct LocalFixtureEffectObserver;
+
+impl LocalFixtureEffectObserver {
+    fn observe(
+        &self,
+        receipt: &ProviderReceipt,
+        request: &AuthorizedCapabilityRequest,
+        project: &str,
+        actor: &str,
+        attempt: u32,
+        observed_at_unix_ms: u64,
+    ) -> Result<EffectObservation, PortError> {
+        let owner_digest = kiana_domain::json_digest(&json!({
+            "project_root": project,
+            "actor_id": actor,
+        }));
+        let audience_digest = kiana_domain::json_digest(&json!({
+            "connector_id": receipt.connector_id,
+            "binding_id": receipt.binding_id,
+            "account_id": receipt.account_id,
+        }));
+        EffectObservation::from_provider_receipt(
+            receipt,
+            ExecutionId::from_uuid(request.request.request_id.as_uuid()),
+            InvocationId::from_uuid(request.request.request_id.as_uuid()),
+            attempt,
+            owner_digest,
+            audience_digest,
+            observed_at_unix_ms,
+        )
+        .map_err(failed)
+    }
+}
+
 fn receipt_output(receipt: &ProviderReceipt, version: u64) -> Value {
     let mut output = json!({"schema":"kiana.connector-invocation-result.v1","receipt":receipt,"registry_version":version,
         "external_effect_performed":false,"proof_source":"local_fixture","replayed":false});
@@ -782,34 +1132,6 @@ fn receipt_output(receipt: &ProviderReceipt, version: u64) -> Value {
         }
     }
     output
-}
-
-fn effect_observation_for(
-    receipt: &ProviderReceipt,
-    request: &AuthorizedCapabilityRequest,
-    project: &str,
-    actor: &str,
-    observed_at_unix_ms: u64,
-) -> Result<EffectObservation, PortError> {
-    let owner_digest = kiana_domain::json_digest(&json!({
-        "project_root": project,
-        "actor_id": actor,
-    }));
-    let audience_digest = kiana_domain::json_digest(&json!({
-        "connector_id": receipt.connector_id,
-        "binding_id": receipt.binding_id,
-        "account_id": receipt.account_id,
-    }));
-    EffectObservation::from_provider_receipt(
-        receipt,
-        ExecutionId::from_uuid(request.request.request_id.as_uuid()),
-        InvocationId::from_uuid(request.request.request_id.as_uuid()),
-        1,
-        owner_digest,
-        audience_digest,
-        observed_at_unix_ms,
-    )
-    .map_err(failed)
 }
 
 async fn load_fixture(binding: &ConnectorBindingSnapshot) -> Result<ConnectorFixture, PortError> {

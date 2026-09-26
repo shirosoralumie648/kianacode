@@ -2,8 +2,9 @@
 //! adapter admitted by the INT-10 source slice and still runs inside the confined child boundary.
 
 use crate::{
-    connector_fixture_hash_valid, is_sha256_hex, valid_extension_identifier, valid_extension_path,
-    RiskLevel, SecretRef,
+    connector_fixture_hash_valid, is_sha256_hex, json_digest, valid_extension_identifier,
+    valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage, EffectObservation,
+    InvocationId, RiskLevel, SecretRef,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -356,6 +357,7 @@ pub fn connector_bindings(
 ) -> Result<(u64, BTreeMap<String, ConnectorBindingSnapshot>), &'static str> {
     let mut version = 0;
     let mut bindings = BTreeMap::new();
+    let mut dispatches: BTreeMap<(InvocationId, u32), ConnectorDispatchLifecycle> = BTreeMap::new();
     for event in events {
         if event.stream_version != Some(version + 1)
             || !matches!(
@@ -363,6 +365,7 @@ pub fn connector_bindings(
                 "connector.binding"
                     | "connector.invoked"
                     | "connector.reconciled"
+                    | CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND
                     | CONNECTOR_HEALTH_EVENT_KIND
                     | CONNECTOR_MCP_HANDSHAKE_EVENT_KIND
             )
@@ -378,6 +381,49 @@ pub fn connector_bindings(
                 return Err("connector_registry_event_invalid");
             }
             bindings.insert(state.binding.binding_id.clone(), state);
+        } else if event.kind == "connector.invoked" {
+            if let Some(raw_lifecycle) = event.data.get("dispatch_lifecycle") {
+                let lifecycle: ConnectorDispatchLifecycle =
+                    serde_json::from_value(raw_lifecycle.clone())
+                        .map_err(|_| "connector_registry_event_invalid")?;
+                lifecycle
+                    .validate()
+                    .map_err(|_| "connector_registry_event_invalid")?;
+                let receipt: ProviderReceipt =
+                    serde_json::from_value(event.data["receipt"].clone())
+                        .map_err(|_| "connector_registry_event_invalid")?;
+                let observation = EffectObservation::from_json(&event.data["effect_observation"])
+                    .map_err(|_| "connector_registry_event_invalid")?;
+                let identity = (lifecycle.invocation_id, lifecycle.attempt);
+                if dispatches.get(&identity) != Some(&lifecycle)
+                    || !lifecycle.stage.is_terminal()
+                    || event.data["dispatch_lifecycle"]
+                        != event.data["output"]["dispatch_lifecycle"]
+                    || observation.invocation_id != lifecycle.invocation_id
+                    || observation.attempt != lifecycle.attempt
+                {
+                    return Err("connector_registry_event_invalid");
+                }
+                let receipt_digest = json_digest(
+                    &serde_json::to_value(&receipt)
+                        .map_err(|_| "connector_registry_event_invalid")?,
+                );
+                let result_digest = json_digest(&serde_json::json!({
+                    "receipt": receipt,
+                    "observation": observation,
+                    "credential_evidence": event.data["credential_evidence"],
+                }));
+                if lifecycle.receipt_digest.as_deref() != Some(receipt_digest.as_str())
+                    || lifecycle.observation_digest.as_deref()
+                        != Some(observation.observation_digest.as_str())
+                    || (lifecycle.stage == ConnectorDispatchStage::Unknown)
+                        != (receipt.outcome == ProviderOutcome::Unknown)
+                    || (lifecycle.stage == ConnectorDispatchStage::ResultCommitted
+                        && lifecycle.result_digest.as_deref() != Some(result_digest.as_str()))
+                {
+                    return Err("connector_registry_event_invalid");
+                }
+            }
         } else if event.kind == CONNECTOR_HEALTH_EVENT_KIND {
             let fact: ConnectorHealthFact = serde_json::from_value(event.data["health"].clone())
                 .map_err(|_| "connector_registry_event_invalid")?;
@@ -399,6 +445,33 @@ pub fn connector_bindings(
             handshake
                 .validate()
                 .map_err(|_| "connector_registry_event_invalid")?;
+        } else if event.kind == CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND {
+            let lifecycle: ConnectorDispatchLifecycle =
+                serde_json::from_value(event.data["lifecycle"].clone())
+                    .map_err(|_| "connector_registry_event_invalid")?;
+            lifecycle
+                .validate()
+                .map_err(|_| "connector_registry_event_invalid")?;
+            let identity = (lifecycle.invocation_id, lifecycle.attempt);
+            match dispatches.get(&identity) {
+                None if lifecycle.stage == ConnectorDispatchStage::Prepared => {}
+                Some(previous) => {
+                    let expected = previous
+                        .advance(
+                            lifecycle.stage,
+                            lifecycle.receipt_digest.clone(),
+                            lifecycle.observation_digest.clone(),
+                            lifecycle.result_digest.clone(),
+                            lifecycle.reason.clone(),
+                        )
+                        .map_err(|_| "connector_registry_event_invalid")?;
+                    if expected != lifecycle {
+                        return Err("connector_registry_event_invalid");
+                    }
+                }
+                _ => return Err("connector_registry_event_invalid"),
+            }
+            dispatches.insert(identity, lifecycle);
         }
         version += 1;
     }

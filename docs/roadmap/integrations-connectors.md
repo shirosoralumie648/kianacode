@@ -32,6 +32,11 @@ ConnectorDefinition + AccountBinding + OperationContract
   bytes are bounded and hash-pinned, operation cases match canonical payloads with duplicate and
   unknown-operation rejection, and deterministic `ProviderReceipt` projections always carry
   `source=local_fixture` with no external effect. GitHub Actions remains the test authority.
+- INT-19 source slice now owns a digest-bound `ConnectorDispatchLifecycle` and commits
+  `prepared → dispatching → observed → result_committed` (or terminal `unknown`) through a narrow
+  connector journal. The local fixture adapter and effect observer are separate objects; replayed
+  incomplete/terminal lifecycles return `result_unknown` without re-entering the adapter. This is
+  still source-level evidence, not durable/live provider proof.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界
