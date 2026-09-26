@@ -1,0 +1,50 @@
+name: int21-connector-retry
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/connector_retry.rs"
+      - "kiana-domain/src/connector_operation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int21_connector_retry.rs"
+      - "kiana-core/tests/int21_connector_retry_guard.rs"
+      - ".github/workflows/int21-connector-retry.yml"
+      - "docs/roadmap/int21-connector-retry-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/connector_retry.rs"
+      - "kiana-domain/src/connector_operation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/int21_connector_retry.rs"
+      - "kiana-core/tests/int21_connector_retry_guard.rs"
+      - ".github/workflows/int21-connector-retry.yml"
+      - "docs/roadmap/int21-connector-retry-baseline.md"
+      - "docs/roadmap/integrations-connectors.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-retry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run INT-21 connector retry fixtures
+        run: cargo test -p kiana-domain --test int21_connector_retry --locked -- --test-threads=1
+      - name: Run INT-21 retry boundary source guard
+        run: cargo test -p kiana-core --test int21_connector_retry_guard --locked -- --test-threads=1
+      - name: Compile INT-21 workspace targets
+        run: cargo check --workspace --tests --locked
