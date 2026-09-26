@@ -15005,3 +15005,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: approved promotion remains a validated handoff to existing memory.review and does not write/search MemoryRecord; durable projection, retrieval freshness and UI remain CO-38+
 reviewer: Codex CO-37 source review; checked decision/receipt/evidence binding, collection scope, private/scratch deny, cross-project/self-review fences, approved reviewer binding, promotion idempotency and existing Memory ACL boundary; no local runtime test reviewer
 ```
+
+### CO-38 Company rebuildable read model evidence (2026-09-27)
+
+```text
+source_snapshot: `8aed9aa2` plus CO-38 read model source slice; kiana-domain/src/{company_read_model.rs,company.rs,governance_gate.rs,lib.rs}; kiana-core/src/{company_read_model.rs,company_governance.rs,lib.rs}; kiana-domain/tests/co38_company_read_model.rs; kiana-core/tests/co38_company_read_model_guard.rs; .github/workflows/co38-company-read-model.yml; docs/roadmap/co38-company-read-model-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyReadModelSnapshot binds authorized project scope, source/projection cursor, revision and authority epoch; Project/Packet views expose authoritative status, blockers with owner/allowed actions, acceptance/delivery/close references and evidence links; Pending/Unknown freshness remains explicit; projection is pure and does not advance from chat/cache; existing CompanyGovernanceSnapshot/EventLog remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_read_model.rs kiana-core/src/company_read_model.rs kiana-domain/tests/co38_company_read_model.rs kiana-core/tests/co38_company_read_model_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co38_company_read_model --locked -- --test-threads=1; cargo test -p kiana-core --test co38_company_read_model_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only foreign scope denial, pending cursor freshness, deterministic rebuild equality, invalid cursor/revision/epoch, blocker/action/evidence DTO and read-only source guard; no durable cross-process snapshot, pagination, daemon query, live/physical business result
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-38 CompanyReadModelSnapshot/ProjectView/PacketView source slice, Core adapter, CI fixture/guard, workflow and baseline implemented; roadmap row 537/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: read model is in-memory deterministic projection only; durable reconstruction, pagination/query ports, four-entrypoint rendering and evidence content verification remain CO-39+
+reviewer: Codex CO-38 source review; checked scope isolation, cursor/revision/epoch/freshness, deterministic rebuild, blocker owner/action and evidence links, no transcript/chat/cache authority; no local runtime test reviewer
+```

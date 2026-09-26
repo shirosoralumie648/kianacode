@@ -637,7 +637,7 @@
 
 
 
-#### CO-38 · 组织与项目的可重建读模型　⏳
+#### CO-38 · 组织与项目的可重建读模型　🔄
 
 - **归属**：`P2-M2-01`、`P2-M4-01`、`P3-I-03`。
 - **依赖**：CO-18、CO-22、CO-28、CO-35、CO-36。
@@ -645,6 +645,7 @@
 - **实现顺序**：①按授权范围投影目标、部门队列、里程碑、包、实例和成果；②每个 blocker 返回原因/责任人/允许动作，每个结果提供证据链接；③分页、cursor、revision、epoch 一致，过期 UI 不能覆盖新事实。
 - **先拒绝**：`company_projection_never_leaks_foreign_project_or_advances_from_chat`；同 ID 不同 scope、旧 cursor、伪造进度、自报百分比不能变成权威完成态。
 - **再成功 / 退出**：`company_view_rebuilds_with_the_same_blockers_actions_and_evidence_links`；清除缓存后重建等价，部门“工作量”和已验收业务成果分别显示。
+- **本步交付**：`company_read_model.rs` 提供 scope/cursor/revision/epoch 绑定的 Project/Packet DTO、blocker owner/allowed actions 和 evidence links；核心只读委托既有 CompanyState/Governance 投影，未引入 transcript/cache 事实源。
 
 <a id="co-39"></a>
 
