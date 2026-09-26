@@ -574,6 +574,8 @@ pub use swarm::*;
 
 mod handoff;
 pub use handoff::*;
+mod company_handoff;
+pub use company_handoff::*;
 
 mod dispatch;
 mod effect_observation;

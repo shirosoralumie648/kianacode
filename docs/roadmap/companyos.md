@@ -309,11 +309,11 @@
 
 
 
-#### CO-17 · 跨部门交接与 ACK 责任转移　⏳
+#### CO-17 · 跨部门交接与 ACK 责任转移　🔄
 
 - **归属**：`P1-E-01`、`P1-D-03`。
 - **依赖**：CO-13、CO-16。
-- **代码与产物**：domain Handoff、owner/assignee/acceptor 绑定、core handoff commands；状态投影显示待接单方。
+- **代码与产物**：`company_handoff.rs` 的版本化 Handoff、owner/assignee/acceptor 绑定、CompanyState 责任投影与 CI fixture/guard；旧 `PacketHandoff` 保持兼容。
 - **实现顺序**：①发送方提交精确 packet revision、输入/输出和目标 assignment；②接收方验证范围、预算和资料后 ACK 或拒收；③ACK 前原 owner 负责，拒收/超时返回原 owner 并提供升级对象；重发不重转责任。
 - **先拒绝**：`handoff_ack_rejects_wrong_recipient_revision_and_expired_assignment`；沉默不算接单，StatusReport/Chat 不产生责任转移。
 - **再成功 / 退出**：`handoff_changes_accountability_once_and_survives_reopen`；同一交接在各部门视图中一致，ACK 记录不自动领取运行 lease。
