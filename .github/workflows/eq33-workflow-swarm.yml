@@ -1,0 +1,38 @@
+name: EQ-33 workflow swarm evaluator
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-workflow-swarm-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq33-workflow-swarm.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-workflow-swarm-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq33-workflow-swarm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-swarm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-33 workflow swarm fixtures
+        run: cargo test -p kiana-quality --test eq33_workflow --locked -- --test-threads=1
+      - name: Run EQ-33 source guard
+        run: cargo test -p kiana-quality --test eq33_workflow_guard --locked -- --test-threads=1
+      - name: Compile EQ-33 targets
+        run: cargo check --workspace --tests --locked

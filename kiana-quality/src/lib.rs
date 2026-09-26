@@ -20,6 +20,7 @@ mod runtime;
 mod safety;
 mod scenario;
 mod volatile;
+mod workflow;
 
 pub use assertions::{
     evaluate_assertion, evaluate_assertions, Assertion, AssertionError, AssertionMode,
@@ -93,4 +94,8 @@ pub use volatile::{
     normalize_volatile, normalize_volatile_trace, standard_uuid_rule_paths, VolatileError,
     VolatileEvent, VolatileEventTrace, VolatileKind, VolatilePolicy, VolatileReplacement,
     VolatileRule, MAX_VOLATILE_REPLACEMENTS, MAX_VOLATILE_RULES, VOLATILE_NORMALIZATION_VERSION,
+};
+pub use workflow::{
+    evaluate_workflow_swarm, WorkflowNodeEvidence, WorkflowNodeStatus, WorkflowSwarmEvaluator,
+    WorkflowSwarmInput, WORKFLOW_SWARM_EVALUATOR_ID, WORKFLOW_SWARM_INPUT_SCHEMA,
 };

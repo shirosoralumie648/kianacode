@@ -14315,3 +14315,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator analyzes caller-supplied context evidence only; it does not prove semantic retrieval quality, durable memory/index state, exact provider tokenizer behavior, cross-process compaction recovery, retention/deletion propagation or live/physical outcome; EQ-33+ and CM/PD/SC remain open
 reviewer: Codex EQ-32 source review; checked ACL-before-ranking, unauthorized hit, provenance/freshness, compaction and token/wire budget findings plus pure no-I/O boundary; no local runtime test reviewer
 ```
+
+### EQ-33 workflow and swarm evaluator evidence (2026-09-26)
+
+```text
+source_snapshot: `e0834765` plus EQ-33 workflow/swarm evaluator slice; kiana-quality/src/{workflow.rs,lib.rs}; kiana-quality/tests/{eq33_workflow.rs,eq33_workflow_guard.rs}; .github/workflows/eq33-workflow-swarm.yml; docs/roadmap/evaluation-workflow-swarm-baseline.md; docs/roadmap.md
+worktree_status: pure WorkflowSwarmEvaluator consumes bounded topology evidence and checks DAG/missing parent, monotonic attempt history, depth/fan-out/fan-in counts, child scope subset, merge digest/verification and compensation presence; no scheduler, child Cell, runner, free-message bus, workspace merge or compensation authority was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{workflow.rs,lib.rs} kiana-quality/tests/{eq33_workflow.rs,eq33_workflow_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq33_workflow --locked -- --test-threads=1; cargo test -p kiana-quality --test eq33_workflow_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only bounded DAG, child scope expansion, cycle/attempt/fan-out/fan-in/merge/compensation denial and unknown-field fixtures; no worker, queue, child process, workspace merge, provider or external-effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-33 workflow/swarm source contract, CI fixture/guard and baseline implemented; roadmap row 479/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator analyzes caller-supplied topology evidence only; it does not prove durable queue/child lifecycle, real concurrency, independent merge/review receipt, recovery, compensation success, promotion authority or live/physical outcome; EQ-34+ and SW/AUT/ER/PD remain open
+reviewer: Codex EQ-33 source review; checked cycle/attempt/fan-out/fan-in/scope/merge/compensation findings and no-execution/no-free-message boundary; no local runtime test reviewer
+```
