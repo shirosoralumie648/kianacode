@@ -1,0 +1,38 @@
+name: EQ-42 blocking rules
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-blocking-rules-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq42-blocking-rules.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-blocking-rules-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq42-blocking-rules.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blocking-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-42 blocking rule fixtures
+        run: cargo test -p kiana-quality --test eq42_rules --locked -- --test-threads=1
+      - name: Run EQ-42 source guard
+        run: cargo test -p kiana-quality --test eq42_rules_guard --locked -- --test-threads=1
+      - name: Compile EQ-42 targets
+        run: cargo check --workspace --tests --locked

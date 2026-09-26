@@ -24,6 +24,7 @@ mod judge;
 mod metrics;
 mod normalize;
 mod recovery;
+mod rules;
 mod runtime;
 mod safety;
 mod scenario;
@@ -117,6 +118,10 @@ pub use recovery::{
     evaluate_recovery_replay, CrashRestartEvidence, RecoveryReplayEvaluator, RecoveryReplayInput,
     ReplayEvidence, ReplayFenceEvidence, UnknownReconcileEvidence, RECOVERY_REPLAY_EVALUATOR_ID,
     RECOVERY_REPLAY_INPUT_SCHEMA,
+};
+pub use rules::{
+    evaluate_blocking_rules, BlockingRuleEvaluator, BlockingRuleEvidence, BlockingRuleInput,
+    BlockingVerdict, BLOCKING_RULE_EVALUATOR_ID, BLOCKING_RULE_INPUT_SCHEMA,
 };
 pub use runtime::{
     evaluate_runtime_correctness, RuntimeCorrectnessEvaluator, RuntimeCorrectnessInput,
