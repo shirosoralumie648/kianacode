@@ -1009,6 +1009,9 @@ pub struct CompanyState {
     /// CO-32 separates risk signals, named incidents and append-only Unknown reconciliation.
     #[serde(default)]
     pub company_reconciliation: crate::CompanyReconciliationLedger,
+    /// CO-33 immutable accepted-artifact manifests and local package descriptors.
+    #[serde(default)]
+    pub delivery_manifests: crate::DeliveryManifestLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1214,6 +1217,20 @@ impl CompanyState {
         case: crate::CompanyReconciliationCase,
     ) -> CompanyResult<()> {
         self.company_reconciliation.record_case(case)
+    }
+
+    pub fn publish_delivery_manifest(
+        &mut self,
+        manifest: crate::DeliveryManifest,
+    ) -> CompanyResult<()> {
+        self.delivery_manifests.publish_manifest(manifest)
+    }
+
+    pub fn record_local_delivery_package(
+        &mut self,
+        package: crate::LocalDeliveryPackage,
+    ) -> CompanyResult<()> {
+        self.delivery_manifests.record_package(package)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is
