@@ -28,6 +28,7 @@ mod rules;
 mod runtime;
 mod safety;
 mod scenario;
+mod shadow;
 mod volatile;
 mod workflow;
 
@@ -137,6 +138,10 @@ pub use scenario::{
     CleanupReceipt, ScenarioArtifact, ScenarioError, ScenarioOutcome, ScenarioReport,
     ScenarioRunner, ScenarioSpec, ScopePredicate, ScrubbedEnvironment, CLEANUP_RECEIPT_SCHEMA,
     SCENARIO_SCHEMA, SCRUBBED_ENVIRONMENT_SCHEMA,
+};
+pub use shadow::{
+    evaluate_shadow, ShadowAdmission, ShadowEvaluator, ShadowInput, ShadowObservation,
+    SHADOW_EVALUATOR_ID, SHADOW_INPUT_SCHEMA,
 };
 pub use volatile::{
     normalize_volatile, normalize_volatile_trace, standard_uuid_rule_paths, VolatileError,
