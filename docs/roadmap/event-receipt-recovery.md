@@ -620,7 +620,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-35 — Cross-entry and CompanyOS gate　⏳
+##### ER-35 — Cross-entry and CompanyOS gate　🔄
 
 - **落点：** CLI/Workbench/Web/Desktop、Workflow、Company business tests；关联 `P2-M*`、`CO-40..48`、`CAP-34`。
 - **动作：** 用同一持久 EventStore 验证四入口查询、approval/resume/cancel/reconcile、Review/Delivery/Close 的引用一致性；证明 UI 断线只读补游标。
