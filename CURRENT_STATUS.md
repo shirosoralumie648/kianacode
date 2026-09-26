@@ -15260,3 +15260,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: projection contract does not implement scheduler/UI query service, cross-process rebuild or actual claim/effect behavior; AUT-23/24 remain open
 reviewer: Codex AUT-22 source review; checked source cursor/epoch, due/blocked/Unknown reason, Receipt/business outcome separation, incident reconciliation, workflow bindings and no query-side execution authority; no local runtime test reviewer
 ```
+
+### AUT-23 five-surface DaemonHost UAT parity evidence (2026-09-27)
+
+```text
+source_snapshot: `dc64a9d1` plus AUT-23 surface UAT source slice; kiana-domain/src/{automation_surface_uat.rs,automation_snapshot.rs,lib.rs}; kiana-core/src/{automation_surface_uat.rs,automation_snapshot.rs,lib.rs}; kiana-daemon/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/automation_surface_uat.rs; kiana-core/tests/automation_surface_uat_guard.rs; .github/workflows/aut23-surface-uat.yml; docs/roadmap/aut23-surface-uat-baseline.md; docs/roadmap.md
+worktree_status: AutomationSurfaceUat binds CLI/Web/Workbench/Desktop/MCP to one command/snapshot digest, source cursor and authority epoch; denied cases require zero Broker/handler calls and direct alternate routes fail closed; existing DaemonHost/ControlPlane spine remains authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_surface_uat.rs kiana-core/src/automation_surface_uat.rs kiana-domain/tests/automation_surface_uat.rs kiana-core/tests/automation_surface_uat_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_surface_uat --locked -- --test-threads=1; cargo test -p kiana-core --test automation_surface_uat_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon -p kiana-protocol --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only five-surface same snapshot/cursor/epoch, foreign snapshot/direct route/zero-effect denial and missing surface matrix; no browser/PTY/Electron/MCP E2E, durable cross-process query, provider or physical effect
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: AUT-23 surface UAT parity contract, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 666 advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: matrix validates supplied parity facts and cannot prove runtime cross-entry UAT, durable query/index rebuild, MCP network behavior or physical outcomes; AUT-24 remains open
+reviewer: Codex AUT-23 source review; checked five surface exact parity, DaemonHost/ControlPlane reuse, zero-effect denial and alternate route fence; no local runtime/E2E reviewer
+```
