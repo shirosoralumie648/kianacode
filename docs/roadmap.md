@@ -653,7 +653,7 @@
 | 480 | W6 | 专项 | [`EQ-34`](#step-eq-34) | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `P1-J8-01`、`P1-K5-01`、`EQ-33` | 🔄 | [专项卡](#step-eq-34) · [baseline](roadmap/evaluation-performance-cost-baseline.md) |
 | 481 | W6 | 专项 | [`EQ-35`](#step-eq-35) | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `EQ-34` | 🔄 | [专项卡](#step-eq-35) · [baseline](roadmap/evaluation-semantic-judge-baseline.md) |
 | 482 | W6 | 专项 | [`EQ-36`](#step-eq-36) | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `EQ-35` | 🔄 | [专项卡](#step-eq-36) · [baseline](roadmap/evaluation-aggregation-baseline.md) |
-| 483 | W6 | 专项 | [`EQ-37`](#step-eq-37) | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `EQ-36` | ⏳ | [专项卡](#step-eq-37) |
+| 483 | W6 | 专项 | [`EQ-37`](#step-eq-37) | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `EQ-36` | 🔄 | [专项卡](#step-eq-37) · [baseline](roadmap/evaluation-flake-baseline.md) |
 | 484 | W6 | 专项 | [`BQ-14`](#step-bq-14) | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | `CP-11`、`ER-12`、`BQ-13` | 🔄 | [专项卡](#step-bq-14) · [baseline](roadmap/bq14-cost-correction-baseline.md) |
 | 485 | W6 | 专项 | [`BQ-15`](#step-bq-15) | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | `CAP-17`、`BQ-06`、`BQ-08`、`BQ-11` | 🔄 | [专项卡](#step-bq-15) · [baseline](roadmap/bq15-effect-usage-baseline.md) |
 | 486 | W6 | 专项 | [`BQ-16`](#step-bq-16) | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | `BQ-07`、`BQ-08`、`BQ-15` | 🔄 | [专项卡](#step-bq-16) · [baseline](roadmap/bq16-provider-capacity-baseline.md) |

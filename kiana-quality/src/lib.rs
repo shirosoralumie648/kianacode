@@ -15,6 +15,7 @@ mod digest;
 mod evaluator;
 mod evidence;
 mod fixtures;
+mod flake;
 mod judge;
 mod metrics;
 mod normalize;
@@ -72,6 +73,10 @@ pub use evidence::{
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
     FixtureFamily, TraceFixture, FIXTURE_SCHEMA,
+};
+pub use flake::{
+    evaluate_flake, AttemptOutcome, FlakeAttempt, FlakeClassifierEvaluator, FlakeFinalStatus,
+    FlakeInput, FlakeQuarantine, InfraFailureClass, FLAKE_EVALUATOR_ID, FLAKE_INPUT_SCHEMA,
 };
 pub use judge::{
     evaluate_semantic_judge, JudgeAvailability, JudgeVerdict, SemanticJudgeConfig,
