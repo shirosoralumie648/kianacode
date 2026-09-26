@@ -589,7 +589,7 @@
 
 
 
-#### CO-35 · 成功、失败、取消和豁免的 ClosingReceipt　⏳
+#### CO-35 · 成功、失败、取消和豁免的 ClosingReceipt　🔄
 
 - **归属**：`P3-I-05`、`P3-I-06`。
 - **依赖**：CO-28、CO-31、CO-32、CO-34。
@@ -597,6 +597,7 @@
 - **实现顺序**：①根据 close_kind 汇总目标、计划、packet/attempt、验收、交付、预算、角色与异常；②成功关闭验证所有必需验收和交付确认，失败/取消验证停止与剩余义务；③豁免具名记录，archive 是后续保留动作，不是“结果未知已解决”。
 - **先拒绝**：`closing_rejects_missing_delivery_unresolved_effects_and_incomplete_author_set`；Closer 不能自评替代独立证据，失败/取消不得标成功。
 - **再成功 / 退出**：`each_close_kind_produces_an_honest_queryable_closing_receipt`；失败、取消与豁免也能合理收尾；原失败事实保留，旧单 Run 收尾不冒充整个项目关闭。
+- **本步交付**：`closing_receipt.rs` 提供 Success/Failure/Cancelled/Waived 的聚合收尾合同与 idempotent ledger，绑定 packet/attempt、Run、review/acceptance、delivery、incident、停止证据、残余义务与角色独立；旧 Company closeout/EventLog 继续负责实际提交。
 
 <a id="co-36"></a>
 

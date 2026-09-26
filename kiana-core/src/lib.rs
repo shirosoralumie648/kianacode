@@ -30,6 +30,7 @@ mod project_control;
 mod company_reconciliation;
 mod delivery_manifest;
 mod delivery_authorization;
+mod closing_receipt;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;
