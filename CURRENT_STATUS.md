@@ -14780,3 +14780,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: process planner is source-only and not yet durable across Company/workflow streams; CO-23 owns wakeup/intent consumption; assignment/approval/attempt references, external effects, live/physical outcomes and cross-process recovery remain open
 reviewer: Codex CO-22 source review; checked fixed template/digest, typed gates, role assignment, HumanTask separation, deterministic intent/replay and existing workflow planner reuse without a second loop; no local runtime test reviewer
 ```
+
+### CO-23 durable Company wake and intent consumption evidence (2026-09-26)
+
+```text
+source_snapshot: `d77517fd` plus CO-23 wake source slice; kiana-domain/src/{company_wake.rs,lib.rs}; kiana-core/src/automation.rs; kiana-daemon/src/{company_dispatch.rs,lib.rs,workflow_service.rs}; kiana-workflow/src/durable.rs; kiana-domain/tests/co23_company_wake.rs; kiana-core/tests/co23_company_wake_guard.rs; .github/workflows/co23-company-wake.yml; docs/roadmap/co23-company-wake-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyWakeLedger keys wakes by intent, coalesces duplicates, retains source cursor, rebuilds from committed intent facts, claims due wakes once and consumes only matching CompanyDispatchReceipt; unknown/crash windows remain Unknown, pending order is deterministic, daemon adapter only coordinates ledger rebuild/consume, and existing workflow planner/ControlPlane remains the authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_wake.rs kiana-domain/src/lib.rs kiana-daemon/src/company_dispatch.rs kiana-daemon/src/lib.rs kiana-domain/tests/co23_company_wake.rs kiana-core/tests/co23_company_wake_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co23_company_wake --locked -- --test-threads=1; cargo test -p kiana-core --test co23_company_wake_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon -p kiana-workflow --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only duplicate wake coalescing, cursor scan/reopen, single claim, crash/Unknown dispatch, exact consumed receipt, idempotent consume and no pending retry after Unknown; no external dispatch, provider/model invocation or physical effect
+exit_code: targeted rustfmt --check (new/changed CO-23 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-23 durable Company wake/intent-consumption source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 522/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: durable EventLog cursor/checkpoint and cross-stream atomicity remain open; daemon adapter is source-only coordination, external dispatch receipts/budget accounting and live/physical outcomes remain unproven, Unknown requires reconciliation
+reviewer: Codex CO-23 source review; checked intent-key dedupe, cursor rebuild, claim/receipt binding, Unknown preservation, idempotent consume and no execution bypass; no local runtime test reviewer
+```

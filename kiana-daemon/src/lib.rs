@@ -4,6 +4,7 @@ mod apply_patch;
 #[cfg(test)]
 mod approval_store;
 mod authn;
+mod company_dispatch;
 mod connectors;
 pub mod container_environment;
 mod context_query;

@@ -1,0 +1,58 @@
+name: co23-company-wake
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_wake.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co23_company_wake.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/co23_company_wake_guard.rs"
+      - "kiana-daemon/src/company_dispatch.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_service.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "docs/roadmap/co23-company-wake-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co23-company-wake.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_wake.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co23_company_wake.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/co23_company_wake_guard.rs"
+      - "kiana-daemon/src/company_dispatch.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/workflow_service.rs"
+      - "kiana-workflow/src/durable.rs"
+      - "docs/roadmap/co23-company-wake-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co23-company-wake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-wake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-23 wake fixtures
+        run: cargo test -p kiana-domain --test co23_company_wake --locked -- --test-threads=1
+      - name: Run CO-23 wake source guard
+        run: cargo test -p kiana-core --test co23_company_wake_guard --locked -- --test-threads=1
+      - name: Compile CO-23 wake targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon -p kiana-workflow --tests --locked

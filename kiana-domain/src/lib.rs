@@ -586,6 +586,8 @@ mod company_task_scope;
 pub use company_task_scope::*;
 mod company_process;
 pub use company_process::*;
+mod company_wake;
+pub use company_wake::*;
 
 mod dispatch;
 mod effect_observation;
