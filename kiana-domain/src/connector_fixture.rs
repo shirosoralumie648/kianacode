@@ -6,7 +6,7 @@
 
 use crate::{
     canonical_json, is_sha256_hex, redact_value, valid_extension_identifier,
-    ConnectorBindingSnapshot, ProviderOutcome, ProviderReceipt,
+    ConnectorBindingSnapshot, ProviderOutcome, ProviderReceipt, PROVIDER_RECEIPT_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -128,8 +128,8 @@ impl ConnectorFixture {
         if !valid_extension_identifier(&case.receipt_id) {
             return Err("connector_fixture_invalid".to_owned());
         }
-        Ok(ProviderReceipt {
-            schema: "kiana.provider-receipt.v1".to_owned(),
+        let receipt = ProviderReceipt {
+            schema: PROVIDER_RECEIPT_SCHEMA.to_owned(),
             connector_id: binding.definition.connector_id.clone(),
             binding_id: binding.binding.binding_id.clone(),
             account_id: binding.binding.account_id.clone(),
@@ -140,7 +140,9 @@ impl ConnectorFixture {
             outcome: case.outcome,
             source: CONNECTOR_FIXTURE_SOURCE.to_owned(),
             result: redact_value(&case.result),
-        })
+        };
+        receipt.validate()?;
+        Ok(receipt)
     }
 
     fn validate_shape(&self) -> Result<(), String> {

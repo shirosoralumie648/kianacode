@@ -14510,3 +14510,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: local fixture adapter is not a live provider; journal ownership is within the daemon composition and does not prove cross-process durable recovery; provider receipt truth, retry policy, reconciliation and cancel settlement remain INT-20/INT-21/INT-22/INT-23 work; no live/physical outcome is claimed
 reviewer: Codex INT-19 source review; checked terminal resurrection denial, journal/handler boundary, pre-effect lifecycle commits, separate adapter/observer ordering and no second authorization loop; no local runtime test reviewer
 ```
+
+### INT-20 receipt and observation contract evidence (2026-09-26)
+
+```text
+source_snapshot: `cfc39272` plus INT-20 receipt/observation slice; kiana-domain/src/{connectors.rs,effect_observation.rs,connector_fixture.rs}; kiana-domain/tests/int20_receipt_observation.rs; kiana-ports/src/connector.rs; kiana-core/tests/int20_receipt_observation_guard.rs; kiana-daemon/src/connectors.rs; .github/workflows/int20-receipt-observation.yml; docs/roadmap/int20-receipt-observation-baseline.md; docs/roadmap.md
+worktree_status: ProviderReceipt validates schema/identity/key/payload hash/result bound and secret-free output; EffectObservation carries payload hash when receipt-derived and validates receipt/idempotency/provider ID/outcome plus owner/audience; ports, fixture and daemon use the shared contract; unrelated kiana-core redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/{connectors.rs,effect_observation.rs,connector_fixture.rs} kiana-ports/src/connector.rs kiana-daemon/src/connectors.rs kiana-domain/tests/int20_receipt_observation.rs kiana-core/tests/int20_receipt_observation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test int20_receipt_observation --locked -- --test-threads=1; cargo test -p kiana-core --test int20_receipt_observation_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only succeeded/failed/unknown receipt projections, payload hash drift, owner/audience mismatch, raw provider response/secret rejection and unknown-field fixtures; no live provider or external effect cassette
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: INT-20 receipt/observation schema and binding source slice, CI fixture/guard and baseline implemented; roadmap row 497/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: receipt and observation are still caller/adapter supplied projections; no provider truth, durable cross-process receipt store, query reconciliation, retry/cancel settlement or live/physical outcome is claimed; INT-21+ remain open
+reviewer: Codex INT-20 source review; checked receipt identity/hash/secret fence, owner/audience scope, payload/idempotency/provider-ID binding and outcome separation; no local runtime test reviewer
+```

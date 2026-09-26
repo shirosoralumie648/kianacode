@@ -7,7 +7,7 @@
 use crate::PortError;
 use async_trait::async_trait;
 use kiana_domain::{
-    is_sha256_hex, json_digest, valid_extension_identifier, ConnectorBindingSnapshot,
+    json_digest, provider_payload_hash_valid, valid_extension_identifier, ConnectorBindingSnapshot,
     CredentialLease, EffectObservation, InvocationId, McpCapabilityHandshake, ProviderReceipt,
     StopReport, WorkflowEventIngress, WorkflowEventOccurrence, WorkflowEventSourcePolicy,
 };
@@ -505,6 +505,9 @@ impl EffectObservationRequest {
                 "connector_observation_binding_mismatch".to_owned(),
             ));
         }
+        self.receipt.validate().map_err(|error| {
+            PortError::Failed(format!("connector_provider_receipt_invalid:{error}"))
+        })?;
         self.permit.validate(None)
     }
 }
@@ -759,10 +762,20 @@ pub trait EffectObserver: Send + Sync {
         request.validate()?;
         let expected_attempt = request.permit.attempt;
         let expected_invocation_id = request.permit.invocation_id;
+        let expected_receipt = request.receipt.clone();
+        let expected_owner_digest = request.owner_digest.clone();
+        let expected_audience_digest = request.audience_digest.clone();
         let observation = self.observe(request).await?;
         observation
             .validate()
             .map_err(|error| PortError::Failed(error.to_owned()))?;
+        observation
+            .validate_for_receipt(
+                &expected_receipt,
+                &expected_owner_digest,
+                &expected_audience_digest,
+            )
+            .map_err(|error| PortError::Conflict(error.to_owned()))?;
         if observation.attempt != expected_attempt
             || observation.invocation_id != expected_invocation_id
         {
@@ -871,6 +884,9 @@ pub(crate) fn validate_receipt_for_permit(
     binding: &ConnectorBindingSnapshot,
     permit: &ConnectorPreparedPermit,
 ) -> Result<(), PortError> {
+    receipt
+        .validate()
+        .map_err(|_| PortError::Failed("connector_provider_receipt_invalid".to_owned()))?;
     if receipt.schema != "kiana.provider-receipt.v1"
         || receipt.connector_id != binding.definition.connector_id
         || receipt.binding_id != binding.binding.binding_id
@@ -879,7 +895,7 @@ pub(crate) fn validate_receipt_for_permit(
         || json_digest(&serde_json::json!({
             "idempotency_key": receipt.idempotency_key
         })) != permit.idempotency_key_digest
-        || !is_sha256_hex(&receipt.final_payload_sha256)
+        || !provider_payload_hash_valid(&receipt.final_payload_sha256)
     {
         return Err(PortError::Conflict(
             "connector_provider_receipt_binding_invalid".to_owned(),

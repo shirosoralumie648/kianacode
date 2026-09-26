@@ -957,6 +957,7 @@ impl ConnectorRegistry {
                 .await?;
                 let receipt: ProviderReceipt = serde_json::from_slice(&bytes)
                     .map_err(|_| failed("connector_receipt_invalid"))?;
+                receipt.validate().map_err(failed)?;
                 if receipt.schema != "kiana.provider-receipt.v1"
                     || receipt.source != "local_fixture"
                     || receipt.outcome == ProviderOutcome::Unknown
@@ -1108,7 +1109,7 @@ impl LocalFixtureEffectObserver {
             "binding_id": receipt.binding_id,
             "account_id": receipt.account_id,
         }));
-        EffectObservation::from_provider_receipt(
+        let observation = EffectObservation::from_provider_receipt(
             receipt,
             ExecutionId::from_uuid(request.request.request_id.as_uuid()),
             InvocationId::from_uuid(request.request.request_id.as_uuid()),
@@ -1117,7 +1118,15 @@ impl LocalFixtureEffectObserver {
             audience_digest,
             observed_at_unix_ms,
         )
-        .map_err(failed)
+        .map_err(failed)?;
+        observation
+            .validate_for_receipt(
+                receipt,
+                &observation.owner_digest,
+                &observation.audience_digest,
+            )
+            .map_err(failed)?;
+        Ok(observation)
     }
 }
 
