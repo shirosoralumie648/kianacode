@@ -7,6 +7,7 @@
 mod aggregation;
 mod assertions;
 mod baseline;
+mod candidate;
 mod canonical;
 mod capture;
 mod catalog;
@@ -39,6 +40,10 @@ pub use assertions::{
 pub use baseline::{
     evaluate_baseline_comparison, BaselineComparisonInput, BaselineEvaluator, BaselineRecord,
     BaselineRegistry, BASELINE_EVALUATOR_ID, BASELINE_INPUT_SCHEMA,
+};
+pub use candidate::{
+    CandidateDimension, CandidateEvaluator, CandidateInput, CandidateStatus, QualityCandidate,
+    CANDIDATE_EVALUATOR_ID, CANDIDATE_INPUT_SCHEMA,
 };
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,
