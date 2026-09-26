@@ -15110,3 +15110,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: receipt validates source evidence only and does not merge files, push, publish or accept the project; durable conflict resolution and live/physical output remain open
 reviewer: Codex CO-44 source review; checked fixed base/child digest binding, conflict coverage, independent review evidence, revalidation, result revision and no publish inference; no local runtime test reviewer
 ```
+
+### CO-45 Company portfolio capacity and cost evidence (2026-09-27)
+
+```text
+source_snapshot: `b481a7f5` plus CO-45 portfolio source slice; kiana-domain/src/{company_portfolio.rs,billing_contracts.rs,lib.rs}; kiana-core/src/{company_portfolio.rs,lib.rs}; kiana-domain/tests/co45_company_portfolio.rs; kiana-core/tests/co45_company_portfolio_guard.rs; .github/workflows/co45-company-portfolio.yml; docs/roadmap/co45-company-portfolio-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyCapacityReservation binds organization/project/run/priority/authority epoch and explicit Reserved/Spent/Released/Unknown state; CompanyPortfolioLedger enforces project/org limits, fair shared capacity, unknown hold, missing-budget denial and idempotent settlement; existing billing/quota facts remain lower-level authority; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_portfolio.rs kiana-core/src/company_portfolio.rs kiana-domain/tests/co45_company_portfolio.rs kiana-core/tests/co45_company_portfolio_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co45_company_portfolio --locked -- --test-threads=1; cargo test -p kiana-core --test co45_company_portfolio_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only two-project fair capacity, organization/project budget bypass denial, unknown reservation hold, release reuse, duplicate settlement and cross-organization denial; no scheduler, durable capacity worker, financial billing, provider invoice or live/physical cost outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-45 CompanyCapacityReservation/PortfolioLedger source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 593/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: ledger is a pure capacity/cost-state contract and does not schedule workers or settle finance; portfolio priority/read model and durable multi-project allocation remain open
+reviewer: Codex CO-45 source review; checked project/org limit binding, fair release, Unknown hold, missing budget, idempotent replay and cross-org denial; no local runtime test reviewer
+```
