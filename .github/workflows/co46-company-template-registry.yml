@@ -1,0 +1,56 @@
+name: co46-company-template-registry
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_template_registry.rs"
+      - "kiana-domain/src/company_process.rs"
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co46_company_template_registry.rs"
+      - "kiana-core/src/company_template_registry.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co46_company_template_registry_guard.rs"
+      - "docs/roadmap/co46-company-template-registry-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co46-company-template-registry.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_template_registry.rs"
+      - "kiana-domain/src/company_process.rs"
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co46_company_template_registry.rs"
+      - "kiana-core/src/company_template_registry.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co46_company_template_registry_guard.rs"
+      - "docs/roadmap/co46-company-template-registry-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co46-company-template-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-template-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-46 template registry fixtures
+        run: cargo test -p kiana-domain --test co46_company_template_registry --locked -- --test-threads=1
+      - name: Run CO-46 authority boundary guard
+        run: cargo test -p kiana-core --test co46_company_template_registry_guard --locked -- --test-threads=1
+      - name: Compile CO-46 template registry targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked

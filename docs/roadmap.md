@@ -766,7 +766,7 @@
 | 591 | W8 | 专项 | [`CO-43`](roadmap/companyos.md#step-co-43) | CompanyOS · 有界多角色/多 Builder 并行 | `CO-18`、`CO-19`、`CO-20`、`CO-21`、`CO-29`、`CO-42` | 🔄 | [专项卡](roadmap/companyos.md#step-co-43) · [baseline](roadmap/co43-company-parallel-baseline.md) |
 | 592 | W8 | 专项 | [`CO-44`](roadmap/companyos.md#step-co-44) | CompanyOS · Integrator、冲突处理与 MergeReceipt | `CO-25`、`CO-26`、`CO-43` | 🔄 | [专项卡](roadmap/companyos.md#step-co-44) · [baseline](roadmap/co44-company-integration-baseline.md) |
 | 593 | W8 | 专项 | [`CO-45`](roadmap/companyos.md#step-co-45) | CompanyOS · 多项目优先级、容量与组织成本账 | `CO-02`、`CO-20`、`CO-23`、`CO-36`、`CO-38`、`CO-43` | 🔄 | [专项卡](roadmap/companyos.md#step-co-45) · [baseline](roadmap/co45-company-portfolio-baseline.md) |
-| 594 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | ⏳ | [专项卡](roadmap/companyos.md#step-co-46) |
+| 594 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | 🔄 | [专项卡](roadmap/companyos.md#step-co-46) · [baseline](roadmap/co46-company-template-registry-baseline.md) |
 | 595 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ✅ | [基础卡](#step-p4-j6-01) |
 | 596 | W8 | 基础 | [`P4-K2-01`](#step-p4-k2-01) | P4 基础 · 触发器与调度 | `P0-B-01` | ✅ | [基础卡](#step-p4-k2-01) |
 | 597 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ✅ | [基础卡](#step-p4-k8-01) |
