@@ -573,7 +573,7 @@
 
 
 
-#### CO-34 · 交付授权、效果记录与接收确认　⏳
+#### CO-34 · 交付授权、效果记录与接收确认　🔄
 
 - **归属**：`P3-I-05`、`P4-K8-01` 的本地交接合同。
 - **依赖**：CO-05、CO-07、CO-32、CO-33。
@@ -581,6 +581,7 @@
 - **实现顺序**：①批准精确 manifest、destination 和 recipient；②先记 DispatchRequested 后执行，实际效果证据才产生 Delivered；③接收方确认同一版本才 Confirmed，部分/未知交付进入对账，重试查询原决定。
 - **先拒绝**：`delivery_cannot_confirm_from_sender_claim_or_repeat_after_unknown_dispatch`；错接收者、过期决定、内容/目标变化、响应丢失不能重发或冒充确认。
 - **再成功 / 退出**：`authorized_recipient_confirms_the_exact_delivery_once`；记录本地实际收到的包；外部发布/发送 adapter 如后续加入，必须满足同一合同并另附实跑证据。
+- **本步交付**：`delivery_authorization.rs` 将批准、一次 dispatch intent、Broker effect receipt 和 recipient confirmation 绑定到 CO-33 manifest/package；Unknown 围栏重发，sender claim/错 recipient/过期或内容漂移拒绝，完整 durable HumanTask/通知投影留后续步骤。
 
 <a id="co-35"></a>
 
