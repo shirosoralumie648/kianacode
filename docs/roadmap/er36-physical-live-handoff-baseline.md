@@ -10,6 +10,6 @@ reconciliation.
 The repository does not contact external services, target OS controls, providers, connectors or
 OTLP backends in this gate. CI source/fixture success is not live or physical proof, and mock
 receipts are not target receipts. ER-36 remains partial with proof level source until a human
-supplies each target's isolated environment, approved credential reference, operation scope,
+supplies each target's isolated environment, approved `approval:` reference and non-secret credential reference, operation scope,
 independent receipt, incident/reconciliation and cleanup evidence. Unsupported targets remain
 not_supported rather than being promoted by compilation.

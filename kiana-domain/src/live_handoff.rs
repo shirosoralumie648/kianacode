@@ -163,8 +163,13 @@ impl LiveHandoffManifest {
                 }
             }
             LiveHandoffStatus::OptedIn => {
-                if self.operator_approval_ref.is_none() {
+                let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
                     return Err("live_handoff_operator_approval_required".to_owned());
+                };
+                if approval_ref.trim() != approval_ref
+                    || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+                {
+                    return Err("live_handoff_operator_approval_ref_invalid".to_owned());
                 }
             }
             LiveHandoffStatus::Verified => {
@@ -173,6 +178,12 @@ impl LiveHandoffManifest {
                     || self.cleanup_plan.trim().len() < 8
                 {
                     return Err("live_handoff_verified_evidence_incomplete".to_owned());
+                }
+                let approval_ref = self.operator_approval_ref.as_deref().unwrap_or_default();
+                if approval_ref.trim() != approval_ref
+                    || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+                {
+                    return Err("live_handoff_operator_approval_ref_invalid".to_owned());
                 }
             }
             LiveHandoffStatus::Unknown => {

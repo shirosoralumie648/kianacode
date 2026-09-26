@@ -66,6 +66,26 @@ fn verified_requires_independent_approval_receipt_and_secret_ref() {
         "live_handoff_verified_evidence_incomplete"
     );
 
+    let malformed_approval = LiveHandoffManifest::new(
+        LiveHandoffTarget::Provider,
+        "provider-account",
+        "staging",
+        "secret-ref:managed/provider",
+        json_digest(&json!({"provider":"fixture"})),
+        "git:source",
+        Some("receipt:1".to_owned()),
+        Some("operator-approval".to_owned()),
+        "audit-30d",
+        None,
+        "revoke credential and retain receipt",
+        vec![],
+        LiveHandoffStatus::Verified,
+    );
+    assert_eq!(
+        malformed_approval.expect_err("approval ref must be typed"),
+        "live_handoff_operator_approval_ref_invalid"
+    );
+
     let raw_secret = LiveHandoffManifest::new(
         LiveHandoffTarget::Provider,
         "provider-account",
