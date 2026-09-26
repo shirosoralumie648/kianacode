@@ -608,6 +608,8 @@ mod company_reconciliation;
 pub use company_reconciliation::*;
 mod delivery_manifest;
 pub use delivery_manifest::*;
+mod delivery_authorization;
+pub use delivery_authorization::*;
 
 mod dispatch;
 mod effect_observation;

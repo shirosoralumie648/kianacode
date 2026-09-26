@@ -704,7 +704,7 @@
 | 530 | W7 | 专项 | [`CO-31`](roadmap/companyos.md#step-co-31) | CompanyOS · 项目暂停、恢复、取消与部门传播 | `CO-03`、`CO-19`、`CO-23`、`CO-30` | 🔄 | [专项卡](roadmap/companyos.md#step-co-31) · [baseline](roadmap/co31-project-control-baseline.md) |
 | 531 | W7 | 专项 | [`CO-32`](roadmap/companyos.md#step-co-32) | CompanyOS · 风险、事故、Unknown 与对账工作流 | `CO-24`、`CO-30`、`CO-31` | 🔄 | [专项卡](roadmap/companyos.md#step-co-32) · [baseline](roadmap/co32-company-reconciliation-baseline.md) |
 | 532 | W7 | 专项 | [`CO-33`](roadmap/companyos.md#step-co-33) | CompanyOS · 版本化 DeliveryManifest 与本地交付包 | `CO-06`、`CO-28`、`CO-32` | 🔄 | [专项卡](roadmap/companyos.md#step-co-33) · [baseline](roadmap/co33-delivery-manifest-baseline.md) |
-| 533 | W7 | 专项 | [`CO-34`](roadmap/companyos.md#step-co-34) | CompanyOS · 交付授权、效果记录与接收确认 | `CO-05`、`CO-07`、`CO-32`、`CO-33` | ⏳ | [专项卡](roadmap/companyos.md#step-co-34) |
+| 533 | W7 | 专项 | [`CO-34`](roadmap/companyos.md#step-co-34) | CompanyOS · 交付授权、效果记录与接收确认 | `CO-05`、`CO-07`、`CO-32`、`CO-33` | 🔄 | [专项卡](roadmap/companyos.md#step-co-34) · [baseline](roadmap/co34-delivery-authorization-baseline.md) |
 | 534 | W7 | 专项 | [`CO-35`](roadmap/companyos.md#step-co-35) | CompanyOS · 成功、失败、取消和豁免的 ClosingReceipt | `CO-28`、`CO-31`、`CO-32`、`CO-34` | ⏳ | [专项卡](roadmap/companyos.md#step-co-35) |
 | 535 | W7 | 专项 | [`CO-36`](roadmap/companyos.md#step-co-36) | CompanyOS · Outcome 测量与目标实现判定 | `CO-09`、`CO-10`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-36) |
 | 536 | W7 | 专项 | [`CO-37`](roadmap/companyos.md#step-co-37) | CompanyOS · 部门决议、收尾经验与 Memory 候选晋升 | `CO-15`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-37) |

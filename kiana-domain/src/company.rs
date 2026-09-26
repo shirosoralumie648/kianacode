@@ -1012,6 +1012,9 @@ pub struct CompanyState {
     /// CO-33 immutable accepted-artifact manifests and local package descriptors.
     #[serde(default)]
     pub delivery_manifests: crate::DeliveryManifestLedger,
+    /// CO-34 authorization, one-shot dispatch, Broker effect and recipient confirmation facts.
+    #[serde(default)]
+    pub delivery_authorizations: crate::DeliveryAuthorizationLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1231,6 +1234,44 @@ impl CompanyState {
         package: crate::LocalDeliveryPackage,
     ) -> CompanyResult<()> {
         self.delivery_manifests.record_package(package)
+    }
+
+    pub fn authorize_delivery(
+        &mut self,
+        authorization: crate::DeliveryAuthorization,
+        manifest: &crate::DeliveryManifest,
+        now: u64,
+    ) -> CompanyResult<()> {
+        self.delivery_authorizations
+            .authorize(authorization, manifest, now)
+    }
+
+    pub fn request_delivery_dispatch(
+        &mut self,
+        intent: crate::DeliveryDispatchIntent,
+        manifest: &crate::DeliveryManifest,
+        now: u64,
+    ) -> CompanyResult<()> {
+        self.delivery_authorizations
+            .request_dispatch(intent, manifest, now)
+    }
+
+    pub fn record_delivery_effect(
+        &mut self,
+        receipt: crate::DeliveryEffectReceipt,
+        manifest: &crate::DeliveryManifest,
+        package: &crate::LocalDeliveryPackage,
+    ) -> CompanyResult<()> {
+        self.delivery_authorizations
+            .record_effect(receipt, manifest, package)
+    }
+
+    pub fn confirm_delivery_recipient(
+        &mut self,
+        confirmation: crate::DeliveryRecipientConfirmation,
+    ) -> CompanyResult<()> {
+        self.delivery_authorizations
+            .confirm_recipient(confirmation)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is
