@@ -91,10 +91,30 @@ fn unknown_or_incomplete_eval_arguments_fail_closed() {
         vec!["compare", "--reference", "ref-1"],
         vec!["list", "--kind", "not-a-kind"],
         vec!["explain", "--target", "../outside"],
+        vec![
+            "explain",
+            "--case-id",
+            "case-1",
+            "--finding",
+            "safety_violation",
+        ],
     ] {
         let error = EvalCommand.route(&context(&args)).unwrap_err().to_string();
         assert!(!error.is_empty(), "args {args:?} unexpectedly accepted");
     }
+}
+
+#[test]
+fn new_run_flags_do_not_fall_back_to_the_legacy_path_parser() {
+    let route = EvalCommand
+        .route(&context(&[
+            "run",
+            "--suite-id",
+            "suite-a",
+            "--fail-on-failure",
+        ]))
+        .unwrap();
+    assert!(matches!(route, CommandRoute::ControlPlane { .. }));
 }
 
 #[tokio::test]

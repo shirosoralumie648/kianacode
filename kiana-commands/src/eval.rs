@@ -190,11 +190,20 @@ fn parse_cli_route(args: &[String]) -> Result<EvalCliRoute> {
 
     // Preserve the exact old form, including its failure behavior for missing paths. The
     // compatibility parser is intentionally not mixed with the new opaque-reference contract.
+    let has_new_run_reference = args.iter().skip(1).any(|arg| {
+        arg.starts_with("--suite-id")
+            || arg.starts_with("--dataset-id")
+            || arg.starts_with("--experiment-id")
+            || arg.starts_with("--case-id")
+            || arg.starts_with("--target")
+            || arg.starts_with("--baseline-id")
+    });
     if action == "run"
         && args.iter().skip(1).any(|arg| {
-            matches!(arg.as_str(), "--suite" | "--baseline" | "--fail-on-failure")
+            matches!(arg.as_str(), "--suite" | "--baseline")
                 || arg.starts_with("--suite=")
                 || arg.starts_with("--baseline=")
+                || (arg == "--fail-on-failure" && !has_new_run_reference)
         })
     {
         return Ok(EvalCliRoute::LegacyRun);
@@ -448,7 +457,7 @@ fn parse_explain_route(args: &[String]) -> Result<(String, Value)> {
             usage()
         ));
     }
-    if fields.len() > 1 && fields.contains_key("target_ref") {
+    if fields.len() > 1 {
         return Err(anyhow!(
             "eval explain accepts one target reference\n\n{}",
             usage()
@@ -599,7 +608,11 @@ fn insert_list_kind(
 
 fn validate_cli_ref(value: &str) -> Result<String> {
     let value = value.trim();
-    if value.is_empty() || value.len() > 256 || value.bytes().any(|byte| byte == 0) {
+    if value.is_empty()
+        || value.len() > 256
+        || value.bytes().any(|byte| byte == 0)
+        || value.starts_with('-')
+    {
         return Err(anyhow!(
             "eval reference must be 1..=256 bytes and contain no NUL"
         ));
