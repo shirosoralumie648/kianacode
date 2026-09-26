@@ -44,6 +44,7 @@ mod company_process;
 mod control_plane_authority;
 mod control_plane_product_flow;
 mod er31_fault_matrix;
+mod er32_adapter_conformance;
 mod connector_quota;
 mod connector_reservation;
 mod connectors;
@@ -178,6 +179,7 @@ pub use fault_injection::{
 pub use control_plane_authority::validate_control_plane_authority_scenario;
 pub use control_plane_product_flow::validate_control_plane_product_bundle;
 pub use er31_fault_matrix::validate_er31_fault_matrix;
+pub use er32_adapter_conformance::validate_er32_conformance_report;
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use hook_reauthorization::*;
 pub use incident_projection::{

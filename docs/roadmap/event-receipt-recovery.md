@@ -584,12 +584,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-32 — Property/conformance tests for adapters　⏳
+##### ER-32 — Property/conformance tests for adapters　🔄
 
 - **落点：** `kiana-eventlog`/`kiana-core` tests、Memory/JSONL adapter conformance；关联 `P1-L1-01`、`P2-K6-01`。
 - **动作：** 共享 fixture 验证 CAS、idempotency、cursor boundary、schema migration、redaction、projection equivalence、unknown/terminal invariants；Memory 只能证明逻辑，JSONL 单独证明 durable adapter 条件。
 - **先拒绝：** `adapter_capability_mismatch_is_denied`、`memory_adapter_cannot_claim_durable`、`property_shrinking_never_turns_failure_into_success`。
 - **成功/回归：** 随机事件序列、重复命令、并发冲突、截断尾、未知字段和 projector restart 收敛到同一结果。
+- **ER-32 baseline：** [`er32-adapter-conformance-baseline.md`](er32-adapter-conformance-baseline.md)；当前先固定 Memory/JSONL logical conformance 与 durability proof ceiling，真实 adapter/property/restart 仍未宣称。
 
 <a id="step-er-33"></a>
 

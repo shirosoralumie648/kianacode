@@ -15185,3 +15185,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: matrix validates supplied replay facts and cannot prove physical crash timing, new-process recovery, JSONL durability or external effects; ER-32+ and PD/DEP remain open
 reviewer: Codex ER-31 source review; checked all twelve boundary points, source binding, Unknown/queryability/fencing, duplicate/false-success denial, preservation of H25 v1 and no effect-injection path; no local runtime test reviewer
 ```
+
+### ER-32 Memory/JSONL adapter conformance evidence (2026-09-27)
+
+```text
+source_snapshot: `645013ee` plus ER-32 adapter conformance source slice; kiana-domain/src/{er32_adapter_conformance.rs,lib.rs}; kiana-core/src/{er32_adapter_conformance.rs,lib.rs}; kiana-eventlog/src/{memory.rs,jsonl.rs,journal_core.rs}; kiana-domain/tests/er32_adapter_conformance.rs; kiana-core/tests/er32_adapter_conformance_guard.rs; .github/workflows/er32-adapter-conformance.yml; docs/roadmap/er32-adapter-conformance-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: Er32AdapterObservation fixes logical commit/replay/conflict/cursor/Unknown/redaction result classes, duplicate/false-success/secret-free invariants and Memory-vs-JSONL durability claims; Er32ConformanceReport rejects duplicate adapter/operation observations and wrong fault outcomes; existing EventLog TransitionPlan/CommitOutcome remain owners; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/er32_adapter_conformance.rs kiana-core/src/er32_adapter_conformance.rs kiana-domain/tests/er32_adapter_conformance.rs kiana-core/tests/er32_adapter_conformance_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test er32_adapter_conformance --locked -- --test-threads=1; cargo test -p kiana-core --test er32_adapter_conformance_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-eventlog --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only Memory/JSONL parity, durable claim ceiling, replay/conflict/cursor/Unknown result denial, secret-free and duplicate observation checks; no JSONL file/fsync/truncation/migration/multi-process writer/projector restart evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: ER-32 adapter conformance report, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 627/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: logical conformance does not prove durable JSONL behavior, property shrinking, migration or restart convergence; ER-33/34 and PD remain open
+reviewer: Codex ER-32 source review; checked Memory durability ceiling, JSONL sync requirement, logical result parity, replay/conflict/cursor/Unknown classification and no file/effect path; no local runtime test reviewer
+```
