@@ -572,12 +572,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-31 — Crash-point and fault-injection matrix　⏳
+##### ER-31 — Crash-point and fault-injection matrix　🔄
 
 - **落点：** EventStore、ControlPlane、Broker、Runner、workspace、provider fixtures；关联 `CAP-26`、`CAP-34`、`H25/H35`。
 - **动作：** 在 prepare 前/后、permit consume、spawn、stdin partial write、patch rename/fsync、stop/reap、result commit、result delivery、projection checkpoint、artifact publish、cleanup 各点注入 crash/timeout/disk full。
 - **先拒绝：** 每个点都必须证明 `no duplicate effect`、`no false success`、`unknown is queryable`、`resources remain fenced`；不能用固定 sleep 或 mock `Ok` 抵扣。
 - **成功/回归：** 新进程按 journal 只做一次安全恢复；同一 fault seed 重放得到同一分类和 Receipt limitations。
+- **ER-31 baseline：** [`er31-fault-matrix-baseline.md`](er31-fault-matrix-baseline.md)；新增十二点 source-only matrix，保留 H25 v1 八点 contract，真实 crash/restart 仍未证明。
 
 <a id="step-er-32"></a>
 

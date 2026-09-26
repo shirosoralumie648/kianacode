@@ -15170,3 +15170,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: bundle validates supplied cross-surface facts and cannot prove runtime DaemonHost restart, durable projection, physical effects, external delivery or live Company closure; CO-48 live gate remains separate
 reviewer: Codex CP-30 source review; checked three flow invariants, four-surface exact parity, approval/receipt binding, read-only and recovery denial, existing spine reuse and no second execution/approval loop; no local runtime test reviewer
 ```
+
+### ER-31 Event/Receipt/Recovery fault matrix evidence (2026-09-27)
+
+```text
+source_snapshot: `b13750d3` plus ER-31 replay-only fault matrix source slice; kiana-domain/src/{er31_fault_matrix.rs,fault.rs,journal.rs,lib.rs}; kiana-core/src/{er31_fault_matrix.rs,fault_injection.rs,receipts.rs,lib.rs}; kiana-domain/tests/er31_fault_matrix.rs; kiana-core/tests/er31_fault_matrix_guard.rs; .github/workflows/er31-fault-matrix.yml; docs/roadmap/er31-fault-matrix-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: Er31FaultMatrix covers prepare before/after, permit consume, spawn, partial write, patch rename, stop/reap, result commit/delivery, projection checkpoint, artifact publish and cleanup; every case binds source refs, disposition, effect confirmation, Unknown queryability, resource fencing and Receipt limitations; existing H25 FaultMatrix v1 remains unchanged; Core is a read-only validator and no process/handler/provider/EventLog effect is injected; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/er31_fault_matrix.rs kiana-core/src/er31_fault_matrix.rs kiana-domain/tests/er31_fault_matrix.rs kiana-core/tests/er31_fault_matrix_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test er31_fault_matrix --locked -- --test-threads=1; cargo test -p kiana-core --test er31_fault_matrix_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-eventlog --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only twelve-point replay matrix, duplicate source/effect denial, false-success denial, Unknown fence and Receipt limitation checks; no real crash/timeout/disk-full, process reaping, fsync, provider effect or durable restart evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: ER-31 twelve-point fault matrix, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 626/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: matrix validates supplied replay facts and cannot prove physical crash timing, new-process recovery, JSONL durability or external effects; ER-32+ and PD/DEP remain open
+reviewer: Codex ER-31 source review; checked all twelve boundary points, source binding, Unknown/queryability/fencing, duplicate/false-success denial, preservation of H25 v1 and no effect-injection path; no local runtime test reviewer
+```
