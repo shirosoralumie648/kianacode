@@ -14435,3 +14435,18 @@ proof-level_change: feature_status=implemented; proof_level=source; no local_beh
 limitations: evaluator validates caller-supplied candidate/version evidence only; no authenticated owner, durable candidate store, target effect, QualityGate decision, promotion/rollback or live/physical outcome is claimed; EQ-41+ remain open
 reviewer: Codex EQ-40 source review; checked single primary dimension, passive version coverage, snapshot digest and no-authority boundary; no local runtime test reviewer
 ```
+
+### EQ-41 QualityGate config/decision separation evidence (2026-09-26)
+
+```text
+source_snapshot: `d4606915` plus EQ-41 gate separation slice; kiana-quality/src/{gate.rs,lib.rs}; kiana-quality/tests/{eq41_gate.rs,eq41_gate_guard.rs}; .github/workflows/eq41-gate.yml; docs/roadmap/evaluation-gate-baseline.md; docs/roadmap.md
+worktree_status: pure GateEvaluator validates immutable config/decision digests, gate/version binding, distinct higher-version config updates and no Pass with blocking findings; old decision remains bound to its original config; no durable gate store, route mutation, promotion/rollback or authority path was added
+command_argv: rustfmt --edition 2021 kiana-quality/src/{gate.rs,lib.rs} kiana-quality/tests/{eq41_gate.rs,eq41_gate_guard.rs}; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-quality --test eq41_gate --locked -- --test-threads=1; cargo test -p kiana-quality --test eq41_gate_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only valid config/decision, config update mutation, pass-with-blockers, digest tamper and unknown-field fixtures; no ControlPlane, target, provider, promotion or external effect
+exit_code: target rustfmt and git diff --check exited 0; remote fixtures, source guard, workspace compilation and CI exit codes pending/unobserved
+status_change: EQ-41 QualityGate config/decision source contract, CI fixture/guard and baseline implemented; roadmap row 571/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evaluator validates caller-supplied gate evidence only; no durable decision history, ControlPlane authorization, immutable persistence, promotion/rollback or live/physical outcome is claimed; EQ-42+ remain open
+reviewer: Codex EQ-41 source review; checked config/decision digest binding, versioned update and blocker/pass separation plus pure no-authority boundary; no local runtime test reviewer
+```

@@ -1,0 +1,38 @@
+name: EQ-41 quality gate decision
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-gate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq41-gate.yml"
+  pull_request:
+    paths:
+      - "kiana-quality/**"
+      - "docs/roadmap/evaluation-gate-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/eq41-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EQ-41 gate fixtures
+        run: cargo test -p kiana-quality --test eq41_gate --locked -- --test-threads=1
+      - name: Run EQ-41 source guard
+        run: cargo test -p kiana-quality --test eq41_gate_guard --locked -- --test-threads=1
+      - name: Compile EQ-41 targets
+        run: cargo check --workspace --tests --locked
