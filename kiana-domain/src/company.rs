@@ -1024,6 +1024,9 @@ pub struct CompanyState {
     /// CO-37 published Company decisions, lesson candidates and promotion facts.
     #[serde(default)]
     pub company_knowledge: crate::CompanyKnowledgeLedger,
+    /// CO-39 unified Human Inbox cards; command authority remains in ControlPlane.
+    #[serde(default)]
+    pub company_inbox: crate::CompanyInboxLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1316,6 +1319,36 @@ impl CompanyState {
         candidate: crate::CompanyLessonCandidate,
     ) -> CompanyResult<()> {
         self.company_knowledge.propose_candidate(candidate)
+    }
+
+    pub fn publish_company_inbox_card(
+        &mut self,
+        card: crate::CompanyInboxCard,
+    ) -> CompanyResult<()> {
+        self.company_inbox.publish(card)
+    }
+
+    pub fn consume_company_inbox_card(
+        &mut self,
+        card_id: &str,
+        decider_ref: &str,
+        option: &str,
+        decision_ref: &str,
+        now: u64,
+        target_revision: u64,
+        target_digest: &str,
+        scope_digest: &str,
+    ) -> CompanyResult<()> {
+        self.company_inbox.consume(
+            card_id,
+            decider_ref,
+            option,
+            decision_ref,
+            now,
+            target_revision,
+            target_digest,
+            scope_digest,
+        )
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

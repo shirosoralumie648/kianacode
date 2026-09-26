@@ -15020,3 +15020,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: read model is in-memory deterministic projection only; durable reconstruction, pagination/query ports, four-entrypoint rendering and evidence content verification remain CO-39+
 reviewer: Codex CO-38 source review; checked scope isolation, cursor/revision/epoch/freshness, deterministic rebuild, blocker owner/action and evidence links, no transcript/chat/cache authority; no local runtime test reviewer
 ```
+
+### CO-39 unified Company Human Inbox evidence (2026-09-27)
+
+```text
+source_snapshot: `3ff3710d` plus CO-39 Human Inbox source slice; kiana-domain/src/{company_inbox.rs,company.rs,company_policy.rs,platform.rs,lib.rs}; kiana-core/src/{company_inbox.rs,lib.rs,approval_binding.rs,notification_projector.rs}; kiana-domain/tests/co39_company_inbox.rs; kiana-core/tests/co39_company_inbox_guard.rs; .github/workflows/co39-company-inbox.yml; docs/roadmap/co39-company-inbox-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyInboxCard binds card/task kind, project target kind/id/revision/digest, scope digest, decider, options, evidence and expiry; consumption rejects stale target, wrong decider, invalid option, expiry and double use; CompanyInboxLedger publishes/consumes idempotently and orders pending cards; existing HumanTask/ApprovalBinding/HumanInboxItem/notification projections and ControlPlane remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_inbox.rs kiana-core/src/company_inbox.rs kiana-domain/tests/co39_company_inbox.rs kiana-core/tests/co39_company_inbox_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co39_company_inbox --locked -- --test-threads=1; cargo test -p kiana-core --test co39_company_inbox_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only stale target, wrong decider, invalid option, expiry, double consumption, idempotent publication, pending ordering and existing HumanTask/ControlPlane boundary; no durable task EventLog, notification delivery, cross-process recovery or live outcome
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-39 CompanyInboxCard/Ledger source slice, CompanyState projection, CI fixture/guard, workflow and baseline implemented; roadmap row 538/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: card ledger does not execute commands or own HumanTask/EventLog persistence; cross-entrypoint inbox parity, durable decision consumption and notification delivery remain CO-40+
+reviewer: Codex CO-39 source review; checked exact target/scope/decider/option/expiry binding, stale/double consumption denial, idempotent publication and ControlPlane/HumanTask boundary; no local runtime test reviewer
+```

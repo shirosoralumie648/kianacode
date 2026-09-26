@@ -653,7 +653,7 @@
 
 
 
-#### CO-39 · 统一 Human Inbox 与有后续动作的决定卡　⏳
+#### CO-39 · 统一 Human Inbox 与有后续动作的决定卡　🔄
 
 - **归属**：`P2-K3-01`、`P2-M3-01`。
 - **依赖**：CO-05、CO-23、CO-28、CO-34、CO-38。
@@ -661,6 +661,7 @@
 - **实现顺序**：①统一收件箱、目标摘要、精确版本、可选决定与期限；②用户回复回到原命令权威，保存决定并唤醒原 wait key；③按 urgency/等待时长排序，过期和改版卡明确失效并显示替代任务。
 - **先拒绝**：`human_inbox_rejects_stale_target_wrong_decider_and_double_consumption`；仅 elapsed time、被预选的按钮或通知已读都不等于批准。
 - **再成功 / 退出**：`one_human_decision_is_visible_and_consumed_consistently_across_clients`；重启后待办和既有决定都可查，已回答的问题不再重复询问。
+- **本步交付**：`company_inbox.rs` 统一六类决定卡的 target revision/digest/scope、decider、options、evidence、due/expiry 与消费状态；重复/过期/错人/旧 target fail-closed，实际命令仍回 ControlPlane。
 
 <a id="co-40"></a>
 
