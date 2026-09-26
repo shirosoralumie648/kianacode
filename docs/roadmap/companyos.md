@@ -493,11 +493,11 @@
 
 
 
-#### CO-29 · 有界返工与 successor/attempt 历史　⏳
+#### CO-29 · 有界返工与 successor/attempt 历史　🔄
 
 - **归属**：`P3-I-04`、`P1-D-03`、`P3-I-06`。
 - **依赖**：CO-19、CO-26、CO-27、CO-28。
-- **代码与产物**：PacketAttempt、ReworkPacket、supersedes/rework provenance、拒绝标准关联和依赖解析。
+- **代码与产物**：domain `rework_contract.rs` successor/provenance/attempt ledger、既有 CompanyBusiness Rework fences 与 CI guard；PacketAttempt/依赖解析继续复用既有合同。
 - **实现顺序**：①区分原任务重试与新 successor packet；②记录 rework cause、原拒绝、有效 baseline、最大次数和剩余预算；③重验受影响输出，依赖显式指向有效交付版本，原失败/拒绝记录不删除。
 - **先拒绝**：`rework_cannot_change_acceptance_reset_budget_or_revive_a_terminal_attempt`；重复返工、替代链成环、Unknown 未对账和越过尝试上限被拒。
 - **再成功 / 退出**：`rejected_packet_can_pass_a_new_review_while_preserving_prior_failures`；多里程碑返工只影响其依赖闭包；旧失败记录不会永久阻塞已明确替代的新版本。
