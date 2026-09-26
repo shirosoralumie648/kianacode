@@ -1,0 +1,58 @@
+name: er34-durable-gate
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/er34_durable_gate.rs"
+      - "kiana-domain/src/er33_capacity_migration.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er34_durable_gate.rs"
+      - "kiana-core/src/er34_durable_gate.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/er34_durable_gate_guard.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "scripts/release-smoke.sh"
+      - "docs/roadmap/er34-durable-gate-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er34-durable-gate.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/er34_durable_gate.rs"
+      - "kiana-domain/src/er33_capacity_migration.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/er34_durable_gate.rs"
+      - "kiana-core/src/er34_durable_gate.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/er34_durable_gate_guard.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "scripts/release-smoke.sh"
+      - "docs/roadmap/er34-durable-gate-baseline.md"
+      - "docs/roadmap/event-receipt-recovery.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/er34-durable-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  er34-durable-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-34 proof-ceiling fixtures
+        run: cargo test -p kiana-domain --test er34_durable_gate --locked -- --test-threads=1
+      - name: Run ER-34 source boundary guard
+        run: cargo test -p kiana-core --test er34_durable_gate_guard --locked -- --test-threads=1
+      - name: Compile ER-34 affected targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

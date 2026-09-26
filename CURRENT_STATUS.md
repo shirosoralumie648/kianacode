@@ -15215,3 +15215,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: metric values are fixture bounds rather than measurements; durable performance, migration execution, rollback and physical storage outcomes remain ER-34/PD/DEP
 reviewer: Codex ER-33 source review; checked seven metric coverage, bounded limits, quota/partial-frame/fact-retention fences, migration known-version/read-only downgrade and no destructive path; no local runtime test reviewer
 ```
+
+### ER-34 local durable gate proof ceiling evidence (2026-09-27)
+
+```text
+source_snapshot: `a803a786` plus ER-34 durable-gate evidence source slice; kiana-domain/src/{er34_durable_gate.rs,er33_capacity_migration.rs,lib.rs}; kiana-core/src/{er34_durable_gate.rs,lib.rs}; kiana-daemon/tests/p3_i06_company_golden.rs; scripts/release-smoke.sh; kiana-domain/tests/er34_durable_gate.rs; kiana-core/tests/er34_durable_gate_guard.rs; .github/workflows/er34-durable-gate.yml; docs/roadmap/er34-durable-gate-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: Er34DurableGateEvidence separates pending/source from durable proof and binds snapshot/command origin, CI/local execution, durable facts, cache rebuild, event/frame/artifact/process hashes and limitations; forged durable claims fail closed; local gate was not run by instruction, so no durable claim is made; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/er34_durable_gate.rs kiana-core/src/er34_durable_gate.rs kiana-domain/tests/er34_durable_gate.rs kiana-core/tests/er34_durable_gate_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test er34_durable_gate --locked -- --test-threads=1; cargo test -p kiana-core --test er34_durable_gate_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only pending/source ceiling, forged durable claim denial, complete durable evidence shape, existing fake golden/release-smoke route markers; no local target snapshot, process/file/lock/usage facts, durable restart or physical evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: ER-34 durable-gate proof ceiling contract, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 629/card advanced from ⏳ to 🔄 but durable gate remains unexecuted
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: user instruction prohibits local tests and the remote CI result is not awaited; no durable completion claim is valid until an authorized run produces its own evidence block
+reviewer: Codex ER-34 source review; checked source-vs-durable distinction, origin/execution consistency, hash/fact/cache requirements and fail-closed forged proof; no local runtime/durable reviewer
+```

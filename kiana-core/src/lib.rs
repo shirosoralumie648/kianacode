@@ -46,6 +46,7 @@ mod control_plane_product_flow;
 mod er31_fault_matrix;
 mod er32_adapter_conformance;
 mod er33_capacity_migration;
+mod er34_durable_gate;
 mod connector_quota;
 mod connector_reservation;
 mod connectors;
@@ -182,6 +183,7 @@ pub use control_plane_product_flow::validate_control_plane_product_bundle;
 pub use er31_fault_matrix::validate_er31_fault_matrix;
 pub use er32_adapter_conformance::validate_er32_conformance_report;
 pub use er33_capacity_migration::validate_er33_capacity_migration_drill;
+pub use er34_durable_gate::validate_er34_durable_gate_evidence;
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use hook_reauthorization::*;
 pub use incident_projection::{

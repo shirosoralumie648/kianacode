@@ -608,12 +608,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-34 — Local durable gate　⏳
+##### ER-34 — Local durable gate　🔄
 
 - **落点：** release/smoke、`CURRENT_STATUS.md`、roadmap status；关联 `CAP-26`、`P2-K6`。
 - **动作：** 在稳定快照上串行运行 eventlog/core/daemon focused tests、workspace check/fmt/clippy、golden/workbench/P0 smoke；采集 event/frame/artifact hashes、process/file/lock/usage 事实。
 - **验收：** deny→success→restart→receipt→unknown reconciliation 的五工具本地闭环全部命中；不得把历史 CI 或 moving WIP 的 `cargo check` 当本次证据。
 - **交付：** 只提升实际覆盖的 `feature_status`/`proof_level`，补 `CURRENT_STATUS` 证据块和限制。
+- **ER-34 baseline：** [`er34-durable-gate-baseline.md`](er34-durable-gate-baseline.md)；本次只加入 CI/source proof ceiling，因任务禁止本地测试，durable gate 保持未执行/未提升。
 
 <a id="step-er-35"></a>
 
