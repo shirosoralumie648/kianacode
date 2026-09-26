@@ -371,11 +371,11 @@
 
 
 
-#### CO-21 · 角色任务接入 fresh Run 与明确 Company scope　⏳
+#### CO-21 · 角色任务接入 fresh Run 与明确 Company scope　🔄
 
 - **归属**：`P3-I-02`、`P1-C-03`、`P1-J2-01`。
 - **依赖**：CO-04、CO-13、CO-20。
-- **代码与产物**：core `spawn_from_packet`/Company StartRun、daemon RequestContext 和 context pack、Runner Start/Continue。
+- **代码与产物**：domain `company_task_scope.rs` 的 Company/standalone/fresh-run 合同，core `spawn_from_packet`/Company StartRun 显式 packet scope 接线与 CI fixture/guard；Runner Start/Continue 继续复用既有 Harness。
 - **实现顺序**：①服务端从 assignment/packet/attempt 派生角色、工作区、路径、预算，并按工作种类校验 Intake/Charter/Plan 前置；②每个新任务用 fresh session，输入仅为冻结产物与授权检索；③Company/standalone mode 显式绑定，不按“目录里碰巧有 Project”推断全部请求的归属。
 - **先拒绝**：`company_run_rejects_forged_scope_and_private_planning_context`；Builder 不能通过 direct run、Continue 或 approval 绕过 packet 授权；新角色任务不能继承父模型私有历史。
 - **再成功 / 退出**：`department_tasks_share_the_existing_harness_with_isolated_contexts`；分析、实现、验证任务均经过同一 ControlPlane；Receipt 关联全部业务和执行 ID。

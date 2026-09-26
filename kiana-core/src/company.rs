@@ -416,6 +416,9 @@ impl ControlPlane {
                 .clone();
             let mut run_context = context.clone();
             run_context.request_id = authority.execution_request_id;
+            // Make Company mode explicit at the existing spawn boundary.  Direct standalone
+            // runs have no work_packet_id and therefore cannot inherit this Company scope.
+            run_context.work_packet_id = Some(packet_id.clone());
             run_context.cell_id = packet.claim.as_ref().map(|claim| claim.owner);
             let runtime = self
                 .spawn_from_packet(run_context, packet, sandbox.clone())
