@@ -226,6 +226,36 @@ async fn fake_model_coding_project_produces_closing_receipt() {
         "sponsor-session",
         RoleSpec::sponsor(),
         &mut revision,
+        "configure-budget",
+        CompanyCommand::ConfigureBudget {
+            project_id: project_id.clone(),
+            policy: CompanyBudgetPolicy {
+                project: ProjectBudget {
+                    project_id: ProjectId::new(),
+                    max_runs: 4,
+                    max_tokens: 100_000,
+                },
+                runtime: RuntimeBudget {
+                    max_model_calls: 8,
+                    max_tokens: 100_000,
+                    max_wall_time_ms: 60_000,
+                },
+                quota: Quota {
+                    scope: project_id.clone(),
+                    model_calls: 8,
+                    tokens: 100_000,
+                    concurrency: 1,
+                },
+            },
+        },
+    )
+    .await;
+    company_command(
+        &host,
+        &root,
+        "sponsor-session",
+        RoleSpec::sponsor(),
+        &mut revision,
         "approve-project",
         CompanyCommand::ApproveProject {
             project_id: project_id.clone(),

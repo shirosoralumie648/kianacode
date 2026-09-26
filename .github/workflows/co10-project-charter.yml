@@ -1,0 +1,54 @@
+name: co10-project-charter
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/tests/co10_project_charter.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co10_project_charter_guard.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "docs/roadmap/co10-project-charter-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co10-project-charter.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/company_business.rs"
+      - "kiana-domain/src/company_policy.rs"
+      - "kiana-domain/tests/co10_project_charter.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-core/tests/co10_project_charter_guard.rs"
+      - "kiana-daemon/tests/p3_i06_company_golden.rs"
+      - "docs/roadmap/co10-project-charter-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co10-project-charter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-charter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-10 Charter fixtures
+        run: cargo test -p kiana-domain --test co10_project_charter --locked -- --test-threads=1
+      - name: Run CO-10 Company source guard
+        run: cargo test -p kiana-core --test co10_project_charter_guard --locked -- --test-threads=1
+      - name: Compile CO-10 workspace targets
+        run: cargo check --workspace --tests --locked

@@ -680,7 +680,7 @@
 | 506 | W7 | 专项 | [`CP-24`](roadmap/control-plane.md#step-cp-24) | ControlPlane · 调度、WorkPacket、委派与 Workflow | `CP-11`、`CP-12`、`CP-17`、`CP-23` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-24) |
 | 507 | W7 | 专项 | [`ER-28`](roadmap/event-receipt-recovery.md#step-er-28) | Event / Receipt / Recovery · CompanyOS / Workflow / Artifact 业务引用 | `ER-27` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-28) · [baseline](roadmap/er28-company-workflow-artifact-baseline.md) |
 | 508 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | 🔄 | [专项卡](roadmap/companyos.md#step-co-09) · [baseline](roadmap/co09-company-intake-baseline.md) |
-| 509 | W7 | 专项 | [`CO-10`](roadmap/companyos.md#step-co-10) | CompanyOS · Charter 与项目 go/no-go | `CO-09`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-10) |
+| 509 | W7 | 专项 | [`CO-10`](roadmap/companyos.md#step-co-10) | CompanyOS · Charter 与项目 go/no-go | `CO-09`、`CO-06` | 🔄 | [专项卡](roadmap/companyos.md#step-co-10) · [baseline](roadmap/co10-project-charter-baseline.md) |
 | 510 | W7 | 专项 | [`CO-11`](roadmap/companyos.md#step-co-11) | CompanyOS · 建立标准覆盖图，替换文本集合推断 | `CO-06`、`CO-10` | ⏳ | [专项卡](roadmap/companyos.md#step-co-11) |
 | 511 | W7 | 专项 | [`CO-12`](roadmap/companyos.md#step-co-12) | CompanyOS · Milestone、Plan 与依赖图提案 | `CO-10`、`CO-11` | ⏳ | [专项卡](roadmap/companyos.md#step-co-12) |
 | 512 | W7 | 专项 | [`CO-13`](roadmap/companyos.md#step-co-13) | CompanyOS · WorkPacket 扩为通用部门工作合同 | `CO-04`、`CO-06`、`CO-12` | ⏳ | [专项卡](roadmap/companyos.md#step-co-13) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-26 | `CO-10` Charter/go-no-go source slice：新增 proposal Charter identity digest、Sponsor/active-objective/budget deny gates、immutable Charter drift check、`ProjectCharterBaseline` freeze 与 reject exit；复用 CompanyState/ControlPlane，补 domain/core fixtures、GitHub-only workflow、baseline 与状态回填；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-25 | `UI-37` user runbook/module map source slice：新增真实 CLI/TTY/Web/Desktop/ACP-IDE 入口调用关系、命令/失败/恢复/Unknown/proof-level 边界、迁移 FAQ 与 limitations；更新 `docs/module-map.md`，新增 CI-only link/status/overclaim guard 与 baseline；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-25 | `UI-36` release build/smoke gate source slice：新增 GitHub-only `verify-ui36-release-gate.sh`，非 CI 主动返回 `remote_ci_required`；CI 资产 manifest/lockfile/format、`cargo build --bin kiana --locked` 与 desktop/release secret marker gate；新增 workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-25 | `UI-35` legacy Web/CLI migration source slice：新增旧 route/command 到 typed client operation 的 one-way mapping、deprecation/unknown rejection、read-only/no-fact-write/no-second-loop guard；新增 CI-only migration fixture/workflow、baseline 与 CURRENT_STATUS；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |

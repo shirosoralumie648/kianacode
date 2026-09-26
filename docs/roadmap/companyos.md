@@ -204,11 +204,11 @@
 
 
 
-#### CO-10 · Charter 与项目 go/no-go　⏳
+#### CO-10 · Charter 与项目 go/no-go　🔄
 
 - **归属**：`P3-I-01`、`P3-I-02`。
 - **依赖**：CO-09、CO-06。
-- **代码与产物**：Project、版本化 Charter、ProjectBudget 引用；Company approve/reject handlers。
+- **代码与产物**：Project、版本化 Charter、ProjectBudget 引用；Company approve/reject handlers；当前 source slice 与 CI-only 证据见 [`co10-project-charter-baseline.md`](co10-project-charter-baseline.md)。
 - **实现顺序**：①立项角色生成范围、非目标、干系人、成功标准、风险和预算的草案；②Sponsor 批准精确 Charter 版本与决议；③冻结项目 baseline，未经批准只允许受理/分析，不能进入实现派发。
 - **先拒绝**：`project_approval_rejects_missing_budget_changed_charter_and_inactive_objective`；填写一个非空 budget_ref 不等于已存在有效预算。
 - **再成功 / 退出**：`project_charter_approval_freezes_scope_criteria_and_budget`；后续状态事件不递增 baseline；拒绝项目保持可查询且不能写源码。

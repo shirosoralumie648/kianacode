@@ -740,18 +740,27 @@ impl CompanyState {
                 }
                 let target = AcceptanceTarget::Project(project_id.clone());
                 let criteria = validate_criteria(criteria, &target)?;
+                if project.status == ProjectStatus::Proposed {
+                    self.apply(
+                        &CompanyCommand::StartChartering {
+                            project_id: project_id.clone(),
+                        },
+                        a,
+                        p,
+                    )?;
+                }
                 self.apply(
-                    &CompanyCommand::ApproveProject {
+                    &CompanyCommand::ConfigureBudget {
                         project_id: project_id.clone(),
-                        decision_ref: decision_ref.clone(),
+                        policy: budget.clone(),
                     },
                     a,
                     p,
                 )?;
                 self.apply(
-                    &CompanyCommand::ConfigureBudget {
+                    &CompanyCommand::ApproveProject {
                         project_id: project_id.clone(),
-                        policy: budget.clone(),
+                        decision_ref: decision_ref.clone(),
                     },
                     a,
                     p,
