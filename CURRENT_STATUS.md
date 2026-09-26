@@ -14600,3 +14600,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: legacy projects without a proposal Charter identity digest only receive present/non-empty artifact checks; ProjectBudget.project_id and Company project string/project_budget_ref binding remain a compatibility boundary; durable typed Charter storage, cross-process recovery, live provider and real business outcome remain open
 reviewer: Codex CO-10 source review; checked deny-first budget/Charter/objective/Sponsor gates, reject exit, separate baseline snapshot, business command ordering and single ControlPlane path; no local runtime test reviewer
 ```
+
+### CO-11 typed criterion coverage evidence (2026-09-26)
+
+```text
+source_snapshot: `6078815f` plus CO-11 typed coverage source slice; kiana-domain/src/{criteria.rs,artifact_contracts.rs,company.rs,lib.rs}; kiana-domain/tests/co11_criteria_coverage.rs; kiana-core/tests/co11_criteria_coverage_guard.rs; .github/workflows/co11-criteria-coverage.yml; docs/roadmap/co11-criteria-coverage-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CO-06 Criterion/CriterionId is reused as the only typed requirement identity; CriterionCoverageGraph binds project, baseline and scope digest, validates parent/child relation order, duplicate/missing identities, required-child weakening, cycles, typed evidence prefixes and canonical digest, and exposes deterministic trace/gap accessors; CriteriaSnapshot now prefers typed criterion IDs and retains legacy text fallback only for old replay; existing BusinessCriterion/PublishPlan adapters remain unchanged; unrelated redaction/ui_actions WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/criteria.rs kiana-domain/src/company.rs kiana-domain/tests/co11_criteria_coverage.rs kiana-core/tests/co11_criteria_coverage_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co11_criteria_coverage --locked -- --test-threads=1; cargo test -p kiana-core --test co11_criteria_coverage_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only duplicate identity, missing parent, weak required child, invalid relation/typed evidence, scope/version/digest/cycle fences and valid Project→Milestone→Packet→test artifact trace; no live test runner, artifact blob read, source-code write or external effect
+exit_code: targeted rustfmt --check and git diff --check exited 0; remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-11 typed Criterion coverage source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 510/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: graph is not yet the sole Plan/Acceptance admission authority; existing legacy BusinessCriterion/refines and text snapshots remain compatibility adapters; typed evidence refs are bounded strings without blob lookup; semantic sufficiency, durable recovery and live/physical outcomes remain open
+reviewer: Codex CO-11 source review; checked reuse of CO-06 Criterion identity, deny-first graph invariants, explicit pending gaps, typed snapshot precedence and no second execution path; no local runtime test reviewer
+```

@@ -219,11 +219,11 @@
 
 
 
-#### CO-11 · 建立标准覆盖图，替换文本集合推断　⏳
+#### CO-11 · 建立标准覆盖图，替换文本集合推断　🔄
 
 - **归属**：`P3-I-04`、`P1-D-01`。
 - **依赖**：CO-06、CO-10。
-- **代码与产物**：拟新增 `kiana-domain/src/criteria.rs`、Plan coverage、core 冻结校验。
+- **代码与产物**：`kiana-domain/src/criteria.rs`、typed Plan coverage、core 冻结校验；当前 source slice 与 CI-only 证据见 [`co11-criteria-coverage-baseline.md`](co11-criteria-coverage-baseline.md)。
 - **实现顺序**：①标准用 ID 和 origin baseline 定位；②Project→Milestone→Packet 的 covers/refines 关系显式批准；③每个必需上层标准都有覆盖安排，机器验证引用/完整性，语义充分性由独立规划或评审记录支撑。
 - **先拒绝**：`criteria_coverage_rejects_missing_parent_duplicate_identity_and_silent_weakening`；相同文字不同来源不得合并，一条通用“测试通过”不能覆盖所有标准。
 - **再成功 / 退出**：`criterion_trace_links_project_requirement_to_specific_test_evidence`；能从项目目标追到具体验证，又能说明尚未覆盖的部分。
