@@ -238,6 +238,19 @@ proof-level change: `feature_status=implemented`（operator handoff/source gate 
 limitations: validator 仍只证明文档/矩阵结构，不能证明 runtime、capability enforcement、durable restore/migration、release artifact、external receipt、live/physical cleanup 或任何下游代码完成；CI 结果未等待
 reviewer: Codex DEP-41 source/handoff review；检查逐行五列 parser、allowed status/proof、non-empty evidence/next gate、blanket-completion deny、DEP-41 partial/source self-row 与 no execution authority；无本地 operator/release reviewer
 
+### ER-36 live handoff approval identity fence（2026-09-26）
+
+source_snapshot: `14ea7b1d`（DEP-41 handoff matrix schema gate 已合并 master 基线）加 ER-36 approval-boundary source slice；`kiana-domain/src/live_handoff.rs`; `kiana-domain/tests/oa28_live_handoff.rs`; `scripts/oa28-live-handoff-preflight.sh`; `docs/roadmap/er36-physical-live-handoff-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/er-36-live-handoff-approval-fence-20260926`; OptedIn/Verified handoff manifest 与 OA-28 preflight 现在要求 trimmed `approval:` operator ref、non-secret `secret-ref:` credential、receipt/cleanup/Unknown rules；不连接目标 OS/provider/connector/OTLP、不执行 physical effect
+command_argv: 本地仅 `bash -n scripts/oa28-live-handoff-preflight.sh`、目标 Rust `rustfmt --edition 2021` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/live/physical）；GitHub Actions 将运行 ER-36 default-deny/preflight/domain/source fixtures 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/provider/connector/OTLP/OS/live/physical；GitHub Actions 是测试权威且不等待
+fixture·cassette: `oa28_live_handoff.rs` 新增 malformed approval ref deny；preflight default-deny/raw credential/receipt/Unknown/cleanup boundary remains CI-only
+exit_code: 本地 `bash -n`、目标 rustfmt 与 `git diff --check`；远程 ER-36 domain/source guard/workspace compile exit code pending/unobserved
+status_change: ER-36 physical/live handoff source gate now binds typed approval before OptedIn/Verified status，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（default-deny physical/live handoff source contract + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: 未证明任何目标 OS、provider/connector/OTLP、隔离账户、external receipt/reconcile、retention/cleanup 或 physical effect；需要人工授权和目标环境，CI 结果未等待
+reviewer: Codex ER-36 source review；检查 approval prefix/trim/newline、credential ref、default deny、receipt/Unknown/cleanup proof ceiling 与 no external effect；无本地 live/physical reviewer
+
 ### NM-08 durable notification outbox + DeliveryWorker（2026-09-25）
 
 source_snapshot: `f85460e4`（UI-41 已合并 master 基线）加 NM-08 source slice；`kiana-domain/src/{notification_outbox.rs,lib.rs}`；`kiana-ports/src/lib.rs`; `kiana-eventlog/src/{notification_outbox.rs,lib.rs}`; `kiana-eventlog/tests/{nm08_notification_outbox.rs,fixtures/nm08-notification-outbox.json}`; `kiana-core/src/{notification_delivery.rs,lib.rs}`; `kiana-core/tests/nm08_delivery_worker_guard.rs`; `.github/workflows/nm08-notification-outbox.yml`; `docs/roadmap/nm08-notification-outbox-baseline.md`; `docs/roadmap.md`

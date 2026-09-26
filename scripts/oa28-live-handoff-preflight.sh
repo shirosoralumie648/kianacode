@@ -31,6 +31,18 @@ done
   echo "oa28-live-handoff-preflight: raw_credential_ref_rejected" >&2
   exit 1
 }
+[[ "$approval_ref" == approval:* ]] || {
+  echo "oa28-live-handoff-preflight: approval_ref_invalid" >&2
+  exit 1
+}
+[[ "$approval_ref" != *[[:space:]]* ]] || {
+  echo "oa28-live-handoff-preflight: approval_ref_whitespace" >&2
+  exit 1
+}
+[[ "$approval_ref" != *$'\n'* && "$approval_ref" != *$'\r'* ]] || {
+  echo "oa28-live-handoff-preflight: approval_ref_newline" >&2
+  exit 1
+}
 if [[ -z "$receipt_ref" ]]; then
   echo "oa28-live-handoff-preflight: provider_receipt_required_before_verification" >&2
   exit 1
