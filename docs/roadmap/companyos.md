@@ -416,11 +416,11 @@
 
 
 
-#### CO-24 · 执行结果归集为不可变 EvidenceBundle　⏳
+#### CO-24 · 执行结果归集为不可变 EvidenceBundle　🔄
 
 - **归属**：`P3-I-03`、`P2-K4-01`、`P1-J8-01`。
 - **依赖**：CO-06、CO-21、CO-23。
-- **代码与产物**：core receipt/result ingestion、Artifact manifest、domain EvidenceBundle、Run/Invocation 投影。
+- **代码与产物**：domain `company_evidence.rs` 不可变 EvidenceBundle/Ready fact、core ingest adapter 与既有 Run/Invocation/receipt 投影 guard；Artifact/测试/源码版本绑定已固定。
 - **实现顺序**：①从实际 invocation/receipt 收集命令、退出码、输入/workspace revision、修改文件、产物 hash 与测试结果；②校验 output schema；③发布 EvidenceReady 事实并通知评审，不能仅据 Run Completed 完成 packet。
 - **先拒绝**：`evidence_bundle_rejects_model_claims_zero_test_matches_and_foreign_artifacts`；缺退出码、错误源码版本、测试零命中、ResultUnknown 都不能作为通过证据。
 - **再成功 / 退出**：`builder_evidence_links_each_output_to_the_actual_run_and_invocation`；可从文件变更追到具体授权与执行回执，输出登记失败保持待补证/对账。

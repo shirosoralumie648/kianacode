@@ -588,6 +588,8 @@ mod company_process;
 pub use company_process::*;
 mod company_wake;
 pub use company_wake::*;
+mod company_evidence;
+pub use company_evidence::*;
 
 mod dispatch;
 mod effect_observation;

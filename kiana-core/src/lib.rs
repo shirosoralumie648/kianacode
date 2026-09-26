@@ -19,6 +19,7 @@ mod commands;
 mod communication;
 mod company;
 mod company_governance;
+mod company_evidence;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;

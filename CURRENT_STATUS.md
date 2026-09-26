@@ -14795,3 +14795,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: durable EventLog cursor/checkpoint and cross-stream atomicity remain open; daemon adapter is source-only coordination, external dispatch receipts/budget accounting and live/physical outcomes remain unproven, Unknown requires reconciliation
 reviewer: Codex CO-23 source review; checked intent-key dedupe, cursor rebuild, claim/receipt binding, Unknown preservation, idempotent consume and no execution bypass; no local runtime test reviewer
 ```
+
+### CO-24 immutable Company EvidenceBundle evidence (2026-09-26)
+
+```text
+source_snapshot: `ed42fe42` plus CO-24 evidence source slice; kiana-domain/src/{company_evidence.rs,artifact_contracts.rs,runtime_evidence.rs,lib.rs}; kiana-core/src/{company_evidence.rs,invocation_projection.rs,dispatch.rs,lib.rs}; kiana-domain/tests/co24_company_evidence.rs; kiana-core/tests/co24_company_evidence_guard.rs; .github/workflows/co24-company-evidence.yml; docs/roadmap/co24-company-evidence-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyEvidenceBundle binds actual RuntimeReceipt request/status to run/invocation, command/source/workspace revisions, exit code, file changes, project/packet-owned artifact hashes and nonzero test matches; model_claimed, ResultUnknown, zero matches, source drift, missing output and foreign artifacts fail closed; CompanyEvidenceReady binds bundle digest/source cursor; existing invocation/dispatch facts remain the runtime source; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 --check kiana-domain/src/company_evidence.rs kiana-domain/src/lib.rs kiana-core/src/company_evidence.rs kiana-core/src/lib.rs kiana-domain/tests/co24_company_evidence.rs kiana-core/tests/co24_company_evidence_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co24_company_evidence --locked -- --test-threads=1; cargo test -p kiana-core --test co24_company_evidence_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only model claim/ResultUnknown/zero test matches/source revision drift/foreign artifact/missing output rejection, actual receipt/run/invocation binding, EvidenceReady projection and serialization; no live artifact bytes, external provider, source-code write or physical business effect
+exit_code: targeted rustfmt --check (new/changed CO-24 files) and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-24 immutable Company EvidenceBundle source slice, CI fixture/guard, workflow and baseline implemented; roadmap row 523/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: full durable EventLog result ingestion, artifact byte persistence, workspace snapshot capture and cross-process evidence projection remain open; bounded command/test fields still require actual adapters, with no external/live/physical outcome claimed
+reviewer: Codex CO-24 source review; checked actual receipt/run/invocation binding, exit/source/test/artifact fences, model/Unknown rejection and immutable ready projection; no local runtime test reviewer
+```
