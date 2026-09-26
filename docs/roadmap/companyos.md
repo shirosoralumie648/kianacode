@@ -478,11 +478,11 @@
 
 
 
-#### CO-28 · Project 验收、拒绝与显式豁免　⏳
+#### CO-28 · Project 验收、拒绝与显式豁免　🔄
 
 - **归属**：`P3-I-04`、`P2-K3-01`。
 - **依赖**：CO-05、CO-25、CO-27。
-- **代码与产物**：AcceptanceTarget::Project、完整作者/评审集合、project gate、持久 HumanTask 决定。
+- **代码与产物**：domain `project_acceptance.rs` 的 milestone aggregate/review/acceptor/waiver contract、core adapter 与既有 `AcceptanceTarget::Project`/Company closeout guard。
 - **实现顺序**：①冻结项目级标准、所有必需 milestone acceptance 与整体验证；②独立 Reviewer/授权决策者做接受或拒绝；③豁免只允许授权人类，写具体标准、原因、范围、残余义务与后续处置。
 - **先拒绝**：`project_acceptance_rejects_stale_baseline_missing_milestone_and_self_review`；部分交付不自动关闭项目，模型不能批准豁免。
 - **再成功 / 退出**：`project_acceptance_aggregates_all_required_milestones_without_overwriting_them`；Accepted、Rejected、Waived 可区分，决定重放稳定，旧评审仍可查看。
