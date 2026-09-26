@@ -1,0 +1,54 @@
+name: aut24-release-evidence
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/automation_release_evidence.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/automation_release_evidence.rs"
+      - "kiana-core/src/automation_release_evidence.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/automation_release_evidence_guard.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/aut24-release-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut24-release-evidence.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/automation_release_evidence.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/automation_release_evidence.rs"
+      - "kiana-core/src/automation_release_evidence.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/automation_release_evidence_guard.rs"
+      - "kiana-core/src/automation.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "docs/roadmap/aut24-release-evidence-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/aut24-release-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run AUT-24 proof manifest fixtures
+        run: cargo test -p kiana-domain --test automation_release_evidence --locked -- --test-threads=1
+      - name: Run AUT-24 release boundary guard
+        run: cargo test -p kiana-core --test automation_release_evidence_guard --locked -- --test-threads=1
+      - name: Compile AUT-24 affected targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

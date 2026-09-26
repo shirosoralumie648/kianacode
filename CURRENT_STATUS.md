@@ -15275,3 +15275,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: matrix validates supplied parity facts and cannot prove runtime cross-entry UAT, durable query/index rebuild, MCP network behavior or physical outcomes; AUT-24 remains open
 reviewer: Codex AUT-23 source review; checked five surface exact parity, DaemonHost/ControlPlane reuse, zero-effect denial and alternate route fence; no local runtime/E2E reviewer
 ```
+
+### AUT-24 durable/live release evidence proof ceiling (2026-09-27)
+
+```text
+source_snapshot: `3f91b086` plus AUT-24 release evidence source slice; kiana-domain/src/{automation_release_evidence.rs,lib.rs}; kiana-core/src/{automation_release_evidence.rs,lib.rs}; kiana-core/src/automation.rs; kiana-daemon/src/lib.rs; kiana-domain/tests/automation_release_evidence.rs; kiana-core/tests/automation_release_evidence_guard.rs; .github/workflows/aut24-release-evidence.yml; docs/roadmap/aut24-release-evidence-baseline.md; docs/roadmap.md
+worktree_status: Aut24ReleaseGate indexes per-step feature_status/proof_level/evidence_ref/next_gate/limitations, rejects blanket completion, duplicate rows and live proof without implemented status; Core only validates the manifest and existing automation/DaemonHost paths remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_release_evidence.rs kiana-core/src/automation_release_evidence.rs kiana-domain/tests/automation_release_evidence.rs kiana-core/tests/automation_release_evidence_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_release_evidence --locked -- --test-threads=1; cargo test -p kiana-core --test automation_release_evidence_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only source rows/next gates, blanket completion denial, duplicate/live proof denial and complete durable evidence shape; no release artifact, durable restart, provider request, physical target or operator approval
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: AUT-24 release evidence manifest, Core facade, CI fixture/guard, workflow and baseline added; roadmap row 667 advanced from ⏳ to 🔄 but durable/live gate remains unexecuted
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: evidence manifest cannot promote itself; real durable/live/physical handoff requires separate authorized artifacts and reviewer evidence
+reviewer: Codex AUT-24 source review; checked status/proof separation, next-gate/limitations requirements, blanket-completion deny, live proof prerequisites and no publish/effect path; no local release/live reviewer
+```
