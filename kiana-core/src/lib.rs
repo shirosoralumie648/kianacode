@@ -103,6 +103,7 @@ mod projection;
 mod projection_checkpoint;
 mod provider_diagnostics;
 mod quality_gate;
+mod quality_feedback;
 mod receipts;
 mod recovery;
 mod redaction;
@@ -178,6 +179,7 @@ pub use entrypoint_parity::{
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,
 };
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
+pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,

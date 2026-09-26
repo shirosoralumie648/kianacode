@@ -15290,3 +15290,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: evidence manifest cannot promote itself; real durable/live/physical handoff requires separate authorized artifacts and reviewer evidence
 reviewer: Codex AUT-24 source review; checked status/proof separation, next-gate/limitations requirements, blanket-completion deny, live proof prerequisites and no publish/effect path; no local release/live reviewer
 ```
+
+### EQ-45 quality feedback evidence (2026-09-27)
+
+```text
+source_snapshot: `288426a8` plus EQ-45 quality feedback source slice; kiana-domain/src/{quality_feedback.rs,lib.rs}; kiana-core/src/{quality_feedback.rs,lib.rs}; kiana-domain/tests/quality_feedback.rs; kiana-core/tests/quality_feedback_guard.rs; .github/workflows/eq45-feedback.yml; docs/roadmap/evaluation-feedback-baseline.md; docs/roadmap.md
+worktree_status: QualityCanonicalTarget binds a typed immutable target and optional policy/receipt references; QualityFeedbackSubmission contains only client observation fields; ControlPlane derives principal/project/session/source provenance and privacy scope from trusted RequestContext and target class; QualityFeedback validates target/provenance/references and has read-only canonical bytes; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/quality_feedback.rs kiana-core/src/quality_feedback.rs kiana-domain/tests/quality_feedback.rs kiana-core/tests/quality_feedback_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test quality_feedback --locked -- --test-threads=1; cargo test -p kiana-core --test quality_feedback_guard --locked -- --test-threads=1; cargo check --workspace --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by the push but not awaited
+fixture·cassette: GitHub-only valid server-derived feedback, target/policy/receipt reference mutation denial, provenance/privacy derivation and redaction checks, untrusted/actor/source rejection; no durable feedback store, reviewer/promotion mutation, UI projection, provider/live quality or business outcome evidence
+exit_code: targeted rustfmt formatting and git diff --check pending; full-workspace formatting, remote fixtures, source guard and workspace test-target compilation pending/unobserved
+status_change: EQ-45 canonical-target feedback contract, server-derived provenance/privacy scope, ControlPlane adapter, CI fixture/guard, workflow and baseline added; roadmap row 668/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source contract and adapter do not persist feedback, append EventLog, authenticate external identities beyond RequestContext, review/promote it, change policy/receipt/route/grant or prove online quality; EQ-46 drift monitoring remains open
+reviewer: Codex EQ-45 source review; checked typed target binding, server-only provenance/privacy derivation, policy/receipt reference immutability, redaction and no-side-effect adapter boundary; no local runtime test reviewer
+```
