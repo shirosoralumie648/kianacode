@@ -1027,6 +1027,9 @@ pub struct CompanyState {
     /// CO-39 unified Human Inbox cards; command authority remains in ControlPlane.
     #[serde(default)]
     pub company_inbox: crate::CompanyInboxLedger,
+    /// CO-42 durable-fact hydration and explicit recovery plans.
+    #[serde(default)]
+    pub company_recovery: crate::CompanyRecoveryLedger,
     #[serde(default)]
     pub packet_reviews: BTreeMap<String, crate::PacketReview>,
     pub artifacts: BTreeMap<String, CompanyArtifact>,
@@ -1349,6 +1352,20 @@ impl CompanyState {
             target_digest,
             scope_digest,
         )
+    }
+
+    pub fn record_company_recovery_snapshot(
+        &mut self,
+        snapshot: crate::CompanyRecoverySnapshot,
+    ) -> CompanyResult<()> {
+        self.company_recovery.record_snapshot(snapshot)
+    }
+
+    pub fn record_company_recovery_plan(
+        &mut self,
+        plan: crate::CompanyRecoveryPlan,
+    ) -> CompanyResult<()> {
+        self.company_recovery.record_plan(plan)
     }
 
     /// Project Company readiness from one explicit snapshot and clock.  The projection is

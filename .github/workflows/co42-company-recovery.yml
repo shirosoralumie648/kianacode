@@ -1,0 +1,58 @@
+name: co42-company-recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_recovery.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/company_replay.rs"
+      - "kiana-domain/src/projection_recovery.rs"
+      - "kiana-domain/tests/co42_company_recovery.rs"
+      - "kiana-core/src/company_recovery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co42_company_recovery_guard.rs"
+      - "docs/roadmap/co42-company-recovery-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co42-company-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_recovery.rs"
+      - "kiana-domain/src/company.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/company_replay.rs"
+      - "kiana-domain/src/projection_recovery.rs"
+      - "kiana-domain/tests/co42_company_recovery.rs"
+      - "kiana-core/src/company_recovery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/co42_company_recovery_guard.rs"
+      - "docs/roadmap/co42-company-recovery-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co42-company-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-42 recovery fixtures
+        run: cargo test -p kiana-domain --test co42_company_recovery --locked -- --test-threads=1
+      - name: Run CO-42 no-blind-replay guard
+        run: cargo test -p kiana-core --test co42_company_recovery_guard --locked -- --test-threads=1
+      - name: Compile CO-42 recovery targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked

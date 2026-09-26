@@ -15065,3 +15065,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: parity contract does not implement rendering, EventLog hydration or external identity/reconnect; full Web/Desktop/CLI E2E remains later UI/NM/CO work
 reviewer: Codex CO-41 source review; checked four-surface exact snapshot binding, stale action rejection, shared cursor/revision/epoch, existing DaemonHost reuse and no second business state/loop; no local runtime test reviewer
 ```
+
+### CO-42 Company durable-fact recovery evidence (2026-09-27)
+
+```text
+source_snapshot: `7469c786` plus CO-42 recovery source slice; kiana-domain/src/{company_recovery.rs,company.rs,lib.rs,company_replay.rs,projection_recovery.rs}; kiana-core/src/{company_recovery.rs,lib.rs}; kiana-domain/tests/co42_company_recovery.rs; kiana-core/tests/co42_company_recovery_guard.rs; .github/workflows/co42-company-recovery.yml; docs/roadmap/co42-company-recovery-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: CompanyRecoveryFact binds schema version/project/sequence/source cursor/outcome/payload/evidence; hydration rejects gaps, cursor regression, unknown schema, corrupt evidence and foreign project, always defaults paused and preserves Unknown/pending refs; CompanyRecoveryPlan allows ReadOnly/Reconcile/Resume with explicit approval/current epoch/digest and automatic retry disabled; CompanyState/Core expose ledger while CompanyReplayReducer/projection/EventLog remain authorities; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/company_recovery.rs kiana-core/src/company_recovery.rs kiana-domain/tests/co42_company_recovery.rs kiana-core/tests/co42_company_recovery_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test co42_company_recovery --locked -- --test-threads=1; cargo test -p kiana-core --test co42_company_recovery_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only Unknown/corrupt evidence pause, cursor gap, schema upgrade rejection, deterministic fresh hydration, explicit Resume approval and stale epoch/digest denial; no cross-process disk restart, provider reconciliation, durable HumanTask recovery or live/physical effect
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures, source guard and target compilation pending/unobserved
+status_change: CO-42 CompanyRecoveryFact/Snapshot/Plan/Ledger source slice, CompanyState/Core adapters, CI fixture/guard, workflow and baseline implemented; roadmap row 590/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source contract does not perform actual process destruction/restart or EventStore migration; full cross-process business chain and effect reconciliation remain open
+reviewer: Codex CO-42 source review; checked schema/cursor/sequence/evidence fences, default pause, Unknown preservation, explicit approval/epoch/digest Resume and no blind retry; no local runtime test reviewer
+```
