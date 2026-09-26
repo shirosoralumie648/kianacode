@@ -50,6 +50,7 @@ mod er34_durable_gate;
 mod ci12_product_gate;
 mod automation_snapshot;
 mod automation_surface_uat;
+mod automation_release_evidence;
 mod connector_quota;
 mod connector_reservation;
 mod connectors;
@@ -190,6 +191,7 @@ pub use er34_durable_gate::validate_er34_durable_gate_evidence;
 pub use ci12_product_gate::validate_ci12_product_gate;
 pub use automation_snapshot::validate_automation_snapshot;
 pub use automation_surface_uat::validate_automation_surface_uat;
+pub use automation_release_evidence::validate_automation_release_gate;
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use hook_reauthorization::*;
 pub use incident_projection::{
