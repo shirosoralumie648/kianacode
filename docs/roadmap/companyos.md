@@ -463,11 +463,11 @@
 
 
 
-#### CO-27 · Milestone 独立验收，消除阶段依赖等待环　⏳
+#### CO-27 · Milestone 独立验收，消除阶段依赖等待环　🔄
 
 - **归属**：`P3-I-01`、`P3-I-04`。
 - **依赖**：CO-12、CO-18、CO-26。
-- **代码与产物**：Milestone lifecycle、AcceptanceTarget::Milestone、core Company acceptance 和 ready 查询。
+- **代码与产物**：domain `milestone_acceptance.rs` 的 milestone-local packet/criteria/evidence contract、core adapter 与既有 Milestone lifecycle/`AcceptanceTarget::Milestone`/readiness guard。
 - **实现顺序**：①建立 M2 依赖 M1 Accepted 的两阶段 fixture；②Milestone 申请验收仅消费本阶段必需 packet 与里程碑标准；③通过后记录当前 milestone Accepted，再按统一 ready 解锁 M2，Project 仍可 Active。
 - **先拒绝**：`milestone_acceptance_cannot_use_other_milestone_evidence_or_skip_required_packets`；先记录旧 RequestAcceptance 全项目前置导致的等待问题，禁止以删除 M2 依赖“解决”。
 - **再成功 / 退出**：`first_milestone_can_be_accepted_before_dependent_milestone_starts`；M1 验收成功时 M2 尚无 Run，之后 M2 才可启动；不遍历改写所有里程碑状态。
