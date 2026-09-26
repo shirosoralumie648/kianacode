@@ -669,7 +669,7 @@
 
 
 
-#### CO-40 · CLI 与 Workbench 的 Company 用户流程　⏳
+#### CO-40 · CLI 与 Workbench 的 Company 用户流程　🔄
 
 - **归属**：`P0-M1-01`、`P2-M3-01`、`P3-I-06`。
 - **依赖**：CO-38、CO-39。
@@ -677,6 +677,7 @@
 - **实现顺序**：①用户输入目标后展示可审查 Charter/Plan 草案；②用服务器 permitted actions 推进，查看状态/证据和处理必要决定；③文本/JSON 输出共用响应，手动和自动过程可切换但不更改权限。
 - **先拒绝**：`company_cli_and_workbench_cannot_bypass_missing_business_gate`；自由文本“批准全部”不扩成未展示的未来授权，命令参数不伪造角色。
 - **再成功 / 退出**：`user_can_complete_a_local_company_project_without_handwriting_command_envelopes`；可完成立项、计划、执行观察、验收、交付确认与关闭，错误提示说明下一步和责任人。
+- **本步交付**：`company_user_flow.rs` 为 CLI 与 Workbench 共享 inspect/next/inbox/decide/delivery/close 解析和 RequestEnvelope 映射；所有动作仍由 DaemonHost/ControlPlane 重新授权，未拆冻结 cli.rs 或新增执行循环。
 
 <a id="co-41"></a>
 

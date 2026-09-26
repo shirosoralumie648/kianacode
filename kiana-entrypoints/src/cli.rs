@@ -84,6 +84,14 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return crate::product_command::main_from_args(&product_args).await;
     }
 
+    if args.first().map(String::as_str) == Some("company") {
+        let mut company_args = args.clone();
+        if let Some(session_id) = runtime_flags.session_id.as_ref() {
+            company_args.extend(["--session-id".to_owned(), session_id.clone()]);
+        }
+        return crate::company_user_flow::main_from_args(&company_args).await;
+    }
+
     if args.first().map(String::as_str) == Some("architecture") {
         return architecture_main(&args).await;
     }

@@ -15035,3 +15035,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: card ledger does not execute commands or own HumanTask/EventLog persistence; cross-entrypoint inbox parity, durable decision consumption and notification delivery remain CO-40+
 reviewer: Codex CO-39 source review; checked exact target/scope/decider/option/expiry binding, stale/double consumption denial, idempotent publication and ControlPlane/HumanTask boundary; no local runtime test reviewer
 ```
+
+### CO-40 Company CLI and Workbench user flow evidence (2026-09-27)
+
+```text
+source_snapshot: `1396a808` plus CO-40 entrypoint source slice; kiana-entrypoints/src/{company_user_flow.rs,cli.rs,lib.rs,workbench_chat.rs}; kiana-entrypoints/tests/co40_company_user_flow.rs; .github/workflows/co40-company-user-flow.yml; docs/roadmap/co40-company-user-flow-baseline.md; docs/roadmap/companyos.md; docs/roadmap.md
+worktree_status: shared company_user_flow parser maps CLI inspect/next/inbox/decide/delivery/close and Workbench /company actions to existing company.governance.v1/human.inbox/human.resolve/company.business RequestEnvelope routes; explicit session/project/card/target digests and JSON arguments are validated; DaemonHost remains the only execution path; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-entrypoints/src/company_user_flow.rs kiana-entrypoints/src/cli.rs kiana-entrypoints/src/lib.rs kiana-entrypoints/src/workbench_chat.rs kiana-entrypoints/tests/co40_company_user_flow.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-entrypoints --test co40_company_user_flow --locked -- --test-threads=1; cargo check -p kiana-entrypoints --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and is triggered by the push but not awaited
+fixture·cassette: GitHub-only friendly CLI/Workbench route parsing, missing target/session/arguments rejection, decision digest fields, shared command names and DaemonHost/single-spine source guard; no live command execution, full lifecycle completion, Web/Desktop parity or durable restart
+exit_code: targeted rustfmt formatting and git diff --check exited 0; full-workspace formatting, remote fixtures and target compilation pending/unobserved
+status_change: CO-40 company_user_flow parser/routes, CLI and Workbench integration, CI fixture, workflow and baseline implemented; roadmap row 539/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: delivery/close still require existing versioned business JSON arguments and server gates; full interactive Company lifecycle and other entrypoint parity remain CO-41+
+reviewer: Codex CO-40 source review; checked explicit target/session parsing, shared envelope mapping, Workbench reuse, no CLI split, DaemonHost-only route and absence of second execution loop; no local runtime test reviewer
+```

@@ -1,0 +1,48 @@
+name: co40-company-user-flow
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-entrypoints/src/company_user_flow.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/co40_company_user_flow.rs"
+      - "docs/roadmap/co40-company-user-flow-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co40-company-user-flow.yml"
+  pull_request:
+    paths:
+      - "kiana-entrypoints/src/company_user_flow.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/lib.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "kiana-entrypoints/tests/co40_company_user_flow.rs"
+      - "docs/roadmap/co40-company-user-flow-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co40-company-user-flow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-user-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-40 Company user-flow fixtures
+        run: cargo test -p kiana-entrypoints --test co40_company_user_flow --locked -- --test-threads=1
+      - name: Compile CO-40 entrypoint targets
+        run: cargo check -p kiana-entrypoints --tests --locked
