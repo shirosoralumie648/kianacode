@@ -838,7 +838,7 @@
 | 662 | W9 | 专项 | [`OA-25`](#step-oa-25) | 容量、性能和迁移演练；journal/projector/query/export benchmark | `OA-12`、`OA-13`、`OA-17`、`OA-20` | ✅ | [专项卡](#step-oa-25) |
 | 663 | W9 | 专项 | [`OA-26`](#step-oa-26) | Local durable observability gate；release/smoke/CURRENT_STATUS | `ER-34`、`OA-22`、`OA-25`、`OA-23`、`OA-24` | ✅ | [专项卡](#step-oa-26) |
 | 664 | W9 | 专项 | [`OA-27`](#step-oa-27) | Cross-entry/company governance gate；`ER-35`、CompanyOS Review/Delivery/Close、Cost/Memory/Data governance | `OA-24`、`OA-26`、`OA-25` | ✅ | [专项卡](#step-oa-27) |
-| 665 | W9 | 专项 | [`AUT-22`](#step-aut-22) | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | `AUT-05`、`AUT-21` | ⏳ | [专项卡](#step-aut-22) |
+| 665 | W9 | 专项 | [`AUT-22`](#step-aut-22) | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | `AUT-05`、`AUT-21` | 🔄 | [专项卡](#step-aut-22) · [baseline](roadmap/aut22-automation-snapshot-baseline.md) |
 | 666 | W9 | 专项 | [`AUT-23`](#step-aut-23) | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | `AUT-09`、`AUT-11`、`AUT-18`、`AUT-22` | ⏳ | [专项卡](#step-aut-23) |
 | 667 | W9 | 专项 | [`AUT-24`](#step-aut-24) | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | `AUT-01`、`AUT-23`、`AUT-02`、`AUT-03`、`AUT-04`、`AUT-05`、`AUT-06`、`AUT-07`、`AUT-08`、`AUT-09`、`AUT-10`、`AUT-11`、`AUT-12`、`AUT-13`、`AUT-14`、`AUT-15`、`AUT-16`、`AUT-17`、`AUT-18`、`AUT-19`、`AUT-20`、`AUT-21`、`AUT-22` | ⏳ | [专项卡](#step-aut-24) |
 | 668 | W9 | 专项 | [`EQ-45`](#step-eq-45) | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `EQ-44` | ⏳ | [专项卡](#step-eq-45) |
