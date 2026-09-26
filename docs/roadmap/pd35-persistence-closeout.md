@@ -56,5 +56,6 @@ source guards are not durable storage or production migration receipts.
 
 The PD-35 CI gate checks this file, the detailed PD roadmap, the evidence ledger, the module map,
 the DEP-41 operator runbook/matrix and all PD-00..PD-34 identifiers. It also requires explicit
-`feature_status`, `proof_level`, limitations and reviewer fields. It cannot certify a backup,
+`feature_status`, `proof_level`, limitations and reviewer fields, and parses every closeout table row
+for four non-empty columns and allowed status/proof values. It cannot certify a backup,
 restore, migration, deletion, capacity run or platform filesystem behavior.

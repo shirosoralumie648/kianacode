@@ -316,6 +316,19 @@ proof-level change: `feature_status=implemented`（persistence UAT evidence sour
 limitations: 未证明真实 backup bytes、restore quarantine、cross-process replay、power-loss/SQLite、retention/legal-hold/delete cleanup、provider/live receipt 或 physical effect；CI 结果未等待
 reviewer: Codex PD-33 source review；检查 Verified proof level、receipt/reconcile/restart/delete flags、Unknown boundaries 与 no storage effect；无本地 persistence/UAT reviewer
 
+### PD-35 closeout table schema fence（2026-09-26）
+
+source_snapshot: `3130f504`（PD-33 persistence proof ceiling 已合并 master 基线）加 PD-35 table-parser source slice；`scripts/validate-pd35-persistence-closeout.sh`; `kiana-core/tests/pd35_persistence_closeout_guard.rs`; `docs/roadmap/pd35-persistence-closeout.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: branch `step/pd-35-closeout-table-fence-20260926`; PD-35 gate 逐行解析 closeout table，要求四个非空列、允许的 feature_status/proof_level，并拒绝 `implemented` 与 durable/live/physical overclaim；不执行 storage/backup/restore/migration/delete/capacity effect
+command_argv: 本地仅 `bash -n scripts/validate-pd35-persistence-closeout.sh` 与 `git diff --check`（未运行测试/build/check/clippy/smoke/storage/UAT）；GitHub Actions 将运行 PD-35 validator/source guard、`cargo fmt --all --check`、`git diff --check` 与 `cargo check --workspace --tests --locked`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash；本地不运行测试/build/check/clippy/smoke/storage/backup/restore/migration/delete/live/physical；GitHub Actions 是 closeout/test/compile 权威且不等待
+fixture·cassette: `pd35-persistence-closeout.md` table plus validator/source guard; PD-00..34 identifier/evidence/runbook/matrix linkage, status/proof/limitation/reviewer and no-doc-as-durable boundary
+exit_code: 本地 `bash -n` 与 `git diff --check`；远程 PD-35 validator/source guard/workspace compile exit code pending/unobserved
+status_change: PD-35 closeout gate 从全局 marker 检查升级为逐行 table schema/status/proof 校验，补齐 baseline 与状态账本；roadmap row/card 由 ⏳ 推进为 🔄
+proof-level change: `feature_status=implemented`（persistence closeout/source gate + CI wiring）；`proof_level=source`，未提升 local_behavior/durable/live/physical
+limitations: gate 只证明 closeout 文档结构和 proof ceiling，不能证明 storage bytes、crash recovery、cross-process lease、platform FS、capacity run、deletion cleanup 或 live/physical effect；CI 结果未等待
+reviewer: Codex PD-35 source/handoff review；检查 table four-column parse、allowed status/proof、overclaim deny、PD identifier/evidence linkage 与 no documentation as durable；无本地 storage/release reviewer
+
 ### CAP-34 conformance report integrity fence（2026-09-26）
 
 source_snapshot: `85399ce7`（ER-36 live handoff approval fence 已合并 master 基线）加 CAP-34 report-integrity source slice；`kiana-domain/src/capability_conformance.rs`; `kiana-domain/tests/cap34_conformance.rs`; `docs/roadmap/cap34-conformance-baseline.md`; `CURRENT_STATUS.md`; `docs/roadmap.md`

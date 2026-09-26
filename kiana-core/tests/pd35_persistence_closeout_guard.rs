@@ -67,5 +67,7 @@ fn pd35_closeout_keeps_all_persistence_steps_and_limits_explicit() {
     assert!(pd33.contains("PersistenceUatEvidence"));
     assert!(pd34.contains("PersistenceCapacityEvidence"));
     assert!(script.contains("range(35)"));
+    assert!(script.contains("pd_rows"));
+    assert!(script.contains("allowed_feature_status"));
     assert!(!closeout.contains("PD-35 closeout | implemented | durable"));
 }
