@@ -158,3 +158,18 @@ fn local_connection_can_expose_a_credential_free_revision() {
     .expect("credential-free local evidence is valid");
     value.validate().expect("skipped evidence validates");
 }
+
+#[test]
+fn verified_connection_requires_typed_operator_approval() {
+    let mut value = evidence(
+        ProviderLiveEvidenceSource::LiveNetwork,
+        ProviderLiveEvidenceStatus::Verified,
+        Some("operator-approval".to_owned()),
+        Vec::new(),
+    );
+    value.evidence_digest = value.digest();
+    assert_eq!(
+        value.validate().expect_err("approval ref must be typed"),
+        "provider_live_operator_approval_ref_invalid"
+    );
+}

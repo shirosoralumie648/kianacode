@@ -272,8 +272,13 @@ impl ProviderLiveConnectionEvidence {
             if self.source == ProviderLiveEvidenceSource::Synthetic {
                 return Err("provider_live_synthetic_evidence".to_owned());
             }
-            if self.operator_approval_ref.is_none() {
+            let Some(approval_ref) = self.operator_approval_ref.as_deref() else {
                 return Err("provider_live_operator_approval_required".to_owned());
+            };
+            if approval_ref.trim() != approval_ref
+                || !approval_ref.to_ascii_lowercase().starts_with("approval:")
+            {
+                return Err("provider_live_operator_approval_ref_invalid".to_owned());
             }
             if self.request_count == 0
                 || !self.text_round_trip
