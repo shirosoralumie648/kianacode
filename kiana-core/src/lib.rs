@@ -26,6 +26,7 @@ mod milestone_acceptance;
 mod project_acceptance;
 mod rework_contract;
 mod change_contract;
+mod project_control;
 mod company_process;
 mod connector_quota;
 mod connector_reservation;

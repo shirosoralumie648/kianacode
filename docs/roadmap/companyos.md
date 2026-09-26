@@ -523,7 +523,7 @@
 
 
 
-#### CO-31 · 项目暂停、恢复、取消与部门传播　⏳
+#### CO-31 · 项目暂停、恢复、取消与部门传播　🔄
 
 - **归属**：`P0-J1-01`–`P0-J1-04`、`P3-I-02`、`P2-K6-01`。
 - **依赖**：CO-03、CO-19、CO-23、CO-30；现有进程停止确认能力须可用。
@@ -531,6 +531,7 @@
 - **实现顺序**：①区分停止新派发与停止已运行工作；②先持久化请求，取消未开始动作并等待已启动效果确认；③Resume 重验 baseline、epoch、预算和 approval，并恢复原等待/健康状态，不能一律写 Active。
 - **先拒绝**：`project_cancel_with_unconfirmed_child_never_reports_cancelled_or_closed`；取消后的迟到结果不推进验收；已撤权 session 不得恢复。
 - **再成功 / 退出**：`project_pause_and_cancel_propagate_without_affecting_unrelated_projects`；所有受影响任务有确定取消或 Unknown 回执，重复操作幂等，无孤儿 claim。
+- **本步交付**：`project_control.rs` 提供带项目/部门/packet/run/dispatch 身份、baseline/epoch、停止观察和 Unknown 对账要求的 append-only 计划与 ledger；现有 Company/ControlPlane effect 路径继续是副作用权威，完整 durable consumption 交后续步骤。
 
 <a id="co-32"></a>
 
