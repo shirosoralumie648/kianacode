@@ -22,6 +22,7 @@ pub mod context_manifest;
 pub mod cost_ledger_projector;
 pub mod cost_projector;
 pub mod billing_ledger_projector;
+pub mod billing_api;
 pub mod data_boundary;
 pub mod deps;
 pub mod hook_cancellation;
@@ -75,6 +76,9 @@ pub use billing_ledger_projector::{
     BillingLedgerProjector, BillingSourceEvent, BILLING_LEDGER_PROJECTOR_IS_READ_ONLY,
     BILLING_LEDGER_PROJECTOR_SCHEMA, BILLING_LEDGER_PROJECTOR_VERSION,
     BILLING_PROJECTOR_NO_FACT_WRITES,
+};
+pub use billing_api::{
+    query_billing_projection, BillingQueryError, BILLING_QUERY_API_SCHEMA,
 };
 pub use data_boundary::{QueryDataBoundary, QueryDataDisposition, QUERY_DATA_BOUNDARY_SCHEMA};
 pub use deps::QueryDeps;

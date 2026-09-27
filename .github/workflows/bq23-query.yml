@@ -1,0 +1,68 @@
+name: BQ-23 billing query surfaces
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_query.rs"
+      - "kiana-domain/src/billing_projection.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_query.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/bq23_billing_query.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/bq23_billing_query_guard.rs"
+      - "kiana-query/src/billing_api.rs"
+      - "kiana-query/src/data_boundary.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq23_billing_api.rs"
+      - "kiana-query/tests/bq23_billing_api_guard.rs"
+      - "docs/roadmap/bq23-query-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq23-query.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_query.rs"
+      - "kiana-domain/src/billing_projection.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_query.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/bq23_billing_query.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/bq23_billing_query_guard.rs"
+      - "kiana-query/src/billing_api.rs"
+      - "kiana-query/src/data_boundary.rs"
+      - "kiana-query/src/lib.rs"
+      - "kiana-query/tests/bq23_billing_api.rs"
+      - "kiana-query/tests/bq23_billing_api_guard.rs"
+      - "docs/roadmap/bq23-query-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq23-query.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-query:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-23 domain fixtures
+        run: cargo test -p kiana-domain --test billing_query --locked -- --test-threads=1
+      - name: Run BQ-23 protocol fixtures
+        run: cargo test -p kiana-protocol --test bq23_billing_query --locked -- --test-threads=1
+      - name: Run BQ-23 query fixtures
+        run: cargo test -p kiana-query --test bq23_billing_api --locked -- --test-threads=1
+      - name: Run BQ-23 query source guard
+        run: cargo test -p kiana-query --test bq23_billing_api_guard --locked -- --test-threads=1
+      - name: Run BQ-23 daemon ingress guard
+        run: cargo test -p kiana-daemon --test bq23_billing_query_guard --locked -- --test-threads=1
+      - name: Compile BQ-23 targets
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-query -p kiana-daemon --tests --locked
