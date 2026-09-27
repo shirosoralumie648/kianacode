@@ -15620,3 +15620,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source plan cannot execute or reconcile compensation, guarantee original outcome or persist new authorization; AUT-21+ remains open
 reviewer: Codex AUT-20 source review; checked fresh execution/action/auth binding, original permit denial and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-21 boot recovery evidence (2026-09-27)
+
+```text
+source_snapshot: `4eaeb3da` plus AUT-21 boot recovery source slice; kiana-domain/src/{automation_boot_recovery.rs,lib.rs}; kiana-core/src/{automation_boot_recovery.rs,lib.rs}; kiana-domain/tests/automation_boot_recovery.rs; kiana-core/tests/automation_boot_recovery_guard.rs; .github/workflows/aut21-boot-recovery.yml; docs/roadmap/aut21-boot-recovery-baseline.md; docs/roadmap.md
+worktree_status: AutomationBootRecoveryFact binds source/projection cursors, generation, authority epoch, pending Unknown count and stale-index state; Ready requires current projection without Unknown/stale index, ReconcileRequired remains visible; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_boot_recovery.rs kiana-core/src/automation_boot_recovery.rs kiana-domain/tests/automation_boot_recovery.rs kiana-core/tests/automation_boot_recovery_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_boot_recovery --locked -- --test-threads=1; cargo test -p kiana-core --test automation_boot_recovery_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only cursor/generation/reconcile/Unknown/stale-index visibility and unknown-field/digest denial; no process restart, EventLog rebuild, projector/index write, worker recovery or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-21 boot recovery/reconcile contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 563/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: fact is caller-supplied and cannot rebuild stores or fence/restart workers; durable recovery remains unproven
+reviewer: Codex AUT-21 source review; checked cursor/generation/Unknown/stale-index gates, Ready preconditions and no-effect Core boundary; no local runtime/CI test reviewer
+```
