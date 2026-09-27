@@ -51,7 +51,7 @@ fn usage_with_run(run_id: RunId, confidence: UsageConfidence) -> NormalizedUsage
         "provider fixture",
         digest('a'),
     )
-    .expect("usage");
+    .expect("usage")
 }
 
 fn incomplete_usage() -> NormalizedUsage {

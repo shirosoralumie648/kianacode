@@ -56,27 +56,27 @@ fn ingress_policy_binds_tenant_payload_nonce_and_occurrence() {
 #[test]
 fn wrong_tenant_clock_payload_or_unknown_fields_fail_closed() {
     let policy = policy();
-    let mut event = event();
-    event.tenant_id = "tenant-2".to_owned();
+    let mut wrong_tenant = event();
+    wrong_tenant.tenant_id = "tenant-2".to_owned();
     assert_eq!(
-        policy.matches(&event, 1_000).unwrap_err(),
+        policy.matches(&wrong_tenant, 1_000).unwrap_err(),
         "connector_ingress_header_invalid"
     );
 
-    let mut event = event();
-    event.occurred_at_unix_ms = 10_000;
-    event.ingress_digest = kiana_domain::json_digest(&json!({"tampered": true}));
+    let mut clock_drift = event();
+    clock_drift.occurred_at_unix_ms = 10_000;
+    clock_drift.ingress_digest = kiana_domain::json_digest(&json!({"tampered": true}));
     assert_eq!(
-        policy.matches(&event, 1_000).unwrap_err(),
+        policy.matches(&clock_drift, 1_000).unwrap_err(),
         "connector_ingress_header_invalid"
     );
 
-    let mut event = event();
-    event.payload = json!({"unexpected": true});
-    event.payload_digest = kiana_domain::json_digest(&event.payload);
-    event.ingress_digest = kiana_domain::json_digest(&json!({"tampered": true}));
+    let mut unknown_fields = event();
+    unknown_fields.payload = json!({"unexpected": true});
+    unknown_fields.payload_digest = kiana_domain::json_digest(&unknown_fields.payload);
+    unknown_fields.ingress_digest = kiana_domain::json_digest(&json!({"tampered": true}));
     assert_eq!(
-        policy.matches(&event, 1_000).unwrap_err(),
+        policy.matches(&unknown_fields, 1_000).unwrap_err(),
         "connector_ingress_header_invalid"
     );
 

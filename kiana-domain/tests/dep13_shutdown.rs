@@ -105,12 +105,12 @@ fn shutdown_unknown_phase_and_missing_ack_are_explicit() {
 
 #[test]
 fn shutdown_rejects_tampered_report_and_out_of_order_phases() {
-    let input = input();
-    let mut report = ShutdownReport::evaluate(&input).unwrap();
+    let tampered = input();
+    let mut report = ShutdownReport::evaluate(&tampered).unwrap();
     report.reason = "forged".to_owned();
     report.report_digest = report.digest();
     assert_eq!(
-        report.validate_against(&input).unwrap_err(),
+        report.validate_against(&tampered).unwrap_err(),
         "shutdown_report_binding_mismatch"
     );
 

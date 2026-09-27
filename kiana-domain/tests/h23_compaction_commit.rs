@@ -62,10 +62,10 @@ fn stale_steering_workspace_or_revoked_data_cannot_overwrite_summary() {
 
 #[test]
 fn forged_artifact_or_duplicate_source_event_is_rejected() {
-    let mut artifact = artifact();
-    artifact.artifact_digest = digest("forged");
+    let mut forged = artifact();
+    forged.artifact_digest = digest("forged");
     assert_eq!(
-        artifact.validate().unwrap_err(),
+        forged.validate().unwrap_err(),
         "compaction_artifact_digest_mismatch"
     );
     let artifact = artifact();

@@ -51,9 +51,9 @@ fn one_leaf_carries_all_dimensions_without_multiple_charge_rows() {
 
 #[test]
 fn wire_owned_scope_and_cross_project_without_grant_are_denied() {
-    let scope = scope();
-    let allocation = estimated_allocation(scope, scope.project_id);
-    let mut forged = scope;
+    let base = scope();
+    let allocation = estimated_allocation(base, base.project_id);
+    let mut forged = base;
     forged.project_id = ProjectId::new();
     assert_eq!(
         allocation.validate_wire_scope(&forged),

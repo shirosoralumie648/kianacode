@@ -165,13 +165,13 @@ fn untrusted_unknown_and_unverified_claims_stay_blocked_or_unknown() {
 
 #[test]
 fn policy_credential_account_audience_and_mcp_transport_drift_is_denied() {
-    let attestation = attestation(
+    let stdio = attestation(
         PromptPackTrust::Product,
         Some(mcp(McpRouteTransport::Stdio)),
         true,
     );
 
-    let mut policy_drift = attestation.context.clone();
+    let mut policy_drift = stdio.context.clone();
     policy_drift.data_policy = RouteDataPolicyBinding::new(
         C,
         5,
@@ -181,28 +181,28 @@ fn policy_credential_account_audience_and_mcp_transport_drift_is_denied() {
     )
     .expect("policy drift");
     assert_eq!(
-        attestation.verify(&policy_drift).unwrap().reason,
+        stdio.verify(&policy_drift).unwrap().reason,
         "route_attestation_data_policy_mismatch"
     );
 
-    let mut credential_drift = attestation.context.clone();
+    let mut credential_drift = stdio.context.clone();
     credential_drift.credential_ref_digest = D.to_owned();
     assert_eq!(
-        attestation.verify(&credential_drift).unwrap().reason,
+        stdio.verify(&credential_drift).unwrap().reason,
         "route_attestation_credential_mismatch"
     );
 
-    let mut account_drift = attestation.context.clone();
+    let mut account_drift = stdio.context.clone();
     account_drift.account_id = "other-account".to_owned();
     assert_eq!(
-        attestation.verify(&account_drift).unwrap().reason,
+        stdio.verify(&account_drift).unwrap().reason,
         "route_attestation_account_mismatch"
     );
 
-    let mut audience_drift = attestation.context.clone();
+    let mut audience_drift = stdio.context.clone();
     audience_drift.audience = "audience:other".to_owned();
     assert_eq!(
-        attestation.verify(&audience_drift).unwrap().reason,
+        stdio.verify(&audience_drift).unwrap().reason,
         "route_attestation_audience_mismatch"
     );
 
@@ -222,12 +222,12 @@ fn policy_credential_account_audience_and_mcp_transport_drift_is_denied() {
 
 #[test]
 fn strict_serde_and_digest_fences_reject_forged_values() {
-    let attestation = attestation(PromptPackTrust::Signed, None, true);
-    let mut value = serde_json::to_value(&attestation).expect("attestation JSON");
+    let signed = attestation(PromptPackTrust::Signed, None, true);
+    let mut value = serde_json::to_value(&signed).expect("attestation JSON");
     value["unexpected"] = serde_json::json!(true);
     assert!(serde_json::from_value::<RouteAttestation>(value).is_err());
 
-    let mut forged = attestation.clone();
+    let mut forged = signed.clone();
     forged.context.credential_ref_digest = D.to_owned();
     assert_eq!(
         forged.validate().unwrap_err(),

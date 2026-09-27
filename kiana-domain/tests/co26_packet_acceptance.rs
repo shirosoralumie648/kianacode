@@ -125,8 +125,8 @@ fn packet_acceptance_rejects_run_success_without_review_or_complete_evidence() {
 #[test]
 fn accepted_packet_unlocks_only_its_declared_dependents() {
     let mut ledger = PacketAcceptanceLedger::default();
-    let request = request(PacketAcceptanceDecision::Accept);
-    ledger.record(request).expect("record");
+    let accepted = request(PacketAcceptanceDecision::Accept);
+    ledger.record(accepted).expect("record");
     assert_eq!(
         ledger
             .accepted_dependents("acceptance-1")
@@ -146,17 +146,17 @@ fn accepted_packet_unlocks_only_its_declared_dependents() {
 
 #[test]
 fn not_applicable_or_waiver_never_silently_counts_as_acceptance() {
-    let mut request = request(PacketAcceptanceDecision::Accept);
-    request
+    let mut not_applicable = request(PacketAcceptanceDecision::Accept);
+    not_applicable
         .review
         .criterion_results
         .get_mut("criterion-1")
         .unwrap()
         .verdict = ReviewVerdict::NotApplicable;
-    request.review.digest = request.review.canonical_digest();
-    request.digest = request.canonical_digest();
+    not_applicable.review.digest = not_applicable.review.canonical_digest();
+    not_applicable.digest = not_applicable.canonical_digest();
     assert_eq!(
-        request.validate().unwrap_err(),
+        not_applicable.validate().unwrap_err(),
         "company_review_not_applicable_waiver_required"
     );
 }

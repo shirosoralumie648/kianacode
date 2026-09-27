@@ -45,7 +45,7 @@ fn answer_resumes_the_original_turn_once() {
     let answer = answer(&request, request.run_id, request.turn_id);
     let (answered, resolution) = request.accept_answer(answer.clone(), 200).unwrap();
     assert_eq!(answered.status, ClarificationStatus::Answered);
-    assert_eq!(answered.answer, Some(answer));
+    assert_eq!(answered.answer, Some(answer.clone()));
     assert_eq!(resolution.run_id, request.run_id);
     assert_eq!(resolution.turn_id, request.turn_id);
     assert!(resolution.resume_original_step);

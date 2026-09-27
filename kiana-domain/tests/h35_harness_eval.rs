@@ -51,9 +51,9 @@ fn trace_binding_covers_source_model_prompt_tools_input_and_workspace() {
 
 #[test]
 fn offline_replay_fails_missing_result_and_blocks_any_effect() {
-    let binding = binding(HarnessReplayMode::OfflineNoEffects);
+    let offline = binding(HarnessReplayMode::OfflineNoEffects);
     let missing = HarnessReplayReport::new(
-        &binding,
+        &offline,
         5,
         digest('f'),
         0,
@@ -73,7 +73,7 @@ fn offline_replay_fails_missing_result_and_blocks_any_effect() {
     assert_eq!(missing.verdict, EvalVerdict::Fail);
 
     let effect = HarnessReplayReport::new(
-        &binding,
+        &offline,
         5,
         digest('f'),
         1,

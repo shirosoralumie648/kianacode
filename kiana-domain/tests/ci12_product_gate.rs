@@ -75,12 +75,12 @@ fn ci12_matrix_covers_deny_first_fake_success_and_live_opt_in_ceiling() {
 
 #[test]
 fn forged_deny_effect_unknown_and_live_claims_fail_closed() {
-    let mut gate = gate();
-    gate.cases[0].effect_count = 1;
-    gate.cases[0].digest = gate.cases[0].canonical_digest();
-    gate.digest = gate.canonical_digest();
+    let mut forged_deny = gate();
+    forged_deny.cases[0].effect_count = 1;
+    forged_deny.cases[0].digest = forged_deny.cases[0].canonical_digest();
+    forged_deny.digest = forged_deny.canonical_digest();
     assert_eq!(
-        gate.validate().unwrap_err(),
+        forged_deny.validate().unwrap_err(),
         "ci12_deny_case_effect_invalid"
     );
 

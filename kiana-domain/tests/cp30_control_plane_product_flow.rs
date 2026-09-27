@@ -117,8 +117,17 @@ fn approval_write_cannot_complete_without_consumed_approval_or_receipt() {
     );
 
     let mut stale_surface = approval_write();
-    stale_surface.surfaces[2].authority_digest = hash('f');
-    stale_surface.surfaces[2].digest = stale_surface.surfaces[2].canonical_digest();
+    // Rebuild the stale receipt through the public constructor so it carries a
+    // valid digest of its own and only the parity against the flow can fail.
+    let stale = Cp30SurfaceReceipt::new(
+        stale_surface.surfaces[2].surface,
+        "flow-approval-write",
+        hash('f'),
+        22,
+        Cp30FlowStatus::Completed,
+        Some(hash('c')),
+    );
+    stale_surface.surfaces[2] = stale;
     stale_surface.digest = stale_surface.canonical_digest();
     assert_eq!(
         stale_surface.validate().unwrap_err(),

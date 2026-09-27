@@ -56,7 +56,10 @@ fn startup_order_and_report_are_schema_bound() {
     assert_eq!(report.blocked_stage, None);
     report.validate_against(&request).unwrap();
     let encoded = serde_json::to_string(&report).unwrap();
-    assert_eq!(serde_json::from_str(&encoded).unwrap(), report);
+    assert_eq!(
+        serde_json::from_str::<StartupCoordinatorReport>(&encoded).unwrap(),
+        report
+    );
 }
 
 #[test]

@@ -64,27 +64,27 @@ fn full_deny_unknown_replay_crash_race_and_fake_golden_gate_validates() {
 
 #[test]
 fn effectful_deny_and_missing_unknown_or_replay_fence_fail_closed() {
-    let mut gate = gate();
-    gate.cases[0].effect_count = 1;
-    gate.cases[0].case_digest = kiana_domain::json_digest(&json!({
-        "scenario": gate.cases[0].scenario,
-        "status": gate.cases[0].status,
-        "handler_calls": gate.cases[0].handler_calls,
-        "effect_count": gate.cases[0].effect_count,
-        "unknown_preserved": gate.cases[0].unknown_preserved,
-        "replay_fenced": gate.cases[0].replay_fenced,
-        "same_spine": gate.cases[0].same_spine,
-        "secret_free": gate.cases[0].secret_free,
-        "evidence_digest": gate.cases[0].evidence_digest,
-        "limitation": gate.cases[0].limitation,
+    let mut effectful_deny = gate();
+    effectful_deny.cases[0].effect_count = 1;
+    effectful_deny.cases[0].case_digest = kiana_domain::json_digest(&json!({
+        "scenario": effectful_deny.cases[0].scenario,
+        "status": effectful_deny.cases[0].status,
+        "handler_calls": effectful_deny.cases[0].handler_calls,
+        "effect_count": effectful_deny.cases[0].effect_count,
+        "unknown_preserved": effectful_deny.cases[0].unknown_preserved,
+        "replay_fenced": effectful_deny.cases[0].replay_fenced,
+        "same_spine": effectful_deny.cases[0].same_spine,
+        "secret_free": effectful_deny.cases[0].secret_free,
+        "evidence_digest": effectful_deny.cases[0].evidence_digest,
+        "limitation": effectful_deny.cases[0].limitation,
     }));
-    gate.gate_digest = kiana_domain::json_digest(&json!({
-        "schema": gate.schema,
-        "cases": gate.cases,
-        "status": gate.status,
+    effectful_deny.gate_digest = kiana_domain::json_digest(&json!({
+        "schema": effectful_deny.schema,
+        "cases": effectful_deny.cases,
+        "status": effectful_deny.status,
     }));
     assert_eq!(
-        gate.validate().unwrap_err(),
+        effectful_deny.validate().unwrap_err(),
         "swarm_release_deny_effect_invalid"
     );
 

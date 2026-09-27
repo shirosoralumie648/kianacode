@@ -240,6 +240,9 @@ fn binding_snapshot_round_trips_with_stable_digests() {
     )
     .expect("graph");
     let resolution = graph.resolve().expect("resolution");
+    // The binding is parented to the same scope, so hand the constructor a clone
+    // to borrow while `scope` itself is moved in.
+    let parent_scope = scope.clone();
     let binding = ExtensionBinding::new(
         "binding.alpha",
         "snapshot.alpha",
@@ -252,7 +255,7 @@ fn binding_snapshot_round_trips_with_stable_digests() {
         BTreeSet::new(),
         ScopeLimit::Restricted(1),
         100,
-        &scope,
+        &parent_scope,
         scope,
     )
     .expect("binding");

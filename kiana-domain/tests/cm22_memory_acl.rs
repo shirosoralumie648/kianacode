@@ -35,6 +35,8 @@ fn record(
 ) -> MemoryRecord {
     let collection_value = MemoryCollection::parse(collection).unwrap();
     let qualified = admission == MemoryAdmission::Qualified;
+    // Classify before `collection_value.collection` is moved into the record below.
+    let classification = MemoryClassification::for_collection(&collection_value);
     let mut record = MemoryRecord {
         project_root: root.to_owned(),
         schema: "kiana.memory-record.v2".to_owned(),
@@ -63,7 +65,7 @@ fn record(
         origin: MemoryOrigin::User,
         admission_state: admission,
         state,
-        classification: MemoryClassification::for_collection(&collection_value),
+        classification,
         purpose: Some(Purpose {
             id: "context.read".to_owned(),
             description: "CM-22 fixture".to_owned(),

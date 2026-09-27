@@ -1,4 +1,5 @@
 use kiana_domain::*;
+use serde_json::json;
 use std::collections::BTreeMap;
 
 fn plan() -> CompanyIntegrationPlan {
@@ -36,7 +37,15 @@ fn decision() -> CompanyConflictDecision {
         evidence_refs: vec!["evidence:conflict-1".to_owned()],
         digest: String::new(),
     };
-    value.digest = value.canonical_digest();
+    // `CompanyConflictDecision` has no public constructor, so recompute the same
+    // canonical digest the library validates against.
+    value.digest = json_digest(&json!({
+        "conflict_id": value.conflict_id,
+        "path": value.path,
+        "resolution": value.resolution,
+        "reviewer_ref": value.reviewer_ref,
+        "evidence_refs": value.evidence_refs,
+    }));
     value
 }
 

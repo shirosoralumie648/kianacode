@@ -89,9 +89,9 @@ fn local_package_matches_the_accepted_manifest_and_rejects_path_or_symlink_escap
     let manifest = manifest();
     let mut ledger = DeliveryManifestLedger::default();
     ledger.publish_manifest(manifest.clone()).expect("manifest");
-    let package = package(&manifest);
-    ledger.record_package(package.clone()).expect("package");
-    ledger.record_package(package).expect("idempotent package");
+    let recorded = package(&manifest);
+    ledger.record_package(recorded.clone()).expect("package");
+    ledger.record_package(recorded).expect("idempotent package");
 
     let mut symlink = package(&manifest);
     symlink.entries[0].symlink = true;

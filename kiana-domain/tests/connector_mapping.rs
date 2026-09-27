@@ -1,6 +1,6 @@
 use kiana_domain::{
     ArtifactId, ArtifactProvenance, ArtifactVersion, ConnectorInputArtifact, ConnectorMappedObject,
-    ConnectorMappedPage, ConnectorObjectMapping, ConnectorPageCursor, ARTIFACT_REF_SCHEMA,
+    ConnectorMappedPage, ConnectorObjectMapping, ConnectorPageCursor,
     CONNECTOR_INPUT_ARTIFACT_SCHEMA, CONNECTOR_MAPPED_PAGE_SCHEMA, CONNECTOR_MAPPING_SCHEMA,
     CONNECTOR_PAGE_CURSOR_SCHEMA,
 };
@@ -144,24 +144,24 @@ fn mapping_artifact_cursor_and_page_are_bound_and_ordered() {
 
 #[test]
 fn authority_targets_cursor_binding_order_and_unknown_fields_fail_closed() {
-    let mut mapping = mapping();
-    mapping
+    let mut authority_target = mapping();
+    authority_target
         .fields
         .insert("external_role".to_owned(), "role".to_owned());
-    mapping.mapping_digest = kiana_domain::json_digest(&json!({
-        "schema": mapping.schema,
-        "version": mapping.version,
-        "connector_id": mapping.connector_id,
-        "binding_id": mapping.binding_id,
-        "account_id": mapping.account_id,
-        "operation": mapping.operation,
-        "input_schema_digest": mapping.input_schema_digest,
-        "output_schema_digest": mapping.output_schema_digest,
-        "fields": mapping.fields,
-        "provenance_digest": mapping.provenance_digest,
+    authority_target.mapping_digest = kiana_domain::json_digest(&json!({
+        "schema": authority_target.schema,
+        "version": authority_target.version,
+        "connector_id": authority_target.connector_id,
+        "binding_id": authority_target.binding_id,
+        "account_id": authority_target.account_id,
+        "operation": authority_target.operation,
+        "input_schema_digest": authority_target.input_schema_digest,
+        "output_schema_digest": authority_target.output_schema_digest,
+        "fields": authority_target.fields,
+        "provenance_digest": authority_target.provenance_digest,
     }));
     assert_eq!(
-        mapping.validate().unwrap_err(),
+        authority_target.validate().unwrap_err(),
         "connector_mapping_target_not_data_field"
     );
 

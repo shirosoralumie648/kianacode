@@ -119,7 +119,7 @@ fn verified_page_retrieval_preserves_digest() {
         )
         .unwrap();
     assert_eq!(second.data, b"fghij");
-    assert_eq!(second.content_digest, spill.output_ref.content_hash);
+    assert_eq!(second.content_digest, spill.output_ref.content_digest);
     assert_eq!(
         spill
             .page(

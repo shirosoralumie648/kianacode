@@ -206,7 +206,7 @@ fn action_record_receipt_digest_is_bound_to_applied_state() {
             1_000,
         )
         .unwrap();
-    let accepted = journal
+    let mut accepted = journal
         .query_original("ui-04-receipt-fence")
         .cloned()
         .expect("accepted record");

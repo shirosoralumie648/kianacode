@@ -26,10 +26,10 @@ fn request() -> ExternalResourceRequest {
 
 #[test]
 fn external_resource_cannot_widen_scope() {
-    let mut request = request();
-    request.requested_scope_digest = digest("wider-scope");
+    let mut widened = request();
+    widened.requested_scope_digest = digest("wider-scope");
     assert_eq!(
-        request.validate().unwrap_err(),
+        widened.validate().unwrap_err(),
         "external_resource_scope_widening_denied"
     );
     let mut write = request();

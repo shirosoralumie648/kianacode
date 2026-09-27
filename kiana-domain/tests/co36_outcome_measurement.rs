@@ -112,7 +112,7 @@ fn unit_window_nan_and_missing_samples_are_rejected_or_marked_missing() {
         ledger.record_observation(outside).unwrap_err(),
         "outcome_observation_binding_or_window_invalid"
     );
-    let mut nan = observation("obs-nan", f64::NAN, 11);
+    let nan = observation("obs-nan", f64::NAN, 11);
     assert_eq!(
         ledger.record_observation(nan).unwrap_err(),
         "outcome_observation_binding_or_window_invalid"
@@ -139,9 +139,9 @@ fn assessment_replays_from_frozen_rules_and_sponsor_decision_is_independent() {
     let replay = ledger.assess("plan-1", "assessment-1", 21).unwrap();
     assert_eq!(first, replay);
     assert_eq!(first.status, OutcomeAssessmentStatus::Realized);
-    let decision = decision(&first);
-    ledger.decide(decision.clone()).expect("decision");
-    ledger.decide(decision).expect("idempotent decision");
+    let first_decision = decision(&first);
+    ledger.decide(first_decision.clone()).expect("decision");
+    ledger.decide(first_decision).expect("idempotent decision");
 
     let mut self_decision = decision(&first);
     self_decision.decided_by = "owner-1".to_owned();
