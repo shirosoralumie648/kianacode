@@ -15425,3 +15425,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source ledger demonstrates ordering and fencing only; durable DispatchIntent/QueueEntry replay, fair scheduling across processes, lease persistence and child execution remain open
 reviewer: Codex SW-06 source review; checked capacity/claim ordering, session fairness, not-before delay, worker epoch fence, bounded retry and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-07 fresh child materialization evidence (2026-09-27)
+
+```text
+source_snapshot: `065c0e1f` plus SW-07 fresh child source slice; kiana-domain/src/{swarm_child.rs,lib.rs}; kiana-core/src/{swarm_child.rs,lib.rs}; kiana-domain/tests/swarm_child.rs; kiana-core/tests/swarm_child_guard.rs; .github/workflows/sw07-fresh-child.yml; docs/roadmap/sw07-fresh-child-baseline.md; docs/roadmap.md
+worktree_status: SwarmChildMaterializationRequest binds distinct parent/child Session/Run/Attempt/Cell IDs, partition/input refs, exact authorized inputs, child scope subset, private-history exclusion and authority/template/policy revisions; receipt asserts fresh context and no private history; Core facade is read-only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_child.rs kiana-core/src/swarm_child.rs kiana-domain/tests/swarm_child.rs kiana-core/tests/swarm_child_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_child --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_child_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only fresh identity, authorized input, parent session/history reuse, scope expansion and unknown-field denial; no daemon/runner materialization, durable lineage, EventLog fact, Memory retrieval, provider effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-07 fresh child materialization contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 549/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source contract cannot authenticate runtime sessions or persist DelegationPacket/child facts; execution routing, child correlation and recovery remain SW-08+
+reviewer: Codex SW-07 source review; checked fresh IDs, exact authorized input refs, subset/history fences, revision binding and no-effect Core boundary; no local runtime/CI test reviewer
+```
