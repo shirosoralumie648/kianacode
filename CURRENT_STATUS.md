@@ -15995,3 +15995,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: wire validation cannot authenticate actor/epoch, enforce real path/capability scope, consume approval, append operation facts or prove command outcome; later Core/operation-journal steps remain required
 reviewer: Codex DEP-04 source review; checked ops.* registry, scoped authority comparison, unknown/error visibility, idempotency conflict/replay and shared wire/no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### DEP-05 operation lifecycle evidence (2026-09-27)
+
+```text
+source_snapshot: `e2b50107` plus DEP-05 operation lifecycle source slice; kiana-domain/src/{operation_lifecycle.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep05_operation_lifecycle.rs; kiana-core/src/{deployment_operation.rs,lib.rs}; kiana-core/tests/dep05_operation_lifecycle_guard.rs; .github/workflows/dep05-operation-lifecycle.yml; docs/roadmap/dep05-operation-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: pure versioned OperationState/OperationPhase/OperationTransition/PhaseDeadline/OperationJournal reducer and read-only Core replay facade added; preflight, revision digest, source cursor, evidence and terminal invariants are server-side checked; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/operation_lifecycle.rs kiana-domain/tests/dep05_operation_lifecycle.rs kiana-core/src/deployment_operation.rs kiana-core/tests/dep05_operation_lifecycle_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep05_operation_lifecycle --locked -- --test-threads=1; cargo test -p kiana-core --test dep05_operation_lifecycle_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only skip-preflight, late revision, drain deadline timeout→Unknown, duplicate terminal, forged state/digest, cursor regression and replay matrix; no EventStore append, lease/fence, supervisor, health, filesystem, process, Broker or capability effect
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-05 lifecycle/operation state machine, bounded OperationJournal, phase deadlines, terminal/Unknown reducer, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 610/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: reducer is a deterministic projection only; it does not persist EventStore facts, acquire OperationLease/fence, invoke supervisor, publish health, consume approval, dispatch capabilities or prove cross-process recovery; drain timeout deliberately cannot claim DeploymentPhase::Stopped
+reviewer: Codex DEP-05 source review; checked single EventStore fact boundary, preflight gate, revision/cursor/sequence monotonicity, drain deadline/Unknown fence, terminal immutability and replay digest; no local runtime/CI test reviewer
+```

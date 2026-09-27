@@ -1,0 +1,50 @@
+name: DEP-05 operation lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/operation_lifecycle.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep05_operation_lifecycle.rs"
+      - "kiana-core/src/deployment_operation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/dep05_operation_lifecycle_guard.rs"
+      - "docs/roadmap/dep05-operation-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep05-operation-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/operation_lifecycle.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/dep05_operation_lifecycle.rs"
+      - "kiana-core/src/deployment_operation.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/dep05_operation_lifecycle_guard.rs"
+      - "docs/roadmap/dep05-operation-lifecycle-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep05-operation-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operation-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-05 domain fixtures
+        run: cargo test -p kiana-domain --test dep05_operation_lifecycle --locked -- --test-threads=1
+      - name: Run DEP-05 source guard
+        run: cargo test -p kiana-core --test dep05_operation_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile DEP-05 targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
