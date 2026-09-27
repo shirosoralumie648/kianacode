@@ -15710,3 +15710,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: key provisioning/rotation, durable replay state, network ingress, occurrence routing, rate limiting and external provider evidence remain unproven; INT-25+ remains open
 reviewer: Codex INT-24 source review; checked signature/tenant/source/event/payload fences, nonce/time/dedupe semantics, signature evidence digest and no-effect verifier boundary; no local runtime/CI test reviewer
 ```
+
+### INT-25 connector mapping evidence (2026-09-27)
+
+```text
+source_snapshot: `b262c50c` plus INT-25 mapping source slice; kiana-domain/src/{connector_mapping.rs,artifact_contracts.rs,lib.rs}; kiana-core/src/{connector_mapping.rs,lib.rs}; kiana-domain/tests/connector_mapping.rs; kiana-core/tests/int25_connector_mapping_guard.rs; .github/workflows/int25-mapping.yml; docs/roadmap/int25-mapping-baseline.md; docs/roadmap.md
+worktree_status: ConnectorObjectMapping binds connector/binding/account/operation and input/output schema/provenance digests while rejecting capability/actor/role/approval/scope/path/command/endpoint targets; ConnectorInputArtifact binds immutable ArtifactRef and source cursor; ConnectorPageCursor binds scope/mapping/authority/account identity without raw token; ConnectorMappedPage requires value/provenance digests and monotonic ordinals; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_mapping.rs kiana-core/src/connector_mapping.rs kiana-domain/tests/connector_mapping.rs kiana-core/tests/int25_connector_mapping_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_mapping --locked -- --test-threads=1; cargo test -p kiana-core --test int25_connector_mapping_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only valid mapping/artifact/cursor/page, forbidden authority target, digest/foreign binding/unknown-field/value-order denial and read-only Core guard; no ArtifactStore write, adapter invocation, provider pagination, ControlPlane mapping or live/physical outcome
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-25 versioned connector mapping/artifact/provenance/cursor source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 580/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: mapping remains a source contract without schema registry/adapter execution, durable artifacts, network pagination or ControlPlane command integration; INT-26+ remains open
+reviewer: Codex INT-25 source review; checked authority target denial, ArtifactRef/scope binding, account/epoch cursor fences, provenance/value digest and stable order; no local runtime/CI test reviewer
+```
