@@ -36,6 +36,7 @@ mod startup_coordinator;
 mod health_aggregation;
 mod deployment_admission;
 mod deployment_shutdown;
+mod deployment_observability;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -60,6 +61,7 @@ use kiana_domain::{
     HealthAggregationInput, HealthAggregationReport,
     DeploymentAdmissionDecision, DeploymentAdmissionInput,
     ShutdownInput, ShutdownReport,
+    LifecycleEvidenceBundle,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
     RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
@@ -1013,6 +1015,14 @@ impl DaemonHost {
         input: &ShutdownInput,
     ) -> Result<ShutdownReport, PortError> {
         deployment_shutdown::evaluate(input)
+    }
+
+    #[allow(clippy::unused_self)]
+    pub fn validate_observability(
+        &self,
+        bundle: &LifecycleEvidenceBundle,
+    ) -> Result<(), PortError> {
+        deployment_observability::validate(bundle)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

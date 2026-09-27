@@ -16130,3 +16130,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: reducer consumes adapter-supplied acks and does not cancel runners, fence queues, drain tools, flush EventStore/artifacts, stop processes, persist shutdown receipts or enforce ControlPlane shutdown; later adapter wiring remains authority
 reviewer: Codex DEP-13 source review; checked ordered phase evidence, missing/unknown/late-result/timeout/flush fences, stopped versus recovery semantics and no-effect route; no local runtime/CI test reviewer
 ```
+
+### DEP-14 observability evidence (2026-09-27)
+
+```text
+source_snapshot: `f834a9e8` plus DEP-14 observability source slice; kiana-domain/src/{deployment_observability.rs,observability.rs,audit.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep14_observability.rs; kiana-core/src/{deployment_observability.rs,lib.rs}; kiana-core/tests/dep14_observability_guard.rs; kiana-daemon/src/{deployment_observability.rs,lib.rs}; kiana-daemon/tests/dep14_observability_route_guard.rs; .github/workflows/dep14-observability.yml; docs/roadmap/dep14-observability-baseline.md; docs/roadmap.md
+worktree_status: LifecycleEvidenceBundle binds operation/revision/source cursor across redacted metric facts and opaque trace/log/audit refs; duplicate/cross-scope/secret/digest tamper fails closed; Core/Daemon routes validate only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment_observability.rs kiana-domain/tests/dep14_observability.rs kiana-core/src/deployment_observability.rs kiana-core/tests/dep14_observability_guard.rs kiana-daemon/src/deployment_observability.rs kiana-daemon/tests/dep14_observability_route_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep14_observability --locked -- --test-threads=1; cargo test -p kiana-core --test dep14_observability_guard --locked -- --test-threads=1; cargo test -p kiana-daemon --test dep14_observability_route_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only operation/revision/cursor binding, duplicate metric, cross-scope drift, secret marker, tampered metric/bundle, serde roundtrip and read-only route guards; no telemetry/audit/trace emit, EventLog read/write, provider/Broker effect or exporter
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guards, formatting and affected-target compilation pending/unobserved
+status_change: DEP-14 LifecycleMetricFact/EvidenceBundle, schema registry, Core/Daemon validation routes, domain/Core/daemon fixtures/guards, GitHub workflow and baseline added; roadmap row 683/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: bundle is an opaque source-level evidence contract and does not emit or persist telemetry, append audit facts, export traces, read EventLog or prove external effects; existing observability/metrics/audit projectors remain authorities
+reviewer: Codex DEP-14 source review; checked operation/revision/cursor binding, secret-free metric/log/trace/audit metadata, duplicate/cross-scope/tamper fences and no-effect routes; no local runtime/CI test reviewer
+```
