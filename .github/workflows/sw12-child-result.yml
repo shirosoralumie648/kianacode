@@ -1,0 +1,45 @@
+name: SW-12 typed child result
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/swarm_child_result.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/swarm_child_result.rs"
+      - "kiana-core/src/swarm_child_result.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/swarm_child_result_guard.rs"
+      - "docs/roadmap/sw12-child-result-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw12-child-result.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/swarm_child_result.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/swarm_child_result.rs"
+      - "kiana-core/src/swarm_child_result.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/swarm_child_result_guard.rs"
+      - "docs/roadmap/sw12-child-result-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw12-child-result.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  child-result:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo test -p kiana-domain --test swarm_child_result --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test swarm_child_result_guard --locked -- --test-threads=1
+      - run: cargo check -p kiana-domain -p kiana-core --tests --locked

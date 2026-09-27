@@ -15500,3 +15500,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: recovery fact is caller-supplied and cannot rebuild EventLog, fence a process or authorize an external effect; SW-12 typed child result remains open
 reviewer: Codex SW-11 source review; checked cursor bounds, explicit Unknown/re-admission, known-effect requirement and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-12 typed child result evidence (2026-09-27)
+
+```text
+source_snapshot: `9b1c1fd5` plus SW-12 typed result source slice; kiana-domain/src/{swarm_child_result.rs,lib.rs}; kiana-core/src/{swarm_child_result.rs,lib.rs}; kiana-domain/tests/swarm_child_result.rs; kiana-core/tests/swarm_child_result_guard.rs; .github/workflows/sw12-child-result.yml; docs/roadmap/sw12-child-result-baseline.md; docs/roadmap.md
+worktree_status: TypedChildResult binds parent/child/attempt/partition/source cursor and distinguishes Succeeded/Failed/ResultUnknown; success requires output/artifact and independent review, failure requires reason, Unknown has no output and review requirement; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_child_result.rs kiana-core/src/swarm_child_result.rs kiana-domain/tests/swarm_child_result.rs kiana-core/tests/swarm_child_result_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_child_result --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_child_result_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only typed success/failure/Unknown contracts, review/failure/output denial and unknown-field/digest denial; no durable delegation fact, EventLog projection, independent reviewer execution, merge/release, provider effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-12 typed child result/failure contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 554/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: typed facts are caller-supplied and cannot execute/review/merge or persist delegation outcomes; SW-13+ reducer/review work remains open
+reviewer: Codex SW-12 source review; checked typed state separation, result Unknown/review fence, failure reason/output requirements and no-effect Core boundary; no local runtime/CI test reviewer
+```
