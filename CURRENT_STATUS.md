@@ -15560,3 +15560,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: pure classifier cannot persist attempt reservations, race cancellation or effect receipts; AUT-17+ remains open
 reviewer: Codex AUT-16 source review; checked Unknown-first policy, idempotency/approval/budget/deadline bounds and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-17 cancellation generation evidence (2026-09-27)
+
+```text
+source_snapshot: `e92867b9` plus AUT-17 cancellation source slice; kiana-domain/src/{automation_cancellation.rs,lib.rs}; kiana-core/src/{automation_cancellation.rs,lib.rs}; kiana-domain/tests/automation_cancellation.rs; kiana-core/tests/automation_cancellation_guard.rs; .github/workflows/aut17-cancellation.yml; docs/roadmap/aut17-cancellation-baseline.md; docs/roadmap.md
+worktree_status: AutomationCancellationFact binds execution/attempt/cancel generation/authority epoch and stop request/confirmation; Stopped requires confirmed stop, ResultUnknown requires started effect, late results require Fenced; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_cancellation.rs kiana-core/src/automation_cancellation.rs kiana-domain/tests/automation_cancellation.rs kiana-core/tests/automation_cancellation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_cancellation --locked -- --test-threads=1; cargo test -p kiana-core --test automation_cancellation_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only stop confirmation, ResultUnknown, generation/epoch, late-result fence, digest and unknown-field denial; no worker signal/drain, process supervisor, EventLog append, automatic retry or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-17 cancellation generation/fence contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 559/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: observation-only contract cannot signal/drain a worker or reconcile late effects; AUT-18+ remains open
+reviewer: Codex AUT-17 source review; checked generation/epoch fence, stop confirmation, Unknown preservation and no-effect Core boundary; no local runtime/CI test reviewer
+```
