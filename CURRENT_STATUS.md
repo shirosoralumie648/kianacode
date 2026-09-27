@@ -15965,3 +15965,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: release attestation and bundle validation cannot prove real artifact bytes, cryptographic signature/transparency log truth, registry availability, install outcome or durable/live/physical release provenance
 reviewer: Codex DEP-02 source review; checked manifest/provenance/toolchain/Cargo.lock/source/artifact subject binding, verification/Unknown fence, secret-marker boundary and no-effect Core route; no local runtime/CI test reviewer
 ```
+
+### DEP-03 deployment compatibility evidence (2026-09-27)
+
+```text
+source_snapshot: `b3129bd9` plus DEP-03 compatibility source slice; kiana-domain/src/{deployment_compatibility.rs,lib.rs}; kiana-domain/tests/dep03_compatibility.rs; kiana-core/src/{deployment_compatibility.rs,lib.rs}; kiana-core/tests/dep03_compatibility_guard.rs; .github/workflows/dep03-compatibility.yml; docs/roadmap/dep03-compatibility-baseline.md; docs/roadmap.md
+worktree_status: DeploymentVersionAxes cover app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data/generation; DeploymentCompatibilityMatrix recomputes stable blocked reasons for major mismatch, downgrade and digest drift; Core facade is read-only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment_compatibility.rs kiana-domain/tests/dep03_compatibility.rs kiana-core/src/deployment_compatibility.rs kiana-core/tests/dep03_compatibility_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep03_compatibility --locked -- --test-threads=1; cargo test -p kiana-core --test dep03_compatibility_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only identical/compatible, unknown-major, store downgrade, epoch/generation rollback, workflow/provider/extension drift and forged status/reason/digest matrix cases; no migration, lease, process, Broker, EventLog or provider effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-03 compatibility axes/matrix source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 608/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: matrix compares supplied snapshots only; it cannot inspect store/schema reality, perform migrations, negotiate compatibility windows, acquire leases or prove startup/live deployment
+reviewer: Codex DEP-03 source review; checked all ten version axes, deterministic reason/status recomputation, major/downgrade/workflow drift fences and no-effect Core route; no local runtime/CI test reviewer
+```
