@@ -15905,3 +15905,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: handoff facts cannot deliver messages, schedule packets, project UI/events or mutate ControlPlane; SW-17+ remains open
 reviewer: Codex SW-16 source review; checked named recipient, structured ACK/evidence/incident, bounded Symposium and no free-message/authority boundary; no local runtime/CI test reviewer
 ```
+
+### SW-17 swarm projection evidence (2026-09-27)
+
+```text
+source_snapshot: `48506456` plus SW-17 projection source slice; kiana-domain/src/{swarm_projection.rs,swarm_handoff.rs,lib.rs}; kiana-core/src/{swarm_projection.rs,lib.rs}; kiana-domain/tests/swarm_projection.rs; kiana-core/tests/sw17_projection_guard.rs; .github/workflows/sw17-projection.yml; docs/roadmap/sw17-projection-baseline.md; docs/roadmap.md
+worktree_status: SwarmProjectionState binds epoch/sequence/source cursor and event digests; exact replay is no-op, gaps/epoch drift/conflict/terminal resurrection fail; Core facade validates event facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_projection.rs kiana-core/src/swarm_projection.rs kiana-domain/tests/swarm_projection.rs kiana-core/tests/sw17_projection_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_projection --locked -- --test-threads=1; cargo test -p kiana-core --test sw17_projection_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only ordered progress/terminal, exact replay, sequence gap, epoch drift, terminal late event, digest/unknown-field denial and no-effect projection guard; no UI/CLI/Web/Workbench/Desktop adapter, durable snapshot store, transport, EventLog write or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-17 swarm parent-child projection/replay source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 602/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: projection cannot hydrate UI surfaces, persist snapshots or rerun terminal transport; SW-18 remains open
+reviewer: Codex SW-17 source review; checked epoch/sequence/cursor/terminal replay fences and no-dispatch projection boundary; no local runtime/CI test reviewer
+```
