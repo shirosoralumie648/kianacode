@@ -34,6 +34,7 @@ mod process_supervisor;
 mod supervisor_adapters;
 mod startup_coordinator;
 mod health_aggregation;
+mod deployment_admission;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -56,6 +57,7 @@ use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
     HealthAggregationInput, HealthAggregationReport,
+    DeploymentAdmissionDecision, DeploymentAdmissionInput,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
     RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
@@ -992,6 +994,15 @@ impl DaemonHost {
         input: HealthAggregationInput,
     ) -> Result<HealthAggregationReport, PortError> {
         health_aggregation::evaluate_probe(input, HealthProbeKind::Maintenance)
+    }
+
+    /// Evaluate the typed ready/maintenance/drain admission decision through Core.
+    #[allow(clippy::unused_self)]
+    pub fn deployment_admission(
+        &self,
+        input: &DeploymentAdmissionInput,
+    ) -> Result<DeploymentAdmissionDecision, PortError> {
+        deployment_admission::evaluate(input)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

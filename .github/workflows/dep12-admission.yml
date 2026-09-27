@@ -1,0 +1,25 @@
+name: DEP-12 admission and drain
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-12 domain fixtures
+        run: cargo test -p kiana-domain --test dep12_admission --locked -- --test-threads=1
+      - name: Run DEP-12 Core guard
+        run: cargo test -p kiana-core --test dep12_admission_guard --locked -- --test-threads=1
+      - name: Run DEP-12 daemon route guard
+        run: cargo test -p kiana-daemon --test dep12_admission_route_guard --locked -- --test-threads=1
+      - name: Compile DEP-12 targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
