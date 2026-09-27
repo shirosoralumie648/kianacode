@@ -15440,3 +15440,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source contract cannot authenticate runtime sessions or persist DelegationPacket/child facts; execution routing, child correlation and recovery remain SW-08+
 reviewer: Codex SW-07 source review; checked fresh IDs, exact authorized input refs, subset/history fences, revision binding and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-08 single-spine child routing evidence (2026-09-27)
+
+```text
+source_snapshot: `2828ae9e` plus SW-08 routing source slice; kiana-domain/src/{swarm_routing.rs,lib.rs}; kiana-core/src/{swarm_routing.rs,lib.rs}; kiana-domain/tests/swarm_routing.rs; kiana-core/tests/swarm_routing_guard.rs; .github/workflows/sw08-routing.yml; docs/roadmap/sw08-routing-baseline.md; docs/roadmap.md
+worktree_status: SwarmExecutionRouteRequest binds parent/child run/session/cell/attempt/partition IDs, correlation/causation, fixed DaemonHost/ControlPlane/CapabilityBroker/KianaHarness spine, authority epoch and route digest; direct runner/provider routes are rejected and receipt asserts effect_dispatched=false; Core facade is read-only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_routing.rs kiana-core/src/swarm_routing.rs kiana-domain/tests/swarm_routing.rs kiana-core/tests/swarm_routing_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_routing --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_routing_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only fixed spine/correlation, direct runner/provider route denial, wrong broker route, digest and unknown-field denial; no DaemonHost runtime dispatch, child harness/provider effect, durable correlation/replay or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-08 single-spine child routing contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 550/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: route evidence cannot authenticate a live DaemonHost or persist child correlation; runner/provider dispatch and recovery remain unproven
+reviewer: Codex SW-08 source review; checked fixed execution spine, correlation/causation, direct-route denial, effect false and no-effect Core boundary; no local runtime/CI test reviewer
+```

@@ -601,10 +601,12 @@ mod swarm;
 mod swarm_admission;
 mod swarm_queue;
 mod swarm_child;
+mod swarm_routing;
 pub use swarm::*;
 pub use swarm_admission::*;
 pub use swarm_queue::*;
 pub use swarm_child::*;
+pub use swarm_routing::*;
 
 mod handoff;
 pub use handoff::*;
