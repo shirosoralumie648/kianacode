@@ -15725,3 +15725,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: mapping remains a source contract without schema registry/adapter execution, durable artifacts, network pagination or ControlPlane command integration; INT-26+ remains open
 reviewer: Codex INT-25 source review; checked authority target denial, ArtifactRef/scope binding, account/epoch cursor fences, provenance/value digest and stable order; no local runtime/CI test reviewer
 ```
+
+### INT-26 connector propagation evidence (2026-09-27)
+
+```text
+source_snapshot: `465657e6` plus INT-26 propagation source slice; kiana-domain/src/{connector_propagation.rs,connector_scope.rs,retention.rs,lib.rs}; kiana-core/src/{connector_propagation.rs,lib.rs}; kiana-domain/tests/connector_propagation.rs; kiana-core/tests/int26_connector_propagation_guard.rs; .github/workflows/int26-propagation.yml; docs/roadmap/int26-propagation-baseline.md; docs/roadmap.md
+worktree_status: ConnectorPropagationFact binds connector/binding/account, source/target project, object/data class/purpose, scope/SharingGrant/retention digests, source cursor/data epoch and Active/Revoked/Expired/Quarantined state; cross-project requires grant; revoked/expired/quarantined require tombstone and Memory/Index/Cache invalidation; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_propagation.rs kiana-core/src/connector_propagation.rs kiana-domain/tests/connector_propagation.rs kiana-core/tests/int26_connector_propagation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_propagation --locked -- --test-threads=1; cargo test -p kiana-core --test int26_connector_propagation_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only active propagation, cross-project grant denial, revoked/expired/quarantined tombstone/invalidation, active invalidation denial and digest/unknown-field/read-only guard; no tombstone persistence, Memory/Index/Cache invalidation worker, live hold/grant evaluation, EventLog write or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-26 connector DataClass/Purpose/SharingGrant/retention/revocation propagation source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 581/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source fact cannot persist tombstones/invalidate derived stores or prove cross-process revocation; INT-27+ remains open
+reviewer: Codex INT-26 source review; checked project/grant/data-class/purpose/retention/epoch binding, tombstone/invalidation gates and no-effect Core boundary; no local runtime/CI test reviewer
+```
