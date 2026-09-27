@@ -32,6 +32,7 @@ mod model_client;
 mod pre_tool_hooks;
 mod process_supervisor;
 mod supervisor_adapters;
+mod startup_coordinator;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -55,7 +56,8 @@ use kiana_domain::{
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
-    RuntimeEvent, UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
+    RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
+    UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -965,6 +967,16 @@ impl DaemonHost {
 
     pub async fn startup_health(&self) -> Result<HealthSnapshot, PortError> {
         self.health_snapshot(HealthProbeKind::Startup).await
+    }
+
+    /// Evaluate a server-owned startup evidence snapshot through the existing Core route.
+    /// Adapters supply facts; this method never performs startup effects or resumes old work.
+    #[allow(clippy::unused_self)]
+    pub fn evaluate_startup(
+        &self,
+        request: &StartupCoordinatorRequest,
+    ) -> Result<StartupCoordinatorReport, PortError> {
+        startup_coordinator::evaluate(request)
     }
 
     /// Read-only operator evidence bound to the same EventLog projection as health and metrics.

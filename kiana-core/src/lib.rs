@@ -63,6 +63,7 @@ mod data_governance;
 mod deletion;
 mod deployment_compatibility;
 mod deployment_config;
+mod deployment_startup;
 mod deployment_supervisor;
 mod deployment_operation;
 mod deployment_lease;
@@ -227,6 +228,7 @@ pub use deletion::{
 };
 pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_config::validate_deployment_config_snapshot;
+pub use deployment_startup::{evaluate_startup, validate_startup_report};
 pub use deployment_supervisor::validate_supervisor_observation;
 pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
 pub use deployment_lease::validate_operation_lease_cas;
