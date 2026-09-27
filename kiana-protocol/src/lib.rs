@@ -39,6 +39,11 @@ pub use kiana_domain::{
     COST_LEDGER_VERSION,
 };
 pub use kiana_domain::{
+    BillingQueryCursor, BillingQueryKind, BillingQueryRequest, BillingQueryResponse,
+    BILLING_QUERY_CURSOR_SCHEMA, BILLING_QUERY_MAX_LIMIT, BILLING_QUERY_RESPONSE_SCHEMA,
+    BILLING_QUERY_SCHEMA,
+};
+pub use kiana_domain::{
     normalize_role_path, project_redacted_error, redact_text, scan_secret_channels,
     scan_secret_sentinels, scan_secret_value, ActionRef, ActionRefId, AdapterCommitState,
     AdapterResult,
@@ -851,6 +856,17 @@ impl RequestEnvelope {
         }
     }
 
+    /// Construct a read-only billing projection query. Budget/usage/export/reconciliation data
+    /// remain derived from the server-owned BQ-20 snapshot; this envelope does not authorize or
+    /// consume a reservation or approval.
+    pub fn billing_query(metadata: RequestMetadata, query: BillingQueryRequest) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::BillingQuery(query),
+        }
+    }
+
     /// Construct a controlled audit export request; the daemon supplies ownership and evidence.
     pub fn audit_export(metadata: RequestMetadata, export: AuditExportRequest) -> Self {
         Self {
@@ -898,6 +914,8 @@ pub enum RequestBody {
     AuditQuery(AuditQueryRequest),
     /// Materialize a bounded redacted audit export through ControlPlane.
     AuditExport(AuditExportRequest),
+    /// Read a bounded billing projection without mutating reservations or approvals.
+    BillingQuery(BillingQueryRequest),
     /// Read the same audit/health/receipt parity projection on every surface.
     Parity(ParityRequest),
     /// 申请 spawn。

@@ -1170,6 +1170,19 @@ impl DaemonHost {
                 return ResponseEnvelope::rejected(request_id, "audit_query_unauthenticated");
             }
         }
+        if let RequestBody::BillingQuery(query) = &request.body {
+            if query.validate().is_err() {
+                return ResponseEnvelope::rejected(request_id, "billing_query_invalid");
+            }
+            if request
+                .metadata
+                .actor_id
+                .as_deref()
+                .is_none_or(|actor| actor != self.principal.actor_id)
+            {
+                return ResponseEnvelope::rejected(request_id, "billing_query_unauthenticated");
+            }
+        }
         if let RequestBody::AuditExport(export) = &request.body {
             if export.validate().is_err() {
                 return ResponseEnvelope::rejected(request_id, "audit_export_invalid");
@@ -1429,6 +1442,9 @@ impl DaemonHost {
                     .entrypoint_parity(&context, parity.entrypoint, parity.run_id)
                     .await
             }
+            RequestBody::BillingQuery(_) => {
+                return ResponseEnvelope::rejected(request_id, "billing_query_projection_not_wired")
+            }
             RequestBody::Spawn(spawn) => {
                 self.core
                     .spawn_from_packet(context, spawn.packet, spawn.sandbox)
@@ -1660,7 +1676,8 @@ fn request_may_execute(body: &RequestBody) -> bool {
         RequestBody::Receipt(_)
         | RequestBody::ListApprovals(_)
         | RequestBody::AuditQuery(_)
-        | RequestBody::Parity(_) => false,
+        | RequestBody::Parity(_)
+        | RequestBody::BillingQuery(_) => false,
         RequestBody::Command(command) => match command.name.as_str() {
             "company.snapshot.v1"
             | "company.next.v1"
@@ -1712,6 +1729,7 @@ fn effective_permission_profile(
         RequestBody::Receipt(_) => PermissionProfile::Safe,
         RequestBody::AuditQuery(_) => PermissionProfile::Safe,
         RequestBody::Parity(_) => PermissionProfile::Safe,
+        RequestBody::BillingQuery(_) => PermissionProfile::Safe,
         RequestBody::AuditExport(_) => declared,
     }
 }
