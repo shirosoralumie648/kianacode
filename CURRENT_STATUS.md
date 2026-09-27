@@ -15530,3 +15530,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: in-memory reservation ledger cannot prove durable EventLog CAS, permit effect-time recheck or exactly-once worker dispatch; AUT-15+ remains open
 reviewer: Codex AUT-14 source review; checked all fence/approval/budget/path/action fields, replay/conflict behavior and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-15 dispatch/observation separation evidence (2026-09-27)
+
+```text
+source_snapshot: `1024a395` plus AUT-15 dispatch source slice; kiana-domain/src/{automation_dispatch.rs,lib.rs}; kiana-core/src/{automation_dispatch.rs,lib.rs}; kiana-domain/tests/automation_dispatch.rs; kiana-core/tests/automation_dispatch_guard.rs; .github/workflows/aut15-dispatch-observation.yml; docs/roadmap/aut15-dispatch-observation-baseline.md; docs/roadmap.md
+worktree_status: AutomationDispatchIntent separates Prepared/Claimed/Observed/Unknown and binds reservation/action/worker/attempt/authority; AutomationObservation must match worker/execution/reservation/action/epoch before producing Observed/Unknown; Core facade is validation-only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_dispatch.rs kiana-core/src/automation_dispatch.rs kiana-domain/tests/automation_dispatch.rs kiana-core/tests/automation_dispatch_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_dispatch --locked -- --test-threads=1; cargo test -p kiana-core --test automation_dispatch_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only worker/observation separation, success/failure/Unknown state, binding drift, prepared-claim and unknown-field denial; no inline worker/provider/Broker effect, durable claim/replay, restart recovery or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-15 dispatch/observation contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 557/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source contract cannot start/retrieve workers or persist observations; retry/lease/deadline and cancellation remain AUT-16+
+reviewer: Codex AUT-15 source review; checked worker/action/epoch binding, Unknown preservation, no inline execution and no-effect Core boundary; no local runtime/CI test reviewer
+```
