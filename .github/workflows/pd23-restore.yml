@@ -1,0 +1,62 @@
+name: PD-23 restore verification
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/restore_verification.rs"
+      - "kiana-domain/src/snapshot_manifest.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/restore_verification.rs"
+      - "kiana-core/src/restore_verification.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/restore_verification_guard.rs"
+      - "kiana-daemon/src/restore_verifier.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/pd23_restore_verifier.rs"
+      - "kiana-daemon/tests/pd23_restore_verifier_guard.rs"
+      - "docs/roadmap/pd23-restore-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd23-restore.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/restore_verification.rs"
+      - "kiana-domain/src/snapshot_manifest.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/restore_verification.rs"
+      - "kiana-core/src/restore_verification.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/restore_verification_guard.rs"
+      - "kiana-daemon/src/restore_verifier.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/pd23_restore_verifier.rs"
+      - "kiana-daemon/tests/pd23_restore_verifier_guard.rs"
+      - "docs/roadmap/pd23-restore-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/pd23-restore.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run PD-23 domain fixtures
+        run: cargo test -p kiana-domain --test restore_verification --locked -- --test-threads=1
+      - name: Run PD-23 Core source guard
+        run: cargo test -p kiana-core --test restore_verification_guard --locked -- --test-threads=1
+      - name: Run PD-23 daemon verifier fixtures
+        run: cargo test -p kiana-daemon --test pd23_restore_verifier --locked -- --test-threads=1
+      - name: Run PD-23 daemon source guard
+        run: cargo test -p kiana-daemon --test pd23_restore_verifier_guard --locked -- --test-threads=1
+      - name: Compile PD-23 targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

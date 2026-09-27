@@ -31,6 +31,7 @@ mod model_client;
 mod pre_tool_hooks;
 mod process_supervisor;
 mod run_stream;
+mod restore_verifier;
 mod notification_stream;
 mod shell_plan;
 mod storage;
@@ -76,6 +77,7 @@ pub use notification_stream::{
     NotificationStreamBridge, NotificationStreamCursor, NotificationStreamDisposition,
     NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,
 };
+pub use restore_verifier::verify_restore;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
