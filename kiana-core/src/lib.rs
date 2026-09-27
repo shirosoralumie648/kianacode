@@ -93,6 +93,7 @@ mod swarm_projection;
 mod swarm_release_gate;
 mod restore_verification;
 mod health;
+mod health_aggregation;
 mod history;
 mod hook_reauthorization;
 mod incident_projection;
@@ -277,6 +278,7 @@ pub use automation_snapshot::validate_automation_snapshot;
 pub use automation_surface_uat::validate_automation_surface_uat;
 pub use automation_release_evidence::validate_automation_release_gate;
 pub use health::{project_health_snapshot, HealthProjectionError};
+pub use health_aggregation::{aggregate_health, validate_health_aggregation};
 pub use hook_reauthorization::*;
 pub use incident_projection::{
     project_incidents, project_observability_incidents, IncidentProjectionError,

@@ -33,6 +33,7 @@ mod pre_tool_hooks;
 mod process_supervisor;
 mod supervisor_adapters;
 mod startup_coordinator;
+mod health_aggregation;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -54,6 +55,7 @@ pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
     CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
+    HealthAggregationInput, HealthAggregationReport,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
     RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
@@ -967,6 +969,29 @@ impl DaemonHost {
 
     pub async fn startup_health(&self) -> Result<HealthSnapshot, PortError> {
         self.health_snapshot(HealthProbeKind::Startup).await
+    }
+
+    /// Aggregate typed deployment evidence through the existing Core health route.
+    #[allow(clippy::unused_self)]
+    pub fn deployment_health(
+        &self,
+        input: &HealthAggregationInput,
+    ) -> Result<HealthAggregationReport, PortError> {
+        health_aggregation::evaluate(input)
+    }
+
+    pub fn drain_health(
+        &self,
+        input: HealthAggregationInput,
+    ) -> Result<HealthAggregationReport, PortError> {
+        health_aggregation::evaluate_probe(input, HealthProbeKind::Drain)
+    }
+
+    pub fn maintenance_health(
+        &self,
+        input: HealthAggregationInput,
+    ) -> Result<HealthAggregationReport, PortError> {
+        health_aggregation::evaluate_probe(input, HealthProbeKind::Maintenance)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

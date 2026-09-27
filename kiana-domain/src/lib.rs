@@ -771,6 +771,8 @@ pub use model_catalog::*;
 pub use model_event::*;
 mod observability;
 pub use observability::*;
+mod health_aggregation;
+pub use health_aggregation::*;
 mod correlation;
 pub use correlation::*;
 
