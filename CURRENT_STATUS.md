@@ -15920,3 +15920,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: projection cannot hydrate UI surfaces, persist snapshots or rerun terminal transport; SW-18 remains open
 reviewer: Codex SW-17 source review; checked epoch/sequence/cursor/terminal replay fences and no-dispatch projection boundary; no local runtime/CI test reviewer
 ```
+
+### SW-18 swarm release evidence (2026-09-27)
+
+```text
+source_snapshot: `49594d1a` plus SW-18 release-gate source slice; kiana-domain/src/{swarm_release_gate.rs,lib.rs}; kiana-core/src/{swarm_release_gate.rs,lib.rs}; kiana-domain/tests/swarm_release_gate.rs; kiana-core/tests/sw18_release_gate_guard.rs; .github/workflows/sw18-release-gate.yml; docs/roadmap/sw18-release-baseline.md; docs/roadmap.md
+worktree_status: SwarmReleaseGate covers Deny/Unknown/Replay/Crash/Race/FakeGolden with strict effect_count/handler_calls, uncertainty/replay fences, same-spine and secret-free evidence, case/gate digests and status recomputation; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_release_gate.rs kiana-domain/tests/swarm_release_gate.rs kiana-core/src/swarm_release_gate.rs kiana-core/tests/sw18_release_gate_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_release_gate --locked -- --test-threads=1; cargo test -p kiana-core --test sw18_release_gate_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only deny/Unknown/replay/crash/race/fake-golden matrix, effect/handler/uncertainty/digest/status denial and no-effect source guard; no swarm dispatch, release, EventLog write, external provider or live/physical outcome
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-18 deny-first release evidence source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 603/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: release gate is pure source validation; it cannot execute swarm effects, prove cross-process crash recovery, publish artifacts or establish live/physical release truth
+reviewer: Codex SW-18 source review; checked six-scenario coverage, deny-first effect/handler fences, Unknown/replay preservation, digest/status recomputation and no-effect boundary; no local runtime/CI test reviewer
+```
