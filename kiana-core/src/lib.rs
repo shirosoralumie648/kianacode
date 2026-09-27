@@ -69,6 +69,7 @@ mod fallback_admission;
 mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
+mod restore_verification;
 mod health;
 mod history;
 mod hook_reauthorization;
@@ -163,6 +164,7 @@ pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,
 };
+pub use restore_verification::validate_restore_verification_fact;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
