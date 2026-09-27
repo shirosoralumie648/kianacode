@@ -15590,3 +15590,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source signal fact cannot authenticate approver, consume durable approval or resume a worker; AUT-19+ remains open
 reviewer: Codex AUT-18 source review; checked owner/action/path/epoch/checkpoint binding, single-consume state and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-19 bounded fan-out/fan-in evidence (2026-09-27)
+
+```text
+source_snapshot: `344b9e71` plus AUT-19 fan-out source slice; kiana-domain/src/{automation_fanout.rs,lib.rs}; kiana-core/src/{automation_fanout.rs,lib.rs}; kiana-domain/tests/automation_fanout.rs; kiana-core/tests/automation_fanout_guard.rs; .github/workflows/aut19-fanout.yml; docs/roadmap/aut19-fanout-baseline.md; docs/roadmap.md
+worktree_status: AutomationFanoutPlan binds parent/unique children, depth/concurrency/TTL, conservative budget, child scope subset, cycle fence, fail-fast and required fan-in; Core facade validates plan only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_fanout.rs kiana-core/src/automation_fanout.rs kiana-domain/tests/automation_fanout.rs kiana-core/tests/automation_fanout_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_fanout --locked -- --test-threads=1; cargo test -p kiana-core --test automation_fanout_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only bounded fan-out, unique IDs, budget/depth/concurrency/TTL/scope/cycle/fan-in denial and unknown-field/digest rejection; no child creation, workflow execution, durable result merge, provider effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-19 fan-out/fan-in plan contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 561/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: plan validator cannot execute or merge child results, enforce runtime parent budgets or prove fail-fast across processes; AUT-20+ remains open
+reviewer: Codex AUT-19 source review; checked unique children, parent bounds, budget/scope/depth/TTL/cycle/fan-in fences and no-effect Core boundary; no local runtime/CI test reviewer
+```
