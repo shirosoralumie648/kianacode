@@ -20,6 +20,32 @@ pub(crate) fn materialize_notification_inbox(
         .map_err(|reason| platform_error(&reason))
 }
 
+/// Classify one failure summary string into a [`FailureClass`].
+///
+/// This is the single failure classifier for the human-operations surface. It is public so
+/// offline fault-injection fixtures can drive the *same* arm that production incidents use,
+/// instead of asserting a table that could drift from it. It reads one string and returns one
+/// class; it never touches the event store, never creates an incident and never grants recovery.
+///
+/// `unknown` carries the caller's existing "the effect outcome is not confirmed" bit, which the
+/// incident projector already computes from the event kind and payload.
+pub fn classify_failure_summary(summary: &str, unknown: bool, cancelled: bool) -> FailureClass {
+    let lower = summary.to_ascii_lowercase();
+    if lower.contains("no space") || lower.contains("disk_full") || lower.contains("os error 28") {
+        FailureClass::DiskFull
+    } else if lower.contains("timeout") || lower.contains("timed out") {
+        FailureClass::Timeout
+    } else if lower.contains("mcp") {
+        FailureClass::McpFailure
+    } else if cancelled {
+        FailureClass::Cancel
+    } else if unknown || lower.contains("provider") {
+        FailureClass::ProviderUnknown
+    } else {
+        FailureClass::Crash
+    }
+}
+
 impl ControlPlane {
     pub(crate) async fn handle_platform_command(
         &self,
@@ -380,30 +406,18 @@ impl ControlPlane {
                                 | CapabilityErrorCode::CompensationRequired
                         )
                     });
-            let class = if lower.contains("no space")
-                || lower.contains("disk_full")
-                || lower.contains("os error 28")
-            {
-                FailureClass::DiskFull
-            } else if lower.contains("timeout") || lower.contains("timed out") {
-                FailureClass::Timeout
-            } else if lower.contains("mcp") {
-                FailureClass::McpFailure
-            } else if event.kind == "run.cancelled"
-                || event.data.get("cancelled") == Some(&Value::Bool(true))
-                || event
-                    .data
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .map(CapabilityErrorCode::from_reason)
-                    .is_some_and(|code| code == CapabilityErrorCode::Cancelled)
-            {
-                FailureClass::Cancel
-            } else if unknown || lower.contains("provider") {
-                FailureClass::ProviderUnknown
-            } else {
-                FailureClass::Crash
-            };
+            let class = classify_failure_summary(
+                &lower,
+                unknown,
+                event.kind == "run.cancelled"
+                    || event.data.get("cancelled") == Some(&Value::Bool(true))
+                    || event
+                        .data
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .map(CapabilityErrorCode::from_reason)
+                        .is_some_and(|code| code == CapabilityErrorCode::Cancelled),
+            );
             let id = format!("failure:{}", event.event_id);
             let reconciliation = history
                 .iter()

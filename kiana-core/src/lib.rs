@@ -6,6 +6,7 @@ mod artifacts;
 mod audit;
 mod audit_export;
 mod audit_projection;
+mod audit_projection_commit;
 mod authority;
 mod authority_read_model;
 mod automation_release_evidence;
@@ -15,6 +16,7 @@ mod billing_allocation;
 mod billing_invoice;
 mod billing_projection;
 mod billing_recovery;
+mod bq26_fault_harness;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
@@ -155,6 +157,7 @@ mod redaction;
 mod replay_diagnostics;
 mod resource_leases;
 mod resource_projection;
+mod restore_activation;
 mod retention;
 mod revocation_propagation;
 mod security_authority;
@@ -178,6 +181,14 @@ pub use audit_export::{AuditExportError, AuditExportInput};
 pub use audit_projection::{
     rebuild_audit_projection, AuditProjection, AuditProjectionError, AuditQueryInput,
     AUDIT_PROJECTION_VERSION,
+};
+pub use audit_projection_commit::{
+    AuditProjectionClaim, AuditProjectionCommitReport, AuditProjectionCommitStatus,
+    AuditProjectionHead, AuditProjectionRebuildProof, AuditProjectionRebuildReport,
+    AuditProjectionRebuildStatus, AUDIT_PROJECTION_CLAIM_SCHEMA,
+    AUDIT_PROJECTION_COMMIT_REPORT_SCHEMA, AUDIT_PROJECTION_COMMIT_VERSION,
+    AUDIT_PROJECTION_HEAD_SCHEMA, AUDIT_PROJECTION_REBUILD_PROOF_SCHEMA,
+    AUDIT_PROJECTION_REBUILD_REPORT_SCHEMA,
 };
 pub use authority_read_model::{
     project_authority_read_model, AuthorityProjectionError, AuthorityReadModel,
@@ -206,6 +217,15 @@ pub use billing_recovery::validate_billing_recovery;
 pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,
+};
+pub use bq26_fault_harness::{
+    bq26_fixture_clock, bq26_fixture_deadline, bq26_fixture_digest, bq26_fixture_fold_seed,
+    bq26_fixture_group, bq26_fixture_now, bq26_fixture_reservation, bq26_fixture_retry_policy,
+    bq26_fixture_window, bq26_inject_library_case, Bq26FaultCase, Bq26FaultClass,
+    Bq26FaultHarnessRun, Bq26FaultObservation, Bq26FaultRefusal, Bq26FaultSeam,
+    BQ26_FAKE_DEADLINE_UNIX_MS, BQ26_FAKE_MONOTONIC_MS, BQ26_FAKE_NOW_UNIX_MS,
+    BQ26_FAULT_CASES_SCHEMA, BQ26_FAULT_HARNESS_SCHEMA, BQ26_FAULT_HARNESS_VERSION,
+    BQ26_FAULT_MAX_CASES,
 };
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
@@ -347,6 +367,7 @@ pub use persistence_read_model::{
     project_persistence_read_model, PersistenceReadModel, ProjectedRunState,
     PERSISTENCE_READ_MODEL_SCHEMA,
 };
+pub use platform::classify_failure_summary;
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
 pub use provider_diagnostics::{
@@ -359,6 +380,14 @@ pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
 pub use receipts::aggregate_receipt_facts;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;
+pub use restore_activation::{
+    admit_audit_read_after_activation, admit_command_after_activation, ActivationLedger,
+    ActivationStage, ActivationState, RestoreActivationRecord, RestoreActivationReport,
+    RestoreActivationRequest, RestoreActivationStatus, RootWriteMode, SupersededRootWriter,
+    RESTORE_ACTIVATION_LEDGER_SCHEMA, RESTORE_ACTIVATION_RECORD_SCHEMA,
+    RESTORE_ACTIVATION_REPORT_SCHEMA, RESTORE_ACTIVATION_REQUEST_SCHEMA,
+    RESTORE_ACTIVATION_STATE_SCHEMA, RESTORE_ACTIVATION_VERSION,
+};
 pub use restore_verification::validate_restore_verification_fact;
 pub use retention::scan_retention;
 pub use revocation_propagation::{

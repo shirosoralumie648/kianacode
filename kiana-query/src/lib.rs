@@ -12,6 +12,7 @@
 //! 这里的序列化结构和结果报告是当前实现的本地契约；字段存在不表示所有入口都已经接入，
 //! 也不自动提供 durable、live 或 physical 证明。
 pub mod allocation_projector;
+pub mod audit_projector;
 pub mod billing_api;
 pub mod billing_ledger_projector;
 pub mod cache_policy;
@@ -45,6 +46,15 @@ pub use allocation_projector::{
     project_cost_allocation, project_cost_allocations, AllocationTotals, CostAllocationProjection,
     CostAllocationProjectionError, COST_ALLOCATION_PROJECTION_SCHEMA,
     COST_ALLOCATION_PROJECTION_VERSION,
+};
+pub use audit_projector::{
+    append_audit_tail, audit_fold_source_event_digest, audit_projection_is_append_only,
+    project_audit_from_scratch, AuditProjectionPosition, AuditProjectorAuthorization,
+    AuditProjectorDisposition, AuditProjectorError, AuditProjectorFold, AuditProjectorFreshness,
+    AuditProjectorQuery, AUDIT_PROJECTOR_AUTHORIZATION_SCHEMA, AUDIT_PROJECTOR_DENY_CODES,
+    AUDIT_PROJECTOR_FOLD_SCHEMA, AUDIT_PROJECTOR_FRESHNESS_SCHEMA, AUDIT_PROJECTOR_POSITION_SCHEMA,
+    AUDIT_PROJECTOR_QUERY_SCHEMA, AUDIT_PROJECTOR_VERSION, MAX_AUDIT_PROJECTOR_QUERY_PAGE,
+    MAX_AUDIT_PROJECTOR_TEXT,
 };
 
 pub use billing_api::{query_billing_projection, BillingQueryError, BILLING_QUERY_API_SCHEMA};

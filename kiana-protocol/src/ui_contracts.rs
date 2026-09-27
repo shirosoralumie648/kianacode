@@ -326,29 +326,29 @@ pub struct UiActionSubmissionV1 {
     pub submitted_at_unix_ms: u64,
 }
 
-    /// 校验这次提交本身是否合法。
-    ///
-    /// 【核心检查 —— 两组】
-    ///
-    /// ① 头部字段
-    /// - schema 必须精确匹配本协议常量；
-    /// - `command_id` 不能是全零 UUID；
-    /// - `expected_cursor` **不能为 0**
-    ///   —— 游标从 1 开始，0 表示"我什么都没看到"，
-    ///   而基于"什么都没看到"就点按钮是不成立的；
-    /// - `expected_revision` 如果给了，就不能是 0（同样的理由）；
-    /// - 提交时间戳非 0。
-    ///
-    /// ② 文本字段与摘要
-    /// 会话 ID、标签 ID、世代标识都要有内容且不超 256 字节；
-    /// `payload_digest` 必须是合法摘要格式。
-    ///
-    /// 【⚠ 注意这里不检查"当前状态是否与 expected 一致"】
-    /// 那不是协议层能做的事 —— 协议层看不到服务端的状态。
-    /// 这个检查发生在 ControlPlane 收到请求之后。
-    ///
-    /// 本方法只确认"这份提交的形状是对的"。
-    ///
+/// 校验这次提交本身是否合法。
+///
+/// 【核心检查 —— 两组】
+///
+/// ① 头部字段
+/// - schema 必须精确匹配本协议常量；
+/// - `command_id` 不能是全零 UUID；
+/// - `expected_cursor` **不能为 0**
+///   —— 游标从 1 开始，0 表示"我什么都没看到"，
+///   而基于"什么都没看到"就点按钮是不成立的；
+/// - `expected_revision` 如果给了，就不能是 0（同样的理由）；
+/// - 提交时间戳非 0。
+///
+/// ② 文本字段与摘要
+/// 会话 ID、标签 ID、世代标识都要有内容且不超 256 字节；
+/// `payload_digest` 必须是合法摘要格式。
+///
+/// 【⚠ 注意这里不检查"当前状态是否与 expected 一致"】
+/// 那不是协议层能做的事 —— 协议层看不到服务端的状态。
+/// 这个检查发生在 ControlPlane 收到请求之后。
+///
+/// 本方法只确认"这份提交的形状是对的"。
+///
 impl UiActionSubmissionV1 {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_SUBMISSION_SCHEMA
@@ -2342,8 +2342,8 @@ pub struct UiActionV1 {
     pub deadline_unix_ms: Option<u64>,
 }
 
-    /// 校验动作意图本身是否合法。
-    ///
+/// 校验动作意图本身是否合法。
+///
 impl UiActionV1 {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_SCHEMA {

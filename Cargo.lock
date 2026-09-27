@@ -2456,6 +2456,8 @@ dependencies = [
  "kiana-gates",
  "kiana-policy",
  "kiana-ports",
+ "kiana-provider",
+ "kiana-query",
  "kiana-runner",
  "kiana-runner-protocol",
  "kiana-workflow",

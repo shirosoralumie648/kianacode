@@ -13,8 +13,8 @@
 //! 没有任何生产代码路径调用它。
 //!
 //! 实际生效的信任判定走的是另一条路：
-//! `kiana-daemon` 调用 `kiana-skills` 的 `load_all_skills_with_trust`，
-//! 使用 `kiana_skills::SourceTrust` 这个类型。
+//! `kiana-daemon` 通过 `kiana-skills` 自己的信任类型（`SourceTrust`）来加载资源，
+//! 并不经过本文件的 `ProjectTrustResolution`。
 //!
 //! 所以本文件现在是一份**已实现、已测试、但未接线**的策略值类型。
 //! 它的规则是对的、测试是过的，但还没有接到真正的加载路径上。

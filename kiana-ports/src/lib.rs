@@ -249,6 +249,31 @@ pub use adapter_conformance::{
     MAX_CONFORMANCE_ROWS, MAX_MATRIX_ADAPTERS, MAX_UNSUPPORTED_CODES,
 };
 
+mod storage_fault_matrix;
+pub use storage_fault_matrix::{
+    admit_fault_restart, storage_fault_scope, StorageFaultCase, StorageFaultExit, StorageFaultKind,
+    StorageFaultMatrix, StorageFaultMatrixStatus, StorageFaultRecovery, MAX_STORAGE_FAULT_CASES,
+    MAX_STORAGE_FAULT_LIMITATIONS, STORAGE_FAULT_CASE_SCHEMA, STORAGE_FAULT_MATRIX_SCHEMA,
+    STORAGE_FAULT_VERSION,
+};
+
+mod storage_platform_matrix;
+pub use storage_platform_matrix::{
+    admit_platform_expiry, storage_platform_scope, SecurityCapability, StorageClockShape,
+    StorageEncoding, StorageFilesystemClass, StoragePlatformCell, StoragePlatformDisposition,
+    StoragePlatformMatrix, StoragePlatformTarget, StorageSemantic, MAX_STORAGE_PLATFORM_CELLS,
+    STORAGE_PLATFORM_BUILD_TARGET, STORAGE_PLATFORM_CELL_SCHEMA, STORAGE_PLATFORM_MATRIX_SCHEMA,
+    STORAGE_PLATFORM_VERSION,
+};
+
+mod storage_capacity_budget;
+pub use storage_capacity_budget::{
+    BudgetMeasurement, BudgetOrigin, CapacityBackpressure, CapacityRefusalObservation,
+    DeclaredBudget, StorageBudgetOutcome, StorageCapacitySubject, StorageDegradationReport,
+    StorageDegradationStatus, MAX_MAINTENANCE_SHARE_BPS, MAX_STORAGE_BUDGETS,
+    STORAGE_BUDGET_SCHEMA, STORAGE_DEGRADATION_SCHEMA, STORAGE_DEGRADATION_VERSION,
+};
+
 /// Server-side identity assignment lookup boundary.
 ///
 /// The caller supplies only the already-authenticated principal and a server-derived project
