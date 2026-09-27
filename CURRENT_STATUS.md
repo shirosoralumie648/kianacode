@@ -15770,3 +15770,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: surface handlers and common projection backend remain unproven; manual reconcile UI and durable cursor store are not implemented; INT-29+ remains open
 reviewer: Codex INT-28 source review; checked four-surface DTO parity, read-only/authority omission, scope/cursor/evidence/freshness/secret fences and ConnectorCommand mutation boundary; no local runtime/CI test reviewer
 ```
+
+### INT-29 connector recovery evidence (2026-09-27)
+
+```text
+source_snapshot: `28c9d1fb` plus INT-29 recovery source slice; kiana-domain/src/{connector_recovery.rs,connector_dispatch.rs,connector_cancellation.rs,connector_reservation.rs,lib.rs}; kiana-core/src/{connector_recovery.rs,lib.rs}; kiana-domain/tests/connector_recovery.rs; kiana-core/tests/int29_connector_recovery_guard.rs; .github/workflows/int29-recovery.yml; docs/roadmap/int29-recovery-baseline.md; docs/roadmap.md
+worktree_status: ConnectorRecoveryFact binds source/projection cursor/generation, authority/data/lease/worker epochs, pending Unknown/invocation/reconciliation counts, stale worker/old lease fences and fresh re-admission refs; Paused/NeedsRecovery preserve uncertainty, ReadyForAdmission requires caught-up projection/generation, no pending work and both fences; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_recovery.rs kiana-core/src/connector_recovery.rs kiana-domain/tests/connector_recovery.rs kiana-core/tests/int29_connector_recovery_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_recovery --locked -- --test-threads=1; cargo test -p kiana-core --test int29_connector_recovery_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only paused/needs recovery/reconciled/ready states, projection lag/generation, stale worker/lease fencing, fresh admission, digest/unknown-field and no-effect guard; no durable recovery worker, process restart, lease CAS, external reconciliation adapter, new admission command, EventLog write or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-29 connector restart/recovery/projection/stale fencing source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 584/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: recovery fact cannot restart processes, persist projections, CAS leases, reconcile providers or issue a fresh admission; INT-30+ remains open
+reviewer: Codex INT-29 source review; checked paused/Unknown semantics, cursor/generation rebuild gate, stale worker/lease fencing and fresh admission requirement; no local runtime/CI test reviewer
+```

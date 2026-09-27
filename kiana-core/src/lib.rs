@@ -73,6 +73,7 @@ mod connector_mapping;
 mod connector_propagation;
 mod connector_notifications;
 mod connector_surfaces;
+mod connector_recovery;
 mod restore_verification;
 mod health;
 mod history;
@@ -173,6 +174,7 @@ pub use connector_mapping::validate_connector_object_mapping;
 pub use connector_propagation::validate_connector_propagation_fact;
 pub use connector_notifications::validate_connector_notification;
 pub use connector_surfaces::{validate_connector_query, validate_connector_response};
+pub use connector_recovery::validate_connector_recovery_fact;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
