@@ -16040,3 +16040,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: domain/Core consume adapter metadata and capability claims only; daemon root resolver rejects existing symlink components before canonicalize, but namespace creation, hardlink identity, live space/inode measurement, lock persistence, cross-process recovery and durable preflight facts remain later adapter work
 reviewer: Codex DEP-07 source review; checked project-root digest separation, optional storage owner project binding, lexical helper reuse, metadata-only symlink/hardlink/capability/capacity fences, daemon guard ordering and no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### DEP-08 deployment config evidence (2026-09-27)
+
+```text
+source_snapshot: `ab572527` plus DEP-08 deployment config source slice; kiana-domain/src/{deployment_config.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep08_deployment_config.rs; kiana-core/src/{deployment_config.rs,lib.rs}; kiana-core/tests/dep08_deployment_config_guard.rs; .github/workflows/dep08-deployment-config.yml; docs/roadmap/dep08-deployment-config-baseline.md; docs/roadmap.md
+worktree_status: immutable deployment config source kinds use fixed compiled/user/KIANA_HOME/project/env/CLI precedence, project trust digest, explicit environment allowlist, opaque SecretRef, bounded non-secret JSON, redacted digest, derived config_revision/snapshot digest, ConfigDiff and restart/migration/lease impact; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment_config.rs kiana-domain/tests/dep08_deployment_config.rs kiana-core/src/deployment_config.rs kiana-core/tests/dep08_deployment_config_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep08_deployment_config --locked -- --test-threads=1; cargo test -p kiana-core --test dep08_deployment_config_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only source precedence/order, untrusted project, unallowlisted environment, raw secret, opaque SecretRef, revision/snapshot tamper, duplicate source, changed-path diff and impact matrix; no file/env read, secret resolution, ConfigSnapshotStore publish, EventLog append, provider, Broker or capability effect
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-08 deployment config source/snapshot, fixed precedence, project trust/environment allowlist, SecretRef/redaction, revision/impact derivation, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 613/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: snapshot is a pure metadata contract and does not read actual sources, resolve secrets, publish ConfigSnapshotStore CAS, reload active runs or coordinate startup; provider/daemon resolver and DEP-10+ remain authorities for live config
+reviewer: Codex DEP-08 source review; checked source precedence versus ProjectTrust scope, allowlisted env, raw-secret scanner, opaque refs, derived revision/impact and no-effect boundary; no local runtime/CI test reviewer
+```

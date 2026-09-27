@@ -62,6 +62,7 @@ mod credential_recovery;
 mod data_governance;
 mod deletion;
 mod deployment_compatibility;
+mod deployment_config;
 mod deployment_operation;
 mod deployment_lease;
 mod deployment_release;
@@ -224,6 +225,7 @@ pub use deletion::{
     plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
 };
 pub use deployment_compatibility::validate_deployment_compatibility;
+pub use deployment_config::validate_deployment_config_snapshot;
 pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
 pub use deployment_lease::validate_operation_lease_cas;
 pub use storage_preflight::{evaluate_storage_preflight, validate_storage_preflight_report};
