@@ -96,6 +96,10 @@ pub const NOTIFICATION_EVENT_SPECS: &[NotificationEventSpec] = &[
         NotificationEventClass::Incident,
     ),
     spec("notification.reminder", NotificationEventClass::Reminder),
+    spec("connector.health", NotificationEventClass::Status),
+    spec("connector.invocation", NotificationEventClass::Status),
+    spec("connector.reconciliation", NotificationEventClass::Incident),
+    spec("connector.approval", NotificationEventClass::Approval),
 ];
 
 pub fn notification_event_spec(kind: &str) -> Option<&'static NotificationEventSpec> {
@@ -111,6 +115,7 @@ fn required_notification_family(kind: &str) -> bool {
         "capability.",
         "communication.",
         "notification.",
+        "connector.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))
