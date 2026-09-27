@@ -38,6 +38,7 @@ mod deployment_admission;
 mod deployment_shutdown;
 mod deployment_observability;
 mod deployment_reconcile;
+mod deployment_capacity;
 mod ops_diagnostics;
 mod run_stream;
 mod restore_verifier;
@@ -65,6 +66,7 @@ use kiana_domain::{
     ShutdownInput, ShutdownReport,
     LifecycleEvidenceBundle,
     ReconcileInput, ReconcileReport,
+    CapacityInput, CapacityReport,
     OpsDiagnosticsInput, OpsDiagnosticsMode, OpsDiagnosticsReport,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
@@ -1055,6 +1057,15 @@ impl DaemonHost {
         input: &ReconcileInput,
     ) -> Result<ReconcileReport, PortError> {
         deployment_reconcile::evaluate(input)
+    }
+
+    /// Evaluate a read-only bounded capacity/backpressure/shutdown-limit report.
+    #[allow(clippy::unused_self)]
+    pub fn deployment_capacity(
+        &self,
+        input: &CapacityInput,
+    ) -> Result<CapacityReport, PortError> {
+        deployment_capacity::evaluate(input)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

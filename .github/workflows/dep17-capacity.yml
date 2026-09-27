@@ -1,0 +1,25 @@
+name: DEP-17 capacity limits
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capacity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-17 domain fixtures
+        run: cargo test -p kiana-domain --test dep17_capacity --locked -- --test-threads=1
+      - name: Run DEP-17 Core guard
+        run: cargo test -p kiana-core --test dep17_capacity_guard --locked -- --test-threads=1
+      - name: Run DEP-17 daemon route guard
+        run: cargo test -p kiana-daemon --test dep17_capacity_route_guard --locked -- --test-threads=1
+      - name: Compile DEP-17 targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
