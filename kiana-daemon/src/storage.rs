@@ -10,7 +10,7 @@ use kiana_domain::{
 use kiana_ports::PortError;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const KIANA_HOME_ENV: &str = "KIANA_HOME";
@@ -24,6 +24,7 @@ pub fn resolve_storage_root(
     instance_id: impl Into<String>,
     authority_epoch: u64,
 ) -> Result<StorageRoot, PortError> {
+    reject_symlink_components(project_root, "storage_project_root_symlink")?;
     let project = fs::canonicalize(project_root)
         .map_err(|error| PortError::Failed(format!("storage_project_root_invalid:{error}")))?;
     if !project.is_dir() {
@@ -43,6 +44,7 @@ pub fn resolve_storage_root(
             "storage_root_must_be_absolute".to_owned(),
         ));
     }
+    reject_symlink_components(&configured, "storage_root_symlink")?;
     let root = canonicalize_nonexistent(&configured)?;
     if root.starts_with(&project) {
         return Err(PortError::Failed("storage_root_inside_project".to_owned()));
@@ -240,6 +242,35 @@ fn canonicalize_nonexistent(path: &Path) -> Result<PathBuf, PortError> {
         .file_name()
         .ok_or_else(|| PortError::Failed("storage_root_name_missing".to_owned()))?;
     Ok(parent.join(name))
+}
+
+/// Reject symlink components before canonicalization so a configured root cannot silently move
+/// across the project or trust boundary. Missing leaf components are allowed for later creation;
+/// every existing component is checked with no-follow metadata.
+fn reject_symlink_components(path: &Path, reason: &str) -> Result<(), PortError> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+            Component::RootDir => current.push(Path::new("/")),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                return Err(PortError::Failed(format!("{reason}:parent_component")));
+            }
+            Component::Normal(part) => current.push(part),
+        }
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(PortError::Failed(reason.to_owned()));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(PortError::Failed(format!("{reason}:probe:{error}")));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn detect_backend(path: &Path) -> Result<StorageBackend, PortError> {

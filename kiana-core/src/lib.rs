@@ -65,6 +65,7 @@ mod deployment_compatibility;
 mod deployment_operation;
 mod deployment_lease;
 mod deployment_release;
+mod storage_preflight;
 mod dispatch;
 mod effect_usage_projection;
 mod eval;
@@ -225,6 +226,7 @@ pub use deletion::{
 pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
 pub use deployment_lease::validate_operation_lease_cas;
+pub use storage_preflight::{evaluate_storage_preflight, validate_storage_preflight_report};
 pub use deployment_release::validate_deployment_release;
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
