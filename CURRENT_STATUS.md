@@ -15875,3 +15875,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: review facts cannot persist decisions, merge artifacts, release budgets or perform Company acceptance; SW-15+ remains open
 reviewer: Codex SW-14 source review; checked reviewer independence, one-per-partition coverage, evidence/policy/conflict refs and Company acceptance separation; no local runtime/CI test reviewer
 ```
+
+### SW-15 swarm retirement evidence (2026-09-27)
+
+```text
+source_snapshot: `9470bdbb` plus SW-15 retirement source slice; kiana-domain/src/{swarm_retirement.rs,swarm_merge_review.rs,lib.rs}; kiana-core/src/{swarm_retirement.rs,lib.rs}; kiana-domain/tests/swarm_retirement.rs; kiana-core/tests/sw15_retirement_guard.rs; .github/workflows/sw15-retirement.yml; docs/roadmap/sw15-retirement-baseline.md; docs/roadmap.md
+worktree_status: SwarmRetirementFact binds residual budget/path/release digests, source cursor, child terminal/Unknown counts, release_attempt and facts_retained; Released/Retired require all known terminal children and exactly one release; BlockedUnknown preserves uncertainty; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_retirement.rs kiana-core/src/swarm_retirement.rs kiana-domain/tests/swarm_retirement.rs kiana-core/tests/sw15_retirement_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_retirement --locked -- --test-threads=1; cargo test -p kiana-core --test sw15_retirement_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only pending/released/blocked-Unknown/retired states, repeated release/child-count/digest/unknown-field denial and no-effect guard; no durable budget/path release, Cell retirement, EventLog write, fact deletion or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-15 exactly-once release/retire and residual budget/fact retention source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 600/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: retirement fact cannot release resources, retire Cells or prove cross-process exactly-once; SW-16+ remains open
+reviewer: Codex SW-15 source review; checked residual evidence, Unknown blocking, exactly-once attempt and fact retention/no-effect boundary; no local runtime/CI test reviewer
+```

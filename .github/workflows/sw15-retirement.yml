@@ -1,0 +1,50 @@
+name: SW-15 swarm retirement
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/swarm_retirement.rs"
+      - "kiana-domain/src/swarm_merge_review.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/swarm_retirement.rs"
+      - "kiana-core/src/swarm_retirement.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sw15_retirement_guard.rs"
+      - "docs/roadmap/sw15-retirement-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw15-retirement.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/swarm_retirement.rs"
+      - "kiana-domain/src/swarm_merge_review.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/swarm_retirement.rs"
+      - "kiana-core/src/swarm_retirement.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/sw15_retirement_guard.rs"
+      - "docs/roadmap/sw15-retirement-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw15-retirement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swarm-retirement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SW-15 domain fixtures
+        run: cargo test -p kiana-domain --test swarm_retirement --locked -- --test-threads=1
+      - name: Run SW-15 Core source guard
+        run: cargo test -p kiana-core --test sw15_retirement_guard --locked -- --test-threads=1
+      - name: Compile SW-15 targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
