@@ -599,8 +599,10 @@ pub use automation::*;
 
 mod swarm;
 mod swarm_admission;
+mod swarm_queue;
 pub use swarm::*;
 pub use swarm_admission::*;
+pub use swarm_queue::*;
 
 mod handoff;
 pub use handoff::*;

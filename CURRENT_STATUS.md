@@ -15410,3 +15410,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: in-memory ledger demonstrates deterministic all-or-nothing ordering only; runtime CellRegistry/CAS remains separate and cross-process durable admission, queue/lease/worker/child execution remain SW-06+
 reviewer: Codex SW-05 source review; checked complete resource set, preflight-before-mutation, replay/conflict/fingerprint fences, path/data disjointness and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-06 queue claim and fencing evidence (2026-09-27)
+
+```text
+source_snapshot: `1edfe5f7` plus SW-06 queue source slice; kiana-domain/src/{swarm_queue.rs,lib.rs}; kiana-core/src/{swarm_queue.rs,lib.rs}; kiana-domain/tests/swarm_queue.rs; kiana-core/tests/swarm_queue_guard.rs; .github/workflows/sw06-queue-claim.yml; docs/roadmap/sw06-queue-claim-baseline.md; docs/roadmap.md
+worktree_status: SwarmQueueEntry binds DispatchIntent, work fingerprint, stable sequence/session order, attempt/max attempts, not-before time and worker fence epoch; SwarmQueueLedger enforces bounded capacity, fair ready claim, stale-fence rejection, completion and bounded delayed retry/fencing; Core facade exposes only queue operations; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_queue.rs kiana-core/src/swarm_queue.rs kiana-domain/tests/swarm_queue.rs kiana-core/tests/swarm_queue_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_queue --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_queue_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only deterministic sequence/session fairness, capacity bound, delayed readiness, stale fence, bounded retry/max-attempt fence, unknown-field and digest denial; no durable EventLog queue, cross-process lease, restart recovery, worker effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-06 bounded queue/claim/fence contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 548/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source ledger demonstrates ordering and fencing only; durable DispatchIntent/QueueEntry replay, fair scheduling across processes, lease persistence and child execution remain open
+reviewer: Codex SW-06 source review; checked capacity/claim ordering, session fairness, not-before delay, worker epoch fence, bounded retry and no-effect Core boundary; no local runtime/CI test reviewer
+```
