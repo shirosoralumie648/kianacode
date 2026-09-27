@@ -15695,3 +15695,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source fact cannot copy/activate a restore root, acquire multi-process locks, rebuild projectors/ACL, reconcile provider/OS effects or prove durable restore; PD-24+ remains open
 reviewer: Codex PD-23 source review; checked manifest binding, epoch non-rollback, old-instance fence, pending/Unknown reconciliation and no-effect restore boundary; no local runtime/CI test reviewer
 ```
+
+### INT-24 Webhook/A2A ingress evidence (2026-09-27)
+
+```text
+source_snapshot: `d912e0b8` plus INT-24 connector ingress source slice; kiana-domain/src/{connector_ingress.rs,lib.rs}; kiana-daemon/src/{connector_ingress.rs,lib.rs}; kiana-domain/tests/connector_ingress.rs; kiana-daemon/tests/{int24_connector_ingress.rs,int24_connector_ingress_guard.rs}; .github/workflows/int24-ingress.yml; docs/roadmap/int24-ingress-baseline.md; docs/roadmap.md
+worktree_status: ConnectorIngressEvent binds Webhook/A2A protocol, source/key, tenant/project, event/nonce, bounded payload and HMAC signature digest; ConnectorIngressPolicy enforces allowlists, payload keys/size and clock skew; ConnectorIngressVerifier keeps keys private, verifies HMAC and deduplicates source/event identity; same replay is no-op and payload conflict is rejected; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_ingress.rs kiana-daemon/src/connector_ingress.rs kiana-domain/tests/connector_ingress.rs kiana-daemon/tests/int24_connector_ingress.rs kiana-daemon/tests/int24_connector_ingress_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_ingress --locked -- --test-threads=1; cargo test -p kiana-daemon --test int24_connector_ingress --locked -- --test-threads=1; cargo test -p kiana-daemon --test int24_connector_ingress_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only Webhook HMAC success/replay/conflict, bad signature, source/tenant/payload policy, clock/nonce/size/unknown-field denial and read-only verifier guard; no key rotation, durable replay store, network listener, EventLog append, Workflow/Run integration, connector effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-24 signed Webhook/A2A ingress contract, daemon verifier, domain/daemon fixtures, source guard, workflow and baseline added; roadmap row 579/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: key provisioning/rotation, durable replay state, network ingress, occurrence routing, rate limiting and external provider evidence remain unproven; INT-25+ remains open
+reviewer: Codex INT-24 source review; checked signature/tenant/source/event/payload fences, nonce/time/dedupe semantics, signature evidence digest and no-effect verifier boundary; no local runtime/CI test reviewer
+```

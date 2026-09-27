@@ -6,6 +6,7 @@ mod approval_store;
 mod authn;
 mod company_dispatch;
 mod connectors;
+mod connector_ingress;
 pub mod container_environment;
 mod context_query;
 mod data_governance;
@@ -78,6 +79,7 @@ pub use notification_stream::{
     NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,
 };
 pub use restore_verifier::verify_restore;
+pub use connector_ingress::ConnectorIngressVerifier;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
