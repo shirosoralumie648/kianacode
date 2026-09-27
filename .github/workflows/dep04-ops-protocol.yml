@@ -1,0 +1,44 @@
+name: DEP-04 ops protocol
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ops.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/dep04_ops.rs"
+      - "kiana-core/tests/dep04_ops_protocol_guard.rs"
+      - "docs/roadmap/dep04-ops-protocol-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep04-ops-protocol.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ops.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/dep04_ops.rs"
+      - "kiana-core/tests/dep04_ops_protocol_guard.rs"
+      - "docs/roadmap/dep04-ops-protocol-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/dep04-ops-protocol.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ops-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-04 protocol fixtures
+        run: cargo test -p kiana-protocol --test dep04_ops --locked -- --test-threads=1
+      - name: Run DEP-04 source guard
+        run: cargo test -p kiana-core --test dep04_ops_protocol_guard --locked -- --test-threads=1
+      - name: Compile DEP-04 targets
+        run: cargo check -p kiana-protocol -p kiana-core --tests --locked

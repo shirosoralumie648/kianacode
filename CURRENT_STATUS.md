@@ -15980,3 +15980,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: matrix compares supplied snapshots only; it cannot inspect store/schema reality, perform migrations, negotiate compatibility windows, acquire leases or prove startup/live deployment
 reviewer: Codex DEP-03 source review; checked all ten version axes, deterministic reason/status recomputation, major/downgrade/workflow drift fences and no-effect Core route; no local runtime/CI test reviewer
 ```
+
+### DEP-04 ops protocol evidence (2026-09-27)
+
+```text
+source_snapshot: `825596c7` plus DEP-04 ops protocol source slice; kiana-protocol/src/{ops.rs,lib.rs}; kiana-protocol/tests/dep04_ops.rs; kiana-core/tests/dep04_ops_protocol_guard.rs; .github/workflows/dep04-ops-protocol.yml; docs/roadmap/dep04-ops-protocol-baseline.md; docs/roadmap.md
+worktree_status: versioned ops.* command/query/event/error/unknown DTOs carry authority/scope snapshots, operation/idempotency keys and recomputed digests; exact replay is distinguishable from idempotency conflict; existing RequestEnvelope spine remains the transport boundary; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-protocol/src/ops.rs kiana-protocol/tests/dep04_ops.rs kiana-core/tests/dep04_ops_protocol_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-protocol --test dep04_ops --locked -- --test-threads=1; cargo test -p kiana-core --test dep04_ops_protocol_guard --locked -- --test-threads=1; cargo check -p kiana-protocol -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only command/query/event/error/unknown round-trip, forged actor/epoch/scope, unknown command, exact replay and duplicate payload conflict cases; no Broker dispatch, approval consumption, EventLog append, supervisor or provider effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-04 ops protocol command/query/event/error/unknown source contracts, idempotency/replay fence, protocol fixtures, Core source guard, workflow and baseline added; roadmap row 609/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: wire validation cannot authenticate actor/epoch, enforce real path/capability scope, consume approval, append operation facts or prove command outcome; later Core/operation-journal steps remain required
+reviewer: Codex DEP-04 source review; checked ops.* registry, scoped authority comparison, unknown/error visibility, idempotency conflict/replay and shared wire/no-effect boundary; no local runtime/CI test reviewer
+```
