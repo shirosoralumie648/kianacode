@@ -15830,3 +15830,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: write pilot gate cannot execute effects or prove provider/business outcomes; INT-33 remains open
 reviewer: Codex INT-32 source review; checked independent approval/permit/idempotency/receipt/cancel/compensation/reconcile evidence, account/epoch/request bounds and no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### INT-33 connector closeout evidence (2026-09-27)
+
+```text
+source_snapshot: `17f6cf71` plus INT-33 closeout docs/static guard; docs/roadmap/integrations-connectors.md; docs/roadmap/int33-connector-closeout.md; scripts/tests/int33-connector-closeout-static.sh; .github/workflows/int33-connector-closeout.yml; docs/roadmap.md
+worktree_status: INT-00..32 integration cards are indexed with source/partial limitations; closeout guard parses card coverage, CURRENT_STATUS evidence markers and proof ceiling; unrelated shared WIP remains uncommitted
+command_argv: bash scripts/tests/int33-connector-closeout-static.sh in GitHub Actions; bash -n scripts/tests/int33-connector-closeout-static.sh; no local Cargo tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the closeout authority and will be triggered by push but not awaited
+fixture·cassette: roadmap card coverage, INT-24..32 CURRENT_STATUS blocks, partial/source proof ceiling, no default effect/secret/live overclaim markers; no connector/provider/network/approval/release effect
+exit_code: shell syntax check passed; remote static guard exit code pending/unobserved
+status_change: INT-33 closeout baseline/static guard/workflow added; roadmap row 705/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior/durable/live/physical promotion
+limitations: closeout validates documentation/source hygiene only; it cannot certify adapter behavior, external provider truth, business outcomes, durability or physical effects
+reviewer: Codex INT-33 source closeout review; no local runtime/CI test reviewer
+```
