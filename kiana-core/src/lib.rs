@@ -82,6 +82,7 @@ mod swarm_merge_review;
 mod swarm_retirement;
 mod swarm_handoff;
 mod swarm_projection;
+mod swarm_release_gate;
 mod restore_verification;
 mod health;
 mod history;
@@ -191,6 +192,7 @@ pub use swarm_merge_review::{validate_swarm_receipt, validate_swarm_review};
 pub use swarm_retirement::validate_swarm_retirement_fact;
 pub use swarm_handoff::validate_swarm_handoff_record;
 pub use swarm_projection::validate_swarm_projection_event_fact;
+pub use swarm_release_gate::validate_swarm_release_evidence;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
