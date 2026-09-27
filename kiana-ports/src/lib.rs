@@ -33,7 +33,8 @@ use kiana_domain::{
     RetirementRecord, RetrievalItem, RetrievalRequest, RetrievalResult, RoleAssignment, RunId,
     RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
     StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
-    SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
+    SupervisorObservation, SupervisorRequest, SwarmLineage, SwarmPlanId, TraceSummary,
+    WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -145,6 +146,39 @@ pub trait EnvironmentPort: Send + Sync {
     ) -> Result<EnvironmentEffectReceipt, PortError> {
         Err(PortError::Unavailable(
             "environment_dispose_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Narrow service-supervision boundary. A request is already lease/fence bound; the adapter only
+/// controls the named service reference and returns an observation. It must not derive authority,
+/// call a model or capability broker, or substitute a pid for the operation lease.
+#[async_trait]
+pub trait SupervisorPort: Send + Sync {
+    async fn start(
+        &self,
+        _request: SupervisorRequest,
+    ) -> Result<SupervisorObservation, PortError> {
+        Err(PortError::Unavailable(
+            "supervisor_start_unsupported".to_owned(),
+        ))
+    }
+
+    async fn stop(
+        &self,
+        _request: SupervisorRequest,
+    ) -> Result<SupervisorObservation, PortError> {
+        Err(PortError::Unavailable(
+            "supervisor_stop_unsupported".to_owned(),
+        ))
+    }
+
+    async fn restart(
+        &self,
+        _request: SupervisorRequest,
+    ) -> Result<SupervisorObservation, PortError> {
+        Err(PortError::Unavailable(
+            "supervisor_restart_unsupported".to_owned(),
         ))
     }
 }

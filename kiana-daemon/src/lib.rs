@@ -31,6 +31,7 @@ mod memory_retrieval;
 mod model_client;
 mod pre_tool_hooks;
 mod process_supervisor;
+mod supervisor_adapters;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -85,6 +86,7 @@ use std::sync::Arc;
 use std::time::Duration;
 pub use storage::{resolve_storage_root, StorageLease};
 pub use workflow_ingress::WorkflowEventVerifier;
+pub use supervisor_adapters::NarrowSupervisorAdapter;
 pub use workflow_service::{
     WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
 };
