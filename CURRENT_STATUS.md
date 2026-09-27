@@ -15815,3 +15815,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: pilot gate cannot provision accounts, call providers, retrieve receipts, execute cleanup or prove live evidence; INT-32+ remains open
 reviewer: Codex INT-31 source review; checked default-off/fake block, opt-in approval, isolated account, read-only operation, evidence/cleanup/revocation epochs and no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### INT-32 controlled write pilot evidence (2026-09-27)
+
+```text
+source_snapshot: `de7de928` plus INT-32 write pilot source slice; kiana-domain/src/{connector_write_pilot.rs,lib.rs}; kiana-core/src/{connector_write_pilot.rs,lib.rs}; kiana-domain/tests/connector_write_pilot.rs; kiana-core/tests/int32_connector_write_pilot_guard.rs; .github/workflows/int32-write-pilot.yml; docs/roadmap/int32-write-pilot-baseline.md; docs/roadmap.md
+worktree_status: ConnectorWritePilotGate is per-operation and source-only; ReadyForExplicitRun requires isolated account, non-health operation, approval/permit/idempotency/final payload/provider receipt/cancellation/compensation/reconciliation evidence, authority/data epochs, request_count<=1 and limitations; Core facade validates gate only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_write_pilot.rs kiana-core/src/connector_write_pilot.rs kiana-domain/tests/connector_write_pilot.rs kiana-core/tests/int32_connector_write_pilot_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_write_pilot --locked -- --test-threads=1; cargo test -p kiana-core --test int32_connector_write_pilot_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only blocked/ready gates, missing approval/permit/receipt/cancel/compensation/reconcile, repeated request, health operation, isolation/unknown-field and no-effect guard; no write request, provider API, receipt query, cancellation worker, compensation execution, EventLog write or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-32 per-operation controlled write pilot gate, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 704/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: write pilot gate cannot execute effects or prove provider/business outcomes; INT-33 remains open
+reviewer: Codex INT-32 source review; checked independent approval/permit/idempotency/receipt/cancel/compensation/reconcile evidence, account/epoch/request bounds and no-effect boundary; no local runtime/CI test reviewer
+```
