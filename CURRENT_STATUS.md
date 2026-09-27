@@ -15890,3 +15890,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: retirement fact cannot release resources, retire Cells or prove cross-process exactly-once; SW-16+ remains open
 reviewer: Codex SW-15 source review; checked residual evidence, Unknown blocking, exactly-once attempt and fact retention/no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### SW-16 directed handoff evidence (2026-09-27)
+
+```text
+source_snapshot: `e127927b` plus SW-16 handoff source slice; kiana-domain/src/{swarm_handoff.rs,swarm_merge_review.rs,lib.rs}; kiana-core/src/{swarm_handoff.rs,lib.rs}; kiana-domain/tests/swarm_handoff.rs; kiana-core/tests/sw16_handoff_guard.rs; .github/workflows/sw16-handoff.yml; docs/roadmap/sw16-handoff-baseline.md; docs/roadmap.md
+worktree_status: SwarmHandoffRecord binds named sender/recipient, packet/source cursor, kind/status, ACK/evidence refs and bounded Symposium rounds; authority_granted is false and records are structured/direct; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_handoff.rs kiana-core/src/swarm_handoff.rs kiana-domain/tests/swarm_handoff.rs kiana-core/tests/sw16_handoff_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_handoff --locked -- --test-threads=1; cargo test -p kiana-core --test sw16_handoff_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only directed WorkPacket/ACK/status/evidence/incident/Symposium records, broadcast/authority/round/evidence/unknown-field denial and no-effect guard; no durable delivery, UI projection, scheduler integration, free message bus, EventLog write, Broker effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-16 directed handoff/status/evidence/incident source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 601/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: handoff facts cannot deliver messages, schedule packets, project UI/events or mutate ControlPlane; SW-17+ remains open
+reviewer: Codex SW-16 source review; checked named recipient, structured ACK/evidence/incident, bounded Symposium and no free-message/authority boundary; no local runtime/CI test reviewer
+```
