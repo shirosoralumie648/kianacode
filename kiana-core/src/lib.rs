@@ -61,6 +61,7 @@ mod cost_correction;
 mod credential_recovery;
 mod data_governance;
 mod deletion;
+mod deployment_release;
 mod dispatch;
 mod effect_usage_projection;
 mod eval;
@@ -218,6 +219,7 @@ pub use data_governance::{
 pub use deletion::{
     plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
 };
+pub use deployment_release::validate_deployment_release;
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
 };

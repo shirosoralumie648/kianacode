@@ -15950,3 +15950,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: path checks are lexical only; actual ProjectTrust/root resolver, symlink/hardlink/filesystem preflight, leases, lifecycle journal and deployment effects remain later DEP steps
 reviewer: Codex DEP-01 source review; checked StorageRootId reuse, typed identity registration, four profile variants, trust/project/path fail-closed boundaries, digest/round-trip and no-adapter-effect domain guard; no local runtime/CI test reviewer
 ```
+
+### DEP-02 deployment release evidence (2026-09-27)
+
+```text
+source_snapshot: `ff3904e5` plus DEP-02 release-bundle source slice; kiana-domain/src/{deployment_release.rs,release_attestation.rs,deployment.rs,lib.rs}; kiana-domain/tests/dep02_release_bundle.rs; kiana-core/src/{deployment_release.rs,lib.rs}; kiana-core/tests/dep02_release_bundle_guard.rs; .github/workflows/dep02-release-bundle.yml; docs/roadmap/dep02-release-bundle-baseline.md; docs/roadmap.md
+worktree_status: existing ReleaseManifest/Provenance/Signature/Verification contracts are bound into a profile-scoped DeploymentReleaseBundle with exact subject digests, verified status, secret-marker rejection and read-only Core facade; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment_release.rs kiana-domain/tests/dep02_release_bundle.rs kiana-core/src/deployment_release.rs kiana-core/tests/dep02_release_bundle_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep02_release_bundle --locked -- --test-threads=1; cargo test -p kiana-core --test dep02_release_bundle_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only verified/Unknown/subject-drift/secret-marker release bundle matrix and no-effect source guard; no signing, registry/transparency contact, publication, installation, process launch, EventLog write or deployment effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-02 profile-bound release manifest/provenance/signature source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 607/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: release attestation and bundle validation cannot prove real artifact bytes, cryptographic signature/transparency log truth, registry availability, install outcome or durable/live/physical release provenance
+reviewer: Codex DEP-02 source review; checked manifest/provenance/toolchain/Cargo.lock/source/artifact subject binding, verification/Unknown fence, secret-marker boundary and no-effect Core route; no local runtime/CI test reviewer
+```
