@@ -149,7 +149,7 @@ pub fn replay_experiment(
         return Err(ExperimentReplayError::AdmissionMissing);
     }
     let mut status = None;
-    let mut case_results = BTreeMap::new();
+    let mut case_results: BTreeMap<String, EvalResultIndex> = BTreeMap::new();
     let mut terminal_sequence = None;
     for (index, event) in input.events.iter().enumerate() {
         if event.schema != EVENT_SCHEMA {

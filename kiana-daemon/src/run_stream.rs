@@ -502,7 +502,7 @@ impl RunStreamBus {
         let ui_cursor = state.ui_sequence;
         let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
         let Some(sequence) = channel.sequence.checked_add(1) else {
-            return;
+            return Err(PortError::Failed("feed_sequence_exhausted".to_owned()));
         };
         channel.sequence = sequence;
         channel.touched = Instant::now();

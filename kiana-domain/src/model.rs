@@ -640,7 +640,7 @@ pub struct ModelCapabilities {
     pub source: String,
     pub revision: String,
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelRoute {
     pub provider_id: String,

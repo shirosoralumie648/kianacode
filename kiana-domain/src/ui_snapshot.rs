@@ -410,17 +410,13 @@ fn event_item(event: &RuntimeEvent, source_cursor: u64) -> Option<ProjectedItem>
 }
 
 fn state_string(event: &RuntimeEvent) -> Option<&str> {
-    event
-        .data
-        .get("state")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            event
-                .data
-                .get("record")
-                .and_then(|record| record.get("state"))
-        })
-        .and_then(Value::as_str)
+    event.data.get("state").and_then(Value::as_str).or_else(|| {
+        event
+            .data
+            .get("record")
+            .and_then(|record| record.get("state"))
+            .and_then(Value::as_str)
+    })
 }
 
 /// Build one atomic, owner-scoped snapshot from the supplied EventStore read.

@@ -5,8 +5,8 @@
 //! accepts a model transcript as a correction authority.
 
 use kiana_domain::{
-    CostCorrection, CostLedger, CostLedgerEntry, CostLedgerView, EventId, RunId, RuntimeEvent,
-    SchemaVersion, COST_CORRECTION_EVENT, COST_LEDGER_ENTRY_EVENT,
+    CostCorrection, CostCorrectionLedger, CostLedgerEntry, CostLedgerView, EventId, RunId,
+    RuntimeEvent, SchemaVersion, COST_CORRECTION_EVENT, COST_LEDGER_ENTRY_EVENT,
 };
 use std::collections::BTreeSet;
 
@@ -30,7 +30,7 @@ pub struct CostLedgerProjection {
     pub run_id: RunId,
     pub source_cursor: u64,
     pub source_event_ids: Vec<EventId>,
-    pub ledger: CostLedger,
+    pub ledger: CostCorrectionLedger,
     pub views: Vec<CostLedgerView>,
 }
 
@@ -76,7 +76,7 @@ pub fn project_cost_ledger(
     if run_id.as_uuid().is_nil() {
         return Err(CostLedgerProjectionError::RunInvalid);
     }
-    let mut ledger = CostLedger::default();
+    let mut ledger = CostCorrectionLedger::default();
     let mut source_event_ids = Vec::new();
     let mut seen_event_ids = BTreeSet::new();
     let mut source_cursor = 0;

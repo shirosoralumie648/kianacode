@@ -2500,7 +2500,7 @@ impl CompanyState {
                     "acceptance_run_not_completed",
                 )?;
                 ensure(
-                    runtime_receipt_matches(observed, &observed.evidence_refs),
+                    runtime_receipt_matches(&observed, &observed.evidence_refs),
                     "acceptance_runtime_receipt_required",
                 )?;
                 ensure(

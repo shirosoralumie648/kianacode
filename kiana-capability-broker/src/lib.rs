@@ -559,11 +559,13 @@ pub fn validate_connector_quota_boundary(
     let has_claim = request
         .request
         .arguments
-        .contains_key("connector_quota_claim");
+        .get("connector_quota_claim")
+        .is_some();
     let has_policy = request
         .request
         .arguments
-        .contains_key("connector_quota_policy");
+        .get("connector_quota_policy")
+        .is_some();
     if reservation.is_none() {
         if has_claim || has_policy {
             return Err(PortError::Conflict(

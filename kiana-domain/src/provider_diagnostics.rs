@@ -282,8 +282,11 @@ impl ProviderDiagnosticEntry {
         {
             return Err("provider_diagnostic_unknown_usage_required".to_owned());
         }
-        if let Some(digest) = &self.terminal_event_digest {
-            digest(digest, "provider_diagnostic_terminal_event_digest")?;
+        if let Some(terminal_event_digest) = &self.terminal_event_digest {
+            digest(
+                terminal_event_digest,
+                "provider_diagnostic_terminal_event_digest",
+            )?;
             if !self.status.is_terminal() {
                 return Err("provider_diagnostic_terminal_digest_requires_terminal".to_owned());
             }

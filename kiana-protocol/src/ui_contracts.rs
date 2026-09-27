@@ -1343,7 +1343,11 @@ impl UiArtifactRefV1 {
         if self.schema != UI_ARTIFACT_REF_SCHEMA || self.version == 0 || self.revision == 0 {
             return Err("ui_artifact_ref_header_invalid".to_owned());
         }
-        required(self.artifact_id.as_str(), "ui_artifact_ref_id", 256)?;
+        // A nil UUID is the only invalid form here: every non-nil artifact id renders to a
+        // fixed-length 36-character string, so a length or character check would be vacuous.
+        if self.artifact_id.as_uuid().is_nil() {
+            return Err("ui_artifact_ref_id_invalid".to_owned());
+        }
         required(&self.artifact_schema, "ui_artifact_ref_schema", 128)?;
         if !valid_mime(&self.mime) {
             return Err("ui_artifact_ref_mime_invalid".to_owned());

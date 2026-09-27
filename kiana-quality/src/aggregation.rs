@@ -11,6 +11,7 @@ pub const AGGREGATION_INPUT_SCHEMA: &str = "kiana.quality-aggregation-input.v1";
 pub const AGGREGATION_EVALUATOR_ID: &str = "aggregation";
 const DIMENSION_SCHEMA: &str = "kiana.quality-dimension-aggregate.v1";
 const MAX_DIMENSIONS: usize = 128;
+const MAX_TEXT_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -289,7 +289,7 @@ pub fn project_memory_facts(events: &[RuntimeEvent]) -> Result<MemoryProjection,
     let mut ids = BTreeSet::new();
     let mut keys = BTreeSet::new();
     let mut mutation_keys = BTreeSet::new();
-    let mut previous_records = BTreeMap::new();
+    let mut previous_records: BTreeMap<String, MemoryRecord> = BTreeMap::new();
     let mut expected = 1u64;
     for event in events {
         if event.kind != MEMORY_FACT_EVENT_KIND {

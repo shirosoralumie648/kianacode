@@ -311,6 +311,8 @@ pub const QUALITY_EVENT_KINDS: &[&str] = &[
 pub const CLARIFICATION_ANSWER_COMMAND: &str = "run.clarification.answer";
 pub const RUN_DISPLAY_STATE_SCHEMA: &str = "kiana.run-display-state.v1";
 pub const MAX_RUN_DISPLAY_TEXT_BYTES: usize = 128 * 1024;
+/// A projection epoch is a server-owned opaque token, never a path or a free-text message.
+pub const MAX_UI_EPOCH_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1706,6 +1708,24 @@ pub enum RunStreamEvent {
 pub struct UiCursor {
     pub epoch: String,
     pub sequence: u64,
+}
+
+impl UiCursor {
+    /// An empty epoch with a zero sequence is the "no projection yet" default and is accepted.
+    /// Once either half is set, both must be set: a sequence without an epoch cannot be compared
+    /// across daemon incarnations, and an epoch without a sequence carries no position.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.epoch.is_empty() && self.sequence == 0 {
+            return Ok(());
+        }
+        if self.sequence == 0 || self.epoch.is_empty() {
+            return Err("ui_cursor_invalid");
+        }
+        if self.epoch.len() > MAX_UI_EPOCH_BYTES || self.epoch.contains(['\0', '\n', '\r']) {
+            return Err("ui_cursor_invalid");
+        }
+        Ok(())
+    }
 }
 
 /// Optimistic precondition for one explicit human action. Core still authorizes it.

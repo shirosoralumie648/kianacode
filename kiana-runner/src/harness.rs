@@ -1562,6 +1562,9 @@ impl KianaHarness {
                 })
                 .transpose()?;
             let budget_usage = self.budget_ledger.snapshot(&budget_scope)?;
+            // Built as its own value: nesting 16 more keys inside the enclosing
+            // literal pushes `json!` past its default macro recursion limit.
+            let harness_budget = json!({"schema":crate::budget::HARNESS_BUDGET_SCHEMA,"scope":budget_scope,"source":budget_limits.source.as_str(),"max_model_steps_per_turn":budget_limits.max_model_steps_per_turn,"max_attempts_per_task":budget_limits.max_attempts_per_task,"max_tool_calls_per_task":budget_limits.max_tool_calls_per_task,"max_repairs_per_task":budget_limits.max_repairs_per_task,"max_compactions_per_task":budget_limits.max_compactions_per_task,"max_tokens_per_task":budget_limits.max_tokens_per_task,"model_attempts":budget_usage.model_attempts,"tool_calls":budget_usage.tool_calls,"repairs":budget_usage.repairs,"compactions":budget_usage.compactions,"reserved_tokens":budget_usage.reserved_tokens,"charged_tokens":budget_usage.charged_tokens,"unknown_attempts":budget_usage.unknown_attempts});
             emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
                 "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"model_attempt_id":model_attempt_id,
                 "turn_id":run.turn_id,"step_id":step_id,"step_identity":step_identity.clone(),"attempt_identity":attempt_identity,"attempt":attempt+1,
@@ -1574,7 +1577,7 @@ impl KianaHarness {
                 "provider_response_id_status":if result.as_ref().ok().and_then(|reply|reply.provider_response_id.as_ref()).is_some() {"known"} else {"unknown"},
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
                 "retry_reservation":retry_reservation,
-                "harness_budget":{"schema":crate::budget::HARNESS_BUDGET_SCHEMA,"scope":budget_scope,"source":budget_limits.source.as_str(),"max_model_steps_per_turn":budget_limits.max_model_steps_per_turn,"max_attempts_per_task":budget_limits.max_attempts_per_task,"max_tool_calls_per_task":budget_limits.max_tool_calls_per_task,"max_repairs_per_task":budget_limits.max_repairs_per_task,"max_compactions_per_task":budget_limits.max_compactions_per_task,"max_tokens_per_task":budget_limits.max_tokens_per_task,"model_attempts":budget_usage.model_attempts,"tool_calls":budget_usage.tool_calls,"repairs":budget_usage.repairs,"compactions":budget_usage.compactions,"reserved_tokens":budget_usage.reserved_tokens,"charged_tokens":budget_usage.charged_tokens,"unknown_attempts":budget_usage.unknown_attempts},
+                "harness_budget":harness_budget,
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
                 "finish":result.as_ref().ok().map(|reply|reply.finish),

@@ -157,7 +157,7 @@ async fn send_inner_attempt(
         .reserve(&connection.capacity_policy, lease_now, requested_tokens)
         .map_err(|reason| {
             if reason == "provider_capacity_quota_exhausted" {
-                ModelError::transport(reason, ModelRetryClass::Rejected, false)
+                ModelError::transport(&reason, ModelRetryClass::Rejected, false)
             } else {
                 ModelError::invalid(reason)
             }
@@ -463,14 +463,14 @@ mod tests {
     }
 }
 
-struct Framer {
+pub(crate) struct Framer {
     buffer: Vec<u8>,
     data: String,
     ndjson: bool,
     limit: usize,
 }
 impl Framer {
-    fn new(ndjson: bool, limit: usize) -> Self {
+    pub(crate) fn new(ndjson: bool, limit: usize) -> Self {
         Self {
             buffer: Vec::new(),
             data: String::new(),
@@ -478,7 +478,7 @@ impl Framer {
             limit,
         }
     }
-    fn push(&mut self, chunk: &[u8]) -> Result<Vec<String>, ModelError> {
+    pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<String>, ModelError> {
         let mut frames = Vec::new();
         // Limit each line while receiving it, without copying an oversized chunk into our buffer.
         for byte in chunk {
@@ -526,7 +526,7 @@ impl Framer {
         }
         Ok(frames)
     }
-    fn finish(&mut self) -> Result<Vec<String>, ModelError> {
+    pub(crate) fn finish(&mut self) -> Result<Vec<String>, ModelError> {
         if self.ndjson && !self.buffer.is_empty() {
             let bytes = std::mem::take(&mut self.buffer);
             let value = String::from_utf8(bytes)

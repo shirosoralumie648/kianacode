@@ -95,7 +95,8 @@ impl ContextInvalidationPlan {
         if !targets.is_empty() {
             targets.insert(ContextInvalidationTarget::Cache);
         }
-        let source_invalidation_digest = json_digest(invalidation);
+        let source_invalidation_digest =
+            json_digest(&serde_json::to_value(invalidation).unwrap_or_default());
         let mut plan = Self {
             schema: CONTEXT_INVALIDATION_SCHEMA.to_owned(),
             version: CONTEXT_INVALIDATION_VERSION,

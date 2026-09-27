@@ -75,7 +75,9 @@ pub struct IdeCapabilityPermit {
     pub effect_allowed: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+// `UiActionV1` carries a `serde_json::Value` payload, which implements `PartialEq` but not `Eq`,
+// so this intent inherits only `PartialEq`.
+#[derive(Clone, Debug, PartialEq)]
 pub enum IdeIntent {
     Query(IdeCapabilityRequest),
     Action(UiActionV1),

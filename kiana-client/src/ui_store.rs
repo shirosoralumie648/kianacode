@@ -1012,6 +1012,9 @@ impl UiEntityStore {
             .filter(|(_, update)| update.expires_at_unix_ms <= now_unix_ms)
             .map(|(key, _)| key.clone())
             .collect();
+        // Decided before the loop drains `expired`, so the change does not depend on a
+        // collection that has already been consumed.
+        let had_expiry = !expired.is_empty();
         for idempotency_key in expired {
             if let Some(update) = next.optimistic.remove(&idempotency_key) {
                 if let Some(previous) = update.previous {
@@ -1023,10 +1026,10 @@ impl UiEntityStore {
         }
         Ok(UiStoreTransition {
             store: next,
-            change: if expired.is_empty() {
-                UiStoreChange::EntityUpdated
-            } else {
+            change: if had_expiry {
                 UiStoreChange::ExpiredOptimistic
+            } else {
+                UiStoreChange::EntityUpdated
             },
         })
     }

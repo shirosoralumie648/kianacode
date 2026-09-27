@@ -939,7 +939,7 @@ pub(crate) fn parse_structured_output(
         _ if text.trim().is_empty() => {
             return Err(ModelError::invalid("model_structured_output_empty"))
         }
-        _ => serde_json::from_str(text)
+        _ => serde_json::from_str::<Value>(text)
             .map_err(|_| ModelError::invalid("model_structured_output_invalid_json"))?,
     };
     match format {

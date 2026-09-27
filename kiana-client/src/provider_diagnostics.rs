@@ -4,9 +4,10 @@
 //! retry requests, or turn a settings read into a connection test; callers must use an explicit
 //! command carrying [`ProviderConnectionTestRequest`] when they want a gateway admission.
 
+use kiana_domain::PROVIDER_DIAGNOSTICS_PROJECTION_STALE;
 use kiana_protocol::{
     ProviderConnectionTestRequest, ProviderDiagnosticsCursor, ProviderDiagnosticsSnapshot,
-    ProviderTerminalReplay, PROVIDER_DIAGNOSTICS_PROJECTION_STALE,
+    ProviderTerminalReplay,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

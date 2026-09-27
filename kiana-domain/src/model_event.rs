@@ -28,6 +28,7 @@ pub const MODEL_FACT_PERSISTENCE_REQUIRED_BEFORE_EFFECT: &str =
 pub const MODEL_FACT_PERSISTENCE_REQUIRED_BEFORE_COMPLETION: &str =
     "model_fact_persistence_required_before_mark_completed";
 pub const MAX_MODEL_PROVIDER_ID_BYTES: usize = 128;
+/// Bound for the model id a provider actually reported for one model turn.
 pub const MAX_MODEL_ID_BYTES: usize = 256;
 pub const MAX_MODEL_CONFIGURATION_BYTES: usize = 256;
 pub const MAX_MODEL_TOOL_NAME_BYTES: usize = 256;

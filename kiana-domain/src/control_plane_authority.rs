@@ -342,7 +342,7 @@ impl Cp29AuthorityScenario {
         let mut last_epoch = 0;
         let mut previous_reserved = 0;
         let mut previous_settled = 0;
-        let mut previous_state = None;
+        let mut previous_state: Option<Cp29LifecycleState> = None;
         for (index, fact) in self.command_facts.iter().enumerate() {
             fact.validate()?;
             if fact.sequence != (index as u64).saturating_add(1) {

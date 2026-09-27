@@ -614,7 +614,7 @@ fn write_record_with_mutation(
                     .map_err(failed)?;
             }
             let MemoryMutationOutcome::Committed { receipt } =
-                ledger.apply(mutation).map_err(failed)?
+                ledger.apply(mutation.clone()).map_err(failed)?
             else {
                 return Err(failed("memory_mutation_unexpected_replay"));
             };

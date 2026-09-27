@@ -929,17 +929,18 @@ fn add_delta(base: Option<Money>, delta: Option<&Money>) -> Result<Option<Money>
     }
 }
 
-/// Small append-only reducer used by query adapters and CI fixtures. It stores no mutable version
-/// of an entry and exposes no update/delete operation.
+/// Small append-only ledger of cost entries and corrections, used by query adapters and CI
+/// fixtures. It stores no mutable version of an entry and exposes no update/delete operation.
+/// Distinct from `kiana_domain::CostLedger`, which folds token usage for cost and capacity.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct CostLedger {
+pub struct CostCorrectionLedger {
     entries: BTreeMap<LedgerEntryId, CostLedgerEntry>,
     corrections: BTreeMap<crate::CostCorrectionId, CostCorrection>,
     commands: BTreeMap<RequestId, (String, crate::CostCorrectionId)>,
     idempotency_keys: BTreeMap<String, (String, crate::CostCorrectionId)>,
 }
 
-impl CostLedger {
+impl CostCorrectionLedger {
     pub fn append_entry(&mut self, entry: CostLedgerEntry) -> Result<(), String> {
         entry.validate()?;
         if self.entries.contains_key(&entry.entry_id) {

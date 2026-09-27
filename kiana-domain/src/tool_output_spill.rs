@@ -163,7 +163,7 @@ impl ToolOutputSpill {
     pub fn cursor_for(&self, offset: u64) -> String {
         page_cursor(
             self.output_ref.output_id,
-            &self.output_ref.content_hash,
+            &self.output_ref.content_digest,
             self.turn_id,
             &self.capability_id,
             &self.source_scope_digest,
@@ -196,7 +196,7 @@ impl ToolOutputSpill {
         if self.source_scope_digest != source_scope_digest {
             return Err("tool_output_spill_scope_mismatch".to_owned());
         }
-        if format!("sha256:{}", journal_sha256(content)) != self.output_ref.content_hash
+        if format!("sha256:{}", journal_sha256(content)) != self.output_ref.content_digest
             || content.len() as u64 != self.output_ref.size_bytes
         {
             return Err("tool_output_spill_content_mismatch".to_owned());
@@ -279,7 +279,7 @@ impl ToolOutputPage {
             next_offset,
             data,
             binary: spill.binary,
-            content_digest: spill.output_ref.content_hash.clone(),
+            content_digest: spill.output_ref.content_digest.clone(),
             cursor,
             next_cursor,
             complete,

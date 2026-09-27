@@ -21,7 +21,7 @@ fn er_restore_symlink_or_out_of_scope_path_is_denied() {
         domain,
         &[
             "WorkspaceCheckpoint",
-            "WorkspaceFileSnapshot",
+            "WorkspaceFileEdit",
             "project_root",
             "path_allow",
             "workspace_revision",

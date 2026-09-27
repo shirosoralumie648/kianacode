@@ -1,3 +1,4 @@
+use crate::transport::Framer;
 use kiana_domain::*;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -1144,7 +1145,11 @@ fn replay_frames(
             Ok(())
         })?;
         if finished {
-            return accumulator.finish(prepared).map(Some);
+            // A terminal frame ends the replay, so the accumulator is consumed here; reset the
+            // borrow slot only to satisfy the borrow checker.
+            let terminal =
+                std::mem::replace(accumulator, Accumulator::new(prepared.route.protocol));
+            return terminal.finish(prepared).map(Some);
         }
     }
     Ok(None)

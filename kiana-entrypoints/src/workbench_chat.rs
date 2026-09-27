@@ -872,7 +872,8 @@ async fn handle_action(
                 if response.status == ExecutionStatus::Completed && response.error.is_none() {
                     let rows = crate::workbench_render::render_connector_health(
                         &response.output["health_projection"],
-                    )?;
+                    )
+                    .map_err(anyhow::Error::msg)?;
                     if rows.is_empty() {
                         view.push_system("connector health: not observed".to_owned());
                     }

@@ -37,7 +37,7 @@ impl ScrubbedEnvironment {
             || self
                 .variables
                 .values()
-                .any(|value| redact_text(value) != value || value.starts_with('/'))
+                .any(|value| redact_text(value) != *value || value.starts_with('/'))
         {
             return Err(ScenarioError::EnvironmentInvalid);
         }

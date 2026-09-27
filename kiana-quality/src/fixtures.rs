@@ -21,7 +21,9 @@ pub enum FixtureFamily {
     Swarm,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+// `VolatileEventTrace` carries `serde_json::Value`, which implements `PartialEq` but not `Eq`,
+// so this fixture inherits only `PartialEq`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TraceFixture {
     pub schema: String,
@@ -47,7 +49,7 @@ impl TraceFixture {
             || self
                 .forbidden_effects
                 .iter()
-                .any(|effect| effect.trim().is_empty() || redact_text(effect) != effect)
+                .any(|effect| effect.trim().is_empty() || redact_text(effect) != *effect)
         {
             return Err(FixtureError::FixtureInvalid);
         }

@@ -194,10 +194,10 @@ pub fn project_cost_allocations(
     let mut previous_sequence = 0;
     let run_text = run_id.to_string();
     let mut run_totals = AllocationTotals::default();
-    let mut organization_totals = BTreeMap::new();
-    let mut project_totals = BTreeMap::new();
-    let mut workflow_totals = BTreeMap::new();
-    let mut cell_totals = BTreeMap::new();
+    let mut organization_totals: BTreeMap<OrganizationId, AllocationTotals> = BTreeMap::new();
+    let mut project_totals: BTreeMap<ProjectId, AllocationTotals> = BTreeMap::new();
+    let mut workflow_totals: BTreeMap<WorkflowInstanceId, AllocationTotals> = BTreeMap::new();
+    let mut cell_totals: BTreeMap<kiana_domain::CellId, AllocationTotals> = BTreeMap::new();
 
     for event in events {
         if event.kind != COST_ALLOCATION_EVENT {

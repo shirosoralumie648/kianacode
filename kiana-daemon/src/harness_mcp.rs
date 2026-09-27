@@ -4,9 +4,9 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     AdapterCommitState, AdapterResultKind, AggregateVersion, AuthorizedCapabilityRequest,
     CapabilityKind, CapabilityRequest, CapabilityResult, CommitOutcome, McpCapabilityHandshake,
-    McpCapabilityHandshakeRequest, RequestContext, RequestId, RuntimeEvent, TransitionBatch,
+    RequestContext, RequestId, RuntimeEvent, TransitionBatch,
 };
-use kiana_ports::{ConnectorAdapter, EventStorePort, PortError};
+use kiana_ports::{ConnectorAdapter, EventStorePort, McpCapabilityHandshakeRequest, PortError};
 #[cfg(test)]
 use kiana_services::mcp::McpTool;
 use kiana_services::mcp::{McpServerConfig, TransportType};

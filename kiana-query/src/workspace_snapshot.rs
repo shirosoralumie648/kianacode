@@ -52,12 +52,16 @@ pub struct WorkspaceReadContent {
     pub content_digest: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkspaceReadOutcome {
     pub snapshot: WorkspaceSnapshot,
     pub contents: Vec<WorkspaceReadContent>,
 }
+
+// `WorkspaceSnapshot` compares through a derived `PartialEq` whose every field is itself `Eq`,
+// so the marker is asserted here instead of widening a kiana-domain derive.
+impl Eq for WorkspaceReadOutcome {}
 
 struct ScanState {
     root: PathBuf,
@@ -133,7 +137,8 @@ pub fn read_workspace_snapshot(
         state.files,
         state.scan_limited,
         state.limitations,
-    )?;
+    )
+    .map_err(|error| anyhow!(error))?;
     Ok(WorkspaceReadOutcome {
         snapshot,
         contents: state.contents,

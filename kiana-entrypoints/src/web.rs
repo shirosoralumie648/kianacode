@@ -1053,12 +1053,14 @@ impl WebApp {
         // Check ownership before asking DaemonHost for a projection.  This keeps an arbitrary
         // UUID/path-like value from becoming a cross-workspace probe through the host API.
         let (known_live, known_history) = {
-            let sessions = self
+            let known_live = self
                 .sessions
                 .lock()
-                .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-            let known_live = sessions.contains_key(session_id);
-            drop(sessions);
+                .map_err(|_| ApiError::fail("web_state_poisoned"))?
+                .contains_key(session_id);
+            // The ledger read below is async, so it must run with no session guard held:
+            // a `MutexGuard` is not `Send`, and holding one across an await would make this
+            // future `!Send` and reject every route that projects a snapshot.
             let known_history = self
                 .history_sessions()
                 .await?
@@ -2945,12 +2947,12 @@ async fn set_sandbox(
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
-    require_session_owner(&app, &body.session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &body.session_id, &tab_id)?;
+    let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
-    let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
         .map_err(|error| ApiError::bad(error.to_string()))?;
     *app.sandbox

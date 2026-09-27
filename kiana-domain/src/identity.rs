@@ -49,7 +49,7 @@ fn stable_project_id(canonical_root: &str) -> ProjectId {
     ProjectId::from_uuid(Uuid::from_bytes(bytes))
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuthenticatedPrincipalRef {
     pub schema: String,
@@ -108,7 +108,7 @@ impl AuthenticatedPrincipalRef {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectIdentity {
     pub schema: String,

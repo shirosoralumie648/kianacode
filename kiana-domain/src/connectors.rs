@@ -5,7 +5,7 @@ use crate::{
     connector_fixture_hash_valid, is_sha256_hex, json_digest, valid_extension_identifier,
     valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage,
     ConnectorReconciliationCase, ConnectorReconciliationState, EffectObservation, InvocationId,
-    RiskLevel, SecretRef, SecretScanChannel,
+    RiskLevel, SecretRef, SecretScanChannel, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -179,7 +179,7 @@ pub enum ConnectorEffect {
     Write,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectorOperation {
     pub effect: ConnectorEffect,
@@ -197,7 +197,7 @@ impl ConnectorOperation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectorDefinition {
     pub schema: String,

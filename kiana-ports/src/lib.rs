@@ -1129,7 +1129,7 @@ pub trait WorkspaceCheckpointPort: Send + Sync {
         &self,
         project_root: &str,
         paths: &[String],
-    ) -> Result<Vec<kiana_domain::WorkspaceFileSnapshot>, PortError>;
+    ) -> Result<Vec<kiana_domain::WorkspaceFileEdit>, PortError>;
     async fn preview(
         &self,
         checkpoint: &kiana_domain::WorkspaceCheckpoint,

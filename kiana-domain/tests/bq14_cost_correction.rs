@@ -1,6 +1,6 @@
 use kiana_domain::{
     ApprovalId, AttemptId, CostCorrectionAppendOutcome, CostCorrectionApproval,
-    CostCorrectionCommand, CostLedger, CostLedgerEntry, CostLedgerEntryKind, EventId,
+    CostCorrectionCommand, CostCorrectionLedger, CostLedgerEntry, CostLedgerEntryKind, EventId,
     LedgerEntryId, Money, RateCardId, RequestId, RunId,
 };
 
@@ -89,7 +89,7 @@ fn correction_requires_approval_and_exact_target_fence() {
 fn append_and_replay_preserve_original_and_fold_correction() {
     let entry = target();
     let command = approved_command(&entry);
-    let mut ledger = CostLedger::default();
+    let mut ledger = CostCorrectionLedger::default();
     ledger.append_entry(entry.clone()).expect("append original");
     let committed = ledger
         .append_correction(command.clone())

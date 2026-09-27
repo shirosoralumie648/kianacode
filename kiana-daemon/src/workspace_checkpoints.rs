@@ -14,7 +14,7 @@ impl WorkspaceCheckpointPort for LocalWorkspaceCheckpoints {
         &self,
         project_root: &str,
         paths: &[String],
-    ) -> Result<Vec<kiana_domain::WorkspaceFileSnapshot>, PortError> {
+    ) -> Result<Vec<kiana_domain::WorkspaceFileEdit>, PortError> {
         let root = project_root.to_owned();
         let paths = paths.to_vec();
         tokio::task::spawn_blocking(move || {

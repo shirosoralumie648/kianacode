@@ -21,7 +21,9 @@ pub struct HookReauthorizationMaterial {
     pub material_digest: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+// `CapabilityRequest` carries `serde_json::Value` arguments, which implements `PartialEq` but not
+// `Eq`, so this result inherits only `PartialEq`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct HookReauthorizationResult {
     pub request: CapabilityRequest,
     pub material: HookReauthorizationMaterial,

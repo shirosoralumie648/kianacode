@@ -16,7 +16,7 @@ pub const NOTIFICATION_PAGE_SCHEMA: &str = "kiana.notification-page.v1";
 pub const NOTIFICATION_MUTATION_SCHEMA: &str = "kiana.notification-projection-mutation.v1";
 pub const NOTIFICATION_STORE_MAX_PAGE_SIZE: u16 = 30;
 
-fn required(value: &str, field: &str, max: usize) -> Result<(), NotificationStoreError> {
+fn required(value: &str, field: &'static str, max: usize) -> Result<(), NotificationStoreError> {
     if value.trim().is_empty() || value.len() > max || value.contains(['\0', '\n', '\r']) {
         return Err(NotificationStoreError::Invalid(field));
     }

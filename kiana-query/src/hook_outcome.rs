@@ -6,7 +6,7 @@ pub const HOOK_OUTCOME_SCHEMA: &str = "kiana.hook-outcome.v1";
 const MAX_PATCH_BYTES: usize = 16 * 1024;
 const MAX_CONTEXT_BYTES: usize = 16 * 1024;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HookOutcome {
     Allow,

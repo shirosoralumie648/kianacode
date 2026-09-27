@@ -308,9 +308,12 @@ pub(crate) fn receipt_from_events(
         .get("receipt_digest")
         .and_then(Value::as_str)
         .and_then(|receipt_digest| {
+            let project_ref = ControlPlane::canonical_project_root(&context.project_root)
+                .to_string_lossy()
+                .into_owned();
             crate::data_governance::receipt_data_binding_from_events(
                 receipt_digest,
-                &ControlPlane::canonical_project_root(&context.project_root),
+                &project_ref,
                 &kiana_domain::DataPolicy::default(),
                 events,
             )
@@ -927,7 +930,8 @@ pub(crate) fn retrieval_receipts_from_events(events: &[RuntimeEvent]) -> Vec<Val
             let algorithm_version = hits
                 .iter()
                 .find_map(|hit| hit.get("retrieval_algorithm").and_then(Value::as_str))
-                .unwrap_or("memory-search-legacy.v1");
+                .unwrap_or("memory-search-legacy.v1")
+                .to_owned();
             let source_generation = hits
                 .iter()
                 .find_map(|hit| hit.get("generation").and_then(Value::as_u64))

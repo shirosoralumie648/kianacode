@@ -492,10 +492,10 @@ fn connection_with_credential_env(
         "connection": name,
     }));
     let route = ModelRoute {
-        provider_id: provider,
+        provider_id: provider.clone(),
         protocol,
         connection_id: name.to_owned(),
-        model_id: model,
+        model_id: model.clone(),
         profile: name.to_owned(),
         configuration_revision: revision.clone(),
         streaming,
@@ -517,7 +517,7 @@ fn connection_with_credential_env(
         context_window,
         max_output,
         source: source.to_owned(),
-        revision,
+        revision: revision.clone(),
     };
     let max_concurrency = env("KIANA_MODEL_MAX_CONCURRENCY")
         .map(|value| {

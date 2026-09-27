@@ -44,7 +44,7 @@ fn bounded(value: &str, field: &str, max: usize) -> Result<(), String> {
 
 /// One rate-card line.  An absent unit or absent price is preserved as `None`; the line never
 /// substitutes zero for a dimension that was not observed or not priced.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CostLine {
     pub dimension: BillingPriceDimension,
@@ -98,7 +98,7 @@ impl CostLine {
 }
 
 /// The mutually exclusive cost states exposed by a receipt.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CostBreakdownKind {
     Estimated {
@@ -171,7 +171,7 @@ impl CostBreakdownKind {
 
 /// A per-attempt cost fact.  Identity and usage digest bind the amount to one normalized usage
 /// observation, preventing a query or UI from joining costs by array position alone.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CostBreakdown {
     pub schema: String,
@@ -438,7 +438,7 @@ impl CostBreakdown {
 
 /// A receipt-level fold over per-attempt cost facts.  Estimated and measured totals remain in
 /// separate fields; unknown reasons are retained even when another attempt has a known amount.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReceiptCostBreakdown {
     pub schema: String,

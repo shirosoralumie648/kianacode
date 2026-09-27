@@ -9,6 +9,7 @@ use crate::{
     json_digest, EventCursor, EventId, InvocationId, ModelAttemptId, ModelFactPersistenceStatus,
     ModelMessage, ModelProtocol, ModelRole, ModelRoute, ProtectedReplayMaterial,
     ProtectedReplayRef, ProviderContinuation, RequestId, RunId, SchemaVersion, StepId, TurnId,
+    PROVIDER_CONTINUATION_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -242,15 +243,11 @@ impl ProviderResumeBinding {
         {
             return Err("provider_resume_binding_header_invalid".to_owned());
         }
-        for (id, field) in [
-            (self.run_id, "provider_resume_run_id"),
-            (self.turn_id, "provider_resume_turn_id"),
-            (self.step_id, "provider_resume_step_id"),
-            (self.model_call_id, "provider_resume_model_call_id"),
-            (self.model_attempt_id, "provider_resume_model_attempt_id"),
-        ] {
-            uuid_present(id, field)?;
-        }
+        uuid_present(self.run_id, "provider_resume_run_id")?;
+        uuid_present(self.turn_id, "provider_resume_turn_id")?;
+        uuid_present(self.step_id, "provider_resume_step_id")?;
+        uuid_present(self.model_call_id, "provider_resume_model_call_id")?;
+        uuid_present(self.model_attempt_id, "provider_resume_model_attempt_id")?;
         for (value, field, max) in [
             (&self.route.provider_id, "provider_resume_provider_id", 128),
             (
@@ -699,15 +696,11 @@ impl ProviderInFlightObservation {
         {
             return Err("provider_in_flight_header_invalid".to_owned());
         }
-        for (id, field) in [
-            (self.run_id, "provider_in_flight_run_id"),
-            (self.turn_id, "provider_in_flight_turn_id"),
-            (self.step_id, "provider_in_flight_step_id"),
-            (self.model_call_id, "provider_in_flight_model_call_id"),
-            (self.model_attempt_id, "provider_in_flight_model_attempt_id"),
-        ] {
-            uuid_present(id, field)?;
-        }
+        uuid_present(self.run_id, "provider_in_flight_run_id")?;
+        uuid_present(self.turn_id, "provider_in_flight_turn_id")?;
+        uuid_present(self.step_id, "provider_in_flight_step_id")?;
+        uuid_present(self.model_call_id, "provider_in_flight_model_call_id")?;
+        uuid_present(self.model_attempt_id, "provider_in_flight_model_attempt_id")?;
         if self.phase == ProviderInFlightPhase::CapabilityCompletedBeforeDelivery
             && self.invocation_id.is_none()
         {
@@ -821,17 +814,13 @@ impl ProviderReconciliationCase {
         {
             return Err("provider_reconciliation_case_invalid".to_owned());
         }
-        for (id, field) in [
-            (self.run_id, "provider_reconciliation_run_id"),
-            (self.turn_id, "provider_reconciliation_turn_id"),
-            (self.step_id, "provider_reconciliation_step_id"),
-            (
-                self.model_attempt_id,
-                "provider_reconciliation_model_attempt_id",
-            ),
-        ] {
-            uuid_present(id, field)?;
-        }
+        uuid_present(self.run_id, "provider_reconciliation_run_id")?;
+        uuid_present(self.turn_id, "provider_reconciliation_turn_id")?;
+        uuid_present(self.step_id, "provider_reconciliation_step_id")?;
+        uuid_present(
+            self.model_attempt_id,
+            "provider_reconciliation_model_attempt_id",
+        )?;
         if self.kind == ProviderReconciliationKind::CapabilityInvocation
             && self.invocation_id.is_none()
         {

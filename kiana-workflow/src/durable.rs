@@ -882,6 +882,10 @@ pub fn plan_command(
                 output_recorded: false,
                 error_code: None,
                 evidence_refs: Vec::new(),
+                // A freshly started node has no ControlPlane receipt and is not yet an incident;
+                // both are attached later, when the effect is actually observed.
+                runtime_receipt: None,
+                incident_id: None,
                 child_instance_id: None,
             };
             match &node.kind {

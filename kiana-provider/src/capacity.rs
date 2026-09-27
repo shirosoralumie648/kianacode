@@ -44,7 +44,7 @@ impl CapacityWindow {
             .checked_add(WINDOW_MS)
             .ok_or_else(|| "provider_capacity_window_overflow".to_owned())?;
         if state.end_unix_ms == 0 || now_unix_ms >= state.end_unix_ms {
-            state = WindowState {
+            *state = WindowState {
                 start_unix_ms: start,
                 end_unix_ms: end,
                 requests: 0,

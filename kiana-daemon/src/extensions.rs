@@ -718,7 +718,7 @@ impl ExtensionRegistry {
         let mut source_refs = root_resolution.source_refs();
         let material_digest = json_digest(&json!({
             "project": project.to_string_lossy(),
-            "trust": project_trust,
+            "trust": project_trust.as_str(),
             "role": role_id,
             "registry_generation": registry_generation,
             "skills": &skill_catalog,
@@ -738,7 +738,7 @@ impl ExtensionRegistry {
         );
         let trust_revision = json_digest(&json!({
             "project": project.to_string_lossy(),
-            "trust": project_trust,
+            "trust": project_trust.as_str(),
         }));
         let generation =
             kiana_skills::snapshot_generation().max(registry_generation.saturating_add(1));
@@ -856,23 +856,27 @@ impl ExtensionRegistry {
             if trust != ExtensionVisibilityTrust::Trusted {
                 actions.remove(&ExtensionVisibilityActionKind::Activate);
             }
-            entries.push(ExtensionVisibilityEntry::new(
-                state.manifest.extension_id.clone(),
-                format!("{}:component", state.manifest.extension_id),
-                kind,
-                state.manifest.version.clone(),
-                format!("{} extension", kind_name(kind)),
-                status,
-                ExtensionVisibilitySource::new(
-                    format!("extension:{}", state.manifest.extension_id),
-                    trust,
-                    source_digest,
-                    format!("registry:{registry_generation}"),
-                )?,
-                extension_risk(&state.manifest),
-                Some(format!("sha256:{}", state.package_sha256)),
-                actions,
-            )?);
+            entries.push(
+                ExtensionVisibilityEntry::new(
+                    state.manifest.extension_id.clone(),
+                    format!("{}:component", state.manifest.extension_id),
+                    kind,
+                    state.manifest.version.clone(),
+                    format!("{} extension", kind_name(kind)),
+                    status,
+                    ExtensionVisibilitySource::new(
+                        format!("extension:{}", state.manifest.extension_id),
+                        trust,
+                        source_digest,
+                        format!("registry:{registry_generation}"),
+                    )
+                    .map_err(failed)?,
+                    extension_risk(&state.manifest),
+                    Some(format!("sha256:{}", state.package_sha256)),
+                    actions,
+                )
+                .map_err(failed)?,
+            );
         }
         ExtensionVisibilitySnapshot::from_source_snapshot(
             &source_snapshot,

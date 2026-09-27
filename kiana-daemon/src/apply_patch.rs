@@ -475,7 +475,7 @@ pub(crate) fn workspace_transaction(root: &Path, arguments: &Value) -> Result<Va
 pub(crate) fn capture_checkpoint_files(
     project_root: &Path,
     paths: &[String],
-) -> Result<Vec<kiana_domain::WorkspaceFileSnapshot>, PortError> {
+) -> Result<Vec<kiana_domain::WorkspaceFileEdit>, PortError> {
     use std::io::Read;
     if paths.len() > 128 {
         return Err(failed("checkpoint_paths_limit"));
@@ -529,7 +529,7 @@ pub(crate) fn capture_checkpoint_files(
         } else {
             (None, false)
         };
-        snapshots.push(kiana_domain::WorkspaceFileSnapshot {
+        snapshots.push(kiana_domain::WorkspaceFileEdit {
             path,
             contents,
             executable,

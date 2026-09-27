@@ -530,7 +530,7 @@ impl FallbackAttemptAdmission {
         }))
     }
 
-    pub const fn is_fresh_attempt(&self) -> bool {
+    pub fn is_fresh_attempt(&self) -> bool {
         self.original_attempt_id != self.attempt_id
     }
 }
@@ -610,7 +610,9 @@ pub fn admit_fallback_attempt(
         rate_card_version: card.card_version,
         rate_card_digest: card.rate_card_digest.clone(),
         permit_digest: candidate.permit_digest.clone(),
-        capability_digest: json_digest(&candidate.capabilities),
+        capability_digest: json_digest(
+            &serde_json::to_value(&candidate.capabilities).unwrap_or_default(),
+        ),
         admitted_at_unix_ms: request.now_unix_ms,
         admission_digest: String::new(),
     };

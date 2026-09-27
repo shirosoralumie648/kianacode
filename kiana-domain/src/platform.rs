@@ -62,7 +62,7 @@ impl HumanAction {
             if value.trim().is_empty()
                 || value.len() > MAX_HUMAN_TASK_BRIDGE_TEXT_BYTES
                 || value.contains(['\0', '\n', '\r'])
-                || redact_text(value) != value
+                || redact_text(value) != *value
             {
                 return Err(format!("{field}_invalid"));
             }
@@ -79,7 +79,7 @@ impl HumanAction {
             field.trim().is_empty()
                 || field.len() > MAX_HUMAN_TASK_BRIDGE_TEXT_BYTES
                 || field.contains(['\0', '\n', '\r'])
-                || redact_text(field) != field
+                || redact_text(field) != *field
         }) || self.required_fields.iter().collect::<BTreeSet<_>>().len()
             != self.required_fields.len()
         {
@@ -171,7 +171,7 @@ impl HumanTaskBridge {
             (&self.target_id, "human_task_bridge_target_id"),
             (&self.decider_principal_id, "human_task_bridge_decider"),
         ] {
-            if value.contains(['\0', '\n', '\r']) || redact_text(value) != value {
+            if value.contains(['\0', '\n', '\r']) || redact_text(value) != *value {
                 return Err(format!("{field}_invalid"));
             }
         }
@@ -304,7 +304,7 @@ impl NotificationMaterialization {
                 "notification_materialization_summary",
             ),
         ] {
-            if value.contains(['\0', '\n', '\r']) || redact_text(value) != value {
+            if value.contains(['\0', '\n', '\r']) || redact_text(value) != *value {
                 return Err(format!("{field}_invalid"));
             }
         }
@@ -573,8 +573,10 @@ pub struct FeedbackCandidate {
 }
 
 /// Immutable, bounded text edits only. It does not claim to snapshot arbitrary shell effects.
+/// Distinct from `kiana_domain::WorkspaceFileSnapshot`, which records file identity, trust and
+/// read disposition for index invalidation rather than edited content.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct WorkspaceFileSnapshot {
+pub struct WorkspaceFileEdit {
     pub path: String,
     pub contents: Option<String>,
     pub executable: bool,
@@ -598,7 +600,7 @@ pub struct WorkspaceCheckpoint {
     pub reason: String,
     pub workspace_revision: String,
     pub data_epoch: Option<String>,
-    pub files: Vec<WorkspaceFileSnapshot>,
+    pub files: Vec<WorkspaceFileEdit>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

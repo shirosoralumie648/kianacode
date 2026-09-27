@@ -5,7 +5,7 @@
 
 use super::*;
 use kiana_domain::{
-    connector_quota_effect_admission, ConnectorInvocationCommand, ConnectorQuotaClaim,
+    connector_quota_effect_admission, AttemptId, ConnectorInvocationCommand, ConnectorQuotaClaim,
     ConnectorQuotaDimensions, ConnectorQuotaPolicy, ConnectorQuotaReservation,
     ConnectorQuotaReservationState, ConnectorQuotaSettlement, CONNECTOR_QUOTA_EVENT_CLAIMED,
     CONNECTOR_QUOTA_EVENT_RESERVED, CONNECTOR_QUOTA_EVENT_SETTLED, CONNECTOR_QUOTA_STREAM,

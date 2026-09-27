@@ -9,7 +9,10 @@
 //! `QualityEvidenceManifest` and `QualityReproductionCommand` outputs; EQ-21's trace-diff schema
 //! is referenced by value so the domain crate does not depend on the quality crate.
 
-use crate::{json_digest, redact_text, scan_secret_sentinels, SecretScanChannel};
+use crate::{
+    json_digest, redact_text, scan_secret_sentinels, SecretScanChannel,
+    QUALITY_EVIDENCE_MANIFEST_SCHEMA, QUALITY_REPORT_SCHEMA, QUALITY_REPRODUCTION_SCHEMA,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeSet;

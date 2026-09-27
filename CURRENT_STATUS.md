@@ -16205,3 +16205,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: reducer consumes adapter-supplied incident, runbook, evidence and deadline facts and does not open or persist incidents, page on-call, send alerts, schedule remediation, compensate, read the EventLog, or observe real clocks and deadlines; Blocked and Unknown remain non-advancing and require reconciliation
 reviewer: source review of the DEP-18 slice; checked ordered phase enforcement, the verified-before-close gate, unknown/deadline handling, read-only alert routing, evidence binding and the no-effect Core/Daemon route; no local runtime/CI test reviewer
 ```
+
+### DEP-19 backup manifest, chunk and integrity (2026-09-27)
+
+```text
+source_snapshot: master plus DEP-19 backup manifest slice; kiana-domain/src/{backup_manifest.rs,lib.rs,contracts.rs}; kiana-domain/tests/dep19_backup_manifest.rs; docs/roadmap/dep19-backup-manifest-baseline.md; docs/roadmap.md
+worktree_status: BackupManifest binds instance, storage root, revision id, source cursor, projection generation, data/authority epochs and a config digest; BackupChunk addresses one piece by logical relative reference with a digest and a BackupIntegrity; torn-tail and unknown integrity make the whole manifest unrestorable rather than partially restorable; export_redacted emits counts and digests only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/backup_manifest.rs kiana-domain/tests/dep19_backup_manifest.rs; cargo check -p kiana-domain --lib --offline; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo check --workspace --locked; cargo clippy --workspace --all-targets --locked; cargo test --workspace --locked --no-fail-fast -- --test-threads=1
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only verifiable manifest and redacted export, zero cursor/generation/epoch header, tampered chunk and manifest digest, absolute path/traversal/drive/file-URI/whitespace references, secret-bearing reference, torn-tail and unknown integrity, missing eventlog or migration registry coverage, duplicate and out-of-order chunks, and foreign-revision binding
+exit_code: local rustfmt and compile check pending; remote compilation, guards, fixtures and workspace gate pending/unobserved
+status_change: DEP-19 BackupManifest/BackupChunk/BackupChunkKind/BackupIntegrity, redacted export, revision binding and domain fixtures added; roadmap row 688/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: contract over facts a later quiesce step produces; does not quiesce a store, read or hash a byte, write a manifest, restore a root, verify a signature or schedule a backup; kiana_ports::BackupStorePort still takes an untyped manifest value; RPO/RTO and fault injection remain DEP-20/24
+reviewer: source review of the DEP-19 slice; checked header/epoch rejection, digest tamper, path and secret rejection, whole-manifest integrity semantics, required chunk coverage, ordering and revision binding; no local runtime/CI test reviewer
+```

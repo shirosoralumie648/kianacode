@@ -5,8 +5,8 @@
 //! same identities, while the in-memory fair queue below is intentionally bounded and disposable.
 
 use crate::{
-    json_digest, AttemptId, CapabilitySupport, ModelCapabilities, ModelRoute, QuotaGroupKey, RunId,
-    SchemaVersion,
+    json_digest, AttemptId, CapabilitySupport, ModelCapabilities, ModelRoute, QuotaGroupKey,
+    QuotaWindow, RunId, SchemaVersion,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};

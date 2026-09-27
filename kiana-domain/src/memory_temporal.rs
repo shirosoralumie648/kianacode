@@ -243,7 +243,7 @@ pub fn resolve_memory_history(
             record_digest: if record.content_hash.starts_with("sha256:") {
                 record.content_hash.clone()
             } else {
-                json_digest(record)
+                json_digest(&serde_json::to_value(record).unwrap_or_default())
             },
         })
         .collect::<Vec<_>>();

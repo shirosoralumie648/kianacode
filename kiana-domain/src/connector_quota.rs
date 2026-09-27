@@ -49,7 +49,7 @@ fn valid_digest(value: &str) -> bool {
     digest(value, "digest").is_ok()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectorQuotaScope {
     Connector,

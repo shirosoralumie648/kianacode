@@ -519,6 +519,7 @@ pub fn project_model_attempts(
                 .get("model_id")
                 .or_else(|| event.data.pointer("/prepared/route/model_id")),
             "unknown",
+            // Bound for the model id a provider reported for this turn, from `model_event`.
             kiana_domain::MAX_MODEL_ID_BYTES,
         );
         malformed |= provider_malformed || model_malformed;

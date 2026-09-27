@@ -214,7 +214,7 @@ impl RepoMapTaskSelection {
         });
         let mut selected = Vec::new();
         let mut omitted_paths = Vec::new();
-        let mut estimated_tokens = 0;
+        let mut estimated_tokens: u64 = 0;
         for candidate in candidates {
             if estimated_tokens.saturating_add(candidate.estimated_tokens) <= token_budget {
                 estimated_tokens = estimated_tokens.saturating_add(candidate.estimated_tokens);

@@ -80,7 +80,8 @@ pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
 pub const MAX_OPERATOR_EVIDENCE_REFS: usize = 64;
 pub const MAX_MODEL_PROVIDER_BYTES: usize = 128;
-pub const MAX_MODEL_ID_BYTES: usize = 256;
+/// Bound for the model id on an observability record.
+pub const MAX_OBSERVED_MODEL_ID_BYTES: usize = 256;
 pub const MAX_MODEL_ERROR_CODE_BYTES: usize = 128;
 pub const MAX_MODEL_USAGE_TOKENS: u64 = 1_000_000_000;
 
@@ -3022,7 +3023,7 @@ impl ModelAttemptRecord {
             "model_provider_id",
             MAX_MODEL_PROVIDER_BYTES,
         )?;
-        validate_nonempty(&self.model_id, "model_id", MAX_MODEL_ID_BYTES)?;
+        validate_nonempty(&self.model_id, "model_id", MAX_OBSERVED_MODEL_ID_BYTES)?;
         validate_digest(&self.route_digest, "model_route_digest")?;
         if let Some(prompt_version) = &self.prompt_version {
             validate_prompt_version(prompt_version)?;

@@ -871,7 +871,7 @@ impl ConnectorRegistry {
                 let adapter = LocalFixtureAdapter {
                     binding: snapshot.clone(),
                     operation: operation.to_owned(),
-                    idempotency_key: idempotency.clone(),
+                    idempotency_key: idempotency.to_owned(),
                     payload: payload.clone(),
                     attempt,
                 };
@@ -1176,7 +1176,8 @@ async fn load_fixture(binding: &ConnectorBindingSnapshot) -> Result<ConnectorFix
     )
     .await?;
     let fixture = ConnectorFixture::from_bytes(&bytes).map_err(failed)?;
-    fixture.validate_for_binding(binding).map_err(failed)
+    fixture.validate_for_binding(binding).map_err(failed)?;
+    Ok(fixture)
 }
 
 async fn read_project_file(

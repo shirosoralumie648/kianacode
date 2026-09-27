@@ -252,8 +252,9 @@ fn parse_resource_budget(raw: &str) -> Result<DisclosureBudget> {
     if raw.trim().is_empty() {
         return Ok(DisclosureBudget::resource_default());
     }
-    let value: Value = serde_json::from_str(raw)
-        .map_err(|_| anyhow!("resource budget must be JSON {\"max_bytes\":N,\"max_tokens\":N}"))?;
+    let value: Value = serde_json::from_str(raw).map_err(|_| {
+        anyhow!("resource budget must be JSON {{\"max_bytes\":N,\"max_tokens\":N}}")
+    })?;
     let object = value
         .as_object()
         .ok_or_else(|| anyhow!("resource budget must be a JSON object"))?;

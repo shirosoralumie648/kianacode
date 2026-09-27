@@ -302,13 +302,15 @@ impl CompanyEffectObservation {
         )?;
         references(&self.evidence_refs, "company_observation_evidence_required")?;
         match self.kind {
-            CompanyObservationKind::Run if self.run_id.is_none() || self.delivery_id.is_some() => {
-                return Err("company_observation_run_identity_invalid");
+            CompanyObservationKind::Run => {
+                if self.run_id.is_none() || self.delivery_id.is_some() {
+                    return Err("company_observation_run_identity_invalid");
+                }
             }
-            CompanyObservationKind::Delivery
-                if self.delivery_id.is_none() || self.run_id.is_some() =>
-            {
-                return Err("company_observation_delivery_identity_invalid");
+            CompanyObservationKind::Delivery => {
+                if self.delivery_id.is_none() || self.run_id.is_some() {
+                    return Err("company_observation_delivery_identity_invalid");
+                }
             }
         }
         if self.packet_id.is_none() {
