@@ -15785,3 +15785,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: recovery fact cannot restart processes, persist projections, CAS leases, reconcile providers or issue a fresh admission; INT-30+ remains open
 reviewer: Codex INT-29 source review; checked paused/Unknown semantics, cursor/generation rebuild gate, stale worker/lease fencing and fresh admission requirement; no local runtime/CI test reviewer
 ```
+
+### INT-30 connector conformance evidence (2026-09-27)
+
+```text
+source_snapshot: `be64bcc1` plus INT-30 conformance source slice; kiana-domain/src/{connector_conformance.rs,connector_fixture.rs,connector_registry.rs,lib.rs}; kiana-core/src/{connector_conformance.rs,lib.rs}; kiana-domain/tests/connector_conformance.rs; kiana-core/tests/int30_connector_conformance_guard.rs; .github/workflows/int30-conformance.yml; docs/roadmap/int30-conformance-baseline.md; docs/roadmap.md
+worktree_status: ConnectorConformanceCase/Report cover LocalFixture/StdioMcpFake/HttpFake adapters and deny/schema/replay/Unknown/TOCTOU/success scenarios; effect_count, Unknown preservation, dedupe/scope fence, duplicate identities and recomputed status/counts are enforced; Core facade validates reports only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_conformance.rs kiana-core/src/connector_conformance.rs kiana-domain/tests/connector_conformance.rs kiana-core/tests/int30_connector_conformance_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_conformance --locked -- --test-threads=1; cargo test -p kiana-core --test int30_connector_conformance_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only shared fake adapter matrix, deny effect_count=0, replay dedupe, Unknown preservation, TOCTOU scope fence, duplicate/forged report and no-effect guard; no MCP/HTTP network, adapter invocation, durable registry, external effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-30 connector conformance case/report source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 702/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: conformance report is not a property-test runner or adapter/network proof; live/physical pilots remain unstarted; INT-31+ remains open
+reviewer: Codex INT-30 source review; checked shared adapter/scenario matrix, deny/replay/Unknown/TOCTOU evidence, report recomputation and no-effect boundary; no local runtime/CI test reviewer
+```
