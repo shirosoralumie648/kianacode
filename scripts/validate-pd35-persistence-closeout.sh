@@ -11,6 +11,7 @@ closeout = (root / "docs/roadmap/pd35-persistence-closeout.md").read_text(encodi
 design = (root / "docs/roadmap/persistence-data-layer.md").read_text(encoding="utf-8")
 status = (root / "CURRENT_STATUS.md").read_text(encoding="utf-8")
 roadmap = (root / "docs/roadmap.md").read_text(encoding="utf-8")
+pd_roadmap = (root / "docs/roadmap/persistence-data-layer.md").read_text(encoding="utf-8")
 runbook = (root / "docs/roadmap/dep41-operator-runbook.md").read_text(encoding="utf-8")
 matrix = (root / "docs/roadmap/dep41-capability-proof-matrix.md").read_text(encoding="utf-8")
 
@@ -67,7 +68,7 @@ if any(row[1] == "implemented" and row[2] in {"durable", "live", "physical"} for
 
 if "### PD-35" not in status:
     raise SystemExit("CURRENT_STATUS is missing the PD-35 evidence block")
-if '<a id="step-pd-35"></a>`PD-35`' not in roadmap:
+if "PD-35" not in roadmap or '<a id="step-pd-35"></a>`PD-35`' not in pd_roadmap:
     raise SystemExit("roadmap is missing the PD-35 detailed card")
 if "result_unknown" not in runbook or "proof_level" not in matrix:
     raise SystemExit("DEP-41 handoff references are incomplete")

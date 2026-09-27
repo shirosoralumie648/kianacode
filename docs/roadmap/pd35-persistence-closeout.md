@@ -16,7 +16,8 @@ Covered identifiers: `PD-00`, `PD-01`, `PD-02`, `PD-03`, `PD-04`, `PD-05`, `PD-0
 |---|---|---|---|
 | PD-00..04 contracts/ports | partial | source | typed boundaries and unsupported defaults; no production adapters |
 | PD-05..09 EventStore/JSONL/projector | partial | source | local adapter/source guards; no cross-process/power-loss durable proof |
-| PD-10..21 startup, artifacts, memory/index and cache | partial | source | projections/cache remain rebuildable; no unified durable root/retention |
+| PD-10..17 startup, artifacts and memory/index | partial | source | projections/index remain rebuildable; no unified durable root/retention |
+| PD-18..21 cache/query and context projections | partial | source | cache/query views remain rebuildable; no unified durable root/retention |
 | PD-22..26 backup/restore/retention/delete | target/partial | source | manifests and gates are not backup/restore/delete effects |
 | PD-27..32 backpressure, security, diagnostics, faults and conformance | partial | source | budgets/guards do not prove platform or crash behavior |
 | PD-33 lifecycle UAT | partial | source | CI matrix only; no real backup/restore/restart/delete |
@@ -26,7 +27,9 @@ Covered identifiers: `PD-00`, `PD-01`, `PD-02`, `PD-03`, `PD-04`, `PD-05`, `PD-0
 The closeout evidence index includes `PersistenceUatEvidence` for PD-33 and
 `PersistenceCapacityEvidence` for PD-34. These manifests bind matrix/report/source digests to
 receipts and explicit proof ceilings; their CI fixtures remain source evidence and do not alter
-the underlying PD-33/PD-34 status.
+the underlying PD-33/PD-34 status. Any `result_unknown` migration, restore, retention or deletion
+effect remains unresolved until its receipt is reconciled; the [module map](../../docs/module-map.md)
+is descriptive and is not a second status authority.
 
 No row is promoted to `durable`, `live` or `physical` by this table. Unknown, stale, corrupt,
 unverified or unsupported states remain visible and block authorization.
@@ -40,7 +43,8 @@ unverified or unsupported states remain visible and block authorization.
 3. Quiesce and verify the snapshot before migration. Bind every manifest/file/chunk to source
    cursor, generation, epoch, owner and digest; do not treat a path or mtime as identity.
 4. Apply only ordered, bounded, idempotent forward steps under the migration lease/fence. Persist
-   step facts and quarantine failures; do not silently downgrade or retry an Unknown effect.
+   step facts in the ordered `MigrationRegistry` and quarantine failures; do not silently downgrade
+   or retry an Unknown effect.
 5. Rebuild projector/index/Receipt views from facts, verify source/projection cursor and generation
    parity, then re-admit authorization/approval state. A restored root is not active until an
    explicit approved activation.

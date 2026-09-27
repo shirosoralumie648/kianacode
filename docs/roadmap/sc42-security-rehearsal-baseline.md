@@ -2,7 +2,7 @@
 
 SC-42 adds a fake/source-bound rehearsal matrix for restart, quarantine restore, replay,
 `result_unknown` reconciliation and retention prune. Success requires old-lease fencing, no
-duplicate effect, quarantine verification, committed retention watermark and legal-hold respect;
+duplicate effect, quarantine verification, committed retention watermark and legal hold respect;
 Unknown requires reconcile and forbids automatic retry.
 
 The rehearsal handoff also references `PersistenceUatEvidence` and

@@ -11,6 +11,7 @@ review = (root / "docs/security/sc43-security-review.md").read_text(encoding="ut
 module_map = (root / "docs/module-map.md").read_text(encoding="utf-8")
 status = (root / "CURRENT_STATUS.md").read_text(encoding="utf-8")
 roadmap = (root / "docs/roadmap.md").read_text(encoding="utf-8")
+security_roadmap = (root / "docs/roadmap/security-compliance.md").read_text(encoding="utf-8")
 baseline = (root / "docs/roadmap/sc43-security-closeout-baseline.md").read_text(encoding="utf-8")
 
 for marker in [
@@ -25,7 +26,7 @@ for marker in ["SC-43", "security", "CURRENT_STATUS"]:
         raise SystemExit(f"module map missing SC-43 handoff marker {marker}")
 if "### SC-43" not in status:
     raise SystemExit("CURRENT_STATUS is missing SC-43")
-if '<a id="step-sc-43"></a>SC-43' not in roadmap:
+if "SC-43" not in roadmap or '<a id="step-sc-43"></a>SC-43' not in security_roadmap:
     raise SystemExit("roadmap is missing SC-43")
 for marker in ["review record", "module map", "CURRENT_STATUS", "partial", "source", "limitations"]:
     if marker not in baseline:

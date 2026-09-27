@@ -4,8 +4,9 @@
 
 EQ-50 separates evaluation CI into three GitHub workflows:
 
-- `eq50-pr-curated.yml` runs on pull requests, checks the EQ-49 wrappers, compiles the curated
-  package set and runs daemon/core fixtures serially.
+- `eq50-pr-curated.yml` is a manual curated lane, checks the EQ-49 wrappers, compiles the curated
+  package set and runs daemon/core fixtures serially. Ordinary pull requests use the unified
+  workspace CI instead of starting a second daemon/core test run.
 - `eq50-nightly-deep.yml` is scheduled, but the deep lane requires an explicit
   `workflow_dispatch` boolean `deep_enabled=true`; an unconfigured run exits non-successfully
   instead of silently passing.

@@ -61,7 +61,8 @@ fn pd35_closeout_keeps_all_persistence_steps_and_limits_explicit() {
         );
     }
     assert!(status.contains("### PD-35"));
-    assert!(roadmap.contains("<a id=\"step-pd-35\"></a>`PD-35`"));
+    assert!(roadmap.contains("PD-35"));
+    assert!(design.contains("<a id=\"step-pd-35\"></a>`PD-35`"));
     assert!(runbook.contains("result_unknown"));
     assert!(matrix.contains("proof_level"));
     assert!(pd33.contains("PersistenceUatEvidence"));

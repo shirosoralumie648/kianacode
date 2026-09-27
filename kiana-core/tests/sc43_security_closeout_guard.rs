@@ -6,6 +6,7 @@ fn sc43_keeps_review_proof_limits_and_next_actions_explicit() {
     let module_map = include_str!("../../docs/module-map.md");
     let status = include_str!("../../CURRENT_STATUS.md");
     let roadmap = include_str!("../../docs/roadmap.md");
+    let security_roadmap = include_str!("../../docs/roadmap/security-compliance.md");
     let baseline = include_str!("../../docs/roadmap/sc43-security-closeout-baseline.md");
     let workflow = include_str!("../../.github/workflows/sc43-security-closeout.yml");
     let script = include_str!("../../scripts/validate-sc43-security-closeout.sh");
@@ -66,7 +67,8 @@ fn sc43_keeps_review_proof_limits_and_next_actions_explicit() {
         );
     }
     assert!(status.contains("### SC-43"));
-    assert!(roadmap.contains("<a id=\"step-sc-43\"></a>SC-43"));
+    assert!(roadmap.contains("SC-43"));
+    assert!(security_roadmap.contains("<a id=\"step-sc-43\"></a>SC-43"));
     assert!(script.contains("feature_status"));
     assert!(script.contains("Explicit non-claims"));
     assert!(!review.contains("compliance certification: approved"));

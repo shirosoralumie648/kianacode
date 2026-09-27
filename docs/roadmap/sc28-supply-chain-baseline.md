@@ -26,4 +26,6 @@ provenance verification, and SC-41 release gate integration, remain subsequent s
 - **proof_level:** `source`; GitHub CI is wired but its result is intentionally unobserved.
 - **not claimed:** signed artifacts, registry transparency, production dependency resolution,
   live advisory freshness, release approval, or physical/runtime integrity.
+- **limitations:** the scanner and its reports are CI-only source evidence; this baseline does
+  not prove that a released artifact was built from the scanned snapshot.
 - **reviewer:** Codex source review; no local runtime test reviewer.
