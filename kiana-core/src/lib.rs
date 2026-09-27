@@ -187,6 +187,7 @@ pub use quality_drift::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
 pub use quality_evidence_archive::validate_quality_evidence_archive;
 pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
 pub use swarm_admission::admit_swarm_resources;
+pub use swarm_queue::{claim_swarm_entry, complete_swarm_entry, enqueue_swarm_entry};
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
@@ -470,6 +471,7 @@ mod automation;
 
 mod swarm;
 mod swarm_admission;
+mod swarm_queue;
 
 mod company_business;
 mod company_scope;
