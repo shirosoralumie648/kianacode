@@ -70,6 +70,7 @@ mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
 mod connector_mapping;
+mod connector_propagation;
 mod restore_verification;
 mod health;
 mod history;
@@ -167,6 +168,7 @@ pub use billing_settlement_fold::{
 };
 pub use restore_verification::validate_restore_verification_fact;
 pub use connector_mapping::validate_connector_object_mapping;
+pub use connector_propagation::validate_connector_propagation_fact;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
