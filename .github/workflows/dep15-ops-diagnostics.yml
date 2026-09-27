@@ -1,0 +1,25 @@
+name: DEP-15 ops diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ops-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-15 domain fixtures
+        run: cargo test -p kiana-domain --test dep15_ops_diagnostics --locked -- --test-threads=1
+      - name: Run DEP-15 Core guard
+        run: cargo test -p kiana-core --test dep15_ops_diagnostics_guard --locked -- --test-threads=1
+      - name: Run DEP-15 daemon route guard
+        run: cargo test -p kiana-daemon --test dep15_ops_diagnostics_route_guard --locked -- --test-threads=1
+      - name: Compile DEP-15 targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked

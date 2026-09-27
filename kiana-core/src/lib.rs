@@ -65,6 +65,7 @@ mod deployment_compatibility;
 mod deployment_admission;
 mod deployment_shutdown;
 mod deployment_observability;
+mod ops_diagnostics;
 mod deployment_config;
 mod deployment_startup;
 mod deployment_supervisor;
@@ -234,6 +235,9 @@ pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_admission::{evaluate_admission, validate_admission_decision};
 pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
 pub use deployment_observability::validate_deployment_observability;
+pub use ops_diagnostics::{
+    evaluate_ops_diagnostics, evaluate_ops_mode, validate_ops_diagnostics,
+};
 pub use deployment_config::validate_deployment_config_snapshot;
 pub use deployment_startup::{evaluate_startup, validate_startup_report};
 pub use deployment_supervisor::validate_supervisor_observation;

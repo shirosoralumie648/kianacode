@@ -16145,3 +16145,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: bundle is an opaque source-level evidence contract and does not emit or persist telemetry, append audit facts, export traces, read EventLog or prove external effects; existing observability/metrics/audit projectors remain authorities
 reviewer: Codex DEP-14 source review; checked operation/revision/cursor binding, secret-free metric/log/trace/audit metadata, duplicate/cross-scope/tamper fences and no-effect routes; no local runtime/CI test reviewer
 ```
+
+### DEP-15 ops diagnostics (2026-09-27)
+
+```text
+source_snapshot: `1405b222` plus DEP-15 ops diagnostics source slice; kiana-domain/src/{ops_diagnostics.rs,quality_report.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep15_ops_diagnostics.rs; kiana-core/src/{ops_diagnostics.rs,lib.rs}; kiana-core/tests/dep15_ops_diagnostics_guard.rs; kiana-daemon/src/{ops_diagnostics.rs,lib.rs}; kiana-daemon/tests/dep15_ops_diagnostics_route_guard.rs; .github/workflows/dep15-ops-diagnostics.yml; docs/roadmap/dep15-ops-diagnostics-baseline.md; docs/roadmap.md
+worktree_status: ordered config/startup/health/observability diagnostic facts reduce to Ready/Degraded/Blocked/Unknown with stable CI exit code, redacted remediation and fixed reproduction command; additive Core/Daemon read-only route; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/ops_diagnostics.rs kiana-domain/tests/dep15_ops_diagnostics.rs kiana-core/src/ops_diagnostics.rs kiana-core/tests/dep15_ops_diagnostics_guard.rs kiana-daemon/src/ops_diagnostics.rs kiana-daemon/tests/dep15_ops_diagnostics_route_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep15_ops_diagnostics --locked -- --test-threads=1; cargo test -p kiana-core --test dep15_ops_diagnostics_guard --locked -- --test-threads=1; cargo test -p kiana-daemon --test dep15_ops_diagnostics_route_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only ready output, unknown/missing evidence, secret/path/traversal rejection, ordered/cursor/digest tamper, stable JSON/human render, reproduction and route boundary guards; no config/env/file/EventLog/provider/Broker reads, fact mutation or remediation effect
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guards, formatting and affected-target compilation pending/unobserved
+status_change: DEP-15 OpsDiagnosticFact/Input/Report, schema registry, status/doctor/preflight mode binding, stable redacted JSON/human projection, CI exit codes, Core facade, additive DaemonHost route, domain/Core/daemon fixtures, workflow and baseline added; roadmap row 684/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: reducer consumes adapter-supplied typed facts and does not read config/env/EventLog/provider state, persist diagnostics, execute remediation, wire legacy CLI/Web/Workbench/Desktop dispatch or change process exit status; later ops integration remains authority
+reviewer: Codex DEP-15 source review; checked ordered axis coverage, Unknown/missing non-healthy semantics, shared redaction/path fences, fixed reproduction command, stable render/exit mapping and no-effect Core/Daemon route; no local runtime/CI test reviewer
+```

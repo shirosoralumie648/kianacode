@@ -37,6 +37,7 @@ mod health_aggregation;
 mod deployment_admission;
 mod deployment_shutdown;
 mod deployment_observability;
+mod ops_diagnostics;
 mod run_stream;
 mod restore_verifier;
 mod notification_stream;
@@ -62,6 +63,7 @@ use kiana_domain::{
     DeploymentAdmissionDecision, DeploymentAdmissionInput,
     ShutdownInput, ShutdownReport,
     LifecycleEvidenceBundle,
+    OpsDiagnosticsInput, OpsDiagnosticsMode, OpsDiagnosticsReport,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
     RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
@@ -1023,6 +1025,25 @@ impl DaemonHost {
         bundle: &LifecycleEvidenceBundle,
     ) -> Result<(), PortError> {
         deployment_observability::validate(bundle)
+    }
+
+    /// Evaluate a read-only operator diagnostics projection through the Core route.
+    #[allow(clippy::unused_self)]
+    pub fn ops_diagnostics(
+        &self,
+        input: &OpsDiagnosticsInput,
+    ) -> Result<OpsDiagnosticsReport, PortError> {
+        ops_diagnostics::evaluate(input)
+    }
+
+    /// Evaluate the status/doctor/preflight view with an explicit mode binding.
+    #[allow(clippy::unused_self)]
+    pub fn ops_mode(
+        &self,
+        input: &OpsDiagnosticsInput,
+        mode: OpsDiagnosticsMode,
+    ) -> Result<OpsDiagnosticsReport, PortError> {
+        ops_diagnostics::evaluate_mode(input, mode)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.
