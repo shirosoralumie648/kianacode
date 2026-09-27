@@ -164,7 +164,9 @@ fn route_digest(data: &Value, provider_id: &str, model_id: &str) -> String {
 }
 
 fn prompt_version(data: &Value) -> Option<String> {
-    for value in [
+    // The first non-empty candidate wins, so this is a lookup rather than a loop: whichever
+    // field the producer populated first is the one the projection reports.
+    let first = [
         data.get("prompt_version"),
         data.pointer("/prepared/prompt_version"),
         data.pointer("/prepared/request_hash"),
@@ -173,8 +175,9 @@ fn prompt_version(data: &Value) -> Option<String> {
     .into_iter()
     .flatten()
     .filter_map(Value::as_str)
-    .filter(|value| !value.trim().is_empty())
-    {
+    .find(|value| !value.trim().is_empty());
+
+    if let Some(value) = first {
         if is_prompt_hash(value) {
             return Some(value.to_owned());
         }
@@ -197,15 +200,17 @@ fn prompt_version(data: &Value) -> Option<String> {
 }
 
 fn parse_purpose(data: &Value) -> (ModelPurpose, bool) {
-    for value in [data.get("purpose"), data.pointer("/prepared/purpose")]
+    // The first field the producer populated wins, so this is a lookup rather than a loop.
+    let Some(value) = [data.get("purpose"), data.pointer("/prepared/purpose")]
         .into_iter()
         .flatten()
-    {
-        return serde_json::from_value(value.clone())
-            .map(|purpose| (purpose, false))
-            .unwrap_or((ModelPurpose::Task, true));
-    }
-    (ModelPurpose::Task, true)
+        .next()
+    else {
+        return (ModelPurpose::Task, true);
+    };
+    serde_json::from_value(value.clone())
+        .map(|purpose| (purpose, false))
+        .unwrap_or((ModelPurpose::Task, true))
 }
 
 fn parse_finish(data: &Value) -> (Option<ModelFinish>, bool) {
@@ -285,10 +290,11 @@ fn parse_latency(data: &Value) -> (Option<u64>, bool) {
 }
 
 fn parse_retry_class(data: &Value, error_code: Option<&str>) -> (Option<ModelRetryClass>, bool) {
-    for value in [data.get("retry_class"), data.pointer("/error/retry_class")]
+    // The first non-null field the producer populated wins, so this is a lookup, not a loop.
+    if let Some(value) = [data.get("retry_class"), data.pointer("/error/retry_class")]
         .into_iter()
         .flatten()
-        .filter(|value| !value.is_null())
+        .find(|value| !value.is_null())
     {
         let parsed = serde_json::from_value::<ModelRetryClass>(value.clone()).ok();
         return (parsed, parsed.is_none());

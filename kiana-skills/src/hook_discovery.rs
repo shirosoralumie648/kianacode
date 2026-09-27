@@ -144,7 +144,7 @@ fn match_candidate(
             matcher.is_match(&request.subject),
             "matcher_evaluated".to_owned(),
         ),
-        Err(_) => (false, "matcher_invalid".to_owned()),
+        Err(reason) => (false, reason.to_owned()),
     };
     Ok(HookMatchRecord {
         hook_id: descriptor.id.clone(),
@@ -158,12 +158,16 @@ fn match_candidate(
     })
 }
 
-fn compile_matcher(matcher: &str) -> Result<Regex, regex::Error> {
+/// A bounded glob matcher, or the stable reason it could not be built.
+///
+/// An over-long matcher is reported as a failure in its own right rather than replaced by a
+/// pattern that silently never matches, so the record says why it did not evaluate.
+fn compile_matcher(matcher: &str) -> Result<Regex, &'static str> {
     if matcher.len() > 1_024 {
-        return Regex::new("(?!)");
+        return Err("matcher_too_long");
     }
     if let Some(pattern) = matcher.strip_prefix("re:") {
-        return Regex::new(pattern);
+        return Regex::new(pattern).map_err(|_| "matcher_invalid");
     }
     let mut pattern = String::from("^");
     let mut chars = matcher.chars().peekable();
@@ -175,7 +179,7 @@ fn compile_matcher(matcher: &str) -> Result<Regex, regex::Error> {
         }
     }
     pattern.push('$');
-    Regex::new(&pattern)
+    Regex::new(&pattern).map_err(|_| "matcher_invalid")
 }
 
 fn compare_records(left: &HookMatchRecord, right: &HookMatchRecord) -> Ordering {

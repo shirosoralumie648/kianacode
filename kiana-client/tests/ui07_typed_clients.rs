@@ -6,9 +6,9 @@ use kiana_client::{
 use kiana_domain::json_digest;
 use kiana_protocol::{
     ExecutionStatus, RequestBody, RequestEnvelope, RequestId, ResponseEnvelope, UiActionV1,
-    UiCursor, UiFeedCursorV1, UiFeedFrameKind, UiFeedFrameV1, UiHandshakeRequest, UiSurface,
-    PROTOCOL_SCHEMA, UI_ACTION_RESULT_SCHEMA, UI_FEED_FRAME_SCHEMA, UI_HANDSHAKE_REQUEST_SCHEMA,
-    UI_HANDSHAKE_RESPONSE_SCHEMA,
+    UiCursor, UiCursorV1, UiFeedCursorV1, UiFeedFrameKind, UiFeedFrameV1, UiHandshakeRequest,
+    UiSurface, PROTOCOL_SCHEMA, UI_ACTION_RESULT_SCHEMA, UI_FEED_FRAME_SCHEMA,
+    UI_HANDSHAKE_REQUEST_SCHEMA, UI_HANDSHAKE_RESPONSE_SCHEMA,
 };
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};

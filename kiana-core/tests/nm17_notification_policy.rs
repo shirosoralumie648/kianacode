@@ -1,10 +1,11 @@
 use kiana_core::{
     classify_notification, plan_notification_policy, NotificationPolicyConfig,
-    NotificationPolicyRoute, NotificationPriority, NotificationUrgency,
-    NOTIFICATION_POLICY_PLANNER_SCHEMA, NOTIFICATION_PRIORITY_SCHEMA,
+    NotificationPriority, NotificationUrgency, NOTIFICATION_POLICY_PLANNER_SCHEMA,
+    NOTIFICATION_PRIORITY_SCHEMA,
 };
 use kiana_domain::{
-    HumanAction, HumanInboxItem, HumanInboxKind, NotificationChannel, QuietHoursUtc,
+    HumanAction, HumanInboxItem, HumanInboxKind, NotificationChannel, NotificationPolicyRoute,
+    QuietHoursUtc,
 };
 use serde_json::{json, Value};
 

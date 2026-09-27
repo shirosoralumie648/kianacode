@@ -1,9 +1,9 @@
 use kiana_domain::{
     AccountBinding, CapabilityKind, CapabilityRequest, ConnectorBindingSnapshot,
-    ConnectorDefinition, ConnectorEffect, ConnectorOperation, PermissionProfile, RequestContext,
-    RequestId, RiskLevel,
+    ConnectorDefinition, ConnectorEffect, ConnectorOperation, PermissionProfile, PolicyDecision,
+    RequestContext, RequestId, RiskLevel,
 };
-use kiana_policy::{connector_policy_decision, DefaultPolicyEngine, PolicyDecision, PolicyEngine};
+use kiana_policy::{connector_policy_decision, DefaultPolicyEngine, PolicyEngine};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 

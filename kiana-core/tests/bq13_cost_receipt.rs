@@ -77,7 +77,7 @@ fn aggregate_receipt_exposes_cost_breakdown_and_unknown_reasons() {
         .expect("event");
     let aggregation = aggregate_receipt_facts(usage.run_id, &[estimated_event, unknown_event])
         .expect("aggregation");
-    let breakdown = aggregation.cost_breakdown.expect("cost breakdown");
+    let breakdown = aggregation.cost_breakdown.as_ref().expect("cost breakdown");
     assert!(breakdown.estimated_total.is_some());
     assert_eq!(
         breakdown.unknown_reasons,

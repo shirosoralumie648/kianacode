@@ -118,19 +118,19 @@ fn projector_folds_each_leaf_once_across_all_dimensions() {
 
 #[test]
 fn projector_rejects_repeated_usage_and_cross_run_event() {
-    let scope = scope();
+    let local = scope();
     let usage = UsageId::new();
-    let first = allocation(scope, usage, 10, 'a');
-    let duplicate = allocation(scope, usage, 10, 'b');
+    let first = allocation(local, usage, 10, 'a');
+    let duplicate = allocation(local, usage, 10, 'b');
     assert!(matches!(
-        project_cost_allocations(scope.run_id, &[event(1, &first), event(2, &duplicate)]),
+        project_cost_allocations(local.run_id, &[event(1, &first), event(2, &duplicate)]),
         Err(CostAllocationProjectionError::Invalid(reason))
             if reason == "cost_allocation_leaf_usage_repeated"
     ));
     let foreign_scope = scope();
     let foreign = allocation(foreign_scope, UsageId::new(), 3, 'c');
     assert!(matches!(
-        project_cost_allocations(scope.run_id, &[event(1, &foreign)]),
+        project_cost_allocations(local.run_id, &[event(1, &foreign)]),
         Err(CostAllocationProjectionError::Invalid(reason))
             if reason == "cost_allocation_identity_or_revision_mismatch"
     ));

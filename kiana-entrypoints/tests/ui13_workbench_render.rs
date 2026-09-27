@@ -84,14 +84,14 @@ fn render_snapshot_maps_typed_events_and_terminal_artifacts() {
 
 #[test]
 fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_events() {
-    let run_id = run_id("00000000-0000-0000-0000-000000000013");
+    let primary = run_id("00000000-0000-0000-0000-000000000013");
     let foreign = run_id("00000000-0000-0000-0000-000000000099");
-    let mut renderer = TimelineRenderer::new(run_id);
+    let mut renderer = TimelineRenderer::new(primary);
     let first = envelope(
         "epoch-a",
         1,
         RunStreamEvent::Delta {
-            run_id,
+            run_id: primary,
             text: "first".to_owned(),
         },
     );
@@ -103,7 +103,7 @@ fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_even
         "epoch-a",
         3,
         RunStreamEvent::Delta {
-            run_id,
+            run_id: primary,
             text: "gap".to_owned(),
         },
     );
@@ -115,7 +115,7 @@ fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_even
         "epoch-a",
         4,
         RunStreamEvent::Delta {
-            run_id,
+            run_id: primary,
             text: "must wait for snapshot".to_owned(),
         },
     );
@@ -125,7 +125,7 @@ fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_even
     );
     assert_eq!(renderer.items().len(), count_after_gap);
 
-    let mut foreign_renderer = TimelineRenderer::new(run_id);
+    let mut foreign_renderer = TimelineRenderer::new(primary);
     let foreign_event = envelope(
         "epoch-a",
         1,
@@ -141,15 +141,15 @@ fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_even
     assert_eq!(foreign_renderer.cursor().sequence, 0);
     assert!(foreign_renderer.items().is_empty());
 
-    let mut terminal_renderer = TimelineRenderer::new(run_id);
+    let mut terminal_renderer = TimelineRenderer::new(primary);
     assert_eq!(terminal_renderer.apply(&first), Ok(TimelineApply::Applied));
     let terminal = envelope(
         "epoch-a",
         2,
         RunStreamEvent::Terminal {
-            run_id,
+            run_id: primary,
             response: response(
-                run_id,
+                primary,
                 ExecutionStatus::Completed,
                 json!({"output": {"text": "done"}}),
             ),
@@ -164,7 +164,7 @@ fn deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_even
         "epoch-a",
         3,
         RunStreamEvent::Delta {
-            run_id,
+            run_id: primary,
             text: "late".to_owned(),
         },
     );

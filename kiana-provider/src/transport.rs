@@ -432,7 +432,9 @@ pub(crate) fn unix_ms() -> Result<u64, ModelError> {
 }
 
 #[cfg(test)]
-mod tests {
+// This module covers the circuit breaker guard and sits above `Framer`; the transport parsing
+// tests live in a second `mod tests` further down, which is why this one is named.
+mod circuit_tests {
     use super::HalfOpenProbeGuard;
     use kiana_domain::{CircuitAdmission, ProviderCircuitBreaker, ProviderCircuitState};
     use std::sync::{Arc, Mutex};

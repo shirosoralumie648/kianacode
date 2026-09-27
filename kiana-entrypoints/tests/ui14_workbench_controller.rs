@@ -13,7 +13,7 @@ const DIGEST: &str = "sha256:000000000000000000000000000000000000000000000000000
 
 fn session(value: &str, title: &str) -> kiana_protocol::SessionSummary {
     kiana_protocol::SessionSummary {
-        session_id: SessionId::parse_str(value).unwrap(),
+        session_id: SessionId::new(value),
         title: title.to_owned(),
         status: "idle".to_owned(),
         revision: 1,

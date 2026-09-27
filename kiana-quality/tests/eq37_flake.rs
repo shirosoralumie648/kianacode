@@ -63,10 +63,10 @@ fn flaky_is_never_counted_as_pass() {
     assert!(codes.contains(&"flake.quarantine_missing"));
 
     let quarantined = input(
-        json![
+        json!([
             attempt(1, "fail", Value::Null),
-            attempt(2, "pass", Value::Null)
-        ],
+            attempt(2, "pass", Value::Null),
+        ]),
         "quarantined",
         quarantine(),
     );
@@ -95,10 +95,10 @@ fn infra_failure_requires_classification_and_cannot_be_a_result() {
 #[test]
 fn retry_after_pass_and_unknown_fields_fail_closed() {
     let value = input(
-        json![
+        json!([
             attempt(1, "pass", Value::Null),
-            attempt(2, "fail", Value::Null)
-        ],
+            attempt(2, "fail", Value::Null),
+        ]),
         "fail",
         Value::Null,
     );

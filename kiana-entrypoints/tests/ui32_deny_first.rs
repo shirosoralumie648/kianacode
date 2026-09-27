@@ -48,7 +48,7 @@ fn entrypoints_keep_deny_and_unknown_on_the_shared_spine() {
                 || cli.contains(marker)
                 || workbench.contains(marker)
                 || harness.contains(marker),
-            marker
+            "missing deny-first marker: {marker}"
         );
     }
     assert!(web.contains("claim_action_submission"));
@@ -80,7 +80,10 @@ fn fixture_lists_injection_and_cancel_unknown_without_happy_path_substitution() 
         "unknown_ipc_envelope",
         "dot_path_component",
     ] {
-        assert!(denied.iter().any(|item| item["id"] == required), required);
+        assert!(
+            denied.iter().any(|item| item["id"] == required),
+            "missing denied id: {required}"
+        );
     }
 }
 

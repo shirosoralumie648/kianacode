@@ -60,10 +60,10 @@ fn product_chain_keeps_the_single_daemon_controlplane_harness_spine() {
     assert!(runner.contains("KianaHarness"));
     assert!(provider.contains("ProviderGateway"));
     for (surface, source) in [
-        ("cli", cli),
-        ("workbench", workbench),
-        ("web", web),
-        ("desktop", desktop),
+        ("cli", cli.as_str()),
+        ("workbench", workbench.as_str()),
+        ("web", web.as_str()),
+        ("desktop", desktop.as_str()),
     ] {
         assert!(!source.is_empty(), "surface source is empty: {surface}");
     }

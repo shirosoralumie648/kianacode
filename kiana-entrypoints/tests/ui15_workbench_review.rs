@@ -156,14 +156,14 @@ fn inbox_deduplicates_cards_and_artifact_viewer_fences_ref_revision_digest() {
     let content = b"@@ -1 +1 @@\n-old\n+new\n";
     let reference = artifact(content);
     let mut viewer = ArtifactViewer::new(reference.clone(), 7).unwrap();
-    let page_digest = reference.content_hash.clone();
+    let whole_artifact_digest = reference.content_hash.clone();
     viewer
         .accept_page(ArtifactPage {
             artifact_ref: reference.clone(),
             revision: 7,
             page_index: 0,
             page_count: 1,
-            page_digest,
+            page_digest: whole_artifact_digest,
             content: content.to_vec(),
         })
         .unwrap();

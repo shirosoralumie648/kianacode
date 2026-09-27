@@ -644,7 +644,7 @@ fn responses_body(
     }
     Ok(body)
 }
-fn ollama_body(
+pub(crate) fn ollama_body(
     request: &ModelRequest,
     system: &str,
     tools: &[Value],

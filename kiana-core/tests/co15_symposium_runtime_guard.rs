@@ -2,8 +2,9 @@
 fn symposium_runtime_reuses_bounded_harness_path_and_never_approves_on_budget_failure() {
     let runtime = include_str!("../../kiana-domain/src/symposium_runtime.rs");
     let governance = include_str!("../../kiana-domain/src/symposium_governance.rs");
-    let core = include_str!("../src/control_plane.rs");
+    let core = include_str!("../src/collaboration.rs");
     let tests = include_str!("control_plane.rs");
+    let domain_tests = include_str!("../../kiana-domain/tests/co15_symposium_runtime.rs");
 
     for marker in [
         "SYMPOSIUM_RUN_BUDGET_SCHEMA",
@@ -26,7 +27,8 @@ fn symposium_runtime_reuses_bounded_harness_path_and_never_approves_on_budget_fa
             runtime.contains(marker)
                 || governance.contains(marker)
                 || core.contains(marker)
-                || tests.contains(marker),
+                || tests.contains(marker)
+                || domain_tests.contains(marker),
             "CO-15 marker missing: {marker}"
         );
     }

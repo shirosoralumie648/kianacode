@@ -120,7 +120,8 @@ fn fault_corpus_covers_each_declared_failure_mode_and_stays_offline() {
 
 #[test]
 fn unknown_usage_is_not_a_success_and_never_adds_an_automatic_attempt() {
-    let case = corpus()
+    let corpus = corpus();
+    let case = corpus
         .cases
         .iter()
         .find(|case| case.fault == ProviderFaultKind::MissingUsage)

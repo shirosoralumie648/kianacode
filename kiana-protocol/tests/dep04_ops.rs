@@ -4,14 +4,29 @@ use kiana_protocol::{
     OpsScope, OpsUnknownEnvelope, RequestEnvelope, RequestMetadata,
 };
 use serde_json::json;
-use uuid::Uuid;
+
+/// `Uuid::from_u128(value)` 的规范连字符形式。
+///
+/// `kiana-protocol` 不直接依赖 `uuid` crate，因此这里按 UUID 的
+/// `8-4-4-4-12` 十六进制布局展开确定性的测试标识，再交给
+/// 每个标识类型自带的 `parse_str` 构造。
+fn uuid_from_u128(value: u128) -> String {
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        (value >> 96) as u32,
+        ((value >> 80) & 0xffff) as u16,
+        ((value >> 64) & 0xffff) as u16,
+        ((value >> 48) & 0xffff) as u16,
+        value & 0xffff_ffff_ffff
+    )
+}
 
 fn project() -> kiana_protocol::ProjectId {
-    kiana_protocol::ProjectId::from_uuid(Uuid::from_u128(1))
+    kiana_protocol::ProjectId::parse_str(&uuid_from_u128(1)).expect("project id")
 }
 
 fn root() -> kiana_protocol::StorageRootId {
-    kiana_protocol::StorageRootId::from_uuid(Uuid::from_u128(2))
+    kiana_protocol::StorageRootId::parse_str(&uuid_from_u128(2)).expect("storage root id")
 }
 
 fn authority(actor: &str, epoch: u64) -> OpsAuthoritySnapshot {
@@ -25,7 +40,7 @@ fn authority(actor: &str, epoch: u64) -> OpsAuthoritySnapshot {
 fn command() -> OpsCommandRequest {
     OpsCommandRequest::new(
         OpsCommand::Status,
-        kiana_protocol::OperationId::from_uuid(Uuid::from_u128(3)),
+        kiana_protocol::OperationId::parse_str(&uuid_from_u128(3)).expect("operation id"),
         "op-key-1",
         authority("operator-a", 7),
         json!({"include_evidence": true}),
@@ -40,7 +55,7 @@ fn ops_command_query_event_error_unknown_envelopes_round_trip() {
     command.validate().unwrap();
     let query = OpsQueryRequest::new(
         OpsQuery::Status,
-        kiana_protocol::RequestId::from_uuid(Uuid::from_u128(4)),
+        kiana_protocol::RequestId::parse_str(&uuid_from_u128(4)).expect("query request id"),
         authority("operator-a", 7),
         None,
         json!({}),
@@ -75,7 +90,7 @@ fn ops_command_query_event_error_unknown_envelopes_round_trip() {
         OpsEnvelopeBody::Unknown(unknown),
     ] {
         let envelope = OpsEnvelope::new(
-            kiana_protocol::RequestId::from_uuid(Uuid::from_u128(5)),
+            kiana_protocol::RequestId::parse_str(&uuid_from_u128(5)).expect("envelope request id"),
             body,
         )
         .unwrap();
