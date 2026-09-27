@@ -15,3 +15,16 @@ explicitly limited to the existing Company contracts and later evidence work.
 
 `feature_status=implemented`; `proof_level=source`. GitHub CI is the test authority and its result
 is not awaited here; no local test/build/check/clippy/smoke command was run.
+
+## limitations
+
+- The lifecycle fixture is CI-only source evidence. It does not exercise a live provider, an
+  external delivery, a physical effect or a second execution loop.
+- `ResultUnknown`/reconcile, cancellation and restart coverage stays at the existing Company
+  contracts; this slice adds no new runtime proof for them.
+- `scripts/company-os-business-smoke.sh` is gated on `GITHUB_ACTIONS=true` and is not invoked by a
+  dedicated workflow, so the deny/recovery/effect-accounting path runs as part of the unified
+  `ci.yml` workspace test target rather than as its own lane.
+- The product proof ceiling remains `local_behavior` for the fake-model path. Nothing in this slice
+  raises it toward durable, live or physical.
+

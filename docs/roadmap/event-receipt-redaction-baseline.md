@@ -54,3 +54,6 @@ EventStore boundary 的 `prepare_event_payload` 使用同一 recursive redactor�
 - 文本 marker/key redaction 不是任意编码 secret 检测；provider/handler 进程内存、OS argv/env、外部日志和网络 proxy 仍需 CAP/SC/provider steps。
 - Profile/data epoch/artifact refs 是 metadata，不是 SecretStore、RetentionPolicy、Delete/Tombstone、ArtifactStore 或执行授权；脱敏不证明业务 Outcome。
 - 本地只做格式、workspace test-target 静态编译和 diff 检查；GitHub CI 结果不等待，不提升 durable/live/physical。
+
+A redacted record must keep `result_unknown` visible: an outcome the adapter could not determine
+stays Unknown after redaction rather than being dropped or rendered as a failure.

@@ -22,3 +22,7 @@ contracts and do not authorize execution, reserve provider capacity or establish
 This slice is `feature_status=implemented`, `proof_level=source`: UsageVector/NormalizedUsage,
 snapshot/delta accumulation, Money/RateCard arithmetic, reservations, provider billing and
 durable quota remain BQ-02+.
+
+An absent measurement is recorded as `None` is unknown, not zero. A legacy `cost_micros = 0` is an
+unobserved amount, so it upcasts to Unknown and must never be summed, settled or reported as a
+measured zero.

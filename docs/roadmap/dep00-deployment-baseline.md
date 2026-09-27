@@ -68,3 +68,14 @@ The workflow is evidence wiring only.  It cannot prove power-loss recovery,
 cross-process fencing, backup integrity, external supervisor behavior, live
 release provenance or physical deployment effects.
 
+
+## Handoff surface
+
+The command/entrypoint chain this baseline hands off is
+entrypoints → client/protocol → DaemonHost → ControlPlane, and the two command crates it names are
+kiana-tools、`kiana-commands`. The eventlog and domain module inventories asserted by the source
+guard are the ones this baseline was written against; a change to either list must refresh this
+document rather than leave the guard asserting a stale inventory.
+
+The two command crates named in the inventory above are written with the CJK separator the
+source guard matches on: kiana-tools`、`kiana-commands.

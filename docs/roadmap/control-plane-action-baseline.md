@@ -106,3 +106,9 @@ Direct Company/context command 保持显式 Command scope；没有 Run/Turn 时�
 - `PreparedAction` 不授予权限；Grant、Approval、authority epoch、预算、lease 和 sandbox 仍必须由 ControlPlane/Broker 重新核验。
 - direct Company、Memory、MCP 和 context operation 的 handler 仍各自有适配器边界；本步骤只保证它们共享 catalog/normalize/digest 入口，不宣称三条执行路径行为已完全等价。
 - CI 结果按用户要求不等待，历史测试回执仍只绑定其源码快照；任何后续修改 `actions.rs`、`tool_catalog.rs` 或 handler binding 都必须刷新 catalog digest 和本基线 hash。
+
+## Named rejection scenario
+
+- `cp_forged_readonly_risk_cannot_downgrade_registered_effect` — a caller-supplied read-only risk
+  level cannot downgrade an effect the catalog already registers as effectful. The registered
+  effect is server-owned; the declared risk is a claim about it, not a way to weaken it.

@@ -90,3 +90,17 @@ read committed frame
 - legacy migration map 只声明确定的 v0→v1 family 名称，不会猜测缺失 TurnId、aggregate、owner 或 secret provenance；歧义只能查询。
 - payload validator 不替代 redaction、Artifact 引用、CAS、receipt correctness、external effect/reconcile、backup/retention/delete 或 cross-process recovery。
 - 本地只做格式、workspace test-target 静态编译和 diff 检查；GitHub CI 结果按用户要求不等待，后续 ER-02/03 应在新快照刷新 hash。
+
+## Named rejection scenarios
+
+The source guard asserts these scenarios by name, so the baseline records the same vocabulary the
+fixtures use:
+
+- `unknown_required_event_kind_fails_closed` — an event whose `kind` is not in the registered
+  required set is refused rather than stored as an unknown-kind event.
+- `event_schema_version_cannot_downgrade` — a version below the registered schema version is
+  refused; a reader never interprets a newer event as an older one.
+- `event_payload_unknown_field_is_not_silently_dropped` — a payload field outside `allowed_fields`
+  is refused, not quietly discarded on decode.
+- `legacy decode` — a legacy frame is admitted only through a named migration, never by a
+  best-effort parse.

@@ -11,7 +11,10 @@ fn automation_baseline_keeps_a_single_control_plane_execution_spine() {
     assert!(!core.contains("tokio::spawn(async move {"));
     assert!(!workflow.contains("EventStore"));
     assert!(!workflow.contains("CapabilityBroker"));
-    assert!(daemon.contains("handle_workflow_command"));
+    // The daemon routes by wire name; `handle_workflow_command` is `pub(crate)` in
+    // kiana-core, so the daemon source never names it.
+    assert!(daemon.contains("workflow.snapshot.v1"));
+    assert!(core.contains("handle_workflow_command"));
     assert!(daemon.contains("RequestBody::Command(command)"));
     assert!(sdk.contains("pub fn watch_scheduled_tasks"));
     assert!(sdk.contains("ScheduledTasksHandle"));
@@ -25,5 +28,5 @@ fn legacy_scheduler_surface_is_marked_compatibility_only() {
     assert!(roadmap.contains("watch_scheduled_tasks"));
     assert!(baseline.contains("compatibility"));
     assert!(baseline.contains("second scheduler"));
-    assert!(baseline.contains("proof-level"));
+    assert!(baseline.contains("proof ceiling"));
 }
