@@ -14,18 +14,18 @@ use kiana_protocol::{
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
+mod acp;
 mod cli_contract;
 mod cli_presenter;
-mod acp;
-mod ide_capability;
-mod surface_parity;
-mod ui_recovery;
-mod ui_budget;
-mod legacy_migration;
 mod conformance;
+mod ide_capability;
+mod legacy_migration;
 mod live_acp;
 mod provider_diagnostics;
+mod surface_parity;
 mod typed;
+mod ui_budget;
+mod ui_recovery;
 mod ui_schema_generated;
 mod ui_store;
 mod web_accessibility;
@@ -34,6 +34,13 @@ mod web_detail;
 mod web_inbox;
 mod web_timeline;
 
+pub use acp::{
+    AcpAdapterError, AcpConnectionState, AcpInitializeRequest, AcpInitializeResponse,
+    AcpPermissionDecision, AcpPermissionRequest, AcpProjection, AcpProtocolVersion,
+    AcpResumeResult, AcpSessionAdapter, AcpSessionReference, AcpUpdateDisposition,
+    ACP_INITIALIZE_SCHEMA, ACP_MAX_CAPABILITIES, ACP_MAX_PROMPT_BYTES, ACP_PERMISSION_SCHEMA,
+    ACP_PROTOCOL_V1, ACP_PROTOCOL_V2, ACP_SESSION_SCHEMA,
+};
 pub use cli_contract::{
     validate_session, validate_workspace, CliCommand, CliCommandId, CliInvocation, CliOutput,
     CliOutputMode, CLI_COMMAND_SCHEMA, CLI_MAX_ARGUMENT_BYTES, CLI_MAX_OUTPUT_BYTES,
@@ -43,37 +50,18 @@ pub use cli_presenter::{
     present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
     CLI_DEFAULT_TTY_BYTES, CLI_MAX_DIAGNOSTIC_BYTES,
 };
-pub use acp::{
-    AcpAdapterError, AcpConnectionState, AcpInitializeRequest, AcpInitializeResponse,
-    AcpPermissionDecision, AcpPermissionRequest, AcpProjection, AcpProtocolVersion,
-    AcpResumeResult, AcpSessionAdapter, AcpSessionReference, AcpUpdateDisposition,
-    ACP_INITIALIZE_SCHEMA, ACP_MAX_CAPABILITIES, ACP_MAX_PROMPT_BYTES, ACP_PERMISSION_SCHEMA,
-    ACP_PROTOCOL_V1, ACP_PROTOCOL_V2, ACP_SESSION_SCHEMA,
+pub use conformance::{
+    compare_conformance, ConformanceError, ConformanceReport, ConformanceTrace,
+    UI_CONFORMANCE_SCHEMA,
 };
 pub use ide_capability::{
     IdeCapabilityAdapter, IdeCapabilityError, IdeCapabilityPermit, IdeCapabilityRequest, IdeIntent,
     IdeOperation, IDE_CAPABILITY_SCHEMA, IDE_MAX_OUTPUT_BYTES, IDE_MAX_PATH_BYTES,
     IDE_PERMIT_SCHEMA,
 };
-pub use surface_parity::{
-    compare_surface_traces, ParitySurface, SurfaceParityError, SurfaceParityReport, SurfaceTrace,
-    SURFACE_PARITY_SCHEMA,
-};
-pub use ui_recovery::{
-    plan_recovery, FeedDisposition, RecoveryDecision, RecoveryError, RecoveryFault, RecoveryFence,
-    RecoveryInput, RecoveryPhase, RecoveryPlan, UI_RECOVERY_SCHEMA,
-};
-pub use ui_budget::{
-    evaluate_budget, UiBudgetDecision, UiBudgetError, UiBudgetSurface, UiResourceBudget,
-    UiResourceUsage, UI_RESOURCE_BUDGET_SCHEMA,
-};
 pub use legacy_migration::{
     map_legacy_route, validate_mapping, LegacyMigrationError, LegacyRouteMapping, LegacySurface,
     MigrationDisposition, LEGACY_MIGRATION_SCHEMA,
-};
-pub use conformance::{
-    compare_conformance, ConformanceError, ConformanceReport, ConformanceTrace,
-    UI_CONFORMANCE_SCHEMA,
 };
 pub use live_acp::{
     LiveAcpError, LiveAcpOptIn, LiveAcpSession, LiveAcpState, LiveAcpTransport,
@@ -81,11 +69,23 @@ pub use live_acp::{
     LIVE_ACP_OPT_IN_SCHEMA,
 };
 pub use provider_diagnostics::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientState};
+pub use surface_parity::{
+    compare_surface_traces, ParitySurface, SurfaceParityError, SurfaceParityReport, SurfaceTrace,
+    SURFACE_PARITY_SCHEMA,
+};
 pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
     UiCommandStatusV1, UiHistoryV1, UI_HISTORY_SCHEMA,
+};
+pub use ui_budget::{
+    evaluate_budget, UiBudgetDecision, UiBudgetError, UiBudgetSurface, UiResourceBudget,
+    UiResourceUsage, UI_RESOURCE_BUDGET_SCHEMA,
+};
+pub use ui_recovery::{
+    plan_recovery, FeedDisposition, RecoveryDecision, RecoveryError, RecoveryFault, RecoveryFence,
+    RecoveryInput, RecoveryPhase, RecoveryPlan, UI_RECOVERY_SCHEMA,
 };
 pub use ui_schema_generated::{
     schema_contract, UiSchemaContract, UI_SCHEMA_CONTRACTS, UI_SCHEMA_LOCK_SCHEMA,

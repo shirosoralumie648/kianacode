@@ -1,6 +1,5 @@
 use kiana_domain::{
-    json_digest, project_ui_snapshot, RequestId, RuntimeEvent, UiSnapshotEntryKind,
-    UiSnapshotQuery,
+    json_digest, project_ui_snapshot, RequestId, RuntimeEvent, UiSnapshotEntryKind, UiSnapshotQuery,
 };
 use serde_json::json;
 

@@ -7,8 +7,7 @@ pub(crate) use kiana_domain::{
 pub(crate) fn redact_capability_result(result: CapabilityResult) -> CapabilityResult {
     let output = redact_event_value(&result.output);
     let output_safe =
-        kiana_domain::scan_secret_value(kiana_domain::SecretScanChannel::Receipt, &output)
-            .is_ok();
+        kiana_domain::scan_secret_value(kiana_domain::SecretScanChannel::Receipt, &output).is_ok();
     let output = if output_safe {
         output
     } else {

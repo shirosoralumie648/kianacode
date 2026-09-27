@@ -34,8 +34,15 @@ async fn secret_sentinel_is_rejected_before_eventlog_fact_creation() {
     )
     .expect("fixture event");
     assert!(store.append(event).await.is_err());
-    assert!(store.read_all().await.expect("read empty journal").is_empty());
-    assert!(!path.exists(), "denied append must not create journal facts");
+    assert!(store
+        .read_all()
+        .await
+        .expect("read empty journal")
+        .is_empty());
+    assert!(
+        !path.exists(),
+        "denied append must not create journal facts"
+    );
     cleanup(&path);
 }
 
@@ -63,8 +70,11 @@ async fn journal_hardlink_is_rejected_without_mutating_sibling() {
     let path = temp_path("hardlink");
     let sibling = temp_path("hardlink-sibling");
     fs::write(&sibling, b"outside").expect("sibling");
-    fs::set_permissions(&sibling, std::os::unix::fs::PermissionsExt::from_mode(0o600))
-        .expect("sibling permissions");
+    fs::set_permissions(
+        &sibling,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .expect("sibling permissions");
     fs::hard_link(&sibling, &path).expect("journal hardlink");
     let error = JsonlEventLog::open(&path).expect_err("hardlink must be denied");
     assert!(error.to_string().contains("hardlink"));
@@ -78,8 +88,11 @@ async fn journal_hardlink_is_rejected_without_mutating_sibling() {
 async fn broad_permissions_are_rejected_for_journal_and_lock_files() {
     let journal = temp_path("permissions-journal");
     fs::write(&journal, b"").expect("journal");
-    fs::set_permissions(&journal, std::os::unix::fs::PermissionsExt::from_mode(0o640))
-        .expect("journal permissions");
+    fs::set_permissions(
+        &journal,
+        std::os::unix::fs::PermissionsExt::from_mode(0o640),
+    )
+    .expect("journal permissions");
     let error = JsonlEventLog::open(&journal).expect_err("broad journal mode must be denied");
     assert!(error.to_string().contains("permissions"));
     cleanup(&journal);
@@ -87,8 +100,11 @@ async fn broad_permissions_are_rejected_for_journal_and_lock_files() {
     let lock = temp_path("permissions-lock");
     let lock_path = lock.with_extension("jsonl.lock");
     fs::write(&lock_path, b"").expect("lock");
-    fs::set_permissions(&lock_path, std::os::unix::fs::PermissionsExt::from_mode(0o640))
-        .expect("lock permissions");
+    fs::set_permissions(
+        &lock_path,
+        std::os::unix::fs::PermissionsExt::from_mode(0o640),
+    )
+    .expect("lock permissions");
     let error = JsonlEventLog::open(&lock).expect_err("broad lock mode must be denied");
     assert!(error.to_string().contains("permissions"));
     cleanup(&lock);

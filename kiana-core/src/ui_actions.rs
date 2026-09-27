@@ -8,8 +8,7 @@
 use super::*;
 use kiana_domain::{
     derived_request_id, json_digest, AggregateVersion, CommitOutcome, RuntimeEvent,
-    UiActionCommand, UiActionRecord, UiActionState, UiActionJournal,
-    UI_ACTION_AGGREGATE_TYPE,
+    UiActionCommand, UiActionJournal, UiActionRecord, UiActionState, UI_ACTION_AGGREGATE_TYPE,
 };
 use serde_json::json;
 
@@ -250,7 +249,8 @@ impl ControlPlane {
         now_unix_ms: u64,
     ) -> Result<UiActionRecord, CoreError> {
         let events = read_ui_action_stream(self.events.as_ref(), &action.idempotency_key).await?;
-        let current = latest_record(&events)?.ok_or_else(|| ui_action_error("ui_action_not_accepted"))?;
+        let current =
+            latest_record(&events)?.ok_or_else(|| ui_action_error("ui_action_not_accepted"))?;
         if current.command_digest != action.command_digest {
             return Err(ui_action_error("ui_action_idempotency_digest_mismatch"));
         }
@@ -290,7 +290,8 @@ impl ControlPlane {
         unknown: bool,
     ) -> Result<UiActionRecord, CoreError> {
         let events = read_ui_action_stream(self.events.as_ref(), &action.idempotency_key).await?;
-        let current = latest_record(&events)?.ok_or_else(|| ui_action_error("ui_action_not_accepted"))?;
+        let current =
+            latest_record(&events)?.ok_or_else(|| ui_action_error("ui_action_not_accepted"))?;
         if current.command_digest != action.command_digest {
             return Err(ui_action_error("ui_action_idempotency_digest_mismatch"));
         }
@@ -315,7 +316,10 @@ impl ControlPlane {
             &next,
             kind,
             events.len() as u64 + 1,
-            derived_request_id(&format!("ui.action.{suffix}"), &action.command_id.to_string()),
+            derived_request_id(
+                &format!("ui.action.{suffix}"),
+                &action.command_id.to_string(),
+            ),
             suffix,
         )
         .await?;

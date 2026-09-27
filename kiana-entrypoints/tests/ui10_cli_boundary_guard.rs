@@ -26,7 +26,10 @@ fn cli_contract_is_a_client_boundary_and_has_no_execution_authority() {
         "audit.export",
         "session.query",
     ] {
-        assert!(contract.contains(marker), "UI-10 contract marker missing: {marker}");
+        assert!(
+            contract.contains(marker),
+            "UI-10 contract marker missing: {marker}"
+        );
     }
     assert!(client.contains("KianaClient"));
     assert!(cli.contains("KianaClient"));

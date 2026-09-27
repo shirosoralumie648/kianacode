@@ -36,12 +36,15 @@ fn secret_sentinels_are_rejected_but_opaque_references_are_allowed() {
 
 #[test]
 fn file_identity_rejects_escape_symlink_hardlink_and_broad_permissions() {
-    assert!(StorageFileIdentity::new(DIGEST_A, "../outside", false, false, false, false, None)
-        .is_err());
-    assert!(StorageFileIdentity::new(DIGEST_A, "events.jsonl", true, true, true, false, None)
-        .is_err());
-    assert!(StorageFileIdentity::new(DIGEST_A, "events.jsonl", true, true, false, true, None)
-        .is_err());
+    assert!(
+        StorageFileIdentity::new(DIGEST_A, "../outside", false, false, false, false, None).is_err()
+    );
+    assert!(
+        StorageFileIdentity::new(DIGEST_A, "events.jsonl", true, true, true, false, None).is_err()
+    );
+    assert!(
+        StorageFileIdentity::new(DIGEST_A, "events.jsonl", true, true, false, true, None).is_err()
+    );
     assert!(StorageFileIdentity::new(
         DIGEST_A,
         "events.jsonl",

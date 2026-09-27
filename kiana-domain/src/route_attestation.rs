@@ -195,8 +195,7 @@ impl McpRouteAttestation {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != ROUTE_ATTESTATION_MCP_SCHEMA
-            || self.version != ROUTE_ATTESTATION_VERSION
+        if self.schema != ROUTE_ATTESTATION_MCP_SCHEMA || self.version != ROUTE_ATTESTATION_VERSION
         {
             return Err("route_mcp_header_invalid".to_owned());
         }
@@ -435,10 +434,7 @@ impl RouteAttestation {
         }
         self.context.validate()?;
         self.provider_claim.validate()?;
-        digest(
-            &self.attestation_digest,
-            "route_attestation_digest",
-        )?;
+        digest(&self.attestation_digest, "route_attestation_digest")?;
         if self.attestation_digest != self.digest() {
             return Err("route_attestation_digest_mismatch".to_owned());
         }
@@ -512,8 +508,9 @@ impl RouteAttestation {
 
         let status = match reason {
             "ok" => RouteVerificationStatus::Verified,
-            "route_attestation_prompt_pack_unknown"
-            | "route_attestation_provider_unverified" => RouteVerificationStatus::Unknown,
+            "route_attestation_prompt_pack_unknown" | "route_attestation_provider_unverified" => {
+                RouteVerificationStatus::Unknown
+            }
             _ => RouteVerificationStatus::Blocked,
         };
         RouteVerificationReport::new(
@@ -628,7 +625,10 @@ fn validate_route(route: &ModelRoute) -> Result<(), String> {
     bounded(&route.connection_id, "route_connection")?;
     bounded(&route.model_id, "route_model")?;
     bounded(&route.profile, "route_profile")?;
-    bounded(&route.configuration_revision, "route_configuration_revision")
+    bounded(
+        &route.configuration_revision,
+        "route_configuration_revision",
+    )
 }
 
 fn bounded(value: &str, field: &str) -> Result<(), String> {

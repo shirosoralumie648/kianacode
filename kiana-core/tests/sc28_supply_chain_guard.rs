@@ -20,7 +20,10 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "supply-chain-scan.sh",
         "upload-artifact@v4",
     ] {
-        assert!(workflow.contains(marker), "SC-28 workflow marker missing: {marker}");
+        assert!(
+            workflow.contains(marker),
+            "SC-28 workflow marker missing: {marker}"
+        );
     }
     assert!(!workflow.contains("continue-on-error: true"));
     for marker in [
@@ -32,7 +35,10 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "SC28_MAX_CRITICAL_ADVISORIES",
         "lock_dirty",
     ] {
-        assert!(scanner.contains(marker), "SC-28 scanner marker missing: {marker}");
+        assert!(
+            scanner.contains(marker),
+            "SC-28 scanner marker missing: {marker}"
+        );
     }
     for marker in [
         "CycloneDX",
@@ -43,13 +49,36 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "quarantined",
         "automatic_release_allowed",
     ] {
-        assert!(normalizer.contains(marker), "SC-28 normalizer marker missing: {marker}");
+        assert!(
+            normalizer.contains(marker),
+            "SC-28 normalizer marker missing: {marker}"
+        );
     }
-    for marker in ["[advisories]", "[licenses]", "[bans]", "[sources]", "unknown-registry", "unknown-git"] {
+    for marker in [
+        "[advisories]",
+        "[licenses]",
+        "[bans]",
+        "[sources]",
+        "unknown-registry",
+        "unknown-git",
+    ] {
         assert!(deny.contains(marker), "deny.toml marker missing: {marker}");
     }
-    for marker in ["SBOM", "SPDX", "CycloneDX", "Cargo.lock", "advisory", "license", "quarantine", "limitations", "reviewer"] {
-        assert!(baseline.contains(marker), "SC-28 baseline marker missing: {marker}");
+    for marker in [
+        "SBOM",
+        "SPDX",
+        "CycloneDX",
+        "Cargo.lock",
+        "advisory",
+        "license",
+        "quarantine",
+        "limitations",
+        "reviewer",
+    ] {
+        assert!(
+            baseline.contains(marker),
+            "SC-28 baseline marker missing: {marker}"
+        );
     }
     for marker in [
         "set -euo pipefail",
@@ -58,7 +87,10 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "lockfile_drift",
         "automatic_release_allowed",
     ] {
-        assert!(validator.contains(marker), "SC-28 validator marker missing: {marker}");
+        assert!(
+            validator.contains(marker),
+            "SC-28 validator marker missing: {marker}"
+        );
     }
     assert!(current_status.contains("### SC-28"));
     assert!(roadmap.contains("<a id=\"step-sc-28\"></a>SC-28"));

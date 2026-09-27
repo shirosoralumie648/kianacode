@@ -155,19 +155,13 @@ pub trait EnvironmentPort: Send + Sync {
 /// call a model or capability broker, or substitute a pid for the operation lease.
 #[async_trait]
 pub trait SupervisorPort: Send + Sync {
-    async fn start(
-        &self,
-        _request: SupervisorRequest,
-    ) -> Result<SupervisorObservation, PortError> {
+    async fn start(&self, _request: SupervisorRequest) -> Result<SupervisorObservation, PortError> {
         Err(PortError::Unavailable(
             "supervisor_start_unsupported".to_owned(),
         ))
     }
 
-    async fn stop(
-        &self,
-        _request: SupervisorRequest,
-    ) -> Result<SupervisorObservation, PortError> {
+    async fn stop(&self, _request: SupervisorRequest) -> Result<SupervisorObservation, PortError> {
         Err(PortError::Unavailable(
             "supervisor_stop_unsupported".to_owned(),
         ))

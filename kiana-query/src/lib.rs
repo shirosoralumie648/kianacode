@@ -12,6 +12,8 @@
 //! 这里的序列化结构和结果报告是当前实现的本地契约；字段存在不表示所有入口都已经接入，
 //! 也不自动提供 durable、live 或 physical 证明。
 pub mod allocation_projector;
+pub mod billing_api;
+pub mod billing_ledger_projector;
 pub mod cache_policy;
 pub mod chunker;
 pub mod config;
@@ -21,8 +23,6 @@ pub mod context_inputs;
 pub mod context_manifest;
 pub mod cost_ledger_projector;
 pub mod cost_projector;
-pub mod billing_ledger_projector;
-pub mod billing_api;
 pub mod data_boundary;
 pub mod deps;
 pub mod hook_cancellation;
@@ -30,9 +30,9 @@ pub mod hook_lifecycle_dispatch;
 pub mod hook_outcome;
 pub mod hook_receipt;
 pub mod index;
-pub mod oauth_accounts;
 pub mod index_generation;
 pub mod index_invalidation;
+pub mod oauth_accounts;
 pub mod repo_map;
 pub mod repo_map_task;
 pub mod stop_hooks;
@@ -47,6 +47,13 @@ pub use allocation_projector::{
     COST_ALLOCATION_PROJECTION_VERSION,
 };
 
+pub use billing_api::{query_billing_projection, BillingQueryError, BILLING_QUERY_API_SCHEMA};
+pub use billing_ledger_projector::{
+    billing_source_is_rebuildable, project_billing_ledger, BillingLedgerProjectionError,
+    BillingLedgerProjector, BillingSourceEvent, BILLING_LEDGER_PROJECTOR_IS_READ_ONLY,
+    BILLING_LEDGER_PROJECTOR_SCHEMA, BILLING_LEDGER_PROJECTOR_VERSION,
+    BILLING_PROJECTOR_NO_FACT_WRITES,
+};
 pub use cache_policy::{ContextCacheDecision, ContextCacheStatus, CONTEXT_CACHE_DECISION_SCHEMA};
 pub use chunker::{chunk_text, ChunkingOptions};
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
@@ -71,15 +78,6 @@ pub use cost_projector::{
     project_cost_receipt, project_receipt_cost, CostQueryProjectionError, CostReceiptProjection,
     COST_QUERY_PROJECTION_SCHEMA, COST_QUERY_PROJECTION_VERSION,
 };
-pub use billing_ledger_projector::{
-    billing_source_is_rebuildable, project_billing_ledger, BillingLedgerProjectionError,
-    BillingLedgerProjector, BillingSourceEvent, BILLING_LEDGER_PROJECTOR_IS_READ_ONLY,
-    BILLING_LEDGER_PROJECTOR_SCHEMA, BILLING_LEDGER_PROJECTOR_VERSION,
-    BILLING_PROJECTOR_NO_FACT_WRITES,
-};
-pub use billing_api::{
-    query_billing_projection, BillingQueryError, BILLING_QUERY_API_SCHEMA,
-};
 pub use data_boundary::{QueryDataBoundary, QueryDataDisposition, QUERY_DATA_BOUNDARY_SCHEMA};
 pub use deps::QueryDeps;
 pub use hook_cancellation::{
@@ -95,7 +93,6 @@ pub use hook_receipt::{
     hook_receipt_digest, replay_hook_receipt, HookCleanupState, HookReceipt, HookReplayView,
     HOOK_RECEIPT_SCHEMA,
 };
-pub use oauth_accounts::{project_oauth_accounts, OAuthAccountQueryPage, OAUTH_ACCOUNT_QUERY_SCHEMA};
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
@@ -119,6 +116,9 @@ pub use index_generation::{
 };
 pub use index_invalidation::{
     governed_index_invalidation, index_read_allowed, plan_index_invalidation,
+};
+pub use oauth_accounts::{
+    project_oauth_accounts, OAuthAccountQueryPage, OAUTH_ACCOUNT_QUERY_SCHEMA,
 };
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use repo_map_task::select_repo_map_for_task;

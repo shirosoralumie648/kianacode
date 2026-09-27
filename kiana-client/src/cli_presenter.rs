@@ -187,8 +187,8 @@ pub fn present_cli_output(
 fn present_json(output: &CliOutput, exit_code: CliExitCode) -> Result<CliPresentation, String> {
     // `validate` above bounds this value and rejects ANSI/secret fields.  Serializing the DTO as
     // one line keeps it safe for shell pipelines and preserves structured errors verbatim.
-    let mut encoded = serde_json::to_string(output)
-        .map_err(|_| "cli_json_encode_failed".to_owned())?;
+    let mut encoded =
+        serde_json::to_string(output).map_err(|_| "cli_json_encode_failed".to_owned())?;
     encoded.push('\n');
     let warnings = render_warnings(output, CliLocale::English);
     let (stdout, stderr) = if exit_code.is_success() {

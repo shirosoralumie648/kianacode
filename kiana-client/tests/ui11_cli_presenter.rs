@@ -1,6 +1,6 @@
 use kiana_client::{
-    present_cli_output, CliCommand, CliCommandId, CliExitCode, CliLocale, CliOutput,
-    CliOutputMode, CliPresenterOptions, CliSignal,
+    present_cli_output, CliCommand, CliCommandId, CliExitCode, CliLocale, CliOutput, CliOutputMode,
+    CliPresenterOptions, CliSignal,
 };
 use kiana_protocol::{ExecutionStatus, RequestId};
 use serde_json::{json, Value};
@@ -61,8 +61,8 @@ fn json_success_is_one_schema_dto_on_stdout_and_has_no_decorations() {
 
     let warning_output = output(CliOutputMode::Json, ExecutionStatus::Completed, None)
         .with_warnings(["stale cache".to_owned()]);
-    let warning_presentation = present_cli_output(&warning_output, CliPresenterOptions::default())
-        .unwrap();
+    let warning_presentation =
+        present_cli_output(&warning_output, CliPresenterOptions::default()).unwrap();
     assert!(warning_presentation.stdout.starts_with('{'));
     assert!(warning_presentation.stderr.contains("warning: stale cache"));
 }
@@ -123,7 +123,11 @@ fn tty_requires_a_tty_paginates_only_in_tty_and_keeps_warnings_off_stdout() {
 
 #[test]
 fn quiet_mode_suppresses_stdout_and_bounds_tty_artifacts() {
-    let quiet = output(CliOutputMode::Quiet, ExecutionStatus::Denied, Some("permission_denied"));
+    let quiet = output(
+        CliOutputMode::Quiet,
+        ExecutionStatus::Denied,
+        Some("permission_denied"),
+    );
     let presentation = present_cli_output(&quiet, CliPresenterOptions::default()).unwrap();
     assert!(presentation.stdout.is_empty());
     assert!(presentation.stderr.contains("permission_denied"));
@@ -146,7 +150,11 @@ fn quiet_mode_suppresses_stdout_and_bounds_tty_artifacts() {
 
 #[test]
 fn json_rejects_ansi_in_diagnostics_and_secret_or_oversized_warnings() {
-    let ansi = output(CliOutputMode::Json, ExecutionStatus::Completed, Some("\u{1b}[31mred"));
+    let ansi = output(
+        CliOutputMode::Json,
+        ExecutionStatus::Completed,
+        Some("\u{1b}[31mred"),
+    );
     assert_eq!(ansi.validate().unwrap_err(), "cli_output_error_invalid");
 
     let secret = output(CliOutputMode::Json, ExecutionStatus::Completed, None)
@@ -155,5 +163,8 @@ fn json_rejects_ansi_in_diagnostics_and_secret_or_oversized_warnings() {
 
     let oversized = output(CliOutputMode::Json, ExecutionStatus::Completed, None)
         .with_warnings(["x".repeat(513)]);
-    assert_eq!(oversized.validate().unwrap_err(), "cli_output_warning_invalid");
+    assert_eq!(
+        oversized.validate().unwrap_err(),
+        "cli_output_warning_invalid"
+    );
 }

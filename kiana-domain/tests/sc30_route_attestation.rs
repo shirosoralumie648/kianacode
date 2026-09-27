@@ -212,7 +212,10 @@ fn policy_credential_account_audience_and_mcp_transport_drift_is_denied() {
         true,
     );
     assert_eq!(
-        http_attestation.verify(&http_attestation.context).unwrap().reason,
+        http_attestation
+            .verify(&http_attestation.context)
+            .unwrap()
+            .reason,
         "route_attestation_mcp_transport_unsupported"
     );
 }

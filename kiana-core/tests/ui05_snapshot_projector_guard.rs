@@ -27,9 +27,7 @@ fn snapshot_projector_keeps_cursor_retention_lag_and_owner_boundaries() {
         "persisted_events",
     ] {
         assert!(
-            domain.contains(marker)
-                || daemon.contains(marker)
-                || protocol.contains(marker),
+            domain.contains(marker) || daemon.contains(marker) || protocol.contains(marker),
             "UI-05 source marker missing: {marker}"
         );
     }
@@ -44,7 +42,10 @@ fn snapshot_projector_keeps_cursor_retention_lag_and_owner_boundaries() {
         "proof_level",
         "source",
     ] {
-        assert!(baseline.contains(marker), "UI-05 baseline marker missing: {marker}");
+        assert!(
+            baseline.contains(marker),
+            "UI-05 baseline marker missing: {marker}"
+        );
     }
     assert!(daemon.contains("ui_snapshot_projection_unknown"));
     assert!(!daemon.contains("CapabilityBroker::new"));

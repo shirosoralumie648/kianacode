@@ -5,11 +5,16 @@ mod apply_patch;
 mod approval_store;
 mod authn;
 mod company_dispatch;
-mod connectors;
 mod connector_ingress;
+mod connectors;
 pub mod container_environment;
 mod context_query;
 mod data_governance;
+mod deployment_admission;
+mod deployment_capacity;
+mod deployment_observability;
+mod deployment_reconcile;
+mod deployment_shutdown;
 pub mod eval_runtime;
 mod execution_control;
 mod execution_output;
@@ -20,37 +25,32 @@ mod harness_mcp;
 mod harness_memory;
 mod harness_sandbox;
 mod harness_skills;
+mod health_aggregation;
 mod instance;
 mod journal_approvals;
 mod local_packages;
 mod mcp_connector;
 mod mcp_http;
 mod mcp_stdio;
-mod oauth_accounts;
 mod memory_retrieval;
 mod model_client;
+mod notification_stream;
+mod oauth_accounts;
+mod ops_diagnostics;
 mod pre_tool_hooks;
 mod process_supervisor;
-mod supervisor_adapters;
-mod startup_coordinator;
-mod health_aggregation;
-mod deployment_admission;
-mod deployment_shutdown;
-mod deployment_observability;
-mod deployment_reconcile;
-mod deployment_capacity;
-mod ops_diagnostics;
-mod run_stream;
 mod restore_verifier;
-mod notification_stream;
+mod run_stream;
 mod shell_plan;
+mod startup_coordinator;
 mod storage;
+mod supervisor_adapters;
 mod workflow_ingress;
 mod workflow_service;
 mod workspace_checkpoints;
 
 pub use authn::LocalAuthnAdapter;
-pub use oauth_accounts::InMemoryOAuthAccountStore;
+pub use connector_ingress::ConnectorIngressVerifier;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
 };
@@ -59,19 +59,15 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
-    AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
-    CredentialRecoveryProjection, DepartmentSpec, HealthProbeKind, HealthSnapshot,
-    HealthAggregationInput, HealthAggregationReport,
-    DeploymentAdmissionDecision, DeploymentAdmissionInput,
-    ShutdownInput, ShutdownReport,
-    LifecycleEvidenceBundle,
-    ReconcileInput, ReconcileReport,
-    CapacityInput, CapacityReport,
-    OpsDiagnosticsInput, OpsDiagnosticsMode, OpsDiagnosticsReport,
-    IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
-    ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
-    RuntimeEvent, StartupCoordinatorReport, StartupCoordinatorRequest, UiActionCommand,
-    UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
+    project_ui_snapshot, AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent,
+    ComponentHealth, ComponentHealthState, CredentialRecoveryProjection, DepartmentSpec,
+    DeploymentAdmissionDecision, DeploymentAdmissionInput, HealthAggregationInput,
+    HealthAggregationReport, HealthProbeKind, HealthSnapshot, IdentityMigration,
+    LifecycleEvidenceBundle, OperatorEvidenceSnapshot, OpsDiagnosticsInput, OpsDiagnosticsMode,
+    OpsDiagnosticsReport, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
+    ReconcileInput, ReconcileReport, RequestContext, ResolvedAssignment, RoleSpec, RunId,
+    RuntimeEvent, ShutdownInput, ShutdownReport, StartupCoordinatorReport,
+    StartupCoordinatorRequest, UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -86,23 +82,23 @@ use kiana_protocol::{
     UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
 };
 use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
-use run_stream::RunStreamBus;
-pub use run_stream::{
-    RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription, UiFeedBackpressureMetrics,
-    UI_FEED_QUEUE_CAPACITY,
-};
 pub use notification_stream::{
     NotificationStreamBridge, NotificationStreamCursor, NotificationStreamDisposition,
     NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,
 };
+pub use oauth_accounts::InMemoryOAuthAccountStore;
 pub use restore_verifier::verify_restore;
-pub use connector_ingress::ConnectorIngressVerifier;
+use run_stream::RunStreamBus;
+pub use run_stream::{
+    RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription,
+    UiFeedBackpressureMetrics, UI_FEED_QUEUE_CAPACITY,
+};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 pub use storage::{resolve_storage_root, StorageLease};
-pub use workflow_ingress::WorkflowEventVerifier;
 pub use supervisor_adapters::NarrowSupervisorAdapter;
+pub use workflow_ingress::WorkflowEventVerifier;
 pub use workflow_service::{
     WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
 };
@@ -535,9 +531,7 @@ impl DaemonHost {
     }
 
     pub fn feed_heartbeat(&self, run_id: RunId) -> Result<UiFeedFrameV1, PortError> {
-        self.run_stream
-            .heartbeat(run_id)
-            .map_err(PortError::Failed)
+        self.run_stream.heartbeat(run_id).map_err(PortError::Failed)
     }
 
     pub fn ui_cursor(&self) -> UiCursor {
@@ -1016,10 +1010,7 @@ impl DaemonHost {
     }
 
     #[allow(clippy::unused_self)]
-    pub fn deployment_shutdown(
-        &self,
-        input: &ShutdownInput,
-    ) -> Result<ShutdownReport, PortError> {
+    pub fn deployment_shutdown(&self, input: &ShutdownInput) -> Result<ShutdownReport, PortError> {
         deployment_shutdown::evaluate(input)
     }
 
@@ -1052,19 +1043,13 @@ impl DaemonHost {
 
     /// Evaluate an explicit, read-only projector/index/queue/lease reconcile decision.
     #[allow(clippy::unused_self)]
-    pub fn ops_reconcile(
-        &self,
-        input: &ReconcileInput,
-    ) -> Result<ReconcileReport, PortError> {
+    pub fn ops_reconcile(&self, input: &ReconcileInput) -> Result<ReconcileReport, PortError> {
         deployment_reconcile::evaluate(input)
     }
 
     /// Evaluate a read-only bounded capacity/backpressure/shutdown-limit report.
     #[allow(clippy::unused_self)]
-    pub fn deployment_capacity(
-        &self,
-        input: &CapacityInput,
-    ) -> Result<CapacityReport, PortError> {
+    pub fn deployment_capacity(&self, input: &CapacityInput) -> Result<CapacityReport, PortError> {
         deployment_capacity::evaluate(input)
     }
 
@@ -1235,11 +1220,7 @@ impl DaemonHost {
         )
         .with_role_step_limits(runtime_config.max_steps_override)
         .with_workspace_checkpoints(Arc::new(workspace_checkpoints::LocalWorkspaceCheckpoints));
-        let mut host = Self::with_run_stream(
-            Arc::new(core),
-            project_authority,
-            run_stream,
-        );
+        let mut host = Self::with_run_stream(Arc::new(core), project_authority, run_stream);
         host.extensions = Some(extensions);
         Ok(host)
     }
@@ -1810,12 +1791,10 @@ fn request_may_execute(body: &RequestBody) -> bool {
             | "workspace.checkpoint.list"
             | "workspace.checkpoint.preview" => false,
             "memory.distill" | "extension.manage" | "connector.manage" | "connector.health"
-            | "data.governance" => {
-                !matches!(
-                    command.arguments["action"].as_str(),
-                    None | Some("list" | "search" | "show" | "status" | "inspect" | "preview")
-                )
-            }
+            | "data.governance" => !matches!(
+                command.arguments["action"].as_str(),
+                None | Some("list" | "search" | "show" | "status" | "inspect" | "preview")
+            ),
             "extension.list" | "extension.inspect" => false,
             _ => true,
         },

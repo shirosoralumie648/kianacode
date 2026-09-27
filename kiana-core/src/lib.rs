@@ -8,6 +8,9 @@ mod audit_export;
 mod audit_projection;
 mod authority;
 mod authority_read_model;
+mod automation_release_evidence;
+mod automation_snapshot;
+mod automation_surface_uat;
 mod billing_allocation;
 mod billing_invoice;
 mod billing_projection;
@@ -15,89 +18,79 @@ mod billing_recovery;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
+mod change_contract;
+mod ci12_product_gate;
 mod clarification;
+mod closing_receipt;
 mod collaboration;
 mod commands;
 mod communication;
 mod company;
-mod company_governance;
 mod company_evidence;
-mod company_review;
-mod packet_acceptance;
-mod milestone_acceptance;
-mod project_acceptance;
-mod rework_contract;
-mod change_contract;
-mod project_control;
-mod company_reconciliation;
-mod delivery_manifest;
-mod delivery_authorization;
-mod closing_receipt;
-mod outcome_measurement;
-mod company_knowledge;
-mod company_read_model;
+mod company_governance;
 mod company_inbox;
-mod company_recovery;
-mod company_parallel;
 mod company_integration;
+mod company_knowledge;
+mod company_parallel;
 mod company_portfolio;
-mod company_template_registry;
 mod company_process;
-mod control_plane_authority;
-mod control_plane_product_flow;
-mod er31_fault_matrix;
-mod er32_adapter_conformance;
-mod er33_capacity_migration;
-mod er34_durable_gate;
-mod ci12_product_gate;
-mod automation_snapshot;
-mod automation_surface_uat;
-mod automation_release_evidence;
+mod company_read_model;
+mod company_reconciliation;
+mod company_recovery;
+mod company_review;
+mod company_template_registry;
 mod connector_quota;
 mod connector_reservation;
 mod connectors;
 mod context_query;
+mod control_plane_authority;
+mod control_plane_product_flow;
 mod cost_correction;
 mod credential_recovery;
 mod data_governance;
 mod deletion;
-mod deployment_compatibility;
+mod delivery_authorization;
+mod delivery_manifest;
 mod deployment_admission;
-mod deployment_shutdown;
-mod deployment_observability;
-mod deployment_reconcile;
 mod deployment_capacity;
-mod ops_diagnostics;
+mod deployment_compatibility;
 mod deployment_config;
+mod deployment_lease;
+mod deployment_observability;
+mod deployment_operation;
+mod deployment_reconcile;
+mod deployment_release;
+mod deployment_shutdown;
 mod deployment_startup;
 mod deployment_supervisor;
-mod deployment_operation;
-mod deployment_lease;
-mod deployment_release;
-mod storage_preflight;
 mod dispatch;
 mod effect_usage_projection;
+mod er31_fault_matrix;
+mod er32_adapter_conformance;
+mod er33_capacity_migration;
+mod er34_durable_gate;
 mod eval;
 mod events;
 mod fallback_admission;
 mod fault_injection;
+mod milestone_acceptance;
+mod ops_diagnostics;
+mod outcome_measurement;
+mod packet_acceptance;
+mod project_acceptance;
+mod project_control;
+mod rework_contract;
+mod storage_preflight;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
-mod connector_mapping;
-mod connector_propagation;
-mod connector_notifications;
-mod connector_surfaces;
-mod connector_recovery;
 mod connector_conformance;
+mod connector_mapping;
+mod connector_notifications;
 mod connector_pilot;
+mod connector_propagation;
+mod connector_recovery;
+mod connector_surfaces;
 mod connector_write_pilot;
-mod swarm_merge_reducer;
-mod swarm_merge_review;
-mod swarm_retirement;
-mod swarm_handoff;
-mod swarm_projection;
-mod swarm_release_gate;
-mod restore_verification;
 mod health;
 mod health_aggregation;
 mod history;
@@ -107,7 +100,22 @@ mod invocation_projection;
 mod lifecycle;
 mod memory_distillation;
 mod model_budget;
+mod restore_verification;
+mod swarm_handoff;
+mod swarm_merge_reducer;
+mod swarm_merge_review;
+mod swarm_projection;
+mod swarm_release_gate;
+mod swarm_retirement;
 pub use model_budget::JournalModelBudget;
+mod automation_boot_recovery;
+mod automation_cancellation;
+mod automation_compensation;
+mod automation_dispatch;
+mod automation_effect_reservation;
+mod automation_fanout;
+mod automation_retry;
+mod automation_signal;
 mod capability_attempt_projection;
 mod entrypoint_parity;
 mod memory_proposals;
@@ -134,19 +142,11 @@ mod platform;
 mod projection;
 mod projection_checkpoint;
 mod provider_diagnostics;
-mod quality_gate;
 mod quality_drift;
 mod quality_evidence_archive;
 mod quality_feedback;
+mod quality_gate;
 mod quality_report;
-mod automation_effect_reservation;
-mod automation_dispatch;
-mod automation_retry;
-mod automation_cancellation;
-mod automation_signal;
-mod automation_fanout;
-mod automation_compensation;
-mod automation_boot_recovery;
 mod receipts;
 mod recovery;
 mod redaction;
@@ -181,6 +181,17 @@ pub use authority_read_model::{
     BudgetAuthorityProjection, CellAuthorityProjection, GrantAuthorityProjection,
     LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
 };
+pub use automation_boot_recovery::validate_boot_recovery;
+pub use automation_cancellation::validate_automation_cancel;
+pub use automation_compensation::validate_compensation_plan;
+pub use automation_dispatch::observe_automation_dispatch;
+pub use automation_effect_reservation::reserve_automation_effect;
+pub use automation_fanout::validate_fanout_plan;
+pub use automation_release_evidence::validate_automation_release_gate;
+pub use automation_retry::classify_retry;
+pub use automation_signal::validate_automation_signal_fact;
+pub use automation_snapshot::validate_automation_snapshot;
+pub use automation_surface_uat::validate_automation_surface_uat;
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
 pub use billing_invoice::{
     reject_duplicate_provider_invoices, validate_invoice_comparison, validate_provider_invoice,
@@ -193,33 +204,29 @@ pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,
 };
-pub use restore_verification::validate_restore_verification_fact;
-pub use connector_mapping::validate_connector_object_mapping;
-pub use connector_propagation::validate_connector_propagation_fact;
-pub use connector_notifications::validate_connector_notification;
-pub use connector_surfaces::{validate_connector_query, validate_connector_response};
-pub use connector_recovery::validate_connector_recovery_fact;
-pub use connector_conformance::validate_connector_conformance_report;
-pub use connector_pilot::validate_connector_pilot_gate;
-pub use connector_write_pilot::validate_connector_write_pilot_gate;
-pub use swarm_merge_reducer::validate_swarm_merge;
-pub use swarm_merge_review::{validate_swarm_receipt, validate_swarm_review};
-pub use swarm_retirement::validate_swarm_retirement_fact;
-pub use swarm_handoff::validate_swarm_handoff_record;
-pub use swarm_projection::validate_swarm_projection_event_fact;
-pub use swarm_release_gate::validate_swarm_release_evidence;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
+pub use ci12_product_gate::validate_ci12_product_gate;
 pub use clarification::{
     clarification_human_inbox_item, commit_clarification_answer, ClarificationCommit,
     CLARIFICATION_CORE_SCHEMA,
 };
 pub use company::validate_company_assignment;
 pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
+pub use connector_conformance::validate_connector_conformance_report;
+pub use connector_mapping::validate_connector_object_mapping;
+pub use connector_notifications::validate_connector_notification;
+pub use connector_pilot::validate_connector_pilot_gate;
+pub use connector_propagation::validate_connector_propagation_fact;
 pub use connector_quota::ControlPlaneConnectorQuota;
+pub use connector_recovery::validate_connector_recovery_fact;
 pub use connector_reservation::ControlPlaneConnectorReservation;
+pub use connector_surfaces::{validate_connector_query, validate_connector_response};
+pub use connector_write_pilot::validate_connector_write_pilot_gate;
+pub use control_plane_authority::validate_control_plane_authority_scenario;
+pub use control_plane_product_flow::validate_control_plane_product_bundle;
 pub use cost_correction::{CostCorrectionAdmission, CostCorrectionAdmissionError};
 pub use credential_recovery::{
     explicit_re_admit_credential_recovery, project_credential_recovery,
@@ -233,22 +240,18 @@ pub use data_governance::{
 pub use deletion::{
     plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
 };
-pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_admission::{evaluate_admission, validate_admission_decision};
-pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
-pub use deployment_observability::validate_deployment_observability;
-pub use deployment_reconcile::{evaluate_reconcile, validate_reconcile_report};
 pub use deployment_capacity::{evaluate_capacity, validate_capacity_report};
-pub use ops_diagnostics::{
-    evaluate_ops_diagnostics, evaluate_ops_mode, validate_ops_diagnostics,
-};
+pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_config::validate_deployment_config_snapshot;
+pub use deployment_lease::validate_operation_lease_cas;
+pub use deployment_observability::validate_deployment_observability;
+pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
+pub use deployment_reconcile::{evaluate_reconcile, validate_reconcile_report};
+pub use deployment_release::validate_deployment_release;
+pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
 pub use deployment_startup::{evaluate_startup, validate_startup_report};
 pub use deployment_supervisor::validate_supervisor_observation;
-pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
-pub use deployment_lease::validate_operation_lease_cas;
-pub use storage_preflight::{evaluate_storage_preflight, validate_storage_preflight_report};
-pub use deployment_release::validate_deployment_release;
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
 };
@@ -256,41 +259,15 @@ pub use entrypoint_parity::{
     EntrypointCommand, EntrypointDecision, EntrypointParityMatrix, ENTRYPOINT_COMMAND_SCHEMA,
     ENTRYPOINT_PARITY_MATRIX_SCHEMA, ENTRYPOINT_PARITY_VERSION, ENTRYPOINT_ROUTE,
 };
-pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
-pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
-pub use quality_drift::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
-pub use quality_evidence_archive::validate_quality_evidence_archive;
-pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
-pub use automation_effect_reservation::reserve_automation_effect;
-pub use automation_dispatch::observe_automation_dispatch;
-pub use automation_retry::classify_retry;
-pub use automation_cancellation::validate_automation_cancel;
-pub use automation_signal::validate_automation_signal_fact;
-pub use automation_fanout::validate_fanout_plan;
-pub use automation_compensation::validate_compensation_plan;
-pub use automation_boot_recovery::validate_boot_recovery;
-pub use swarm_admission::admit_swarm_resources;
-pub use swarm_queue::{claim_swarm_entry, complete_swarm_entry, enqueue_swarm_entry};
-pub use swarm_child::materialize_child;
-pub use swarm_routing::validate_child_route;
-pub use swarm_progress::record_swarm_progress;
-pub use swarm_cancellation::validate_child_cancellation;
-pub use swarm_recovery::validate_child_recovery;
-pub use swarm_child_result::validate_child_result;
-pub use fallback_admission::ControlPlaneFallbackAdmission;
-pub use fault_injection::{
-    fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
-};
-pub use control_plane_authority::validate_control_plane_authority_scenario;
-pub use control_plane_product_flow::validate_control_plane_product_bundle;
 pub use er31_fault_matrix::validate_er31_fault_matrix;
 pub use er32_adapter_conformance::validate_er32_conformance_report;
 pub use er33_capacity_migration::validate_er33_capacity_migration_drill;
 pub use er34_durable_gate::validate_er34_durable_gate_evidence;
-pub use ci12_product_gate::validate_ci12_product_gate;
-pub use automation_snapshot::validate_automation_snapshot;
-pub use automation_surface_uat::validate_automation_surface_uat;
-pub use automation_release_evidence::validate_automation_release_gate;
+pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
+pub use fallback_admission::ControlPlaneFallbackAdmission;
+pub use fault_injection::{
+    fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
+};
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use health_aggregation::{aggregate_health, validate_health_aggregation};
 pub use hook_reauthorization::*;
@@ -357,6 +334,7 @@ pub use notification_store::{
     NOTIFICATION_STORE_SCHEMA,
 };
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
+pub use ops_diagnostics::{evaluate_ops_diagnostics, evaluate_ops_mode, validate_ops_diagnostics};
 pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use performance::{
     build_performance_baseline, percentile_micros, summarize_benchmark, PerformanceError,
@@ -370,9 +348,14 @@ pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, Replay
 pub use provider_diagnostics::{
     project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
 };
+pub use quality_drift::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
+pub use quality_evidence_archive::validate_quality_evidence_archive;
+pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
+pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
 pub use receipts::aggregate_receipt_facts;
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;
+pub use restore_verification::validate_restore_verification_fact;
 pub use retention::scan_retention;
 pub use security_authority::{
     SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
@@ -380,6 +363,21 @@ pub use security_authority::{
 };
 pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
+pub use storage_preflight::{evaluate_storage_preflight, validate_storage_preflight_report};
+pub use swarm_admission::admit_swarm_resources;
+pub use swarm_cancellation::validate_child_cancellation;
+pub use swarm_child::materialize_child;
+pub use swarm_child_result::validate_child_result;
+pub use swarm_handoff::validate_swarm_handoff_record;
+pub use swarm_merge_reducer::validate_swarm_merge;
+pub use swarm_merge_review::{validate_swarm_receipt, validate_swarm_review};
+pub use swarm_progress::record_swarm_progress;
+pub use swarm_projection::validate_swarm_projection_event_fact;
+pub use swarm_queue::{claim_swarm_entry, complete_swarm_entry, enqueue_swarm_entry};
+pub use swarm_recovery::validate_child_recovery;
+pub use swarm_release_gate::validate_swarm_release_evidence;
+pub use swarm_retirement::validate_swarm_retirement_fact;
+pub use swarm_routing::validate_child_route;
 pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
@@ -561,13 +559,13 @@ mod automation;
 
 mod swarm;
 mod swarm_admission;
-mod swarm_queue;
-mod swarm_child;
-mod swarm_routing;
-mod swarm_progress;
 mod swarm_cancellation;
-mod swarm_recovery;
+mod swarm_child;
 mod swarm_child_result;
+mod swarm_progress;
+mod swarm_queue;
+mod swarm_recovery;
+mod swarm_routing;
 
 mod company_business;
 mod company_scope;

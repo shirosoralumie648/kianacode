@@ -216,7 +216,9 @@ impl ExtensionVisibilityEntry {
             return Err("extension_visibility_untrusted_entry".to_owned());
         }
         if self.status == ExtensionVisibilityStatus::Unsupported
-            && self.actions.contains(&ExtensionVisibilityActionKind::Activate)
+            && self
+                .actions
+                .contains(&ExtensionVisibilityActionKind::Activate)
         {
             return Err("extension_visibility_unsupported_action".to_owned());
         }
@@ -262,7 +264,10 @@ impl ExtensionVisibilitySnapshot {
             return Err("extension_visibility_query_invalid".to_owned());
         }
         let source_snapshot_digest = source_snapshot_digest.into();
-        digest(&source_snapshot_digest, "extension_visibility_source_snapshot")?;
+        digest(
+            &source_snapshot_digest,
+            "extension_visibility_source_snapshot",
+        )?;
         entries.sort_by(|left, right| {
             left.extension_id
                 .cmp(&right.extension_id)
@@ -371,14 +376,20 @@ impl ExtensionVisibilitySnapshot {
             &self.source_snapshot_digest,
             "extension_visibility_source_snapshot",
         )?;
-        digest(&self.snapshot_digest, "extension_visibility_snapshot_digest")?;
+        digest(
+            &self.snapshot_digest,
+            "extension_visibility_snapshot_digest",
+        )?;
         if self.entries.len() > MAX_EXTENSION_VISIBILITY_ENTRIES {
             return Err("extension_visibility_entry_limit".to_owned());
         }
         let mut identities = BTreeSet::new();
         for entry in &self.entries {
             entry.validate()?;
-            if !identities.insert(format!("{}\u{1f}{}", entry.extension_id, entry.component_id)) {
+            if !identities.insert(format!(
+                "{}\u{1f}{}",
+                entry.extension_id, entry.component_id
+            )) {
                 return Err("extension_visibility_duplicate_identity".to_owned());
             }
         }
@@ -443,7 +454,10 @@ impl ExtensionVisibilityAction {
         }
         safe_public_identifier(&self.extension_id, "visibility_extension_id", 256)?;
         required(&self.reason, "extension_visibility_reason", 1_024)?;
-        digest(&self.snapshot_digest, "extension_visibility_snapshot_digest")?;
+        digest(
+            &self.snapshot_digest,
+            "extension_visibility_snapshot_digest",
+        )?;
         digest(&self.action_digest, "extension_visibility_action_digest")?;
         if self.action_digest != self.digest() {
             return Err("extension_visibility_action_digest_mismatch".to_owned());

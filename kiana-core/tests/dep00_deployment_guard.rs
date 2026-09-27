@@ -24,4 +24,3 @@ fn deployment_inventory_keeps_supervision_and_legacy_boundaries_explicit() {
     assert!(baseline.contains("must not be wired into a new deployment path"));
     assert!(baseline.contains("DEP-01 onward"));
 }
-

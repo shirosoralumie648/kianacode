@@ -5,55 +5,18 @@
 //! gate、审批和生命周期。新增字段优先使用 `serde(default)` 保持旧客户端可读取，但这
 //! 只是兼容性策略，不代表缺失字段自动安全或自动允许。
 
-use kiana_domain::{canonical_scopes, CoreResponse};
-pub use kiana_domain::{
-    AllocationCostKind, AllocationScope, CostAllocation, CostAllocationId, SharingGrantRef,
-    WorkflowInstanceId, COST_ALLOCATION_EVENT, COST_ALLOCATION_OPERATION, COST_ALLOCATION_SCHEMA,
-    COST_ALLOCATION_VERSION,
-};
 pub use kiana_domain::json_digest;
-pub use kiana_domain::{
-    NotificationActionCommand, NotificationActionKind, NOTIFICATION_ACTION_COMMAND_SCHEMA,
-};
 pub use kiana_domain::{
     apply_settlement_fold_event, ConsumedUnits, ReservationUnits, SettlementFoldApplyOutcome,
     SettlementFoldEvent, SettlementFoldEventKind, SettlementFoldLedger, SettlementFoldRecord,
     SettlementFoldState, SettlementSourceRef, SettlementUsageClass, SETTLEMENT_FOLD_EVENT_SCHEMA,
     SETTLEMENT_FOLD_SCHEMA, SETTLEMENT_FOLD_VERSION,
 };
-pub use kiana_domain::{
-    ModelAttemptError, ModelAttemptEventKind, ModelAttemptLifecycleEvent,
-    ModelAttemptLifecycleRecord, ModelAttemptState, MODEL_ATTEMPT_EVENT_SCHEMA,
-    MODEL_ATTEMPT_EVENT_VERSION, MODEL_ATTEMPT_LIFECYCLE_SCHEMA, MODEL_ATTEMPT_LIFECYCLE_VERSION,
-};
-pub use kiana_domain::{
-    CostBreakdown, CostBreakdownKind, CostLine, ReceiptCostBreakdown, COST_BREAKDOWN_SCHEMA,
-    COST_BREAKDOWN_VERSION, COST_EVENT_ESTIMATED, COST_EVENT_MEASURED, COST_EVENT_UNKNOWN,
-    RECEIPT_COST_BREAKDOWN_SCHEMA,
-};
-pub use kiana_domain::{
-    CostCorrection, CostCorrectionApproval, CostCorrectionAppendOutcome, CostCorrectionCommand,
-    CostLedger, CostLedgerEntry, CostLedgerEntryKind, CostLedgerView, COST_CORRECTION_APPROVAL_SCHEMA,
-    COST_CORRECTION_COMMAND, COST_CORRECTION_COMMAND_SCHEMA, COST_CORRECTION_EVENT,
-    COST_CORRECTION_SCHEMA, COST_LEDGER_ENTRY_EVENT, COST_LEDGER_ENTRY_SCHEMA,
-    COST_LEDGER_VERSION,
-};
-pub use kiana_domain::{
-    BillingQueryCursor, BillingQueryKind, BillingQueryRequest, BillingQueryResponse,
-    BILLING_QUERY_CURSOR_SCHEMA, BILLING_QUERY_MAX_LIMIT, BILLING_QUERY_RESPONSE_SCHEMA,
-    BILLING_QUERY_SCHEMA,
-};
-pub use kiana_domain::{
-    ConnectorSurface, ConnectorSurfaceCursor, ConnectorSurfaceItem, ConnectorSurfaceQuery,
-    ConnectorSurfaceQueryKind, ConnectorSurfaceResponse, CONNECTOR_SURFACE_CURSOR_SCHEMA,
-    CONNECTOR_SURFACE_MAX_LIMIT, CONNECTOR_SURFACE_QUERY_SCHEMA,
-    CONNECTOR_SURFACE_RESPONSE_SCHEMA,
-};
+use kiana_domain::{canonical_scopes, CoreResponse};
 pub use kiana_domain::{
     normalize_role_path, project_redacted_error, redact_text, scan_secret_channels,
     scan_secret_sentinels, scan_secret_value, ActionRef, ActionRefId, AdapterCommitState,
-    AdapterResult,
-    AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
+    AdapterResult, AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
     ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
     ApprovalId, ApprovalMaterialState, ApprovalPlanPreview, ArtifactId, ArtifactProvenance,
     ArtifactRef, ArtifactVersion, AssignmentDirectory, AssignmentId, AttemptId, AttemptStatus,
@@ -91,17 +54,17 @@ pub use kiana_domain::{
     ExtensionCommandReceipt, ExtensionCommandRequest, ExtensionCommandResponse, ExtensionEffect,
     ExtensionError, ExtensionErrorCode, ExtensionExecutionScope, ExtensionId, ExtensionManifest,
     ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires, ExtensionSignature,
-    ExtensionSnapshot, ExtensionSnapshotState, ExtensionType,
-    ExtensionVisibilityAction, ExtensionVisibilityActionKind, ExtensionVisibilityEntry,
-    ExtensionVisibilityKind, ExtensionVisibilityRisk, ExtensionVisibilitySnapshot,
-    ExtensionVisibilitySource, ExtensionVisibilityStatus, ExtensionVisibilityTrust,
-    ExternalResourceKind, ExternalResourceRequest, ExternalResourceSnapshot, FenceTokenId,
-    Freshness, GoldenContextCase, GoldenContextFixture, GoldenTrace, GoldenTraceId, GrantId,
-    HarnessContextStrategy, HarnessEvalComparison, HarnessEvalMetric, HarnessEvalMetricObservation,
-    HarnessEvalMetricSet, HarnessEvalMetricStatus, HarnessEvalVariant, HarnessExecutionMode,
-    HarnessReplayDifference, HarnessReplayDifferenceKind, HarnessReplayMode, HarnessReplayReport,
-    HarnessTraceBinding, HistoricalReceiptInvalidation, HookBudget, HookDecision, HookDecisionKind,
-    HookDescriptor, HookExecutionRole, HookFailurePolicy, HookLifecycleBinding, HookLifecycleInput,
+    ExtensionSnapshot, ExtensionSnapshotState, ExtensionType, ExtensionVisibilityAction,
+    ExtensionVisibilityActionKind, ExtensionVisibilityEntry, ExtensionVisibilityKind,
+    ExtensionVisibilityRisk, ExtensionVisibilitySnapshot, ExtensionVisibilitySource,
+    ExtensionVisibilityStatus, ExtensionVisibilityTrust, ExternalResourceKind,
+    ExternalResourceRequest, ExternalResourceSnapshot, FenceTokenId, Freshness, GoldenContextCase,
+    GoldenContextFixture, GoldenTrace, GoldenTraceId, GrantId, HarnessContextStrategy,
+    HarnessEvalComparison, HarnessEvalMetric, HarnessEvalMetricObservation, HarnessEvalMetricSet,
+    HarnessEvalMetricStatus, HarnessEvalVariant, HarnessExecutionMode, HarnessReplayDifference,
+    HarnessReplayDifferenceKind, HarnessReplayMode, HarnessReplayReport, HarnessTraceBinding,
+    HistoricalReceiptInvalidation, HookBudget, HookDecision, HookDecisionKind, HookDescriptor,
+    HookExecutionRole, HookFailurePolicy, HookLifecycleBinding, HookLifecycleInput,
     HookLifecyclePlan, HookLifecyclePoint, HookLifecycleResult, HookOrderCandidate, HookPhase,
     HookRunId, HumanDecision, HumanTask, HumanTaskStatus, IdentityMigration, IndexCacheKey,
     IndexComponentKind, IndexGenerationState, IndexGenerationStatus, IndexInvalidationPlan,
@@ -129,21 +92,21 @@ pub use kiana_domain::{
     ProviderDiagnosticError, ProviderDiagnosticStatus, ProviderDiagnosticsCursor,
     ProviderDiagnosticsSnapshot, ProviderDisplayMode, ProviderProfileSnapshot,
     ProviderSelectionMode, ProviderTerminalReplay, ProviderUsageDiagnostic, Purpose,
-    QualityArtifact, QualityArtifactId, QualityArtifactStatus,
-    QualityStateTransition, QualityTransitionId, QueueEntryId, ReceiptAggregation, ReceiptId,
-    RecoveryResourceSnapshot, RepoMapDependencyEdge, RepoMapEvidenceLevel, RepoMapSymbol,
-    RepoMapTaskCandidate, RepoMapTaskSelection, RequestId, ResolvedAssignment, ResolvedStepContext,
-    ResourceCleanupPlan, ResourceCleanupReport, ResourceLease, ResourceRetention,
-    RetrievalCandidate, RetrievalEvaluationReport, RetrievalEvidence, RetrievalHealth,
-    RetrievalHealthStatus, RetrievalHit, RetrievalItem, RetrievalPack, RetrievalProfile,
-    RetrievalQualityEvidence, RetrievalQualityMetrics, RetrievalReceipt, RetrievalReceiptEntry,
-    RetrievalReceiptOmission, RetrievalReceiptStage, RetrievalRequest, RetrievalResponse,
-    RetrievalResult, RetrievalSafetyMetrics, RetrievalSourceKind, ReviewPacket, ReviewerCitation,
-    RiskLevel, RoleAssignment, RoleAssignmentStatus, RoleCatalog, RoleDescriptor, RoleSpec,
+    QualityArtifact, QualityArtifactId, QualityArtifactStatus, QualityStateTransition,
+    QualityTransitionId, QueueEntryId, ReceiptAggregation, ReceiptId, RecoveryResourceSnapshot,
+    RepoMapDependencyEdge, RepoMapEvidenceLevel, RepoMapSymbol, RepoMapTaskCandidate,
+    RepoMapTaskSelection, RequestId, ResolvedAssignment, ResolvedStepContext, ResourceCleanupPlan,
+    ResourceCleanupReport, ResourceLease, ResourceRetention, RetrievalCandidate,
+    RetrievalEvaluationReport, RetrievalEvidence, RetrievalHealth, RetrievalHealthStatus,
+    RetrievalHit, RetrievalItem, RetrievalPack, RetrievalProfile, RetrievalQualityEvidence,
+    RetrievalQualityMetrics, RetrievalReceipt, RetrievalReceiptEntry, RetrievalReceiptOmission,
+    RetrievalReceiptStage, RetrievalRequest, RetrievalResponse, RetrievalResult,
+    RetrievalSafetyMetrics, RetrievalSourceKind, ReviewPacket, ReviewerCitation, RiskLevel,
+    RoleAssignment, RoleAssignmentStatus, RoleCatalog, RoleDescriptor, RoleSpec,
     RunCancellationFact, RunCancellationState, RunId, RunReceipt, RuntimeEvent, ScopeSet,
     SecretRef, SecretRefId, SecretScanChannel, SecretSentinelFinding, SecretSentinelKind,
-    SecurityContextId, SecurityDecisionId, SecurityEventEnvelope,
-    SecurityEventId, SecurityObjectEnvelope, SecurityObjectKind, SecurityPolicyId, SecurityReason,
+    SecurityContextId, SecurityDecisionId, SecurityEventEnvelope, SecurityEventId,
+    SecurityObjectEnvelope, SecurityObjectKind, SecurityPolicyId, SecurityReason,
     SecurityReasonClass, SecurityReasonCode, SecurityReasonPolicy, SecurityRegistryId,
     SecurityRemediation, SecurityRetryability, SecuritySchemaEntry, SecuritySchemaRegistry,
     SensitiveDisposition, SensitiveHandling, ServiceIdentity, ServiceIdentityId, SessionAssertion,
@@ -193,13 +156,13 @@ pub use kiana_domain::{
     EXECUTION_RECEIPT_SCHEMA, EXECUTION_SCOPE_SCHEMA, EXECUTION_SCOPE_SCHEMA_VERSION,
     EXTENSION_CATALOG_SCHEMA, EXTENSION_COMMAND_ERROR_SCHEMA, EXTENSION_COMMAND_RECEIPT_SCHEMA,
     EXTENSION_COMMAND_SCHEMA, EXTENSION_COMMAND_VERSION, EXTENSION_ERROR_SCHEMA,
-    EXTENSION_MANAGE_OPERATION,
-    EXTENSION_MANIFEST_SCHEMA, EXTENSION_PACKAGE_SCHEMA, EXTENSION_SNAPSHOT_CACHE_ENTRY_SCHEMA,
-    EXTENSION_SNAPSHOT_CACHE_KEY_SCHEMA, EXTENSION_SNAPSHOT_SCHEMA,
-    EXTENSION_SOURCE_RESOLUTION_SCHEMA, EXTERNAL_RESOURCE_REQUEST_SCHEMA,
-    EXTERNAL_RESOURCE_SNAPSHOT_SCHEMA, GOLDEN_CONTEXT_CASE_SCHEMA, GOLDEN_CONTEXT_FIXTURE_SCHEMA,
-    GOLDEN_TRACE_SCHEMA, HARNESS_EVAL_COMPARISON_SCHEMA, HARNESS_EVAL_SCHEMA_VERSION,
-    HARNESS_METRIC_SET_SCHEMA, HARNESS_REPLAY_REPORT_SCHEMA, HARNESS_TRACE_BINDING_SCHEMA,
+    EXTENSION_MANAGE_OPERATION, EXTENSION_MANIFEST_SCHEMA, EXTENSION_PACKAGE_SCHEMA,
+    EXTENSION_SNAPSHOT_CACHE_ENTRY_SCHEMA, EXTENSION_SNAPSHOT_CACHE_KEY_SCHEMA,
+    EXTENSION_SNAPSHOT_SCHEMA, EXTENSION_SOURCE_RESOLUTION_SCHEMA,
+    EXTERNAL_RESOURCE_REQUEST_SCHEMA, EXTERNAL_RESOURCE_SNAPSHOT_SCHEMA,
+    GOLDEN_CONTEXT_CASE_SCHEMA, GOLDEN_CONTEXT_FIXTURE_SCHEMA, GOLDEN_TRACE_SCHEMA,
+    HARNESS_EVAL_COMPARISON_SCHEMA, HARNESS_EVAL_SCHEMA_VERSION, HARNESS_METRIC_SET_SCHEMA,
+    HARNESS_REPLAY_REPORT_SCHEMA, HARNESS_TRACE_BINDING_SCHEMA,
     HISTORICAL_RECEIPT_INVALIDATION_SCHEMA, HOOK_DECISION_SCHEMA, HOOK_DESCRIPTOR_SCHEMA,
     HOOK_LIFECYCLE_BINDING_SCHEMA, HOOK_LIFECYCLE_INPUT_SCHEMA, HOOK_LIFECYCLE_PLAN_SCHEMA,
     HOOK_LIFECYCLE_RESULT_SCHEMA, HOOK_LIFECYCLE_VERSION, HOOK_MANIFEST_SCHEMA,
@@ -219,9 +182,8 @@ pub use kiana_domain::{
     PROGRESS_EVIDENCE_SCHEMA, PROGRESS_TRACKER_SCHEMA, PROJECTION_CHECKPOINT_SCHEMA,
     PROJECTION_CHECKPOINT_VERSION, PROJECTION_LAG_VIEW_SCHEMA, PROJECT_ASSIGNMENT_SCHEMA,
     PROJECT_IDENTITY_SCHEMA, PROJECT_TRUST_SNAPSHOT_SCHEMA, PROVIDER_ACCOUNT_SCHEMA,
-    PROVIDER_CONFIG_CHECK_SCHEMA, PROVIDER_CONFIG_SNAPSHOT_SCHEMA,
-    PROVIDER_CONNECTION_TEST_SCHEMA, PROVIDER_CONTINUATION_SCHEMA,
-    PROVIDER_DIAGNOSTICS_CURSOR_SCHEMA, PROVIDER_DIAGNOSTICS_SCHEMA,
+    PROVIDER_CONFIG_CHECK_SCHEMA, PROVIDER_CONFIG_SNAPSHOT_SCHEMA, PROVIDER_CONNECTION_TEST_SCHEMA,
+    PROVIDER_CONTINUATION_SCHEMA, PROVIDER_DIAGNOSTICS_CURSOR_SCHEMA, PROVIDER_DIAGNOSTICS_SCHEMA,
     PROVIDER_DIAGNOSTICS_SNAPSHOT_SCHEMA, PROVIDER_PROFILE_SNAPSHOT_SCHEMA,
     PROVIDER_TERMINAL_REPLAY_SCHEMA, QUALITY_ARTIFACT_SCHEMA, QUALITY_TRANSITION_SCHEMA,
     RECEIPT_AGGREGATION_SCHEMA, RECEIPT_AGGREGATION_VERSION, RECEIPT_CONTRACT_VERSION,
@@ -255,6 +217,41 @@ pub use kiana_domain::{
     WIRE_BUDGET_SCHEMA, WORKSPACE_FILE_SNAPSHOT_SCHEMA, WORKSPACE_SNAPSHOT_SCHEMA,
     WORKSPACE_SNAPSHOT_VERSION, WORK_PACKET_SCHEMA,
 };
+pub use kiana_domain::{
+    AllocationCostKind, AllocationScope, CostAllocation, CostAllocationId, SharingGrantRef,
+    WorkflowInstanceId, COST_ALLOCATION_EVENT, COST_ALLOCATION_OPERATION, COST_ALLOCATION_SCHEMA,
+    COST_ALLOCATION_VERSION,
+};
+pub use kiana_domain::{
+    BillingQueryCursor, BillingQueryKind, BillingQueryRequest, BillingQueryResponse,
+    BILLING_QUERY_CURSOR_SCHEMA, BILLING_QUERY_MAX_LIMIT, BILLING_QUERY_RESPONSE_SCHEMA,
+    BILLING_QUERY_SCHEMA,
+};
+pub use kiana_domain::{
+    ConnectorSurface, ConnectorSurfaceCursor, ConnectorSurfaceItem, ConnectorSurfaceQuery,
+    ConnectorSurfaceQueryKind, ConnectorSurfaceResponse, CONNECTOR_SURFACE_CURSOR_SCHEMA,
+    CONNECTOR_SURFACE_MAX_LIMIT, CONNECTOR_SURFACE_QUERY_SCHEMA, CONNECTOR_SURFACE_RESPONSE_SCHEMA,
+};
+pub use kiana_domain::{
+    CostBreakdown, CostBreakdownKind, CostLine, ReceiptCostBreakdown, COST_BREAKDOWN_SCHEMA,
+    COST_BREAKDOWN_VERSION, COST_EVENT_ESTIMATED, COST_EVENT_MEASURED, COST_EVENT_UNKNOWN,
+    RECEIPT_COST_BREAKDOWN_SCHEMA,
+};
+pub use kiana_domain::{
+    CostCorrection, CostCorrectionAppendOutcome, CostCorrectionApproval, CostCorrectionCommand,
+    CostLedger, CostLedgerEntry, CostLedgerEntryKind, CostLedgerView,
+    COST_CORRECTION_APPROVAL_SCHEMA, COST_CORRECTION_COMMAND, COST_CORRECTION_COMMAND_SCHEMA,
+    COST_CORRECTION_EVENT, COST_CORRECTION_SCHEMA, COST_LEDGER_ENTRY_EVENT,
+    COST_LEDGER_ENTRY_SCHEMA, COST_LEDGER_VERSION,
+};
+pub use kiana_domain::{
+    ModelAttemptError, ModelAttemptEventKind, ModelAttemptLifecycleEvent,
+    ModelAttemptLifecycleRecord, ModelAttemptState, MODEL_ATTEMPT_EVENT_SCHEMA,
+    MODEL_ATTEMPT_EVENT_VERSION, MODEL_ATTEMPT_LIFECYCLE_SCHEMA, MODEL_ATTEMPT_LIFECYCLE_VERSION,
+};
+pub use kiana_domain::{
+    NotificationActionCommand, NotificationActionKind, NOTIFICATION_ACTION_COMMAND_SCHEMA,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -267,13 +264,12 @@ pub use ui_contracts::*;
 pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole};
 
 pub use kiana_domain::{
-    normalize_connector_intent, ConnectorCommand, ConnectorCommandRequest,
-    ConnectorDataBoundary, ConnectorManageAction, ConnectorNormalizedIntent,
-    ConnectorProtocolError, ConnectorProtocolErrorCode, CONNECTOR_COMMAND_SCHEMA,
-    CONNECTOR_COMMAND_VERSION, CONNECTOR_DATA_BOUNDARY_SCHEMA,
-    CONNECTOR_NORMALIZED_INTENT_SCHEMA, CONNECTOR_PROTOCOL_ERROR_SCHEMA,
-    CONNECTOR_PROTOCOL_MAX_IDEMPOTENCY_BYTES, CONNECTOR_PROTOCOL_MAX_PAYLOAD_BYTES,
-    CONNECTOR_PROTOCOL_MAX_REASON_BYTES,
+    normalize_connector_intent, ConnectorCommand, ConnectorCommandRequest, ConnectorDataBoundary,
+    ConnectorManageAction, ConnectorNormalizedIntent, ConnectorProtocolError,
+    ConnectorProtocolErrorCode, CONNECTOR_COMMAND_SCHEMA, CONNECTOR_COMMAND_VERSION,
+    CONNECTOR_DATA_BOUNDARY_SCHEMA, CONNECTOR_NORMALIZED_INTENT_SCHEMA,
+    CONNECTOR_PROTOCOL_ERROR_SCHEMA, CONNECTOR_PROTOCOL_MAX_IDEMPOTENCY_BYTES,
+    CONNECTOR_PROTOCOL_MAX_PAYLOAD_BYTES, CONNECTOR_PROTOCOL_MAX_REASON_BYTES,
 };
 
 pub use kiana_domain::{
@@ -287,8 +283,7 @@ pub use kiana_domain::{
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
 pub const COST_CORRECTION_COMMAND_NAME: &str = "cost.correction";
-pub const COST_CORRECTION_COMMAND_REQUEST_SCHEMA: &str =
-    "kiana.cost-correction-command-request.v1";
+pub const COST_CORRECTION_COMMAND_REQUEST_SCHEMA: &str = "kiana.cost-correction-command-request.v1";
 pub const COST_CORRECTION_COMMAND_RESPONSE_SCHEMA: &str =
     "kiana.cost-correction-command-response.v1";
 pub const AUDIT_QUERY_SCHEMA: &str = "kiana.audit-query.v1";
@@ -595,20 +590,17 @@ impl RequestEnvelope {
     ) -> Result<Self, String> {
         request.validate()?;
         let name = request.command.clone();
-        let arguments = serde_json::to_value(request)
-            .map_err(|_| "ops_command_encode_failed".to_owned())?;
+        let arguments =
+            serde_json::to_value(request).map_err(|_| "ops_command_encode_failed".to_owned())?;
         Ok(Self::command(metadata, name, arguments))
     }
 
     /// Construct a typed read-only ops query on the shared RequestEnvelope spine.
-    pub fn ops_query(
-        metadata: RequestMetadata,
-        request: OpsQueryRequest,
-    ) -> Result<Self, String> {
+    pub fn ops_query(metadata: RequestMetadata, request: OpsQueryRequest) -> Result<Self, String> {
         request.validate()?;
         let name = request.query.clone();
-        let arguments = serde_json::to_value(request)
-            .map_err(|_| "ops_query_encode_failed".to_owned())?;
+        let arguments =
+            serde_json::to_value(request).map_err(|_| "ops_query_encode_failed".to_owned())?;
         Ok(Self::command(metadata, name, arguments))
     }
 

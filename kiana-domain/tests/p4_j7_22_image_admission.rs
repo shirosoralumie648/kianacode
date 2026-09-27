@@ -104,7 +104,10 @@ fn untrusted_image_path_never_reaches_provider() {
         vec![DataClass::Restricted],
         100,
     );
-    assert_eq!(result.unwrap_err(), "untrusted_image_path_never_reaches_provider");
+    assert_eq!(
+        result.unwrap_err(),
+        "untrusted_image_path_never_reaches_provider"
+    );
 }
 
 #[test]

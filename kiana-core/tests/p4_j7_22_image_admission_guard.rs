@@ -22,7 +22,10 @@ fn p4_j7_22_image_admission_stays_artifact_bound_and_encodes_after_admission() {
         "policy_digest",
         "data_epoch",
     ] {
-        assert!(domain.contains(marker), "domain image marker missing: {marker}");
+        assert!(
+            domain.contains(marker),
+            "domain image marker missing: {marker}"
+        );
     }
     for marker in [
         "compile_with_images",

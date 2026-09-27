@@ -23,7 +23,10 @@ fn all_product_surfaces_render_one_server_owned_visibility_projection() {
         "visibility_json",
         "metadata-only",
     ] {
-        assert!(projection.contains(marker), "missing projection marker: {marker}");
+        assert!(
+            projection.contains(marker),
+            "missing projection marker: {marker}"
+        );
     }
     assert!(web.contains("/api/extensions"));
     assert!(web.contains("EntryPointKind::Desktop"));
@@ -48,7 +51,10 @@ fn visibility_actions_remain_intents_and_caches_are_generation_fenced() {
         "snapshot_digest",
         "ExtensionVisibilityAction",
     ] {
-        assert!(domain.contains(marker), "missing generation fence marker: {marker}");
+        assert!(
+            domain.contains(marker),
+            "missing generation fence marker: {marker}"
+        );
     }
     assert!(projection.contains("visibility_action_intent"));
     assert!(projection.contains("ControlPlane") || projection.contains("DaemonHost"));
@@ -57,4 +63,3 @@ fn visibility_actions_remain_intents_and_caches_are_generation_fenced() {
     assert!(fixture.contains("visibility_projection_omits_body_paths_and_secrets"));
     assert!(fixture.contains("untrusted_visibility_entry_is_rejected"));
 }
-

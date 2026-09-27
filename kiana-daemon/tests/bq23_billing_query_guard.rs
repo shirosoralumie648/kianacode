@@ -8,7 +8,10 @@ fn billing_query_ingress_is_identity_checked_and_not_a_second_execution_path() {
         "billing_query_projection_not_wired",
         "request_may_execute",
     ] {
-        assert!(daemon.contains(marker), "BQ-23 daemon marker missing: {marker}");
+        assert!(
+            daemon.contains(marker),
+            "BQ-23 daemon marker missing: {marker}"
+        );
     }
     for forbidden in [
         "CapabilityBroker::new",

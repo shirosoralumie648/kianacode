@@ -8,8 +8,8 @@
 use anyhow::{anyhow, Result};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    EntryPointKind, ExtensionCommandRequest, ExtensionVisibilityAction, ExtensionVisibilityActionKind,
-    ExtensionVisibilitySnapshot, ResponseEnvelope,
+    EntryPointKind, ExtensionCommandRequest, ExtensionVisibilityAction,
+    ExtensionVisibilityActionKind, ExtensionVisibilitySnapshot, ResponseEnvelope,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -139,10 +139,16 @@ pub async fn cli_main_from_args(args: &[String], session_id: Option<&str>) -> Re
     )
     .await?;
     if json_output {
-        println!("{}", serde_json::to_string_pretty(&visibility_json(&snapshot)?)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&visibility_json(&snapshot)?)?
+        );
     } else {
         for entry in &snapshot.entries {
-            println!("{}\t{:?}\t{:?}", entry.extension_id, entry.status, entry.risk);
+            println!(
+                "{}\t{:?}\t{:?}",
+                entry.extension_id, entry.status, entry.risk
+            );
         }
     }
     Ok(())

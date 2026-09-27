@@ -1202,17 +1202,11 @@ impl CompanyState {
     }
 
     /// Record a project control plan without claiming that child effects have stopped.
-    pub fn record_project_control(
-        &mut self,
-        plan: crate::ProjectControlPlan,
-    ) -> CompanyResult<()> {
+    pub fn record_project_control(&mut self, plan: crate::ProjectControlPlan) -> CompanyResult<()> {
         self.project_controls.record(plan)
     }
 
-    pub fn latest_project_control(
-        &self,
-        project_id: &str,
-    ) -> Option<&crate::ProjectControlPlan> {
+    pub fn latest_project_control(&self, project_id: &str) -> Option<&crate::ProjectControlPlan> {
         self.project_controls.latest(project_id)
     }
 
@@ -1223,10 +1217,7 @@ impl CompanyState {
         self.company_reconciliation.record_trigger(trigger)
     }
 
-    pub fn open_company_incident(
-        &mut self,
-        incident: crate::CompanyIncident,
-    ) -> CompanyResult<()> {
+    pub fn open_company_incident(&mut self, incident: crate::CompanyIncident) -> CompanyResult<()> {
         self.company_reconciliation.open_incident(incident)
     }
 
@@ -1285,8 +1276,7 @@ impl CompanyState {
         &mut self,
         confirmation: crate::DeliveryRecipientConfirmation,
     ) -> CompanyResult<()> {
-        self.delivery_authorizations
-            .confirm_recipient(confirmation)
+        self.delivery_authorizations.confirm_recipient(confirmation)
     }
 
     pub fn record_closing_receipt(

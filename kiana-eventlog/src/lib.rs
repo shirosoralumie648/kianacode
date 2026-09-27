@@ -6,9 +6,9 @@ mod credential_rotation;
 mod event_store_core;
 mod governance_contract;
 mod integrity;
-mod ledger_source;
 mod journal_core;
 mod jsonl;
+mod ledger_source;
 mod memory;
 mod memory_store;
 mod notification_dedup;
@@ -20,10 +20,10 @@ mod workflow_queue;
 pub use artifact_store::MemoryArtifactStore;
 pub use credential_rotation::MemoryCredentialRotationStore;
 pub use integrity::{scan_jsonl, IntegrityScanReport, IntegrityScanStatus};
+pub use jsonl::JsonlEventLog;
 pub use ledger_source::{
     read_billing_page, read_ledger_page, BillingSourcePage, BILLING_SOURCE_IS_READ_ONLY,
 };
-pub use jsonl::JsonlEventLog;
 pub use memory::MemoryEventLog;
 pub use memory_store::MemoryDataGovernanceStore;
 pub use notification_dedup::MemoryNotificationDedupStore;

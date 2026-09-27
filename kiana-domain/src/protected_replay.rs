@@ -123,7 +123,9 @@ impl ProtectedReplayMaterial {
         scope.validate()?;
         let bytes = bytes.into();
         if bytes.is_empty() || bytes.len() > MAX_MATERIAL_BYTES {
-            return Err(ModelError::invalid("protected_replay_material_size_invalid"));
+            return Err(ModelError::invalid(
+                "protected_replay_material_size_invalid",
+            ));
         }
         Ok(Self { scope, bytes })
     }

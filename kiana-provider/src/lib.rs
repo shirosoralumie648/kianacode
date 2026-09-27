@@ -1,9 +1,9 @@
 //! One admitted model attempt. No Agent loop, tool execution, hidden retries or legacy runtime edges.
 mod capacity;
-mod connector_quota;
 mod config;
-mod fallback;
+mod connector_quota;
 mod credentials;
+mod fallback;
 mod oauth;
 mod request;
 mod resolver;

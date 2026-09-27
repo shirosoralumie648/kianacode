@@ -194,15 +194,13 @@ impl ImageInputAdmission {
     }
 
     pub fn attachment_ref(&self) -> String {
-        format!("artifact:{}:{}", self.artifact.artifact_id, self.artifact.version)
+        format!(
+            "artifact:{}:{}",
+            self.artifact.artifact_id, self.artifact.version
+        )
     }
 
-    pub fn matches_attachment(
-        &self,
-        artifact_ref: &str,
-        media_type: &str,
-        digest: &str,
-    ) -> bool {
+    pub fn matches_attachment(&self, artifact_ref: &str, media_type: &str, digest: &str) -> bool {
         (artifact_ref == self.attachment_ref()
             || artifact_ref == format!("artifact:{}", self.artifact.artifact_id))
             && media_type == self.media_type
@@ -254,7 +252,9 @@ impl ImageInputAdmission {
             "image/png" | "image/jpeg" | "image/webp" | "image/gif"
         ) {
             return Err(match self.media_type.as_str() {
-                "application/pdf" | "text/plain" | "application/msword"
+                "application/pdf"
+                | "text/plain"
+                | "application/msword"
                 | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
                     "unsupported_document_upload"
                 }
@@ -276,9 +276,12 @@ impl ImageInputAdmission {
         {
             return Err("image_data_policy_binding_invalid".to_owned());
         }
-        if self.grant.retention.expires_at_ms.is_some_and(|expiry| {
-            expiry <= now_unix_ms
-        }) {
+        if self
+            .grant
+            .retention
+            .expires_at_ms
+            .is_some_and(|expiry| expiry <= now_unix_ms)
+        {
             return Err("image_processing_grant_expired".to_owned());
         }
         if self.purpose_id != self.grant.purpose.id

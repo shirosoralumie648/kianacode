@@ -98,9 +98,7 @@ impl ReleaseManifest {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != RELEASE_MANIFEST_SCHEMA
-            || self.version != RELEASE_ATTESTATION_VERSION
-        {
+        if self.schema != RELEASE_MANIFEST_SCHEMA || self.version != RELEASE_ATTESTATION_VERSION {
             return Err("release_manifest_header_invalid".to_owned());
         }
         bounded(&self.release_id, "release_manifest_release_id")?;
@@ -110,8 +108,14 @@ impl ReleaseManifest {
         }
         bounded(&self.source_revision, "release_manifest_source_revision")?;
         for (value, field) in [
-            (&self.source_tree_digest, "release_manifest_source_tree_digest"),
-            (&self.cargo_lock_digest, "release_manifest_cargo_lock_digest"),
+            (
+                &self.source_tree_digest,
+                "release_manifest_source_tree_digest",
+            ),
+            (
+                &self.cargo_lock_digest,
+                "release_manifest_cargo_lock_digest",
+            ),
             (&self.toolchain_digest, "release_manifest_toolchain_digest"),
             (&self.sbom_digest, "release_manifest_sbom_digest"),
             (&self.manifest_digest, "release_manifest_digest"),
@@ -216,20 +220,33 @@ impl ReleaseProvenance {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != RELEASE_PROVENANCE_SCHEMA
-            || self.version != RELEASE_ATTESTATION_VERSION
-        {
+        if self.schema != RELEASE_PROVENANCE_SCHEMA || self.version != RELEASE_ATTESTATION_VERSION {
             return Err("release_provenance_header_invalid".to_owned());
         }
         bounded(&self.build_type, "release_provenance_build_type")?;
         bounded(&self.builder_id, "release_provenance_builder_id")?;
         bounded(&self.source_revision, "release_provenance_source_revision")?;
         for (value, field) in [
-            (&self.invocation_digest, "release_provenance_invocation_digest"),
-            (&self.source_tree_digest, "release_provenance_source_tree_digest"),
-            (&self.cargo_lock_digest, "release_provenance_cargo_lock_digest"),
-            (&self.toolchain_digest, "release_provenance_toolchain_digest"),
-            (&self.subject_manifest_digest, "release_provenance_subject_digest"),
+            (
+                &self.invocation_digest,
+                "release_provenance_invocation_digest",
+            ),
+            (
+                &self.source_tree_digest,
+                "release_provenance_source_tree_digest",
+            ),
+            (
+                &self.cargo_lock_digest,
+                "release_provenance_cargo_lock_digest",
+            ),
+            (
+                &self.toolchain_digest,
+                "release_provenance_toolchain_digest",
+            ),
+            (
+                &self.subject_manifest_digest,
+                "release_provenance_subject_digest",
+            ),
             (&self.provenance_digest, "release_provenance_digest"),
         ] {
             digest(value, field)?;
@@ -322,8 +339,7 @@ impl ReleaseSignatureAttestation {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != RELEASE_SIGNATURE_SCHEMA || self.version != RELEASE_ATTESTATION_VERSION
-        {
+        if self.schema != RELEASE_SIGNATURE_SCHEMA || self.version != RELEASE_ATTESTATION_VERSION {
             return Err("release_signature_header_invalid".to_owned());
         }
         for (value, field) in [
@@ -334,9 +350,15 @@ impl ReleaseSignatureAttestation {
             bounded(value, field)?;
         }
         for (value, field) in [
-            (&self.subject_manifest_digest, "release_signature_subject_digest"),
+            (
+                &self.subject_manifest_digest,
+                "release_signature_subject_digest",
+            ),
             (&self.signature_digest, "release_signature_digest"),
-            (&self.attestation_digest, "release_signature_attestation_digest"),
+            (
+                &self.attestation_digest,
+                "release_signature_attestation_digest",
+            ),
         ] {
             digest(value, field)?;
         }
@@ -449,14 +471,19 @@ impl ReleaseVerificationReport {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != RELEASE_VERIFICATION_SCHEMA
-            || self.version != RELEASE_ATTESTATION_VERSION
+        if self.schema != RELEASE_VERIFICATION_SCHEMA || self.version != RELEASE_ATTESTATION_VERSION
         {
             return Err("release_verification_header_invalid".to_owned());
         }
         for (value, field) in [
-            (&self.manifest_digest, "release_verification_manifest_digest"),
-            (&self.provenance_digest, "release_verification_provenance_digest"),
+            (
+                &self.manifest_digest,
+                "release_verification_manifest_digest",
+            ),
+            (
+                &self.provenance_digest,
+                "release_verification_provenance_digest",
+            ),
             (
                 &self.signature_attestation_digest,
                 "release_verification_signature_digest",

@@ -225,15 +225,14 @@ pub struct StorageSecurityCapabilities {
 
 impl StorageSecurityCapabilities {
     pub fn current() -> Self {
-        let (platform, symlink_guard, hardlink_guard, permission_guard, atomic_replace) = if cfg!(
-            target_os = "linux"
-        ) {
-            ("linux".to_owned(), true, true, true, true)
-        } else if cfg!(unix) {
-            ("unix".to_owned(), true, true, true, true)
-        } else {
-            ("non_unix".to_owned(), false, false, false, false)
-        };
+        let (platform, symlink_guard, hardlink_guard, permission_guard, atomic_replace) =
+            if cfg!(target_os = "linux") {
+                ("linux".to_owned(), true, true, true, true)
+            } else if cfg!(unix) {
+                ("unix".to_owned(), true, true, true, true)
+            } else {
+                ("non_unix".to_owned(), false, false, false, false)
+            };
         let mut capabilities = Self {
             schema: STORAGE_SECURITY_CAPABILITIES_SCHEMA.to_owned(),
             version: STORAGE_SECURITY_SCHEMA_VERSION,
@@ -290,7 +289,10 @@ impl StorageSecurityCapabilities {
         {
             return Err("storage_security_capability_limitation_missing".to_owned());
         }
-        validate_digest(&self.capability_digest, "storage_security_capability_digest")?;
+        validate_digest(
+            &self.capability_digest,
+            "storage_security_capability_digest",
+        )?;
         if self.capability_digest != self.digest() {
             return Err("storage_security_capability_digest_mismatch".to_owned());
         }

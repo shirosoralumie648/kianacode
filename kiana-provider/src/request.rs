@@ -135,7 +135,9 @@ pub(crate) fn compile_with_images(
                 return Err(ModelError::invalid("anthropic_json_object_requires_schema"))
             }
             ModelProtocol::Legacy => {
-                return Err(ModelError::invalid("model_structured_output_protocol_unsupported"))
+                return Err(ModelError::invalid(
+                    "model_structured_output_protocol_unsupported",
+                ))
             }
             _ => {}
         },
@@ -155,7 +157,9 @@ pub(crate) fn compile_with_images(
                     json!({"type":"text","mime_type":"application/json","schema":schema})
             }
             ModelProtocol::Legacy => {
-                return Err(ModelError::invalid("model_structured_output_protocol_unsupported"))
+                return Err(ModelError::invalid(
+                    "model_structured_output_protocol_unsupported",
+                ))
             }
             _ => {}
         },
@@ -274,11 +278,15 @@ fn image_data(
     }
     let encoded = STANDARD.encode(image.payload_bytes());
     if encoded.len() > limits.max_encoded_bytes {
-        return Err(ModelError::invalid("image_payload_limit_applies_after_encoding"));
+        return Err(ModelError::invalid(
+            "image_payload_limit_applies_after_encoding",
+        ));
     }
     let data_url = format!("data:{};base64,{}", image.media_type, encoded);
     if data_url.len() > limits.max_request_bytes {
-        return Err(ModelError::invalid("image_payload_limit_applies_after_encoding"));
+        return Err(ModelError::invalid(
+            "image_payload_limit_applies_after_encoding",
+        ));
     }
     Ok((encoded, data_url, image.media_type.clone()))
 }
@@ -938,7 +946,9 @@ pub(crate) fn parse_structured_output(
         ModelResponseFormat::Text => unreachable!(),
         ModelResponseFormat::JsonObject => {
             if !value.is_object() {
-                return Err(ModelError::invalid("model_structured_output_object_required"));
+                return Err(ModelError::invalid(
+                    "model_structured_output_object_required",
+                ));
             }
         }
         ModelResponseFormat::JsonSchema { schema, .. } => validate_output(schema, &value)?,
@@ -973,9 +983,7 @@ mod p4_j7_21_structured_output_tests {
             }),
         };
         assert_eq!(
-            parse_structured_output(&format, "")
-                .unwrap_err()
-                .code,
+            parse_structured_output(&format, "").unwrap_err().code,
             "model_structured_output_empty"
         );
         assert_eq!(

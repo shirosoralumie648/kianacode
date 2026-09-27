@@ -367,10 +367,13 @@ fn event_session(event: &RuntimeEvent) -> Option<&str> {
 fn event_item(event: &RuntimeEvent, source_cursor: u64) -> Option<ProjectedItem> {
     let owner_id = event_owner(event)?.to_owned();
     let (kind, id) = if event.kind.starts_with("ui.action.") {
-        let id = event
-            .aggregate_id
-            .clone()
-            .or_else(|| event.data.get("action_id").and_then(Value::as_str).map(str::to_owned))?;
+        let id = event.aggregate_id.clone().or_else(|| {
+            event
+                .data
+                .get("action_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })?;
         (UiSnapshotEntryKind::Action, id)
     } else if let Some(id) = event
         .data
@@ -411,7 +414,12 @@ fn state_string(event: &RuntimeEvent) -> Option<&str> {
         .data
         .get("state")
         .and_then(Value::as_str)
-        .or_else(|| event.data.get("record").and_then(|record| record.get("state")))
+        .or_else(|| {
+            event
+                .data
+                .get("record")
+                .and_then(|record| record.get("state"))
+        })
         .and_then(Value::as_str)
 }
 
@@ -465,11 +473,13 @@ pub fn project_ui_snapshot(
             }
         }
         if event.kind.starts_with("ui.action.") {
-            let Some(action_id) = event
-                .aggregate_id
-                .clone()
-                .or_else(|| event.data.get("action_id").and_then(Value::as_str).map(str::to_owned))
-            else {
+            let Some(action_id) = event.aggregate_id.clone().or_else(|| {
+                event
+                    .data
+                    .get("action_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            }) else {
                 continue;
             };
             if let Some(item) = event_item(event, source_cursor) {
@@ -481,7 +491,10 @@ pub fn project_ui_snapshot(
                     {
                         pending_before_retention.insert(action_id.clone());
                     }
-                    if matches!(state_string(event), Some("applied" | "rejected" | "unknown")) {
+                    if matches!(
+                        state_string(event),
+                        Some("applied" | "rejected" | "unknown")
+                    ) {
                         pending_before_retention.remove(&action_id);
                     }
                     actions.insert(action_id, item);
@@ -513,12 +526,18 @@ pub fn project_ui_snapshot(
         return Err("ui_snapshot_entry_limit".to_owned());
     }
     all.sort_by(|left, right| {
-        (left.kind.rank(), &left.id, left.revision, left.source_cursor).cmp(&(
-            right.kind.rank(),
-            &right.id,
-            right.revision,
-            right.source_cursor,
-        ))
+        (
+            left.kind.rank(),
+            &left.id,
+            left.revision,
+            left.source_cursor,
+        )
+            .cmp(&(
+                right.kind.rank(),
+                &right.id,
+                right.revision,
+                right.source_cursor,
+            ))
     });
     if offset > all.len() {
         return Err("ui_snapshot_cursor_offset_invalid".to_owned());
@@ -536,13 +555,15 @@ pub fn project_ui_snapshot(
         })
         .collect::<Vec<_>>();
     let next_page = if end < all.len() {
-        Some(UiSnapshotPageCursor::new(
-            query.epoch.clone(),
-            query.source_cursor,
-            end,
-            query.projection_generation,
-        )?
-        .encode()?)
+        Some(
+            UiSnapshotPageCursor::new(
+                query.epoch.clone(),
+                query.source_cursor,
+                end,
+                query.projection_generation,
+            )?
+            .encode()?,
+        )
     } else {
         None
     };

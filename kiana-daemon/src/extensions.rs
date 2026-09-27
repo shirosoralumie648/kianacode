@@ -8,13 +8,13 @@ use kiana_domain::{
     ExtensionAdapterRegistry, ExtensionComponentKind, ExtensionConfigurationSnapshot,
     ExtensionExecutionContract, ExtensionLifecyclePhase, ExtensionManifest, ExtensionPackage,
     ExtensionSnapshot, ExtensionSnapshotState, ExtensionStateMigrationPlan,
-    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType, ExtensionVisibilityActionKind,
-    ExtensionVisibilityEntry, ExtensionVisibilityKind, ExtensionVisibilityRisk,
-    ExtensionVisibilitySnapshot, ExtensionVisibilitySource, ExtensionVisibilityStatus,
-    ExtensionVisibilityTrust, PromptAuthority, PromptBudgetUsage, PromptSection, RequestId,
-    RuntimeEvent, SkillPromptProvenance, SourceKind, SourceRef, VerifiedExtensionComponent,
-    EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
-    SKILL_PROMPT_PROVENANCE_SCHEMA,
+    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType,
+    ExtensionVisibilityActionKind, ExtensionVisibilityEntry, ExtensionVisibilityKind,
+    ExtensionVisibilityRisk, ExtensionVisibilitySnapshot, ExtensionVisibilitySource,
+    ExtensionVisibilityStatus, ExtensionVisibilityTrust, PromptAuthority, PromptBudgetUsage,
+    PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance, SourceKind, SourceRef,
+    VerifiedExtensionComponent, EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA,
+    EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -174,7 +174,10 @@ impl ExtensionRegistry {
             .get("role_id")
             .and_then(Value::as_str)
             .unwrap_or("builder");
-        if action == "list" || action == "search" || (action == "inspect" && arguments["package_path"].is_null()) {
+        if action == "list"
+            || action == "search"
+            || (action == "inspect" && arguments["package_path"].is_null())
+        {
             let query = arguments
                 .get("query")
                 .and_then(Value::as_str)
@@ -737,29 +740,27 @@ impl ExtensionRegistry {
             "project": project.to_string_lossy(),
             "trust": project_trust,
         }));
-        let generation = kiana_skills::snapshot_generation()
-            .max(registry_generation.saturating_add(1));
+        let generation =
+            kiana_skills::snapshot_generation().max(registry_generation.saturating_add(1));
         let snapshot_id = stable_snapshot_id(&material_digest)?;
         let plugins = states
             .values()
             .filter(|state| state.state != "uninstalled")
             .enumerate()
-            .map(|(index, state)| {
-                kiana_domain::PluginLifecycle {
-                    schema: kiana_domain::PLUGIN_LIFECYCLE_SCHEMA.to_owned(),
-                    extension_id: kiana_domain::ExtensionId::parse_str(&stable_uuid(
-                        &state.manifest.extension_id,
-                    ))
-                    .unwrap_or_default(),
-                    version: state.manifest.version.clone(),
-                    content_hash: state.manifest.content_hash.clone(),
-                    state: lifecycle_state(&state.state),
-                    revision: registry_generation
-                        .checked_add(index as u64)
-                        .and_then(|value| value.checked_add(1))
-                        .unwrap_or(u64::MAX),
-                    reason: None,
-                }
+            .map(|(index, state)| kiana_domain::PluginLifecycle {
+                schema: kiana_domain::PLUGIN_LIFECYCLE_SCHEMA.to_owned(),
+                extension_id: kiana_domain::ExtensionId::parse_str(&stable_uuid(
+                    &state.manifest.extension_id,
+                ))
+                .unwrap_or_default(),
+                version: state.manifest.version.clone(),
+                content_hash: state.manifest.content_hash.clone(),
+                state: lifecycle_state(&state.state),
+                revision: registry_generation
+                    .checked_add(index as u64)
+                    .and_then(|value| value.checked_add(1))
+                    .unwrap_or(u64::MAX),
+                reason: None,
             })
             .collect::<Vec<_>>();
         let source_snapshot = ExtensionSnapshot::new(
@@ -787,7 +788,9 @@ impl ExtensionRegistry {
                         actions.insert(ExtensionVisibilityActionKind::Activate);
                         ExtensionVisibilityStatus::Eligible
                     }
-                    kiana_skills::SkillDisclosureStatus::Disabled => ExtensionVisibilityStatus::Disabled,
+                    kiana_skills::SkillDisclosureStatus::Disabled => {
+                        ExtensionVisibilityStatus::Disabled
+                    }
                 };
                 ExtensionVisibilityEntry::new(
                     entry.name.clone(),
@@ -1061,7 +1064,10 @@ fn lifecycle_state(state: &str) -> kiana_domain::PluginLifecycleState {
 fn extension_risk(manifest: &ExtensionManifest) -> ExtensionVisibilityRisk {
     if !manifest.secret_refs.is_empty() {
         ExtensionVisibilityRisk::Secret
-    } else if !matches!(manifest.network_policy, kiana_domain::ExtensionNetworkPolicy::Deny) {
+    } else if !matches!(
+        manifest.network_policy,
+        kiana_domain::ExtensionNetworkPolicy::Deny
+    ) {
         ExtensionVisibilityRisk::Network
     } else if manifest.effect == kiana_domain::ExtensionEffect::ReadWrite {
         ExtensionVisibilityRisk::WorkspaceWrite

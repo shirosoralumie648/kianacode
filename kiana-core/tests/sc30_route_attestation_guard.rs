@@ -26,7 +26,10 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
         "route_attestation_provider_unverified",
         "RouteVerificationStatus::Unknown",
     ] {
-        assert!(domain.contains(marker), "SC-30 domain marker missing: {marker}");
+        assert!(
+            domain.contains(marker),
+            "SC-30 domain marker missing: {marker}"
+        );
     }
     for marker in [
         "provider/model",
@@ -38,7 +41,10 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
         "route_attestation_mcp_transport_unsupported",
         "strict_serde_and_digest_fences_reject_forged_values",
     ] {
-        assert!(fixture.contains(marker), "SC-30 fixture marker missing: {marker}");
+        assert!(
+            fixture.contains(marker),
+            "SC-30 fixture marker missing: {marker}"
+        );
     }
     for marker in [
         "contents: read",
@@ -47,7 +53,10 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
         "cargo test -p kiana-core --test sc30_route_attestation_guard",
         "cargo fmt --all --check",
     ] {
-        assert!(workflow.contains(marker), "SC-30 workflow marker missing: {marker}");
+        assert!(
+            workflow.contains(marker),
+            "SC-30 workflow marker missing: {marker}"
+        );
     }
     for marker in [
         "provider",
@@ -63,7 +72,10 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
         "limitations",
         "reviewer",
     ] {
-        assert!(baseline.contains(marker), "SC-30 baseline marker missing: {marker}");
+        assert!(
+            baseline.contains(marker),
+            "SC-30 baseline marker missing: {marker}"
+        );
     }
     assert!(current_status.contains("### SC-30"));
     assert!(roadmap.contains("<a id=\"step-sc-30\"></a>SC-30"));

@@ -69,10 +69,9 @@ impl StdioMcpConnectorAdapter {
                 let outcome = client.stop().await;
                 return Err(match outcome {
                     Ok(_) => map_handshake_error(error, "mcp_tools_list_failed"),
-                    Err(stop_error) => map_handshake_error(
-                        stop_error,
-                        "result_unknown:mcp_stop_unconfirmed",
-                    ),
+                    Err(stop_error) => {
+                        map_handshake_error(stop_error, "result_unknown:mcp_stop_unconfirmed")
+                    }
                 });
             }
         };

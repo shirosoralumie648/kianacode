@@ -1,6 +1,4 @@
-use kiana_client::{
-    CliCommand, CliCommandId, CliInvocation, CliOutput, CliOutputMode,
-};
+use kiana_client::{CliCommand, CliCommandId, CliInvocation, CliOutput, CliOutputMode};
 use kiana_protocol::{ExecutionStatus, RequestId};
 use serde_json::json;
 
@@ -12,7 +10,10 @@ fn canonical_commands_and_legacy_aliases_have_stable_wire_names() {
     assert_eq!(CliCommand::parse("sessions").unwrap(), CliCommand::Session);
     assert_eq!(CliCommand::Status.wire_name(), "run.status");
     assert_eq!(CliCommand::Export.wire_name(), "audit.export");
-    assert_eq!(CliCommand::parse("unknown").unwrap_err(), "cli_command_unknown");
+    assert_eq!(
+        CliCommand::parse("unknown").unwrap_err(),
+        "cli_command_unknown"
+    );
 }
 
 fn make_invocation(command: CliCommand) -> CliInvocation {

@@ -18,7 +18,10 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
         "release_verification_tag_mismatch",
         "ReleaseVerificationStatus::Unknown",
     ] {
-        assert!(domain.contains(marker), "SC-29 domain marker missing: {marker}");
+        assert!(
+            domain.contains(marker),
+            "SC-29 domain marker missing: {marker}"
+        );
     }
     for marker in [
         "manifest_digest",
@@ -30,7 +33,10 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
         "unknown_field",
         "self_test_forged_tag_accepted",
     ] {
-        assert!(verifier.contains(marker), "SC-29 verifier marker missing: {marker}");
+        assert!(
+            verifier.contains(marker),
+            "SC-29 verifier marker missing: {marker}"
+        );
     }
     for marker in [
         "contents: read",
@@ -39,7 +45,10 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
         "cargo test -p kiana-core --test sc29_release_attestation_guard",
         "cargo fmt --all --check",
     ] {
-        assert!(workflow.contains(marker), "SC-29 workflow marker missing: {marker}");
+        assert!(
+            workflow.contains(marker),
+            "SC-29 workflow marker missing: {marker}"
+        );
     }
     for marker in [
         "ReleaseManifest",
@@ -52,7 +61,10 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
         "limitations",
         "reviewer",
     ] {
-        assert!(baseline.contains(marker), "SC-29 baseline marker missing: {marker}");
+        assert!(
+            baseline.contains(marker),
+            "SC-29 baseline marker missing: {marker}"
+        );
     }
     assert!(!verifier.contains("requests."));
     assert!(!verifier.contains("urllib."));

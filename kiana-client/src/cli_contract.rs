@@ -83,7 +83,10 @@ impl CliCommand {
     }
 
     pub const fn mutates_state(self) -> bool {
-        matches!(self, Self::Run | Self::Approve | Self::Deny | Self::Cancel | Self::Resume)
+        matches!(
+            self,
+            Self::Run | Self::Approve | Self::Deny | Self::Cancel | Self::Resume
+        )
     }
 }
 
@@ -115,7 +118,10 @@ pub struct CliCommandId {
 
 impl CliCommandId {
     pub fn new(command: CliCommand, request_id: RequestId) -> Self {
-        Self { command, request_id }
+        Self {
+            command,
+            request_id,
+        }
     }
 
     pub fn stable_key(&self) -> String {
@@ -198,8 +204,8 @@ impl CliInvocation {
         if self.implicit_retry && self.command.mutates_state() {
             return Err("cli_implicit_retry_forbidden".to_owned());
         }
-        let encoded = serde_json::to_vec(&self.arguments)
-            .map_err(|_| "cli_arguments_invalid".to_owned())?;
+        let encoded =
+            serde_json::to_vec(&self.arguments).map_err(|_| "cli_arguments_invalid".to_owned())?;
         if encoded.len() > CLI_MAX_ARGUMENT_BYTES
             || contains_secret_key(&self.arguments)
             || contains_secret_text_value(&self.arguments)

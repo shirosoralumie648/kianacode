@@ -1122,10 +1122,8 @@ impl Accumulator {
             match &prepared.spec.response_format {
                 ModelResponseFormat::Text => {}
                 format => {
-                    let value = crate::request::parse_structured_output(
-                        format,
-                        &result.output.text,
-                    )?;
+                    let value =
+                        crate::request::parse_structured_output(format, &result.output.text)?;
                     result.output.structured = value.clone();
                     result.structured = value;
                 }

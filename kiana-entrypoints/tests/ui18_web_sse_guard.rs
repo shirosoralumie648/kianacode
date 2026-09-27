@@ -16,7 +16,10 @@ fn ui18_sse_is_deny_first_and_does_not_retry_side_effect_commands() {
         "stream_error_sse_event_with_cursor",
         "stream_heartbeat_sse_event",
     ] {
-        assert!(events.contains(marker), "UI-18 event guard marker missing: {marker}");
+        assert!(
+            events.contains(marker),
+            "UI-18 event guard marker missing: {marker}"
+        );
     }
     assert!(!events.contains("harness_run::run_envelope_on_host"));
     assert!(!events.contains("harness_run::continue_envelope_on_host"));
