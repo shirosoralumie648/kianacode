@@ -193,6 +193,7 @@ pub use swarm_routing::validate_child_route;
 pub use swarm_progress::record_swarm_progress;
 pub use swarm_cancellation::validate_child_cancellation;
 pub use swarm_recovery::validate_child_recovery;
+pub use swarm_child_result::validate_child_result;
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
@@ -482,6 +483,7 @@ mod swarm_routing;
 mod swarm_progress;
 mod swarm_cancellation;
 mod swarm_recovery;
+mod swarm_child_result;
 
 mod company_business;
 mod company_scope;
