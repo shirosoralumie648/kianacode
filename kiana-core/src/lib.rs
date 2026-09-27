@@ -63,6 +63,7 @@ mod data_governance;
 mod deletion;
 mod deployment_compatibility;
 mod deployment_operation;
+mod deployment_lease;
 mod deployment_release;
 mod dispatch;
 mod effect_usage_projection;
@@ -223,6 +224,7 @@ pub use deletion::{
 };
 pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_operation::{replay_operation_journal, validate_operation_journal};
+pub use deployment_lease::validate_operation_lease_cas;
 pub use deployment_release::validate_deployment_release;
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,

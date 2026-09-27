@@ -16010,3 +16010,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: reducer is a deterministic projection only; it does not persist EventStore facts, acquire OperationLease/fence, invoke supervisor, publish health, consume approval, dispatch capabilities or prove cross-process recovery; drain timeout deliberately cannot claim DeploymentPhase::Stopped
 reviewer: Codex DEP-05 source review; checked single EventStore fact boundary, preflight gate, revision/cursor/sequence monotonicity, drain deadline/Unknown fence, terminal immutability and replay digest; no local runtime/CI test reviewer
 ```
+
+### DEP-06 operation lease evidence (2026-09-27)
+
+```text
+source_snapshot: `1ddfe530` plus DEP-06 operation lease source slice; kiana-domain/src/{operation_lease.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep06_operation_lease.rs; kiana-core/src/{deployment_lease.rs,lib.rs}; kiana-core/tests/dep06_operation_lease_guard.rs; .github/workflows/dep06-operation-lease.yml; docs/roadmap/dep06-operation-lease-baseline.md; docs/roadmap.md
+worktree_status: pure OperationLease/OperationLeaseCas contracts bind operation/instance/root/fence/authority/data epochs; CAS revision advances across acquire/heartbeat/expire/release, active writer and fence reuse are denied, and unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/operation_lease.rs kiana-domain/tests/dep06_operation_lease.rs kiana-core/src/deployment_lease.rs kiana-core/tests/dep06_operation_lease_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep06_operation_lease --locked -- --test-threads=1; cargo test -p kiana-core --test dep06_operation_lease_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only active competition, stale CAS, stale owner/fence, authority/data epoch rollback, explicit expiry/reclaim, release and fence reuse matrix; no OS lock, filesystem, process, supervisor, EventStore append, Broker or capability effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-06 OperationLease/OperationLeaseCas, heartbeat/expire/release, fence and epoch checks, domain fixtures/Core guard, workflow and baseline added; roadmap row 611/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: CAS is an in-memory deterministic projection only; it does not hold kernel locks, persist revisions across processes, recover after restart, append lease facts, coordinate supervisor or prove single-writer behavior outside the reducer; effect-time fence revalidation remains required
+reviewer: Codex DEP-06 source review; checked OperationJournal handoff, expected-revision CAS, active-owner exclusion, heartbeat monotonicity, explicit expiry/reclaim, release fencing, authority/data rollback and no-effect boundary; no local runtime/CI test reviewer
+```
