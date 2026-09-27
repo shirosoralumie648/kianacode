@@ -73,8 +73,19 @@
 
 ### 阶段 1：按依赖顺序清 ⏳ 队列
 
-波次顺序：DEP-18 → DEP-19/20/21/22（备份恢复）→ DEP-23/24/25/26 → DEP-27..32（迁移）
-→ DEP-33..35（发布/回滚/单机 rollout）→ SC/BQ/PD/CAP 的 ⏳ 项。
+**进度（2026-09-28）**：队列 611 行 = ✅ 321 / 🔄 254 / ⏳ 36。已收口 DEP-18..22、DEP-27 验签、
+PD-26/27/29/31、BQ-24、SC-37/38/39。
+
+下一批（14 个无阻塞）：SC-32、BQ-25、BQ-26、BQ-27、DEP-23、PD-30、PD-32、PD-34、
+CAP-30~33、CO-48。22 个被上游阻塞，随前置完成解锁。
+
+波次顺序：DEP-23（restore activation）→ DEP-24/25/26 → PD-30/32/34（故障与平台矩阵）
+→ CAP-30~33（平台适配）→ BQ-25/26/27（账单安全与故障注入）→ SC-32 → CO-48。
+
+**已发现但未解决的设计问题（需后续 step 拍板）**：仓库现存三套传播层词表互不一致——
+PD-26 卡片（facts/artifact/memory/index/cache/checkpoint）、ER-29 的
+`DataPropagationTarget::ALL`（9 项，不同顺序）、`kiana-core/src/deletion.rs` 的 `DELETION_TARGETS`
+（9 项，字母序，含 external/backup 不含 facts）。映射前必须先定哪套是 canonical。
 
 ### 阶段 2：清 🔄 队列
 
