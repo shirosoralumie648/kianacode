@@ -30,8 +30,12 @@ for file in "${files[@]}"; do
   fi
 done
 
-grep -Fq 'pull_request:' .github/workflows/eq50-pr-curated.yml || fail 'PR lane trigger missing'
+grep -Fq 'workflow_dispatch:' .github/workflows/eq50-pr-curated.yml || fail 'curated lane dispatch missing'
+if grep -Fq 'pull_request:' .github/workflows/eq50-pr-curated.yml; then
+  fail 'curated lane must not duplicate the unified PR CI'
+fi
 grep -Fq 'schedule:' .github/workflows/eq50-nightly-deep.yml || fail 'nightly lane schedule missing'
+grep -Fq "github.event_name == 'schedule'" .github/workflows/eq50-nightly-deep.yml || fail 'nightly schedule is not enabled automatically'
 grep -Fq 'workflow_dispatch:' .github/workflows/eq50-release-candidate.yml || fail 'release lane dispatch missing'
 grep -Fq 'release_candidate' .github/workflows/eq50-release-candidate.yml || fail 'release lane opt-in missing'
 grep -Fq 'deep_enabled' .github/workflows/eq50-nightly-deep.yml || fail 'nightly explicit gate missing'

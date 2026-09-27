@@ -1,33 +1,6 @@
 name: eq51-evidence-archive
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "kiana-domain/src/quality_evidence_archive.rs"
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/tests/quality_evidence_archive.rs"
-      - "kiana-core/src/quality_evidence_archive.rs"
-      - "kiana-core/src/lib.rs"
-      - "kiana-core/tests/quality_evidence_archive_guard.rs"
-      - "scripts/tests/eq51-evidence-archive-static.sh"
-      - "docs/roadmap/evaluation-evidence-archive-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/eq51-evidence-archive.yml"
-  pull_request:
-    paths:
-      - "kiana-domain/src/quality_evidence_archive.rs"
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/tests/quality_evidence_archive.rs"
-      - "kiana-core/src/quality_evidence_archive.rs"
-      - "kiana-core/src/lib.rs"
-      - "kiana-core/tests/quality_evidence_archive_guard.rs"
-      - "scripts/tests/eq51-evidence-archive-static.sh"
-      - "docs/roadmap/evaluation-evidence-archive-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/eq51-evidence-archive.yml"
   workflow_dispatch:
 
 permissions:
@@ -44,8 +17,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run EQ-51 static archive guard
         run: bash scripts/tests/eq51-evidence-archive-static.sh
-      - run: cargo fetch --locked
-      - run: cargo fmt --all --check
       - name: Run EQ-51 domain archive fixtures
         run: cargo test -p kiana-domain --test quality_evidence_archive --locked -- --test-threads=1
       - name: Run EQ-51 ControlPlane boundary guard

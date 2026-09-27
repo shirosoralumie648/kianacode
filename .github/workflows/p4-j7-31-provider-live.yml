@@ -1,35 +1,6 @@
 name: P4-J7-31 provider live boundary
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "kiana-domain/src/memory_workbench.rs"
-      - "scripts/provider-live-smoke.sh"
-      - "kiana-provider/src/lib.rs"
-      - "kiana-provider/src/request.rs"
-      - "kiana-provider/src/response.rs"
-      - "kiana-domain/src/provider_live.rs"
-      - "kiana-domain/tests/p4_j7_31_live_evidence.rs"
-      - "kiana-core/tests/p4_j7_31_provider_live_guard.rs"
-      - "docs/roadmap/p4-j7-31-provider-live-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/p4-j7-31-provider-live.yml"
-  pull_request:
-    paths:
-      - "kiana-domain/src/memory_workbench.rs"
-      - "scripts/provider-live-smoke.sh"
-      - "kiana-provider/src/lib.rs"
-      - "kiana-provider/src/request.rs"
-      - "kiana-provider/src/response.rs"
-      - "kiana-domain/src/provider_live.rs"
-      - "kiana-domain/tests/p4_j7_31_live_evidence.rs"
-      - "kiana-core/tests/p4_j7_31_provider_live_guard.rs"
-      - "docs/roadmap/p4-j7-31-provider-live-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/p4-j7-31-provider-live.yml"
   workflow_dispatch:
 
 permissions:
@@ -42,7 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fetch --locked
       - run: bash -n scripts/provider-live-smoke.sh
       - name: Confirm unconfigured live is an explicit skip
         run: |
@@ -50,7 +20,6 @@ jobs:
           printf '%s\n' "$output"
           printf '%s\n' "$output" | grep -F "skipped"
           printf '%s\n' "$output" | grep -F "no live provider environment is configured"
-      - run: cargo fmt --all --check
       - name: Run P4-J7-31 source guard
         run: cargo test -p kiana-core --test p4_j7_31_provider_live_guard --locked -- --test-threads=1
       - run: cargo check --workspace --tests --locked

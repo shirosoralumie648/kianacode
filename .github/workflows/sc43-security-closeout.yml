@@ -1,27 +1,6 @@
 name: SC-43 security status and review closeout
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "docs/security/sc43-security-review.md"
-      - "docs/module-map.md"
-      - "docs/roadmap/sc43-security-closeout-baseline.md"
-      - "scripts/validate-sc43-security-closeout.sh"
-      - "kiana-core/tests/sc43_security_closeout_guard.rs"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/sc43-security-closeout.yml"
-  pull_request:
-    paths:
-      - "docs/security/sc43-security-review.md"
-      - "docs/module-map.md"
-      - "docs/roadmap/sc43-security-closeout-baseline.md"
-      - "scripts/validate-sc43-security-closeout.sh"
-      - "kiana-core/tests/sc43_security_closeout_guard.rs"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/sc43-security-closeout.yml"
   workflow_dispatch:
 
 permissions:
@@ -34,7 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fetch --locked
       - run: cargo fmt --all --check
       - name: Validate SC-43 review and status handoff
         run: bash scripts/validate-sc43-security-closeout.sh

@@ -1,49 +1,6 @@
 name: DEP-39 supply-chain and compliance gate
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "kiana-domain/src/supply_chain.rs"
-      - "kiana-domain/src/supply_chain_release_evidence.rs"
-      - "kiana-domain/tests/dep39_supply_chain_release_evidence.rs"
-      - "kiana-domain/src/release_preflight.rs"
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/tests/dep39_supply_chain.rs"
-      - "kiana-core/tests/dep39_supply_chain_guard.rs"
-      - "scripts/compliance-audit.sh"
-      - "scripts/generate-sbom.sh"
-      - "scripts/generate-license-summary.sh"
-      - "scripts/release-signature-verification-smoke.sh"
-      - "scripts/sign-release-artifacts.sh"
-      - "scripts/verify-commercial-release-artifacts.sh"
-      - "scripts/package-release.sh"
-      - "scripts/package-desktop-deb.sh"
-      - "docs/roadmap/dep39-supply-chain-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/dep39-supply-chain.yml"
-  pull_request:
-    paths:
-      - "kiana-domain/src/supply_chain.rs"
-      - "kiana-domain/src/supply_chain_release_evidence.rs"
-      - "kiana-domain/tests/dep39_supply_chain_release_evidence.rs"
-      - "kiana-domain/src/release_preflight.rs"
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/tests/dep39_supply_chain.rs"
-      - "kiana-core/tests/dep39_supply_chain_guard.rs"
-      - "scripts/compliance-audit.sh"
-      - "scripts/generate-sbom.sh"
-      - "scripts/generate-license-summary.sh"
-      - "scripts/release-signature-verification-smoke.sh"
-      - "scripts/sign-release-artifacts.sh"
-      - "scripts/verify-commercial-release-artifacts.sh"
-      - "scripts/package-release.sh"
-      - "scripts/package-desktop-deb.sh"
-      - "docs/roadmap/dep39-supply-chain-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/dep39-supply-chain.yml"
   workflow_dispatch:
 
 permissions:
@@ -56,8 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fetch --locked
-      - run: cargo fmt --all --check
       - name: Run DEP-39 gate fixture
         run: cargo test -p kiana-domain --test dep39_supply_chain --locked -- --test-threads=1
       - name: Run DEP-39 release handoff fixture

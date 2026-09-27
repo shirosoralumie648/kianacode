@@ -1,29 +1,6 @@
 name: SC-30 provider and route attestation
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/src/route_attestation.rs"
-      - "kiana-domain/tests/sc30_route_attestation.rs"
-      - "kiana-core/tests/sc30_route_attestation_guard.rs"
-      - "scripts/verify-route-attestation.py"
-      - "docs/roadmap/sc30-route-attestation-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/sc30-route-attestation.yml"
-  pull_request:
-    paths:
-      - "kiana-domain/src/lib.rs"
-      - "kiana-domain/src/route_attestation.rs"
-      - "kiana-domain/tests/sc30_route_attestation.rs"
-      - "kiana-core/tests/sc30_route_attestation_guard.rs"
-      - "scripts/verify-route-attestation.py"
-      - "docs/roadmap/sc30-route-attestation-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/sc30-route-attestation.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,7 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fetch --locked
       - run: cargo fmt --all --check
       - name: Run deterministic route attestation verifier fixture
         run: python3 scripts/verify-route-attestation.py --self-test
@@ -44,5 +20,3 @@ jobs:
         run: cargo test -p kiana-domain --test sc30_route_attestation --locked -- --test-threads=1
       - name: Run SC-30 source guard
         run: cargo test -p kiana-core --test sc30_route_attestation_guard --locked -- --test-threads=1
-      - name: Compile SC-30 targets
-        run: cargo check --workspace --tests --locked

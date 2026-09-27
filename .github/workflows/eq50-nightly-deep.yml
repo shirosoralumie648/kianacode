@@ -25,16 +25,15 @@ jobs:
         run: |
           bash scripts/tests/eq49-eval-scripts-static.sh
           bash scripts/tests/eq50-ci-lanes-static.sh
+      - run: cargo fmt --all --check
       - name: Require explicit deep opt-in
         env:
-          DEEP_ENABLED: ${{ inputs.deep_enabled || 'false' }}
+          DEEP_ENABLED: ${{ github.event_name == 'schedule' && 'true' || inputs.deep_enabled || 'false' }}
         run: |
           if [[ "$DEEP_ENABLED" != "true" ]]; then
             echo "deep lane is disabled; rerun workflow_dispatch with deep_enabled=true" >&2
             exit 78
           fi
-      - run: cargo fetch --locked
-      - run: cargo fmt --all --check
       - name: Compile deep package targets
         run: cargo check -p kiana-commands -p kiana-quality -p kiana-core -p kiana-daemon --tests --locked
       - name: Run deep daemon and core fixtures serially

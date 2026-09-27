@@ -1,18 +1,6 @@
 name: EQ-50 PR curated evaluation lane
 
 on:
-  pull_request:
-    paths:
-      - "scripts/eval-*.sh"
-      - "scripts/tests/eq49-eval-scripts-static.sh"
-      - "kiana-commands/**"
-      - "kiana-core/**"
-      - "kiana-daemon/**"
-      - "kiana-quality/**"
-      - "docs/roadmap/evaluation-scripts-baseline.md"
-      - "docs/roadmap/evaluation-ci-lanes-baseline.md"
-      - ".github/workflows/eq50-pr-curated.yml"
-      - "scripts/tests/eq50-ci-lanes-static.sh"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +17,6 @@ jobs:
         run: |
           bash scripts/tests/eq49-eval-scripts-static.sh
           bash scripts/tests/eq50-ci-lanes-static.sh
-      - run: cargo fetch --locked
       - run: cargo fmt --all --check
       - name: Compile curated package targets
         run: cargo check -p kiana-commands -p kiana-core -p kiana-daemon -p kiana-quality --tests --locked

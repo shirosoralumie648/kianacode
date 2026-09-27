@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kiana-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-structure:
+    name: Workflow structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow YAML
+        run: |
+          bash scripts/ci/validate-workflows.sh
+          bash scripts/tests/eq49-eval-scripts-static.sh
+          bash scripts/tests/eq50-ci-lanes-static.sh
+          bash scripts/tests/eq51-evidence-archive-static.sh
+          bash scripts/validate-dep41-release-gate.sh
+          bash scripts/validate-sc28-supply-chain.sh
+          bash scripts/validate-sc41-security-gate.sh
+          bash scripts/validate-sc42-recovery-rehearsal.sh
+          bash scripts/validate-sc43-security-closeout.sh
+          bash scripts/validate-pd35-persistence-closeout.sh
+          bash scripts/verify-ui37-docs.sh
+          find scripts -type f -name '*.sh' -exec bash -n {} +
+
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - run: cargo check --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked
+      - run: cargo test --workspace --locked --no-fail-fast -- --test-threads=1
+      - name: Run desktop contract tests
+        run: node --test contrib/desktop/tests/*.js

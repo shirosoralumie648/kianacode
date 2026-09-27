@@ -26,6 +26,7 @@ jobs:
         run: |
           bash scripts/tests/eq49-eval-scripts-static.sh
           bash scripts/tests/eq50-ci-lanes-static.sh
+      - run: cargo fmt --all --check
       - name: Require explicit release opt-in
         env:
           RELEASE_CANDIDATE: ${{ inputs.release_candidate || 'false' }}
@@ -35,8 +36,6 @@ jobs:
             echo "release candidate lane requires release_candidate=true or a version tag" >&2
             exit 78
           fi
-      - run: cargo fetch --locked
-      - run: cargo fmt --all --check
       - name: Compile release candidate targets
         run: cargo check -p kiana-commands -p kiana-quality -p kiana-core -p kiana-daemon --tests --locked
       - name: Run release candidate daemon and core fixtures serially
