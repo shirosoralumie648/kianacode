@@ -15755,3 +15755,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: notification delivery/outbox/channel policy and cross-entrypoint display remain unproven; INT-28+ remains open
 reviewer: Codex INT-27 source review; checked committed-source registry, cursor/evidence/dedupe/limitation/redaction gates and reuse of existing materializer; no local runtime/CI test reviewer
 ```
+
+### INT-28 connector surface evidence (2026-09-27)
+
+```text
+source_snapshot: `a847b210` plus INT-28 surface source slice; kiana-domain/src/{connector_surfaces.rs,lib.rs}; kiana-core/src/{connector_surfaces.rs,lib.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/connector_surfaces.rs; kiana-protocol/tests/int28_connector_surfaces.rs; kiana-core/tests/int28_connector_surfaces_guard.rs; .github/workflows/int28-surfaces.yml; docs/roadmap/int28-surfaces-baseline.md; docs/roadmap.md
+worktree_status: ConnectorSurfaceQuery/Response/Cursor/Item DTOs share CLI/Web/Workbench/MCP surface enum and health/invocation/reconciliation/approval kinds; query requires binding/scope/source cursor and read_only, response carries projection/freshness/evidence/Unknown/limitations, redaction and cursor fences; protocol re-exports DTOs; reconcile mutation remains ConnectorCommand route; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_surfaces.rs kiana-core/src/connector_surfaces.rs kiana-domain/tests/connector_surfaces.rs kiana-protocol/tests/int28_connector_surfaces.rs kiana-core/tests/int28_connector_surfaces_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_surfaces --locked -- --test-threads=1; cargo test -p kiana-protocol --test int28_connector_surfaces --locked -- --test-threads=1; cargo test -p kiana-core --test int28_connector_surfaces_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-protocol --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only four-surface query roundtrip, read_only/unknown authority fields, cursor/scope binding, response evidence/freshness/limitation, secret summary and source guard; no live CLI/Web/Workbench/MCP projection wiring, durable cursor store, reconcile UI action, connector effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-28 shared connector surface query/response/cursor source contract, protocol re-export, Core facade, domain/protocol/Core fixtures, source guard, workflow and baseline added; roadmap row 583/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: surface handlers and common projection backend remain unproven; manual reconcile UI and durable cursor store are not implemented; INT-29+ remains open
+reviewer: Codex INT-28 source review; checked four-surface DTO parity, read-only/authority omission, scope/cursor/evidence/freshness/secret fences and ConnectorCommand mutation boundary; no local runtime/CI test reviewer
+```

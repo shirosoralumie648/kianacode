@@ -44,6 +44,12 @@ pub use kiana_domain::{
     BILLING_QUERY_SCHEMA,
 };
 pub use kiana_domain::{
+    ConnectorSurface, ConnectorSurfaceCursor, ConnectorSurfaceItem, ConnectorSurfaceQuery,
+    ConnectorSurfaceQueryKind, ConnectorSurfaceResponse, CONNECTOR_SURFACE_CURSOR_SCHEMA,
+    CONNECTOR_SURFACE_MAX_LIMIT, CONNECTOR_SURFACE_QUERY_SCHEMA,
+    CONNECTOR_SURFACE_RESPONSE_SCHEMA,
+};
+pub use kiana_domain::{
     normalize_role_path, project_redacted_error, redact_text, scan_secret_channels,
     scan_secret_sentinels, scan_secret_value, ActionRef, ActionRefId, AdapterCommitState,
     AdapterResult,
