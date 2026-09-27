@@ -13,6 +13,8 @@ fn registry() -> MigrationRegistry {
             release_manifest_digest: digest('a'),
             artifact_digest: digest('b'),
             signature_digest: digest('c'),
+            // Existing fixtures carry no signature; the verifier tests the real one.
+            signature_value: None,
         },
         vec![MigrationStep {
             step_id: "migrate-1".to_owned(),

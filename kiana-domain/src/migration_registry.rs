@@ -19,7 +19,13 @@ pub const MAX_MIGRATION_TEXT: usize = 256;
 pub struct MigrationReleaseBinding {
     pub release_manifest_digest: String,
     pub artifact_digest: String,
+    /// Key reference the registry was signed with. A reference, not key material.
     pub signature_digest: String,
+    /// Hex Ed25519 signature over `MigrationRegistry::signing_bytes`. Verification is the
+    /// adapter's job; the domain only carries and binds it, and it is excluded from the bytes
+    /// the signature covers so a signature cannot be re-pointed at another key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_value: Option<String>,
 }
 
 impl MigrationReleaseBinding {
@@ -195,6 +201,21 @@ impl MigrationRegistry {
 
     pub fn ordered_steps(&self) -> &[MigrationStep] {
         &self.steps
+    }
+
+    /// The exact bytes a release signature covers: the canonical form of the registry without
+    /// the signature binding itself, so adding or changing the key reference cannot be smuggled
+    /// in under an existing signature.
+    pub fn signing_bytes(&self) -> Result<Vec<u8>, String> {
+        self.validate()?;
+        crate::canonical_journal_bytes(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "registry_revision": self.registry_revision,
+            "release_manifest_digest": self.release.release_manifest_digest,
+            "artifact_digest": self.release.artifact_digest,
+            "steps": self.steps,
+        }))
     }
 
     pub fn digest(&self) -> String {

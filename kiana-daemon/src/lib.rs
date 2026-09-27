@@ -12,6 +12,8 @@ mod context_query;
 mod data_governance;
 mod deployment_admission;
 mod deployment_capacity;
+mod migration_registry_verify;
+pub use migration_registry_verify::{verify_registry_signature, TrustedReleaseKeys};
 mod deployment_incident;
 mod deployment_observability;
 mod deployment_reconcile;
