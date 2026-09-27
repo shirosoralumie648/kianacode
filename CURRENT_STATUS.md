@@ -15860,3 +15860,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: reducer is pure source logic; independent review/merge receipt and exactly-once release remain SW-14+ work
 reviewer: Codex SW-13 source review; checked canonical order/full coverage, Unknown/partial policy, output/evidence and no-effect reducer boundary; no local runtime/CI test reviewer
 ```
+
+### SW-14 independent merge review evidence (2026-09-27)
+
+```text
+source_snapshot: `d01268e7` plus SW-14 merge review source slice; kiana-domain/src/{swarm_merge_review.rs,swarm_merge_reducer.rs,lib.rs}; kiana-core/src/{swarm_merge_review.rs,lib.rs}; kiana-domain/tests/swarm_merge_review.rs; kiana-core/tests/sw14_merge_review_guard.rs; .github/workflows/sw14-merge-review.yml; docs/roadmap/sw14-merge-review-baseline.md; docs/roadmap.md
+worktree_status: SwarmPartitionReview enforces reviewer/author separation and output/evidence digests; SwarmMergeReview enforces canonical one-per-partition decisions and reviewer epoch; SwarmMergeReceipt binds merge/review/policy/acceptor/conflict refs and company_acceptance_required=true; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_merge_review.rs kiana-core/src/swarm_merge_review.rs kiana-domain/tests/swarm_merge_review.rs kiana-core/tests/sw14_merge_review_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_merge_review --locked -- --test-threads=1; cargo test -p kiana-core --test sw14_merge_review_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only independent review success, self-review/duplicate/missing evidence/unknown-field denial, MergeReceipt company acceptance boundary and no-effect guard; no reviewer identity provider, durable receipt store, artifact UI, budget release, Company acceptance or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-14 independent review/merge decision/receipt source contracts, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 599/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: review facts cannot persist decisions, merge artifacts, release budgets or perform Company acceptance; SW-15+ remains open
+reviewer: Codex SW-14 source review; checked reviewer independence, one-per-partition coverage, evidence/policy/conflict refs and Company acceptance separation; no local runtime/CI test reviewer
+```
