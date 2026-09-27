@@ -15845,3 +15845,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: closeout validates documentation/source hygiene only; it cannot certify adapter behavior, external provider truth, business outcomes, durability or physical effects
 reviewer: Codex INT-33 source closeout review; no local runtime/CI test reviewer
 ```
+
+### SW-13 swarm merge reducer evidence (2026-09-27)
+
+```text
+source_snapshot: `17f6cf71` plus SW-13 merge reducer source slice; kiana-domain/src/{swarm_merge_reducer.rs,swarm_child_result.rs,lib.rs}; kiana-core/src/{swarm_merge_reducer.rs,lib.rs}; kiana-domain/tests/swarm_merge_reducer.rs; kiana-core/tests/sw13_merge_reducer_guard.rs; .github/workflows/sw13-merge-reducer.yml; docs/roadmap/sw13-merge-reducer-baseline.md; docs/roadmap.md
+worktree_status: SwarmMergeDecision supports AllSuccess/AllSettled/ExplicitPolicy with canonical partition order, full coverage, TypedChildResult output/evidence and Unknown rejection; explicit policy/evidence required for partial outcomes; Core facade validates only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_merge_reducer.rs kiana-core/src/swarm_merge_reducer.rs kiana-domain/tests/swarm_merge_reducer.rs kiana-core/tests/sw13_merge_reducer_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_merge_reducer --locked -- --test-threads=1; cargo test -p kiana-core --test sw13_merge_reducer_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only canonical all-success/explicit-policy merge, unordered/missing/duplicate/Unknown/first-success/unknown-field/digest denial and no-effect reducer guard; no independent review, artifact merge, budget release, EventLog write, Company acceptance or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-13 deterministic swarm merge reducer source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 598/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: reducer is pure source logic; independent review/merge receipt and exactly-once release remain SW-14+ work
+reviewer: Codex SW-13 source review; checked canonical order/full coverage, Unknown/partial policy, output/evidence and no-effect reducer boundary; no local runtime/CI test reviewer
+```

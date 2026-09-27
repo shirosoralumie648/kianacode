@@ -77,6 +77,7 @@ mod connector_recovery;
 mod connector_conformance;
 mod connector_pilot;
 mod connector_write_pilot;
+mod swarm_merge_reducer;
 mod restore_verification;
 mod health;
 mod history;
@@ -181,6 +182,7 @@ pub use connector_recovery::validate_connector_recovery_fact;
 pub use connector_conformance::validate_connector_conformance_report;
 pub use connector_pilot::validate_connector_pilot_gate;
 pub use connector_write_pilot::validate_connector_write_pilot_gate;
+pub use swarm_merge_reducer::validate_swarm_merge;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
