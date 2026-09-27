@@ -15800,3 +15800,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: conformance report is not a property-test runner or adapter/network proof; live/physical pilots remain unstarted; INT-31+ remains open
 reviewer: Codex INT-30 source review; checked shared adapter/scenario matrix, deny/replay/Unknown/TOCTOU evidence, report recomputation and no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### INT-31 connector pilot evidence (2026-09-27)
+
+```text
+source_snapshot: `6db4e950` plus INT-31 pilot source slice; kiana-domain/src/{connector_pilot.rs,lib.rs}; kiana-core/src/{connector_pilot.rs,lib.rs}; kiana-domain/tests/connector_pilot.rs; kiana-core/tests/int31_connector_pilot_guard.rs; .github/workflows/int31-pilot.yml; docs/roadmap/int31-pilot-baseline.md; docs/roadmap.md
+worktree_status: ConnectorPilotGate is default-off and read-only; ReadyForOperator requires isolated account, health/list/whoami operation, OptedIn + LiveNetwork, approval ref, endpoint/credential/scope/revocation/data epoch, provider receipt, cleanup plan and limitations; Core facade validates gate only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_pilot.rs kiana-core/src/connector_pilot.rs kiana-domain/tests/connector_pilot.rs kiana-core/tests/int31_connector_pilot_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_pilot --locked -- --test-threads=1; cargo test -p kiana-core --test int31_connector_pilot_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only DefaultOff/Fake block, explicit live opt-in ready gate, isolated account/read-only operation, missing approval/provider receipt/cleanup/epoch/unknown-field denial and no-effect Core guard; no account provisioning, network request, provider receipt retrieval, revocation worker, cleanup execution or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-31 connector default-off read-only pilot gate, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 703/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: pilot gate cannot provision accounts, call providers, retrieve receipts, execute cleanup or prove live evidence; INT-32+ remains open
+reviewer: Codex INT-31 source review; checked default-off/fake block, opt-in approval, isolated account, read-only operation, evidence/cleanup/revocation epochs and no-effect boundary; no local runtime/CI test reviewer
+```
