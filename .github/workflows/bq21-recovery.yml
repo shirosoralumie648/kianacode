@@ -1,0 +1,48 @@
+name: BQ-21 billing recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_recovery.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_recovery.rs"
+      - "kiana-core/src/billing_recovery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/billing_recovery_guard.rs"
+      - "docs/roadmap/bq21-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq21-recovery.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_recovery.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_recovery.rs"
+      - "kiana-core/src/billing_recovery.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/billing_recovery_guard.rs"
+      - "docs/roadmap/bq21-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq21-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-21 domain fixtures
+        run: cargo test -p kiana-domain --test billing_recovery --locked -- --test-threads=1
+      - name: Run BQ-21 Core source guard
+        run: cargo test -p kiana-core --test billing_recovery_guard --locked -- --test-threads=1
+      - name: Compile BQ-21 targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
