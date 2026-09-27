@@ -15635,3 +15635,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: fact is caller-supplied and cannot rebuild stores or fence/restart workers; durable recovery remains unproven
 reviewer: Codex AUT-21 source review; checked cursor/generation/Unknown/stale-index gates, Ready preconditions and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### BQ-21 billing restart and recovery evidence (2026-09-27)
+
+```text
+source_snapshot: `a9111a00` plus BQ-21 billing recovery source slice; kiana-domain/src/{billing_recovery.rs,lib.rs}; kiana-core/src/{billing_recovery.rs,lib.rs}; kiana-domain/tests/billing_recovery.rs; kiana-core/tests/billing_recovery_guard.rs; .github/workflows/bq21-recovery.yml; docs/roadmap/bq21-recovery-baseline.md; docs/roadmap.md
+worktree_status: BillingRecoveryFact binds attempt/reservation digests, source cursor, authority epoch and lease epoch; Paused/NeedsReconciliation preserve uncertainty with zero settlements, Recovered requires explicit reconciliation, known usage and exactly one settlement, and Continue cannot reset usage; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/billing_recovery.rs kiana-core/src/billing_recovery.rs kiana-domain/tests/billing_recovery.rs kiana-core/tests/billing_recovery_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test billing_recovery --locked -- --test-threads=1; cargo test -p kiana-core --test billing_recovery_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only paused/needs-reconciliation/recovered states, Continue usage-reset denial, Unknown-as-success and repeated-settlement denial, epoch/digest/unknown-field denial and read-only source guard; no worker restart, EventLog rebuild, CAS/reconciliation, reservation settlement or live/physical outcome
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: BQ-21 billing restart/recovery and unknown-attempt fencing source contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 575/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: caller-supplied fact cannot restart workers, rebuild EventLog projections, perform CAS/reconciliation or prove external provider truth; BQ-22+ remains open
+reviewer: Codex BQ-21 source review; checked Unknown-first recovery, Continue non-reset, epoch binding, explicit reconciliation and no-effect Core boundary; no local runtime/CI test reviewer
+```

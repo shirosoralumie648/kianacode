@@ -10,6 +10,7 @@ mod authority;
 mod authority_read_model;
 mod billing_allocation;
 mod billing_projection;
+mod billing_recovery;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
@@ -153,6 +154,7 @@ pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionErr
 pub use billing_projection::{
     BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
 };
+pub use billing_recovery::validate_billing_recovery;
 pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,
