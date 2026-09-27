@@ -600,9 +600,11 @@ pub use automation::*;
 mod swarm;
 mod swarm_admission;
 mod swarm_queue;
+mod swarm_child;
 pub use swarm::*;
 pub use swarm_admission::*;
 pub use swarm_queue::*;
+pub use swarm_child::*;
 
 mod handoff;
 pub use handoff::*;
