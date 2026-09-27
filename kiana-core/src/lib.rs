@@ -190,6 +190,7 @@ pub use swarm_admission::admit_swarm_resources;
 pub use swarm_queue::{claim_swarm_entry, complete_swarm_entry, enqueue_swarm_entry};
 pub use swarm_child::materialize_child;
 pub use swarm_routing::validate_child_route;
+pub use swarm_progress::record_swarm_progress;
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
@@ -476,6 +477,7 @@ mod swarm_admission;
 mod swarm_queue;
 mod swarm_child;
 mod swarm_routing;
+mod swarm_progress;
 
 mod company_business;
 mod company_scope;

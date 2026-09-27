@@ -15455,3 +15455,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: route evidence cannot authenticate a live DaemonHost or persist child correlation; runner/provider dispatch and recovery remain unproven
 reviewer: Codex SW-08 source review; checked fixed execution spine, correlation/causation, direct-route denial, effect false and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-09 bounded progress ledger and stall evidence (2026-09-27)
+
+```text
+source_snapshot: `950f1966` plus SW-09 progress source slice; kiana-domain/src/{swarm_progress.rs,lib.rs}; kiana-core/src/{swarm_progress.rs,lib.rs}; kiana-domain/tests/swarm_progress.rs; kiana-core/tests/swarm_progress_guard.rs; .github/workflows/sw09-progress.yml; docs/roadmap/sw09-progress-baseline.md; docs/roadmap.md
+worktree_status: SwarmProgressObservation binds run/attempt, heartbeat/checkpoint sequence, turns/tokens/effects/wall-time/stalls and hierarchical per-run budget; ledger rejects identity/counter/sequence rollback, budget overrun and stalled/exhausted counters still marked Running; Core facade records only supplied observation; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_progress.rs kiana-core/src/swarm_progress.rs kiana-domain/tests/swarm_progress.rs kiana-core/tests/swarm_progress_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_progress --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_progress_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only monotonic heartbeat/checkpoint/progress, identity drift, rollback, budget/stall denial, digest and unknown-field fixtures; no timer, process heartbeat, durable checkpoint, EventLog/restart recovery, operator escalation, child effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-09 progress/budget/stall contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 551/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: pure progress ledger does not produce real heartbeat/checkpoint, persist state, escalate stalls or enforce runtime budget at effect time; recovery remains SW-10+
+reviewer: Codex SW-09 source review; checked monotonic sequences/counters, strict per-run budget, stall/exhaustion visibility and no-effect Core boundary; no local runtime/CI test reviewer
+```
