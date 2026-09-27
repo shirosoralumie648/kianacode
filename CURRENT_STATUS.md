@@ -15575,3 +15575,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: observation-only contract cannot signal/drain a worker or reconcile late effects; AUT-18+ remains open
 reviewer: Codex AUT-17 source review; checked generation/epoch fence, stop confirmation, Unknown preservation and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-18 signal pause/resume evidence (2026-09-27)
+
+```text
+source_snapshot: `a1bce5c7` plus AUT-18 signal source slice; kiana-domain/src/{automation_signal.rs,lib.rs}; kiana-core/src/{automation_signal.rs,lib.rs}; kiana-domain/tests/automation_signal.rs; kiana-core/tests/automation_signal_guard.rs; .github/workflows/aut18-signal.yml; docs/roadmap/aut18-signal-baseline.md; docs/roadmap.md
+worktree_status: AutomationSignalFact binds execution/owner/action/path/authority/checkpoint metadata and explicit Paused/Resumed/Consumed state; consumed must match terminal state, preventing duplicate signal use; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_signal.rs kiana-core/src/automation_signal.rs kiana-domain/tests/automation_signal.rs kiana-core/tests/automation_signal_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_signal --locked -- --test-threads=1; cargo test -p kiana-core --test automation_signal_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only pause/resume/consume state, consumed mismatch, digest and unknown-field denial; no UI approval execution, runner signal, durable checkpoint, EventLog append or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-18 signal/checkpoint contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 560/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source signal fact cannot authenticate approver, consume durable approval or resume a worker; AUT-19+ remains open
+reviewer: Codex AUT-18 source review; checked owner/action/path/epoch/checkpoint binding, single-consume state and no-effect Core boundary; no local runtime/CI test reviewer
+```
