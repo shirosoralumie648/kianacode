@@ -15395,3 +15395,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: archive validates caller-supplied references and does not generate/evaluate/persist report or trace-diff files; conditional upload does not prove runner execution, artifact presence, EvalStore durability, provider quality, promotion, live or physical outcomes; EQ-51 remains source/CI-only until independent CI artifacts and reviewer evidence exist
 reviewer: Codex EQ-51 source review; checked complete evidence-block fields, four artifact-kind closure, relative archive root, secret/path traversal/absolute-path/duplicate/digest fences, source-only proof ceiling and no-effect Core/domain boundary; no local runtime/CI test reviewer
 ```
+
+### SW-05 atomic swarm admission evidence (2026-09-27)
+
+```text
+source_snapshot: `c075c369` plus SW-05 atomic admission source slice; kiana-domain/src/{swarm_admission.rs,lib.rs}; kiana-core/src/{swarm_admission.rs,lib.rs}; kiana-domain/tests/swarm_admission.rs; kiana-core/tests/swarm_admission_guard.rs; .github/workflows/sw05-atomic-admission.yml; docs/roadmap/sw05-atomic-admission-baseline.md; docs/roadmap.md
+worktree_status: SwarmAdmissionRequest binds idempotency, work fingerprint, budget, path/data locks, claim, grant, supervision, intent and authority/config/policy revisions; SwarmAdmissionLedger performs all checks before one mutation block, replays identical payloads, rejects conflict/active fingerprint/resource overlap and leaves state unchanged on preflight fault; Core facade is read-only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_admission.rs kiana-core/src/swarm_admission.rs kiana-domain/tests/swarm_admission.rs kiana-core/tests/swarm_admission_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_admission --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_admission_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only all-resource reservation/replay, idempotency payload conflict, active fingerprint, budget/lock/resource conflict, path-data overlap, preflight fault no-partial-state, unknown fields and digest denial; no durable cross-process CAS, EventLog append, worker claim, child execution, restart/recovery or live/physical effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-05 atomic admission contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 547/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: in-memory ledger demonstrates deterministic all-or-nothing ordering only; runtime CellRegistry/CAS remains separate and cross-process durable admission, queue/lease/worker/child execution remain SW-06+
+reviewer: Codex SW-05 source review; checked complete resource set, preflight-before-mutation, replay/conflict/fingerprint fences, path/data disjointness and no-effect Core boundary; no local runtime/CI test reviewer
+```
