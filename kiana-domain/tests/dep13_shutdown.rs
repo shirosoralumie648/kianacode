@@ -84,7 +84,7 @@ fn shutdown_never_claims_stopped_without_drain_or_flush_ack() {
 #[test]
 fn shutdown_unknown_phase_and_missing_ack_are_explicit() {
     let mut unknown = input();
-    unknown.phases[3] = ShutdownPhaseEvidence::new(
+    unknown.phases[2] = ShutdownPhaseEvidence::new(
         ShutdownPhase::SchedulerFence,
         ShutdownAckStatus::Unknown,
         4,
