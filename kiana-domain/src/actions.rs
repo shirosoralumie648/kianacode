@@ -37,6 +37,8 @@ pub const ACTION_OPERATIONS: &[&str] = &[
     "connector.manage",
     "connector.invoke",
     "connector.health",
+    "connector.mcp_handshake",
+    "apply_patch.preview",
     "workspace.checkpoint.restore",
     "workspace.transaction",
     "local.package",
@@ -138,6 +140,12 @@ pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionD
                 &["patch", "path_allow"],
                 "workspace_patch",
             ),
+            "apply_patch.preview" => (
+                CapabilityKind::Filesystem,
+                RiskLevel::ReadOnly,
+                &["patch", "path_allow"],
+                "workspace_patch_preview",
+            ),
             "mcp.call" | "mcp.discover" => (
                 CapabilityKind::Network,
                 RiskLevel::ExternalSideEffect,
@@ -197,6 +205,12 @@ pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionD
                 RiskLevel::ReadOnly,
                 &["binding_snapshot", "probe_kind"],
                 "connector_read_only_probe",
+            ),
+            "connector.mcp_handshake" => (
+                CapabilityKind::Tool,
+                RiskLevel::ReadOnly,
+                &["binding_id", "server", "session_ref"],
+                "connector_mcp_handshake",
             ),
             "workspace.checkpoint.restore" => (
                 CapabilityKind::Filesystem,

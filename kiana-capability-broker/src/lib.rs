@@ -24,8 +24,46 @@ use tokio::sync::RwLock;
 type HandlerKey = (CapabilityKind, String);
 
 /// Revalidate and consume credential metadata immediately before an effect.  The broker never
+/// 路由键：能力类型 + 操作名的组合。
+///
+/// 【为什么用元组而不是字符串拼接】
+/// 用 `"shell:run"` 这样的字符串当键会有歧义 ——
+/// 如果能力名或操作名里含有冒号，不同的组合可能拼出同一个键。
+///
+/// 元组在类型层面就杜绝了这种歧义：两个不同的 `(能力, 操作)` 组合
+/// 永远不相等，不需要任何转义规则。
+///
 /// resolves or returns the raw value; provider/connector adapters keep that operation private to
 /// their final request boundary and may pass only this consumed lease's digest to receipts.
+/// 在产生副作用的**最后一刻**重新校验并消费凭据租约。
+///
+/// 【作用】
+/// 凭据租约不是"取一次就一直有效"的。
+/// 每次真正要用凭据之前，都必须重新确认它还没被撤销、还没过期、
+/// 还没被别处消费掉。
+///
+/// 【⚠ 为什么是"最后一刻"而不是"提前准备"】
+/// 因为凭据状态可能在这期间改变：
+/// - 用户可能在执行过程中撤销了授权；
+/// - 租约可能在这期间过期；
+/// - 另一次并发操作可能已经消费了同一个租约。
+///
+/// 如果提前很久就准备好，实际使用时的状态可能已经变了。
+/// **越接近使用点校验越准确。**
+///
+/// 【⚠ Broker 绝不解析或返回凭据原文】
+/// 原始注释特别强调这一点："The broker never resolves or returns the raw value"。
+///
+/// Broker 只处理**元数据**（租约状态、有效期、消费记录）。
+/// 真正的密钥由 provider/connector 适配器在它们的最终请求边界内私有地解析。
+///
+/// 这样做的好处是：Broker 的代码永远不可能泄漏密钥 ——
+/// 因为它根本拿不到。
+///
+/// 【⚹ 适配器只能传递租约摘要】
+/// 适配器在写回执（receipt）时，最多只能传递"已消费的这份租约的摘要"，
+/// 不能传递租约本身，更不能传递密钥。
+///
 pub fn consume_credential_lease(
     lease: &mut CredentialLease,
     now_unix_ms: u64,
@@ -49,6 +87,17 @@ pub fn consume_credential_lease(
 /// Consume connector credential metadata only after the current server-owned binding has been
 /// revalidated at the adapter effect boundary. Raw secret resolution remains adapter-private.
 #[allow(clippy::too_many_arguments)]
+/// 连接器凭据调用的同类消费接口。
+///
+/// 【作用】
+/// [`consume_credential_lease`] 针对普通能力请求的版本；
+/// 这个是针对**连接器调用**的版本。
+///
+/// 【为什么分成两个】
+/// 连接器调用涉及外部服务，需要额外校验一些东西
+/// （比如连接器配额、绑定一致性）。
+/// 共用一个函数会让参数列表膨胀，而且两种场景的校验项确实不同。
+///
 pub fn consume_connector_credential_invocation(
     invocation: &mut ConnectorCredentialInvocation,
     binding: &ConnectorBindingSnapshot,
@@ -74,7 +123,31 @@ pub fn consume_connector_credential_invocation(
 /// 每个实现只应处理注册时声明的能力种类和精确操作名，并在请求携带的 sandbox、路径
 /// 与参数边界内工作。Handler 不接收原始模型调用，因此不能自行绕过控制面创建或扩展
 /// [`AuthorizedCapabilityRequest`]。
+/// 能力处理器接口。
+///
+/// 【作用】
+/// 一个适配器实现"怎么真正执行某类能力"的接口。
+///
+/// 【⚠ 这是执行链的终点】
+/// Broker 经过一长串检查之后，最终会落到 `execute_cancellable`。
+/// 也就是说，**这是整条授权链上最后一个会真正碰到外部世界的环节**。
+///
+/// 前面所有的策略检查、Gate 检查、许可校验，
+/// 都是为了保证"能走到这里的东西是合法的"。
+///
 pub trait CapabilityHandler: Send + Sync {
+    /// 处理器绑定到哪个版本的契约。
+    ///
+    /// 【作用】
+    /// 让 Broker 能确认"这个处理器实现的是哪一版契约"。
+    ///
+    /// 【⚠ 版本不匹配会导致拒绝】
+    /// 如果处理器实现的契约版本与当前期望的不一致，
+    /// Broker 会拒绝调用它，而不是"凑合着用"。
+    ///
+    /// 这防的是：新版接口加了字段或改了语义，
+    /// 旧处理器不知道这些变化，凑合执行可能产生错误结果。
+    ///
     fn binding_version(&self) -> &'static str {
         kiana_domain::ACTION_HANDLER_BINDING_VERSION
     }
@@ -123,6 +196,20 @@ pub trait CapabilityHandler: Send + Sync {
 /// Installed extension admission is rechecked immediately before dispatch, so a cached
 /// descriptor cannot survive revocation or silently change to a newer package version.
 #[async_trait]
+/// 扩展准入接口。
+///
+/// 【作用】
+/// 让**插件**（extension）声明它能被哪些能力调用。
+///
+/// 【⚠ 为什么要单独一个接口】
+/// 静态注册的能力（编译期就在代码里的）在注册时就已经确定了权限。
+/// 但扩展是动态加载的 —— 它们在运行时才出现。
+///
+/// 扩展带来的能力必须**再次过审**，不能因为"它已经加载了"就认为可信。
+///
+/// 【典型实现】
+/// 由 `kiana-daemon` 之类的上层提供，判断某个扩展是否有权处理某类请求。
+///
 pub trait ExtensionAdmission: Send + Sync {
     async fn check(
         &self,
@@ -157,6 +244,17 @@ struct ExtensionHandler {
 }
 
 #[async_trait]
+/// 把扩展包装成标准能力处理器。
+///
+/// 【作用】
+/// 适配器模式。`ExtensionHandler` 让扩展的调用路径
+/// 和静态注册的能力走同一套 Broker 逻辑，
+/// 避免在 Broker 里写两套分发。
+///
+/// 【⚠ 但准入检查不能省】
+/// 即使走的路径统一了，扩展的准入检查依然要做 ——
+/// 这正是上面那个 [`ExtensionAdmission`] 接口存在的意义。
+///
 impl CapabilityHandler for ExtensionHandler {
     fn binding_version(&self) -> &'static str {
         self.handler.binding_version()
@@ -202,6 +300,18 @@ impl CapabilityHandler for ExtensionHandler {
 /// 注册表受异步读写锁保护：执行路径只短暂读取并克隆 [`Arc`]，随后在不持锁的情况下
 /// `await` Handler，避免长时间工具调用阻塞其他注册读取。当前类型不提供覆盖或注销；
 /// 重复键会被拒绝，从而防止后注册适配器悄悄改变同一操作的执行含义。
+/// 能力代理 —— 本 crate 的核心类型。
+///
+/// 【作用】
+/// 把"已授权的请求"路由到"能执行它的适配器"，并管理适配器注册表。
+///
+/// 【⚠ 它是纯路由层，不是授权层】
+/// 它**接受**已授权的请求，但**不签发**授权。
+/// 授权在上游的 `kiana-core` 完成。
+///
+/// 这个区分很重要：Broker 不参与"能不能做"的判断，
+/// 只负责"找到做这件事的东西并调用它"。
+///
 pub struct CapabilityBroker {
     /// 以能力种类和精确操作名为键的 Handler 集合。
     handlers: RwLock<HashMap<HandlerKey, Arc<dyn CapabilityHandler>>>,
@@ -212,6 +322,20 @@ pub struct CapabilityBroker {
 
 impl CapabilityBroker {
     /// Called once by DaemonHost after all static registrations and before any model request.
+    /// 校验所有已注册处理器的绑定是否一致。
+    ///
+    /// 【作用】
+    /// 在开始服务之前，一次性检查所有适配器的绑定声明是否有效。
+    ///
+    /// 【为什么提前一次性检查】
+    /// 如果在每次调用时才检查某个处理器，一个配置错误
+    /// 可能要等到某个特定请求进来才会暴露。
+    /// 提前检查让问题在启动时就暴露。
+    ///
+    /// 【⚠ 检查是 `&mut self`】
+    /// 因为这个方法可能会**修改**内部状态（比如标记无效的处理器）。
+    /// 一个只读检查不需要可变借用。
+    ///
     pub fn validate_catalog_bindings(&mut self) -> Result<(), PortError> {
         kiana_domain::validate_action_catalog().map_err(PortError::Failed)?;
         let handlers = self.handlers.get_mut();
@@ -242,6 +366,16 @@ impl CapabilityBroker {
         Ok(())
     }
 
+    /// 校验一次已授权请求的形状是否正确。
+    ///
+    /// 【作用】
+    /// 在任何路由发生之前，确认请求本身结构完整。
+    ///
+    /// 【⚠ 这一步在路由之前】
+    /// 如果请求连基本结构都不对（比如缺少必要字段），
+    /// 就不应该浪费一次查找去路由它 ——
+    /// 先确认"这是一个形状正确的请求"。
+    ///
     fn validate_action(&self, request: &AuthorizedCapabilityRequest) -> Result<(), PortError> {
         if !self.catalog_sealed {
             return Err(PortError::Unavailable(
@@ -303,10 +437,29 @@ impl CapabilityBroker {
     /// 创建一个没有注册任何能力的 Broker。
     ///
     /// 空 Broker 对所有执行请求都会 fail-closed；组合根必须显式注册产品允许的能力面。
+    /// 创建一个空的 Broker。
+    ///
+    /// 【作用】
+    /// 构造一个还没有注册任何处理器的 Broker。
+    ///
+    /// 【⚠ 空的 Broker 什么都做不了】
+    /// 没有处理器时，任何请求都会被拒绝。
+    /// 这是安全的默认值 —— 未配置 = 不可用。
+    ///
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// 设置许可验证器。
+    ///
+    /// 【作用】
+    /// 注入一个"谁来验证单次执行许可"的实现。
+    ///
+    /// 【为什么是注入而不是内部实现】
+    /// 验证许可需要访问 journal（事件账本），
+    /// 而 Broker 不应该直接持有账本访问权。
+    /// 通过注入，账本访问被限制在验证器内部。
+    ///
     pub fn set_permit_verifier(
         &mut self,
         verifier: Arc<dyn kiana_ports::ExecutionPermitVerifierPort>,
@@ -314,6 +467,15 @@ impl CapabilityBroker {
         self.permit_verifier = Some(verifier);
     }
 
+    /// 设置扩展准入器。
+    ///
+    /// 【作用】
+    /// 注入一个"判断扩展是否有权处理某类请求"的实现。
+    ///
+    /// 【⚠ 必须在开始服务前设置好】
+    /// 和许可验证器一样，扩展准入必须在 Broker 开始工作前配置完成。
+    /// 事后再设置会留下一个"准入检查为空"的窗口期。
+    ///
     pub fn set_extension_admission(&mut self, admission: Arc<dyn ExtensionAdmission>) {
         self.extension_admission = Some(admission);
     }
@@ -339,6 +501,16 @@ impl CapabilityBroker {
     ///
     /// 该入口避免 daemon 启动装配阶段进入异步锁；它与 [`Self::register`] 使用完全相同
     /// 的重复键规则。调用者拥有独占可变借用，因此不能与执行并发发生。
+    /// 注册一个静态能力处理器。
+    ///
+    /// 【作用】
+    /// 把一个处理器加入路由表。
+    ///
+    /// 【⚠ 重复注册会失败】
+    /// 同一个 `(能力, 操作)` 只能有一个处理器。
+    /// 如果两个处理器都能处理同一个请求，路由结果就变得不确定 ——
+    /// 那是个安全问题，不只是设计问题。
+    ///
     pub fn register_static(
         &mut self,
         capability: CapabilityKind,
@@ -360,6 +532,17 @@ impl CapabilityBroker {
     /// Register an explicitly reviewed host adapter for an installed package. This grants
     /// no new policy permission: callers still arrive through ControlPlane, and manifest
     /// limits are an additional intersection applied inside the broker.
+    /// 注册一个扩展提供的静态处理器。
+    ///
+    /// 【作用】
+    /// 和 [`CapabilityBroker::register_static`] 类似，
+    /// 但标记这个处理器来自扩展。
+    ///
+    /// 【为什么扩展要单独注册】
+    /// 因为扩展的处理器需要在调用前额外过扩展准入检查。
+    /// 分成两个注册入口，可以让 Broker 在内部就知道
+    /// "这个处理器来自扩展"，从而在路由时自动加上那层检查。
+    ///
     pub fn register_extension_static(
         &mut self,
         capability: CapabilityKind,
@@ -382,6 +565,16 @@ impl CapabilityBroker {
 
     /// Register a component adapter without giving it a second execution path. The descriptor is
     /// checked by the existing ExtensionAdmission immediately before the wrapped handler runs.
+    /// 注册一个扩展组件提供的处理器。
+    ///
+    /// 【作用】
+    /// 比 [`CapabilityBroker::register_extension_static`] 更具体的注册入口 ——
+    /// 注册的是"扩展组件"而非整个扩展。
+    ///
+    /// 【具体差别在于准入检查的粒度：
+    /// 扩展整体准入 vs 单个组件准入。
+    /// 后者允许"一个扩展里只有部分组件被允许调用"。
+    ///
     pub fn register_extension_component_static(
         &mut self,
         capability: CapabilityKind,
@@ -405,6 +598,18 @@ impl CapabilityBroker {
     }
 }
 
+/// 校验一次网络观测记录。
+///
+/// 【作用】
+/// 确认"这次调用确实产生了预期的网络流量"。
+///
+/// 【⚠ 为什么需要它】
+/// 因为"声称调用了网络"和"真的调用了网络"是两回事。
+/// 一个适配器可能声称它访问了外部服务，实际却在本地返回了缓存数据。
+///
+/// 这个校验把观测记录和预期比对，不符就拒绝 ——
+/// 防止适配器谎报网络访问。
+///
 fn validate_network_observation(
     request: &kiana_domain::CapabilityRequest,
     scope: &kiana_domain::ExecutionScope,
@@ -456,6 +661,27 @@ fn validate_network_observation(
 /// uncommitted reservation, stale permit, lease/fence drift or expiry therefore produces zero
 /// adapter effect.  Legacy connector requests without the additive envelope continue through the
 /// pre-INT-16 compatibility path until ControlPlane emits the reservation event.
+/// 连接器效果边界（effect boundary）校验。
+///
+/// 【作用 —— Broker 最核心的检查之一】
+/// 确认"这次连接器调用的实际效果"符合连接器契约的声明。
+///
+/// 【⚠ 什么是"效果边界"】
+/// 它划定了一条线：
+/// 在这条线**之内**的副作用是允许的（按契约声明），
+/// 在**之外**的副作用是越界的。
+///
+/// 比如一个声明为"只读查询"的连接器操作，
+/// 如果它实际上修改了远端数据，就越界了。
+///
+/// 【为什么这道检查不可省略】
+/// 因为适配器是外部代码，它可能：
+/// - 声明只读，实际却写数据；
+/// - 声明访问 A 服务端，实际却访问了 B；
+/// - 因为上游服务变更而产生了预期外的影响。
+///
+/// 没有这道检查，声明就只是一句空话。
+///
 pub fn validate_connector_effect_boundary(
     request: &AuthorizedCapabilityRequest,
     now_unix_ms: u64,
@@ -548,6 +774,19 @@ pub fn validate_connector_effect_boundary(
 /// invocation permit. Quota reservations are server-owned facts; Broker cannot mint a claim,
 /// widen a project/account scope or replace a credential generation. Legacy requests without the
 /// additive envelope remain readable until ControlPlane emits quota facts for every caller.
+/// 连接器配额边界校验。
+///
+/// 【作用】
+/// 确认这次调用没有超过配额上限。
+///
+/// 【⚠ 为什么配额要在这里检查**
+/// 因为这是**副作用即将发生前**的最后一个检查点。
+/// 等副作用发生完再检查就晚了 —— 超额消耗已经产生了。
+///
+/// 【配额的类型】
+/// 通常包括速率限制（每秒最多 N 次）和总量限制（每天最多 M 次）。
+/// 两种都要在生效前拦住。
+///
 pub fn validate_connector_quota_boundary(
     request: &AuthorizedCapabilityRequest,
     now_unix_ms: u64,
@@ -596,6 +835,23 @@ pub fn validate_connector_quota_boundary(
         .map_err(PortError::Conflict)
 }
 
+/// 取当前时间戳（毫秒）。
+///
+/// 【作用】
+/// 给需要时间戳的校验提供统一入口。
+///
+/// 【⚠ 为什么是 `Result` 而不是直接返回】
+/// 因为取系统时间可能失败（比如系统时钟在 1970 年之前）。
+/// 虽然极罕见，但它确实可能发生。
+///
+/// 返回一个 `Result` 让调用方必须处理这个情况，
+/// 而不是假设"时间一定能取到"。
+///
+/// 【为什么不用 `Instant`】
+/// `Instant` 是单调递增的，适合测耗时；
+/// 但有效期判断需要的是**日历时间**（能被人类理解的时间点），
+/// 所以这里用 `SystemTime`。
+///
 fn connector_now_unix_ms() -> Result<u64, PortError> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -608,6 +864,24 @@ fn connector_now_unix_ms() -> Result<u64, PortError> {
 /// Validate optional handler-produced BQ-15 usage evidence at the Broker boundary. The handler
 /// may report bytes and timing, but it cannot choose a different run, owner, lease, resource or
 /// attempt. Rejected/not-started results must carry no effect and cannot be upgraded to success.
+/// 用 Broker 测得的耗时覆盖适配器上报的耗时。
+///
+/// 【作用 —— 防止适配器谎报执行时长】
+/// 适配器在回执里会报告"我执行了多久"。
+/// 但这个数字是**适配器自己说的**，不可信 ——
+/// 它可能为了让某项指标好看而报一个很小的数。
+///
+/// Broker 用自己测量的 `Instant` 差值**覆盖**那个数字。
+///
+/// 【为什么必须覆盖而不是核对】
+/// 如果只是核对（发现不一致就报错），那么一个老实上报的适配器
+/// 在系统繁忙时可能因为调度延迟而报出偏大的耗时，从而被误判。
+///
+/// 覆盖掉是最简洁的做法：**信任自己测的，不信别人报的。**
+///
+/// 【⚠ 覆盖掉意味着适配器上报的耗时被完全忽略】
+/// 这是有意的。Broker 的测量更接近真实执行时间。
+///
 fn seal_effect_usage_wall_time(
     mut result: CapabilityResult,
     elapsed: std::time::Duration,
@@ -633,6 +907,20 @@ fn seal_effect_usage_wall_time(
     Ok(result)
 }
 
+/// 校验效果用量结果。
+///
+/// 【作用】
+/// 把用量证据重新绑定回服务端持有的事实。
+///
+/// 【⚠ "重新绑定"是关键**
+/// 用量数据（用了多少 token、调了多少次、花了多少钱）
+/// 最初是由适配器上报的 —— 那不可信。
+///
+/// 这个函数把用量数据**重新锚定**到 Broker 已知的事实上：
+/// 调用哪个能力、哪个操作、哪个绑定、哪个账号。
+///
+/// 一份与这些事实对不上的用量记录，就是伪造的。
+///
 fn validate_effect_usage_result(
     request: &AuthorizedCapabilityRequest,
     result: &CapabilityResult,
@@ -706,6 +994,20 @@ fn validate_effect_usage_result(
     Ok(())
 }
 
+/// 把一个处理器插入路由表。
+///
+/// 【作用】
+/// 内部辅助函数，完成实际的插入。
+///
+/// 【为什么抽成独立函数】
+/// 三个注册入口（静态、扩展静态、扩展组件）
+/// 都要做插入，但要求的前置检查不同。
+/// 抽出插入逻辑，保证它们在"插入"这一步行为完全一致。
+///
+/// 【⚠ 重复键在这里被拒绝】
+/// 插入前检查键是否已存在。
+/// 这是路由确定性的保证。
+///
 fn insert_handler(
     handlers: &mut HashMap<HandlerKey, Arc<dyn CapabilityHandler>>,
     capability: CapabilityKind,
@@ -736,6 +1038,20 @@ fn insert_handler(
 }
 
 #[async_trait]
+/// Broker 对外的端口实现。
+///
+/// 【作用】
+/// 实现 `kiana_ports::CapabilityBrokerPort`，
+/// 让控制面能通过统一的端口接口调用 Broker。
+///
+/// 【⚠ 这里是执行链的最终环节】
+/// 从控制面到这里，要穿过：
+/// 策略 → Gate → 二次 Gate 校验 → 许可签发 → Broker 的九道内部检查
+/// → 适配器执行 → 用量证据重绑。
+///
+/// 这一长串就是架构简报里说的
+/// "把执行权交出去之前的所有服务端事实都钉死"。
+///
 impl CapabilityBrokerPort for CapabilityBroker {
     async fn execute_cancellable(
         &self,
@@ -821,6 +1137,12 @@ mod tests {
     struct NoopHandler;
 
     #[async_trait]
+    /// 测试用：什么都不做的处理器。
+    ///
+    /// 【作用】
+    /// 用于测试"处理器被正确调用"这类场景 ——
+    /// 用一个可预测的空实现，避免真的去执行副作用。
+    ///
     impl CapabilityHandler for NoopHandler {
         async fn execute(
             &self,
@@ -850,6 +1172,7 @@ mod tests {
     }
 
     #[test]
+    /// 测试：静态注册时拒绝重复的处理器键。
     fn static_registration_rejects_duplicate_handler_keys() {
         let mut broker = CapabilityBroker::new();
         broker

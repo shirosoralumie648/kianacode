@@ -16,6 +16,7 @@ mod notification_outbox;
 mod retention_store;
 mod stream;
 mod workflow_queue;
+mod writer_queue;
 
 pub use artifact_store::MemoryArtifactStore;
 pub use credential_rotation::MemoryCredentialRotationStore;
@@ -31,6 +32,14 @@ pub use notification_outbox::MemoryNotificationOutboxStore;
 pub use retention_store::MemoryRetentionStore;
 pub use stream::{CommitObservedEventStore, StreamEventStore};
 pub use workflow_queue::MemoryWorkflowQueueStore;
+pub use writer_queue::{
+    WriterAdmission, WriterAdmissionReport, WriterAdmissionStatus, WriterQueuePolicy,
+    WriterQueueState, WriterRegistry, WriterShutdown, WriterShutdownMode, WriterTakeover,
+    WriterTakeoverReport, MAX_OUTSTANDING_LEASES, MAX_QUEUE_WRITERS, MAX_WRITER_LABEL,
+    WRITER_ADMISSION_REPORT_SCHEMA, WRITER_ADMISSION_SCHEMA, WRITER_QUEUE_POLICY_SCHEMA,
+    WRITER_QUEUE_VERSION, WRITER_REGISTRY_SCHEMA, WRITER_SHUTDOWN_SCHEMA,
+    WRITER_TAKEOVER_REPORT_SCHEMA, WRITER_TAKEOVER_SCHEMA,
+};
 
 use kiana_ports::PortError;
 use std::path::PathBuf;

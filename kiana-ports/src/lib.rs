@@ -240,6 +240,15 @@ pub use observability_queue::{
     QueuedObservabilityItem,
 };
 
+mod adapter_conformance;
+pub use adapter_conformance::{
+    conformance_batch, run_event_store_conformance, AdapterCapabilityMatrix, AdapterConformance,
+    AdapterConformanceReport, AdapterKind, ConformanceCheck, ConformanceResult, ConformanceRow,
+    ProofCeiling, UnsupportedProbe, ADAPTER_CAPABILITY_MATRIX_SCHEMA,
+    ADAPTER_CONFORMANCE_REPORT_SCHEMA, ADAPTER_CONFORMANCE_SCHEMA, ADAPTER_DECLARATION_SCHEMA,
+    MAX_CONFORMANCE_ROWS, MAX_MATRIX_ADAPTERS, MAX_UNSUPPORTED_CODES,
+};
+
 /// Server-side identity assignment lookup boundary.
 ///
 /// The caller supplies only the already-authenticated principal and a server-derived project

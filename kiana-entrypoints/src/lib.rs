@@ -9,6 +9,7 @@
 //! 环境；它不会进入生产二进制，也不参与运行时授权。
 
 pub mod bg;
+pub mod budget_presenter;
 pub mod cli;
 pub mod command_dispatch;
 pub mod company_surface_parity;

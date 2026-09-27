@@ -81,6 +81,7 @@ mod packet_acceptance;
 mod project_acceptance;
 mod project_control;
 mod rework_contract;
+mod storage_diagnostics;
 mod storage_preflight;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod billing_settlement_fold;
@@ -155,6 +156,7 @@ mod replay_diagnostics;
 mod resource_leases;
 mod resource_projection;
 mod retention;
+mod revocation_propagation;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -359,12 +361,31 @@ pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpe
 pub use resource_projection::project_recovery_resources;
 pub use restore_verification::validate_restore_verification_fact;
 pub use retention::scan_retention;
+pub use revocation_propagation::{
+    admit_derived_read_after_recovery, admit_derived_write, merge_layer_observation,
+    propagation_scope, RevocationKind, RevocationLayer, RevocationLayerObservation,
+    RevocationLayerState, RevocationPropagationReport, RevocationPropagationRequest,
+    RevocationPropagationStatus, REVOCATION_OBSERVATION_SCHEMA, REVOCATION_PROPAGATION_VERSION,
+    REVOCATION_REPORT_SCHEMA, REVOCATION_REQUEST_SCHEMA,
+};
 pub use security_authority::{
     SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
     SECURITY_AUTHORITY_SNAPSHOT_VERSION,
 };
 pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
+pub use storage_diagnostics::{
+    evaluate_storage_diagnostics, storage_diagnostic_ui_view, validate_storage_diagnostic_report,
+    validate_storage_diagnostic_ui_view, StorageCheckpointState, StorageDiagnosticInput,
+    StorageDiagnosticNote, StorageDiagnosticReport, StorageDiagnosticSignal,
+    StorageDiagnosticUiView, StorageMaintenanceCounters, StorageMaintenanceObservation,
+    StorageMaintenanceSubject, StorageMetricUnit, StorageProjectionLag, StorageSignalChannel,
+    STORAGE_DIAGNOSTIC_DISPLAY_ONLY, STORAGE_DIAGNOSTIC_FACT_RESERVED_PREFIXES,
+    STORAGE_DIAGNOSTIC_INPUT_SCHEMA, STORAGE_DIAGNOSTIC_LAG_SCHEMA,
+    STORAGE_DIAGNOSTIC_MAINTENANCE_SCHEMA, STORAGE_DIAGNOSTIC_METRIC_CATALOG,
+    STORAGE_DIAGNOSTIC_NOTE_SCHEMA, STORAGE_DIAGNOSTIC_REPORT_SCHEMA,
+    STORAGE_DIAGNOSTIC_SIGNAL_SCHEMA, STORAGE_DIAGNOSTIC_VERSION, STORAGE_DIAGNOSTIC_VIEW_SCHEMA,
+};
 pub use storage_preflight::{evaluate_storage_preflight, validate_storage_preflight_report};
 pub use swarm_admission::admit_swarm_resources;
 pub use swarm_cancellation::validate_child_cancellation;

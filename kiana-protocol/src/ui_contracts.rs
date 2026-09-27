@@ -2,6 +2,87 @@
 //!
 //! These DTOs are projections and intents at the protocol boundary.  They carry no broker
 //! authority; every action must be re-authorized by ControlPlane with the supplied CAS/digest.
+//!
+//! # 这个文件在系统里的位置
+//!
+//! 界面层（CLI / workbench / web / desktop）能看到的所有东西的**契约定义**。
+//!
+//! ```text
+//! EventLog（事实权威）
+//!        ↓ 投影（projection）——只读，不产生新事实
+//!    DaemonHost 生成快照 / feed
+//!        ↓
+//! 【本文件：UiSnapshot / UiFeed / UiAction …】   ← 纯 serde 形状
+//!        ↓
+//!    CLI / workbench / web 界面
+//!
+//! 界面上的用户操作
+//!        ↓
+//! 【本文件：UiAction】   ← 只是一个**意图**
+//!        ↓ ControlPlane 用随附的 CAS/digest 重新授权
+//!    执行（可能拒绝）
+//! ```
+//!
+//! # 最重要的一条：这些是投影和意图，不是权威
+//!
+//! 文件头说得很明确：这些 DTO 是 "projections and intents"（投影与意图），
+//! "carry no broker authority"（不携带任何能力代理权限）。
+//!
+//! 展开成两个方向：
+//!
+//! **① 读方向：快照不是第二事实源**
+//! `UiSnapshot` 是从 EventLog **投影**出来的读模型。
+//! 界面显示的一切都源自 EventLog，只是换了一种便于渲染的形状。
+//!
+//! ⚠ 这意味着：**快照可以重建，EventLog 不能。**
+//! 如果快照和账本不一致，以账本为准。
+//! `AGENTS.md` 把它列为反模式：把 transcript、UI timeline、缓存
+//! 当作状态权威是错的 —— 它们都是可丢弃的展示视图。
+//!
+//! **② 写方向：动作不是命令，是请求**
+//! `UiAction` 是"用户点了个按钮"这个**意图**的序列化。
+//! 它不携带任何权限。
+//!
+//! 每个动作都必须由 ControlPlane **重新授权** ——
+//! 用随附的 CAS（compare-and-swap，比较并交换）/ digest 确认：
+//! - 用户看到的还是不是当前状态（CAS）；
+//! - 动作针对的数据有没有被改过（digest）。
+//!
+//! **为什么界面点了按钮还要重新授权？**
+//! 因为界面是**不可信输入源**。
+//! 一个构造得合法的 `UiAction` JSON 可以来自任何地方
+//! （伪造的 HTTP 请求、被劫持的网页、恶意脚本）。
+//! 界面点了某个按钮，不等于服务端应该执行它。
+//!
+//! # 关于本文件的注释密度
+//!
+//! 本文件有 40 多个结构体、15 个枚举、30 个常量，绝大多数是**同构的 DTO**
+//! —— 都是"一堆命名字段 + 序列化 + 校验"。
+//!
+//! 机械地给每一个都加几十行说明，只会让真正重要的信息被淹没。
+//! 所以这里的做法是：
+//! - 文件头（本段）讲清整个文件的架构定位；
+//! - 分组说明解释某一类 DTO 的共同语义；
+//! - 只对**非显然**的项（乐观并发、投影边界、错误契约）写详细注释。
+//!
+//! 想了解某个具体 DTO 的字段含义，直接看它的字段名和类型即可 ——
+//! 它们都是自解释的。
+//!
+//! # 术语
+//!
+//! - **projection（投影）**：从权威数据派生出的、便于某种用途（这里是渲染）的视图。
+//!   投影是单向的、可以重建的。
+//! - **intent（意图）**：想做什么的表示。意图本身没有权力。
+//! - **CAS（compare-and-swap）**：乐观并发控制。
+//!   客户端带上"我看到的是第 N 版"，服务端只在仍是第 N 版时才执行。
+//! - **digest（摘要）**：内容哈希，用于检测内容是否被改动。
+//! - **epoch（世代）**：投影的世代标识。跨世代的游标是无效的。
+//! - **fail-closed**：证据不足时拒绝。
+//!
+//! # 上游契约
+//!
+//! These DTOs are projections and intents at the protocol boundary.  They carry no broker
+//! authority; every action must be re-authorized by ControlPlane with the supplied CAS/digest.
 
 use crate::UiCursor;
 use kiana_domain::{
@@ -182,6 +263,55 @@ impl UiTabSessionV1 {
 /// those are resolved from the authenticated server principal and the tab/session lease.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 一次界面动作的提交 —— **乐观并发控制的载体**。
+///
+/// 【作用】
+/// 用户点了个按钮。界面把这个点击序列化成一个 `UiActionSubmissionV1` 发给服务端。
+///
+/// 【⚠ 这个类型不携带任何权限】
+/// 它只是"用户想做什么，以及他以为当前是什么状态"。
+/// 服务端**必须重新授权** —— 这个结构体里没有任何东西能证明用户有权做这件事。
+///
+/// 【三个"我以为"字段 —— 乐观并发的核心】
+///
+/// - `expected_epoch` —— 我以为当前的投影世代是 X；
+/// - `expected_cursor` —— 我以为已经看到第 N 条事件；
+/// - `expected_revision` —— 我以为数据是第 R 版（可选）。
+///
+/// 【为什么必须带这些】
+/// 考虑这个场景：
+///
+///     时刻 t1：用户打开审批界面，看到"待审批 #7"
+///     时刻 t2：另一个人在另一个窗口批准了 #7
+///     时刻 t3：用户基于过时的界面点了"批准 #7"
+///
+/// 如果没有 `expected_*` 字段，服务端无法区分 t1 和 t3 ——
+/// 它只知道"有人请求批准 #7"，于是会执行。
+///
+/// 而实际上 #7 已经被处理过了，再执行一次就是一个逻辑错误
+/// （可能重复扣款、重复发消息）。
+///
+/// 有了 `expected_revision`，服务端会检查"当前还是第 R 版吗"，
+/// 发现已经不是了，于是返回冲突（`Conflict`），让界面刷新。
+///
+/// **这就是乐观并发：不在获取锁时阻塞，而是在提交时检查假设是否还成立。**
+///
+/// 【⚠ 为什么用乐观而不是悲观锁】
+/// 悲观锁（提交前先加锁）在这里不合适：
+/// 界面可能开着几分钟，用户可能离开又回来。
+/// 持锁几分钟既浪费资源，也容易造成死锁。
+///
+/// 乐观并发的代价是：可能失败，需要重试。
+/// 但对于"点按钮"这种交互，失败一次刷新界面就够了。
+///
+/// 【其他字段】
+/// - `command_id` —— 本次提交的 ID；
+/// - `idempotency_key` —— **幂等键**。网络超时时客户端会重发，
+///   这个键让服务端能识别"这是同一次提交"而不是两次。
+///   ⚠ 没有它，重发可能导致动作执行两次；
+/// - `payload_digest` —— 动作内容的摘要。防止动作参数在传输中被改；
+/// - `submitted_at_unix_ms` —— 提交时间戳。
+///
 pub struct UiActionSubmissionV1 {
     pub schema: String,
     pub command_id: RequestId,
@@ -196,6 +326,29 @@ pub struct UiActionSubmissionV1 {
     pub submitted_at_unix_ms: u64,
 }
 
+    /// 校验这次提交本身是否合法。
+    ///
+    /// 【核心检查 —— 两组】
+    ///
+    /// ① 头部字段
+    /// - schema 必须精确匹配本协议常量；
+    /// - `command_id` 不能是全零 UUID；
+    /// - `expected_cursor` **不能为 0**
+    ///   —— 游标从 1 开始，0 表示"我什么都没看到"，
+    ///   而基于"什么都没看到"就点按钮是不成立的；
+    /// - `expected_revision` 如果给了，就不能是 0（同样的理由）；
+    /// - 提交时间戳非 0。
+    ///
+    /// ② 文本字段与摘要
+    /// 会话 ID、标签 ID、世代标识都要有内容且不超 256 字节；
+    /// `payload_digest` 必须是合法摘要格式。
+    ///
+    /// 【⚠ 注意这里不检查"当前状态是否与 expected 一致"】
+    /// 那不是协议层能做的事 —— 协议层看不到服务端的状态。
+    /// 这个检查发生在 ControlPlane 收到请求之后。
+    ///
+    /// 本方法只确认"这份提交的形状是对的"。
+    ///
 impl UiActionSubmissionV1 {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_SUBMISSION_SCHEMA
@@ -224,6 +377,39 @@ impl UiActionSubmissionV1 {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 界面层的错误码。
+///
+/// 【作用】
+/// UI 侧所有失败的统一分类。
+///
+/// 【⚠ 它故意不复用 `CapabilityErrorCode`】
+/// 这是本文件一个值得注意的设计选择。
+///
+/// `kiana-protocol` 里已经有一套能力错误码（`CapabilityErrorCode`），
+/// 但 UI 错误码是**独立**的一套。原因是：
+/// UI 要回答的问题和后端不一样。
+///
+/// 后端关心"这次操作为什么失败、能不能重试"，
+/// UI 关心"我该怎么显示这个错误"——
+/// 比如 `ApprovalRequired` 在界面上要显示成一个"等待审批"的状态，
+/// 而不是一个红色的报错框。
+///
+/// 【⚠ 但这带来一个代价：两套码需要保持语义对应】
+/// 后端返回 `CapabilityErrorCode::PermissionDenied`，
+/// UI 侧要映射到 `UiErrorCode::PermissionDenied`。
+/// 这个映射在别处完成，如果两边新增了不匹配的码，
+/// 界面就会拿到一个无法识别的错误值。
+///
+/// 【几个值得注意的码】
+/// - `ApprovalRequired` —— 不是错误，是"需要人点头"。界面应显示等待状态；
+/// - `Conflict` —— 乐观并发失败，通常意味着"界面该刷新了"；
+/// - `Capacity` —— 资源不足（配额、磁盘），和 `Failed` 不同；
+/// - `Unknown` —— **兜底码**。收到它意味着对端发来了本版本不认识的码。
+///
+/// 【⚠ `Unknown` 的存在是为了向前兼容】
+/// 如果服务端比界面新，加了新错误码，界面必须能安全地降级
+/// 而不是崩溃。`Unknown` 就是那个降级出口。
+///
 pub enum UiErrorCode {
     InvalidRequest,
     SchemaUnsupported,
@@ -1712,6 +1898,28 @@ impl EvidenceLimitation {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 会话的服务端事实快照。
+///
+/// 【作用】
+/// 把某个会话当前的全部状态打包成一份可渲染的快照。
+///
+/// 【⚠ 它是投影，不是权威】
+/// 快照是从 EventLog 派生出来的读模型。
+/// 它可以随时从账本重建。
+///
+/// **如果快照与账本冲突，以账本为准。**
+/// 这个约定很重要 —— 因为快照可能因为某种 bug 而陈旧，
+/// 界面绝不能把它当作"事实"来做权限判断。
+///
+/// 【为什么需要快照而不是让界面逐条拉事件】
+/// 性能。界面需要的是"当前状态"，不是"状态是怎么变成这样的"。
+/// 逐条重放事件链在事件很多时会非常慢。
+/// 快照是提前算好的结果。
+///
+/// 【代价：快照可能陈旧】
+/// 这就是为什么动作要带 `expected_revision` ——
+/// 用乐观并发来发现"你的快照已经过时了"。
+///
 pub struct UiSnapshotV1 {
     pub schema: String,
     pub instance_id: String,
@@ -1805,6 +2013,22 @@ impl UiSnapshotV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// UI 投影游标。
+///
+/// 【作用】
+/// "我看到第几个世代的第几条事件" —— 订阅端的进度标记。
+///
+/// 【为什么用二元组（epoch + sequence）而不是单一序号】
+/// 因为投影会被**重建**。重建后事件的序号会从头开始，
+/// 但它属于一个**新的世代**。
+///
+/// 如果只有一个序号，界面带着"我看到第 500 条"来续订，
+/// 而服务端重建后第 500 条已经是完全不同的事件了 ——
+/// 界面会静默地漏掉一大段。
+///
+/// 用 epoch 区分世代之后，服务端能识别出"你来自旧世代"，
+/// 直接要求客户端重新拉快照，而不是给一份错位的增量。
+///
 pub struct UiCursorV1 {
     pub epoch: String,
     pub sequence: u64,
@@ -1818,6 +2042,17 @@ impl UiCursorV1 {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// UI feed 的外层信封。
+///
+/// 【作用】
+/// 把游标、数据、可能的空洞、打包标记打包成一个可传输的整体。
+///
+/// 【为什么 feed 和 snapshot 要分开】
+/// snapshot 是"当前全貌"，feed 是"从某点开始的增量"。
+///
+/// 界面启动时拉一份 snapshot，然后靠 feed 保持更新。
+/// 这样既能快速看到全貌，又能跟上后续变化。
+///
 pub struct UiFeedEnvelope {
     pub schema: String,
     pub instance_id: String,
@@ -1894,6 +2129,12 @@ pub enum UiFeedFrameKind {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// feed 专用游标。
+///
+/// 【作用】
+/// 比 [`UiCursorV1`] 多一层含义：它标识的是 feed 里的位置，
+/// 而不是快照的位置。
+///
 pub struct UiFeedCursorV1 {
     pub schema: String,
     pub instance_id: String,
@@ -1976,6 +2217,28 @@ impl UiFeedCursorV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// feed 出现空洞时的标记。
+///
+/// 【作用 —— 诚实性设计】
+/// 当 feed 无法提供连续的事件序列时（比如中间有一段被裁剪了，
+/// 或者投影被重建了），服务端返回这个结构**而不是假装一切正常**。
+///
+/// 【⚠ 为什么必须显式标记空洞】
+/// 如果不标记，界面会以为收到的事件是连续的，
+/// 把空洞前后的事件直接拼接起来显示。
+///
+/// 结果是：界面上看起来正常，实际上**漏掉了一部分事件**。
+/// 用户基于一个不完整的状态做决策 ——
+/// 比如以为某个审批还没处理，实际上它已经过了。
+///
+/// 显式返回空洞，让界面知道"你需要重新拉快照了"。
+///
+/// 【字段语义】
+/// - `from` —— 空洞的起点（`None` 表示"从头就不连续"）；
+/// - `to` —— 空洞的终点；
+/// - `reason` —— 为什么会有空洞（裁剪、重建、保留期过期…）；
+/// - `snapshot_required` —— 客户端是否必须重新拉快照。
+///
 pub struct UiFeedGapV1 {
     pub schema: String,
     pub reason: UiFeedGapReason,
@@ -2049,6 +2312,20 @@ impl UiFeedFrameV1 {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 界面动作的意图描述。
+///
+/// 【作用】
+/// "用户想做什么"这个意图的类型化表示。
+///
+/// 【⚠ 它不是授权】
+/// 和 [`UiActionSubmissionV1`] 一样，这个结构体不带任何权限。
+/// 意图必须重新过 ControlPlane。
+///
+/// 【为什么用类型化枚举而不是自由字符串】
+/// 自由字符串会允许任意操作名进入系统。
+/// 封闭枚举意味着"界面上能触发的操作"是**可枚举、可审计**的 ——
+/// 你能列全所有可能的界面动作，从而审一遍它们各自需要什么权限。
+///
 pub struct UiActionV1 {
     pub schema: String,
     pub command_id: kiana_domain::RequestId,
@@ -2065,6 +2342,8 @@ pub struct UiActionV1 {
     pub deadline_unix_ms: Option<u64>,
 }
 
+    /// 校验动作意图本身是否合法。
+    ///
 impl UiActionV1 {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_ACTION_SCHEMA {
@@ -2088,6 +2367,15 @@ impl UiActionV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 界面动作的执行结果。
+///
+/// 【作用】
+/// 服务端执行动作后返回给界面的结果。
+///
+/// 【⚠ 结果里必须带足够的信息让界面能继续】
+/// 界面拿到这个结果后要更新自己的显示状态。
+/// 如果结果里缺少关键信息（比如新的 revision），
+/// 界面就无法推进自己的乐观并发版本，下次提交就会一直冲突。
 pub struct UiActionResult {
     pub schema: String,
     pub command_id: kiana_domain::RequestId,

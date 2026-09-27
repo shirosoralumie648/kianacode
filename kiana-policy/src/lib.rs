@@ -36,11 +36,57 @@ pub use project_trust::*;
 ///
 /// 实现必须只依据传入快照计算结果，不应在这里执行工具或修改上下文。保持同步可以让
 /// 同一输入得到稳定结果，也避免策略判断期间引入网络、模型或长 I/O 形成 TOCTOU 窗口。
+/// 策略引擎接口。
+///
+/// 【作用】
+/// 把"给定上下文和请求，得出什么结论"这件事抽象成一个可替换的接口。
+///
+/// 【为什么需要这个 trait】
+/// 让 `ControlPlane` 依赖接口而不是具体实现。
+/// 需要时可以换成更严格的引擎（见 `security.rs` 的 `BundlePolicyEngine`），
+/// 而不必改动控制面的任何代码。
+///
+/// 【⚠ 但替换引擎不等于可以放宽】
+/// `kiana-core` 在调用可替换引擎**之前**，会无条件先跑一遍
+/// `DefaultPolicyEngine`（见 `kiana-core/src/approvals.rs:993`）。
+/// 它拒绝就直接返回，配置引擎没有任何机会放宽。
+///
+/// 这意味着：**部署可以换策略，但不能换掉产品自身的信任/角色/风险地板。**
+///
 pub trait PolicyEngine: Send + Sync {
     /// 根据请求上下文和能力声明返回允许、待审批或拒绝。
     ///
     /// 返回 [`PolicyDecision::Allow`] 时必须附带非空授权 ID；返回 `Deny` 的原因应保持
     /// 稳定，供 Gate、事件账本、测试和入口层一致识别。
+    /// 评估一次能力请求。
+    ///
+    /// 【调用者】
+    /// `kiana-core::ControlPlane` 在派发任何能力之前调用。
+    ///
+    /// 【输入】
+    /// - `context`：服务端持有的请求上下文（身份、角色、项目、信任状态、权限档位）。
+    ///   ⚠ 这个对象来自服务端，**不是客户端声称的**；
+    /// - `request`：这次要执行的能力请求。
+    ///
+    /// 【输出】
+    /// [`PolicyDecision`]，三选一：
+    /// - `Allow { authorization_id }` —— 可以进入下一道 Gate；
+    /// - `Ask { reason }` —— 需要显式审批；
+    /// - `Deny { reason }` —— 拒绝。
+    ///
+    /// 【⚠ 极其重要：Allow 不代表副作用已经发生，也不代表已被持久化】
+    /// 文件头最后一句话专门强调了这一点：
+    /// "策略允许也只代表可以进入下一道 Gate，不能作为副作用已执行或已持久化的证明。"
+    ///
+    /// 而且这里的 `authorization_id` 是**由请求 ID 派生的本地关联标识**，
+    /// 不是签名，也不是可转移的凭证。
+    /// 它只是把"这次判定"和"这次请求"在日志里对上号。
+    ///
+    /// 【为什么这个 trait 保持同步】
+    /// 策略判断是纯计算 —— 读已有的上下文和请求，得出结论。
+    /// 不涉及网络和长 I/O，所以不需要异步。
+    /// 保持同步也让拒绝路径的测试可以确定性复现。
+    ///
     fn evaluate(&self, context: &RequestContext, request: &CapabilityRequest) -> PolicyDecision;
 }
 
@@ -50,6 +96,43 @@ pub trait PolicyEngine: Send + Sync {
 /// [`CapabilityRequest`] directly. A direct request must not lower that risk or route the MCP
 /// operation through a different capability kind. Higher risk (`Critical`) remains valid and
 /// is still subject to the normal approval decision.
+/// 检查请求声明的风险等级是否被**降级**了。
+///
+/// 【作用 —— 一道独立的反降级检查】
+/// 某些操作有固定的最低风险要求。
+/// 如果请求把这些操作声明成比实际更低的等级，就拒绝。
+///
+/// 【⚠ 为什么这道检查是必需的，而不是多余的】
+/// 因为 `CapabilityRequest.risk` 是一个**由调用方填写的字段**。
+/// 调用方（harness）可能因为自己的判断逻辑而填错。
+///
+/// 比如把"恢复检查点"（应该是 `Critical`）填成 `ReadOnly`，
+/// 就能绕过后面所有基于风险的检查，直接拿到 Allow。
+///
+/// 【核心检查 —— 逐操作】
+///
+/// - `workspace.checkpoint.restore` —— 必须是 `Filesystem` 能力，
+///   且风险必须是 `Critical`。降级则 `checkpoint_restore_risk_downgrade`。
+/// - `data.governance` —— 必须是 `Filesystem` 能力；
+///   除 `action == "list"`（纯列表）外，风险不能是 `ReadOnly` 或 `LocalWrite`。
+/// - `memory.review` —— 同上。
+/// - 四个连接器操作（manage / invoke / health / mcp_handshake）——
+///   必须是 `Tool` 能力。
+///
+/// 【⚠ 关键：只拒绝"降级"，不拒绝"升级"】
+/// 如果某个操作被声明成比最低要求**更高**的风险，这道检查放行。
+///
+/// 为什么不拒绝升级？因为升级是**更保守**的 ——
+/// 把一个读操作声明成 `Critical`，只会让系统更严格地对待它。
+/// 拒绝升级会妨碍系统在某些场景下主动收紧。
+///
+/// 只拦"放松安全"的方向，是这套检查的核心原则。
+///
+/// 【⚠ 这道检查会被独立跑第二遍】
+/// 架构简报确认：`kiana-core` 在 `evaluate_gate` 里会**再跑一次**本函数。
+/// 这是刻意的冗余 —— 万一将来有人在前面的路径上漏掉了这次调用，
+/// 后面那道还能拦住。安全相关的检查，重复一遍的成本远低于漏掉一次。
+///
 pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static str> {
     if request.operation == "workspace.checkpoint.restore" {
         if request.capability != CapabilityKind::Filesystem {
@@ -150,6 +233,24 @@ pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static
 /// helper is deliberately pure: binding/approval material is server-owned input already carried
 /// by the normalized request, and the returned decision only controls the existing Gate and
 /// approval path.  It never calls a Broker.
+/// 连接器专用的策略判定。
+///
+/// 【作用】
+/// 对连接器类操作（调用外部服务商、管理连接配置等）做专门判定。
+///
+/// 【为什么要单独一个函数】
+/// 连接器的授权模型和普通文件操作不一样：
+/// 它涉及外部网络、有凭据、有配额。
+/// 把这些判定塞进主流程会让那个函数变得难以阅读，
+/// 而且连接器规则的演进频率远高于其他规则。
+///
+/// 【为什么放在风险分级之前】
+/// 见 `evaluate` 的实现 —— 它在风险分级之前返回，
+/// 意味着**连接器的判定优先于通用的风险分级**。
+///
+/// 这是有意的：连接器操作的授权要求是固定的，
+/// 不应该被调用方声明的风险等级影响。
+///
 pub fn connector_policy_decision(
     context: &RequestContext,
     request: &CapabilityRequest,
@@ -257,6 +358,25 @@ pub fn connector_policy_decision(
 }
 
 /// Product boundaries are enforced even when a deployment supplies a permissive engine.
+/// 不可审批的硬性拒绝。
+///
+/// 【作用】
+/// 返回 `Some(reason)` 表示"这个请求无论如何都不能通过审批"。
+///
+/// 【为什么要有"不可审批的拒绝"这个概念】
+/// 普通的拒绝是"这次不允许"；
+/// **不可审批的拒绝**是"这个操作在任何情况下都不允许，
+/// 就算有人点了批准也不行"。
+///
+/// 比如：角色越权、项目未受信。
+/// 这些不是"需要更高权限"的问题，而是"根本不该做"的问题。
+/// 如果允许审批覆盖它们，那么任何人都能通过一次人工点击
+/// 给自己开出越权通道 —— 授权体系就形同虚设了。
+///
+/// 【⚠ 这是整套判定里最不能被绕过的一层】
+/// 它排在 `evaluate` 的**最开头**，先于一切其他检查。
+/// 后面无论发生什么，这一层的结论都不会被覆盖。
+///
 pub fn hard_policy_denial(context: &RequestContext, request: &CapabilityRequest) -> Option<String> {
     if context
         .session_id
@@ -293,9 +413,78 @@ pub fn hard_policy_denial(context: &RequestContext, request: &CapabilityRequest)
 ///
 /// 角色定义来自 [`RoleSpec`] 的内置目录，风险判断来自请求显式携带的 [`RiskLevel`]。
 /// 此类型可复制、无缓存；它不会把 transcript 或模型自述当作权限事实。
+/// 产品主路径使用的确定性策略引擎。
+///
+/// 【作用】
+/// `PolicyEngine` 的默认实现，也是**当前唯一在产品路径上真正被调用**的实现。
+///
+/// 证据：`kiana-daemon` 的组合根在 `src/lib.rs:1219` 处实例化它，
+/// `kiana-core/src/approvals.rs:993` 直接调用它的 `evaluate`。
+///
+/// （对比：`security.rs` 里的 `PolicyBundle` / `BundlePolicyEngine`
+/// 已实现且有测试，但**没有任何生产调用方**。）
+///
+/// 【⚠ 它无状态，因此可以安全共享】
+/// 零字段意味着天然满足 `Send + Sync`，
+/// 不需要锁也不需要原子操作，可以在并发路径上共享同一个实例。
+///
+/// 这还带来一个可验证性好处：**同样的输入永远得到同样的输出**，
+/// 所以拒绝路径的测试可以完全确定性复现。
+///
 pub struct DefaultPolicyEngine;
 
 impl PolicyEngine for DefaultPolicyEngine {
+    /// 评估一次能力请求 —— 策略层的入口。
+    ///
+    /// 【核心流程 —— 四层，顺序即安全语义】
+    ///
+    /// **第一层：`hard_policy_denial`（不可审批的硬拒绝）**
+    /// 信任状态、角色越权等。有结论就立即返回 `Deny`。
+    ///
+    /// ⚠ 这一层排在最前面，是刻意的。
+    /// 如果它排在后面，一条宽松的规则就可能覆盖它。
+    ///
+    /// **第二层：`connector_policy_decision`（连接器专用判定）**
+    /// 如果这是连接器类操作，用连接器的专门规则判定。
+    ///
+    /// **第三层：Secret 与敏感操作 → 要审批**
+    /// 能力是 `Secret`，或者操作名命中敏感词表 → `Ask`。
+    ///
+    /// ⚠ 注释特别指出："与声明风险无关"。
+    /// 也就是说，即使请求把自己声明成 `ReadOnly`，
+    /// 只要它是敏感操作，仍然要审批。
+    /// **声明的风险等级不能用来绕过这道检查。**
+    ///
+    /// **第四层：按风险等级决定**
+    /// 只有前三层都没有结论时才走到这里。
+    ///
+    /// - `ReadOnly` → `Allow`；
+    /// - `LocalWrite` → Safe 权限档要审批，Balanced/Autonomous 放行；
+    /// - `ExternalSideEffect` → 一律要审批；
+    /// - `Critical` → 一律要审批。
+    ///
+    /// 【⚠ 为什么风险分级只能收窄，不能放宽】
+    /// 注释写得很清楚："风险分级只在 trust 与角色范围均通过后生效，
+    /// 不能扩大前两层给出的权限。"
+    ///
+    /// 顺序保证了这一点：前两层已经拒绝了的东西，
+    /// 走到第四层也不会被放行。第四层只能在"前两层都放行"的前提下
+    /// 决定 Allow 还是 Ask。
+    ///
+    /// 【⚠ ReadOnly 直接放行，但仍有后续约束】
+    /// 注释提醒："只读来自请求声明；后续 Broker/sandbox 仍需确保真实实现没有写副作用。"
+    ///
+    /// 也就是说，这一层相信了请求声明的 `ReadOnly`。
+    /// 如果实际执行时写了文件，那是 Broker 和 sandbox 那一层要拦的。
+    /// **每一层只负责自己能验证的部分。**
+    ///
+    /// 【⚠ 授权 ID 的格式】
+    /// `format!("policy:{}", request.request_id)` ——
+    /// 由请求 ID 派生，不是签名，不可转移。
+    ///
+    /// 【副作用】
+    /// 无。纯函数。
+    ///
     fn evaluate(&self, context: &RequestContext, request: &CapabilityRequest) -> PolicyDecision {
         if let Some(reason) = hard_policy_denial(context, request) {
             return PolicyDecision::Deny { reason };
@@ -353,6 +542,29 @@ impl PolicyEngine for DefaultPolicyEngine {
 /// 返回 `Some(Deny)` 表示不可由后续审批覆盖的范围违规；返回 `None` 仅表示本函数没有
 /// 发现角色级拒绝，绝不等同于最终允许。检查基于 [`RoleSpec`] 内置目录：空角色 ID 由
 /// 领域层兼容为 Builder，未知非空角色则拒绝。空部门 ID 当前不触发错配检查。
+/// 检查角色、部门、工具、Memory 和 patch 写集是否允许本次请求。
+///
+/// 【⚠ 这个函数的返回值容易被误读 —— 注意看下面这条】
+/// 返回 `Some(Deny)` 表示**不可由后续审批覆盖的范围违规**。
+///
+/// 返回 `None` **仅表示本函数没有发现角色级拒绝**，
+/// **绝不等同于最终允许**。
+///
+/// 这是本文件里最容易被误解的一个约定。
+/// 初学者看到 `None` 容易以为"没发现问题就是没问题"，
+/// 但实际上还要继续走后面的检查。
+///
+/// 【关于空角色 ID】
+/// 空角色 ID 由领域层兼容为 `Builder`（即当成 Builder 角色处理）。
+/// **未知但非空的角色则直接拒绝。**
+///
+/// 这个不对称是有意的：
+/// "没指定角色"是一个可以宽容的默认（向后兼容），
+/// "指定了一个不存在的角色"是一个明确的错误（可能意味着配置问题或攻击）。
+///
+/// 【关于空部门 ID】
+/// 当前**不触发**错配检查。
+///
 fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Option<PolicyDecision> {
     if kiana_domain::operator_only_action(&request.operation)
         && (context.cell_id.is_some()
@@ -497,6 +709,23 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
 /// 返回 `None` 表示该 operation 不在此映射表中，不表示操作安全或被允许；它仍需经过
 /// 风险判断、Gate、Broker 精确注册和其他能力围栏。映射保持大小写敏感，避免模糊匹配
 /// 把未经审计的新操作悄悄归到一个更宽的工具权限下。
+/// 把操作名映射成模型可见的工具名。
+///
+/// 【作用】
+/// 把 Kiana 内部的操作名翻译成模型工具面（五个可见工具之一）。
+///
+/// 【为什么需要这层映射】
+/// 模型只能看到五个工具：`shell`、`apply_patch`、`mcp`、
+/// `memory.search`、`memory.write`。
+///
+/// 而内部的连接器操作有二十多个（MCP 握手、连接器健康检查…）。
+/// 这层映射负责把内部的细粒度操作收敛到模型可见的那几个工具名上。
+///
+/// 【⚠ 模型可见工具面是锁死的】
+/// 增加新的模型可见工具需要同时改多个地方
+/// （工具 schema、路由、策略映射），不是在这里加个分支就行。
+/// `AGENTS.md` 里明确写了这条边界。
+///
 fn harness_tool_name(operation: &str) -> Option<&'static str> {
     kiana_domain::model_tool_name(operation)
 }
@@ -506,6 +735,20 @@ fn harness_tool_name(operation: &str) -> Option<&'static str> {
 /// 搜索请求只有在提供非空字符串 `collection` 时才在此处检查；缺省 collection 会返回
 /// `None`，其默认范围由下游 Memory 适配器决定。写请求则必须提供 collection，且可选
 /// `promote_to` 只能等于原 collection，防止借写入动作跨层提升内容。
+/// 检查 Memory 访问是否符合该角色的 ACL。
+///
+/// 【作用】
+/// Memory（记忆存储）里可能有跨项目的敏感内容。
+/// 每个角色能读能写哪些记忆，有独立的访问控制列表。
+///
+/// 【为什么需要独立的 ACL】
+/// 因为 Memory 的访问模式和数据文件不一样：
+/// 记忆是**长期累积**的，某个角色在 A 项目写下的记忆，
+/// 在 B 项目被另一个角色读到，就可能泄漏信息。
+///
+/// 【⚠ 返回 `None` 同样表示"没发现问题"，不是"允许"】
+/// 和 `role_decision` 一样，这个约定贯穿本文件。
+///
 fn memory_decision(role: &RoleSpec, request: &CapabilityRequest) -> Option<PolicyDecision> {
     match request.operation.as_str() {
         "memory.review" => {
@@ -556,6 +799,18 @@ fn memory_decision(role: &RoleSpec, request: &CapabilityRequest) -> Option<Polic
 /// 从 JSON 参数对象中读取并规范化一个可选的非空字符串。
 ///
 /// 非字符串、纯空白或不存在都返回 `None`；本函数不做 collection 或路径语义校验。
+/// 从请求参数里取一个可选的字符串值。
+///
+/// 【作用】
+/// 便捷函数：取 `arguments` 里的某个键，转成 `String`。
+///
+/// 【⚠ 注意返回 `None` 的两种情况】
+/// - 键不存在；
+/// - 键存在但值不是字符串。
+///
+/// 第二种情况容易被忽略。如果一个参数本该是字符串却传了数字或对象，
+/// 这里会返回 `None` 而不是报错 —— 调用方会当作"没传"处理。
+///
 fn optional_argument(request: &CapabilityRequest, key: &str) -> Option<String> {
     request
         .arguments
@@ -572,6 +827,20 @@ fn optional_argument(request: &CapabilityRequest, key: &str) -> Option<String> {
 /// 解析 shell 命令、不展开 glob，也不自行做路径规范化；提取结果随后交给
 /// [`RoleSpec::allows_path`] 和 WorkPacket allow-list 校验。新增 patch 语法时必须同步扩展
 /// 此解析面及其拒绝测试，否则不能声称新语法受到同等路径检查。
+/// 从请求里提取所有涉及的路径。
+///
+/// 【作用】
+/// 把 patch 或文件操作涉及的路径收集成一个列表，
+/// 供路径边界检查使用。
+///
+/// 【为什么需要提取所有路径】
+/// 因为一次 `apply_patch` 可能同时改多个文件。
+/// 只检查第一个文件是不够的 —— 后面的文件可能越界。
+///
+/// 【⚠ 路径检查必须覆盖全部路径】
+/// 这是最容易漏掉的地方。一次 patch 改 5 个文件，
+/// 必须 5 个都在允许范围内。
+///
 fn request_paths(request: &CapabilityRequest) -> Vec<String> {
     let mut paths = Vec::new();
     if let Some(path) = request
@@ -620,6 +889,22 @@ fn request_paths(request: &CapabilityRequest) -> Vec<String> {
 /// 匹配前只做 ASCII 小写化，然后检查若干子串。它不是完整的语义分类器：可能对包含
 /// 关键词的无害名称产生额外 `Ask`，也不能替代调用方正确标注 [`RiskLevel`] 或 Broker
 /// 对具体能力的校验。未知高风险操作必须靠风险等级和能力策略兜底。
+/// 判断操作名是否命中敏感词表。
+///
+/// 【作用】
+/// 用关键词匹配识别出"虽然名字看起来普通，但实际敏感"的操作。
+///
+/// 【典型例子】
+/// 名字里带 `deploy`、`prod`、`rotate`、`delete` 之类的操作，
+/// 即使它们没有被单独列进敏感清单，也应该要求审批。
+///
+/// 【⚠ 这是启发式，不是精确匹配】
+/// 它可能漏判（用了个不含关键词的别名做危险操作），
+/// 也可能误判（有个无害操作恰好含关键词）。
+///
+/// 它只是**多加一层保险**，不是唯一防线。
+/// 前面几层的精确检查才是主力。
+///
 fn is_sensitive_operation(operation: &str) -> bool {
     let operation = operation.to_ascii_lowercase();
     [
@@ -647,6 +932,7 @@ mod tests {
     }
 
     #[test]
+    /// 测试辅助：构造一个指定能力和风险等级的请求。
     fn untrusted_projects_cannot_execute_capabilities() {
         let context = RequestContext::local("session-1", "/repo");
         let request = capability(CapabilityKind::Filesystem, RiskLevel::ReadOnly);

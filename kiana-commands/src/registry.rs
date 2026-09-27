@@ -46,6 +46,7 @@ pub fn create_default_command_registry() -> CommandRegistry {
     registry.register(Arc::new(crate::advisor::AdvisorCommand));
     registry.register(Arc::new(crate::audit::AuditCommand));
     registry.register(Arc::new(crate::brief::BriefCommand));
+    registry.register(Arc::new(crate::budget::BudgetCommand));
     registry.register(Arc::new(crate::checkpoint::CheckpointCommand));
     registry.register(Arc::new(crate::checks::ChecksCommand));
     registry.register(Arc::new(crate::auto_mode::AutoModeCommand));
