@@ -103,6 +103,7 @@ uuid_id!(QualityGateDecisionId);
 uuid_id!(FeedbackId);
 uuid_id!(DriftAlertId);
 uuid_id!(StorageRootId);
+uuid_id!(InstanceId);
 uuid_id!(StoreIdentityId);
 uuid_id!(StorageLockId);
 uuid_id!(StorageErrorId);

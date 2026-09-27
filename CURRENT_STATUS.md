@@ -15935,3 +15935,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: release gate is pure source validation; it cannot execute swarm effects, prove cross-process crash recovery, publish artifacts or establish live/physical release truth
 reviewer: Codex SW-18 source review; checked six-scenario coverage, deny-first effect/handler fences, Unknown/replay preservation, digest/status recomputation and no-effect boundary; no local runtime/CI test reviewer
 ```
+
+### DEP-01 deployment profile evidence (2026-09-27)
+
+```text
+source_snapshot: `7068bb73` plus DEP-01 deployment profile source slice; kiana-domain/src/{deployment.rs,ids.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep01_deployment.rs; kiana-core/tests/dep01_deployment_guard.rs; .github/workflows/dep01-deployment-profile.yml; docs/roadmap/dep01-deployment-baseline.md; docs/roadmap.md
+worktree_status: existing StorageRootId/StorageRoot is reused; typed InstanceId, four DeploymentProfile variants, EnvironmentProfile trust/root/path binding and DeploymentRevision lifecycle value are added; domain remains pure and unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment.rs kiana-domain/tests/dep01_deployment.rs kiana-core/tests/dep01_deployment_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep01_deployment --locked -- --test-threads=1; cargo test -p kiana-core --test dep01_deployment_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only empty/escape/cross-project/untrusted/unknown-profile denial, stable digest and local/managed/container/orchestrated round-trip, no-effect source guard; no root creation, ProjectTrust file read, process launch, lease, EventLog write or deployment effect
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: DEP-01 deployment profile/environment/revision source contracts, typed InstanceId registration, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 606/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: path checks are lexical only; actual ProjectTrust/root resolver, symlink/hardlink/filesystem preflight, leases, lifecycle journal and deployment effects remain later DEP steps
+reviewer: Codex DEP-01 source review; checked StorageRootId reuse, typed identity registration, four profile variants, trust/project/path fail-closed boundaries, digest/round-trip and no-adapter-effect domain guard; no local runtime/CI test reviewer
+```
