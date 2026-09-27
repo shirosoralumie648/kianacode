@@ -319,6 +319,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "InstanceId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "instance_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "StoreIdentityId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "store_identity_id",
@@ -3472,6 +3478,7 @@ mod tests {
         FeedbackId,
         DriftAlertId,
         StorageRootId,
+        InstanceId,
         StoreIdentityId,
         StorageLockId,
         StorageErrorId,
@@ -3636,6 +3643,7 @@ mod tests {
         FeedbackId,
         DriftAlertId,
         StorageRootId,
+        InstanceId,
         StoreIdentityId,
         StorageLockId,
         StorageErrorId,
