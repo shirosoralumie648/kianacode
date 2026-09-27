@@ -587,6 +587,31 @@ impl RequestEnvelope {
         ))
     }
 
+    /// Construct a typed ops command on the shared RequestEnvelope spine. This only validates
+    /// and encodes the DTO; Core/DaemonHost still own authority comparison and admission.
+    pub fn ops_command(
+        metadata: RequestMetadata,
+        request: OpsCommandRequest,
+    ) -> Result<Self, String> {
+        request.validate()?;
+        let name = request.command.clone();
+        let arguments = serde_json::to_value(request)
+            .map_err(|_| "ops_command_encode_failed".to_owned())?;
+        Ok(Self::command(metadata, name, arguments))
+    }
+
+    /// Construct a typed read-only ops query on the shared RequestEnvelope spine.
+    pub fn ops_query(
+        metadata: RequestMetadata,
+        request: OpsQueryRequest,
+    ) -> Result<Self, String> {
+        request.validate()?;
+        let name = request.query.clone();
+        let arguments = serde_json::to_value(request)
+            .map_err(|_| "ops_query_encode_failed".to_owned())?;
+        Ok(Self::command(metadata, name, arguments))
+    }
+
     /// Construct a typed connector command through the same versioned route used by every
     /// surface. This helper only validates/encodes the wire DTO; trust, binding lookup, policy,
     /// approval and Broker dispatch remain server-owned ControlPlane work.

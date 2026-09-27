@@ -158,6 +158,15 @@ impl OpsQuery {
     }
 }
 
+const OPS_EVENT_NAMES: [&str; 6] = [
+    "ops.operation.accepted",
+    "ops.operation.state_changed",
+    "ops.operation.completed",
+    "ops.operation.failed",
+    "ops.operation.cancelled",
+    "ops.operation.unknown",
+];
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpsScope {
@@ -272,13 +281,7 @@ impl OpsCommandRequest {
             return Err("ops_idempotency_key_invalid".to_owned());
         }
         self.authority.validate()?;
-        if !self.payload.is_object()
-            || serde_json::to_vec(&self.payload)
-                .map(|value| value.len() > OPS_MAX_PAYLOAD_BYTES)
-                .unwrap_or(true)
-        {
-            return Err("ops_command_payload_invalid".to_owned());
-        }
+        validate_payload(&self.payload, "ops_command_payload_invalid")?;
         valid_digest(&self.request_digest, "ops_request_digest")?;
         if self.request_digest != self.digest() {
             return Err("ops_request_digest_mismatch".to_owned());
@@ -307,14 +310,17 @@ impl OpsCommandRequest {
             return Ok(OpsReplayDisposition::New);
         };
         prior.validate()?;
-        if self.operation_id != prior.operation_id || self.idempotency_key != prior.idempotency_key
+        if self.operation_id == prior.operation_id
+            && self.idempotency_key == prior.idempotency_key
+            && self.request_digest == prior.request_digest
         {
-            return Ok(OpsReplayDisposition::New);
-        }
-        if self.request_digest == prior.request_digest {
             Ok(OpsReplayDisposition::Replay)
-        } else {
+        } else if self.operation_id == prior.operation_id
+            || self.idempotency_key == prior.idempotency_key
+        {
             Err("ops_idempotency_conflict".to_owned())
+        } else {
+            Ok(OpsReplayDisposition::New)
         }
     }
 
@@ -375,9 +381,7 @@ impl OpsQueryRequest {
         if let Some(cursor) = &self.cursor {
             bounded(cursor, "ops_cursor")?;
         }
-        if !self.payload.is_object() {
-            return Err("ops_query_payload_invalid".to_owned());
-        }
+        validate_payload(&self.payload, "ops_query_payload_invalid")?;
         valid_digest(&self.query_digest, "ops_query_digest")?;
         if self.query_digest != self.digest() {
             return Err("ops_query_digest_mismatch".to_owned());
@@ -447,12 +451,11 @@ impl OpsEvent {
         {
             return Err("ops_event_header_invalid".to_owned());
         }
-        if !self.event.starts_with("ops.") {
+        bounded(&self.event, "ops_event_name")?;
+        if !OPS_EVENT_NAMES.contains(&self.event.as_str()) {
             return Err("ops_event_name_invalid".to_owned());
         }
-        if !self.payload.is_object() {
-            return Err("ops_event_payload_invalid".to_owned());
-        }
+        validate_payload(&self.payload, "ops_event_payload_invalid")?;
         valid_digest(&self.event_digest, "ops_event_digest")?;
         if self.event_digest != self.digest() {
             return Err("ops_event_digest_mismatch".to_owned());
@@ -579,6 +582,7 @@ impl OpsUnknownEnvelope {
         }
         bounded(&self.original_type, "ops_unknown_type")?;
         bounded(&self.reason, "ops_unknown_reason")?;
+        validate_payload(&self.payload, "ops_unknown_payload_invalid")?;
         valid_digest(&self.unknown_digest, "ops_unknown_digest")?;
         if self.unknown_digest != self.digest() {
             return Err("ops_unknown_digest_mismatch".to_owned());
@@ -670,6 +674,17 @@ impl OpsEnvelope {
 fn bounded(value: &str, field: &str) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > OPS_MAX_TEXT || value.contains(['\0', '\r', '\n']) {
         return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
+
+fn validate_payload(value: &Value, error: &str) -> Result<(), String> {
+    if !value.is_object()
+        || serde_json::to_vec(value)
+            .map(|encoded| encoded.len() > OPS_MAX_PAYLOAD_BYTES)
+            .unwrap_or(true)
+    {
+        return Err(error.to_owned());
     }
     Ok(())
 }

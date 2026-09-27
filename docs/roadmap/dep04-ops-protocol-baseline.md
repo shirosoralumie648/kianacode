@@ -16,9 +16,11 @@
 
 `kiana-protocol/src/ops.rs` keeps operator commands and read-only queries on one versioned wire
 shape. Commands carry operation/idempotency keys, actor/authority epoch and a scoped snapshot;
-Core must compare those values to server-owned authority before any admission. Events, structured
-errors and unknown payloads retain digests and remain non-executable. Duplicate operation/key with
-a different payload is an explicit conflict; exact replay is a replay disposition.
+Core must compare those values to server-owned authority before any admission. Events use an
+explicit name registry; structured errors and unknown payloads retain digests and remain
+non-executable. Reusing either an operation id or idempotency key with a different payload is an
+explicit conflict; exact replay is a replay disposition. `RequestEnvelope::ops_command` and
+`ops_query` encode the same DTO on the existing shared wire spine.
 
 ## Failure-first fixture matrix
 
@@ -39,5 +41,7 @@ source guard and affected-target compilation. Local Cargo tests, builds, checks,
 commands are intentionally not run, and CI results are not awaited.
 
 These DTOs do not authenticate an actor, consume approval, enforce a filesystem scope, append a
-journal, dispatch a command or establish an operation outcome. Those decisions remain in Core,
-EventLog and later DEP steps; Unknown never becomes success by decoding alone.
+journal, dispatch a command or establish an operation outcome. The typed RequestEnvelope helpers
+are wire constructors only; DaemonHost/Core ops admission and the four-surface command/query
+route remain later work. Those decisions remain in Core, EventLog and later DEP steps; Unknown
+never becomes success by decoding alone.

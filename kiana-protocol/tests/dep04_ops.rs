@@ -1,7 +1,7 @@
 use kiana_protocol::{
     OpsAuthoritySnapshot, OpsCommand, OpsCommandRequest, OpsEnvelope, OpsEnvelopeBody, OpsError,
     OpsErrorCode, OpsEvent, OpsEventKind, OpsQuery, OpsQueryRequest, OpsReplayDisposition,
-    OpsScope, OpsUnknownEnvelope,
+    OpsScope, OpsUnknownEnvelope, RequestEnvelope, RequestMetadata,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -133,4 +133,16 @@ fn forged_authority_unknown_command_scope_and_idempotency_conflict_fail_closed()
         changed.replay_against(Some(&request)).unwrap_err(),
         "ops_idempotency_conflict"
     );
+
+    let mut changed_key = request.clone();
+    changed_key.idempotency_key = "op-key-2".to_owned();
+    changed_key.request_digest = changed_key.digest();
+    assert_eq!(
+        changed_key.replay_against(Some(&request)).unwrap_err(),
+        "ops_idempotency_conflict"
+    );
+
+    let envelope =
+        RequestEnvelope::ops_command(RequestMetadata::local("s", "/tmp/project"), request).unwrap();
+    assert_eq!(envelope.schema, kiana_protocol::PROTOCOL_SCHEMA);
 }

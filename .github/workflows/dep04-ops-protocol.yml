@@ -6,6 +6,7 @@ on:
     paths:
       - "kiana-protocol/src/ops.rs"
       - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
       - "kiana-protocol/tests/dep04_ops.rs"
       - "kiana-core/tests/dep04_ops_protocol_guard.rs"
       - "docs/roadmap/dep04-ops-protocol-baseline.md"
@@ -16,6 +17,7 @@ on:
     paths:
       - "kiana-protocol/src/ops.rs"
       - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
       - "kiana-protocol/tests/dep04_ops.rs"
       - "kiana-core/tests/dep04_ops_protocol_guard.rs"
       - "docs/roadmap/dep04-ops-protocol-baseline.md"
