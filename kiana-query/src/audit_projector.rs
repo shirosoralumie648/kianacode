@@ -103,6 +103,29 @@ pub fn audit_fold_source_event_digest(source_event_ids: &[EventId]) -> String {
     }))
 }
 
+/// The content digest of a fold: which facts it covers and what records it produced, and nothing
+/// about how many publishes it took.
+///
+/// `AuditProjectionSnapshot::digest` embeds `projection_version`, so a from-scratch fold at version
+/// 1 and an incremental fold that reached the same history at version 2 can never agree on it. That
+/// is correct for a CAS token and wrong for an answer about history, so convergence is measured
+/// here instead.
+pub fn audit_fold_content_digest(
+    source_event_ids: &[EventId],
+    source_cursor: &EventCursor,
+    records: &[AuditRecord],
+) -> String {
+    let records_digest = serde_json::to_value(records)
+        .map(|value| json_digest(&value))
+        .unwrap_or_else(|_| "sha256:".to_owned());
+    json_digest(&json!({
+        "schema": AUDIT_PROJECTOR_FOLD_SCHEMA,
+        "source_event_digest": audit_fold_source_event_digest(source_event_ids),
+        "source_cursor": source_cursor,
+        "records_digest": records_digest,
+    }))
+}
+
 /// One folded audit projection plus the identity of the source facts it came from.
 ///
 /// `generation` counts publishes of this projection, starting at 1 for the first fold. It is the
@@ -173,8 +196,18 @@ impl AuditProjectorFold {
     }
 
     /// The digest a compare-and-swap claim must carry as the new state.
+    ///
+    /// This is the CONTENT digest: it covers the source events and the records they produced, and
+    /// deliberately excludes the projection version. Two replay paths that reach the same history
+    /// must agree here, whatever number of publishes it took them to get there — the version is a
+    /// CAS counter, not part of the answer, and folding it in would make convergence unreachable by
+    /// construction. Use [`Self::digest`] when the claim needs the position as well.
     pub fn state_digest(&self) -> String {
-        self.snapshot.projection_digest.clone()
+        audit_fold_content_digest(
+            &self.snapshot.source_event_ids,
+            &self.snapshot.source_cursor,
+            &self.snapshot.records,
+        )
     }
 
     pub fn source_cursor(&self) -> EventCursor {
