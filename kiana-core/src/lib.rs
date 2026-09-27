@@ -186,6 +186,7 @@ pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
 pub use quality_drift::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
 pub use quality_evidence_archive::validate_quality_evidence_archive;
 pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
+pub use swarm_admission::admit_swarm_resources;
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
@@ -468,6 +469,7 @@ pub enum CoreError {
 mod automation;
 
 mod swarm;
+mod swarm_admission;
 
 mod company_business;
 mod company_scope;

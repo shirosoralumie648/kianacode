@@ -598,7 +598,9 @@ mod automation;
 pub use automation::*;
 
 mod swarm;
+mod swarm_admission;
 pub use swarm::*;
+pub use swarm_admission::*;
 
 mod handoff;
 pub use handoff::*;
