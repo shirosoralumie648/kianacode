@@ -12,6 +12,7 @@ mod context_query;
 mod data_governance;
 mod deployment_admission;
 mod deployment_capacity;
+mod deployment_incident;
 mod deployment_observability;
 mod deployment_reconcile;
 mod deployment_shutdown;
@@ -62,11 +63,11 @@ use kiana_domain::{
     project_ui_snapshot, AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent,
     ComponentHealth, ComponentHealthState, CredentialRecoveryProjection, DepartmentSpec,
     DeploymentAdmissionDecision, DeploymentAdmissionInput, HealthAggregationInput,
-    HealthAggregationReport, HealthProbeKind, HealthSnapshot, IdentityMigration,
-    LifecycleEvidenceBundle, OperatorEvidenceSnapshot, OpsDiagnosticsInput, OpsDiagnosticsMode,
-    OpsDiagnosticsReport, OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot,
-    ReconcileInput, ReconcileReport, RequestContext, ResolvedAssignment, RoleSpec, RunId,
-    RuntimeEvent, ShutdownInput, ShutdownReport, StartupCoordinatorReport,
+    HealthAggregationReport, HealthProbeKind, HealthSnapshot, IdentityMigration, IncidentInput,
+    IncidentReport, LifecycleEvidenceBundle, OperatorEvidenceSnapshot, OpsDiagnosticsInput,
+    OpsDiagnosticsMode, OpsDiagnosticsReport, OrganizationId, PermissionProfile, ProjectIdentity,
+    ProjectTrustSnapshot, ReconcileInput, ReconcileReport, RequestContext, ResolvedAssignment,
+    RoleSpec, RunId, RuntimeEvent, ShutdownInput, ShutdownReport, StartupCoordinatorReport,
     StartupCoordinatorRequest, UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
@@ -1051,6 +1052,12 @@ impl DaemonHost {
     #[allow(clippy::unused_self)]
     pub fn deployment_capacity(&self, input: &CapacityInput) -> Result<CapacityReport, PortError> {
         deployment_capacity::evaluate(input)
+    }
+
+    /// Evaluate a read-only deployment incident/runbook phase decision.
+    #[allow(clippy::unused_self)]
+    pub fn deployment_incident(&self, input: &IncidentInput) -> Result<IncidentReport, PortError> {
+        deployment_incident::evaluate(input)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

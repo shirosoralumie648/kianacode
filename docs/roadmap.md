@@ -860,7 +860,7 @@
 | 684 | W9 | 专项 | [`DEP-15`](#step-dep-15) | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | `DEP-08`、`DEP-11`、`DEP-14` | 🔄 | [专项卡](#step-dep-15) · [baseline](roadmap/dep15-ops-diagnostics-baseline.md) |
 | 685 | W9 | 专项 | [`DEP-16`](#step-dep-16) | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | `DEP-05`、`DEP-06`、`DEP-10`、`DEP-14` | 🔄 | [专项卡](#step-dep-16) · [baseline](roadmap/dep16-reconcile-baseline.md) |
 | 686 | W9 | 专项 | [`DEP-17`](#step-dep-17) | 实现 append/artifact/operation/log/diagnostic/migration capacity、backpressure 和 shutdown limits | `DEP-10`、`DEP-13`、`DEP-14` | 🔄 | [专项卡](#step-dep-17) · [baseline](roadmap/dep17-capacity-baseline.md) |
-| 687 | W9 | 专项 | [`DEP-18`](#step-dep-18) | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | `DEP-14`、`DEP-15`、`DEP-16` | ⏳ | [专项卡](#step-dep-18) |
+| 687 | W9 | 专项 | [`DEP-18`](#step-dep-18) | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | `DEP-14`、`DEP-15`、`DEP-16` | 🔄 | [专项卡](#step-dep-18) · [baseline](roadmap/dep18-incident-baseline.md) |
 | 688 | W9 | 专项 | [`DEP-19`](#step-dep-19) | 在 `kiana-eventlog`/`kiana-ports` 定义 `BackupManifest`、hash/chunk、cursor/generation/epoch、artifact/config refs | `DEP-02`、`DEP-07`、`DEP-14` | ⏳ | [专项卡](#step-dep-19) |
 | 689 | W9 | 专项 | [`DEP-20`](#step-dep-20) | 实现 quiesce snapshot：EventLog JSONL/WAL、ArtifactStore、projection checkpoint、migration registry 的一致快照 | `DEP-12`、`DEP-13`、`DEP-19` | ⏳ | [专项卡](#step-dep-20) |
 | 690 | W9 | 专项 | [`DEP-21`](#step-dep-21) | 实现 incremental backup、retention、legal hold、archive、encryption/key ref 和删除依赖图 | `DEP-19`、`DEP-20` | ⏳ | [专项卡](#step-dep-21) |
@@ -6503,6 +6503,353 @@ limitations / reviewer
 | 2026-09-27 | `DEP-09` supervisor port source slice：新增 lease/fence/epoch/generation-bound `SupervisorRequest`/`SupervisorObservation`、systemd/launchd/Windows/container/fake backend registry、confirmed StopReport and explicit Unknown/TimedOut semantics；daemon adapter remains unavailable with no model/capability/shell/pid fallback；新增 domain/Core/ports/daemon fixtures/guards、GitHub workflow and baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
 | 2026-09-27 | `DEP-10` startup coordinator source slice：新增固定 manifest→root→trust→lease→store→migration→projector→capacity 顺序、typed stage facts、epoch/generation/digest binding、journal/recovery/Unknown/Ready gate 与 additive DaemonHost→Core route；不打开 store、不 acquire lease、不 migrate/rebuild/probe/persist startupz；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
 | 2026-09-27 | `DEP-11` health aggregation source slice：复用 HealthSnapshot，新增 startup report/operation/lease/epoch/projection/provider evidence binding、五种 probe status、lag/Unknown/lease conflict/drain/maintenance no-admission 与 provider self-report denial；不读 EventLog、不探测 provider、不写 Broker、不改 HTTP status；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+| 2026-09-27 | `DEP-12` admission source slice：新增 immutable MaintenanceWindow、ready/paused/maintenance/draining/blocked/Unknown decisions、new-vs-existing work boundary、lease/epoch/health/operation/migration/backup conflicts and explicit expiry remediation；不改 scheduler intake、不 stop operation、不写 EventLog、不改 HTTP status；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+| 2026-09-27 | `DEP-13` unified shutdown source slice：新增 ordered cancellation/intake pause/scheduler fence/runner-tool drain/EventStore-artifact flush phase evidence、Stopped/NeedsRecovery/Unknown reducer 与 late-result/timeout/flush ack fences；不执行 cancellation、scheduler/process/EventLog/Broker effect、不持久化 shutdown receipt；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+| 2026-09-27 | `DEP-14` observability source slice：新增 operation/revision/cursor-bound lifecycle metric facts、opaque trace/log/audit refs、secret-free bundle and duplicate/cross-scope/digest fences；不 emit telemetry、不 append audit、不 export trace、不读 EventLog；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
 | 2026-09-27 | `DEP-15` ops diagnostics source slice：新增 status/doctor/preflight 的 ordered config/startup/health/observability facts、redacted diagnostics/remediation、stable JSON/human render、固定 reproduction command 和 CI exit code；Unknown/missing/non-redacted/path-like/digest tamper fail-closed；不修改事实、不执行 remediation、不读 EventLog/provider/Broker/filesystem；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
 | 2026-09-27 | `DEP-16` reconcile source slice：新增 projector/index/queue/lease ordered repair facts、cursor/generation/lease/fence/epoch/Unknown guards、inspect/plan/commit_repair status、actor/evidence/approval binding 与 planned projection generation；不 append EventLog、不自动重跑 Unknown、不 mutate projection/queue/lease、不绕过 approval/fence；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
-| 2026-09-27 | `DEP-17` capacity source slice：新增 append/artifact/operation/log/diagnostic/migration/shutdown 七类 bounded capacity facts、hard limit/queue backpressure/overflow/facts-preserved/deadline/Unknown reducer、stable `capacity_exceeded` and shutdown denial codes；不删除已提交事实、不分配 channel、不写 EventLog、不执行 Broker/provider/FS effect；backup bytes 留待 DEP-19/20；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+| 2026-09-27 | `DEP-17` capacity source slice：新增 append/artifact/operation/log/diagnostic/migration/shutdown 七类 bounded capacity facts、hard limit/queue backpressure/overflow/facts-preserved/deadline/Unknown reducer、stable `capacity_exceeded` and shutdown denial codes；不删除已提交事实、不分配 channel、不写 EventLog、不执行 Broker/provider/FS effect；新增 domain/Core/daemon fixtures/guards、GitHub workflow 和 baseline；backup bytes 留待 DEP-19/20；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+| 2026-09-27 | `DEP-18` incident source slice：新增 observed→triaged→contained→recovering→verified→closed 有序 IncidentPhase、RunbookRef、AlertRoute、RunbookEvidence、IncidentInput/Report，close 必须先 verified（`incident_close_requires_verified`），unknown/超期保持 Unknown（`incident_phase_deadline_expired`）；alert route 只读，authority_expansion 与 auto_compensation 在结构上无法为真；不发告警、不调度补偿、不写 EventLog/Broker/provider/filesystem；新增 domain/Core/daemon fixtures 与 baseline，不新增独立 workflow（统一 ci.yml 已覆盖）；不运行本地 Cargo 测试且不等待 CI | 待本提交 |
+
+---
+
+# Astra Review - 2026-09-27 DEP/SW/UI source slices
+
+## Review 范围
+
+- 仓库根目录没有 `roadmap.md`；本次按实际存在的 `docs/roadmap.md` 审查和追加，未创建重复路线图。审查其中仍为 `🔄`、`partial`、`source` 的 `SW-13`–`SW-18`、`DEP-01`–`DEP-05`，以及对应 `CURRENT_STATUS.md` 证据块、baseline、domain/protocol/core facade 和 fixture/guard。
+- 检查 HEAD `1ddfe530`（DEP-04 fix）、`fd0ce5de`（DEP-05）、`3aba8602`（SW-18）、`1deab536`（SW-17）、`5309636c`（SW-16）及其调用者和公共 DTO；远端 DEP-03 run `36296227765` 已为 `failure`，DEP-04/05 当前 run 仍 `queued`。
+- 初始审查时已见的 12 个未提交源码文件经 `git diff -w --ignore-blank-lines` 核对只有 rustfmt/导入排版变化，未把它们制造成业务修复任务；审查期间又出现的其他 WIP（包括 DEP-07 storage-preflight slice）未纳入本轮结论，必须由后续写者按当时快照重新核对。
+- 本轮只做静态源码、测试和参考项目审查；未运行本地 Cargo 测试/build/check/clippy/smoke，也没有把 queued/failed CI 计为通过。
+
+## 总体结论
+
+当前实现适合作为 source-level/partial 合同继续推进，但若把这些合同当作已完成的 runtime safety，会有协议语义错配、跨对象 digest 未绑定、投影游标回退、跨 owner 投影错显、跨连接 fallback 放行和 evidence-shaped release gate 等问题。没有确认 P0；下面的 P1 任务应先于依赖它们的 durable/adapter/live 工作，P2 任务应在对应切片收口前完成。
+
+## P0 - Critical
+
+无
+
+## P1 - High Priority
+
+- [ ] **恢复 DEP-03 失败 CI，并在失败原因解决前保持该步骤未收口**
+  - 涉及文件：`.github/workflows/dep03-compatibility.yml`、`kiana-domain/src/deployment_compatibility.rs`、`kiana-domain/tests/dep03_compatibility.rs`、`docs/roadmap/dep03-compatibility-baseline.md`、`CURRENT_STATUS.md`。
+  - 当前问题：run `36296227765`（HEAD `825596c7`）为 `failure`，且 GitHub API 显示 `jobs=0`/空日志；后续 DEP-03/04/05 run 仍 queued，当前只能判断为 CI startup/scheduler 证据缺失，不能据此断言源码通过或失败。
+  - 建议实现：先修复/重跑 workflow startup、触发条件和 job matrix，确保至少产生实际 fixture/compile job；再读取失败 job/fixture/compile 日志，区分实现回归、guard 误报和 workflow 路径问题；不得删除/放宽断言，也不得把 `queued`、空 job 或 `failure` 写成绿色证据。
+  - 验收标准：同一失败输入先红后绿；DEP-03 workflow 完成且结论为 success；roadmap 行、baseline 和 `CURRENT_STATUS.md` 绑定实际 run/commit/限制；未观察到 pass 时状态保持 `🔄`。
+
+- [ ] **让 DEP-04 `ResultUnknown` 的 retry policy 与统一错误策略一致**
+  - 依赖：DEP-04；涉及文件：`kiana-protocol/src/ops.rs`、`kiana-protocol/tests/dep04_ops.rs`、`kiana-domain/src/errors.rs`，必要时补 `kiana-core` 的 ops admission mapping。
+  - 当前问题：`OpsError::new(OpsErrorCode::ResultUnknown, ..., true, ...)` 和重新计算 digest 后的 wire DTO 都能通过 `validate()`；这与 `CapabilityErrorCode::ResultUnknown` 的 `retryable=false`、`requires_reconciliation=true` 冲突，未知结果可被下游误当成可自动重试。
+  - 建议实现：由 code 派生 retry/reconciliation policy，或至少强制 `ResultUnknown` 只能 `retryable=false`；在 protocol→core 映射处保留稳定 reason，不接受 caller 自报的 retryable。
+  - 验收标准：构造、serde tamper（重新计算 digest）和 admission 三条路径都拒绝 `ResultUnknown + retryable=true`；合法 Unknown 明确要求 query-original/reconcile；其他错误码的既有 retry 字段语义不被改变。
+
+- [ ] **绑定 DEP-04 ops event name 与 event kind**
+  - 依赖：DEP-04；涉及文件：`kiana-protocol/src/ops.rs`、`kiana-protocol/tests/dep04_ops.rs`。
+  - 当前问题：事件注册表包含 `ops.operation.failed`、`ops.operation.cancelled`，但 `OpsEventKind` 没有对应 variant；`OpsEvent::validate()` 只检查 name 在表中，`failed` 可携带 `Accepted` kind 并通过 digest，投影端可能把失败解释成接受。
+  - 建议实现：补齐 `Failed`/`Cancelled` variant，或建立不可绕过的静态 name→kind 映射；未知 name 继续 fail-closed，映射应参与 digest。
+  - 验收标准：六个已注册 event name 各有唯一合法 kind；所有 name/kind 交叉组合均有 deny fixture；round-trip、digest tamper 和 future unknown envelope 仍保持兼容边界。
+
+- [ ] **使 DEP-05 replay facade 对 persisted journal 做完整一致性校验**
+  - 依赖：DEP-04、DEP-05；涉及文件：`kiana-core/src/deployment_operation.rs`、`kiana-core/tests/dep05_operation_lifecycle_guard.rs`、`kiana-domain/tests/dep05_operation_lifecycle.rs`。
+  - 当前问题：`replay_operation_journal(&journal, transitions)` 没有先验证输入 journal，也不比较 replay 后的 state/sequence/source cursor/journal digest；传入已完成 journal 与截断 transitions 会静默返回较早 projection。
+  - 建议实现：明确参数语义为“expected persisted snapshot”或改成 identity 参数；若保留现有签名，必须先 `journal.validate()`，再 replay，并逐字段比较 projection/digest，返回稳定 mismatch reason；不得自动覆盖原 journal。
+  - 验收标准：完整有序 transitions replay 后与 source journal 完全相等；截断、不同 revision、不同 cursor、不同 terminal 和 forged digest 都拒绝；失败不会产生可被调用者误用的部分成功 journal。
+
+- [ ] **让 SW-13 reducer 从已验证的 SW-12/WorkGraph 事实生成绑定的 merge decision**
+  - 依赖：SW-12、SW-13；涉及文件：`kiana-domain/src/swarm_merge_reducer.rs`、`kiana-core/src/swarm_merge_reducer.rs`、`kiana-domain/src/swarm_graph.rs`、对应 tests/baseline。
+  - 当前问题：当前 `SwarmMergePartition` 只有 partition/output/evidence digest，Core 仅调用 `validate_swarm_merge_decision()`；它无法验证 WorkGraph 的 path/data scope、TypedChildResult 的 attempt/artifact/output contract 是否属于同一 partition，roadmap 所要求的 path/data/output conflict 仍可由 caller 自填 digest 绕过。
+  - 建议实现：新增以 canonical `TypedChildResult` + WorkGraph partition refs 为输入的纯 reducer；从事实派生 partition key、path/data scope、attempt/output/evidence digest，再执行 AllSuccess/AllSettled/ExplicitPolicy；不要在 reducer 中加入 Broker/EventLog 或第二执行循环。
+  - 验收标准：unordered/missing/duplicate/first-success/Unknown 以及 path overlap、data overlap、wrong attempt、wrong output/artifact、stale policy 全部拒绝；相同事实集合无序输入仍产生同一 merge digest。
+
+- [ ] **将 SW-14 MergeReview/MergeReceipt 绑定到真实 SW-13 decision 和 review**
+  - 依赖：SW-13、SW-14；涉及文件：`kiana-domain/src/swarm_merge_review.rs`、`kiana-core/src/swarm_merge_review.rs`、`kiana-domain/tests/swarm_merge_review.rs`。
+  - 当前问题：`SwarmMergeReceipt::validate()` 只验证 digest 形状、自身 digest 和 `company_acceptance_required`；`merge_digest`、`review_digest`、`policy_digest` 可是与任何 decision/review 无关的自洽随机值，尚无 acceptor/reviewer epoch 和 partition coverage 的关系校验。
+  - 建议实现：提供 `validate_against(decision, review, receipt)` 或等价 Core facade，比较 exact merge/review/policy digest、每 partition 的 output/evidence/decision、reviewer epoch、acceptor identity/authority；再由持久 ledger 处理同 idempotency replay 与 payload conflict。保持 Company acceptance 是后续独立事实。
+  - 验收标准：篡改任一 partition、reviewer、policy、acceptor、merge/review digest 或 coverage 都拒绝；同一 receipt replay 原结果，冲突 payload 不生成第二 receipt；`company_acceptance_required=true` 仍不能被解释为 Company acceptance。
+
+- [ ] **为 SW-15 retirement 建立 owner/resource/cursor/transition fence，证明 exactly-once 而非 caller 自报**
+  - 依赖：SW-14、SW-15；涉及文件：`kiana-domain/src/swarm_retirement.rs`、`kiana-core/src/swarm_retirement.rs`、`kiana-domain/tests/swarm_retirement.rs`。
+  - 当前问题：`SwarmRetirementFact` 没有 child/resource/controller identity、previous state 或 prior cursor；`Released` 与 `Retired` 共享相同条件，`release_receipt_digest` 只检查格式，foreign Cell、旧 cursor、重复 transition 可由 caller 伪造为合法事实。
+  - 建议实现：绑定 swarm/child/controller ownership、resource set digest、previous state/source cursor、authority/worker epoch 和 release receipt；用 append-only transition ledger/CAS 实现 Pending→BlockedUnknown/Released→Retired，Unknown/in-flight/foreign resource 保持 blocked。此 slice 仍不得直接释放预算或删除事实，实际 effect 留后续 adapter。
+  - 验收标准：foreign owner、旧 cursor/epoch、重复 release、Released→Released、Retired 前仍有 child、Unknown/in-flight 均拒绝；同一 transition replay 幂等且不同 payload conflict；receipt digest 必须由对应 resource set 派生。
+
+- [ ] **补齐 SW-16 recipient identity 与 ACK 绑定**
+  - 依赖：SW-15、SW-16；涉及文件：`kiana-domain/src/swarm_handoff.rs`、`kiana-core/src/swarm_handoff.rs`、`kiana-domain/tests/swarm_handoff.rs`。
+  - 当前问题：`recipient_id` 只拒绝空值和字面量 `broadcast`，sender/recipient 未绑定已知 Cell/authority epoch；`Acknowledged` 不要求 `ack_digest`，ACK 也未绑定 packet、source cursor、sender/recipient 和原记录 digest。
+  - 建议实现：引入 server-owned recipient registry/identity epoch；ACK 必须引用原 record digest、packet ref、source cursor、sender/recipient，并使用有界 idempotency/cursor/replay fence；继续禁止自由消息总线和 authority grant。
+  - 验收标准：unknown/foreign recipient、Acknowledged-without-ack、错误 ACK、旧 epoch、重复/冲突 ACK、越界 round/message/token/stall 都拒绝；相同结构化 handoff replay 不产生新事实。
+
+- [ ] **让 SW-17 projection 强制 source cursor 单调并保护 hydration**
+  - 依赖：SW-16、SW-17；涉及文件：`kiana-domain/src/swarm_projection.rs`、`kiana-core/src/swarm_projection.rs`、`kiana-domain/tests/swarm_projection.rs`。
+  - 当前问题：`apply()` 只检查 epoch/sequence，随后直接把 `source_cursor` 改成 event cursor；seq=2/cursor=9 可以覆盖 seq=1/cursor=10，断线 hydration/replay 会回滚到旧事实边界。
+  - 建议实现：持久化/校验 `last_source_cursor`，除 exact event digest replay 外要求 cursor 严格递增；hydration 必须携带 epoch/generation，并拒绝覆盖更新 cursor 的状态；projection 仍只能显示，不能 dispatch。
+  - 验收标准：cursor regression、same sequence/different digest、future/old hydration、epoch/generation drift 均拒绝；exact replay 是 no-op；terminal 之后不能恢复旧 cursor 或 resurrect event。
+
+- [ ] **把 SW-18 release gate 从字段矩阵升级为场景约束和可重放 fake flow**
+  - 依赖：SW-13、SW-14、SW-15、SW-16、SW-17、SW-18；涉及文件：`kiana-domain/src/swarm_release_gate.rs`、`kiana-core/src/swarm_release_gate.rs`、`kiana-domain/tests/swarm_release_gate.rs`。
+  - 当前问题：`Crash`/`FakeGolden` 没有场景专属断言；Deny/Race、Unknown、Replay 只在 `Verified` 时检查，Partial/Blocked 可以缺 evidence；六个 case 唯一并不等于真实 crash/race/fake golden 链已执行。
+  - 建议实现：为每个 scenario 定义必需字段、effect/handler 上限、Unknown/replay/terminal/fence 约束；case/gate 绑定 source snapshot、fixture/golden digest 和 limitation；增加 deterministic fake flow、crash-after-reserve/dispatch、replay 和 bounded race harness，仍禁止真实发布/外部 effect。
+  - 验收标准：缺场景证据、伪造 status/count、FakeGolden 与 live 混淆、Crash/Race 无恢复事实、case/gate digest drift 均拒绝；六场景可从同一 fixture 重放且 effect_count 有明确上限。
+
+- [ ] **修正 UI snapshot owner 解析的权威字段优先级**
+  - 依赖：UI-05、P2-M2-01；涉及文件：`kiana-domain/src/ui_snapshot.rs`、`kiana-core/src/ui_actions.rs`、`kiana-domain/tests` 中的 UI projection fixture。
+  - 当前问题：`event_owner()` 先取顶层 `actor_id`，再取 `action.owner_id`/`record.owner_id`；UI action 事件可同时带操作者 actor 和动作所有者 owner，当前会把 actor 当 owner，造成 owner-scoped snapshot 漏显/错显。
+  - 建议实现：对 `ui.action.*` 优先解析 action/record 的 server-owned owner，`actor_id` 只作为无 owner legacy event 的受限 fallback；若多个权威 owner 冲突则 fail-closed，不把操作者身份当资源所有者。
+  - 验收标准：事件同时含 `actor_id=operator`、`action.owner_id=owner-1` 时只有 owner-1 可见；owner-2、foreign session 和冲突 owner 均拒绝/不投影；既有 legacy event 行为有明确兼容测试。
+
+- [ ] **修正 ProtectedReplayRef 的 bytes SHA-256 和格式校验**
+  - 依赖：P4-J7-20/P4-J7-27、当前 provider replay slice；涉及文件：`kiana-domain/src/protected_replay.rs`、对应 model/provider tests。
+  - 当前问题：`ProtectedReplayScope::reference()` 用 `json_digest({"bytes": bytes})` 填入名为 `sha256` 的字段，且 `validate_for_call()` 只检查非空；非标准摘要可以进入 provider resume binding，外部 adapter 无法按真实 bytes SHA-256 对接。
+  - 建议实现：对原始 bytes 使用统一 `sha256:<64 hex>` helper，所有入口校验前缀/长度/hex，并继续绑定 route/connection/protocol/model/call/TTL/data revision；不要引入网络 URL 或把私有 replay bytes 放入可序列化 DTO。
+  - 验收标准：已知 bytes 得到标准 SHA-256；空、短、非 hex、JSON digest 和跨 connection/model/expired ref 均拒绝；material/reference/validate_for 的 digest 计算一致且不泄露 bytes。
+
+- [ ] **把 `connection_id` 纳入 ModelRoute digest 或在所有 fallback 边界显式比较**
+  - 依赖：P4-J7-25/P4-J7-31、当前 route/fallback slice；涉及文件：`kiana-domain/src/model.rs`、`kiana-domain/src/fallback_admission.rs`、`kiana-provider/src/fallback.rs` 及其 digest fixtures/migrations。
+  - 当前问题：`ModelRoute::digest()` 漏掉 `connection_id`；allowlist/provider boundary 只比较 route digest、provider_id、model_id，因此同 provider/model 但不同 connection 的候选 route 可被接受，绕过 connection identity binding。
+  - 建议实现：优先把 connection_id 纳入 canonical digest 并审查 persisted digest version/migration；若兼容性要求不能改 digest，必须在 `FallbackRouteAllowlist::contains` 和 provider `validate_fallback_attempt` 同时显式比较 connection_id/protocol/config revision。
+  - 验收标准：只改变 connection_id 必须产生不同 route digest 或在两个边界均被拒；旧 digest 的迁移/拒绝规则明确；cross-connection fallback regression 覆盖 allowlist、provider boundary、protected replay/route attestation。
+
+## P2 - Improvements
+
+- [ ] **让 DEP-05 evidence_refs 非空且保留 evidence digest 约束**
+  - 依赖：DEP-05；涉及文件：`kiana-domain/src/operation_lifecycle.rs`、`kiana-domain/tests/dep05_operation_lifecycle.rs`。
+  - 当前问题：`validate_evidence()` 只限制上限、重复和 digest，`OperationTransition::new()` 可以构造 `evidence_refs=[]`；这不满足 DEP-05“每次状态有 source cursor/reason/evidence”的成功条件。
+  - 建议实现：除创建态内置 `operation.created` 外，transition 必须至少一个 bounded evidence ref；Unknown、terminal、cancel/fail 不得用空 evidence 绕过审计。
+  - 验收标准：空 refs、空 digest、重复 refs、重算 digest 和未知字段均拒绝；合法 preflight/drain/execute/terminal transitions 继续可 replay。
+
+- [ ] **统一 DEP-02 release secret marker 与 domain redaction marker**
+  - 依赖：DEP-02；涉及文件：`kiana-domain/src/deployment_release.rs`、`kiana-domain/src/redaction.rs`、`kiana-domain/tests` 的 release fixtures。
+  - 当前问题：`contains_secret_marker()` 未覆盖通用 `token=`/`token:`、`password:` 和 JSON password 等变体；例如 `builder_id="token=raw"` 或 `password:raw` 可通过 bundle validation，而共享 redaction scanner 已覆盖这些 marker。
+  - 建议实现：复用共享 bounded marker helper，或建立单一 marker registry；区分 `secret_ref`/opaque reference 与 raw secret，覆盖 delimiter、JSON、hyphenated key 和 bearer 变体。
+  - 验收标准：所有 marker 变体在 manifest/provenance/signature/verification 任一字段都 fail-closed；合法 `secret_ref`、redacted sentinel 和普通文本不被误拒；release digest 在校验前后仍稳定。
+
+- [ ] **收口 DEP-04 修复后的 source snapshot 与证据块**
+  - 依赖：DEP-04；涉及文件：`docs/roadmap/dep04-ops-protocol-baseline.md`、`CURRENT_STATUS.md`、`docs/roadmap.md`。
+  - 当前问题：HEAD `1ddfe530` 已修改 `kiana-protocol/src/ops.rs`、contracts 和 protocol tests，但 DEP-04 baseline/CURRENT_STATUS 仍以 `825596c7` 作为 source snapshot；旧快照不能证明新 event registry/payload boundary 的当前状态。
+  - 建议实现：保留旧历史证据，新增/更新一个明确绑定 `1ddfe530` 的 evidence block，列出 worktree、命令、CI run（若仍 queued 就写 pending）、fixture、proof ceiling、limitations 和 reviewer；同步 roadmap card/baseline 的 next gate，不提升 source 以外的 proof。
+  - 验收标准：读者可以从 DEP-04 行直接定位实际修复 commit、当前测试/CI 结论和限制；queued、failure 或空 job run 不被写成 pass；`CURRENT_STATUS.md` 与 baseline 不再把旧快照冒充当前 fix。
+
+- [ ] **让 SW-15 child count 校验防止整数溢出**
+  - 依赖：SW-15；涉及文件：`kiana-domain/src/swarm_retirement.rs`、`kiana-domain/tests/swarm_retirement.rs`。
+  - 当前问题：`terminal_known_count + unknown_count` 使用裸 `u32` 加法；极端 malformed input 在 debug 可 panic，在 release 可能 wrap 后错误通过/错误分类。
+  - 建议实现：用 `checked_add` 并映射到稳定 `swarm_retirement_child_count_invalid`，再执行与 child_count 的比较；不使用 wrap/saturating 伪造合法计数。
+  - 验收标准：`u32::MAX + 1`、两个最大值、超过 child_count 和正常边界都分别有回归；任何 malformed input 返回错误而不 panic 或 mutate state。
+
+## Reference 对照任务
+
+### DEP-05 replay / lifecycle
+
+参考项目：
+`reference/opencode`、`reference/goose`、`reference/12-factor-agents`、`reference/temporal-sdk-python`
+
+相关实现：
+- `reference/opencode/packages/opencode/src/session/session.ts`：event-first session facts；`packages/opencode/src/session/run-state.ts`：按 session 串行化 run/cancel；`packages/core/src/session/projector.ts`：从持久事实重建 projection。
+- `reference/goose/crates/goose/src/agents/state_machine/session.rs`：每步持久化/重载；`crates/goose/src/agents/state_machine/tests/`：tool lifecycle/agent reply regression。
+- `reference/temporal-sdk-python/temporalio/worker/_replayer.py` 的 `Replayer`；`reference/temporal-sdk-python/tests/worker/test_replayer.py` 的 complete/incomplete/failed/nondeterministic history replay。
+- `reference/12-factor-agents/content/factor-05-unify-execution-state.md`、`factor-06-launch-pause-resume.md`、`factor-12-stateless-reducer.md`。
+
+参考调用链：
+
+`persisted session/history -> serialized run state -> projector/replayer -> deterministic state or explicit divergence`
+
+值得借鉴：
+- 先持久化事实，再发/执行后续动作；重放比较完整 history，而不是相信调用者传来的当前快照。
+- cancel、incomplete、nondeterministic/unknown 都保持显式状态，不自动转成成功或 retry。
+
+不要直接复制：
+- OpenCode/Goose 的 session runtime 不能成为 Kiana 第二执行循环；Temporal 的 worker service 也不替代 Kiana EventLog、ControlPlane 或 approval。
+
+当前项目建议：
+- 先完成 DEP-05 Core replay 一致性和 evidence fence，再由 DEP-06+ 将 journal 接入 durable EventStore/lease；所有后续 adapter 以 source journal 为权威。
+
+### SW-13/SW-14/SW-16/SW-17
+
+参考项目：
+`reference/openai-agents-python`、`reference/langgraph`、`reference/crush`、`reference/agency-swarm`
+
+相关实现：
+- `reference/openai-agents-python/src/agents/run_internal/turn_resolution.py`：explicit handoff invocation/output/hook ordering；用于核对 recipient/ACK/identity 绑定。
+- `reference/langgraph/libs/checkpoint/README.md`：thread/checkpoint/pending-write 语义；用于核对 cursor hydration 不覆盖已提交 sibling。
+- `reference/crush/internal/agent/agent.go`、`run_complete_test.go`、`dispatch_race_test.go`：RunID、terminal event 和 dispatch race 的测试边界。
+- `reference/agency-swarm/src/agency_swarm/hooks.py` 的 `on_handoff`，以及 `tests/test_integrations_modules/test_realtime.py` 的 handoff event 顺序。
+
+参考调用链：
+
+`named handoff/invocation -> identity-bound output/hook -> checkpoint/event reducer -> terminal/replay fence`
+
+值得借鉴：
+- recipient、run/invocation identity 和 terminal/replay sequence 必须由状态事实绑定；checkpoint 只能补齐旧视图，不能覆盖更高 cursor。
+- race、completion、handoff ordering 应有可重放 regression，而不是只验证 DTO 自身 digest。
+
+不要直接复制：
+- Agency Swarm 的自由 `send_message`/flat callback history 不进入 Kiana；LangGraph checkpoint 也不提供 Kiana 的 capability authorization 或 external-effect exactly-once。
+
+当前项目建议：
+- 将这些模式适配为 Kiana 的 typed WorkPacket/Handoff、EventLog cursor、ControlPlane review/approval 和 Broker effect boundary；SW-13–18 仍保持 source-only proof ceiling，直到真实 durable wiring 存在。
+
+### Secret / replay / route identity
+
+参考项目：
+`reference/codex`、`reference/crush`
+
+相关实现：
+- `reference/codex/scripts/mcp_conformance/official_conformance.py`：`redact_sensitive_text`、JSON field/URL parameter/Bearer marker 和“不持久化 client secret”测试。
+- `reference/crush/internal/app/provider.go`：provider/model 消歧和 route identity；用于核对同名模型跨 provider/connection 的隔离。
+
+当前项目建议：
+- 只吸收 marker registry、secret-free persistence 和显式 provider/connection identity；不把参考项目的 URL/credential transport 或 provider selection 变成 Kiana 的授权来源。
+
+## Review 结论后的执行顺序
+
+1. 先处理 DEP-03 failed CI、DEP-04 Unknown/event-kind、DEP-05 replay/evidence，再进入依赖它们的 durable deployment work。
+2. 随后按 SW-13 reducer binding → SW-14 receipt binding → SW-15 ownership/overflow → SW-16 ACK identity → SW-17 cursor → SW-18 scenario gate 收口。
+3. UI owner、ProtectedReplay bytes digest、ModelRoute connection identity 与对应现有 UI/provider slices 同步修复；修复完成后仍需重新生成受影响 digest fixture/migration 并回填 `CURRENT_STATUS.md`。
+
+---
+
+# Astra Review - 2026-09-27 completed roadmap items
+
+## Review 范围
+
+- 审查 `docs/roadmap.md` 中已经标记 `✅` 的基础卡和对应专项证据，重点覆盖 `P0-G-04`、`P1-C-02`、`P2-K4-01`、`P2-K6-01`、`P2-K7-01`，并检查 `kiana-core`、`kiana-domain`、`kiana-daemon` 的调用者、投影、EventLog 边界和现有 guard/fixture。
+- 对照 `CURRENT_STATUS.md` 的 source/proof 证据；静态检查显示多数完成项仍只有 `proof_level=source`，本轮没有把未等待的 CI 或 source guard 当作 runtime/durable 证明。
+- 参考实现实际阅读了 OpenCode 的 session projector、Goose 的持久化 session state machine 和 Temporal Python 的 history replayer；参考代码只用于对照事件身份、持久事实和 replay 语义，不引入第二执行循环。
+
+## 总体结论
+
+已完成卡片的合同和拒绝分支覆盖面较好，没有确认 P0。但 Run 事件身份、跨项目数据治理、对账证据和 Cell retire 的事实链仍存在可触发的错误路径；此外若干 `✅` 行与其“CI 未等待/source only”证据不一致。以下 P1 任务应在继续扩大 durable/adapter/live 范围前完成。
+
+## P0 - Critical
+
+无
+
+## P1 - High Priority
+
+- [ ] **统一 Run 事件的严格身份校验，禁止冲突被投影或静默变成空结果**
+  - 依赖：`P0-G-04`；涉及文件：`kiana-core/src/projection.rs`、`kiana-core/src/receipts.rs`、`kiana-core/src/parity.rs`、`kiana-core/src/company.rs`、`kiana-core/src/company_business.rs`、`kiana-core/src/approvals.rs`、`kiana-core/tests/er08_run_projection.rs`、`kiana-core/tests/control_plane.rs`。
+  - 当前问题：`projection.rs:event_run_id` 优先信任 payload `run_id`，没有拒绝 payload 与 `aggregate_type=run/aggregate_id` 冲突；同一仓库的 `try_filter_run_events` 已会拒绝该冲突，但 `filter_run_events` 用 `unwrap_or_default()` 将错误吞成空列表，多个 receipt/parity/company 读取路径继续使用这个宽松包装。恶意或损坏事件可能被归入错误 Run，或让异常投影看起来只是“没有事件”。
+  - 建议实现：抽出一个返回结构化错误的共享 Run identity resolver，要求 payload、aggregate 和必要的 legacy stream metadata 一致；`project_run_state`、receipt、parity、approval、company/business 读取全部改用严格结果。缺少事件与身份冲突必须分别返回 `source_empty`/`run_identity_conflict` 或显式 `Unknown`，不得回退为空成功。
+  - 验收标准：aggregate 指向 Run-B、payload 指向 Run-A 的每个 projection/read path 都拒绝；非对象/无效 payload、foreign aggregate、重复 terminal 仍 fail-closed；合法 legacy exact stream 可按兼容规则读取；异常不会生成 Completed、空 Receipt 或成功 parity；新增 regression 覆盖 `project_run_state` 和至少一个 public receipt/company 调用链。
+
+  ### Reference
+
+  参考项目：
+  `reference/opencode`、`reference/goose`、`reference/temporal-sdk-python`
+
+  相关实现：
+  - `reference/opencode/packages/core/src/session/projector.ts`：projection update 在每个事实中绑定 `sessionID`，数据库更新条件也带相同身份。
+  - `reference/goose/crates/goose/src/agents/state_machine/session.rs`：每个 state-machine step 先从持久 session 重载，再持久化 effects 后发布可见事件。
+  - `reference/temporal-sdk-python/temporalio/worker/_replayer.py`、`tests/worker/test_replayer.py`：history replay failure 直接暴露，不把不完整或 nondeterministic history 当空成功。
+
+  参考调用链：
+
+  `persisted event/history -> identity-bound projector -> explicit replay error or deterministic state`
+
+  当前项目建议：
+  - 借鉴按对象身份过滤、先验证再投影、显式 divergence 的顺序；不要复制其 session runtime 或引入新的 EventLog。
+
+- [ ] **按 project/root 隔离 DataGovernanceSnapshot，阻止 foreign revocation 污染当前项目**
+  - 依赖：`P2-K7-01`；涉及文件：`kiana-core/src/data_governance.rs`、`kiana-core/src/workspace_checkpoints.rs`、`kiana-core/src/company.rs`、`kiana-daemon/src/data_governance.rs`、`kiana-core/tests/oa20_data_governance_projection.rs`、`kiana-core/tests/p2_k7_01_data_governance.rs`。
+  - 当前问题：`ControlPlane::data_governance_snapshot` 对 `read_all()` 的全局事件直接调用 `project_data_governance_snapshot(policy, project_ref, ...)`；该投影循环没有按 `project_ref`/canonical project root 过滤，也没有要求 `data.revocation_requested`、`workspace.restore_requested` 和 `kiana.data-governance-result.v1` 带目标项目绑定。另一个项目的 pending revoke/restore 会把当前项目所有 observation/derived store 置为 `Unknown`，foreign governance result 还可能清除 pending 状态；source cursor 也变成全局事件列表长度。
+  - 建议实现：建立 project-scoped source selector，在 cursor/duplicate/gap fold 之前只接受目标项目的事件；事件缺少项目绑定、绑定无法 canonicalize 或 result 的 project 与目标不一致时 fail-closed。目标项目的 cursor、event IDs、revoked sources 和 pending invalidation 必须独立计算；receipt/checkpoint/company 读取复用同一 scope predicate。
+  - 验收标准：混入 Project-A 与 Project-B 的 revoke、restore、governance result 时，A 的 snapshot 不改变 B 的状态，反之亦然；foreign result 不能清除 pending；缺失/伪造 project binding 被拒绝；同项目 cursor gap/duplicate 仍拒绝；snapshot digest 和 source_event_ids 只覆盖目标项目事实。
+
+  ### Reference
+
+  参考项目：
+  `reference/opencode`、`reference/temporal-sdk-python`
+
+  相关实现：
+  - `reference/opencode/packages/core/src/session/projector.ts`：Message/Part/Session projection 的查询条件持续带 `sessionID`，不会把全局 event list 直接折叠进一个 session。
+  - `reference/temporal-sdk-python/temporalio/worker/_replayer.py`、`tests/worker/test_replayer.py`：replayer 接收一个明确的 workflow history，再对该 history 报告 replay failure。
+
+  当前项目建议：
+  - 只借鉴 object-scoped history 和显式 history boundary；Kiana 仍以 EventLog 为唯一事实源，不建立 per-project 第二账本。
+
+- [ ] **让 failure reconciliation 使用可验证的外部证据，不能用字符串形状放行资源释放**
+  - 依赖：`P2-K6-01`、`ER-24`；涉及文件：`kiana-core/src/platform.rs`、`kiana-domain/src/artifact_contracts.rs`、`kiana-ports/src/lib.rs` 的 `ArtifactContentPort`/证据读取边界、`kiana-core/tests/p2_k6_01_reliability.rs`、`kiana-core/tests/er24_reconciliation_evidence_guard.rs`。
+  - 当前问题：`reconciliation_evidence_exists` 对 `provider:`、`os:`、`file:`、`human:` 引用只检查前缀和是否包含 `incident_id`，没有读取已提交的 typed evidence、ArtifactRef、provider receipt 或人工确认事实。提交一个形如 `provider:<incident_id>:fake` 的 caller 字符串即可产生 `failure.reconciled`；随后 `failure.release` 只检查存在 reconciliation 和 stop confirmation，就能追加 `resource.released` 并触发 Cell retire。
+  - 建议实现：将外部证据解析成 server-owned、incident/run/attempt 绑定的 typed record，校验 source cursor、scope/authority/data epoch、content/provider receipt digest 和 evidence kind；Artifact 类引用经 `ArtifactContentPort` 重新读取并校验 hash，provider/OS/human 引用必须对应已提交的受控 observation 或明确的人工事实。未知、未提交、跨 incident 或 digest 不匹配一律停留在 `Unknown`，不能进入 release。
+  - 验收标准：伪造或仅格式正确的 external ref 不可 reconcile；合法 incident-bound evidence 可幂等 replay；跨 run/attempt/project、过期 epoch、artifact hash drift、重复/冲突 evidence 均拒绝；没有经过 verified reconciliation 时 `resource.released` 和 Cell retire 的 effect count 为零；原 runtime outcome 保持不变。
+
+  ### Reference
+
+  参考项目：
+  `reference/temporal-sdk-python`、`reference/crush`
+
+  相关实现：
+  - `reference/temporal-sdk-python/temporalio/worker/_replayer.py` 与 `tests/worker/test_replayer.py`：历史重放必须以可获取的 history 为输入，并把 failure 保留为 failure。
+  - `reference/crush/internal/agent/dispatch_race_test.go`、`run_complete_test.go`：dispatch/completion race 以绑定的 run/terminal 事实断言，而不是只验证调用方字段形状。
+
+  不建议直接复制：这些参考项目没有 Kiana 的 provider/OS/human evidence authority；它们不能代替 `ArtifactContentPort`、EventLog 或 ControlPlane。
+
+  当前项目建议：
+  - 先复用现有 `EvidenceRef`、`ProviderReceipt` 和 incident source event 的绑定能力，再增加最窄的受控查询 port；未有真实外部 receipt 时继续保留 `Unknown`。
+
+- [ ] **Cell retire 必须产生可投影的 grant/lease 撤销事实，而不只是记录 ID**
+  - 依赖：`P1-C-02`、`CP-08`；涉及文件：`kiana-core/src/cell_registry.rs`、`kiana-core/src/collaboration.rs`、`kiana-core/src/authority_read_model.rs`、`kiana-core/src/events.rs`、`kiana-core/tests/p1_c02_cell_lifecycle.rs`、`kiana-core/tests/cp17_revoke_cleanup_guard.rs`。
+  - 当前问题：`release_resources` 只释放 budget、删除仍由该 Cell 持有的 path lock，并把 `resources_released=true`；`retire_cell`/`cell.retired` 回执携带 `grant_id` 和 `supervision_lease_id`，但没有追加 `grant.revoked`、`lease.fenced`/`lease.released` 或等价的 server-owned transition。`authority_read_model` 因而可能继续把对应 grant 当作 active，虽然当前进程的 `begin_capability` 会因 Cell lifecycle 拒绝新调用；现有 `p1_c02_cell_lifecycle.rs` 只做 source-marker 检查，没有验证授权投影。
+  - 建议实现：在同一受保护 EventStore/CAS 边界中追加 Cell retired 与 grant revoke、supervision lease fence/release 的事实，绑定 Cell、owner、authority epoch、source cursor 和 idempotency；或明确把当前卡片降级为 process-local resource release，并把 durable revocation 重新列为未完成任务。不得用 UI/Receipt 字段代替授权事实。
+  - 验收标准：retire 成功后 `project_authority_read_model` 对 grant 返回 revoked/expired、lease 返回 fenced/inactive；旧 grant/lease、foreign Cell、旧 epoch 和重复 retire 不可重新 admission；active capability 未 drain 时不追加 terminal/revoke；replay 同一 batch 幂等，partial append 返回 `Unknown` 而不是伪造全成功。
+
+  ### Reference
+
+  参考项目：
+  `reference/goose`、`reference/temporal-sdk-python`
+
+  相关实现：
+  - `reference/goose/crates/goose/src/agents/state_machine/session.rs`：effects 先通过 session manager 持久化，再发布观察事件，生命周期状态不靠仅展示的 event payload 维持。
+  - `reference/temporal-sdk-python/temporalio/worker/_replayer.py`：重放使用持久 history，状态不因一次内存调用自动变成已完成。
+
+  当前项目建议：
+  - 借鉴“事实先提交、投影再重建”的顺序，复用 Kiana 已有 `authority_read_model` 和 EventLog transition；不要新增 Cell 专属授权循环或全局可变撤销表。
+
+## P2 - Improvements
+
+- [ ] **对齐 `✅` 完成标记与实际 proof/evidence，禁止 source-only 草稿阻塞后续路线**
+  - 涉及文件：`docs/roadmap.md`、`CURRENT_STATUS.md`、各卡片 baseline 和对应 `.github/workflows/*`；优先核对 `P0-G-04`、`P0-J1-05a`、`P0-J1-05b`、`P1-C-02`、`P1-D-03`、`P2-K4-01`、`P2-K6-01`、`P2-K7-01`。
+  - 当前问题：这些行或详细卡已写成 `✅`/`implemented`，但证据块同时写明 `proof_level=source`、CI “triggered/queued and not awaited”，部分历史行仍写“待本提交”；`P0-G-04` 的当前证据甚至明确提示 roadmap 应保持 `🔄`。这会让依赖图把未完成的 runtime/durable 验收当成可消费前置。
+  - 建议实现：逐项绑定实际 commit、CI run/job、fixture 结果和 limitations；没有可定位的 CI success 或明确的 source-only 卡片就降为 `🔄`/`partial`，保留历史证据不改写。增加文档 guard：`✅` 必须同时有 commit、CI run id 和完整 evidence block，且不得把 queued/空 job/未运行测试写成通过。
+  - 验收标准：上述卡片的 roadmap 状态、baseline、`CURRENT_STATUS.md` 三处一致；每个 `✅` 都能定位成功 run 和 proof ceiling；source-only、durable、live、physical 不互相升级；下一个 Agent 可从第一个真实未完成步骤继续，不需要重新猜测状态。
+
+## Review 执行顺序
+
+1. 先完成 Run identity/filter 严格化和 project-scoped data governance，避免后续投影/治理任务建立在错误事实集合上。
+2. 再完成 reconciliation external evidence 和 Cell grant/lease revocation，确保 `Unknown`、release、retire 的权限边界一致。
+3. 最后回填所有 `✅` 卡片的 commit/CI/proof 账本，再继续 durable、adapter、live 或 physical 任务。
+
+---
+
+# Astra Review - 2026-09-27 CI consolidation
+
+## Review 范围
+
+- 审查 `.github/workflows/` 的自动触发、重复 workspace 检查、Rust/Node/shell 测试入口和 `include_str!` workflow contract guards。
+- 对照 `scripts/ci/validate-workflows.sh`、EQ-49/50/51、PD-35、SC-28、SC-41/42/43 静态门；保留正在进行的 DEP-10..14 WIP 文件。
+
+## 总体结论
+
+原来每个 roadmap 切片都复制一份 push/PR workflow，造成一次提交数百个 Actions run 和队列饥饿。默认 push/PR 现在只进入统一 `ci.yml`；SC-28 依赖扫描、EQ-50 schedule/tag、release tag 是有明确语义的自动例外，其余专项 workflow 改为手动门。被 Rust guard 通过 `include_str!` 引用的 workflow 不能删除，只能停止自动触发。
+
+## P0 - Critical
+
+无
+
+## P1 - High Priority
+
+- [x] **统一 CI 与专项 workflow 触发边界**
+  - `ci.yml` 执行 workflow 结构门、完整 workspace `fmt/check/clippy/test`、Node desktop contract tests 和 shell/static validators，并启用同一 ref 的取消并发。
+  - 664 个历史切片 workflow 已删除；被源码 contract 引用的专项文件恢复并改为 `workflow_dispatch`，防止编译期契约断裂。
+  - `scripts/ci/validate-workflows.sh` 固定活动文件 allowlist、禁止 roadmap/status 根文件触发扇出、要求显式 permissions，防止 workflow 数量和触发策略回潮。
+  - 验证：workflow YAML、EQ-49/50/51、DEP-41、PD-35、SC-28、SC-41/42/43、UI-37 静态门和全部 shell syntax check 已通过；Cargo/Node 运行结果需由 GitHub CI 产生。
+
+- [ ] **在 GitHub branch protection 中将统一 CI 设为 required check**
+  - 涉及 GitHub repository settings；required context 使用 `ci / Rust workspace`，并保留 `ci / Workflow structure` 作为同一 workflow 的结构门。
+  - 验收标准：普通 PR 不再要求已删除的切片 workflow 名称；`ci` 成功是合并前唯一通用代码门，SC-28 只在依赖输入变化时额外出现。
+
+## P2 - Improvements
+
+- [ ] **将手动 contract workflow 内容逐步迁移为显式 fixture 文件**
+  - 仅在不改变 guard 语义的前提下，把 `.github/workflows/` 下仅用于 `include_str!` 的文本契约迁移到专用 fixture 目录，再删除对应手动 workflow。
+  - 依赖：先为每个 guard 增加 fixture digest/路径回归；不得直接删除当前文件，否则 workspace 编译失败。
