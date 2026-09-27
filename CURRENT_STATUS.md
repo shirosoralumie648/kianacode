@@ -15740,3 +15740,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source fact cannot persist tombstones/invalidate derived stores or prove cross-process revocation; INT-27+ remains open
 reviewer: Codex INT-26 source review; checked project/grant/data-class/purpose/retention/epoch binding, tombstone/invalidation gates and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### INT-27 connector notification evidence (2026-09-27)
+
+```text
+source_snapshot: `a0de7993` plus INT-27 notification source slice; kiana-domain/src/{connector_notifications.rs,notification_events.rs,platform.rs,lib.rs}; kiana-core/src/{connector_notifications.rs,lib.rs,notification_materializer.rs}; kiana-domain/tests/connector_notifications.rs; kiana-core/tests/int27_connector_notifications_guard.rs; .github/workflows/int27-notifications.yml; docs/roadmap/int27-notifications-baseline.md; docs/roadmap.md
+worktree_status: Notification registry recognizes connector health/invocation/reconciliation/approval classes; connector payload gate requires committed source cursor, connector/binding identity, evidence digest, dedup key, redacted summary and explicit limitation; model/UI/unknown families and secret text are rejected; existing NotificationMaterializer remains sole projection; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/connector_notifications.rs kiana-core/src/connector_notifications.rs kiana-domain/tests/connector_notifications.rs kiana-core/tests/int27_connector_notifications_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test connector_notifications --locked -- --test-threads=1; cargo test -p kiana-core --test int27_connector_notifications_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only four connector notification classes, model/UI/unknown source denial, missing cursor/evidence/limitation/dedup, redaction secret denial and no-effect Core guard; no delivery worker, durable outbox write, connector producer, approval mutation, EventLog append, UI integration or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: INT-27 connector notification registry/payload source contract, Core facade, domain/Core fixtures, source guard, workflow and baseline added; roadmap row 582/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: notification delivery/outbox/channel policy and cross-entrypoint display remain unproven; INT-28+ remains open
+reviewer: Codex INT-27 source review; checked committed-source registry, cursor/evidence/dedupe/limitation/redaction gates and reuse of existing materializer; no local runtime/CI test reviewer
+```
