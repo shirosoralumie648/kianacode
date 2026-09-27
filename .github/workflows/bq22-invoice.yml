@@ -1,0 +1,48 @@
+name: BQ-22 provider invoice reconciliation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/billing_invoice.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_invoice.rs"
+      - "kiana-core/src/billing_invoice.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/billing_invoice_guard.rs"
+      - "docs/roadmap/bq22-invoice-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq22-invoice.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/billing_invoice.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/billing_invoice.rs"
+      - "kiana-core/src/billing_invoice.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/billing_invoice_guard.rs"
+      - "docs/roadmap/bq22-invoice-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/bq22-invoice.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-invoice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run BQ-22 domain fixtures
+        run: cargo test -p kiana-domain --test billing_invoice --locked -- --test-threads=1
+      - name: Run BQ-22 Core source guard
+        run: cargo test -p kiana-core --test billing_invoice_guard --locked -- --test-threads=1
+      - name: Compile BQ-22 targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
