@@ -855,7 +855,7 @@
 | 679 | W9 | 专项 | [`BQ-28`](#step-bq-28) | 性能、容量、retention 和归档；usage/index/receipt 保留边界 | `BQ-20`、`BQ-25`、`BQ-26` | ⏳ | [专项卡](#step-bq-28) |
 | 680 | W9 | 专项 | [`BQ-29`](#step-bq-29) | GoldenTrace 与跨入口端到端：model→tool→event→receipt→invoice correction | `BQ-21`、`BQ-22`、`BQ-23`、`BQ-24`、`BQ-26`、`BQ-27` | ⏳ | [专项卡](#step-bq-29) |
 | 681 | W9 | 专项 | [`BQ-30`](#step-bq-30) | 发布门、状态账本和逐连接 live 证据；更新 `CURRENT_STATUS.md`/`module-map.md` | `BQ-00`、`BQ-29`、`BQ-01`、`BQ-02`、`BQ-03`、`BQ-04`、`BQ-05`、`BQ-06`、`BQ-07`、`BQ-08`、`BQ-09`、`BQ-10`、`BQ-11`、`BQ-12`、`BQ-13`、`BQ-14`、`BQ-15`、`BQ-16`、`BQ-17`、`BQ-18`、`BQ-19`、`BQ-20`、`BQ-21`、`BQ-22`、`BQ-23`、`BQ-24`、`BQ-25`、`BQ-26`、`BQ-27`、`BQ-28` | ⏳ | [专项卡](#step-bq-30) |
-| 682 | W9 | 专项 | [`DEP-13`](#step-dep-13) | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | `DEP-09`、`DEP-12` | ⏳ | [专项卡](#step-dep-13) |
+| 682 | W9 | 专项 | [`DEP-13`](#step-dep-13) | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | `DEP-09`、`DEP-12` | 🔄 | [专项卡](#step-dep-13) · [baseline](roadmap/dep13-shutdown-baseline.md) |
 | 683 | W9 | 专项 | [`DEP-14`](#step-dep-14) | 接入 lifecycle/operation metrics、structured logs、trace/evidence refs 和 audit event schema | `DEP-04`、`DEP-05`、`DEP-11` | ⏳ | [专项卡](#step-dep-14) |
 | 684 | W9 | 专项 | [`DEP-15`](#step-dep-15) | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | `DEP-08`、`DEP-11`、`DEP-14` | ⏳ | [专项卡](#step-dep-15) |
 | 685 | W9 | 专项 | [`DEP-16`](#step-dep-16) | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | `DEP-05`、`DEP-06`、`DEP-10`、`DEP-14` | ⏳ | [专项卡](#step-dep-16) |

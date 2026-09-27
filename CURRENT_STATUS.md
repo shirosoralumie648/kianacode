@@ -16115,3 +16115,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: decision reducer consumes typed facts only and does not mutate queues, stop operations, extend windows, write EventLog, acquire lease, change HTTP status or enforce admission in ControlPlane; DEP-13+ remain authorities
 reviewer: Codex DEP-12 source review; checked explicit maintenance/expiry/drain semantics, new-vs-existing work separation, lease/epoch/health/operation/migration/backup conflicts, immutable digest fences and no-effect route; no local runtime/CI test reviewer
 ```
+
+### DEP-13 unified shutdown evidence (2026-09-27)
+
+```text
+source_snapshot: `1ca3be00` plus DEP-13 shutdown source slice; kiana-domain/src/{deployment_shutdown.rs,operation_lifecycle.rs,cancellation.rs,contracts.rs,lib.rs}; kiana-domain/tests/dep13_shutdown.rs; kiana-core/src/{deployment_shutdown.rs,lib.rs}; kiana-core/tests/dep13_shutdown_guard.rs; kiana-daemon/src/{deployment_shutdown.rs,lib.rs}; kiana-daemon/tests/dep13_shutdown_route_guard.rs; .github/workflows/dep13-shutdown.yml; docs/roadmap/dep13-shutdown-baseline.md; docs/roadmap.md
+worktree_status: ordered cancellation/intake pause/scheduler fence/runner-tool drain/EventStore-artifact flush evidence reduces to Stopped, NeedsRecovery or Unknown; active work, late results, missing/failed flush and deadline remain non-stopped; additive DaemonHost→Core route only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/deployment_shutdown.rs kiana-domain/tests/dep13_shutdown.rs kiana-core/src/deployment_shutdown.rs kiana-core/tests/dep13_shutdown_guard.rs kiana-daemon/src/deployment_shutdown.rs kiana-daemon/tests/dep13_shutdown_route_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test dep13_shutdown --locked -- --test-threads=1; cargo test -p kiana-core --test dep13_shutdown_guard --locked -- --test-threads=1; cargo test -p kiana-daemon --test dep13_shutdown_route_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only normal ack, active work, missing/failed flush, late result, deadline expiry, Unknown phase, missing/out-of-order phase and tampered report; no cancellation/scheduler/process/EventStore/artifact/Broker effect or shutdown receipt persistence
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guards, formatting and affected-target compilation pending/unobserved
+status_change: DEP-13 ShutdownPhaseEvidence/Input/Report, Stopped/NeedsRecovery/Unknown reducer, Core facade, additive DaemonHost route, fixtures, guards, workflow and baseline added; roadmap row 682/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: reducer consumes adapter-supplied acks and does not cancel runners, fence queues, drain tools, flush EventStore/artifacts, stop processes, persist shutdown receipts or enforce ControlPlane shutdown; later adapter wiring remains authority
+reviewer: Codex DEP-13 source review; checked ordered phase evidence, missing/unknown/late-result/timeout/flush fences, stopped versus recovery semantics and no-effect route; no local runtime/CI test reviewer
+```

@@ -63,6 +63,7 @@ mod data_governance;
 mod deletion;
 mod deployment_compatibility;
 mod deployment_admission;
+mod deployment_shutdown;
 mod deployment_config;
 mod deployment_startup;
 mod deployment_supervisor;
@@ -230,6 +231,7 @@ pub use deletion::{
 };
 pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_admission::{evaluate_admission, validate_admission_decision};
+pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
 pub use deployment_config::validate_deployment_config_snapshot;
 pub use deployment_startup::{evaluate_startup, validate_startup_report};
 pub use deployment_supervisor::validate_supervisor_observation;
