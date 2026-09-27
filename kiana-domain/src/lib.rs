@@ -604,6 +604,7 @@ mod swarm_child;
 mod swarm_routing;
 mod swarm_progress;
 mod swarm_cancellation;
+mod swarm_recovery;
 pub use swarm::*;
 pub use swarm_admission::*;
 pub use swarm_queue::*;
@@ -611,6 +612,7 @@ pub use swarm_child::*;
 pub use swarm_routing::*;
 pub use swarm_progress::*;
 pub use swarm_cancellation::*;
+pub use swarm_recovery::*;
 
 mod handoff;
 pub use handoff::*;

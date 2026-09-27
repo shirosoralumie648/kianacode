@@ -15485,3 +15485,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: observation contract cannot signal or drain a worker, persist incidents, reconcile effects or prove result_unknown recovery; SW-11+ remains open
 reviewer: Codex SW-10 source review; checked state distinction, stop confirmation, cancellation generation, late-result fencing and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-11 replay and re-admission evidence (2026-09-27)
+
+```text
+source_snapshot: `80753f81` plus SW-11 recovery source slice; kiana-domain/src/{swarm_recovery.rs,lib.rs}; kiana-core/src/{swarm_recovery.rs,lib.rs}; kiana-domain/tests/swarm_recovery.rs; kiana-core/tests/swarm_recovery_guard.rs; .github/workflows/sw11-recovery.yml; docs/roadmap/sw11-recovery-baseline.md; docs/roadmap.md
+worktree_status: SwarmRecoveryFact binds run/attempt, source and committed cursors, pending write digest, source event IDs, authority epoch and explicit PendingWrite/Replaying/ReAdmissionRequired/Recovered/ResultUnknown state; Recovered requires known effect and explicit re-admission, Unknown cannot auto-success; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_recovery.rs kiana-core/src/swarm_recovery.rs kiana-domain/tests/swarm_recovery.rs kiana-core/tests/swarm_recovery_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_recovery --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_recovery_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only pending/replay/Unknown/re-admission state, cursor/digest/unknown-field denial and no-auto-success guard; no EventLog read/append, new-process crash recovery, external effect reconcile, child execution or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-11 replay/pending-write/re-admission contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 553/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: recovery fact is caller-supplied and cannot rebuild EventLog, fence a process or authorize an external effect; SW-12 typed child result remains open
+reviewer: Codex SW-11 source review; checked cursor bounds, explicit Unknown/re-admission, known-effect requirement and no-effect Core boundary; no local runtime/CI test reviewer
+```
