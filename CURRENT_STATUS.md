@@ -15470,3 +15470,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: pure progress ledger does not produce real heartbeat/checkpoint, persist state, escalate stalls or enforce runtime budget at effect time; recovery remains SW-10+
 reviewer: Codex SW-09 source review; checked monotonic sequences/counters, strict per-run budget, stall/exhaustion visibility and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### SW-10 cancellation, drain and fence evidence (2026-09-27)
+
+```text
+source_snapshot: `55eb8e7c` plus SW-10 cancellation source slice; kiana-domain/src/{swarm_cancellation.rs,lib.rs}; kiana-core/src/{swarm_cancellation.rs,lib.rs}; kiana-domain/tests/swarm_cancellation.rs; kiana-core/tests/swarm_cancellation_guard.rs; .github/workflows/sw10-cancellation.yml; docs/roadmap/sw10-cancellation-baseline.md; docs/roadmap.md
+worktree_status: SwarmCancellationFact binds parent/child run and attempt, cancel generation, authority epoch, stop request/confirmation, started effect and late-result flag; Cancelled requires confirmed stop, ResultUnknown preserves started uncertainty, late results require Fenced; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/swarm_cancellation.rs kiana-core/src/swarm_cancellation.rs kiana-domain/tests/swarm_cancellation.rs kiana-core/tests/swarm_cancellation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test swarm_cancellation --locked -- --test-threads=1; cargo test -p kiana-core --test swarm_cancellation_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only Cancelled/ResultUnknown distinction, unconfirmed stop denial, late result fence, generation/epoch/digest/unknown-field denial; no supervisor signal, process drain, EventLog incident/recovery, external reconciliation, child effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: SW-10 cancellation/drain/fence fact, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 552/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: observation contract cannot signal or drain a worker, persist incidents, reconcile effects or prove result_unknown recovery; SW-11+ remains open
+reviewer: Codex SW-10 source review; checked state distinction, stop confirmation, cancellation generation, late-result fencing and no-effect Core boundary; no local runtime/CI test reviewer
+```
