@@ -728,3 +728,47 @@ fn the_schema_version_is_pinned() {
     let breaking = SchemaVersion::new(2, 0);
     assert!(!breaking.is_compatible_with(&RESTORE_ACTIVATION_VERSION));
 }
+
+#[test]
+fn a_prepared_state_cannot_be_forged_into_an_activated_one() {
+    // Every field of ActivationState is public and its digest is caller-recomputable, so without
+    // the record binding the readiness gate would be advisory: anyone could set the stage and
+    // recompute the digest, and admit_command_after_activation would hand out the new root.
+    let request = happy_path();
+    let mut forged = ActivationState::prepared(&request).expect("prepared");
+    assert_eq!(forged.stage, ActivationStage::Prepared);
+    assert!(forged.writable_root().is_none());
+
+    forged.stage = ActivationStage::Activated;
+    forged.state_digest = forged.digest();
+    assert_eq!(
+        forged.validate().unwrap_err(),
+        "restore_activation_state_activated_without_record"
+    );
+    assert_eq!(
+        admit_command_after_activation(
+            &forged,
+            &root_id('b'),
+            &instance_id('b'),
+            fence_id('b'),
+            6,
+            4
+        )
+        .unwrap_err(),
+        "restore_activation_state_activated_without_record"
+    );
+    assert!(forged.writable_root().is_none());
+
+    // A prepared state that already carries a record binding is half-minted, and equally refused.
+    let mut half = ActivationState::prepared(&request).expect("prepared");
+    half.record_digest = Some(record_digest());
+    half.state_digest = half.digest();
+    assert_eq!(
+        half.validate().unwrap_err(),
+        "restore_activation_state_unexpected_record_binding"
+    );
+}
+
+fn record_digest() -> String {
+    format!("sha256:{}", "c".repeat(64))
+}

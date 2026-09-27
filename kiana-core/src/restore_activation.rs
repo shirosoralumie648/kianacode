@@ -852,6 +852,12 @@ pub struct ActivationState {
     pub data_epoch: u64,
     pub superseded_storage_root: StorageRootId,
     pub superseded_instance_id: InstanceId,
+    /// The activation this state was minted from. `Prepared` carries none; `Activated` must carry
+    /// one, so a caller cannot promote a prepared state by recomputing the digest alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activation_id: Option<RequestId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub record_digest: Option<String>,
     pub state_digest: String,
 }
 
@@ -870,6 +876,8 @@ impl ActivationState {
             data_epoch: request.new_data_epoch,
             superseded_storage_root: request.superseded.storage_root,
             superseded_instance_id: request.superseded.instance_id,
+            activation_id: None,
+            record_digest: None,
             state_digest: String::new(),
         };
         state.state_digest = state.digest();
@@ -890,6 +898,8 @@ impl ActivationState {
             data_epoch: record.data_epoch,
             superseded_storage_root: record.superseded_storage_root,
             superseded_instance_id: record.superseded_instance_id,
+            activation_id: Some(record.activation_id),
+            record_digest: Some(record.record_digest.clone()),
             state_digest: String::new(),
         };
         state.state_digest = state.digest();
@@ -923,6 +933,24 @@ impl ActivationState {
         // One root cannot be both the serving root and the replaced one, in any stage.
         if self.activated_storage_root == self.superseded_storage_root {
             return Err("restore_activation_would_overwrite_active".to_owned());
+        }
+        // An activated state is only reachable by minting one from a validated record. Without
+        // this, every field is public and a caller could set `stage` and recompute the digest,
+        // which would make the whole readiness gate advisory.
+        if self.stage == ActivationStage::Activated {
+            let Some(activation_id) = &self.activation_id else {
+                return Err("restore_activation_state_activated_without_record".to_owned());
+            };
+            if activation_id.as_uuid().is_nil() {
+                return Err("restore_activation_state_activated_without_record".to_owned());
+            }
+            let Some(record_digest) = &self.record_digest else {
+                return Err("restore_activation_state_activated_without_record".to_owned());
+            };
+            valid_digest(record_digest, "restore_activation_state_record_digest")?;
+        } else if self.activation_id.is_some() || self.record_digest.is_some() {
+            // A prepared state has nothing to point at; carrying one would be a half-mint.
+            return Err("restore_activation_state_unexpected_record_binding".to_owned());
         }
         valid_digest(&self.state_digest, "restore_activation_state_digest")?;
         if self.state_digest != self.digest() {
