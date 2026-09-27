@@ -15545,3 +15545,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: source contract cannot start/retrieve workers or persist observations; retry/lease/deadline and cancellation remain AUT-16+
 reviewer: Codex AUT-15 source review; checked worker/action/epoch binding, Unknown preservation, no inline execution and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-16 retry classifier evidence (2026-09-27)
+
+```text
+source_snapshot: `8ad8d706` plus AUT-16 retry source slice; kiana-domain/src/{automation_retry.rs,lib.rs}; kiana-core/src/{automation_retry.rs,lib.rs}; kiana-domain/tests/automation_retry.rs; kiana-core/tests/automation_retry_guard.rs; .github/workflows/aut16-retry.yml; docs/roadmap/aut16-retry-baseline.md; docs/roadmap.md
+worktree_status: AutomationRetryInput binds execution/attempt/max attempts, effect started/known, idempotency, approval, budget/deadline, transient pre-send and retry-after; classifier returns RetryNewAttempt only for bounded safe cases, NoRetry for unsafe, ReconcileUnknown for effect-started unknown; Core facade is pure; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_retry.rs kiana-core/src/automation_retry.rs kiana-domain/tests/automation_retry.rs kiana-core/tests/automation_retry_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_retry --locked -- --test-threads=1; cargo test -p kiana-core --test automation_retry_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only bounded pre-send retry, Unknown reconciliation, non-idempotent/approval/budget/deadline/attempt denial and unknown-field/digest denial; no new attempt creation, lease/worker dispatch, EventLog effect or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-16 retry classifier contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 558/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: pure classifier cannot persist attempt reservations, race cancellation or effect receipts; AUT-17+ remains open
+reviewer: Codex AUT-16 source review; checked Unknown-first policy, idempotency/approval/budget/deadline bounds and no-effect Core boundary; no local runtime/CI test reviewer
+```
