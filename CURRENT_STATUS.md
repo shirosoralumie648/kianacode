@@ -15605,3 +15605,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: plan validator cannot execute or merge child results, enforce runtime parent budgets or prove fail-fast across processes; AUT-20+ remains open
 reviewer: Codex AUT-19 source review; checked unique children, parent bounds, budget/scope/depth/TTL/cycle/fan-in fences and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### AUT-20 compensation plan evidence (2026-09-27)
+
+```text
+source_snapshot: `46b66bea` plus AUT-20 compensation source slice; kiana-domain/src/{automation_compensation.rs,lib.rs}; kiana-core/src/{automation_compensation.rs,lib.rs}; kiana-domain/tests/automation_compensation.rs; kiana-core/tests/automation_compensation_guard.rs; .github/workflows/aut20-compensation.yml; docs/roadmap/aut20-compensation-baseline.md; docs/roadmap.md
+worktree_status: AutomationCompensationPlan binds original execution/attempt/action to distinct compensation execution/action, authority epoch and fresh authorization digest; reused original permit is rejected; Core facade validates plan only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/automation_compensation.rs kiana-core/src/automation_compensation.rs kiana-domain/tests/automation_compensation.rs kiana-core/tests/automation_compensation_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test automation_compensation --locked -- --test-threads=1; cargo test -p kiana-core --test automation_compensation_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only fresh compensation identity/action/authorization, reused permit and unknown-field/digest denial; no workflow execution, durable approval/CAS, external effect, provider or live/physical outcome
+exit_code: targeted rustfmt and git diff --check pending; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: AUT-20 compensation contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 562/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: source plan cannot execute or reconcile compensation, guarantee original outcome or persist new authorization; AUT-21+ remains open
+reviewer: Codex AUT-20 source review; checked fresh execution/action/auth binding, original permit denial and no-effect Core boundary; no local runtime/CI test reviewer
+```
