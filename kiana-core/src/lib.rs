@@ -9,6 +9,7 @@ mod audit_projection;
 mod authority;
 mod authority_read_model;
 mod billing_allocation;
+mod billing_invoice;
 mod billing_projection;
 mod billing_recovery;
 mod capabilities;
@@ -151,6 +152,9 @@ pub use authority_read_model::{
     LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
 };
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
+pub use billing_invoice::{
+    reject_duplicate_provider_invoices, validate_invoice_comparison, validate_provider_invoice,
+};
 pub use billing_projection::{
     BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
 };

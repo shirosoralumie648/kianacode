@@ -15650,3 +15650,18 @@ proof-level_change: feature_status=partial; proof_level=source; no local_behavio
 limitations: caller-supplied fact cannot restart workers, rebuild EventLog projections, perform CAS/reconciliation or prove external provider truth; BQ-22+ remains open
 reviewer: Codex BQ-21 source review; checked Unknown-first recovery, Continue non-reset, epoch binding, explicit reconciliation and no-effect Core boundary; no local runtime/CI test reviewer
 ```
+
+### BQ-22 provider invoice and reconciliation evidence (2026-09-27)
+
+```text
+source_snapshot: `29546366` plus BQ-22 invoice source slice; kiana-domain/src/{billing_invoice.rs,lib.rs}; kiana-core/src/{billing_invoice.rs,lib.rs}; kiana-domain/tests/billing_invoice.rs; kiana-core/tests/billing_invoice_guard.rs; .github/workflows/bq22-invoice.yml; docs/roadmap/bq22-invoice-baseline.md; docs/roadmap.md
+worktree_status: ProviderInvoiceImport requires bounded provider/account/invoice/period identity, opaque receipt reference, authentication evidence and source cursor; duplicate identity is rejected; InvoiceComparison separates Matched, CorrectionRequired and ReviewRequired with period/model/usage/amount discrepancy codes; Core facade validates facts only; unrelated shared WIP remains uncommitted
+command_argv: rustfmt --edition 2021 kiana-domain/src/billing_invoice.rs kiana-core/src/billing_invoice.rs kiana-domain/tests/billing_invoice.rs kiana-core/tests/billing_invoice_guard.rs; git diff --check; GitHub Actions: cargo fetch --locked; cargo fmt --all --check; cargo test -p kiana-domain --test billing_invoice --locked -- --test-threads=1; cargo test -p kiana-core --test billing_invoice_guard --locked -- --test-threads=1; cargo check -p kiana-domain -p kiana-core --tests --locked
+cwd·environment: repository root; Linux source worktree; local Cargo tests/build/check/clippy/smoke deliberately not run; GitHub Actions is the test authority and will be triggered by push but not awaited
+fixture·cassette: GitHub-only authenticated/unauthenticated receipt, duplicate invoice identity, matched comparison, period/amount correction, missing usage review, digest/unknown-field denial and read-only source guard; no signature verifier, durable import store, EventLog append, BQ-14 approval transaction, provider request or live/physical outcome
+exit_code: targeted rustfmt and git diff --check passed; remote fixtures, source guard, formatting and affected-target compilation pending/unobserved
+status_change: BQ-22 provider invoice import, duplicate fence and discrepancy/correction source contract, Core facade, domain/core fixtures, source guard, workflow and baseline added; roadmap row 576/card advanced from ⏳ to 🔄 pending remote verification
+proof-level_change: feature_status=partial; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: authentication/source cursor are evidence fields, not provider signature verification; source slice cannot append/apply correction, persist idempotency or prove provider truth; BQ-23+ remains open
+reviewer: Codex BQ-22 source review; checked authenticated receipt boundary, duplicate identity, mismatch reason completeness, unknown usage review and no-effect Core boundary; no local runtime/CI test reviewer
+```
