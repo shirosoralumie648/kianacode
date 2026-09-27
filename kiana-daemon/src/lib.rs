@@ -37,6 +37,7 @@ mod health_aggregation;
 mod deployment_admission;
 mod deployment_shutdown;
 mod deployment_observability;
+mod deployment_reconcile;
 mod ops_diagnostics;
 mod run_stream;
 mod restore_verifier;
@@ -63,6 +64,7 @@ use kiana_domain::{
     DeploymentAdmissionDecision, DeploymentAdmissionInput,
     ShutdownInput, ShutdownReport,
     LifecycleEvidenceBundle,
+    ReconcileInput, ReconcileReport,
     OpsDiagnosticsInput, OpsDiagnosticsMode, OpsDiagnosticsReport,
     IdentityMigration, OperatorEvidenceSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
     ProjectTrustSnapshot, project_ui_snapshot, RequestContext, ResolvedAssignment, RoleSpec, RunId,
@@ -1044,6 +1046,15 @@ impl DaemonHost {
         mode: OpsDiagnosticsMode,
     ) -> Result<OpsDiagnosticsReport, PortError> {
         ops_diagnostics::evaluate_mode(input, mode)
+    }
+
+    /// Evaluate an explicit, read-only projector/index/queue/lease reconcile decision.
+    #[allow(clippy::unused_self)]
+    pub fn ops_reconcile(
+        &self,
+        input: &ReconcileInput,
+    ) -> Result<ReconcileReport, PortError> {
+        deployment_reconcile::evaluate(input)
     }
 
     /// Evaluate a server-owned startup evidence snapshot through the existing Core route.

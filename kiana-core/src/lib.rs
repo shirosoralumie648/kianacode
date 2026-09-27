@@ -65,6 +65,7 @@ mod deployment_compatibility;
 mod deployment_admission;
 mod deployment_shutdown;
 mod deployment_observability;
+mod deployment_reconcile;
 mod ops_diagnostics;
 mod deployment_config;
 mod deployment_startup;
@@ -235,6 +236,7 @@ pub use deployment_compatibility::validate_deployment_compatibility;
 pub use deployment_admission::{evaluate_admission, validate_admission_decision};
 pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
 pub use deployment_observability::validate_deployment_observability;
+pub use deployment_reconcile::{evaluate_reconcile, validate_reconcile_report};
 pub use ops_diagnostics::{
     evaluate_ops_diagnostics, evaluate_ops_mode, validate_ops_diagnostics,
 };

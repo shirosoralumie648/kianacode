@@ -1,0 +1,25 @@
+name: DEP-16 reconcile repair
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run DEP-16 domain fixtures
+        run: cargo test -p kiana-domain --test dep16_reconcile --locked -- --test-threads=1
+      - name: Run DEP-16 Core guard
+        run: cargo test -p kiana-core --test dep16_reconcile_guard --locked -- --test-threads=1
+      - name: Run DEP-16 daemon route guard
+        run: cargo test -p kiana-daemon --test dep16_reconcile_route_guard --locked -- --test-threads=1
+      - name: Compile DEP-16 targets
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-daemon --tests --locked
