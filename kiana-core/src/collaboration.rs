@@ -1,3 +1,24 @@
+//! 协作生命周期：把一个 WorkPacket 变成一次真实的执行，并在结束后完成评审与收尾。
+//!
+//! # 四个入口
+//!
+//! ```text
+//! spawn_from_packet     从 WorkPacket 派发一次执行（spawn）
+//! review_author_run     评审别人的产出
+//! close_author_run      收尾
+//! convene_symposium     召开一次有结构的决策会（见 kiana-domain/src/symposiums.rs）
+//! ```
+//!
+//! # 这里最该注意的形状：评审与收尾是**两件事**
+//!
+//! 它们是两个独立入口，不是同一个流程的前后两步。
+//! 合成一个函数，就等于允许「执行者自己评审完自己再关掉」。
+//! 分成两个入口之后，至少在**接口层面**，「谁来评审」与「谁来收尾」
+//! 成了调用方必须分别指定的两件事。
+//!
+//! 这与 `security_incident.rs` 里「close 必须由 owner 之外的人复核」是同一个原则，
+//! 只是这里还没有把「必须是不同的人」写成硬性检查——那一步尚属未完成的工作，
+//! 不要因为看到两个入口就以为独立性已经被保证了。
 use super::artifacts::*;
 use super::capabilities::derive_swarm_child_grant;
 use super::events::*;
@@ -601,6 +622,18 @@ impl ControlPlane {
             .await?)
     }
 
+    /// 评审一次执行产出。
+    ///
+    /// 【它做的第一件事是记事件】
+    /// 注意函数一进来就 `record_event(..., "request.accepted")`，
+    /// 在任何判断之前。这不是随手写的——**先留下「有人请求了评审」这个事实**，
+    /// 后面无论评审通过与否、被谁否决，审计链上都能看到请求本身发生过。
+    ///
+    /// 【⚠ 它没有校验「评审人 ≠ 作者」】
+    /// 这一点值得明说：这个入口接受任意 `author_session_id`，
+    /// 并不检查当前调用者是不是就是那次执行的作者。
+    /// 独立性目前靠调用方保证，而不是被强制。
+    /// 如果你要依赖「评审一定独立」，现在**不能**依赖。
     pub async fn review_author_run(
         &self,
         mut context: RequestContext,
