@@ -7849,6 +7849,33 @@ reviewer
 
 状态只有在实现、测试和证据一致时才能提升；失败、Unknown、skipped、flaky 或文档勾选不能提升证明等级。
 
+### 文档引用对账 (2026-09-28)
+
+`08552ada`（"ci: consolidate 704 per-slice workflows into one unified gate"）删掉了 664 个
+per-step workflow。本文件与 `docs/roadmap/` 下的证据块是在那之前写的，仍然指名那些 lane，
+于是状态账本开始断言并不存在的门。审计结果是 **401 条**引用无法解析，其中 354 条指名被删的
+workflow、11 条是同一批 lane 的无目录写法。
+
+这些证据块记录的是各自 commit 上当时成立的事实，改写它们等于让账本声称某个门在它并不存在的
+commit 上运行过。因此**不重写历史**，改为：
+
+- 逐条归档到 `scripts/ci/doc-reference-exemptions.txt`，按类别标注；
+- 新增 `scripts/ci/validate-doc-references.sh`，并接入 `.github/workflows/ci.yml` 的
+  workflow-structure job。清单之外的任何新引用必须能解析，否则 CI 红。
+
+解析口径与实现约定一致：形如 `目录/文件.rs` 的引用也接受该目录下的 `src/` 与 `tests/`；
+裸文件名按全仓 basename 匹配（模块简写）；basename 索引取自 `git ls-files` 而非文件系统遍历
+——`.claude/worktrees/` 下的陈旧 checkout 里存在从未合入 master 的同名文件，用文件遍历会让
+守卫把引用判成已解析。
+
+本次同时暴露一类**真实漂移**，与历史引用不同，尚未修复：16 条指名只存在于陈旧 worktree 的源码
+（如 `kiana-core/src/notifications.rs`、`kiana-daemon/src/notification_projector.rs`），
+20 条是散文里的示例数据文件名。NM-04..NM-16 有基线文档但 Rust 侧无对应实现文件，
+这一点需要后续 step 单独核实，不能按本条记录当作已实现。
+
+本条不改变任何 step 的 `feature_status` 或 `proof_level`。
+
+
 ### App-server schema 与 approval actor 修复证据 (2026-08-29)
 
 ```text

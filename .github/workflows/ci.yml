@@ -23,6 +23,7 @@ jobs:
       - name: Validate workflow YAML
         run: |
           bash scripts/ci/validate-workflows.sh
+          bash scripts/ci/validate-doc-references.sh
           bash scripts/tests/eq49-eval-scripts-static.sh
           bash scripts/tests/eq50-ci-lanes-static.sh
           bash scripts/tests/eq51-evidence-archive-static.sh
