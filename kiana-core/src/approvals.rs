@@ -1,8 +1,61 @@
+//! 审批链：**任何**有副作用的能力请求，在真正执行前都必须经过
+//! [`ControlPlane::authorize_and_execute`]。
+//!
+//! # 这个文件是「唯一执行脊柱」的收窄点
+//!
+//! 仓库里到处都能看到 `command_dispatch`、`harness_run`、各种 `handle_*_command`，
+//! 它们各自解析、各自路由，但**最终都会汇到 `authorize_and_execute`**。
+//! 这就是「不得新增第二条执行循环」在代码里的具体形态：不是靠约定不许写第二条，
+//! 而是所有路都通向同一个函数。
+//!
+//! # 一次请求在这里经历什么
+//!
+//! ```text
+//! 请求进来
+//!   ↓ request_id 必须与上下文一致      ← 否则 request_context_mismatch
+//!   ↓ 追加 request.accepted            ← 在任何判断之前
+//!   ↓ prepare_capability_action       ← 准备（可能失败 → capability.blocked）
+//!   ↓ 策略 + 关卡                      ← kiana-policy → kiana-gates
+//!   ↓ 追加 capability.decision
+//!   ├─ Denied            → 直接拒绝，没���产生任何 effect
+//!   ├─ AwaitingApproval  → **登记一个待批**，返回 challenge，结束
+//!   └─ Allowed           → execute_authorized_request  ← 唯一会真正执行的一支
+//! ```
+//!
+//! # 三条值得单独记住的性质
+//!
+//! 1. **先记事件，后做判断**。被拒绝的请求同样会留下 `request.accepted`。
+//!    审计链上能看到的不是「哪些操作成功了」，而是「谁请求过什么」。
+//! 2. **拒绝路径的文案先脱敏再写进事件**（`redact_event_text`）——
+//!    否则一条错误消息就可能把 secret 带进 EventLog。
+//! 3. **决策事件显式声明「尚未产生 effect」**：
+//!    `effect_started: false, effect_known: true, zero_effect: true`。
+//!    这三个字段让「被拒绝」与「结果未知」在事件层面就是两件不同的事，
+//!    而不是靠读的人自己推断。
 use super::events::*;
 use super::redaction::*;
 use super::*;
 
 impl ControlPlane {
+    /// **所有有副作用的能力请求的唯一入口。**
+    ///
+    /// 【第一个检查为什么是 request_id 的一致性】
+    /// 请求自己的 id 必须和上下文里的 id 一样。
+    /// 少这一条，一个属于会话 A 的请求可以被挂在会话 B 的上下文里执行——
+    /// 而所有后续的权限判定读的都是**上下文**。
+    ///
+    /// 【为什么先写 `request.accepted` 再判断】
+    /// 因为「有人请求过这件事」本身就是一个事实，无论它后来被不被允许。
+    /// 只记录成功操作，等于让审计链上看不见所有未遂的尝试——
+    /// 而未遂的尝试恰恰是安全上最值得看的东西。
+    ///
+    /// 【三个分支里只有一个会执行】
+    /// `Denied` 直接返回；`AwaitingApproval` 走到 `stage_capability_action`
+    /// 登记一个待批就结束——**它不执行，也不代替人做决定**；
+    /// 只有 `Allowed` 带着 `authorization_id` 进 `execute_authorized_request`。
+    ///
+    /// ⚠ 所以「审批通过」这件事本身不等于「已执行」。中间还隔着一次真正的调用，
+    ///   而那次调用仍然可能被拒绝、被 fence、或者结果未知。
     pub async fn authorize_and_execute(
         &self,
         context: &RequestContext,

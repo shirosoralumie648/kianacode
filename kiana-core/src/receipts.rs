@@ -1,8 +1,35 @@
+//! Receipt（收据）的读取与构造。
+//!
+//! # Receipt 是什么
+//!
+//! 它是「**某次执行确实发生过，并且结果是这些**」的**可核对记录**。
+//! 不是日志，不是界面上的一行字，而是一条能拿出来对账的事实。
+//!
+//! # 为什么它和「运行状态」必须分开
+//!
+//! 运行状态会说「Completed」。而 Completed 不告诉你：
+//! - 真的执行了吗，还是只是被判定可以执行；
+//! - 产生了什么 effect；
+//! - 用的哪一次授权、哪一个 approval。
+//!
+//! 这些只有 receipt 知道。仓库里反复出现的那些注释——「显示不等于事实」
+//! 「翻译不等于记账」——说的都是这个区分。
+//!
+//! # 这个文件是只读的
+//!
+//! 它读事件、组装 receipt，**不产生** receipt。
+//! 写 receipt 的那一步在别处，而且必须经过 `authorize_and_execute` 那条链。
 use super::events::*;
 use super::redaction::*;
 use super::*;
 
 impl ControlPlane {
+    /// 读一次运行的收据。
+    ///
+    /// 【它可能返回「还没有」】
+    /// 运行刚被接受、还没执行完的时候，receipt 是不存在的。
+    /// 把这种情况如实表达成「没有」，而不是造一份空 receipt，
+    /// 是这个函数存在的前提——一份空 receipt 会被读成「执行了但什么都没发生」。
     pub async fn read_receipt(
         &self,
         context: RequestContext,
