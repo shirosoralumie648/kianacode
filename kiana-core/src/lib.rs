@@ -164,6 +164,7 @@ mod resource_projection;
 mod restore_activation;
 mod retention;
 mod revocation_propagation;
+mod retention_deletion;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -410,6 +411,7 @@ pub use restore_activation::{
 };
 pub use restore_verification::validate_restore_verification_fact;
 pub use retention::scan_retention;
+pub use retention_deletion::*;
 pub use revocation_propagation::{
     admit_derived_read_after_recovery, admit_derived_write, merge_layer_observation,
     propagation_scope, RevocationKind, RevocationLayer, RevocationLayerObservation,
