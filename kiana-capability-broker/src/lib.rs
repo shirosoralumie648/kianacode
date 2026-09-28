@@ -21,6 +21,10 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
+mod discovery;
+
+pub use discovery::*;
+
 type HandlerKey = (CapabilityKind, String);
 
 /// Revalidate and consume credential metadata immediately before an effect.  The broker never
