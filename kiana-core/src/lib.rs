@@ -20,6 +20,7 @@ mod bq26_fault_harness;
 mod capabilities;
 mod capability_scheduler;
 mod cell_registry;
+mod capacity_fault_envelope;
 mod change_contract;
 mod ci12_product_gate;
 mod clarification;
@@ -234,6 +235,7 @@ pub use bq26_fault_harness::{
     BQ26_FAULT_CASES_SCHEMA, BQ26_FAULT_HARNESS_SCHEMA, BQ26_FAULT_HARNESS_VERSION,
     BQ26_FAULT_MAX_CASES,
 };
+pub use capacity_fault_envelope::*;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
