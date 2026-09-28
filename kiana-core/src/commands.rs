@@ -398,6 +398,132 @@ impl ControlPlane {
                 )
                 .await;
         }
+        if intent.name == "effect.reconcile" {
+            // DEP-25 的接线：一次「外部 effect 结果未知时，四种诚实动作里哪一种可被记录」的判定。
+            //
+            // 同样不走 `authorize_and_execute`：判定只回答「能不能这样记」，不执行任何补偿、
+            // 不查询 provider、不签发审批。
+            //
+            // 为什么要求 operator：这条判定决定的是「一个已经发出去的请求算什么」——
+            // 重发、放弃还是补偿，每一个都会改变真实世界的后果。让 cell 内部的 worker 参与
+            // 裁定自己发出去的请求算什么，等于让它为自己的行为定性。
+            if context.cell_id.is_some()
+                || context.actor_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "effect_reconcile_operator_required",
+                ));
+            }
+            let object = match intent.arguments.as_object() {
+                Some(object) => object,
+                None => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "effect_reconcile_payload_required",
+                    ))
+                }
+            };
+            let (Some(raw_observation), Some(raw_resolution)) =
+                (object.get("observation"), object.get("resolution"))
+            else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "effect_reconcile_payload_required",
+                ));
+            };
+            let observation: kiana_domain::EffectObservation =
+                match serde_json::from_value(raw_observation.clone())
+                {
+                    Ok(observation) => observation,
+                    Err(_) => {
+                        return Ok(CoreResponse::blocked(
+                            context.request_id,
+                            "effect_reconcile_payload_invalid",
+                        ))
+                    }
+                };
+            // 未知动作与缺失动作要分开：前者要改字段，后者要补字段，合并就没法行动了。
+            let Some(raw_resolution) = raw_resolution.as_str() else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "effect_reconcile_payload_required",
+                ));
+            };
+            let resolution = match EffectResolution::parse(raw_resolution) {
+                Ok(resolution) => resolution,
+                Err(_) => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "effect_reconcile_resolution_unknown",
+                    ))
+                }
+            };
+            let optional_object = |key: &str| object.get(key).cloned();
+            let optional_text = |key: &str| {
+                object
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            };
+            let external_receipt = match optional_object("external_receipt") {
+                Some(raw) => match serde_json::from_value(raw) {
+                    Ok(receipt) => Some(receipt),
+                    Err(_) => {
+                        return Ok(CoreResponse::blocked(
+                            context.request_id,
+                            "effect_reconcile_payload_invalid",
+                        ))
+                    }
+                },
+                None => None,
+            };
+            let consumed_approvals = object
+                .get("consumed_approvals")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            // 构造本身就会封口并自检（形状、审批一次性、字段互斥）。它失败时给出的 reason
+            // 已经是稳定的判定码，所以直接以 blocked 交出去，而不是压成一句「请求无效」。
+            let request = match EffectReconciliationRequest::new(
+                observation,
+                resolution,
+                external_receipt,
+                optional_text("compensation_ref"),
+                optional_text("abandon_reason"),
+                optional_text("approval_ref").unwrap_or_default(),
+                object
+                    .get("authority_epoch")
+                    .and_then(Value::as_u64)
+                    .unwrap_or_default(),
+                optional_text("fence_token").unwrap_or_default(),
+                consumed_approvals,
+                optional_text("idempotency_key").unwrap_or_default(),
+            ) {
+                Ok(request) => request,
+                Err(reason) => {
+                    return Ok(CoreResponse::blocked(context.request_id, reason))
+                }
+            };
+            // 不可记录是一个**结论**：调用方需要区分「不能这样记」和「你的请求坏了」，
+            // 所以连同模块自己的稳定 reason 一起以 blocked 返回。
+            return match reconcile_effect(&request) {
+                Ok(receipt) => Ok(CoreResponse::completed(
+                    context.request_id,
+                    json!({
+                        "schema": EFFECT_RECONCILIATION_RECEIPT_SCHEMA,
+                        "receipt": receipt,
+                    }),
+                )),
+                Err(reason) => Ok(CoreResponse::blocked(context.request_id, reason)),
+            };
+        }
         if intent.name == "capacity.envelope" {
             // SC-40 的接线：一次「故障期间系统是否仍在有界 latency/queue/bytes 之内」的只读判定。
             //

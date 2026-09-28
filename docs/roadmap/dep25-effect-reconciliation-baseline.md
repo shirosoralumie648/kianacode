@@ -67,6 +67,24 @@ The observation vocabulary is `kiana_domain::EffectObservation` and its four sta
 no second effect-state enum, because a second one would be a second fact source about whether an
 external effect happened.
 
+## The command route
+
+The reconciliation is reachable from a command: `effect.reconcile` in `ControlPlane::handle_command`
+takes the observation, the proposed resolution and its supporting fields, and returns the sealed
+receipt. Like the other routes in this batch it does **not** go through `authorize_and_execute` — the
+decision answers "may this be recorded", and it executes no compensation, queries no provider and
+issues no approval.
+
+The operator requirement is the part with a real reason behind it. This decision is about **what an
+already-sent request counts as** — retried, abandoned, or compensated — and each of those changes
+consequences in the world. A Cell-internal worker taking part in ruling on what its own outbound
+request came to is a witness for its own conduct.
+
+One subtlety the route preserves: the request constructor seals and self-checks before the decision
+runs, and when it refuses it hands back its own stable reason rather than a generic "invalid
+request". A caller that sent a reused approval needs to be told *that*, because it is a different
+problem from sending a malformed body.
+
 ## Honest limitations
 
 This module **performs no lookup**. It does not query a provider, does not call a receipt-lookup
@@ -74,6 +92,8 @@ port, does not execute a compensation, does not append an event and does not iss
 observation and the external reference are both supplied by the caller, so a caller that hands over
 a fabricated observation defeats this check exactly the way a lying `present_artifacts` inventory
 defeated DEP-22. It decides whether a *proposed* resolution may be recorded; recording it still has
-to go through `ControlPlane::handle_command`, and nothing here is wired to that path. There is no
+to go through `ControlPlane::handle_command` -- and the decision half of that is now reachable,
+because `effect.reconcile` routes it. Recording the decision as a durable fact is still a
+separate write that this slice does not perform. There is no
 real provider, no real timeout and no real double charge anywhere in this slice, and no test was
 executed locally.
