@@ -86,7 +86,7 @@ use std::time::{Duration, Instant, SystemTime};
 /// 【⚠ 为什么总时限取 `min(deadline - now, limits.total)`】
 /// ```text
 ///   deadline_unix_ms  是 ControlPlane 给这次调用定的绝对截止时间（业务语义）
-//!   limits.total      是 transport 的工程上界（资源保护）
+///   limits.total      是 transport 的工程上界（资源保护）
 ///
 ///   取两者的较小值：
 ///     - 只认 deadline -> 传输层可能比业务允许的活得更久，白占并发槽位
@@ -125,7 +125,7 @@ pub(crate) async fn send(
 ///   1. circuit.allow(now)     —— 问熔断器：现在放行吗？
 ///   2. HalfOpenProbeGuard::new —— 如果这次是“试探性放行”，装一个看门狗
 ///   3. send_inner_attempt()    —— 真正去发
-//!   4. 观察结果 -> observe_success / observe_failure / abandon_probe
+///   4. 观察结果 -> observe_success / observe_failure / abandon_probe
 ///   5. 若观察成功，解除看门狗（否则 Drop 时会再放弃一次）
 /// ```
 ///
@@ -277,13 +277,13 @@ fn trips_circuit(error: &ModelError) -> bool {
 ///
 /// 【这是本文件最长的函数，分成 6 段来看】
 /// ```text
-//!   A. 容量策略校验 + 单请求 TPM 预检
+///   A. 容量策略校验 + 单请求 TPM 预检
 ///   B. 排队信号量（不等）-> 并发信号量（等）-> 释放排队槽
 ///   C. 截止时间复查 + RPM/TPM 窗口扣减
 ///   D. 凭据：取摘要、换租约、校验绑定、消费
 ///   E. 拼 HTTP 请求与认证头，处理非 2xx 与 retry-after
 ///   F. 流式 / 非流式两条读响应路径
-//! ```
+/// ```
 ///
 /// 【输入 / 输出 / 副作用】 见 `send()`；本函数额外负责第 6 项副作用（凭据租约消费）。
 ///
