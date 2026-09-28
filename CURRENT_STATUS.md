@@ -13231,7 +13231,8 @@ command_argv:
   cargo fmt --all --check            # before: exit 1, 177 diffs in 55 files
   cargo fmt --all                    # apply
   cargo fmt --all --check            # after: exit 0, 0 diffs
-  cargo check --workspace --locked --offline   # exit 0, 0 errors (static compile only, no test executed)
+  cargo check --workspace --locked --offline              # exit 0, 0 errors (static compile only, no test executed)
+  cargo check --workspace --all-targets --locked --offline # exit 0, 0 errors; every test target in the workspace compiles
   git diff --check
   per-file non-whitespace character-multiset comparison, HEAD vs working tree
 cwd/environment: repository root; Linux x86_64; cargo 1.97.1, rustfmt 1.9.0-stable; `rust-toolchain.toml` pins `channel = "stable"` and CI uses `dtolnay/rust-toolchain@stable`, so local and CI formatters track the same channel. Local tests, builds, clippy and smoke scripts were deliberately not run per user instruction; GitHub Actions remains the test authority.
@@ -13239,7 +13240,7 @@ fixture·cassette: none. This is not a fixture-backed slice; the gate involved i
 exit_code: 0 for local format, diff and static-compile checks; no local test was executed; remote CI result on this commit is pending/unobserved
 status change: none. No roadmap row, card status, feature_status or proof_level was promoted. The 305 rows currently at 🔄 — including P4-J7-18 (row 395) and P4-J7-19 (row 396), whose dedicated runs previously stopped at this same fmt gate — remain 🔄 until a remote green run is actually observed.
 proof-level change: none. The repair makes the existing gate pass; it does not by itself prove any step's behaviour.
-limitations: the repair is formatting-only and proves nothing about runtime behaviour, provider semantics, or any step's acceptance criteria. It restores the *ability* to obtain CI evidence; it does not substitute for it. A green fmt gate is a precondition for running tests, never a substitute for their results. Compilation was verified statically only; no test target was run. Whether the 305 🔄 steps now pass their own fixtures is unobserved and must be established by GitHub Actions.
+limitations: the repair is formatting-only and proves nothing about runtime behaviour, provider semantics, or any step's acceptance criteria. Separately, and independently of this repair, GitHub Actions stopped executing jobs for this account after 2026-09-27T11:16Z: runs created since then (including the dedicated p4-j7-18 and p4-j7-19 dispatches on a523edd8) remain `queued` with no runner assigned, 0 runs in progress, while the repository is public and githubstatus reports Actions operational. That outage is external to the repository and cannot be cleared from the code side; until it clears no step can obtain the CI evidence its exit condition requires. `--all-targets` compilation shows the pipeline will clear both the format gate and the compile stage once Actions resumes, but it is not a substitute for the test run. It restores the *ability* to obtain CI evidence; it does not substitute for it. A green fmt gate is a precondition for running tests, never a substitute for their results. Compilation was verified statically only; no test target was run. Whether the 305 🔄 steps now pass their own fixtures is unobserved and must be established by GitHub Actions.
 reviewer: Codex root review of the CI failure log for run 36105439076 plus a whole-tree format diff; a per-file character-multiset comparison was used to confirm no code was added, removed or altered, and the residual brace/comma deltas were manually confirmed to be rustfmt multi-line expansion and line wrapping. No local runtime test reviewer.
 
 ### P4-J7-19 Gemini Interactions evidence (2026-09-23)
