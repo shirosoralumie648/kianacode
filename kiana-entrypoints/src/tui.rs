@@ -1,3 +1,34 @@
+//!
+//! # 「parked」具体是什么意思
+//!
+//! Parked = **保留着但没有继续建设**。它能跑、有人用，但它停在旧架构上，
+//! 而新架构（`harness_run.rs` + `command_dispatch.rs`）已经从旁边长起来了。
+//!
+//! 停在哪里：本模块的每一轮对话都走
+//! `sdk::unstable_v2_prompt_streaming_with_local_events_and_permission_handler_and_abort_signal`，
+//! 也就是 [ `sdk.rs` ] 那一层——而 `unstable_` 的意思是**接口形状随时会变**。
+//! 一个随时会变的接口，不适合作为需要长期稳定的那个界面。
+//!
+//! # 为什么说它「不能当作证据」
+//!
+//! 文件头那句「must not be used as PATH/SESS/EVD evidence」是本仓库的一条硬规矩：
+//! 凡是能证明「某件事真的发生了」的东西，都必须来自 EventLog。
+//! TUI 的流式输出是**显示投影**，不是事实——它可以被中断、被重放、可以被丢。
+//! `sdk.rs` 里有一句同样的话：「翻译不等于记账」。
+//!
+//! 所以：**你在 TUI 里看到一件事发生过，不等于这件事被记录过。**
+//!
+//! # 设置面板走的是哪条路
+//!
+//! 下面那些 `*_settings_section` 与 `execute_settings_command` 走 `kiana_commands`
+//! 的 legacy registry——与 `cli.rs` 里的 A 组命令同一条路（见 `cli.rs` 文件头的 A/B 分类）。
+//! 对「查设置、改配置」这类操作这是合适的；它本来就不该产生需要授权的系统副作用。
+//!
+//! # 与 REPL 的差别
+//!
+//! REPL 也走 `sdk::unstable_v2_prompt`，所以两者执行路径相同；差别在交互形态与
+//! 「是否被当作产品面」。`cli.rs` 的终端提示里直接写着 `kiana tui` stays parked——
+//! 仓库自己不把这个入口算作正式路径。
 //! v0.2 parked TUI. This module still talks to the legacy SDK/stream spine.
 //! It is not the product path and must not be used as PATH/SESS/EVD evidence.
 //! See `.planning/phases/4-CONTEXT.md`.
@@ -35,6 +66,11 @@ use tokio::sync::{
 pub(crate) const TUI_PROMPT_HISTORY_LIMIT: usize = 200;
 pub(crate) const TUI_PROMPT_HISTORY_FILE: &str = "tui-history.jsonl";
 
+    /// 进入 TUI。
+    ///
+    /// 【它先检查自己是不是在终端里】
+    /// 见 [ `ensure_tui_terminal` ]。TUI 比 REPL 更依赖终端：它要做全屏重绘、
+    /// 接管按键，没有终端就没有 TUI，只有乱码。
 pub async fn run_tui() -> Result<()> {
     ensure_tui_terminal(
         std::io::stdin().is_terminal(),
@@ -51,6 +87,13 @@ pub async fn run_tui() -> Result<()> {
     )
 }
 
+    /// 确认 stdin/stdout 都是交互式终端，否则拒绝启动。
+    ///
+    /// 【与 REPL 的检查有什么区别】
+    /// 检查项一样（都是两个都是终端），但拒绝的**后果**不同：
+    /// TUI 在管道里启动会做全屏转义序列，把下游输出搅成一团；
+    /// REPL 在管道里启动只是安静地等输入。
+    /// 所以这一处的检查比 REPL 更必要，不是重复。
 fn ensure_tui_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Result<()> {
     match (stdin_is_terminal, stdout_is_terminal) {
         (true, true) => Ok(()),
