@@ -3,6 +3,34 @@
 //! Print mode and the SDK must start runs via `kiana-daemon` / `kiana-core`.
 //! They must not call the legacy `runner.rs` model/tool loop.
 
+//! 产品执行面：一次 run 从这里真正开始跑。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! 打印模式 / SDK
+//!    ↓  【本文件】构造 RequestEnvelope + 身份
+//! kiana_client::KianaClient
+//!    ↓  LocalDaemonTransport（同进程直调，不开 socket）
+//! kiana-daemon::DaemonHost
+//!    ↓
+//! kiana-core::ControlPlane  ← 授权在这里发生
+//!    ↓  策略 → 关卡 → 审批 → 能力执行
+//! ResponseEnvelope
+//! ```
+//!
+//! 文件头那句话不是客套：**产品面必须经 daemon/core，不许走 legacy `runner.rs` 那个
+//! 模型/工具循环。** 理由和 `AGENTS.md` 一样——只有一条执行脊柱，授权状态、事件流和
+//! 审批才不会分裂成两套。
+//!
+//! # 与同目录 `mcp.rs` 的对照
+//!
+//! 两个文件都会「执行工具」，但只有本文件经过 `ControlPlane`：
+//! - 本文件：run 先进控制面，授权是执行链上的**一环**；即便需要人工批准，
+//!   被批准的也是控制面**已经作出的决定**，handler 只是把它呈现出来；
+//! - `mcp.rs`：`execute_tool_call` 直接被调用，不存在控制面。
+//! 那条路已作为安全发现记录在
+//! [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
@@ -43,6 +71,10 @@ pub async fn command_envelope_on_host(
         .map_err(anyhow::Error::msg)
 }
 
+/// 同进程直调 daemon 的 transport（与 `command_dispatch.rs` 里那个是同一种做法）。
+///
+/// 不开 socket，因此省掉了序列化往返与端口管理；代价是**没有网络层替你兜底**，
+/// 所有身份与信任字段都必须由 [ `client_on_host` ] 认真构造。
 pub struct LocalDaemonTransport {
     host: Arc<DaemonHost>,
 }
@@ -55,6 +87,11 @@ impl ClientTransport for LocalDaemonTransport {
 }
 
 #[derive(Debug, Clone)]
+/// 一次跑完之后的产出。
+///
+/// 之所以单独成型而不是直接返回 `ResponseEnvelope`：调用方真正需要的是
+/// 「助手说了什么」和「对应哪个 run」，而不是整个信封。让每个调用方自己去信封里挖，
+/// 迟早有人挖错字段。
 pub struct HarnessRunResult {
     pub text: String,
     pub steps: u64,
@@ -147,6 +184,32 @@ pub async fn run_envelope_with_history(
         .await
 }
 
+    /// 真正发起一次 run 的地方。
+    ///
+    /// 【流程】
+    /// 1. `new_local_host_with_options` —— 按选项装配 `DaemonHost`；
+    /// 2. `sandbox_policy_from_options` —— 把选项里的沙箱档位解析成策略；
+    /// 3. `client_on_host` —— 造 client 与 `RequestMetadata`；
+    /// 4. `client.run_with_history(...)` —— **run 从这里进入控制面**；
+    /// 5. 如果响应是 `AwaitingApproval`，且调用方给了 `permission_handler`，
+    ///    才把这次待批**呈现**给 handler 决定。
+    ///
+    /// 【第 5 步最容易被理解反】
+    /// 它不是「在这里请求授权」。授权已经在第 4 步里由 `ControlPlane` 作出了——
+    /// `AwaitingApproval` 意味着控制面判定「这件事需要人点头」，并且**已经把这次待批
+    /// 记录成事实**。handler 拿到的是那个决定的呈现，不是提问权。
+    /// 真正的批准仍然要通过 `decide_approval_envelope_on_host` 回到控制面去落。
+    ///
+    /// 【所以 `permission_handler: None` 并不是「没人管」】
+    /// `run_envelope_with_history` 走的正是这条：没有 handler，于是把 `AwaitingApproval`
+    /// 原样返回给调用方，由界面去展示、再决定要不要批。**决定权在控制面，呈现权在调用方**，
+    /// 这两件事分开之后，缺一个 handler 只会让体验变差，不会让控制消失。
+    ///
+    /// 【为什么 `PermissionPromptRequest` 里要塞那么多东西】
+    /// 因为 handler 往往长在另一个进程里（另一个 UI、另一个 agent）。要让人在远离现场
+    /// 的情况下做出决定，就得把「是谁、要做的是什么、为什么被拦」一次性带齐。
+    /// `decision_reason` 用 `type: other` 包一层，也是为了对上 `PermissionPromptDecision`
+    /// 期待的形状。
 async fn run_envelope_with_history_and_permission_handler(
     session_id: impl Into<String>,
     prompt: impl Into<String>,
@@ -223,6 +286,7 @@ pub(crate) fn new_local_host_with_options(
     ))
 }
 
+/// 造一个走默认本地 daemon 的 client。
 fn local_client(
     session_id: impl Into<String>,
     options: &HashMap<String, Value>,
@@ -230,6 +294,16 @@ fn local_client(
     client_on_host(new_local_host_with_options(options)?, session_id, options)
 }
 
+    /// 在指定的 host 上造 client，并把身份元数据一起造好。
+    ///
+    /// 【为什么 metadata 和 client 要放在一起造】
+    /// 因为它们必须来自同一份配置。把它们拆开，调用方就可能给 host 配 A、
+    /// 给 metadata 填 B，于是「这台机器上」和「我是谁」对不上号。
+    ///
+    /// 【⚠ 与 `command_dispatch.rs` 的对照】
+    /// 那个文件里 `session_id` 与 `actor_id` 缺失时会回落到常量
+    /// （`local-command` / `local-user`），并且 `permission_profile` 被写死为 `Safe`。
+    /// 本文件的对应逻辑在这里，语义应当保持一致；修改其中一处时记得另一处。
 pub fn client_on_host(
     host: Arc<DaemonHost>,
     session_id: impl Into<String>,
@@ -364,6 +438,12 @@ pub async fn resume_envelope_on_host(
         .map_err(anyhow::Error::msg)
 }
 
+    /// 把一次审批决定送回控制面。
+    ///
+    /// 【为什么批准必须回到这里，而不能由界面自己记账】
+    /// 因为「已批准」是一条**事实**，它必须和其余事实写进同一本账（EventLog），
+    /// 并且受同一套 epoch / fence / 一次性消费的约束。界面若自己认为「批过了」，
+    /// 就会出现一次执行有批准、事件流里却没有批准记录——而事后无法判断哪个是真的。
 pub async fn decide_approval_envelope_on_host(
     host: Arc<DaemonHost>,
     session_id: impl Into<String>,
