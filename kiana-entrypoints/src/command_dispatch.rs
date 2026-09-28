@@ -1,3 +1,34 @@
+//! 入口命令的**唯一出口**：把界面/CLI 里的一个命令，翻译成 versioned 协议请求，
+//! 交给 `DaemonHost`，再把响应翻译回命令结果。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! CLI / Web / TUI / SDK / MCP  （各自解析参数、渲染界面）
+//!        ↓  Command + CommandContext
+//! 【本文件】构造 RequestMetadata → RequestEnvelope
+//!        ↓  KianaClient（本地进程内 transport）
+//! kiana-daemon::DaemonHost
+//!        ↓  ControlPlane：策略 → 关卡 → 审批 → 执行
+//! ResponseEnvelope
+//!        ↓  【本文件】分类响应
+//! CommandDispatchOutcome::{Completed, AwaitingApproval}
+//! ```
+//!
+//! **上游**：任何界面模块。**下游**：`DaemonHost`；本文件不直接触碰模型、文件系统或网络。
+//!
+//! # 为什么值得单独一个文件
+//!
+//! 因为「命令从界面到控制面要走哪条路」是初学者最需要先确定的一件事，而它必须**只有一条**。
+//! 如果 CLI 自己拼一套请求、Web 再拼一套，两条路径迟早在某个细节上分叉——一处补了身份校验，
+//! 另一处没补，就是一个只在某个界面里能触发的提权漏洞。这个文件的存在就是为了让
+//! 「拼请求」这件事只发生在一个地方。
+//!
+//! # 「本地执行」是什么意思
+//!
+//! 这里的 transport 不开 socket。`LocalDaemonTransport` 直接把 envelope 交给同进程内的
+//! `DaemonHost`。这是本机单用户形态的特权：**没有网络边界，所以也没有网络层可以替你兜底**，
+//! 因此身份与信任字段必须在下面 `request_metadata` 里被认真对待。
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
@@ -10,10 +41,37 @@ use kiana_protocol::{
 use serde_json::Value;
 use std::sync::{Arc, OnceLock};
 
+/// app_state 里那个「自动批准本地写」的开关键名。
+///
+/// 它的存在本身就是一个需要解释的决定，所以先说清楚**它不做什么**：
+/// 它**不会**批准任何 `Critical` 风险的动作，也不批准 `LocalWrite` 以外的风险等级。
+/// 唯一的用途是让本机交互式使用不必为每一次本地写操作点一次确认。
+///
+/// ⚠ 注意它的名字里有 `local`——这个开关是为本机形态准备的。把它带到一个
+/// 多人或远程形态里，就等于给了每个人一个「自动批准写操作」的按钮。
 pub const APPROVE_LOCAL_WRITE_APP_STATE_KEY: &str = "approve_local_write";
 
+/// 进程内唯一的 `DaemonHost`。
+///
+/// 【为什么是单例】
+/// 因为 `DaemonHost` 是**组合根**——它持有 EventLog、审批存储、run stream 这些有状态的东西。
+/// 如果每个命令各自 new 一个，就会出现多套授权状态和多套事件流：同一个审批在 A 实例里有效、
+/// 在 B 实例里查不到，事件也会被写进两个地方。所以整个进程只能有一个。
+///
+/// 【`OnceLock` 而不是 `LazyLock`】
+/// 因为构造可能失败（`DaemonHost::local()` 会做真实装配），而 `OnceLock` 允许把失败留给
+/// 第一次调用时显式处理，而不是在初始化路径上 panic。
 static LOCAL_DAEMON: OnceLock<Arc<DaemonHost>> = OnceLock::new();
 
+/// 把「发送请求」实现成**同进程直接调用**。
+///
+/// 【它省掉了什么】
+/// 没有 socket、没有序列化往返、没有端口冲突。`RequestEnvelope` 原样交给 `DaemonHost.handle`。
+///
+/// 【它同时意味着什么】
+/// 意味着**没有网络层可以替你兜底**。一个远程 transport 至少还有一层「请求来自网络」的
+/// 事实，而这个 transport 的所有输入都来自本进程内——所以调用方给的任何身份字段都必须
+/// 在 [ `request_metadata` ] 里被重新推导，而不能被信任。
 struct LocalDaemonTransport {
     host: Arc<DaemonHost>,
 }
@@ -54,6 +112,24 @@ pub async fn execute_command(
     }
 }
 
+/// 判断这次「待审批」是否可以就地自动批准。
+///
+/// 【三个条件同时成立才自动批准】
+/// 1. 调用方**显式**打开了那个开关（不是默认值，必须是主动设置）；
+/// 2. 风险等级恰好是 `LocalWrite`；
+/// 3. ——隐含的第三件事——它只在 `dispatch_command` 处理 `AwaitingApproval` 时被调用，
+///    也就是说控制面**已经决定需要审批**了，这里只是决定「要不要问」。
+///
+/// 【⚠ 为什么条件 2 不能放宽】
+/// 这是整个文件里最容易被「顺手改一下」的地方。把 `risk == RiskLevel::LocalWrite`
+/// 放宽成「任何非 Critical」，看起来只差一档，但 `Critical` 与 `LocalWrite` 之间的
+/// 那一档往往正是「写工作区之外的东西」。放宽它等于让一个交互式便利选项变成了
+/// 无人值守的提权开关。
+///
+/// 【⚠ 还有一层：这是个函数，不是策略】
+/// 它不做任何策略判断，只把「调用方要不要自动批准」翻译成布尔值。真正的风险分级在
+/// ControlPlane 那边已经做完了。这里再分一次，就等于有两个地方能决定一件事——
+/// 而两处迟早不一致。
 fn should_auto_approve_local_write(
     approve_local_write: bool,
     challenge: &ApprovalChallenge,
@@ -61,6 +137,12 @@ fn should_auto_approve_local_write(
     approve_local_write && challenge.risk == RiskLevel::LocalWrite
 }
 
+/// 一条命令跑完之后的两种结局。
+///
+/// 【为什么只有两种，而不是一个「结果」】
+/// 因为「完成了」和「在等一个人点头」是**性质完全不同**的两件事，合并它们会让调用方
+/// 不得不用一个布尔字段去表达「到底算不算做完」。分成两个变体之后，
+/// 「没跑完」在类型上就是看得见的，调用方不可能忽略它。
 #[derive(Clone, Debug)]
 pub enum CommandDispatchOutcome {
     Completed(CommandResult),
@@ -165,6 +247,26 @@ pub async fn resolve_command_approval_response_with_proof(
         .map_err(anyhow::Error::msg)
 }
 
+/// 从命令上下文里**重新推导**出服务端要用的身份与信任字段。
+///
+/// 【⚠ 这是整个入口层最需要认真读的一个函数】
+/// `CommandContext.app_state` 里的东西是**界面给的**。这个函数把其中三项重新推导：
+///
+/// - `project_root`：从 `cwd` 取，**缺失即报错**（`control_plane_project_root_required`）。
+///   这是唯一一个「没有默认值」的字段，因为没有工作区根目录就无法做任何 containment 判断——
+///   而没有 containment，一切路径相关的授权都无从谈起。
+/// - `session_id`：缺失时回落为常量 `"local-command"`。
+/// - `actor_id`：缺失时回落为常量 `"local-user"`。
+///
+/// 【那两个默认值值得警惕】
+/// 它们让「身份缺失」不至于变成一次报错，于是身份缺失的请求会以 `local-user` 的身份继续往下走。
+/// 在本机单用户形态下这是合理的；在任何多人形态下，**这两个常量就是「所有人都叫同一个名字」**。
+/// 如果要把 Kiana 变成多用户，第一个要拆的就是它们。
+///
+/// - `project_trusted` 不在这里被假设，而是从 app_state 读取真实判定；
+/// - `permission_profile` 被**写死**为 `PermissionProfile::Safe`。
+///   写死是有意的：入口层不负责提权，只负责把最保守的档位交上去，让控制面按需放宽。
+///   反过来做——让界面自己声明权限档——就等于让被授权者给自己发权限。
 fn request_metadata(context: &CommandContext) -> anyhow::Result<RequestMetadata> {
     let project_root = context
         .app_state
@@ -197,6 +299,16 @@ fn request_metadata(context: &CommandContext) -> anyhow::Result<RequestMetadata>
     Ok(metadata)
 }
 
+/// 把 `ResponseEnvelope` 分类成两种结局之一，其余一切都变成错误。
+///
+/// 【分类的顺序不能换】
+/// 先看 `AwaitingApproval`，再看 `Completed`。反过来的话，一个正在等审批的响应会因为
+/// 落进「既不是等审批也不是完成」而被报成失败——而它其实是**正常进展**，不是失败。
+///
+/// 【为什么要把非完成态变成错误】
+/// 因为调用方需要知道「这次到底成没成」。`accepted` / `queued` / `running` 对一个
+/// 同步的入口命令来说都不是结论——它们意味着「还没完」。把它们如实变成错误，
+/// 比返回一个含义模糊的「成功」要诚实得多。
 fn response_outcome(response: ResponseEnvelope) -> anyhow::Result<CommandDispatchOutcome> {
     if response.status == ExecutionStatus::AwaitingApproval {
         let challenge = response
@@ -225,6 +337,13 @@ fn response_outcome(response: ResponseEnvelope) -> anyhow::Result<CommandDispatc
         .map(CommandDispatchOutcome::Completed)
 }
 
+/// 拿到（或第一次构造）进程内的 `DaemonHost`。
+///
+/// 【为什么 `set` 之后还要再 `get` 一次】
+/// `OnceLock::set` 在**已经有值时返回 Err**。两个线程同时第一次进来时，会有一个 set 成功、
+/// 另一个失败。如果失败的那个直接用自己的 candidate 返回，两个入口就会拿到**两个不同的
+/// 组合根**——于是出现两套授权状态。所以失败的一方必须回头去读那个已经赢家的值。
+/// 这个「先 set 再 get」的写法就是为了处理这一次良性竞争。
 fn local_daemon() -> anyhow::Result<Arc<DaemonHost>> {
     if let Some(host) = LOCAL_DAEMON.get() {
         return Ok(host.clone());
@@ -237,6 +356,15 @@ fn local_daemon() -> anyhow::Result<Arc<DaemonHost>> {
         .ok_or_else(|| anyhow!("local_daemon_initialization_failed"))
 }
 
+/// 把执行状态翻译成错误码里用的稳定短名。
+///
+/// 【为什么要显式列举，而不是靠 `Debug`】
+/// 因为这些短名会出现在错误串里，而错误串会被断言、被展示、被写进审计。
+/// 靠 `{:?}` 意味着上游改一次枚举的 `Debug` 实现，线上错误码就跟着变了。
+/// 显式列举让「错误码长什么样」成为这份代码的一部分，而不是别人的实现细节。
+///
+/// ⚠ 新增一个 `ExecutionStatus` 变体时，这里会编译不过——那是故意的。
+/// 忘记决定它该叫什么，比编译失败难查得多。
 fn status_name(status: ExecutionStatus) -> &'static str {
     match status {
         ExecutionStatus::Accepted => "accepted",
