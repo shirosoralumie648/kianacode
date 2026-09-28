@@ -1,4 +1,51 @@
-//! Composition root for Kiana control-plane adapters.
+//! Kiana 控制面的**组合根（Composition Root）**：整个守护进程里唯一一个把「授权大脑」和「外部世界」
+//! 拼装起来的地方。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! Kiana 的产品主路径只有一条，任何入口（CLI / Workbench / Web / Desktop）都必须复用它：
+//!
+//! ```text
+//! 用户输入
+//!    ↓
+//! kiana-entrypoints        入口层：把界面动作翻译成 versioned command
+//!    ↓
+//! 【本文件 kiana-daemon】   组合根：装配 ControlPlane、Broker、Harness、EventLog、本地 adapter
+//!    ↓
+//! kiana-core::ControlPlane 授权与生命周期权威（唯一能批准副作用的地方）
+//!    ↓
+//! kiana-policy → kiana-gates → approval      策略层 → 关卡层 → 人工审批
+//!    ↓
+//! kiana-capability-broker / kiana-runner::KianaHarness   执行层：真正跑工具、跑模型循环
+//!    ↓
+//! handlers → kiana-eventlog（EventStore）→ Receipt
+//! ```
+//!
+//! **上游**：谁想执行任何有后果的动作，最终都要构造一个 [`DaemonHost`] 并经由它进入 ControlPlane。
+//! **下游**：本文件不实现业务规则，它把规则委托给 `kiana-core`，把 I/O 委托给各个 adapter 模块。
+//!
+//! # 为什么要有一个「组合根」
+//!
+//! 因为依赖注入必须有唯一入口。如果 CLI 自己 new 一个 ControlPlane、Web 又 new 一个，
+//! 就会出现两套授权状态、两套 EventLog、两套审批缓存——这正是仓库宪法禁止的「第二个事实源」。
+//! 所以本文件做且只做一件事：**把已经构造好的 `Arc<ControlPlane>` 装进一个宿主对象**，
+//! 并提供本地环境特有的 adapter（本地认证、项目信任、EventLog、run stream、observability 队列……）。
+//!
+//! 它**不是**权限判断的地方。想判断「能不能做」，请看 `kiana-core`；本文件只负责「用哪些具体实现」。
+//!
+//! # 初学者阅读顺序建议
+//!
+//! 1. 本文 [`DaemonHost`] 结构体：先看它持有哪些字段，每个字段代表系统里的哪一部分。
+//! 2. [`DaemonHost::new`] / [`DaemonHost::new_with_project_authority`]：看装配时注入了什么。
+//! 3. `kiana-core/src/lib.rs` 的 `ControlPlane`：真正的授权大脑。
+//! 4. 回到 `impl DaemonHost` 里的 UI action 方法组：看一条用户操作怎么变成命令、怎么变成事实。
+//!
+//! # 本文件不做的事（防止误读）
+//!
+//! - 不做权限判定：这里没有任何「允许/拒绝」的业务规则，只有把请求转交 ControlPlane。
+//! - 不做第二条执行循环：模型循环只有 `kiana-runner::KianaHarness` 一处。
+//! - 不持有业务状态：状态权威在 `ControlPlane` 与 EventLog，本文件持有的是**装配引用**与
+//!   少量**只读投影**（run stream、observability 队列、assignment 目录）。
 
 mod apply_patch;
 #[cfg(test)]
@@ -51,6 +98,34 @@ mod supervisor_adapters;
 mod workflow_ingress;
 mod workflow_service;
 mod workspace_checkpoints;
+
+// ---------------------------------------------------------------------------
+// 模块地图（初学者按这个顺序读最省力）
+//
+// 上面的 `mod xxx;` 列表可以按四类理解：
+//
+// 1. 本地 adapter（把系统接到真实世界的代码）：
+//    `authn`（本地身份认证）、`storage`（EventLog 落盘位置）、`model_client`（模型调用）、
+//    `mcp_stdio` / `mcp_http` / `mcp_connector`（MCP 接入）、`connectors` / `connector_ingress`
+//    （外部连接器）、`oauth_accounts`（账号凭据）、`process_supervisor`（子进程监管）、
+//    `shell_plan` / `apply_patch`（shell 与补丁能力）、`extensions`（项目本地扩展注册表）。
+//
+// 2. 组合与生命周期：
+//    `instance`（实例身份）、`startup_coordinator`（启动顺序闸门）、`health_aggregation`（健康聚合）、
+//    `deployment_*`（部署准入/容量/事件/对账/关机/可观测）、`supervisor_adapters`、`restore_verifier`
+//    （恢复校验）、`migration_registry_verify`（迁移注册表签名校验）。
+//
+// 3. 执行面装配（决定 harness 拿到什么能力）：
+//    `harness_capabilities` / `harness_mcp` / `harness_memory` / `harness_sandbox` / `harness_skills`
+//    ——它们共同决定「模型这一轮看得见哪些工具、能写哪些目录、能读哪些记忆」。
+//
+// 4. 投影与只读视图（**只能读，不能改**）：
+//    `run_stream`（给 UI 推送运行帧）、`notification_stream`、`journal_approvals`、
+//    `workspace_checkpoints`、`data_governance`、`execution_output`、`eval_runtime`。
+//
+// ⚠ 注意：第 4 类里的任何东西都不是事实来源。UI 看到的时间线、缓存的 transcript 都可能被丢弃重建，
+// 真相永远在 EventLog 里。谁要是想「直接改一下 UI 状态」，那是绕过 ControlPlane，属于被禁止的反模式。
+// ---------------------------------------------------------------------------
 
 pub use authn::LocalAuthnAdapter;
 pub use connector_ingress::ConnectorIngressVerifier;
@@ -106,6 +181,21 @@ pub use workflow_service::{
     WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
 };
 
+// ---------------------------------------------------------------------------
+// 运行环境开关（环境变量名常量）
+//
+// 这些常量只是**环境变量的名字**，不是它们的值。值在 [`DaemonHost::harness_runtime_config`]
+// 里从 `std::env` 读取，读不到就用默认值。
+//
+// 为什么要把它们列成常量而不是散落在代码里：
+// 1. 拼写错误会在编译期暴露，而不是在运行时静默地「设置了一个没人读的环境变量」；
+// 2. `USER.md` 里要 documenting 的运维开关可以一处对照，不会漏；
+// 3. 预算类开关集中在这里，便于审计「哪些维度可以被外部放大」。
+//
+// ⚠ 不要把这些变量当成权限开关。它们只能**调小**预算，不能**放大**权限：
+//    例如 KIANA_HARNESS_MAX_STEPS 调到很大，也不会让模型获得第 6 个工具。
+// ---------------------------------------------------------------------------
+
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
 const ENV_HARNESS_MAX_ATTEMPTS: &str = "KIANA_HARNESS_MAX_ATTEMPTS";
@@ -114,12 +204,53 @@ const ENV_HARNESS_MAX_REPAIRS: &str = "KIANA_HARNESS_MAX_REPAIRS";
 const ENV_HARNESS_MAX_COMPACTIONS: &str = "KIANA_HARNESS_MAX_COMPACTIONS";
 const ENV_HARNESS_MAX_TOKENS: &str = "KIANA_HARNESS_MAX_TOKENS";
 const ENV_HARNESS_TASK_WALL_TIME_MS: &str = "KIANA_HARNESS_TASK_WALL_TIME_MS";
+/// 可观测性（observability）投递队列的**容量上限：1024 条**。
+///
+/// 为什么是 1024：这是一个「有界队列（bounded queue）」，满了就**可观察地拒绝**，
+/// 而不是无限增长把内存吃光。1024 是个经验值——在正常负载下它足够缓冲瞬时峰值
+/// （例如一次批量 reconcile 产生几百条 span），而在异常风暴下它能保证进程不会被拖垮。
+///
+/// 谁在用：`observability_queue` 字段、`try_enqueue_observability` / `flush_observability` /
+/// `reopen_observability`。投递失败**不会**影响业务状态，详见 `kiana-core` 的
+/// 「观测失败不能改变业务状态」约定。
 const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
 
-/// Validate optional protected-transport metadata before any request reaches the ControlPlane.
+/// 在任何请求触达 ControlPlane **之前**，校验「受保护传输」的可选元数据。
 ///
-/// Legacy clients may omit these fields. When present, instance/origin/host/credential metadata
-/// is only a narrow ingress assertion: it never creates a Principal or grants a role.
+/// 【作用】
+/// 做一次**入口断言（ingress assertion）**：确认调用方自报的 instance / origin / host / credential
+/// 引用在形状上站得住脚，形状站不住就直接拒绝，请求根本到不了授权层。
+///
+/// 【调用者】
+/// 入口层（`kiana-entrypoints`）在把请求转成协议命令之前调用。位置很关键：它必须在
+/// ControlPlane 之前，因为它的职责是「别让畸形元数据进入系统」，而不是「判断这个身份能不能做事」。
+///
+/// 【输入】
+/// - `metadata`：调用方自报的连接元数据。**所有字段都是可选的**——旧版本客户端一个都不传，
+///   这是被允许的（向后兼容），所以本函数大量使用 `Option` 判断。
+///
+/// 【输出】
+/// 成功返回 `Ok(())`，表示元数据形状合法；否则返回带稳定错误码的 `PortError`：
+/// - `ingress_instance_invalid`：instance_id 为空白、超过 256 字符或含 NUL 字节；
+/// - `ingress_origin_not_loopback` / `ingress_host_not_loopback`：来源不是回环地址；
+/// - `ingress_credential_ref_invalid:<detail>`：凭据引用自身校验失败；
+/// - `ingress_protected_credentials_required`：声称走受保护模式却没给 instance/credential；
+/// - `ingress_identity_mode_invalid`：身份模式是未知取值。
+///
+/// 【副作用】
+/// 无。纯校验，不写盘、不发网络、不改任何状态。
+///
+/// 【为什么这样设计】
+/// 最重要的一点：**这些元数据永远不产生身份，也永远不授予角色。**
+/// 它只是一个「说得像不像」的窄断言。真正的身份来自 [`LocalAuthnAdapter`]，真正的授权来自
+/// `ControlPlane`。之所以要把这条写死，是因为「客户端自报 instance_id 就信它」是最容易被利用的
+/// 提权路径——一旦元数据能变成身份，任何本地进程都能冒充别人。
+///
+/// 【为什么 origin/host 必须是回环地址】
+/// 因为这个 daemon 暴露的是**本机**控制面。如果调用方的 origin 声称来自别的主机，
+/// 那要么是配置错了，要么是有人在从网络侧伪造本地调用。两种情况都不该继续。
+/// 历史实现可能不带这些字段，所以只在「带了」的时候校验——这是兼容性折中，不是安全让步：
+/// 带了但不对，一律拒绝。
 pub fn validate_protected_ingress(metadata: &RequestMetadata) -> Result<(), PortError> {
     if metadata
         .instance_id
@@ -160,6 +291,37 @@ pub fn validate_protected_ingress(metadata: &RequestMetadata) -> Result<(), Port
     Ok(())
 }
 
+/// 判断一个 authority 字符串是不是**本机回环地址**。
+///
+/// 【作用】
+/// 从 `origin` / `host` 字段里把主机名抠出来，只接受 `localhost`、`127.0.0.1`、`::1` 三种。
+///
+/// 【调用者】
+/// 只被 [`validate_protected_ingress`] 调用，属于它内部的一个纯解析helper。
+///
+/// 【输入】
+/// - `value`：可能带 scheme（`http://127.0.0.1:8080`）、可能带路径、可能是纯主机名（`127.0.0.1`）。
+///   现实世界的 URL 写法太杂，所以这里做的是「尽最大努力剥出主机名」，而不是严格解析。
+///
+/// 【输出】
+/// 是回环地址返回 `true`，否则 `false`。
+///
+/// 【核心流程】
+/// 1. 去掉首尾空白；
+/// 2. 有 `://` 就只取 scheme 之后的部分；
+/// 3. 再砍掉第一个 `/` 之后的所有内容（路径、query 都丢掉）；
+/// 4. 含 `@` 直接拒绝——userinfo（`user@host`）是钓鱼式 URL 的常见手法，允许它就等于
+///    允许 `trusted@evil.com` 这种伪装；
+/// 5. 去掉端口：IPv6 要先切 `[]`，普通写法切 `:`；
+/// 6. 转小写后与三个允许值比对。
+///
+/// 【为什么用「字符串剥」而不是 URL 解析器】
+/// 因为这里的输入不是受控的、也不是保证合法的 URL。用完整解析器会引入「解析失败时怎么办」的分支，
+/// 而失败必须等价于拒绝。这里选择「尽力剥，剥不出来就拒绝」，失败方向天然是保守的。
+///
+/// 【副作用】
+/// 无。
+
 fn loopback_authority(value: &str) -> bool {
     let trimmed = value.trim();
     let authority = trimmed
@@ -183,6 +345,30 @@ fn loopback_authority(value: &str) -> bool {
     )
 }
 
+/// **组合根对象**：daemon 进程里唯一持有「已装配好的控制面」的结构体。
+///
+/// 【它在架构中的角色】
+/// `kiana-core::ControlPlane` 是纯逻辑，不认识文件系统、不认识环境变量、不认识网络。
+/// `DaemonHost` 就是把那些具体实现接上去的那一层。入口（CLI/Workbench/Web/Desktop）拿到
+/// `DaemonHost`，就等于拿到了「能安全地把用户意图变成事实」的能力。
+///
+/// 【每个字段对应系统的哪一部分】
+/// - `core`：**授权大脑**。所有有后果的动作都必须经过它，字段本身是 `Arc`（共享所有权），
+///   因为 ControlPlane 会被 spawn 出去的 worker 线程共享。
+/// - `principal` / `authn`：**「我是谁」**。前者是缓存下来的本地身份，后者是认证 adapter
+///   （将来接远程身份时只换 adapter，不改这里）。
+/// - `assignment_directory`：**「谁被指派到这个项目」**，属于组织/角色目录，不属于安全边界。
+/// - `project_authority`：**项目信任**。项目本地的 skill/plugin/hook 配置能注入指令和能力，
+///   所以加载它们之前必须先过信任检查——这就是这个字段存在的唯一理由。
+/// - `run_stream`：给 UI 推送运行帧的**只读**通道。UI 靠它画时间线，但它不是事实来源。
+/// - `observability_queue`：有界观测投递队列，满了可观察地拒绝，不影响业务状态。
+/// - `workflow_service`：确定性 workflow 的队列服务。
+/// - `extensions`：**只能是 `Option`**。它只用来构建只读可见性投影；写操作和执行权仍然
+///   属于 ControlPlane/Broker。宿主如果是被注入了外部 core 构造出来的，就报告「投影不可用」。
+///
+/// 【为什么字段这么少】
+/// 因为大部分能力不是以字段形式存在的，而是被封装进了 `core`。少一个字段，就少一个
+/// 「可能被绕过 ControlPlane 直接改状态」的口子。
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
     principal: AuthenticatedPrincipal,
@@ -198,10 +384,25 @@ pub struct DaemonHost {
     extensions: Option<Arc<extensions::ExtensionRegistry>>,
 }
 
+/// 「这个项目目录可不可信」的**权威接口（authority）**。
+///
+/// 【为什么需要这个 trait】
+/// 信任判定要读磁盘上的项目配置，而 DaemonHost 本身不该知道配置格式。所以这里抽成 trait：
+/// 生产用 [`StoredProjectTrustAuthority`]（真读配置），测试或嵌入式场景可以注入假实现，
+/// 从而**不碰真实文件系统**就能覆盖「未信任项目」这条拒绝路径。
+///
+/// 【为什么要求 `Send + Sync`】
+/// 因为宿主可能被多线程共享，实现里会持有内部状态。缺了这两个 bound，注入就只能在单线程用，
+/// 测试价值会大打折扣。
 pub trait ProjectTrustAuthority: Send + Sync {
     fn project_trusted(&self, project_root: &Path) -> Result<bool, String>;
 }
 
+/// 默认的信任权威实现：**真的去读项目目录里的信任配置**。
+///
+/// 【为什么是 unit struct（没有任何字段）】
+/// 它是无状态的——判断逻辑全在 `kiana_types::read_project_trust` 里。这样做的好处是
+/// 任何人都能随手 `StoredProjectTrustAuthority` 造一个出来，不需要构造参数、不会忘记初始化。
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StoredProjectTrustAuthority;
 
@@ -213,6 +414,16 @@ impl ProjectTrustAuthority for StoredProjectTrustAuthority {
 }
 
 #[derive(Clone, Debug)]
+/// 已被认证的本地主体：daemon 内部用来回答「当前是哪个 actor 在操作」的值对象。
+///
+/// 【三个字段分别是什么】
+/// - `identity`：结构化的主体引用（principal id + 来源等），是要传给 ControlPlane 的正式凭证；
+/// - `actor_id`：字符串形态的 actor id，写进事件与审计记录用；
+/// - `allowed_roles`：**这个主体被允许扮演的角色集合**。
+///
+/// 【为什么 `allowed_roles` 在这里而不是在 ControlPlane】
+/// 因为角色目录属于装配层知识。ControlPlane 只负责「拿这个集合去判权限」，
+/// 不负责「这个集合应该是什么」。把两者混在一起，测试就没法替换角色目录。
 struct AuthenticatedPrincipal {
     identity: AuthenticatedPrincipalRef,
     actor_id: String,
@@ -220,6 +431,19 @@ struct AuthenticatedPrincipal {
 }
 
 impl AuthenticatedPrincipal {
+    /// 构造**本地用户**主体，并把可用角色集合填好。
+    ///
+    /// 【角色集合从哪来】
+    /// 优先读环境变量 `KIANA_LOCAL_ALLOWED_ROLES`（逗号分隔，例如 `admin,reviewer`）；
+    /// 读不到就退回到**完整角色目录**（`RoleSpec::catalog()`），也就是「本地用户可以扮演所有已注册角色」。
+    ///
+    /// 【为什么默认给全部角色，而不是最小权限】
+    /// 因为这是**本地单机模式**：能启动这个进程的人本来就是本机用户。这条默认值只适用于本地形态；
+    /// 任何远程/多用户形态都必须显式传 `KIANA_LOCAL_ALLOWED_ROLES`，否则应该启动失败而不是默默全给。
+    ///
+    /// 【⚠ 注意】
+    /// 这里返回的不是「已授权」，只是「已认证 + 角色候选集」。真正的授权判定在 `ControlPlane`。
+    /// 任何把这个结构体当成授权结论来用的代码都是错的。
     fn local() -> Self {
         let identity = AuthenticatedPrincipalRef::local();
         Self {
@@ -243,10 +467,67 @@ impl AuthenticatedPrincipal {
     }
 }
 
+/// `DaemonHost` 的方法实现。
+///
+/// 【怎么读这一大段】
+/// 按调用目的分成五组：
+/// 1. **构造**（`new` / `new_with_project_authority` / `with_run_stream` / `local` 系列）：装配依赖；
+/// 2. **身份与信任**（`authenticated_principal` / `project_trust_snapshot` / `project_identity`）：
+///    回答「你是谁」「这个项目能不能信」；
+/// 3. **实例与存储**（`acquire_instance` / `acquire_storage` / `storage_root`）：进程级资源的租约；
+/// 4. **UI 桥接**（`subscribe_run` / `claim_ui_action` / `admit_ui_action` / `ui_snapshot` …）：
+///    **只读投影 + versioned command 转发**，UI 在这里没有任何直接改状态的权力；
+/// 5. **健康与运维**（`health_snapshot` / `readiness` / `liveness` / `deployment_*` / `ops_*`）：
+///    观测与运维面，同样不允许绕过 ControlPlane 产生副作用。
 impl DaemonHost {
+    /// 最简构造：**用默认的项目信任权威**装配一个宿主。
+    ///
+    /// 【作用】
+    /// 给「本地标准形态」用的快捷入口，等价于手动传入 [`StoredProjectTrustAuthority`]。
+    ///
+    /// 【调用者】
+    /// 入口层启动 daemon 时（`USER.md` 里的 `kiana daemon` 之类）通常走这条。
+    ///
+    /// 【输入】
+    /// - `core`：**已经构造好的** `ControlPlane`。注意是「已经」——本函数不负责造它，
+    ///   因为 ControlPlane 的构造参数（事件存储类型、时钟、策略引擎……）由更上层决定。
+    ///
+    /// 【输出】
+    /// 一个装好了本地 adapter 的 `DaemonHost`。
+    ///
+    /// 【副作用】
+    /// 无 I/O 副作用：只做内存里的字段装配，不落盘、不开端口。
+    ///
+    /// 【为什么不给 `Default`】
+    /// 因为 `Default` 会诱使人写 `DaemonHost::default()`，而没有 ControlPlane 的宿主
+    /// 是一个**没有授权大脑**的壳子——那等于给绕过 ControlPlane 留了一个后门。
+    /// 必须显式交出 `core`，是刻意的摩擦。
+
     pub fn new(core: Arc<ControlPlane>) -> Self {
         Self::new_with_project_authority(core, Arc::new(StoredProjectTrustAuthority))
     }
+
+    /// 带**自定义项目信任权威**的构造。
+    ///
+    /// 【作用】
+    /// 与 [`DaemonHost::new`] 相同，唯一区别是信任判定换成调用方提供的实现。
+    ///
+    /// 【调用者】
+    /// 1. 测试：注入一个「永远返回 false」的假权威，就能覆盖**未信任项目**这条拒绝路径，
+    ///    而且不需要在磁盘上造一个真实的项目目录；
+    /// 2. 嵌入式/受管部署：由宿主应用自己回答「这个项目可信吗」。
+    ///
+    /// 【输入】
+    /// - `core`：同上，已构造好的授权大脑；
+    /// - `project_authority`：信任权威。必须是 `Arc<dyn ...>` 而不是泛型参数，
+    ///   因为运行时只关心「能不能问出 true/false」，不关心背后是读文件还是读数据库。
+    ///
+    /// 【输出】
+    /// `DaemonHost`。
+    ///
+    /// 【为什么用 `Arc<dyn Trait>` 而不是 `impl Trait` 参数】
+    /// 因为这个对象要被存进 `DaemonHost` 并长期共享，生命周期长于调用者。
+    /// `Arc` 让宿主和调用方都能安全持有同一份信任判定逻辑，不会出现两份互相矛盾的信任状态。
 
     pub fn new_with_project_authority(
         core: Arc<ControlPlane>,
@@ -254,6 +535,25 @@ impl DaemonHost {
     ) -> Self {
         Self::with_run_stream(core, project_authority, Arc::new(RunStreamBus::default()))
     }
+
+    /// 真正干活的**内部装配函数**：前两个构造函数最终都落到这里。
+    ///
+    /// 【为什么单独拆一层】
+    /// 因为有一个额外的装配路径（`local()` 系列构造函数）需要注入自己的 `RunStreamBus`。
+    /// 如果逻辑写在公开构造函数里，第三条路径就得复制一遍——复制装配逻辑是危险信号：
+    /// 迟早会出现「一个入口装了 run stream，另一个忘了」的分支。
+    ///
+    /// 【装配时固定下来的东西，以及为什么固定】
+    /// - `principal` / `authn`：本地身份。注意 `expect` 在这里出现是因为本地 principal 是
+    ///   代码里构造的常量形态，校验必然通过；**这不是**「忽略错误」，而是把不可能的分支
+    ///   变成启动期崩溃而不是运行期静默降级。
+    /// - `assignment_directory`：**空目录**。组织指派是运行时数据，宿主不做任何预置；
+    ///   这保证「没人指派」和「指派了某人」是两种可区分的状态。
+    /// - `observability_queue`：容量固定为 [`OBSERVABILITY_QUEUE_CAPACITY`]。这里同样 `expect`，
+    ///   因为容量是编译期常量 1024，不可能是 0。
+    /// - `extensions`：**`None`**。构造宿主时还不加载任何项目本地扩展——它们必须在
+    ///   [`ProjectTrustAuthority`] 判定通过之后才允许被加载。未信任项目拿到 `None`，
+    ///   可见性投影自然报告「不可用」，而不是「空列表」。
 
     fn with_run_stream(
         core: Arc<ControlPlane>,
