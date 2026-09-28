@@ -5,9 +5,9 @@
 //! and a revocation that does not propagate — and each has its own test here.
 
 use kiana_core::{
-    plan_retention_deletion, DeletionTarget, ProtectedTarget, RetainedReference,
-    RetentionDeletionPlan, RetentionDeletionRequest, RevocationLayer, RevocationLayerObservation,
-    RevocationLayerState,
+    commit_retention_deletion, plan_retention_deletion, DeletionCommitReceipt, DeletionTarget,
+    ProtectedTarget, RebuildLayerVerification, RetainedReference, RetentionDeletionPlan,
+    RetentionDeletionRequest, RevocationLayer, RevocationLayerObservation, RevocationLayerState,
 };
 use kiana_domain::{BackupLegalHold, DeletionMode};
 
@@ -52,6 +52,7 @@ fn admissible() -> RetentionDeletionRequest {
         ],
         Vec::new(),
         CURRENT_EPOCH,
+        digest('a'),
     )
 }
 
@@ -83,6 +84,7 @@ fn a_derived_layer_cannot_be_deleted_without_its_facts() {
         vec![acknowledged(RevocationLayer::Artifact)],
         Vec::new(),
         CURRENT_EPOCH,
+        digest('a'),
     );
     assert_eq!(
         plan_retention_deletion(&request).unwrap_err(),
@@ -160,6 +162,7 @@ fn a_revocation_that_has_not_propagated_blocks_the_deletion() {
             observations,
             Vec::new(),
             CURRENT_EPOCH,
+        digest('a'),
         );
         assert_eq!(
             plan_retention_deletion(&request).unwrap_err(),
@@ -186,6 +189,7 @@ fn a_dry_run_names_no_deletions_at_all() {
         ],
         Vec::new(),
         CURRENT_EPOCH,
+        digest('a'),
     );
     let plan = plan_retention_deletion(&request).expect("dry run");
     assert!(plan.deletable.is_empty(), "a dry run must delete nothing");
@@ -248,6 +252,7 @@ fn a_bounded_plan_deletes_upstream_first_and_says_a_rebuild_is_needed() {
         ],
         Vec::new(),
         CURRENT_EPOCH,
+        digest('a'),
     );
     let plan: RetentionDeletionPlan = plan_retention_deletion(&request).expect("bounded plan");
     assert_eq!(plan.deletion_order, vec![
@@ -270,6 +275,7 @@ fn a_bounded_plan_deletes_upstream_first_and_says_a_rebuild_is_needed() {
         vec![acknowledged(RevocationLayer::Facts)],
         Vec::new(),
         CURRENT_EPOCH,
+        digest('a'),
     );
     assert!(!plan_retention_deletion(&facts_only)
         .expect("facts only")
@@ -292,4 +298,151 @@ fn a_held_object_is_kept_and_the_reason_is_recorded() {
         .protected
         .iter()
         .all(|entry| entry.reason == "legal_hold"));
+}
+
+// ---------------------------------------------------------------------------
+// 卡片要求的另一半：commit receipt 与重建验证。
+// 计划说「打算删」，receipt 说「删了，而且剩下的东西核过了」——这是两个不同的事实。
+// ---------------------------------------------------------------------------
+
+fn verified(layer: RevocationLayer) -> RebuildLayerVerification {
+    RebuildLayerVerification::new(layer, true, 2, false, 1_800).expect("rebuilt")
+}
+
+fn commit_for(plan: &RetentionDeletionPlan) -> DeletionCommitReceipt {
+    DeletionCommitReceipt::new(
+        plan.plan_id.clone(),
+        plan.plan_digest.clone(),
+        plan.deletable.clone(),
+        vec!["exec-1".to_owned(), "exec-2".to_owned()],
+        vec![verified(RevocationLayer::Facts), verified(RevocationLayer::Artifact)],
+        500,
+        digest('a'),
+        1_700,
+    )
+}
+
+#[test]
+fn a_plan_without_its_rebuild_verification_cannot_be_committed() {
+    // 删掉派生层却不核验，删掉的字节没了而索引还指着它们——那不是完成，是制造了新的不一致。
+    let request = admissible();
+    let plan = plan_retention_deletion(&request).expect("plan");
+    let mut commit = commit_for(&plan);
+    commit.rebuild_verifications.clear();
+    commit.commit_digest = commit.digest();
+    assert_eq!(
+        commit_retention_deletion(&plan, &request, &commit).unwrap_err(),
+        "retention_rebuild_verification_required"
+    );
+}
+
+#[test]
+fn a_rebuild_that_still_serves_deleted_data_is_refused_by_the_verifier() {
+    // 字节数证明不了任何事；「这一层还在提供被删掉的东西」才是要断言的那件事。
+    assert_eq!(
+        RebuildLayerVerification::new(RevocationLayer::Index, true, 2, true, 1_800).unwrap_err(),
+        "retention_rebuild_still_serves_deleted"
+    );
+    assert_eq!(
+        RebuildLayerVerification::new(RevocationLayer::Index, false, 2, false, 1_800).unwrap_err(),
+        "retention_rebuild_not_performed"
+    );
+}
+
+#[test]
+fn a_target_without_an_execution_receipt_cannot_be_committed() {
+    // 「我们删了」而没有「存储那边说了什么」，只是一个断言。
+    let request = admissible();
+    let plan = plan_retention_deletion(&request).expect("plan");
+    let mut commit = commit_for(&plan);
+    commit.execution_receipts.truncate(1);
+    commit.commit_digest = commit.digest();
+    assert_eq!(
+        commit_retention_deletion(&plan, &request, &commit).unwrap_err(),
+        "retention_delete_receipt_missing"
+    );
+}
+
+#[test]
+fn a_commit_that_moves_a_ledger_fact_is_refused_at_the_moment_it_can_break() {
+    // 「保留/归档不改账本事实」这条不变量，在这里第一次有了它真正能被检验的时刻。
+    let request = admissible();
+    let plan = plan_retention_deletion(&request).expect("plan");
+    let mut commit = commit_for(&plan);
+    commit.ledger_fact_digest_after = digest('b');
+    commit.commit_digest = commit.digest();
+    assert_eq!(
+        commit_retention_deletion(&plan, &request, &commit).unwrap_err(),
+        "retention_commit_ledger_fact_changed"
+    );
+}
+
+#[test]
+fn a_dry_run_plan_cannot_be_committed_and_an_unplanned_target_cannot_be_carried() {
+    let dry = RetentionDeletionRequest::new(
+        "plan-dry",
+        "operator",
+        DeletionMode::DryRun,
+        vec![
+            target(RevocationLayer::Facts, "obj-1"),
+            target(RevocationLayer::Artifact, "obj-1"),
+        ],
+        vec![],
+        Vec::new(),
+        vec![
+            acknowledged(RevocationLayer::Facts),
+            acknowledged(RevocationLayer::Artifact),
+        ],
+        Vec::new(),
+        CURRENT_EPOCH,
+        digest('a'),
+    );
+    let plan = plan_retention_deletion(&dry).expect("dry plan");
+    let mut commit = commit_for(&plan);
+    let commit = DeletionCommitReceipt::new(
+        plan.plan_id.clone(),
+        plan.plan_digest.clone(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        500,
+        digest('a'),
+        1_700,
+    );
+    assert_eq!(
+        commit_retention_deletion(&plan, &dry, &commit).unwrap_err(),
+        "retention_dry_run_not_committed"
+    );
+
+    // A commit may carry less than the plan, never more.
+    let request = admissible();
+    let plan = plan_retention_deletion(&request).expect("plan");
+    let mut smuggled = commit_for(&plan);
+    smuggled.committed_targets.push(target(RevocationLayer::Facts, "obj-999"));
+    smuggled.execution_receipts.push("exec-3".to_owned());
+    smuggled.commit_digest = smuggled.digest();
+    assert_eq!(
+        commit_retention_deletion(&plan, &request, &smuggled).unwrap_err(),
+        "retention_commit_target_not_planned"
+    );
+
+    // And it may not drop one and call the pass finished.
+    let mut dropped = commit_for(&plan);
+    dropped.committed_targets.pop();
+    dropped.execution_receipts.pop();
+    dropped.commit_digest = dropped.digest();
+    assert_eq!(
+        commit_retention_deletion(&plan, &request, &dropped).unwrap_err(),
+        "retention_commit_target_missing"
+    );
+}
+
+#[test]
+fn a_fully_evidenced_commit_is_recorded() {
+    let request = admissible();
+    let plan = plan_retention_deletion(&request).expect("plan");
+    let commit = commit_for(&plan);
+    let recorded = commit_retention_deletion(&plan, &request, &commit).expect("commit");
+    assert_eq!(recorded.commit_digest, commit.commit_digest);
+    assert_eq!(recorded.watermark_after, 500);
 }

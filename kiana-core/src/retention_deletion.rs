@@ -42,6 +42,7 @@ use crate::revocation_propagation::{
 
 pub const RETENTION_DELETION_REQUEST_SCHEMA: &str = "kiana.retention-deletion-request.v1";
 pub const RETENTION_DELETION_PLAN_SCHEMA: &str = "kiana.retention-deletion-plan.v1";
+pub const RETENTION_COMMIT_RECEIPT_SCHEMA: &str = "kiana.retention-deletion-commit.v1";
 pub const RETENTION_DELETION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_RETENTION_TEXT: usize = 256;
 pub const MAX_RETENTION_TARGETS: usize = 64;
@@ -124,6 +125,10 @@ pub struct RetentionDeletionRequest {
     pub retained_references: Vec<RetainedReference>,
     /// The data epoch the tombstone was issued at. A layer still on an older epoch has not seen it.
     pub tombstone_data_epoch: u64,
+    /// The ledger fact digest as it stood when the pass was planned. It is carried request ->
+    /// plan -> commit so the "retention does not change ledger facts" invariant can be checked at
+    /// the moment it is actually able to break, which is the commit.
+    pub ledger_fact_digest: String,
     pub request_digest: String,
 }
 
@@ -139,6 +144,7 @@ impl RetentionDeletionRequest {
         observations: Vec<RevocationLayerObservation>,
         retained_references: Vec<RetainedReference>,
         tombstone_data_epoch: u64,
+        ledger_fact_digest: impl Into<String>,
     ) -> Self {
         let mut value = Self {
             schema: RETENTION_DELETION_REQUEST_SCHEMA.to_owned(),
@@ -152,6 +158,7 @@ impl RetentionDeletionRequest {
             observations,
             retained_references,
             tombstone_data_epoch,
+            ledger_fact_digest: ledger_fact_digest.into(),
             request_digest: String::new(),
         };
         value.request_digest = value.digest();
@@ -171,6 +178,7 @@ impl RetentionDeletionRequest {
             "observations": self.observations.iter().map(|o| o.observation_digest.clone()).collect::<Vec<_>>(),
             "retained_references": self.retained_references,
             "tombstone_data_epoch": self.tombstone_data_epoch,
+            "ledger_fact_digest": self.ledger_fact_digest,
         }))
     }
 
@@ -188,6 +196,7 @@ impl RetentionDeletionRequest {
         if self.tombstone_data_epoch == 0 {
             return Err("retention_tombstone_epoch_required".to_owned());
         }
+        valid_digest(&self.ledger_fact_digest, "retention_ledger_fact")?;
         if self.targets.is_empty() || self.targets.len() > MAX_RETENTION_TARGETS {
             return Err("retention_deletion_targets_required".to_owned());
         }
@@ -222,6 +231,9 @@ pub struct RetentionDeletionPlan {
     pub deletion_order: Vec<RevocationLayer>,
     /// True when the plan touches a derived layer, so a rebuild has to be verified afterwards.
     pub rebuild_required: bool,
+    /// The ledger fact digest this pass must leave untouched. Carried so the commit can be
+    /// refused if it did not.
+    pub ledger_fact_digest: String,
     pub limitations: Vec<String>,
     pub plan_digest: String,
 }
@@ -233,6 +245,7 @@ impl RetentionDeletionPlan {
             || !self.version.is_compatible_with(&RETENTION_DELETION_VERSION)
             || self.plan_id != request.plan_id
             || self.mode != request.mode
+            || self.ledger_fact_digest != request.ledger_fact_digest
         {
             return Err("retention_deletion_plan_binding_invalid".to_owned());
         }
@@ -255,6 +268,7 @@ impl RetentionDeletionPlan {
             "protected": self.protected,
             "deletion_order": self.deletion_order,
             "rebuild_required": self.rebuild_required,
+            "ledger_fact_digest": self.ledger_fact_digest,
             "limitations": self.limitations,
         }))
     }
@@ -378,6 +392,7 @@ pub fn plan_retention_deletion(
         protected,
         deletion_order: order,
         rebuild_required,
+        ledger_fact_digest: request.ledger_fact_digest.clone(),
         limitations: vec![
             "no object was deleted; this is a plan".to_owned(),
             "hold and propagation state are supplied by the caller, not read here".to_owned(),
@@ -387,6 +402,226 @@ pub fn plan_retention_deletion(
     plan.plan_digest = plan.digest();
     plan.validate_against(request)?;
     Ok(plan)
+}
+
+/// One layer's state after the deletion, as the rebuild reported it.
+///
+/// This is the "重建验证" half of the card. A deletion that leaves a derived layer stale is not
+/// finished, it is a new inconsistency: the bytes are gone but the index still points at them.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RebuildLayerVerification {
+    pub layer: RevocationLayer,
+    /// Whether the layer was rebuilt from the surviving facts and is internally consistent.
+    pub rebuilt: bool,
+    /// The generation the layer moved to. Monotonic: a rebuild that lowers a generation is a
+    /// rollback wearing a rebuild's name.
+    pub generation: u64,
+    /// Whether the layer still serves anything that was deleted. This is the assertion that
+    /// actually matters, and it is the one a byte count cannot make.
+    pub serves_deleted: bool,
+    pub verified_at_unix_ms: u64,
+    pub verification_digest: String,
+}
+
+impl RebuildLayerVerification {
+    pub fn new(
+        layer: RevocationLayer,
+        rebuilt: bool,
+        generation: u64,
+        serves_deleted: bool,
+        verified_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let mut value = Self {
+            layer,
+            rebuilt,
+            generation,
+            serves_deleted,
+            verified_at_unix_ms,
+            verification_digest: String::new(),
+        };
+        value.verification_digest = value.digest();
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "layer": self.layer,
+            "rebuilt": self.rebuilt,
+            "generation": self.generation,
+            "serves_deleted": self.serves_deleted,
+            "verified_at_unix_ms": self.verified_at_unix_ms,
+        }))
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.verification_digest != self.digest() {
+            return Err("retention_rebuild_digest_mismatch".to_owned());
+        }
+        if self.verified_at_unix_ms == 0 {
+            return Err("retention_rebuild_timestamp_required".to_owned());
+        }
+        if self.serves_deleted {
+            return Err("retention_rebuild_still_serves_deleted".to_owned());
+        }
+        if !self.rebuilt {
+            return Err("retention_rebuild_not_performed".to_owned());
+        }
+        if self.generation == 0 {
+            return Err("retention_rebuild_generation_required".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// The record that a plan was actually carried out.
+///
+/// It exists because "we planned to delete" and "we deleted, and here is what survived" are
+/// different facts, and only the second one is worth keeping. Every field is supplied by the
+/// caller: this module still deletes nothing, it only decides whether a claimed commit may be
+/// recorded against a plan.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeletionCommitReceipt {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub plan_id: String,
+    /// The plan this commit claims to carry out. A receipt for any other plan is refused.
+    pub plan_digest: String,
+    pub committed_targets: Vec<DeletionTarget>,
+    /// One execution receipt per committed target, keyed by the target's path.
+    pub execution_receipts: Vec<String>,
+    /// The layer states after the deletion. Must cover every committed target's layer.
+    pub rebuild_verifications: Vec<RebuildLayerVerification>,
+    /// The retention watermark after the pass. Must not move backwards.
+    pub watermark_after: u64,
+    /// The ledger fact digest after the commit. Must equal the one from the request.
+    pub ledger_fact_digest_after: String,
+    pub committed_at_unix_ms: u64,
+    pub commit_digest: String,
+}
+
+impl DeletionCommitReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        plan_id: impl Into<String>,
+        plan_digest: impl Into<String>,
+        committed_targets: Vec<DeletionTarget>,
+        execution_receipts: Vec<String>,
+        rebuild_verifications: Vec<RebuildLayerVerification>,
+        watermark_after: u64,
+        ledger_fact_digest_after: impl Into<String>,
+        committed_at_unix_ms: u64,
+    ) -> Self {
+        let mut value = Self {
+            schema: RETENTION_COMMIT_RECEIPT_SCHEMA.to_owned(),
+            version: RETENTION_DELETION_VERSION,
+            plan_id: plan_id.into(),
+            plan_digest: plan_digest.into(),
+            committed_targets,
+            execution_receipts,
+            rebuild_verifications,
+            watermark_after,
+            ledger_fact_digest_after: ledger_fact_digest_after.into(),
+            committed_at_unix_ms,
+            commit_digest: String::new(),
+        };
+        value.commit_digest = value.digest();
+        value
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "plan_id": self.plan_id,
+            "plan_digest": self.plan_digest,
+            "committed_targets": self.committed_targets,
+            "execution_receipts": self.execution_receipts,
+            "rebuild_verifications": self.rebuild_verifications,
+            "watermark_after": self.watermark_after,
+            "ledger_fact_digest_after": self.ledger_fact_digest_after,
+            "committed_at_unix_ms": self.committed_at_unix_ms,
+        }))
+    }
+}
+
+/// Record a claimed commit against a plan.
+///
+/// The ordering is the argument. The plan is checked first, and a dry-run plan is refused outright
+/// -- committing a plan whose whole content is "delete nothing" would produce a receipt that claims
+/// a deletion which by definition did not happen. Then every committed target must carry an
+/// execution receipt, because "we deleted it" without "here is what the store said" is an
+/// assertion. Then the rebuild: a commit that deleted a derived layer and did not verify it is
+/// refused, and a verification that still serves deleted data is refused by the verifier itself.
+/// The ledger digest is compared last, and it is the one that cannot be waived.
+pub fn commit_retention_deletion(
+    plan: &RetentionDeletionPlan,
+    request: &RetentionDeletionRequest,
+    commit: &DeletionCommitReceipt,
+) -> Result<DeletionCommitReceipt, String> {
+    plan.validate_against(request)?;
+    if commit.schema != RETENTION_COMMIT_RECEIPT_SCHEMA
+        || !commit.version.is_compatible_with(&RETENTION_DELETION_VERSION)
+    {
+        return Err("retention_commit_header_invalid".to_owned());
+    }
+    if commit.commit_digest != commit.digest() {
+        return Err("retention_commit_digest_mismatch".to_owned());
+    }
+    if plan.mode == DeletionMode::DryRun {
+        return Err("retention_dry_run_not_committed".to_owned());
+    }
+    if commit.plan_digest != plan.plan_digest || commit.plan_id != plan.plan_id {
+        return Err("retention_commit_plan_mismatch".to_owned());
+    }
+    // A commit may carry a subset of the plan, but it may not carry anything the plan did not
+    // authorise, and it may not silently drop a target and call the pass finished.
+    for target in &commit.committed_targets {
+        if !plan.deletable.contains(target) {
+            return Err("retention_commit_target_not_planned".to_owned());
+        }
+    }
+    for planned in &plan.deletable {
+        if !commit.committed_targets.contains(planned) {
+            return Err("retention_commit_target_missing".to_owned());
+        }
+    }
+    if commit.committed_at_unix_ms == 0 {
+        return Err("retention_commit_timestamp_required".to_owned());
+    }
+    for receipt in &commit.execution_receipts {
+        safe_text(receipt, "retention_execution_receipt")?;
+    }
+    // One execution receipt per committed target. A receipt that covers two targets proves
+    // nothing about either of them individually.
+    if commit.execution_receipts.len() != commit.committed_targets.len() {
+        return Err("retention_delete_receipt_missing".to_owned());
+    }
+    for verification in &commit.rebuild_verifications {
+        verification.validate()?;
+    }
+    let mut covered: Vec<RevocationLayer> = commit
+        .rebuild_verifications
+        .iter()
+        .map(|verification| verification.layer)
+        .collect();
+    covered.sort();
+    covered.dedup();
+    for target in &commit.committed_targets {
+        if !covered.contains(&target.layer) {
+            return Err("retention_rebuild_verification_required".to_owned());
+        }
+    }
+    if commit.watermark_after == 0 {
+        return Err("retention_watermark_required".to_owned());
+    }
+    // The invariant, checked at the moment it can actually be broken.
+    if commit.ledger_fact_digest_after != plan.ledger_fact_digest {
+        return Err("retention_commit_ledger_fact_changed".to_owned());
+    }
+    Ok(commit.clone())
 }
 
 fn covered_by_hold(holds: &[BackupLegalHold], object_id: &str) -> bool {

@@ -19,6 +19,28 @@ fn dep26_pins_the_four_named_failures() {
     ] {
         assert!(source.contains(marker), "DEP-26 module lost {marker}");
     }
+
+    // The card's other half: a plan is not a deletion, and a deletion is not finished until the
+    // layers it touched have been verified. These are the codes that make that difference real.
+    for marker in [
+        "DeletionCommitReceipt",
+        "RebuildLayerVerification",
+        "commit_retention_deletion",
+        "RETENTION_COMMIT_RECEIPT_SCHEMA",
+        "retention_rebuild_verification_required",
+        "retention_rebuild_still_serves_deleted",
+        "retention_rebuild_not_performed",
+        "retention_rebuild_digest_mismatch",
+        "retention_delete_receipt_missing",
+        "retention_dry_run_not_committed",
+        "retention_commit_target_not_planned",
+        "retention_commit_target_missing",
+        "retention_commit_plan_mismatch",
+        "retention_commit_ledger_fact_changed",
+        "retention_ledger_fact",
+    ] {
+        assert!(source.contains(marker), "DEP-26 module lost {marker}");
+    }
 }
 
 #[test]

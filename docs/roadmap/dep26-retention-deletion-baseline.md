@@ -48,6 +48,33 @@ that those names are present and that the module does **not** define a parallel
 `RetentionLayer`/`RetentionHold`/`RetentionDeletionMode` — a second layer enum would be a second
 answer to "which layers are downstream of the facts".
 
+## The card's other half: a commit receipt and a rebuild verification
+
+A plan says "we intend to delete"; a receipt says "we deleted, and here is what survived to be
+checked". Those are different facts, and only the second is worth keeping, so the module now
+carries both and refuses the gap between them:
+
+- **one execution receipt per committed target** (`retention_delete_receipt_missing`) — "we deleted
+  it" without "here is what the store said" is an assertion;
+- **a rebuild verification for every layer the commit touched**
+  (`retention_rebuild_verification_required`) — deleting a derived layer and not verifying it
+  leaves the index pointing at bytes that are gone, which is a new inconsistency rather than a
+  finished job;
+- **the verifier itself refuses a rebuild that still serves deleted data**
+  (`retention_rebuild_still_serves_deleted`) — a byte count proves nothing; the assertion that
+  matters is that the layer no longer answers with what was deleted;
+- **a dry-run plan cannot be committed** (`retention_dry_run_not_committed`) — a plan whose entire
+  content is "delete nothing" must not produce a receipt claiming a deletion that by definition
+  did not happen;
+- **a commit may carry a subset of the plan, never a superset**
+  (`retention_commit_target_not_planned`, `retention_commit_target_missing`).
+
+And the invariant the previous version of this baseline admitted it could not check now has a
+moment where it can break: the ledger fact digest is carried request → plan → commit, and
+`retention_commit_ledger_fact_changed` refuses a commit that moved it. That is the only place the
+comparison is meaningful — a plan cannot move a fact, and a store-side pass nobody recorded cannot
+be inspected.
+
 ## Plans, not deletions
 
 The module produces a `RetentionDeletionPlan` with dependencies, a dry-run mode, protection reasons
@@ -56,9 +83,12 @@ and a seal. It deletes nothing, and the guard asserts the absence of every token
 
 ## Honest limitations
 
-This is a plan, not a deletion and not a commit. There is **no commit receipt** and no rebuild
-verification in this slice — the card asks for both, and the plan is the part that could be decided
-honestly without a store. Legal-hold state, per-layer propagation observations and retained
+This is still a plan and a **record** of a claimed commit, not an execution. Nothing is deleted,
+nothing is rebuilt, no store is contacted, and no watermark is advanced: every execution receipt and
+every rebuild verification is supplied by the caller, so a caller that fabricates a clean rebuild
+defeats this check the way a lying `present_artifacts` inventory defeated DEP-22. The rebuild
+verifier can only require that a layer *reports* it no longer serves deleted data; it cannot read
+the layer to find out. Legal-hold state, per-layer propagation observations and retained
 references are all **supplied by the caller**: nothing here reads a hold register, queries an
 adapter or inspects an index, so a caller that under-reports any of them defeats the check. No
 object was deleted, no artifact store or backup store was touched, no index was rebuilt, and the
