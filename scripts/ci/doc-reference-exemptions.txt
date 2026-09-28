@@ -18,8 +18,12 @@
 #   workflows-deleted-by-08552ada  the consolidated per-step lanes
 #   scratch-paths                  absolute paths into throwaway working directories
 #   bare-workflow-names            the same deleted lanes written without a directory
-#   stale-or-misattributed-paths   names a real module under the wrong crate/path
+#   normative-target-paths         planned landing points in docs/, which AGENTS.md §1
+#                                 designates as targets rather than current state
 #   example-data-names             illustrative fixture filenames in prose, not repo files
+#
+# CURRENT_STATUS.md has no unresolved reference outside the historical evidence blocks above;
+# the entries filed against it are the ones this reconciliation note names while describing them.
 
 
 # --- workflows-deleted-by-08552ada (354) ---
@@ -397,17 +401,10 @@ docs/roadmap/pd28-storage-security-baseline.md :: pd28_storage_security.yml
 
 docs/roadmap/capability.md :: /tmp/kiana-capability-research-20260912-w6cflz32/snapshot.json
 
-# --- stale-or-misattributed-paths (24) ---
+# --- normative-target-paths ---
 docs/roadmap/step-execution-goal.md :: kiana-core/src/notifications.rs
 docs/roadmap/step-execution-goal.md :: kiana-daemon/src/health.rs
 docs/roadmap/step-execution-goal.md :: kiana-daemon/src/notification_projector.rs
-CURRENT_STATUS.md :: kiana-daemon/src/health.rs
-CURRENT_STATUS.md :: knowledge_sources.rs
-CURRENT_STATUS.md :: notification_worker.rs
-CURRENT_STATUS.md :: outcome.rs
-CURRENT_STATUS.md :: tool_batch.rs
-CURRENT_STATUS.md :: kiana-core/src/notifications.rs
-CURRENT_STATUS.md :: kiana-daemon/src/notification_projector.rs
 
 docs/roadmap.md :: kiana-core/src/notifications.rs
 docs/roadmap.md :: kiana-core/src/observability.rs

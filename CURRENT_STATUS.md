@@ -7853,32 +7853,34 @@ reviewer
 
 `08552ada`（"ci: consolidate 704 per-slice workflows into one unified gate"）删掉了 664 个
 per-step workflow。本文件与 `docs/roadmap/` 下的证据块是在那之前写的，仍然指名那些 lane，
-于是状态账本开始断言并不存在的门。审计结果是 **401 条**引用无法解析，其中 354 条指名被删的
-workflow、11 条是同一批 lane 的无目录写法。
+于是状态账本开始断言并不存在的门。审计结果是 **401 条**引用无法解析，其中 365 条指名被删的
+workflow（含 11 条省略目录的写法）。
 
 这些证据块记录的是各自 commit 上当时成立的事实，改写它们等于让账本声称某个门在它并不存在的
 commit 上运行过。因此**不重写历史**，改为：
 
 - 逐条归档到 `scripts/ci/doc-reference-exemptions.txt`，按类别标注；
-- 新增 `scripts/ci/validate-doc-references.sh`，并接入 `.github/workflows/ci.yml` 的
+- 新增 `scripts/ci/validate-doc-references.sh`，接入 `.github/workflows/ci.yml` 的
   workflow-structure job。清单之外的任何新引用必须能解析，否则 CI 红。
+
+真正跑这些夹具的门现在是 `.github/workflows/ci.yml`，以及
+`scripts/ci/validate-workflows.sh` 里登记为自动触发的 5 个 workflow。
+
+**其余 36 条不是假声明。** 它们集中在 `docs/roadmap.md` 与 `docs/roadmap/*.md`，而 AGENTS.md
+§1 明确规定这些文档是**规范目标（Normative Target）**，写的是系统应该成为什么。在那里写一个
+尚未落地的模块落点，是在陈述设计意图，不是在断言现状；`docs/roadmap/harness.md` 里更直接写着
+「拟新增」。核对结果是：**本文件在对账段之前的未解析引用为 0**，唯一的现状来源没有在声明
+不存在的文件。
 
 解析口径与实现约定一致：形如 `目录/文件.rs` 的引用也接受该目录下的 `src/` 与 `tests/`；
 裸文件名按全仓 basename 匹配（模块简写）；basename 索引取自 `git ls-files` 而非文件系统遍历
 ——`.claude/worktrees/` 下的陈旧 checkout 里存在从未合入 master 的同名文件，用文件遍历会让
 守卫把引用判成已解析。
 
-本次同时暴露一类**路径漂移**，与历史引用不同，尚未修复：14 条源码引用指向的模块确实存在，
-但写错了 crate 或省略了 crate。例如 `kiana-core/src/notifications.rs` 的真实落点是
-`kiana-domain/src/notifications.rs`，`kiana-daemon/src/notification_projector.rs` 的真实落点是
-`kiana-core/src/notification_projector.rs`，`kiana-daemon/src/health.rs` 的真实落点是
-`kiana-core/src/health.rs`。另有 4 条（`knowledge_sources.rs`、`notification_worker.rs`、
-`outcome.rs`、`tool_batch.rs`）在 master 上没有同名文件，20 条是散文里的示例数据文件名。
-
-**更正**：本条最初写作「NM-04..NM-16 有基线文档但 Rust 侧无对应实现文件」，该断言不成立。
-逐条核对后，NM 系列的实现与夹具都在 master 上（`kiana-core/src/notification_projector.rs`、
-`notification_materializer.rs` 等，以及 `kiana-core/tests/nm04..nm12`），问题是文档写错了路径，
-不是缺少实现。
+**两次自我更正**。本条最初写「NM-04..NM-16 有基线文档但 Rust 侧无对应实现文件」，不成立：
+逐条核对后 NM 的实现与夹具都在 master 上，问题是文档写错路径。第二次写「14 条源码引用是路径
+漂移」，同样过强——它们是规范目标，不是漂移。两次都由本条自己引入的检查方法证伪，这也是
+它存在的理由。
 
 本条不改变任何 step 的 `feature_status` 或 `proof_level`。
 
