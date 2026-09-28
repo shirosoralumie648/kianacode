@@ -202,25 +202,25 @@
 | 034 | W1 | 专项 | [`CP-05`](roadmap/control-plane.md#step-cp-05) | ControlPlane · 合并三条授权执行路径 | `CP-04` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-05) |
 | 035 | W1 | 专项 | [`CP-06`](roadmap/control-plane.md#step-cp-06) | ControlPlane · 定义原子状态转移端口 | `CP-02`、`CP-04` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-06) |
 | 036 | W1 | 专项 | [`ER-01`](roadmap/event-receipt-recovery.md#step-er-01) | Event / Receipt / Recovery · 事件 schema、kind registry 与迁移规则 | `ER-00` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-01) |
-| 037 | W1 | 专项 | [`ER-02`](roadmap/event-receipt-recovery.md#step-er-02) | Event / Receipt / Recovery · 统一身份、关联和顺序语义 | `ER-01` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-02) |
+| 037 | W1 | 专项 | [`ER-02`](roadmap/event-receipt-recovery.md#step-er-02) | Event / Receipt / Recovery · 统一身份、关联和顺序语义 | `ER-01` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-02) |
 | 038 | W1 | 专项 | [`ER-03`](roadmap/event-receipt-recovery.md#step-er-03) | Event / Receipt / Recovery · 事件边界脱敏和 Artifact 引用 | `ER-02` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-03) |
 | 039 | W1 | 专项 | [`ER-04`](roadmap/event-receipt-recovery.md#step-er-04) | Event / Receipt / Recovery · CommandReceipt 与 transition read-set | `ER-03` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-04) |
-| 040 | W1 | 专项 | [`CAP-01`](roadmap/capability.md#step-cap-01) | Capability · descriptor、schema、policy metadata 与 handler binding 单一来源 | `CAP-00` | ✅ | [专项卡](roadmap/capability.md#step-cap-01) |
-| 041 | W1 | 专项 | [`CAP-02`](roadmap/capability.md#step-cap-02) | Capability · 统一参数边界与输入摘要 | `CAP-01` | ✅ | [专项卡](roadmap/capability.md#step-cap-02) |
+| 040 | W1 | 专项 | [`CAP-01`](roadmap/capability.md#step-cap-01) | Capability · descriptor、schema、policy metadata 与 handler binding 单一来源 | `CAP-00` | 🔄 | [专项卡](roadmap/capability.md#step-cap-01) |
+| 041 | W1 | 专项 | [`CAP-02`](roadmap/capability.md#step-cap-02) | Capability · 统一参数边界与输入摘要 | `CAP-01` | 🔄 | [专项卡](roadmap/capability.md#step-cap-02) |
 | 042 | W1 | 专项 | [`CAP-03`](roadmap/capability.md#step-cap-03) | Capability · 从 authority chain 派生不可变 ExecutionScope | `CAP-02` | ✅ | [专项卡](roadmap/capability.md#step-cap-03) |
 | 043 | W1 | 专项 | [`CAP-04`](roadmap/capability.md#step-cap-04) | Capability · 状态与 outcome 不再依赖字符串猜测 | `CAP-02` | ✅ | [专项卡](roadmap/capability.md#step-cap-04) |
 | 044 | W1 | 专项 | [`H02`](roadmap/harness.md#step-h02) | Harness · Session / Run / Turn / Step 的身份与生命周期 | `H01` | ✅ | [专项卡](roadmap/harness.md#step-h02) |
 | 045 | W1 | 专项 | [`H03`](roadmap/harness.md#step-h03) | Harness · 将 KianaHarness 收敛为单一状态驱动器 | `H02` | ✅ | [专项卡](roadmap/harness.md#step-h03) |
 | 046 | W1 | 专项 | [`H04`](roadmap/harness.md#step-h04) | Harness · 结构化模型消息与无损 Provider 转换 | `H03` | ✅ | [专项卡](roadmap/harness.md#step-h04) |
-| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类 | `H04` | ✅ | [专项卡](roadmap/harness.md#step-h05) |
+| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类 | `H04` | 🔄 | [专项卡](roadmap/harness.md#step-h05) |
 | 048 | W1 | 专项 | [`P4-J7-05`](roadmap/provider.md#step-p4-j7-05) | Provider · 非流式工具响应必须严格解析 | `P4-J7-04` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-05) |
 | 049 | W1 | 专项 | [`CM-01`](roadmap/context-memory.md#step-cm-01) | Context / Memory · 建立共享来源与 scope 值对象 | `CM-00` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-01) |
-| 050 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-02) |
+| 050 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-02) |
 | 051 | W1 | 专项 | [`CM-03`](roadmap/context-memory.md#step-cm-03) | Context / Memory · 服务端派生 read/write scope 与 purpose | `CM-02` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-03) |
 | 052 | W1 | 专项 | [`CM-04`](roadmap/context-memory.md#step-cm-04) | Context / Memory · 统一 Memory mutation 与幂等键 | `CM-03` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-04) |
 | 053 | W1 | 专项 | [`EXT-01`](roadmap/skills-plugins-hooks.md#step-ext-01) | Skills / Plugins / Hooks · 稳定扩展领域合同 | `EXT-00` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-01) |
 | 054 | W1 | 专项 | [`EXT-02`](roadmap/skills-plugins-hooks.md#step-ext-02) | Skills / Plugins / Hooks · SourceResolver、ProjectTrust 与路径根 | `EXT-01` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-02) |
-| 055 | W1 | 专项 | [`EXT-03`](roadmap/skills-plugins-hooks.md#step-ext-03) | Skills / Plugins / Hooks · 严格解析器与兼容层 | `EXT-02` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-03) |
+| 055 | W1 | 专项 | [`EXT-03`](roadmap/skills-plugins-hooks.md#step-ext-03) | Skills / Plugins / Hooks · 严格解析器与兼容层 | `EXT-02` | 🔄 | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-03) |
 | 056 | W1 | 专项 | [`EXT-04`](roadmap/skills-plugins-hooks.md#step-ext-04) | Skills / Plugins / Hooks · Catalog、优先级、重复和可解释性 | `EXT-03` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-04) |
 | 057 | W1 | 专项 | [`EXT-05`](roadmap/skills-plugins-hooks.md#step-ext-05) | Skills / Plugins / Hooks · 快照与失效 | `EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-05) |
 | 058 | W1 | 专项 | [`UI-01`](roadmap/ui-entrypoints.md#step-ui-01) | UI / Entrypoints · 定义 versioned UI protocol DTO | `UI-00` | ✅ | [专项卡](roadmap/ui-entrypoints.md#step-ui-01) |
@@ -230,9 +230,9 @@
 | 062 | W1 | 专项 | [`CO-03`](roadmap/companyos.md#step-co-03) | CompanyOS · 角色任命、有效期与撤销接入服务端身份 | `CO-02` | ✅ | [专项卡](roadmap/companyos.md#step-co-03) |
 | 063 | W1 | 专项 | [`CO-04`](roadmap/companyos.md#step-co-04) | CompanyOS · 五部门与专业岗位成为版本化目录 | `CO-03` | ✅ | [专项卡](roadmap/companyos.md#step-co-04) |
 | 064 | W1 | 专项 | [`CO-05`](roadmap/companyos.md#step-co-05) | CompanyOS · 业务命令权限、责任和人工决定合同 | `CO-03`、`CO-04` | ✅ | [专项卡](roadmap/companyos.md#step-co-05) |
-| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同 | `CO-02`、`CO-05` | ✅ | [专项卡](roadmap/companyos.md#step-co-06) |
+| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同 | `CO-02`、`CO-05` | 🔄 | [专项卡](roadmap/companyos.md#step-co-06) |
 | 066 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ✅ | [专项卡](roadmap/companyos.md#step-co-07) |
-| 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | ✅ | [专项卡](roadmap/companyos.md#step-co-08) |
+| 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | 🔄 | [专项卡](roadmap/companyos.md#step-co-08) |
 | 068 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-01b) |
 | 069 | W1 | 基础 | [`P0-A-02`](#step-p0-a-02) | P0 基础 · 稳定错误码枚举 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-02) |
 | 070 | W1 | 专项 | [`P4-J7-06`](roadmap/provider.md#step-p4-j7-06) | Provider · 中立内容、调用身份、错误与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-06) |
@@ -251,42 +251,42 @@
 | 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ✅ | [基础卡](#step-p1-h-03) |
 | 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ✅ | [基础卡](#step-p3-i-01) |
 | 085 | W1 | 专项 | [`CI-02`](#step-ci-02) | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | `CI-01` | ✅ | [专项卡](#step-ci-02) |
-| 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ✅ | [专项卡](#step-ci-03) |
+| 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | 🔄 | [专项卡](#step-ci-03) |
 | 087 | W1 | 专项 | [`CI-04`](#step-ci-04) | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | `CI-02`、`CI-03` | ✅ | [专项卡](#step-ci-04) |
 | 088 | W1 | 专项 | [`CI-05`](#step-ci-05) | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | `CI-02`、`CI-04` | ✅ | [专项卡](#step-ci-05) |
 | 089 | W1 | 专项 | [`SW-01`](#step-sw-01) | 稳定 ID、schema 和 lineage；domain + protocol + ports | `SW-00` | ✅ | [专项卡](#step-sw-01) |
-| 090 | W1 | 专项 | [`SW-02`](#step-sw-02) | 显式 Partition/WorkGraph validator；复用 `packet_graph` | `SW-01` | ✅ | [专项卡](#step-sw-02) |
+| 090 | W1 | 专项 | [`SW-02`](#step-sw-02) | 显式 Partition/WorkGraph validator；复用 `packet_graph` | `SW-01` | 🔄 | [专项卡](#step-sw-02) |
 | 091 | W1 | 专项 | [`SW-03`](#step-sw-03) | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | `SW-02` | ✅ | [专项卡](#step-sw-03) |
 | 092 | W1 | 专项 | [`OA-01`](#step-oa-01) | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | `OA-00` | ✅ | [专项卡](#step-oa-01) |
-| 093 | W1 | 专项 | [`OA-02`](#step-oa-02) | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | `OA-01` | ✅ | [专项卡](#step-oa-02) |
-| 094 | W1 | 专项 | [`OA-03`](#step-oa-03) | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | `OA-01` | ✅ | [专项卡](#step-oa-03) |
-| 095 | W1 | 专项 | [`OA-04`](#step-oa-04) | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | `OA-01`、`OA-03` | ✅ | [专项卡](#step-oa-04) |
+| 093 | W1 | 专项 | [`OA-02`](#step-oa-02) | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | `OA-01` | 🔄 | [专项卡](#step-oa-02) |
+| 094 | W1 | 专项 | [`OA-03`](#step-oa-03) | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | `OA-01` | 🔄 | [专项卡](#step-oa-03) |
+| 095 | W1 | 专项 | [`OA-04`](#step-oa-04) | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | `OA-01`、`OA-03` | 🔄 | [专项卡](#step-oa-04) |
 | 096 | W1 | 专项 | [`OA-05`](#step-oa-05) | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | `OA-01`、`OA-04`、`OA-02`、`OA-03` | ✅ | [专项卡](#step-oa-05) |
-| 097 | W1 | 专项 | [`NM-01`](#step-nm-01) | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | `NM-00` | ✅ | [专项卡](#step-nm-01) |
-| 098 | W1 | 专项 | [`NM-02`](#step-nm-02) | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | `P1-E-01`、`NM-01` | ✅ | [专项卡](#step-nm-02) |
+| 097 | W1 | 专项 | [`NM-01`](#step-nm-01) | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | `NM-00` | 🔄 | [专项卡](#step-nm-01) |
+| 098 | W1 | 专项 | [`NM-02`](#step-nm-02) | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | `P1-E-01`、`NM-01` | 🔄 | [专项卡](#step-nm-02) |
 | 099 | W1 | 专项 | [`NM-03`](#step-nm-03) | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | `ER-01`、`NM-01` | ✅ | [专项卡](#step-nm-03) |
 | 100 | W1 | 专项 | [`EQ-01`](#step-eq-01) | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `EQ-00` | ✅ | [专项卡](#step-eq-01) |
 | 101 | W1 | 专项 | [`EQ-02`](#step-eq-02) | 在 `kiana-domain/src/quality.rs` 加稳定 ID、digest、状态枚举和 `deny_unknown_fields` DTO | `EQ-01` | ✅ | [专项卡](#step-eq-02) |
-| 102 | W1 | 专项 | [`EQ-03`](#step-eq-03) | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `EQ-02` | ✅ | [专项卡](#step-eq-03) |
+| 102 | W1 | 专项 | [`EQ-03`](#step-eq-03) | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `EQ-02` | 🔄 | [专项卡](#step-eq-03) |
 | 103 | W1 | 专项 | [`EQ-04`](#step-eq-04) | 定义 case split、privacy class、owner、expires_at、minimum sample 和 workload tags | `EQ-03` | ✅ | [专项卡](#step-eq-04) |
 | 104 | W1 | 专项 | [`EQ-05`](#step-eq-05) | 把 `kiana.eval-suite.v1`/baseline/report 与新 domain DTO 做显式 adapter，保留旧 CLI 输出字段 | `EQ-04` | ✅ | [专项卡](#step-eq-05) |
 | 105 | W1 | 专项 | [`EQ-06`](#step-eq-06) | 在 `kiana-protocol` 登记 `eval.run/capture/compare` 和 `quality.feedback/promote/rollback` 命令/事件 | `EQ-05` | ✅ | [专项卡](#step-eq-06) |
-| 106 | W1 | 专项 | [`EQ-07`](#step-eq-07) | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `EQ-06` | ✅ | [专项卡](#step-eq-07) |
-| 107 | W1 | 专项 | [`EQ-08`](#step-eq-08) | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `EQ-07` | ✅ | [专项卡](#step-eq-08) |
-| 108 | W1 | 专项 | [`PD-01`](roadmap/persistence-data-layer.md#step-pd-01) | 定义 `StorageRoot`、`StoreIdentity`、owner scope、逻辑 namespace 和锁；`kiana-domain`、`kiana-daemon` | `PD-00` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-01) |
+| 106 | W1 | 专项 | [`EQ-07`](#step-eq-07) | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `EQ-06` | 🔄 | [专项卡](#step-eq-07) |
+| 107 | W1 | 专项 | [`EQ-08`](#step-eq-08) | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `EQ-07` | 🔄 | [专项卡](#step-eq-08) |
+| 108 | W1 | 专项 | [`PD-01`](roadmap/persistence-data-layer.md#step-pd-01) | 定义 `StorageRoot`、`StoreIdentity`、owner scope、逻辑 namespace 和锁；`kiana-domain`、`kiana-daemon` | `PD-00` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-01) |
 | 109 | W1 | 专项 | [`PD-02`](roadmap/persistence-data-layer.md#step-pd-02) | 建立 schema registry、canonical JSON/bytes、upcaster 和 unknown-field/major 规则；`kiana-domain`、`kiana-protocol` | `PD-00` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-02) |
 | 110 | W1 | 专项 | [`PD-03`](roadmap/persistence-data-layer.md#step-pd-03) | 统一 `StorageError`、`StoreHealth`、`IntegrityIncident`、能力限制和错误码；`kiana-domain`、`kiana-ports` | `PD-01`、`PD-02` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-03) |
 | 111 | W1 | 专项 | [`PD-04`](roadmap/persistence-data-layer.md#step-pd-04) | 下沉 `ProjectionStorePort`、`ArtifactStorePort`、`BackupStorePort`、`MigrationRunnerPort`、`RetentionStorePort`；`kiana-ports` | `PD-01`、`PD-02`、`PD-03` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-04) |
-| 112 | W1 | 专项 | [`SC-01`](roadmap/security-compliance.md#step-sc-01) | docs threat register、security fixture catalog | `SC-00` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-01) |
-| 113 | W1 | 专项 | [`SC-02`](roadmap/security-compliance.md#step-sc-02) | kiana-domain security IDs/schema registry | `SC-00` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-02) |
+| 112 | W1 | 专项 | [`SC-01`](roadmap/security-compliance.md#step-sc-01) | docs threat register、security fixture catalog | `SC-00` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-01) |
+| 113 | W1 | 专项 | [`SC-02`](roadmap/security-compliance.md#step-sc-02) | kiana-domain security IDs/schema registry | `SC-00` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-02) |
 | 114 | W1 | 专项 | [`SC-03`](roadmap/security-compliance.md#step-sc-03) | kiana-domain/kiana-protocol reason codes | `SC-02` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-03) |
 | 115 | W1 | 专项 | [`SC-04`](roadmap/security-compliance.md#step-sc-04) | kiana-core SecurityContext、入口身份边界 | `SC-02`、`SC-03` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-04) |
-| 116 | W1 | 专项 | [`SC-05`](roadmap/security-compliance.md#step-sc-05) | kiana-policy PolicyBundle/DecisionTrace/PolicyRevision | `SC-03`、`SC-04` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-05) |
+| 116 | W1 | 专项 | [`SC-05`](roadmap/security-compliance.md#step-sc-05) | kiana-policy PolicyBundle/DecisionTrace/PolicyRevision | `SC-03`、`SC-04` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-05) |
 | 117 | W1 | 专项 | [`SC-06`](roadmap/security-compliance.md#step-sc-06) | kiana-domain/kiana-daemon Principal、session、authn adapter | `SC-04`、`SC-05` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-06) |
-| 118 | W1 | 专项 | [`SC-07`](roadmap/security-compliance.md#step-sc-07) | kiana-core ProjectTrust、RoleAssignment、DepartmentSnapshot | `SC-06` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-07) |
+| 118 | W1 | 专项 | [`SC-07`](roadmap/security-compliance.md#step-sc-07) | kiana-core ProjectTrust、RoleAssignment、DepartmentSnapshot | `SC-06` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-07) |
 | 119 | W1 | 专项 | [`SC-08`](roadmap/security-compliance.md#step-sc-08) | kiana-core authority epoch、session fence、policy refresh | `SC-06`、`SC-07` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-08) |
-| 120 | W1 | 专项 | [`SC-09`](roadmap/security-compliance.md#step-sc-09) | kiana-policy GrantScope intersection、Cell inheritance | `SC-07`、`SC-08` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-09) |
-| 121 | W1 | 专项 | [`SC-10`](roadmap/security-compliance.md#step-sc-10) | kiana-core Approval binding、Human Inbox | `SC-05`、`SC-08`、`SC-09` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-10) |
+| 120 | W1 | 专项 | [`SC-09`](roadmap/security-compliance.md#step-sc-09) | kiana-policy GrantScope intersection、Cell inheritance | `SC-07`、`SC-08` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-09) |
+| 121 | W1 | 专项 | [`SC-10`](roadmap/security-compliance.md#step-sc-10) | kiana-core Approval binding、Human Inbox | `SC-05`、`SC-08`、`SC-09` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-10) |
 | 122 | W1 | 专项 | [`SC-11`](roadmap/security-compliance.md#step-sc-11) | kiana-entrypoints、scheduler/workflow/swarm/connector parity | `SC-04`、`SC-09`、`SC-10` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-11) |
 | **W2** | **事实账本、授权与资源** |  |  |  |  |  |  |
 | 123 | W2 | 专项 | [`CP-07`](roadmap/control-plane.md#step-cp-07) | ControlPlane · 实现 JSONL 事务帧及失败恢复 | `CP-06` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-07) |
@@ -294,34 +294,34 @@
 | 125 | W2 | 专项 | [`CP-09`](roadmap/control-plane.md#step-cp-09) | ControlPlane · 精确审批 subject 与可恢复材料 | `CP-03`、`CP-07`、`CP-08` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-09) |
 | 126 | W2 | 专项 | [`CP-10`](roadmap/control-plane.md#step-cp-10) | ControlPlane · 审批决定、单次消费和 pending 持久化 | `CP-05`、`CP-07`、`CP-09` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-10) |
 | 127 | W2 | 专项 | [`CP-11`](roadmap/control-plane.md#step-cp-11) | ControlPlane · 模型与工具统一消耗预算 | `CP-02`、`CP-07`、`CP-08` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-11) |
-| 128 | W2 | 专项 | [`CP-12`](roadmap/control-plane.md#step-cp-12) | ControlPlane · 路径锁、资源租约和 fencing token | `CP-07`、`CP-08` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-12) |
+| 128 | W2 | 专项 | [`CP-12`](roadmap/control-plane.md#step-cp-12) | ControlPlane · 路径锁、资源租约和 fencing token | `CP-07`、`CP-08` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-12) |
 | 129 | W2 | 专项 | [`CP-13`](roadmap/control-plane.md#step-cp-13) | ControlPlane · 执行许可与派发线性化点 | `CP-05`、`CP-10`、`CP-11`、`CP-12` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-13) |
 | 130 | W2 | 专项 | [`CP-14`](roadmap/control-plane.md#step-cp-14) | ControlPlane · 统一执行结果、核销和结果回灌 | `CP-13` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-14) |
-| 131 | W2 | 专项 | [`ER-05`](roadmap/event-receipt-recovery.md#step-er-05) | Event / Receipt / Recovery · JSONL v2 原子 frame、锁与损坏策略 | `ER-04` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-05) |
-| 132 | W2 | 专项 | [`ER-06`](roadmap/event-receipt-recovery.md#step-er-06) | Event / Receipt / Recovery · 异步写入、背压与 shutdown ack | `ER-05` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-06) |
+| 131 | W2 | 专项 | [`ER-05`](roadmap/event-receipt-recovery.md#step-er-05) | Event / Receipt / Recovery · JSONL v2 原子 frame、锁与损坏策略 | `ER-04` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-05) |
+| 132 | W2 | 专项 | [`ER-06`](roadmap/event-receipt-recovery.md#step-er-06) | Event / Receipt / Recovery · 异步写入、背压与 shutdown ack | `ER-05` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-06) |
 | 133 | W2 | 专项 | [`ER-07`](roadmap/event-receipt-recovery.md#step-er-07) | Event / Receipt / Recovery · 通用 replay reader 和 projector checkpoint | `ER-06` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-07) |
 | 134 | W2 | 专项 | [`ER-08`](roadmap/event-receipt-recovery.md#step-er-08) | Event / Receipt / Recovery · Run/Turn 状态投影和 terminal 约束 | `ER-07` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-08) |
 | 135 | W2 | 专项 | [`ER-09`](roadmap/event-receipt-recovery.md#step-er-09) | Event / Receipt / Recovery · Invocation/Execution/Attempt 投影 | `ER-08` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-09) |
 | 136 | W2 | 专项 | [`ER-10`](roadmap/event-receipt-recovery.md#step-er-10) | Event / Receipt / Recovery · Approval、Budget、Lease 和 pending projection | `ER-09` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-10) |
-| 137 | W2 | 专项 | [`ER-11`](roadmap/event-receipt-recovery.md#step-er-11) | Event / Receipt / Recovery · Receipt DTO、redacted view 与 source cursor | `ER-10` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-11) |
-| 138 | W2 | 专项 | [`ER-12`](roadmap/event-receipt-recovery.md#step-er-12) | Event / Receipt / Recovery · Cost、files、model turns 与 evidence aggregation | `ER-11` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-12) |
-| 139 | W2 | 专项 | [`ER-13`](roadmap/event-receipt-recovery.md#step-er-13) | Event / Receipt / Recovery · 统一 result commit 和 result delivery | `ER-12` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-13) |
+| 137 | W2 | 专项 | [`ER-11`](roadmap/event-receipt-recovery.md#step-er-11) | Event / Receipt / Recovery · Receipt DTO、redacted view 与 source cursor | `ER-10` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-11) |
+| 138 | W2 | 专项 | [`ER-12`](roadmap/event-receipt-recovery.md#step-er-12) | Event / Receipt / Recovery · Cost、files、model turns 与 evidence aggregation | `ER-11` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-12) |
+| 139 | W2 | 专项 | [`ER-13`](roadmap/event-receipt-recovery.md#step-er-13) | Event / Receipt / Recovery · 统一 result commit 和 result delivery | `ER-12` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-13) |
 | 140 | W2 | 专项 | [`ER-14`](roadmap/event-receipt-recovery.md#step-er-14) | Event / Receipt / Recovery · Effect Receipt 与外部 provider receipt | `ER-13` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-14) |
 | 141 | W2 | 专项 | [`ER-15`](roadmap/event-receipt-recovery.md#step-er-15) | Event / Receipt / Recovery · Hook、MCP、Memory、Patch 结果统一边界 | `ER-14` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-15) |
 | 142 | W2 | 专项 | [`ER-16`](roadmap/event-receipt-recovery.md#step-er-16) | Event / Receipt / Recovery · 终态事件唯一性与 terminal 必达 | `ER-15` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-16) |
-| 143 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · 核验授权事实，原子领取一次执行 | `CAP-03`、`CAP-04` | ✅ | [专项卡](roadmap/capability.md#step-cap-05) |
+| 143 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · 核验授权事实，原子领取一次执行 | `CAP-03`、`CAP-04` | 🔄 | [专项卡](roadmap/capability.md#step-cap-05) |
 | 144 | W2 | 专项 | [`CAP-06`](roadmap/capability.md#step-cap-06) | Capability · 审批看见并绑定将被执行的最终计划 | `CAP-05` | ✅ | [专项卡](roadmap/capability.md#step-cap-06) |
-| 145 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应 | `H05` | ✅ | [专项卡](roadmap/harness.md#step-h06) |
-| 146 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算 | `H05` | ✅ | [专项卡](roadmap/harness.md#step-h07) |
-| 147 | W2 | 专项 | [`H08`](roadmap/harness.md#step-h08) | Harness · 将 deadline 和取消贯穿静默 I/O | `H03`、`H06`、`H07` | ✅ | [专项卡](roadmap/harness.md#step-h08) |
-| 148 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源 | `H04`、`H05` | ✅ | [专项卡](roadmap/harness.md#step-h09) |
-| 149 | W2 | 专项 | [`H10`](roadmap/harness.md#step-h10) | Harness · 一次生成、全程稳定的调用身份 | `H02`、`H09` | ✅ | [专项卡](roadmap/harness.md#step-h10) |
-| 150 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈 | `H05`、`H10` | ✅ | [专项卡](roadmap/harness.md#step-h11) |
+| 145 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应 | `H05` | 🔄 | [专项卡](roadmap/harness.md#step-h06) |
+| 146 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算 | `H05` | 🔄 | [专项卡](roadmap/harness.md#step-h07) |
+| 147 | W2 | 专项 | [`H08`](roadmap/harness.md#step-h08) | Harness · 将 deadline 和取消贯穿静默 I/O | `H03`、`H06`、`H07` | 🔄 | [专项卡](roadmap/harness.md#step-h08) |
+| 148 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源 | `H04`、`H05` | 🔄 | [专项卡](roadmap/harness.md#step-h09) |
+| 149 | W2 | 专项 | [`H10`](roadmap/harness.md#step-h10) | Harness · 一次生成、全程稳定的调用身份 | `H02`、`H09` | 🔄 | [专项卡](roadmap/harness.md#step-h10) |
+| 150 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈 | `H05`、`H10` | 🔄 | [专项卡](roadmap/harness.md#step-h11) |
 | 151 | W2 | 专项 | [`H12`](roadmap/harness.md#step-h12) | Harness · 串行批次先完整闭环，再考虑并行 | `H08`、`H10`、`H11` | ✅ | [专项卡](roadmap/harness.md#step-h12) |
 | 152 | W2 | 专项 | [`H13`](roadmap/harness.md#step-h13) | Harness · Invocation 账本与结果立即持久化 | `H10`、`H11`、`H12` | ✅ | [专项卡](roadmap/harness.md#step-h13) |
-| 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | ✅ | [专项卡](roadmap/harness.md#step-h14) |
+| 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | 🔄 | [专项卡](roadmap/harness.md#step-h14) |
 | 154 | W2 | 专项 | [`CM-05`](roadmap/context-memory.md#step-cm-05) | Context / Memory · EventStore 唯一提交点与 JSONL/index 投影 | `CM-04` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-05) |
-| 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-06) |
+| 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-06) |
 | 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ✅ | [基础卡](#step-p0-f-01) |
 | 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ✅ | [基础卡](#step-p0-f-02) |
 | 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ✅ | [基础卡](#step-p0-j1-01) |
@@ -332,102 +332,102 @@
 | 163 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ✅ | [基础卡](#step-p3-i-02) |
 | 164 | W2 | 基础 | [`P4-J7-02`](#step-p4-j7-02) | P4 基础 · wire 加 `sequence`/`epoch` | `P0-J7-01` | ✅ | [基础卡](#step-p4-j7-02) |
 | 165 | W2 | 基础 | [`P4-J7-03`](#step-p4-j7-03) | P4 基础 · 事件种类补齐与 terminal 必达 | `P4-J7-02` | ✅ | [基础卡](#step-p4-j7-03) |
-| 166 | W2 | 专项 | [`CI-06`](#step-ci-06) | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | `CI-01`、`CI-03`、`CI-04` | ✅ | [专项卡](#step-ci-06) |
-| 167 | W2 | 专项 | [`CI-07`](#step-ci-07) | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | `CI-02`、`CI-03`、`CI-06` | ✅ | [专项卡](#step-ci-07) |
-| 168 | W2 | 专项 | [`CI-08`](#step-ci-08) | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | `CI-05`、`CI-06`、`CI-07` | ✅ | [专项卡](#step-ci-08) |
-| 169 | W2 | 专项 | [`CI-09`](#step-ci-09) | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | `CI-07`、`CI-08` | ✅ | [专项卡](#step-ci-09) |
+| 166 | W2 | 专项 | [`CI-06`](#step-ci-06) | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | `CI-01`、`CI-03`、`CI-04` | 🔄 | [专项卡](#step-ci-06) |
+| 167 | W2 | 专项 | [`CI-07`](#step-ci-07) | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | `CI-02`、`CI-03`、`CI-06` | 🔄 | [专项卡](#step-ci-07) |
+| 168 | W2 | 专项 | [`CI-08`](#step-ci-08) | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | `CI-05`、`CI-06`、`CI-07` | 🔄 | [专项卡](#step-ci-08) |
+| 169 | W2 | 专项 | [`CI-09`](#step-ci-09) | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | `CI-07`、`CI-08` | 🔄 | [专项卡](#step-ci-09) |
 | 170 | W2 | 专项 | [`CI-10`](#step-ci-10) | Provider policy、只读 credential probe 与 UI/诊断边界；`kiana-policy`、`kiana-entrypoints`、protocol DTO | `CI-06`、`CI-08`、`CI-09` | ✅ | [专项卡](#step-ci-10) |
 | 171 | W2 | 专项 | [`SW-04`](#step-sw-04) | 从 parent/template/department/project/packet/approval 派生 child grant；`kiana-core` authority/capabilities + `cell_registry` | `SW-03`、`CP-04`、`P1-C-02`、`CP-08`、`CP-13` | ✅ | [专项卡](#step-sw-04) |
-| 172 | W2 | 专项 | [`OA-06`](#step-oa-06) | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | `OA-05` | ✅ | [专项卡](#step-oa-06) |
+| 172 | W2 | 专项 | [`OA-06`](#step-oa-06) | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | `OA-05` | 🔄 | [专项卡](#step-oa-06) |
 | 173 | W2 | 专项 | [`OA-07`](#step-oa-07) | Run/Turn/Invocation span 生命周期；`kiana-core` projection/runner bridge | `OA-02`、`OA-06` | ✅ | [专项卡](#step-oa-07) |
-| 174 | W2 | 专项 | [`OA-08`](#step-oa-08) | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | `OA-03`、`OA-07` | ✅ | [专项卡](#step-oa-08) |
-| 175 | W2 | 专项 | [`OA-09`](#step-oa-09) | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | `OA-04`、`OA-07` | ✅ | [专项卡](#step-oa-09) |
+| 174 | W2 | 专项 | [`OA-08`](#step-oa-08) | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | `OA-03`、`OA-07` | 🔄 | [专项卡](#step-oa-08) |
+| 175 | W2 | 专项 | [`OA-09`](#step-oa-09) | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | `OA-04`、`OA-07` | 🔄 | [专项卡](#step-oa-09) |
 | 176 | W2 | 专项 | [`OA-10`](#step-oa-10) | EventLog/projector/Receipt/Artifact/Recovery metrics；`kiana-eventlog`、`projection.rs`、`receipts.rs`、`recovery.rs` | `OA-06`、`OA-09`、`OA-07`、`OA-08` | ✅ | [专项卡](#step-oa-10) |
 | 177 | W2 | 专项 | [`AUT-02`](#step-aut-02) | `ClockPort`、wall/monotonic、clock trust/rollback；`kiana-ports`、`kiana-domain` | `AUT-01` | ✅ | [专项卡](#step-aut-02) |
 | 178 | W2 | 专项 | [`AUT-03`](#step-aut-03) | definition/version/digest、DAG/schema/role/project validation；`kiana-domain`、`kiana-workflow` | `P0-J1-01`、`P0-B-01`、`AUT-01` | ✅ | [专项卡](#step-aut-03) |
-| 179 | W2 | 专项 | [`AUT-04`](#step-aut-04) | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | `AUT-02`、`AUT-03` | ✅ | [专项卡](#step-aut-04) |
+| 179 | W2 | 专项 | [`AUT-04`](#step-aut-04) | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | `AUT-02`、`AUT-03` | 🔄 | [专项卡](#step-aut-04) |
 | 180 | W2 | 专项 | [`AUT-05`](#step-aut-05) | automation event envelope、aggregate stream、command dedup、CAS/cursor query；`kiana-eventlog`、`kiana-ports` | `AUT-03`、`AUT-04` | ✅ | [专项卡](#step-aut-05) |
-| 181 | W2 | 专项 | [`EQ-09`](#step-eq-09) | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `EQ-08` | ✅ | [专项卡](#step-eq-09) |
-| 182 | W2 | 专项 | [`EQ-10`](#step-eq-10) | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `EQ-09` | ✅ | [专项卡](#step-eq-10) |
-| 183 | W2 | 专项 | [`EQ-11`](#step-eq-11) | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `EQ-10` | ✅ | [专项卡](#step-eq-11) |
+| 181 | W2 | 专项 | [`EQ-09`](#step-eq-09) | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `EQ-08` | 🔄 | [专项卡](#step-eq-09) |
+| 182 | W2 | 专项 | [`EQ-10`](#step-eq-10) | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `EQ-09` | 🔄 | [专项卡](#step-eq-10) |
+| 183 | W2 | 专项 | [`EQ-11`](#step-eq-11) | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `EQ-10` | 🔄 | [专项卡](#step-eq-11) |
 | 184 | W2 | 专项 | [`EQ-12`](#step-eq-12) | 通过 `DaemonHost`/`ControlPlane` 启动 target，禁止 quality crate 自行创建 runner loop | `EQ-11` | ✅ | [专项卡](#step-eq-12) |
-| 185 | W2 | 专项 | [`EQ-13`](#step-eq-13) | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `EQ-12` | ✅ | [专项卡](#step-eq-13) |
-| 186 | W2 | 专项 | [`EQ-14`](#step-eq-14) | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `EQ-13` | ✅ | [专项卡](#step-eq-14) |
-| 187 | W2 | 专项 | [`EQ-15`](#step-eq-15) | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `EQ-14` | ✅ | [专项卡](#step-eq-15) |
-| 188 | W2 | 专项 | [`EQ-16`](#step-eq-16) | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `EQ-15` | ✅ | [专项卡](#step-eq-16) |
-| 189 | W2 | 专项 | [`BQ-00`](#step-bq-00) | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | ✅ | [专项卡](#step-bq-00) |
+| 185 | W2 | 专项 | [`EQ-13`](#step-eq-13) | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `EQ-12` | 🔄 | [专项卡](#step-eq-13) |
+| 186 | W2 | 专项 | [`EQ-14`](#step-eq-14) | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `EQ-13` | 🔄 | [专项卡](#step-eq-14) |
+| 187 | W2 | 专项 | [`EQ-15`](#step-eq-15) | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `EQ-14` | 🔄 | [专项卡](#step-eq-15) |
+| 188 | W2 | 专项 | [`EQ-16`](#step-eq-16) | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `EQ-15` | 🔄 | [专项卡](#step-eq-16) |
+| 189 | W2 | 专项 | [`BQ-00`](#step-bq-00) | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | 🔄 | [专项卡](#step-bq-00) |
 | 190 | W2 | 专项 | [`BQ-01`](#step-bq-01) | 稳定 ID、schema major、unknown/reason、状态枚举与错误码；`kiana-domain`/contracts | `BQ-00` | ✅ | [专项卡](#step-bq-01) |
 | 191 | W2 | 专项 | [`BQ-02`](#step-bq-02) | `UsageVector` 和 `NormalizedUsage`；区分 absent/zero/partial、source/basis/sequence | `BQ-01` | ✅ | [专项卡](#step-bq-02) |
 | 192 | W2 | 专项 | [`BQ-03`](#step-bq-03) | snapshot/delta/final stream 累计器；按 sequence 去重、单调性和包含关系校验 | `BQ-02` | ✅ | [专项卡](#step-bq-03) |
 | 193 | W2 | 专项 | [`BQ-04`](#step-bq-04) | `Money`、整数 micros、checked pricing arithmetic；`RateCard` 版本和有效时间 | `BQ-01`、`BQ-02` | ✅ | [专项卡](#step-bq-04) |
-| 194 | W2 | 专项 | [`BQ-05`](#step-bq-05) | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | `BQ-04` | ✅ | [专项卡](#step-bq-05) |
-| 195 | W2 | 专项 | [`BQ-06`](#step-bq-06) | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | `BQ-01`、`BQ-04` | ✅ | [专项卡](#step-bq-06) |
-| 196 | W2 | 专项 | [`BQ-07`](#step-bq-07) | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | `BQ-06` | ✅ | [专项卡](#step-bq-07) |
+| 194 | W2 | 专项 | [`BQ-05`](#step-bq-05) | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | `BQ-04` | 🔄 | [专项卡](#step-bq-05) |
+| 195 | W2 | 专项 | [`BQ-06`](#step-bq-06) | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | `BQ-01`、`BQ-04` | 🔄 | [专项卡](#step-bq-06) |
+| 196 | W2 | 专项 | [`BQ-07`](#step-bq-07) | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | `BQ-06` | 🔄 | [专项卡](#step-bq-07) |
 | 197 | W2 | 专项 | [`BQ-08`](#step-bq-08) | durable `QuotaReservation`、lease/fence/authority/config revision、CAS/dedup | `BQ-06`、`BQ-07` | ✅ | [专项卡](#step-bq-08) |
 | 198 | W2 | 专项 | [`BQ-09`](#step-bq-09) | admission estimator：最终 wire 请求、输出上限、retry allowance、tool/effect/storage 预算 | `BQ-02`、`BQ-05`、`BQ-08` | ✅ | [专项卡](#step-bq-09) |
 | 199 | W2 | 专项 | [`PD-05`](roadmap/persistence-data-layer.md#step-pd-05) | 为 EventStore 建立 adapter conformance；`kiana-eventlog/tests` | `ER-04`、`PD-04` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-05) |
-| 200 | W2 | 专项 | [`PD-06`](roadmap/persistence-data-layer.md#step-pd-06) | 收口 JSONL v2 frame、checksum、fsync、writer lock、尾部恢复；`kiana-eventlog` | `PD-05` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-06) |
+| 200 | W2 | 专项 | [`PD-06`](roadmap/persistence-data-layer.md#step-pd-06) | 收口 JSONL v2 frame、checksum、fsync、writer lock、尾部恢复；`kiana-eventlog` | `PD-05` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-06) |
 | 201 | W2 | 专项 | [`PD-07`](roadmap/persistence-data-layer.md#step-pd-07) | 完成 command/event/aggregate/cursor 索引和 page boundary；`kiana-eventlog` | `PD-05`、`PD-06` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-07) |
-| 202 | W2 | 专项 | [`PD-08`](roadmap/persistence-data-layer.md#step-pd-08) | 启动 integrity scan、quarantine、recovery report 和 health gate；`kiana-eventlog`、`kiana-daemon` | `PD-06`、`PD-07` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-08) |
+| 202 | W2 | 专项 | [`PD-08`](roadmap/persistence-data-layer.md#step-pd-08) | 启动 integrity scan、quarantine、recovery report 和 health gate；`kiana-eventlog`、`kiana-daemon` | `PD-06`、`PD-07` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-08) |
 | 203 | W2 | 专项 | [`PD-09`](roadmap/persistence-data-layer.md#step-pd-09) | 建立 projector runner、checkpoint、重试/暂停/重建协议；`kiana-core`、`kiana-daemon` | `PD-07`、`PD-08` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-09) |
 | 204 | W2 | 专项 | [`NM-04`](#step-nm-04) | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | `PD-05`、`PD-06`、`PD-07`、`PD-08`、`PD-09`、`NM-03` | ✅ | [专项卡](#step-nm-04) |
-| 205 | W2 | 专项 | [`NM-05`](#step-nm-05) | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | `CI-05`、`NM-01`、`NM-04` | ✅ | [专项卡](#step-nm-05) |
-| 206 | W2 | 专项 | [`SC-12`](roadmap/security-compliance.md#step-sc-12) | kiana-core PendingInvocation/Permit、CAS、idempotency | `SC-08`、`SC-09`、`SC-10` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-12) |
+| 205 | W2 | 专项 | [`NM-05`](#step-nm-05) | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | `CI-05`、`NM-01`、`NM-04` | 🔄 | [专项卡](#step-nm-05) |
+| 206 | W2 | 专项 | [`SC-12`](roadmap/security-compliance.md#step-sc-12) | kiana-core PendingInvocation/Permit、CAS、idempotency | `SC-08`、`SC-09`、`SC-10` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-12) |
 | 207 | W2 | 专项 | [`SC-13`](roadmap/security-compliance.md#step-sc-13) | kiana-capability-broker、kiana-daemon path/TOCTOU | `SC-12` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-13) |
 | 208 | W2 | 专项 | [`SC-14`](roadmap/security-compliance.md#step-sc-14) | Broker sandbox/network profile、endpoint resolver | `SC-12`、`SC-13` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-14) |
-| 209 | W2 | 专项 | [`SC-15`](roadmap/security-compliance.md#step-sc-15) | kiana-runner/kiana-core cancel fencing、Unknown | `SC-12`、`SC-14` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-15) |
+| 209 | W2 | 专项 | [`SC-15`](roadmap/security-compliance.md#step-sc-15) | kiana-runner/kiana-core cancel fencing、Unknown | `SC-12`、`SC-14` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-15) |
 | 210 | W2 | 专项 | [`SC-16`](roadmap/security-compliance.md#step-sc-16) | kiana-core/Broker quotas、bounded channels、backpressure | `SC-09`、`SC-12` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-16) |
-| 211 | W2 | 专项 | [`SC-17`](roadmap/security-compliance.md#step-sc-17) | kiana-daemon MCP/connector/webhook ingress | `SC-06`、`SC-10`、`SC-14`、`SC-15` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-17) |
-| 212 | W2 | 专项 | [`SC-18`](roadmap/security-compliance.md#step-sc-18) | kiana-domain SecretRef、kiana-ports SecretStore | `SC-04`、`SC-09`、`SC-17` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-18) |
-| 213 | W2 | 专项 | [`SC-19`](roadmap/security-compliance.md#step-sc-19) | kiana-daemon secret lease、rotation/revocation | `SC-18`、`SC-15` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-19) |
-| 214 | W2 | 专项 | [`SC-20`](roadmap/security-compliance.md#step-sc-20) | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | `SC-03`、`SC-18` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-20) |
+| 211 | W2 | 专项 | [`SC-17`](roadmap/security-compliance.md#step-sc-17) | kiana-daemon MCP/connector/webhook ingress | `SC-06`、`SC-10`、`SC-14`、`SC-15` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-17) |
+| 212 | W2 | 专项 | [`SC-18`](roadmap/security-compliance.md#step-sc-18) | kiana-domain SecretRef、kiana-ports SecretStore | `SC-04`、`SC-09`、`SC-17` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-18) |
+| 213 | W2 | 专项 | [`SC-19`](roadmap/security-compliance.md#step-sc-19) | kiana-daemon secret lease、rotation/revocation | `SC-18`、`SC-15` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-19) |
+| 214 | W2 | 专项 | [`SC-20`](roadmap/security-compliance.md#step-sc-20) | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | `SC-03`、`SC-18` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-20) |
 | **W3** | **实际执行、取消与恢复** |  |  |  |  |  |  |
-| 215 | W3 | 专项 | [`CP-15`](roadmap/control-plane.md#step-cp-15) | ControlPlane · 统一取消状态，覆盖审批与排队竞态 | `CP-02`、`CP-07`、`CP-13`、`CP-14` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-15) |
+| 215 | W3 | 专项 | [`CP-15`](roadmap/control-plane.md#step-cp-15) | ControlPlane · 统一取消状态，覆盖审批与排队竞态 | `CP-02`、`CP-07`、`CP-13`、`CP-14` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-15) |
 | 216 | W3 | 专项 | [`CP-16`](roadmap/control-plane.md#step-cp-16) | ControlPlane · Handler 真正停止与文件提交证据 | `CP-12`、`CP-13`、`CP-15` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-16) |
 | 217 | W3 | 专项 | [`CP-17`](roadmap/control-plane.md#step-cp-17) | ControlPlane · 撤销、失败清理与 Cell 退休 | `CP-08`、`CP-11`、`CP-12`、`CP-15`、`CP-16` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-17) |
 | 218 | W3 | 专项 | [`CP-18`](roadmap/control-plane.md#step-cp-18) | ControlPlane · RunSnapshot 与安全 checkpoint | `CP-07`、`CP-09`、`CP-14`、`CP-17` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-18) |
 | 219 | W3 | 专项 | [`CP-19`](roadmap/control-plane.md#step-cp-19) | ControlPlane · 显式 Resume 与新进程重建 | `CP-10`、`CP-14`、`CP-17`、`CP-18` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-19) |
 | 220 | W3 | 专项 | [`CP-20`](roadmap/control-plane.md#step-cp-20) | ControlPlane · Unknown 对账、重试与补偿 | `CP-14`、`CP-17`、`CP-19` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-20) |
 | 221 | W3 | 专项 | [`CP-21`](roadmap/control-plane.md#step-cp-21) | ControlPlane · 投影、Receipt 和只读查询 | `CP-07`、`CP-10`、`CP-14`、`CP-19` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-21) |
-| 222 | W3 | 专项 | [`CP-22`](roadmap/control-plane.md#step-cp-22) | ControlPlane · Protocol、动作卡与各入口同一事实 | `CP-10`、`CP-15`、`CP-19`、`CP-21` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-22) |
-| 223 | W3 | 专项 | [`CP-26`](roadmap/control-plane.md#step-cp-26) | ControlPlane · 决策解释、审计关联与证据 | `CP-14`、`CP-20`、`CP-21` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-26) |
-| 224 | W3 | 专项 | [`CP-27`](roadmap/control-plane.md#step-cp-27) | ControlPlane · 非阻塞存储、时钟和资源限额 | `CP-07`、`CP-11`、`CP-15`、`CP-21` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-27) |
-| 225 | W3 | 专项 | [`CP-28`](roadmap/control-plane.md#step-cp-28) | ControlPlane · 迁移、兼容 adapter 与旁路收口 | `CP-02`、`CP-07`、`CP-19`、`CP-22` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-28) |
+| 222 | W3 | 专项 | [`CP-22`](roadmap/control-plane.md#step-cp-22) | ControlPlane · Protocol、动作卡与各入口同一事实 | `CP-10`、`CP-15`、`CP-19`、`CP-21` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-22) |
+| 223 | W3 | 专项 | [`CP-26`](roadmap/control-plane.md#step-cp-26) | ControlPlane · 决策解释、审计关联与证据 | `CP-14`、`CP-20`、`CP-21` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-26) |
+| 224 | W3 | 专项 | [`CP-27`](roadmap/control-plane.md#step-cp-27) | ControlPlane · 非阻塞存储、时钟和资源限额 | `CP-07`、`CP-11`、`CP-15`、`CP-21` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-27) |
+| 225 | W3 | 专项 | [`CP-28`](roadmap/control-plane.md#step-cp-28) | ControlPlane · 迁移、兼容 adapter 与旁路收口 | `CP-02`、`CP-07`、`CP-19`、`CP-22` | 🔄 | [专项卡](roadmap/control-plane.md#step-cp-28) |
 | 226 | W3 | 专项 | [`ER-17`](roadmap/event-receipt-recovery.md#step-er-17) | Event / Receipt / Recovery · Serializable RunSnapshot 与 pending writes | `ER-16` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-17) |
-| 227 | W3 | 专项 | [`ER-18`](roadmap/event-receipt-recovery.md#step-er-18) | Event / Receipt / Recovery · Workspace checkpoint transaction 与 restore evidence | `ER-17` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-18) |
-| 228 | W3 | 专项 | [`ER-19`](roadmap/event-receipt-recovery.md#step-er-19) | Event / Receipt / Recovery · Worker/process handle 与 fencing token | `ER-18` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-19) |
-| 229 | W3 | 专项 | [`ER-20`](roadmap/event-receipt-recovery.md#step-er-20) | Event / Receipt / Recovery · Restart projector 与默认暂停 | `ER-19` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-20) |
-| 230 | W3 | 专项 | [`ER-21`](roadmap/event-receipt-recovery.md#step-er-21) | Event / Receipt / Recovery · Explicit resume preflight and claim | `ER-20` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-21) |
-| 231 | W3 | 专项 | [`ER-22`](roadmap/event-receipt-recovery.md#step-er-22) | Event / Receipt / Recovery · Cancel recovery and stop confirmation | `ER-21` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-22) |
+| 227 | W3 | 专项 | [`ER-18`](roadmap/event-receipt-recovery.md#step-er-18) | Event / Receipt / Recovery · Workspace checkpoint transaction 与 restore evidence | `ER-17` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-18) |
+| 228 | W3 | 专项 | [`ER-19`](roadmap/event-receipt-recovery.md#step-er-19) | Event / Receipt / Recovery · Worker/process handle 与 fencing token | `ER-18` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-19) |
+| 229 | W3 | 专项 | [`ER-20`](roadmap/event-receipt-recovery.md#step-er-20) | Event / Receipt / Recovery · Restart projector 与默认暂停 | `ER-19` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-20) |
+| 230 | W3 | 专项 | [`ER-21`](roadmap/event-receipt-recovery.md#step-er-21) | Event / Receipt / Recovery · Explicit resume preflight and claim | `ER-20` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-21) |
+| 231 | W3 | 专项 | [`ER-22`](roadmap/event-receipt-recovery.md#step-er-22) | Event / Receipt / Recovery · Cancel recovery and stop confirmation | `ER-21` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-22) |
 | 232 | W3 | 专项 | [`ER-23`](roadmap/event-receipt-recovery.md#step-er-23) | Event / Receipt / Recovery · Unknown incident 与 RecoveryPlan | `ER-22` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-23) |
 | 233 | W3 | 专项 | [`ER-24`](roadmap/event-receipt-recovery.md#step-er-24) | Event / Receipt / Recovery · Reconciliation commands and evidence | `ER-23` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-24) |
-| 234 | W3 | 专项 | [`ER-25`](roadmap/event-receipt-recovery.md#step-er-25) | Event / Receipt / Recovery · Retry policy and new attempt | `ER-24` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-25) |
+| 234 | W3 | 专项 | [`ER-25`](roadmap/event-receipt-recovery.md#step-er-25) | Event / Receipt / Recovery · Retry policy and new attempt | `ER-24` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-25) |
 | 235 | W3 | 专项 | [`ER-26`](roadmap/event-receipt-recovery.md#step-er-26) | Event / Receipt / Recovery · Cursor query、snapshot 和慢消费者 | `ER-25` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-26) |
-| 236 | W3 | 专项 | [`ER-27`](roadmap/event-receipt-recovery.md#step-er-27) | Event / Receipt / Recovery · 四入口统一只读 receipt/recovery commands | `ER-26` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-27) |
-| 237 | W3 | 专项 | [`CAP-07`](roadmap/capability.md#step-cap-07) | Capability · EnvironmentPort 与可验证 backend 选择 | `CAP-03`、`CAP-04` | ✅ | [专项卡](roadmap/capability.md#step-cap-07) |
+| 236 | W3 | 专项 | [`ER-27`](roadmap/event-receipt-recovery.md#step-er-27) | Event / Receipt / Recovery · 四入口统一只读 receipt/recovery commands | `ER-26` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-27) |
+| 237 | W3 | 专项 | [`CAP-07`](roadmap/capability.md#step-cap-07) | Capability · EnvironmentPort 与可验证 backend 选择 | `CAP-03`、`CAP-04` | 🔄 | [专项卡](roadmap/capability.md#step-cap-07) |
 | 238 | W3 | 专项 | [`CAP-08`](roadmap/capability.md#step-cap-08) | Capability · 共享 PathResolver 与文件身份前置条件 | `CAP-07` | ✅ | [专项卡](roadmap/capability.md#step-cap-08) |
 | 239 | W3 | 专项 | [`CAP-09`](roadmap/capability.md#step-cap-09) | Capability · Linux 最小文件视图与不可扩大的挂载集 | `CAP-08` | ✅ | [专项卡](roadmap/capability.md#step-cap-09) |
 | 240 | W3 | 专项 | [`CAP-10`](roadmap/capability.md#step-cap-10) | Capability · 为严格 packet 写集提供隔离写层 | `CAP-09` | ✅ | [专项卡](roadmap/capability.md#step-cap-10) |
-| 241 | W3 | 专项 | [`CAP-11`](roadmap/capability.md#step-cap-11) | Capability · 清理 ambient authority，落实默认断网 | `CAP-09` | ✅ | [专项卡](roadmap/capability.md#step-cap-11) |
+| 241 | W3 | 专项 | [`CAP-11`](roadmap/capability.md#step-cap-11) | Capability · 清理 ambient authority，落实默认断网 | `CAP-09` | 🔄 | [专项卡](roadmap/capability.md#step-cap-11) |
 | 242 | W3 | 专项 | [`CAP-12`](roadmap/capability.md#step-cap-12) | Capability · ProcessSupervisor 持有进程树与资源预算 | `CAP-07`、`CAP-11` | ✅ | [专项卡](roadmap/capability.md#step-cap-12) |
 | 243 | W3 | 专项 | [`CAP-13`](roadmap/capability.md#step-cap-13) | Capability · 统一有界输出与脱敏工件 | `CAP-12` | ✅ | [专项卡](roadmap/capability.md#step-cap-13) |
 | 244 | W3 | 专项 | [`CAP-14`](roadmap/capability.md#step-cap-14) | Capability · shell 适配迁入统一执行器 | `CAP-05`、`CAP-12`、`CAP-13` | ✅ | [专项卡](roadmap/capability.md#step-cap-14) |
-| 245 | W3 | 专项 | [`CAP-15`](roadmap/capability.md#step-cap-15) | Capability · patch 一次解析，所有受影响路径可预览 | `CAP-02`、`CAP-08` | ✅ | [专项卡](roadmap/capability.md#step-cap-15) |
+| 245 | W3 | 专项 | [`CAP-15`](roadmap/capability.md#step-cap-15) | Capability · patch 一次解析，所有受影响路径可预览 | `CAP-02`、`CAP-08` | 🔄 | [专项卡](roadmap/capability.md#step-cap-15) |
 | 246 | W3 | 专项 | [`CAP-16`](roadmap/capability.md#step-cap-16) | Capability · patch 提交点、有限回滚和崩溃恢复 | `CAP-10`、`CAP-15` | ✅ | [专项卡](roadmap/capability.md#step-cap-16) |
-| 247 | W3 | 专项 | [`CAP-17`](roadmap/capability.md#step-cap-17) | Capability · 取消与撤销作用于整个 execution 集合 | `CAP-04`、`CAP-12`、`CAP-14`、`CAP-16` | ✅ | [专项卡](roadmap/capability.md#step-cap-17) |
+| 247 | W3 | 专项 | [`CAP-17`](roadmap/capability.md#step-cap-17) | Capability · 取消与撤销作用于整个 execution 集合 | `CAP-04`、`CAP-12`、`CAP-14`、`CAP-16` | 🔄 | [专项卡](roadmap/capability.md#step-cap-17) |
 | 248 | W3 | 专项 | [`CAP-18`](roadmap/capability.md#step-cap-18) | Capability · Hook 本身受控，改写输入重新授权 | `CAP-06`、`CAP-12`、`CAP-17` | ✅ | [专项卡](roadmap/capability.md#step-cap-18) |
-| 249 | W3 | 专项 | [`CAP-19`](roadmap/capability.md#step-cap-19) | Capability · Memory 使用逻辑资源 scope 与可靠提交监督 | `CAP-03`、`CAP-08`、`CAP-17` | ✅ | [专项卡](roadmap/capability.md#step-cap-19) |
-| 250 | W3 | 专项 | [`CAP-20`](roadmap/capability.md#step-cap-20) | Capability · MCP 先建立可信配置与 discovery snapshot | `CAP-01`、`CAP-03`、`CAP-05`、`CAP-12` | ✅ | [专项卡](roadmap/capability.md#step-cap-20) |
-| 251 | W3 | 专项 | [`CAP-21`](roadmap/capability.md#step-cap-21) | Capability · stdio MCP 协议和停止全过程有界 | `CAP-13`、`CAP-17`、`CAP-20` | ✅ | [专项卡](roadmap/capability.md#step-cap-21) |
-| 252 | W3 | 专项 | [`CAP-22`](roadmap/capability.md#step-cap-22) | Capability · MCP result/schema drift 和连接复用隔离 | `CAP-06`、`CAP-21` | ✅ | [专项卡](roadmap/capability.md#step-cap-22) |
-| 253 | W3 | 专项 | [`CAP-23`](roadmap/capability.md#step-cap-23) | Capability · 并发调度与资源冲突一致 | `CAP-10`、`CAP-17`、`CAP-19`、`CAP-22` | ✅ | [专项卡](roadmap/capability.md#step-cap-23) |
-| 254 | W3 | 专项 | [`CAP-24`](roadmap/capability.md#step-cap-24) | Capability · 以事实重建 Invocation，限制重试并支持对账 | `CAP-05`、`CAP-06`、`CAP-16`、`CAP-17`、`CAP-22`、`CAP-23` | ✅ | [专项卡](roadmap/capability.md#step-cap-24) |
-| 255 | W3 | 专项 | [`CAP-25`](roadmap/capability.md#step-cap-25) | Capability · Receipt、模型与四入口看到一致事实 | `CAP-04`、`CAP-13`、`CAP-24` | ✅ | [专项卡](roadmap/capability.md#step-cap-25) |
-| 256 | W3 | 专项 | [`H15`](roadmap/harness.md#step-h15) | Harness · 工具输出有界、完整结果可按需读取 | `H09`、`H11`、`H13` | ✅ | [专项卡](roadmap/harness.md#step-h15) |
-| 257 | W3 | 专项 | [`H16`](roadmap/harness.md#step-h16) | Harness · 有界并行工具组与独占屏障 | `H08`、`H09`、`H12`、`H13`、`H15` | ✅ | [专项卡](roadmap/harness.md#step-h16) |
-| 258 | W3 | 专项 | [`H17`](roadmap/harness.md#step-h17) | Harness · 后台进程和长工具的可恢复句柄 | `H08`、`H13`、`H15` | ✅ | [专项卡](roadmap/harness.md#step-h17) |
+| 249 | W3 | 专项 | [`CAP-19`](roadmap/capability.md#step-cap-19) | Capability · Memory 使用逻辑资源 scope 与可靠提交监督 | `CAP-03`、`CAP-08`、`CAP-17` | 🔄 | [专项卡](roadmap/capability.md#step-cap-19) |
+| 250 | W3 | 专项 | [`CAP-20`](roadmap/capability.md#step-cap-20) | Capability · MCP 先建立可信配置与 discovery snapshot | `CAP-01`、`CAP-03`、`CAP-05`、`CAP-12` | 🔄 | [专项卡](roadmap/capability.md#step-cap-20) |
+| 251 | W3 | 专项 | [`CAP-21`](roadmap/capability.md#step-cap-21) | Capability · stdio MCP 协议和停止全过程有界 | `CAP-13`、`CAP-17`、`CAP-20` | 🔄 | [专项卡](roadmap/capability.md#step-cap-21) |
+| 252 | W3 | 专项 | [`CAP-22`](roadmap/capability.md#step-cap-22) | Capability · MCP result/schema drift 和连接复用隔离 | `CAP-06`、`CAP-21` | 🔄 | [专项卡](roadmap/capability.md#step-cap-22) |
+| 253 | W3 | 专项 | [`CAP-23`](roadmap/capability.md#step-cap-23) | Capability · 并发调度与资源冲突一致 | `CAP-10`、`CAP-17`、`CAP-19`、`CAP-22` | 🔄 | [专项卡](roadmap/capability.md#step-cap-23) |
+| 254 | W3 | 专项 | [`CAP-24`](roadmap/capability.md#step-cap-24) | Capability · 以事实重建 Invocation，限制重试并支持对账 | `CAP-05`、`CAP-06`、`CAP-16`、`CAP-17`、`CAP-22`、`CAP-23` | 🔄 | [专项卡](roadmap/capability.md#step-cap-24) |
+| 255 | W3 | 专项 | [`CAP-25`](roadmap/capability.md#step-cap-25) | Capability · Receipt、模型与四入口看到一致事实 | `CAP-04`、`CAP-13`、`CAP-24` | 🔄 | [专项卡](roadmap/capability.md#step-cap-25) |
+| 256 | W3 | 专项 | [`H15`](roadmap/harness.md#step-h15) | Harness · 工具输出有界、完整结果可按需读取 | `H09`、`H11`、`H13` | 🔄 | [专项卡](roadmap/harness.md#step-h15) |
+| 257 | W3 | 专项 | [`H16`](roadmap/harness.md#step-h16) | Harness · 有界并行工具组与独占屏障 | `H08`、`H09`、`H12`、`H13`、`H15` | 🔄 | [专项卡](roadmap/harness.md#step-h16) |
+| 258 | W3 | 专项 | [`H17`](roadmap/harness.md#step-h17) | Harness · 后台进程和长工具的可恢复句柄 | `H08`、`H13`、`H15` | 🔄 | [专项卡](roadmap/harness.md#step-h17) |
 | 259 | W3 | 专项 | [`H18`](roadmap/harness.md#step-h18) | Harness · 持久 Inbox、ACK 与原子消费 | `H02`、`H03`、`H13` | ✅ | [专项卡](roadmap/harness.md#step-h18) |
-| 260 | W3 | 专项 | [`H19`](roadmap/harness.md#step-h19) | Harness · Continue / Steer / Inject 的产品接线 | `H08`、`H18` | ✅ | [专项卡](roadmap/harness.md#step-h19) |
+| 260 | W3 | 专项 | [`H19`](roadmap/harness.md#step-h19) | Harness · Continue / Steer / Inject 的产品接线 | `H08`、`H18` | 🔄 | [专项卡](roadmap/harness.md#step-h19) |
 | 261 | W3 | 基础 | [`P0-G-03`](#step-p0-g-03) | P0 基础 · `resume_run` 与协议入口 | `P0-G-02b` | ✅ | [基础卡](#step-p0-g-03) |
 | 262 | W3 | 基础 | [`P0-F-03`](#step-p0-f-03) | P0 基础 · 续跑材料落盘与 RunSnapshot | `P0-G-02b`、`P0-G-03`、`P0-F-02` | ✅ | [基础卡](#step-p0-f-03) |
 | 263 | W3 | 基础 | [`P0-J1-02`](#step-p0-j1-02) | P0 基础 · 排空已启动工作 + 合成未启动结果 | `P0-J1-01` | ✅ | [基础卡](#step-p0-j1-02) |
@@ -438,12 +438,12 @@
 | 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ✅ | [基础卡](#step-p2-k6-01) |
 | 269 | W3 | 专项 | [`CI-11`](#step-ci-11) | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | `CI-04`、`CI-10`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09` | ✅ | [专项卡](#step-ci-11) |
 | 270 | W3 | 专项 | [`OA-11`](#step-oa-11) | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | `OA-10` | ✅ | [专项卡](#step-oa-11) |
-| 271 | W3 | 专项 | [`OA-12`](#step-oa-12) | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | `OA-10` | ✅ | [专项卡](#step-oa-12) |
+| 271 | W3 | 专项 | [`OA-12`](#step-oa-12) | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | `OA-10` | 🔄 | [专项卡](#step-oa-12) |
 | 272 | W3 | 专项 | [`OA-13`](#step-oa-13) | 异步队列、背压和丢弃策略；`kiana-daemon`/`kiana-eventlog` | `OA-05`、`OA-10` | ✅ | [专项卡](#step-oa-13) |
-| 273 | W3 | 专项 | [`OA-14`](#step-oa-14) | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | `OA-02`、`OA-07`、`OA-13` | ✅ | [专项卡](#step-oa-14) |
+| 273 | W3 | 专项 | [`OA-14`](#step-oa-14) | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | `OA-02`、`OA-07`、`OA-13` | 🔄 | [专项卡](#step-oa-14) |
 | 274 | W3 | 专项 | [`OA-15`](#step-oa-15) | AuditProjection checkpoint/rebuild；`kiana-eventlog`/`kiana-core` | `OA-04`、`OA-06`、`OA-10` | ✅ | [专项卡](#step-oa-15) |
 | 275 | W3 | 专项 | [`AUT-06`](#step-aut-06) | 纯 planner intent：ready nodes、wait、terminal、reservation、next queue item；`kiana-workflow` | `AUT-03`、`AUT-05` | ✅ | [专项卡](#step-aut-06) |
-| 276 | W3 | 专项 | [`AUT-07`](#step-aut-07) | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | `AUT-05`、`AUT-06` | ✅ | [专项卡](#step-aut-07) |
+| 276 | W3 | 专项 | [`AUT-07`](#step-aut-07) | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | `AUT-05`、`AUT-06` | 🔄 | [专项卡](#step-aut-07) |
 | 277 | W3 | 专项 | [`AUT-08`](#step-aut-08) | `WorkflowQueueStore`、lease/heartbeat/fence/reclaim；`kiana-eventlog`、`kiana-ports`、`kiana-core` | `AUT-05`、`AUT-07` | ✅ | [专项卡](#step-aut-08) |
 | 278 | W3 | 专项 | [`AUT-09`](#step-aut-09) | `DaemonHost` 内 Tokio scheduler/worker service、bounded channel、shutdown；`kiana-daemon` | `AUT-02`、`AUT-08` | ✅ | [专项卡](#step-aut-09) |
 | 279 | W3 | 专项 | [`AUT-10`](#step-aut-10) | Interval due/cursor/missed policy；`kiana-workflow`、`kiana-core` | `AUT-02`、`AUT-04`、`AUT-09` | ✅ | [专项卡](#step-aut-10) |
@@ -452,7 +452,7 @@
 | 282 | W3 | 专项 | [`NM-07`](#step-nm-07) | dedup/idempotency/OCC；dedup key、content hash、subscription revision | `NM-04`、`NM-05` | ✅ | [专项卡](#step-nm-07) |
 | 283 | W3 | 专项 | [`EQ-17`](#step-eq-17) | 在 `kiana-quality/src/normalize.rs` 实现 durable event 选择和 sequence/terminal/correlation 校验 | `P0-G-02a`、`P0-G-02b`、`P0-G-04`、`EQ-16` | ✅ | [专项卡](#step-eq-17) |
 | 284 | W3 | 专项 | [`EQ-18`](#step-eq-18) | 实现 canonical JSON、稳定数组策略、字段白名单和 redaction 复用 | `EQ-17` | ✅ | [专项卡](#step-eq-18) |
-| 285 | W3 | 专项 | [`EQ-19`](#step-eq-19) | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `EQ-18` | ✅ | [专项卡](#step-eq-19) |
+| 285 | W3 | 专项 | [`EQ-19`](#step-eq-19) | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `EQ-18` | 🔄 | [专项卡](#step-eq-19) |
 | 286 | W3 | 专项 | [`EQ-20`](#step-eq-20) | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `EQ-19` | ✅ | [专项卡](#step-eq-20) |
 | 287 | W3 | 专项 | [`EQ-21`](#step-eq-21) | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `EQ-20` | ✅ | [专项卡](#step-eq-21) |
 | 288 | W3 | 专项 | [`EQ-22`](#step-eq-22) | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `EQ-21` | ✅ | [专项卡](#step-eq-22) |
@@ -460,40 +460,40 @@
 | 290 | W3 | 专项 | [`EQ-24`](#step-eq-24) | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `EQ-23` | ✅ | [专项卡](#step-eq-24) |
 | 291 | W3 | 专项 | [`EQ-25`](#step-eq-25) | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `EQ-24` | ✅ | [专项卡](#step-eq-25) |
 | 292 | W3 | 专项 | [`EQ-26`](#step-eq-26) | 为 Runtime、Approval、Hook、Memory、Workflow、Swarm 各补 provider-independent trace fixture | `EQ-25` | ✅ | [专项卡](#step-eq-26) |
-| 293 | W3 | 专项 | [`PD-10`](roadmap/persistence-data-layer.md#step-pd-10) | Run/Invocation/Attempt/Receipt 读模型；`kiana-core` | `ER-08`、`ER-09`、`ER-10`、`ER-11`、`ER-12`、`ER-13`、`ER-14`、`ER-15`、`ER-16`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-10) |
+| 293 | W3 | 专项 | [`PD-10`](roadmap/persistence-data-layer.md#step-pd-10) | Run/Invocation/Attempt/Receipt 读模型；`kiana-core` | `ER-08`、`ER-09`、`ER-10`、`ER-11`、`ER-12`、`ER-13`、`ER-14`、`ER-15`、`ER-16`、`PD-09` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-10) |
 | 294 | W3 | 专项 | [`PD-11`](roadmap/persistence-data-layer.md#step-pd-11) | Cell/Grant/Budget/Lease/Authority 状态投影；`kiana-core`、`kiana-domain` | `CP-10`、`CAP-17`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-11) |
 | 295 | W3 | 专项 | [`PD-12`](roadmap/persistence-data-layer.md#step-pd-12) | 把 ApprovalStore 从独立 JSONL 权威迁为 EventStore 事实 + 查询适配器；`kiana-daemon` | `ER-10`、`PD-10`、`PD-11` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-12) |
 | 296 | W3 | 专项 | [`PD-13`](roadmap/persistence-data-layer.md#step-pd-13) | PendingInvocation、Runner continuation、workspace checkpoint 的持久化和恢复材料；`kiana-core`、`kiana-daemon` | `ER-17`、`ER-18`、`ER-19`、`ER-20`、`ER-21`、`ER-22`、`PD-10`、`PD-11`、`PD-12` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-13) |
-| 297 | W3 | 专项 | [`PD-14`](roadmap/persistence-data-layer.md#step-pd-14) | 统一 ArtifactStore、content hash、manifest、ref、原子读写；`kiana-core`/新 port | `ER-03`、`PD-04` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-14) |
+| 297 | W3 | 专项 | [`PD-14`](roadmap/persistence-data-layer.md#step-pd-14) | 统一 ArtifactStore、content hash、manifest、ref、原子读写；`kiana-core`/新 port | `ER-03`、`PD-04` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-14) |
 | 298 | W3 | 专项 | [`PD-15`](roadmap/persistence-data-layer.md#step-pd-15) | Workspace patch/checkpoint、diff、undo 与 Artifact refs 绑定；`kiana-core` | `P2-K4-01`、`PD-14` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-15) |
 | 299 | W3 | 专项 | [`PD-16`](roadmap/persistence-data-layer.md#step-pd-16) | Receipt 重算器、evidence graph 和 delivery/closing 引用；`kiana-core`、`kiana-query` | `PD-10`、`PD-14`、`PD-15` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-16) |
 | 300 | W3 | 专项 | [`SC-21`](roadmap/security-compliance.md#step-sc-21) | kiana-domain DataClass/Purpose/DataBoundary | `SC-02`、`SC-05`、`SC-20` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-21) |
 | 301 | W3 | 专项 | [`SC-22`](roadmap/security-compliance.md#step-sc-22) | kiana-core/kiana-eventlog RetentionPolicy、legal hold | `PD-05`、`OA-08`、`SC-21` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-22) |
 | 302 | W3 | 专项 | [`SC-23`](roadmap/security-compliance.md#step-sc-23) | kiana-core/kiana-eventlog DeleteRequest/Tombstone/data epoch | `SC-22`、`SC-12` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-23) |
-| 303 | W3 | 专项 | [`SC-25`](roadmap/security-compliance.md#step-sc-25) | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | `SC-04`、`SC-07` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-25) |
-| 304 | W3 | 专项 | [`SC-26`](roadmap/security-compliance.md#step-sc-26) | kiana-domain ExtensionManifest/CapabilityCatalog | `SC-02`、`SC-09`、`SC-25` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-26) |
+| 303 | W3 | 专项 | [`SC-25`](roadmap/security-compliance.md#step-sc-25) | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | `SC-04`、`SC-07` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-25) |
+| 304 | W3 | 专项 | [`SC-26`](roadmap/security-compliance.md#step-sc-26) | kiana-domain ExtensionManifest/CapabilityCatalog | `SC-02`、`SC-09`、`SC-25` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-26) |
 | 305 | W3 | 专项 | [`SC-27`](roadmap/security-compliance.md#step-sc-27) | kiana-daemon hook/skill/plugin lifecycle、sandbox | `SC-14`、`SC-16`、`SC-26` | ✅ | [专项卡](roadmap/security-compliance.md#step-sc-27) |
 | **W4** | **上下文、记忆与扩展** |  |  |  |  |  |  |
 | 306 | W4 | 专项 | [`CP-25`](roadmap/control-plane.md#step-cp-25) | ControlPlane · Skills、Hooks、Memory、MCP 与 Secret 的统一边界 | `CP-03`、`CP-04`、`CP-08`、`CP-13`、`CP-18` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-25) |
-| 307 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译 | `H04`、`H09`、`H18` | ✅ | [专项卡](roadmap/harness.md#step-h20) |
-| 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀 | `H07`、`H20` | ✅ | [专项卡](roadmap/harness.md#step-h21) |
-| 309 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction | `H05`、`H11`、`H15`、`H20`、`H21` | ✅ | [专项卡](roadmap/harness.md#step-h22) |
-| 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | ✅ | [专项卡](roadmap/harness.md#step-h23) |
+| 307 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译 | `H04`、`H09`、`H18` | 🔄 | [专项卡](roadmap/harness.md#step-h20) |
+| 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀 | `H07`、`H20` | 🔄 | [专项卡](roadmap/harness.md#step-h21) |
+| 309 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction | `H05`、`H11`、`H15`、`H20`、`H21` | 🔄 | [专项卡](roadmap/harness.md#step-h22) |
+| 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | 🔄 | [专项卡](roadmap/harness.md#step-h23) |
 | 311 | W4 | 专项 | [`H24`](roadmap/harness.md#step-h24) | Harness · 完整检查点与显式 Resume | `H13`、`H14`、`H17`、`H18`、`H23` | ✅ | [专项卡](roadmap/harness.md#step-h24) |
 | 312 | W4 | 专项 | [`H25`](roadmap/harness.md#step-h25) | Harness · 重放、故障注入与 Unknown 对账 | `H13`、`H16`、`H23`、`H24` | ✅ | [专项卡](roadmap/harness.md#step-h25) |
 | 313 | W4 | 专项 | [`H26`](roadmap/harness.md#step-h26) | Harness · 澄清请求与权限审批分离 | `H09`、`H14`、`H18`、`H19`、`H24` | ✅ | [专项卡](roadmap/harness.md#step-h26) |
 | 314 | W4 | 专项 | [`H27`](roadmap/harness.md#step-h27) | Harness · 结构化输出与准确的 TurnOutcome | `H05`、`H11`、`H14`、`H26` | ✅ | [专项卡](roadmap/harness.md#step-h27) |
-| 315 | W4 | 专项 | [`H28`](roadmap/harness.md#step-h28) | Harness · 进度、停滞检测与有界修复策略 | `H07`、`H11`、`H17`、`H27` | ✅ | [专项卡](roadmap/harness.md#step-h28) |
+| 315 | W4 | 专项 | [`H28`](roadmap/harness.md#step-h28) | Harness · 进度、停滞检测与有界修复策略 | `H07`、`H11`、`H17`、`H27` | 🔄 | [专项卡](roadmap/harness.md#step-h28) |
 | 316 | W4 | 专项 | [`H29`](roadmap/harness.md#step-h29) | Harness · 有序、受约束的 Hooks / Skills 扩展点 | `H09`、`H20`、`H27`、`H28` | ✅ | [专项卡](roadmap/harness.md#step-h29) |
 | 317 | W4 | 专项 | [`H30`](roadmap/harness.md#step-h30) | Harness · 检索、Memory 与代码索引进入同一 ContextPlan | `H15`、`H20`、`H21`、`H23`、`H29` | ✅ | [专项卡](roadmap/harness.md#step-h30) |
 | 318 | W4 | 专项 | [`CM-07`](roadmap/context-memory.md#step-cm-07) | Context / Memory · Workspace/artifact snapshot 与安全读取 | `CM-06` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-07) |
 | 319 | W4 | 专项 | [`CM-08`](roadmap/context-memory.md#step-cm-08) | Context / Memory · 稳定 chunker 与 offset provenance | `CM-07` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-08) |
-| 320 | W4 | 专项 | [`CM-09`](roadmap/context-memory.md#step-cm-09) | Context / Memory · 文本规范化、语言和敏感数据边界 | `CM-08` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-09) |
+| 320 | W4 | 专项 | [`CM-09`](roadmap/context-memory.md#step-cm-09) | Context / Memory · 文本规范化、语言和敏感数据边界 | `CM-08` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-09) |
 | 321 | W4 | 专项 | [`CM-10`](roadmap/context-memory.md#step-cm-10) | Context / Memory · ContextIndex generation 与原子切换 | `CM-09` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-10) |
 | 322 | W4 | 专项 | [`CM-11`](roadmap/context-memory.md#step-cm-11) | Context / Memory · 增量更新、rename/delete 与缓存失效 | `CM-10` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-11) |
-| 323 | W4 | 专项 | [`CM-12`](roadmap/context-memory.md#step-cm-12) | Context / Memory · 统一 sparse/dense/RRF/MMR 检索器 | `CM-11` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-12) |
+| 323 | W4 | 专项 | [`CM-12`](roadmap/context-memory.md#step-cm-12) | Context / Memory · 统一 sparse/dense/RRF/MMR 检索器 | `CM-11` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-12) |
 | 324 | W4 | 专项 | [`CM-13`](roadmap/context-memory.md#step-cm-13) | Context / Memory · Repo map 任务相关排序和依赖证据 | `CM-12` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-13) |
-| 325 | W4 | 专项 | [`CM-14`](roadmap/context-memory.md#step-cm-14) | Context / Memory · 检索结果 provenance、freshness 与 health | `CM-13` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-14) |
+| 325 | W4 | 专项 | [`CM-14`](roadmap/context-memory.md#step-cm-14) | Context / Memory · 检索结果 provenance、freshness 与 health | `CM-13` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-14) |
 | 326 | W4 | 专项 | [`CM-15`](roadmap/context-memory.md#step-cm-15) | Context / Memory · ContextPlan 选材与 omission 解释 | `CM-14` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-15) |
 | 327 | W4 | 专项 | [`CM-16`](roadmap/context-memory.md#step-cm-16) | Context / Memory · 真实 wire budget 与稳定前缀 | `CM-15` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-16) |
 | 328 | W4 | 专项 | [`CM-17`](roadmap/context-memory.md#step-cm-17) | Context / Memory · ResolvedStepContext 单一快照 | `CM-16` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-17) |
@@ -525,10 +525,10 @@
 | 354 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
 | 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
 | 356 | W4 | 专项 | [`EXT-21`](roadmap/skills-plugins-hooks.md#step-ext-21) | Skills / Plugins / Hooks · 依赖图与 binding | `EXT-19`、`EXT-20` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-21) |
-| 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
+| 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | 🔄 | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
 | 358 | W4 | 专项 | [`EXT-23`](roadmap/skills-plugins-hooks.md#step-ext-23) | Skills / Plugins / Hooks · upgrade、disable、revoke、rollback、uninstall | `EXT-22` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-23) |
 | 359 | W4 | 专项 | [`EXT-24`](roadmap/skills-plugins-hooks.md#step-ext-24) | Skills / Plugins / Hooks · secret、state 和 migration | `EXT-22`、`EXT-23` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-24) |
-| 360 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |
+| 360 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | 🔄 | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |
 | 361 | W4 | 专项 | [`EXT-26`](roadmap/skills-plugins-hooks.md#step-ext-26) | Skills / Plugins / Hooks · Plugin component adapter | `EXT-15`、`EXT-21`、`EXT-22` | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-26) |
 | 362 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ✅ | [基础卡](#step-p1-j2-01) |
 | 363 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ✅ | [基础卡](#step-p1-j2-02) |
@@ -542,8 +542,8 @@
 | 371 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ✅ | [基础卡](#step-p4-j3-05) |
 | 372 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ✅ | [基础卡](#step-p4-l5-01) |
 | 373 | W4 | 基础 | [`P4-L6-01`](#step-p4-l6-01) | P4 基础 · 供应链 | `P4-L5-01` | ✅ | [基础卡](#step-p4-l6-01) |
-| 374 | W4 | 专项 | [`PD-17`](roadmap/persistence-data-layer.md#step-pd-17) | Memory mutation journal、candidate/draft/qualify/approve/supersede/tombstone；`kiana-daemon`、`kiana-eventlog` | `CM-04`、`CM-05`、`PD-07`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-17) |
-| 375 | W4 | 专项 | [`PD-18`](roadmap/persistence-data-layer.md#step-pd-18) | Memory projection、ACL/治理 epoch、retention 和删除索引联动；`kiana-daemon`、`kiana-core` | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`PD-17` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-18) |
+| 374 | W4 | 专项 | [`PD-17`](roadmap/persistence-data-layer.md#step-pd-17) | Memory mutation journal、candidate/draft/qualify/approve/supersede/tombstone；`kiana-daemon`、`kiana-eventlog` | `CM-04`、`CM-05`、`PD-07`、`PD-09` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-17) |
+| 375 | W4 | 专项 | [`PD-18`](roadmap/persistence-data-layer.md#step-pd-18) | Memory projection、ACL/治理 epoch、retention 和删除索引联动；`kiana-daemon`、`kiana-core` | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`PD-17` | 🔄 | [专项卡](roadmap/persistence-data-layer.md#step-pd-18) |
 | 376 | W4 | 专项 | [`PD-19`](roadmap/persistence-data-layer.md#step-pd-19) | ContextIndex generation、source fingerprint、freshness、原子切换；`kiana-query` | `CM-10`、`CM-11`、`CM-12`、`CM-13`、`CM-14`、`PD-09` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-19) |
 | 377 | W4 | 专项 | [`PD-20`](roadmap/persistence-data-layer.md#step-pd-20) | RepoMap、context artifact ingest 和依赖图的持久 manifest；`kiana-query` | `PD-14`、`PD-19` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-20) |
 | 378 | W4 | 专项 | [`PD-21`](roadmap/persistence-data-layer.md#step-pd-21) | Cache 与事实/投影分离，淘汰、大小/时间上限和禁用开关；`kiana-query`、`kiana-daemon` | `PD-09`、`PD-18`、`PD-19`、`PD-20` | ✅ | [专项卡](roadmap/persistence-data-layer.md#step-pd-21) |
@@ -627,11 +627,11 @@
 | 454 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ✅ | [基础卡](#step-p2-m7-01) |
 | 455 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ✅ | [基础卡](#step-p4-m6-01) |
 | 456 | W6 | 专项 | [`OA-16`](#step-oa-16) | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | `CP-21`、`CP-22`、`OA-15` | ✅ | [专项卡](#step-oa-16) |
-| 457 | W6 | 专项 | [`OA-17`](#step-oa-17) | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | `OA-15`、`OA-16` | ✅ | [专项卡](#step-oa-17) |
+| 457 | W6 | 专项 | [`OA-17`](#step-oa-17) | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | `OA-15`、`OA-16` | 🔄 | [专项卡](#step-oa-17) |
 | 458 | W6 | 专项 | [`OA-18`](#step-oa-18) | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | `OA-03`、`OA-16`、`OA-17` | ✅ | [专项卡](#step-oa-18) |
 | 459 | W6 | 专项 | [`OA-19`](#step-oa-19) | Alert/Incident 规则、去重和 Recovery 关联；`kiana-core/recovery.rs`、daemon health | `OA-10`、`OA-11`、`OA-15` | ✅ | [专项卡](#step-oa-19) |
-| 460 | W6 | 专项 | [`OA-20`](#step-oa-20) | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | `OA-03`、`OA-15`、`OA-19`、`OA-16`、`OA-17`、`OA-18` | ✅ | [专项卡](#step-oa-20) |
-| 461 | W6 | 专项 | [`OA-21`](#step-oa-21) | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | `OA-15`、`OA-19`、`OA-20` | ✅ | [专项卡](#step-oa-21) |
+| 460 | W6 | 专项 | [`OA-20`](#step-oa-20) | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | `OA-03`、`OA-15`、`OA-19`、`OA-16`、`OA-17`、`OA-18` | 🔄 | [专项卡](#step-oa-20) |
+| 461 | W6 | 专项 | [`OA-21`](#step-oa-21) | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | `OA-15`、`OA-19`、`OA-20` | 🔄 | [专项卡](#step-oa-21) |
 | 462 | W6 | 专项 | [`OA-22`](#step-oa-22) | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | `OA-06`、`OA-21`、`OA-07`、`OA-08`、`OA-09`、`OA-10`、`OA-11`、`OA-12`、`OA-13`、`OA-14`、`OA-15`、`OA-16`、`OA-17`、`OA-18`、`OA-19`、`OA-20` | ✅ | [专项卡](#step-oa-22) |
 | 463 | W6 | 专项 | [`NM-06`](#step-nm-06) | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | `P2-K3-01`、`NM-04`、`NM-05` | 🔄 | [专项卡](#step-nm-06) |
 | 464 | W6 | 专项 | [`NM-08`](#step-nm-08) | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | `PD-10`、`PD-11`、`PD-12`、`PD-13`、`NM-06`、`NM-07` | 🔄 | [专项卡](#step-nm-08) · [baseline](roadmap/nm08-notification-outbox-baseline.md) |
@@ -760,7 +760,7 @@
 | 585 | W8 | 专项 | [`ER-29`](roadmap/event-receipt-recovery.md#step-er-29) | Event / Receipt / Recovery · Data governance、retention 和 deletion propagation | `ER-28` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-29) · [baseline](roadmap/er29-data-governance-baseline.md) |
 | 586 | W8 | 专项 | [`ER-30`](roadmap/event-receipt-recovery.md#step-er-30) | Event / Receipt / Recovery · Health、metrics、trace correlation and operator evidence | `ER-29` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-30) · [baseline](roadmap/er30-observability-baseline.md) |
 | 587 | W8 | 专项 | [`H31`](roadmap/harness.md#step-h31) | Harness · 受控子 Agent 的 Harness 接缝 | `H07`、`H09`、`H13`、`H24`、`H27`、`H30` | ✅ | [专项卡](roadmap/harness.md#step-h31) |
-| 588 | W8 | 专项 | [`H33`](roadmap/harness.md#step-h33) | Harness · 运行资源、关闭和异常退出的完整清理 | `H08`、`H17`、`H24`、`H31`、`H32` | ✅ | [专项卡](roadmap/harness.md#step-h33) |
+| 588 | W8 | 专项 | [`H33`](roadmap/harness.md#step-h33) | Harness · 运行资源、关闭和异常退出的完整清理 | `H08`、`H17`、`H24`、`H31`、`H32` | 🔄 | [专项卡](roadmap/harness.md#step-h33) |
 | 589 | W8 | 专项 | [`H34`](roadmap/harness.md#step-h34) | Harness · 旧协议、cassette 与入口迁移 | `H02`、`H04`、`H19`、`H24`、`H27`、`H32`、`H33` | ✅ | [专项卡](roadmap/harness.md#step-h34) |
 | 590 | W8 | 专项 | [`CO-42`](roadmap/companyos.md#step-co-42) | CompanyOS · 全业务链跨进程恢复与 schema 升级演练 | `CO-08`、`CO-23`、`CO-29`、`CO-30`、`CO-32`、`CO-35`、`CO-39` | 🔄 | [专项卡](roadmap/companyos.md#step-co-42) · [baseline](roadmap/co42-company-recovery-baseline.md) |
 | 591 | W8 | 专项 | [`CO-43`](roadmap/companyos.md#step-co-43) | CompanyOS · 有界多角色/多 Builder 并行 | `CO-18`、`CO-19`、`CO-20`、`CO-21`、`CO-29`、`CO-42` | 🔄 | [专项卡](roadmap/companyos.md#step-co-43) · [baseline](roadmap/co43-company-parallel-baseline.md) |
@@ -804,13 +804,13 @@
 | 628 | W9 | 专项 | [`ER-33`](roadmap/event-receipt-recovery.md#step-er-33) | Event / Receipt / Recovery · Performance、容量和迁移演练 | `ER-32` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-33) · [baseline](roadmap/er33-capacity-migration-baseline.md) |
 | 629 | W9 | 专项 | [`ER-34`](roadmap/event-receipt-recovery.md#step-er-34) | Event / Receipt / Recovery · Local durable gate | `ER-33` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-34) · [baseline](roadmap/er34-durable-gate-baseline.md) |
 | 630 | W9 | 专项 | [`ER-35`](roadmap/event-receipt-recovery.md#step-er-35) | Event / Receipt / Recovery · Cross-entry and CompanyOS gate | `ER-34` | 🔄 | [专项卡](roadmap/event-receipt-recovery.md#step-er-35) · [baseline](roadmap/er35-cross-entry-company-baseline.md) |
-| 631 | W9 | 专项 | [`CAP-26`](roadmap/capability.md#step-cap-26) | Capability · 本地五工具 + Hook 的完整执行闭环验收 | `CAP-14`、`CAP-15`、`CAP-16`、`CAP-17`、`CAP-18`、`CAP-19`、`CAP-20`、`CAP-21`、`CAP-22`、`CAP-23`、`CAP-24`、`CAP-25` | ✅ | [专项卡](roadmap/capability.md#step-cap-26) |
-| 632 | W9 | 专项 | [`H35`](roadmap/harness.md#step-h35) | Harness · Harness 轨迹评测与性能验证 | `H25`、`H27`、`H28`、`H30`、`H34` | ✅ | [专项卡](roadmap/harness.md#step-h35) |
+| 631 | W9 | 专项 | [`CAP-26`](roadmap/capability.md#step-cap-26) | Capability · 本地五工具 + Hook 的完整执行闭环验收 | `CAP-14`、`CAP-15`、`CAP-16`、`CAP-17`、`CAP-18`、`CAP-19`、`CAP-20`、`CAP-21`、`CAP-22`、`CAP-23`、`CAP-24`、`CAP-25` | 🔄 | [专项卡](roadmap/capability.md#step-cap-26) |
+| 632 | W9 | 专项 | [`H35`](roadmap/harness.md#step-h35) | Harness · Harness 轨迹评测与性能验证 | `H25`、`H27`、`H28`、`H30`、`H34` | 🔄 | [专项卡](roadmap/harness.md#step-h35) |
 | 633 | W9 | 专项 | [`P4-J7-29`](roadmap/provider.md#step-p4-j7-29) | Provider · 离线合同矩阵、属性测试与故障语料 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-29) · [baseline](roadmap/p4-j7-29-provider-contract-baseline.md) |
 | 634 | W9 | 专项 | [`P4-J7-30`](roadmap/provider.md#step-p4-j7-30) | Provider · 产品链和四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | 🔄 | [专项卡](roadmap/provider.md#step-p4-j7-30) · [baseline](roadmap/p4-j7-30-provider-product-chain-baseline.md) |
 | 635 | W9 | 专项 | [`CM-30`](roadmap/context-memory.md#step-cm-30) | Context / Memory · Golden ContextPlan / retrieval fixture | `CM-29` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-30) |
 | 636 | W9 | 专项 | [`CM-31`](roadmap/context-memory.md#step-cm-31) | Context / Memory · Retrieval quality and safety evaluation | `CM-30` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-31) |
-| 637 | W9 | 专项 | [`CM-32`](roadmap/context-memory.md#step-cm-32) | Context / Memory · Context/Memory Inspector 与用户纠正 | `CM-31` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-32) |
+| 637 | W9 | 专项 | [`CM-32`](roadmap/context-memory.md#step-cm-32) | Context / Memory · Context/Memory Inspector 与用户纠正 | `CM-31` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-32) |
 | 638 | W9 | 专项 | [`CM-33`](roadmap/context-memory.md#step-cm-33) | Context / Memory · Code graph / temporal fact 后置扩展 | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-33) |
 | 639 | W9 | 专项 | [`CM-34`](roadmap/context-memory.md#step-cm-34) | Context / Memory · Local embedding package and model rotation | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-34) |
 | 640 | W9 | 专项 | [`CM-35`](roadmap/context-memory.md#step-cm-35) | Context / Memory · External context/resource adapter | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-35) |
@@ -885,9 +885,9 @@
 | 709 | W9 | 专项 | [`SC-39`](roadmap/security-compliance.md#step-sc-39) | security red-team/eval fixtures | `SC-01`、`SC-20`、`SC-24`、`SC-26`、`SC-30` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-39) | · [baseline](roadmap/sc37-sc39-security-fixture-baseline.md) |
 | 710 | W9 | 专项 | [`SC-40`](roadmap/security-compliance.md#step-sc-40) | capacity/resource fault injection | `SC-16`、`SC-22`、`SC-32` | 🔄 | [专项卡](roadmap/security-compliance.md#step-sc-40) · [baseline](roadmap/sc40-capacity-fault-envelope-baseline.md) |
 | **W10** | **后置平台与能力扩展** |  |  |  |  |  |  |
-| 711 | W10 | 专项 | [`CAP-27`](roadmap/capability.md#step-cap-27) | Capability · 长任务、process handle 与 PTY | `CAP-12`、`CAP-13`、`CAP-17`、`CAP-23`、`CAP-25`、`CAP-26` | ✅ | [专项卡](roadmap/capability.md#step-cap-27) |
-| 712 | W10 | 专项 | [`CAP-28`](roadmap/capability.md#step-cap-28) | Capability · 受控 egress 与最小凭据注入 | `CAP-03`、`CAP-06`、`CAP-11`、`CAP-17`、`CAP-26` | ✅ | [专项卡](roadmap/capability.md#step-cap-28) |
-| 713 | W10 | 专项 | [`CAP-29`](roadmap/capability.md#step-cap-29) | Capability · Streamable HTTP MCP | `CAP-22`、`CAP-24`、`CAP-28` | ✅ | [专项卡](roadmap/capability.md#step-cap-29) |
+| 711 | W10 | 专项 | [`CAP-27`](roadmap/capability.md#step-cap-27) | Capability · 长任务、process handle 与 PTY | `CAP-12`、`CAP-13`、`CAP-17`、`CAP-23`、`CAP-25`、`CAP-26` | 🔄 | [专项卡](roadmap/capability.md#step-cap-27) |
+| 712 | W10 | 专项 | [`CAP-28`](roadmap/capability.md#step-cap-28) | Capability · 受控 egress 与最小凭据注入 | `CAP-03`、`CAP-06`、`CAP-11`、`CAP-17`、`CAP-26` | 🔄 | [专项卡](roadmap/capability.md#step-cap-28) |
+| 713 | W10 | 专项 | [`CAP-29`](roadmap/capability.md#step-cap-29) | Capability · Streamable HTTP MCP | `CAP-22`、`CAP-24`、`CAP-28` | 🔄 | [专项卡](roadmap/capability.md#step-cap-29) |
 | 714 | W10 | 专项 | [`CAP-30`](roadmap/capability.md#step-cap-30) | Capability · 动态工具搜索与受控扩展准入 | `CAP-01`、`CAP-02`、`CAP-05`、`CAP-22`、`CAP-26` | 🔄 | [专项卡](roadmap/capability.md#step-cap-30) · [baseline](roadmap/cap30-dynamic-discovery-baseline.md) |
 | 715 | W10 | 专项 | [`CAP-31`](roadmap/capability.md#step-cap-31) | Capability · macOS 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | 🔄 | [专项卡](roadmap/capability.md#step-cap-31)  · [baseline](roadmap/cap31-macos-backend-baseline.md) |
 | 716 | W10 | 专项 | [`CAP-32`](roadmap/capability.md#step-cap-32) | Capability · Windows 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | 🔄 | [专项卡](roadmap/capability.md#step-cap-32)  · [baseline](roadmap/cap32-windows-backend-baseline.md) |
@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-28 | **首次真正跑完整 workspace 测试，并按 §0 规则重开 125 个 step**：分片矩阵首次跑完全部 1466 个测试 target，16/41 shard 通过、23 shard 失败，共 **705 个测试失败**；desktop contract tests 亦失败（`ui27_persistence.test.js:54`）。fmt/check/clippy 全绿。按 §0「发现回归时重开为 🔄，保留原证据」，将**自身测试文件正在失败**的 125 个 ✅ step 重开为 🔄；原证据块一律保留，不缩小退出条件。多数失败是 `include_str!` 源码标记守卫，说明被文档承诺的标记从未实现——**不得**为让守卫转绿而插入字符串而不管其背后行为。⚠️ 本次只回填 §1.1 总图，**详细卡中的 ✅ 尚未同步**，两者暂时不一致，该不一致在此登记而非掩盖 | 待本提交 |
 | 2026-09-28 | **解除 `Workflow structure` job 的两处基线阻塞（不推进任何 step）**：格式门修复后 `Rust workspace` 已通过 `cargo fmt --all --check` 与 `cargo check` 并进入 clippy；`Workflow structure` 暴露两处更早的基线失败——① `docs/roadmap.md`、`docs/roadmap/persistence-data-layer.md` 引用 `reference/goose|codex/...`，而 `reference/` 被 `.gitignore:77` 忽略、从未进入仓库，故 CI 永远无法解析（这两处引用在 1dfee068 即存在）；按校验器自身指引登记为历史性豁免。② `scripts/tests/eq51-evidence-archive-static.sh:32` 调用 `rg`，而 runner 镜像未提供 ripgrep（exit 127）；本地因 codex 自带 rg 而**假通过**。为 `ci.yml`、`eq51-evidence-archive.yml`、`sc42-security-rehearsal.yml` 三个 job 显式安装 ripgrep。**刻意不把 `rg` 改写为 `grep`**：`oa26`/`int33`/`ui36`/`ui37` 等脚本使用了 `--pcre2`、`--glob`、`-Eiq` 且属fail-closed 安全门禁，改写会静默改变匹配语义。两处均在 tracked-only 干净 clone（等价于 CI 视图）中复现并验证通过。**不提升任何 step 状态或 proof_level** | 待本提交 |
 | 2026-09-28 | **roadmap CI 接线系统性超claim 修复（不推进任何 step）**：全量审计发现 252 份 `docs/roadmap/*-baseline.md` 声称 CI 运行某个 `.github/workflows/*.yml`，而这些 workflow 文件并不存在——属「把状态写成比证据更强」，对应 fixture 没有 CI 路径、🔄 状态永远无法达成。按仓库既有 `<step_id>_<topic>` / `_guard` 命名约定从**真实存在的测试文件**反查（不猜测），为可无歧义确定的 110 个 step 补齐 workflow，分 3 批提交；余下 142 份因 baseline 未给出可机检的测试目标而**刻意不生成**（宁留缺口也不编造命令）。全部 workflow_dispatch-only + 显式 permissions，`scripts/ci/validate-workflows.sh` 通过（42→152 files / 5 automatic / 147 manual），YAML 全部可解析，274 处 `cargo test` 引用 0 缺失。**不提升任何 step 状态或 proof_level**；这些 workflow 从未被执行，证据仍 unobserved | 待本提交 |
 | 2026-09-28 | `AUT-14` 补齐缺失的 CI 接线：该 baseline 声称 CI 运行 `.github/workflows/aut14-effect-reservation.yml`，但该文件从不存在，属"把状态写成比证据更强"（源码 slice 与 domain/core fixture 真实存在，仅 workflow 缺失，fixture 因此永远无法产出证据）。按 baseline 已声明的契约新建该 workflow：format gate + domain fixture + core source guard；`scripts/ci/validate-workflows.sh` 通过（42 files / 5 automatic / 37 manual）。**step 仍为 🔄、proof 仍为 source**——补齐接线只让证据"可获得"，不构成证据；本地未运行任何测试 | 待本提交 |

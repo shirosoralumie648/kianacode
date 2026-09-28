@@ -13223,6 +13223,21 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### First observed full-workspace test result evidence (2026-09-28)
+
+source_snapshot: `98cdb5ee` (sharded test matrix); GitHub Actions run `36429735999`; `.github/workflows/ci.yml`, `scripts/ci/test-shards.json`, `scripts/ci/validate-workflows.sh`
+worktree_status: With fmt, check, clippy, the doc-reference guard and the ripgrep dependency all fixed, the unified gate ran the entire workspace test suite for the first time. The result is the first real measurement of this repository's test state, and it contradicts the status ledger.
+command_argv:
+  GitHub Actions run 36429735999 (commit 98cdb5ee): 41 test shards, fail-fast disabled, --test-threads=1
+  rust-gates: cargo fmt --all --check; cargo check --workspace --locked; cargo clippy --workspace --all-targets --locked; node --test contrib/desktop/tests/*.js
+cwd/environment: GitHub-hosted ubuntu-latest runners; no Cargo test, build or clippy was run locally per user instruction. Logs read back from the Actions API.
+fixture·cassette: all 1466 workspace test targets, executed across 41 shards.
+exit_code: rust-gates fmt/check/clippy = pass; `node --test contrib/desktop/tests/*.js` = fail; 16 of 41 shards pass, 23 fail, 2 still running at the time of reading; 705 distinct failing Rust tests
+status change: 125 roadmap rows reopened from ✅ to 🔄. This follows the roadmap's own rule in §0 — "历史全绿只证明其绑定快照；验收范围未交付或后续发现回归时重开为 🔄，保留原证据，不缩小退出条件" — because each reopened step's own test file is observed failing. Original evidence blocks are deliberately left in place, not deleted. No step was promoted.
+proof-level change: none. No step gained proof; 125 steps lost an unverified ✅.
+limitations: this is a snapshot of one run on one commit, and the shard-to-step mapping is by the repository's own `<step_id>_<topic>` file-naming convention rather than a declared manifest, so the 125 reopenings are a conservative reading of that convention and may include a few tests that are shared fixtures rather than a step's own acceptance test. Two shards were still running when the logs were read, so the 705 figure is a floor, not a total. The detailed cards for the reopened steps still show ✅ in several places and are NOT reconciled by this commit — §1.1 and the cards are therefore temporarily inconsistent, which is recorded here rather than hidden. The desktop contract tests fail on `ui27_persistence.test.js:54` (`desktop_store_patch_unknown_field`), a failure that was invisible while the step sat behind the earlier `cargo test` failure. Most of the 705 failures are `include_str!` source-marker guards asserting that a named string exists in a source file; such a failure means the documented marker was never implemented, and it must not be "fixed" by inserting the string without the behaviour behind it.
+reviewer: Codex diagnosis from the Actions job logs of run 36429735999, cross-checked against the on-disk test inventory; no local runtime test reviewer.
+
 ### `Workflow structure` job unblock evidence (2026-09-28)
 
 source_snapshot: `b185a6fb` through this fix; `.github/workflows/ci.yml`, `.github/workflows/eq51-evidence-archive.yml`, `.github/workflows/sc42-security-rehearsal.yml`, `scripts/ci/doc-reference-exemptions.txt`
