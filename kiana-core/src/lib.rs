@@ -49,6 +49,7 @@ mod control_plane_authority;
 mod control_plane_product_flow;
 mod cost_correction;
 mod credential_recovery;
+mod data_class;
 mod data_governance;
 mod deletion;
 mod delivery_authorization;
@@ -167,6 +168,7 @@ mod security_fence;
 mod security_incident;
 mod sessions;
 mod span_projection;
+mod telemetry_separation;
 mod trace_export;
 mod turn_outcome;
 mod ui_actions;
@@ -301,6 +303,14 @@ pub use incident_projection::{
     project_incidents, project_observability_incidents, IncidentProjectionError,
 };
 pub use invocation_projection::{project_invocations, InvocationProjection};
+pub use data_class::{
+    admit_field, derive_sink_class, evaluate_sink_admission, metric_label_budget,
+    metric_series_budget, runtime_metric_refusal, ClassBasis, ClassClaimOrigin, DerivedClass,
+    SinkAdmission, SinkAdmissionRefusal, SinkAdmissionReport, SinkField, TelemetryGuarantees,
+    TelemetryRuntimeRefusal, DATA_CLASS_ADMISSION_VERSION, DATA_CLASS_DERIVATION_SCHEMA,
+    MAX_SINK_ADMISSION_FIELDS, MAX_SINK_FIELD_KEY, MAX_SINK_FIELD_VALUE, OBSERVATION_SINKS,
+    SINK_ADMISSION_REPORT_SCHEMA,
+};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
     MetricCardinalityGuard, MetricReducer, MetricReducerError, MetricsProjectionError,
@@ -437,6 +447,12 @@ pub use swarm_recovery::validate_child_recovery;
 pub use swarm_release_gate::validate_swarm_release_evidence;
 pub use swarm_retirement::validate_swarm_retirement_fact;
 pub use swarm_routing::validate_child_route;
+pub use telemetry_separation::{
+    admission_cell, is_actionable_refusal, observation_label_budget, separate, ObservationOutcome,
+    SeparationReport, SeparationRequest, SinkObservation, SinkReachability, SubstitutionRefusal,
+    MAX_SEPARATION_FIELDS, MAX_SEPARATION_SINKS, TELEMETRY_SEPARATION_CORE_VERSION,
+    TELEMETRY_SEPARATION_REPORT_SCHEMA,
+};
 pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
