@@ -1,3 +1,32 @@
+//!
+//! # 与 `mcp.rs` 的正面对照（本文件最值得先读的一段）
+//!
+//! 两个文件都把一个 HTTP 服务暴露在本机，防护程度却完全不同：
+//!
+//! | | 本文件（Web） | `mcp.rs`（MCP HTTP） |
+//! |---|---|---|
+//! | 绑定地址 | `ensure_loopback` **硬性拒绝**非 loopback | 取配置里的 host，没有拒绝逻辑 |
+//! | 每次请求的凭据 | 进程内随机 token，逐请求核对 | 无 |
+//! | Host 头 | 必须匹配绑定地址 | 无 |
+//! | Origin 头 | 若存在则必须匹配 | 无 |
+//! | 工具执行 | 经 `harness_run` 到 `ControlPlane` | 直接 `execute_tool_call` |
+//!
+//! 差别不在「两个都是本地服务」，而在于**每一个外部可控的输入都有一个对应的检查**。
+//! `mcp.rs` 缺的不只是某一个检查，而是这一整列。
+//! 那条路径已作为安全发现记录在
+//! [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+//!
+//! # 但要说清楚：这些检查防不住什么
+//!
+//! 文件头那句「不能替代系统级网络、浏览器或项目资源信任边界」是准确的，展开说是：
+//!
+//! - **防不住本机进程**。token 在内存里、在首页里；同机的任何进程都能读到。
+//!   这三道检查防的是**浏览器里的恶意页面**，不是本机的另一个用户。
+//! - **防不住 loopback 本身**。127.0.0.1 不是授权边界，它只是「本机」这一事实的表示。
+//! - **防不住已经被授权的操作**。token 证明「这个请求来自本 Web UI」，
+//!   不证明「这个操作应该被允许」——后者是控制面的事。
+//!
+//! 换句话说：这一层是**暴露面收敛**，不是授权。授权始终在 `ControlPlane`。
 //! 基于 loopback HTTP 的 Web Workbench 入口。
 //!
 //! Web 服务器只提供同一个 [`DaemonHost`] 的本地展示与命令路由：每个 session 的 run、
@@ -764,6 +793,20 @@ pub fn parse_bind(value: &str) -> Result<SocketAddr> {
     Ok(addr)
 }
 
+    /// **硬性拒绝**任何非 loopback 的绑定地址。
+    ///
+    /// 【为什么必须是「拒绝」而不是「警告」】
+    /// 因为一旦绑到 `0.0.0.0`，这个服务就出现在网络上，而它承载的是一条能发命令的
+    /// 通路。到那时候再补救已经不是「改个配置」，而是「已经发生过的事」。
+    /// 拒绝把这件事挡在进程启动之前。
+    ///
+    /// 【对照 `mcp.rs`】
+    /// 那边用 `KIANA_MCP_HTTP_HOST` 决定绑哪里，**没有对应的拒绝逻辑**——
+    /// 设成 `0.0.0.0` 就会真的绑上去。这是两条路径防护差异最直接的一处。
+    ///
+    /// 【⚠ 它只管绑定，不管连上来的】
+    /// 绑在 loopback 之后，任何本机进程依然可以连。所以这一条不能被当成
+    /// 「本服务是安全的」的证明，它只把「不小心暴露到网络」这一类事故消掉了。
 fn ensure_loopback(addr: SocketAddr) -> Result<()> {
     if matches!(
         addr.ip(),
@@ -2647,6 +2690,16 @@ fn complete_action_submission(
 
 /// Rotate the in-memory Web token without changing the principal or ControlPlane authority. A
 /// stale token can no longer use an existing lease; the next page must hydrate with the new token.
+    /// 轮换内存中的 Web token。
+    ///
+    /// 【⚠ 它不是持久化凭据】
+    /// token 只活在内存里，进程结束就没了。文件头那句「不应被视为跨进程认证机制」
+    /// 说的就是这个意思：它防的是**另一个进程顺手复用旧 token**，
+    /// 不是「另一个用户」——后者要靠操作系统层的账户隔离，不靠这个。
+    ///
+    /// 【轮换的代价】
+    /// 轮换之后，已经打开的页面手里的旧 token 立刻失效，界面上正在进行的请求会开始
+    /// 401。这是有意的：新旧 token 并存的时间越长，泄露窗口越大。
 fn rotate_web_token(app: &WebApp) -> Result<(), ApiError> {
     *app.web_token
         .lock()
@@ -3937,6 +3990,17 @@ fn web_token_from_header(headers: &HeaderMap) -> Result<Option<&str>, ApiError> 
     Ok(value.map(str::trim).filter(|value| !value.is_empty()))
 }
 
+    /// 每个 API 请求都要过这一关：**先 token，再 Host。**
+    ///
+    /// 【顺序有讲究】
+    /// token 在前，Host 在后。反过来的话，一个不合法 Host 的探测请求会先触发
+    /// Host 检查并同样得到「未授权」，而攻击者无法据此区分「Host 不对」与「token 不对」——
+    /// 少一条可用于探测的信息。
+    ///
+    /// 【⚠ 它证明的是什么】
+    /// 证明「这个请求来自本 Web UI，且不是从别的站点发来的」。
+    /// **不证明**「这个操作应该被允许」——那是 `harness_run` 到 `ControlPlane` 的事。
+    /// 把两者混为一谈，就会出现「token 对了就放行」的界面级授权。
 fn authorize_web_request(
     app: &WebApp,
     headers: &HeaderMap,
@@ -3953,6 +4017,23 @@ fn authorize_web_request(
     Ok(())
 }
 
+    /// Host 必须匹配绑定地址；Origin 若存在也必须匹配。
+    ///
+    /// 【这一条防的是 DNS rebinding，不是「伪造 Host」】
+    /// 设想这样一个页面：攻击者的网页把一个域名解析到 127.0.0.1，然后让浏览器去请求
+    /// `http://恶意域名:3080/api/…`。请求**确实**打到了本机，
+    /// 而浏览器也**确实**认为它连的是恶意域名——恶意域名于是就获得了读取响应的机会。
+    ///
+    /// 阻断它的办法只有一个：服务端检查 Host 头。如果 Host 是「恶意域名」而不是
+    /// 「127.0.0.1:3080」，直接拒绝。**请求能到本机，但拿不到响应**。
+    ///
+    /// 【Origin 为什么是「若存在才检查」】
+    /// 因为同源请求（从本 UI 的页面发出去的）通常不带 Origin，或者带的是同源值。
+    /// 带了就必须匹配；不带不代表失败，但也代表这不是一个跨站请求。
+    ///
+    /// 【⚠ 它防不住「本机进程伪造 Host」】
+    /// 本机进程可以随手写上正确的 Host。Host 检查防的是**浏览器**，
+    /// 不是本机的另一个进程。文件头那句「不能替代系统级边界」就是这个意思。
 fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
     let host = single_header(headers, "host")?
         .filter(|value| authority_matches_bound_addr(value, app.bound_addr));
@@ -4002,6 +4083,13 @@ fn single_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a st
         .map_err(|_| ApiError::unauthorized())
 }
 
+    /// Host 头的值是否**完全等于**本服务绑定的那套地址。
+    ///
+    /// 【⚠ 它比较的是「完全相等」，不是「同一个主机」】
+    /// `localhost:3080` 与 `127.0.0.1:3080` **不匹配**，尽管它们指向同一台机器。
+    /// 这是刻意的：一个更宽松的比较（比如只比主机部分、或者把 localhost 视作等价）
+    /// 就等于重新打开 rebinding——攻击者控制的正是「你把它解析成什么」。
+    /// 让页面上显示的地址与请求里的 Host 严格一致，是最省事也最不容易错的做法。
 fn authority_matches_bound_addr(authority: &str, bound_addr: SocketAddr) -> bool {
     url::Url::parse(&format!("http://{authority}"))
         .ok()
