@@ -16631,3 +16631,18 @@ proof-level change: unchanged at feature_status=partial and proof_level=source. 
 limitations: the route decides and returns; it records nothing. No release is run, no status file read, no roadmap edited, and nothing in CURRENT_STATUS.md or the module map is touched by it. The route is still not wired into ci.yml or any release workflow, so no automated process consults it. The evidence, the level and the three optional references are all supplied by the caller, so a caller that hands over a live-level manifest with a plausible receipt still defeats the check. ClaimedLevel gained a parse to match its as_str, which closes a spelling-drift hole rather than adding capability
 reviewer: owner review. The decision worth recording is that the Cell check lives in the route and not in the gate: the gate is a pure function over a request and has no business knowing what a Cell is, while the rule that makes it a gate -- that a worker cannot promote its own claim -- is a property of the entrypoint. Two integration defects were found and fixed rather than shipped: ClaimedLevel had no parse, and the claimed_level extraction mishandled a missing field. No local runtime/CI test reviewer
 ```
+
+### Correction: the commit message on `c1c50e25` does not describe it (2026-09-28)
+
+```text
+source_snapshot: c1c50e25; docs/roadmap/sc36-protocol-parity-baseline.md only
+worktree_status: no source change, no roadmap row change, no feature_status change
+command_argv: git show --stat c1c50e25 (1 file changed, 16 insertions, 2 deletions); no test, build or smoke was run
+cwd·environment: /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux/bash
+fixture·cassette: none; this commit changes documentation only
+exit_code: n/a
+status_change: none
+proof-level change: none
+limitations: THE COMMIT MESSAGE IS WRONG AND THIS BLOCK IS THE CORRECTION. c1c50e25 contains exactly one change -- rewriting a limitation paragraph in the SC-36 baseline to state the structural reason there is no ControlPlane route for the parity comparator (kiana-core does not depend on kiana-client; the two are siblings under kiana-domain). Its message instead reads "step: add the SC-36 five-surface protocol parity comparator" and describes adding the comparator, which happened three commits earlier in 3ca0dadf. The cause is that I reused a temporary message file from a previous step, so a stale message was picked up. The commit is already pushed, and rewriting published history to correct a message is a worse trade than recording the discrepancy, so the history is left as it is and the truth is recorded here. Anyone reading c1c50e25's message should read this block instead
+reviewer: owner. Recorded rather than fixed, because the alternative -- a force-push to a shared master to correct one message -- risks far more than it repairs
+```
