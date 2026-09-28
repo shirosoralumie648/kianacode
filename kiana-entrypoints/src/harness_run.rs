@@ -184,32 +184,32 @@ pub async fn run_envelope_with_history(
         .await
 }
 
-    /// 真正发起一次 run 的地方。
-    ///
-    /// 【流程】
-    /// 1. `new_local_host_with_options` —— 按选项装配 `DaemonHost`；
-    /// 2. `sandbox_policy_from_options` —— 把选项里的沙箱档位解析成策略；
-    /// 3. `client_on_host` —— 造 client 与 `RequestMetadata`；
-    /// 4. `client.run_with_history(...)` —— **run 从这里进入控制面**；
-    /// 5. 如果响应是 `AwaitingApproval`，且调用方给了 `permission_handler`，
-    ///    才把这次待批**呈现**给 handler 决定。
-    ///
-    /// 【第 5 步最容易被理解反】
-    /// 它不是「在这里请求授权」。授权已经在第 4 步里由 `ControlPlane` 作出了——
-    /// `AwaitingApproval` 意味着控制面判定「这件事需要人点头」，并且**已经把这次待批
-    /// 记录成事实**。handler 拿到的是那个决定的呈现，不是提问权。
-    /// 真正的批准仍然要通过 `decide_approval_envelope_on_host` 回到控制面去落。
-    ///
-    /// 【所以 `permission_handler: None` 并不是「没人管」】
-    /// `run_envelope_with_history` 走的正是这条：没有 handler，于是把 `AwaitingApproval`
-    /// 原样返回给调用方，由界面去展示、再决定要不要批。**决定权在控制面，呈现权在调用方**，
-    /// 这两件事分开之后，缺一个 handler 只会让体验变差，不会让控制消失。
-    ///
-    /// 【为什么 `PermissionPromptRequest` 里要塞那么多东西】
-    /// 因为 handler 往往长在另一个进程里（另一个 UI、另一个 agent）。要让人在远离现场
-    /// 的情况下做出决定，就得把「是谁、要做的是什么、为什么被拦」一次性带齐。
-    /// `decision_reason` 用 `type: other` 包一层，也是为了对上 `PermissionPromptDecision`
-    /// 期待的形状。
+/// 真正发起一次 run 的地方。
+///
+/// 【流程】
+/// 1. `new_local_host_with_options` —— 按选项装配 `DaemonHost`；
+/// 2. `sandbox_policy_from_options` —— 把选项里的沙箱档位解析成策略；
+/// 3. `client_on_host` —— 造 client 与 `RequestMetadata`；
+/// 4. `client.run_with_history(...)` —— **run 从这里进入控制面**；
+/// 5. 如果响应是 `AwaitingApproval`，且调用方给了 `permission_handler`，
+///    才把这次待批**呈现**给 handler 决定。
+///
+/// 【第 5 步最容易被理解反】
+/// 它不是「在这里请求授权」。授权已经在第 4 步里由 `ControlPlane` 作出了——
+/// `AwaitingApproval` 意味着控制面判定「这件事需要人点头」，并且**已经把这次待批
+/// 记录成事实**。handler 拿到的是那个决定的呈现，不是提问权。
+/// 真正的批准仍然要通过 `decide_approval_envelope_on_host` 回到控制面去落。
+///
+/// 【所以 `permission_handler: None` 并不是「没人管」】
+/// `run_envelope_with_history` 走的正是这条：没有 handler，于是把 `AwaitingApproval`
+/// 原样返回给调用方，由界面去展示、再决定要不要批。**决定权在控制面，呈现权在调用方**，
+/// 这两件事分开之后，缺一个 handler 只会让体验变差，不会让控制消失。
+///
+/// 【为什么 `PermissionPromptRequest` 里要塞那么多东西】
+/// 因为 handler 往往长在另一个进程里（另一个 UI、另一个 agent）。要让人在远离现场
+/// 的情况下做出决定，就得把「是谁、要做的是什么、为什么被拦」一次性带齐。
+/// `decision_reason` 用 `type: other` 包一层，也是为了对上 `PermissionPromptDecision`
+/// 期待的形状。
 async fn run_envelope_with_history_and_permission_handler(
     session_id: impl Into<String>,
     prompt: impl Into<String>,
@@ -294,16 +294,16 @@ fn local_client(
     client_on_host(new_local_host_with_options(options)?, session_id, options)
 }
 
-    /// 在指定的 host 上造 client，并把身份元数据一起造好。
-    ///
-    /// 【为什么 metadata 和 client 要放在一起造】
-    /// 因为它们必须来自同一份配置。把它们拆开，调用方就可能给 host 配 A、
-    /// 给 metadata 填 B，于是「这台机器上」和「我是谁」对不上号。
-    ///
-    /// 【⚠ 与 `command_dispatch.rs` 的对照】
-    /// 那个文件里 `session_id` 与 `actor_id` 缺失时会回落到常量
-    /// （`local-command` / `local-user`），并且 `permission_profile` 被写死为 `Safe`。
-    /// 本文件的对应逻辑在这里，语义应当保持一致；修改其中一处时记得另一处。
+/// 在指定的 host 上造 client，并把身份元数据一起造好。
+///
+/// 【为什么 metadata 和 client 要放在一起造】
+/// 因为它们必须来自同一份配置。把它们拆开，调用方就可能给 host 配 A、
+/// 给 metadata 填 B，于是「这台机器上」和「我是谁」对不上号。
+///
+/// 【⚠ 与 `command_dispatch.rs` 的对照】
+/// 那个文件里 `session_id` 与 `actor_id` 缺失时会回落到常量
+/// （`local-command` / `local-user`），并且 `permission_profile` 被写死为 `Safe`。
+/// 本文件的对应逻辑在这里，语义应当保持一致；修改其中一处时记得另一处。
 pub fn client_on_host(
     host: Arc<DaemonHost>,
     session_id: impl Into<String>,
@@ -438,12 +438,12 @@ pub async fn resume_envelope_on_host(
         .map_err(anyhow::Error::msg)
 }
 
-    /// 把一次审批决定送回控制面。
-    ///
-    /// 【为什么批准必须回到这里，而不能由界面自己记账】
-    /// 因为「已批准」是一条**事实**，它必须和其余事实写进同一本账（EventLog），
-    /// 并且受同一套 epoch / fence / 一次性消费的约束。界面若自己认为「批过了」，
-    /// 就会出现一次执行有批准、事件流里却没有批准记录——而事后无法判断哪个是真的。
+/// 把一次审批决定送回控制面。
+///
+/// 【为什么批准必须回到这里，而不能由界面自己记账】
+/// 因为「已批准」是一条**事实**，它必须和其余事实写进同一本账（EventLog），
+/// 并且受同一套 epoch / fence / 一次性消费的约束。界面若自己认为「批过了」，
+/// 就会出现一次执行有批准、事件流里却没有批准记录——而事后无法判断哪个是真的。
 pub async fn decide_approval_envelope_on_host(
     host: Arc<DaemonHost>,
     session_id: impl Into<String>,

@@ -83,7 +83,10 @@ fn bq25_separation_keeps_log_metric_and_trace_distinct() {
         "is_actionable_refusal",
         "Unknown",
     ] {
-        assert!(source.contains(marker), "BQ-25 telemetry_separation lost {marker}");
+        assert!(
+            source.contains(marker),
+            "BQ-25 telemetry_separation lost {marker}"
+        );
     }
 
     // An observation that could not be made stays Unknown. Without this the three sinks would
@@ -117,7 +120,10 @@ fn bq25_observation_failure_does_not_change_business_state() {
 fn bq25_modules_stay_read_only_contracts() {
     for (name, source) in [
         ("data_class", include_str!("../src/data_class.rs")),
-        ("telemetry_separation", include_str!("../src/telemetry_separation.rs")),
+        (
+            "telemetry_separation",
+            include_str!("../src/telemetry_separation.rs"),
+        ),
     ] {
         for forbidden in [
             "std::fs",

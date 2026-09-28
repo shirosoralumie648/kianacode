@@ -66,11 +66,11 @@ use tokio::sync::{
 pub(crate) const TUI_PROMPT_HISTORY_LIMIT: usize = 200;
 pub(crate) const TUI_PROMPT_HISTORY_FILE: &str = "tui-history.jsonl";
 
-    /// 进入 TUI。
-    ///
-    /// 【它先检查自己是不是在终端里】
-    /// 见 [ `ensure_tui_terminal` ]。TUI 比 REPL 更依赖终端：它要做全屏重绘、
-    /// 接管按键，没有终端就没有 TUI，只有乱码。
+/// 进入 TUI。
+///
+/// 【它先检查自己是不是在终端里】
+/// 见 [ `ensure_tui_terminal` ]。TUI 比 REPL 更依赖终端：它要做全屏重绘、
+/// 接管按键，没有终端就没有 TUI，只有乱码。
 pub async fn run_tui() -> Result<()> {
     ensure_tui_terminal(
         std::io::stdin().is_terminal(),
@@ -87,13 +87,13 @@ pub async fn run_tui() -> Result<()> {
     )
 }
 
-    /// 确认 stdin/stdout 都是交互式终端，否则拒绝启动。
-    ///
-    /// 【与 REPL 的检查有什么区别】
-    /// 检查项一样（都是两个都是终端），但拒绝的**后果**不同：
-    /// TUI 在管道里启动会做全屏转义序列，把下游输出搅成一团；
-    /// REPL 在管道里启动只是安静地等输入。
-    /// 所以这一处的检查比 REPL 更必要，不是重复。
+/// 确认 stdin/stdout 都是交互式终端，否则拒绝启动。
+///
+/// 【与 REPL 的检查有什么区别】
+/// 检查项一样（都是两个都是终端），但拒绝的**后果**不同：
+/// TUI 在管道里启动会做全屏转义序列，把下游输出搅成一团；
+/// REPL 在管道里启动只是安静地等输入。
+/// 所以这一处的检查比 REPL 更必要，不是重复。
 fn ensure_tui_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Result<()> {
     match (stdin_is_terminal, stdout_is_terminal) {
         (true, true) => Ok(()),

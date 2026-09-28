@@ -284,7 +284,9 @@ pub fn verify_golden_trace_chain(
     chain: &GoldenTraceChain,
 ) -> Result<GoldenTraceChainReport, String> {
     if chain.schema != GOLDEN_TRACE_CHAIN_SCHEMA
-        || !chain.version.is_compatible_with(&GOLDEN_TRACE_CHAIN_VERSION)
+        || !chain
+            .version
+            .is_compatible_with(&GOLDEN_TRACE_CHAIN_VERSION)
     {
         return Err("golden_chain_header_invalid".to_owned());
     }

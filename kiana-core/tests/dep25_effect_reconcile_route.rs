@@ -8,9 +8,8 @@ use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, CapabilityRequest, CellId, CommandIntent,
-    EffectObservation, EffectObservationState, ExecutionId, InvocationId, PendingApproval,
-    RequestContext,
+    ApprovalChallenge, ApprovalId, CapabilityRequest, CellId, CommandIntent, EffectObservation,
+    EffectObservationState, ExecutionId, InvocationId, PendingApproval, RequestContext,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -129,7 +128,11 @@ async fn a_cell_worker_cannot_decide_what_its_own_request_counts_as() {
     assert_eq!(
         check(
             &context,
-            payload("compensated", EffectObservationState::Unknown, vec![digest('f')])
+            payload(
+                "compensated",
+                EffectObservationState::Unknown,
+                vec![digest('f')]
+            )
         )
         .await,
         "effect_reconcile_operator_required"
@@ -143,7 +146,11 @@ async fn an_anonymous_caller_cannot_reach_the_reconciliation() {
     assert_eq!(
         check(
             &context,
-            payload("compensated", EffectObservationState::Unknown, vec![digest('f')])
+            payload(
+                "compensated",
+                EffectObservationState::Unknown,
+                vec![digest('f')]
+            )
         )
         .await,
         "effect_reconcile_operator_required"
@@ -152,8 +159,12 @@ async fn an_anonymous_caller_cannot_reach_the_reconciliation() {
 
 #[tokio::test]
 async fn a_missing_or_malformed_request_is_refused_before_any_decision() {
-    for arguments in [Value::Null, json!("not an object"), json!({}), json!({"resolution": "abandoned"})]
-    {
+    for arguments in [
+        Value::Null,
+        json!("not an object"),
+        json!({}),
+        json!({"resolution": "abandoned"}),
+    ] {
         assert_eq!(
             check(&operator(), arguments.clone()).await,
             "effect_reconcile_payload_required",
@@ -162,7 +173,10 @@ async fn a_missing_or_malformed_request_is_refused_before_any_decision() {
     }
     // 缺 resolution 与写错它是两件事：前者要补字段，后者要改字段。
     let mut missing = payload("abandoned", EffectObservationState::NoEffect, vec![]);
-    missing.as_object_mut().expect("object").remove("resolution");
+    missing
+        .as_object_mut()
+        .expect("object")
+        .remove("resolution");
     assert_eq!(
         check(&operator(), missing).await,
         "effect_reconcile_payload_required"
@@ -192,7 +206,11 @@ async fn an_unknown_outcome_is_still_refused_when_the_retry_comes_through_a_comm
     assert_eq!(
         check(
             &operator(),
-            payload("retry_without_effect", EffectObservationState::Unknown, vec![digest('f')])
+            payload(
+                "retry_without_effect",
+                EffectObservationState::Unknown,
+                vec![digest('f')]
+            )
         )
         .await,
         "effect_reconcile_unknown_auto_retry"

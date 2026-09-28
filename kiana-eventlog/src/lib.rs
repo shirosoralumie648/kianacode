@@ -74,22 +74,22 @@ pub use writer_queue::{
 use kiana_ports::PortError;
 use std::path::PathBuf;
 
-    /// 决定会话事件默认落在哪个文件。
-    ///
-    /// ```text
-    /// KIANA_HOME 设了 → 用它
-    /// 否则            → $HOME/.kiana
-    /// 最终路径         → <上面那个目录>/sessions/events.jsonl
-    /// ```
-    ///
-    /// 【⚠ `KIANA_HOME` 必须是绝对路径，否则直接拒绝】
-    /// 这一条是整个函数里最容易被「顺手放宽」的地方。
-    /// 一个相对的 `KIANA_HOME` 会按**进程当时的工作目录**解析，
-    /// 于是同一份配置在不同目录下会指向不同的文件——
-    /// 数据散落在「启动它时恰好在哪」，而事后没人说得清该去哪找。
-    ///
-    /// 和 `dispatch.rs` 里 `project_root_identity` 是同一条纪律：
-    /// **拿不准的时候，宁可拒绝，也不要给一个看起来能用的答案。**
+/// 决定会话事件默认落在哪个文件。
+///
+/// ```text
+/// KIANA_HOME 设了 → 用它
+/// 否则            → $HOME/.kiana
+/// 最终路径         → <上面那个目录>/sessions/events.jsonl
+/// ```
+///
+/// 【⚠ `KIANA_HOME` 必须是绝对路径，否则直接拒绝】
+/// 这一条是整个函数里最容易被「顺手放宽」的地方。
+/// 一个相对的 `KIANA_HOME` 会按**进程当时的工作目录**解析，
+/// 于是同一份配置在不同目录下会指向不同的文件——
+/// 数据散落在「启动它时恰好在哪」，而事后没人说得清该去哪找。
+///
+/// 和 `dispatch.rs` 里 `project_root_identity` 是同一条纪律：
+/// **拿不准的时候，宁可拒绝，也不要给一个看起来能用的答案。**
 pub fn default_sessions_log_path() -> Result<PathBuf, PortError> {
     let home = if let Ok(value) = std::env::var("KIANA_HOME") {
         let home = PathBuf::from(value.trim());

@@ -43,10 +43,7 @@ fn bq28_reuses_the_bq25_cardinality_ceiling_rather_than_inventing_one() {
         assert!(source.contains(marker), "BQ-28 module lost {marker}");
     }
     // A second cardinality ceiling is a second answer to "how many values may a key take".
-    for forbidden in [
-        "const MAX_ROLLUP_LABEL_VALUES",
-        "const BQ28_CARDINALITY",
-    ] {
+    for forbidden in ["const MAX_ROLLUP_LABEL_VALUES", "const BQ28_CARDINALITY"] {
         assert!(
             !source.contains(forbidden),
             "BQ-28 invented a parallel cardinality ceiling: {forbidden}"

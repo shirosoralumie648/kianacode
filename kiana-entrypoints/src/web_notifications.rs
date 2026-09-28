@@ -36,18 +36,18 @@ fn required_cursor_context(
     required(authority_epoch, "web_notification_epoch", 256)
 }
 
-    /// 限制一条 SSE 事件载荷的**字节数**。
-    ///
-    /// 【为什么按字节而不按元素个数】
-    /// 因为真正会撑爆浏览器的是字节，不是条目数。一条含长文本的载荷，
-    /// 条目只有一个，字节可以很大。
-    ///
-    /// 【⚠ 超限时是拒绝，不是截断】
-    /// 截断会制造一个「看起来完整其实不完整」的通知——比收不到更糟，
-    /// 因为收不到会让人去查，截断不会。
-    ///
-    /// 这与 `workbench_render.rs` 里的「有界时间线」是同一个取舍的两面：
-    /// 丢掉的东西必须让用户**知道**丢了，不能让它看起来完整。
+/// 限制一条 SSE 事件载荷的**字节数**。
+///
+/// 【为什么按字节而不按元素个数】
+/// 因为真正会撑爆浏览器的是字节，不是条目数。一条含长文本的载荷，
+/// 条目只有一个，字节可以很大。
+///
+/// 【⚠ 超限时是拒绝，不是截断】
+/// 截断会制造一个「看起来完整其实不完整」的通知——比收不到更糟，
+/// 因为收不到会让人去查，截断不会。
+///
+/// 这与 `workbench_render.rs` 里的「有界时间线」是同一个取舍的两面：
+/// 丢掉的东西必须让用户**知道**丢了，不能让它看起来完整。
 fn bounded_payload(payload: Value) -> Result<Value, String> {
     let bytes = serde_json::to_vec(&payload)
         .map_err(|_| "web_notification_payload_encode_failed".to_owned())?;
@@ -59,20 +59,20 @@ fn bounded_payload(payload: Value) -> Result<Value, String> {
 
 /// Keep only the fields a browser inbox needs.  `detail`, `source_ref`, action arguments and
 /// other payload-shaped values never cross this presentation boundary.
-    /// 把服务端的通知页 DTO 投影成浏览器收件箱需要的字段。
-    ///
-    /// 【它是一个「允许清单」，不是「删除清单」】
-    /// 保留哪些字段是**写死的**；`detail`、`source_ref`、动作参数这些
-    /// payload 形状的值**永远不过这条边界**。
-    ///
-    /// 【为什么用允许清单而不是逐个剔除】
-    /// 逐个剔除的写法是「把要藏的东西列出来」，于是**新增字段默认暴露**——
-    /// 某天有人往通知 DTO 里加了一个 `internal_note`，它会自动出现在浏览器里，
-    /// 而且没有任何测试会红。允许清单的默认值是「不显示」，新增字段要显示
-    /// 必须先被加进那个清单，那是一次有意的、被 review 看见的动作。
-    ///
-    /// 【它不做的事】
-    /// 不提交动作、不改 HumanTask 状态、不重试 run、不把 feed 断流当成完成。
+/// 把服务端的通知页 DTO 投影成浏览器收件箱需要的字段。
+///
+/// 【它是一个「允许清单」，不是「删除清单」】
+/// 保留哪些字段是**写死的**；`detail`、`source_ref`、动作参数这些
+/// payload 形状的值**永远不过这条边界**。
+///
+/// 【为什么用允许清单而不是逐个剔除】
+/// 逐个剔除的写法是「把要藏的东西列出来」，于是**新增字段默认暴露**——
+/// 某天有人往通知 DTO 里加了一个 `internal_note`，它会自动出现在浏览器里，
+/// 而且没有任何测试会红。允许清单的默认值是「不显示」，新增字段要显示
+/// 必须先被加进那个清单，那是一次有意的、被 review 看见的动作。
+///
+/// 【它不做的事】
+/// 不提交动作、不改 HumanTask 状态、不重试 run、不把 feed 断流当成完成。
 pub fn present_notification_page(
     page: &Value,
     session_id: &str,

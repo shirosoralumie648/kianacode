@@ -15,10 +15,10 @@
 //! sinks.
 
 use kiana_core::{
-    admit_field, admission_cell, derive_sink_class, evaluate_sink_admission, separate,
-    ClassBasis, ClassClaimOrigin, DerivedClass, ObservationOutcome, SeparationReport,
-    SeparationRequest, SinkAdmissionRefusal, SinkAdmissionReport, SinkField, SinkObservation,
-    SinkReachability, SubstitutionRefusal, TelemetryGuarantees, MAX_SINK_ADMISSION_FIELDS,
+    admission_cell, admit_field, derive_sink_class, evaluate_sink_admission, separate, ClassBasis,
+    ClassClaimOrigin, DerivedClass, ObservationOutcome, SeparationReport, SeparationRequest,
+    SinkAdmissionRefusal, SinkAdmissionReport, SinkField, SinkObservation, SinkReachability,
+    SubstitutionRefusal, TelemetryGuarantees, MAX_SINK_ADMISSION_FIELDS,
 };
 use kiana_domain::{
     DataClass, MetricCatalog, MetricDefinition, RequestId, TelemetryChannel,
@@ -59,7 +59,10 @@ fn request() -> RequestId {
 
 #[test]
 fn an_api_key_is_refused_in_every_sink_and_the_sentinel_never_appears() {
-    let field = SinkField::text("provider_error", "request failed: api_key=sk-live-abcd1234efgh");
+    let field = SinkField::text(
+        "provider_error",
+        "request failed: api_key=sk-live-abcd1234efgh",
+    );
     for sink in TelemetryChannel::ALL {
         let cell = admit_field(
             &field,
@@ -104,7 +107,11 @@ fn an_invoice_credential_is_refused_in_the_receipt_sink_and_its_reference_is_not
         None,
     )
     .expect("BQ-25 admission");
-    assert!(cell.admitted, "an opaque invoice ref was refused: {}", cell.reason);
+    assert!(
+        cell.admitted,
+        "an opaque invoice ref was refused: {}",
+        cell.reason
+    );
     assert_eq!(cell.basis, ClassBasis::OpaqueReference);
 }
 
@@ -114,7 +121,10 @@ fn an_invoice_credential_is_refused_in_the_receipt_sink_and_its_reference_is_not
 
 #[test]
 fn a_prompt_is_refused_on_shape_in_every_sink_and_redaction_does_not_help() {
-    let field = SinkField::text("prompt", "You are a helpful assistant. Please summarize the repo.");
+    let field = SinkField::text(
+        "prompt",
+        "You are a helpful assistant. Please summarize the repo.",
+    );
     for sink in TelemetryChannel::ALL {
         let cell = admit_field(
             &field,
@@ -124,7 +134,10 @@ fn a_prompt_is_refused_on_shape_in_every_sink_and_redaction_does_not_help() {
         )
         .expect("BQ-25 admission");
         assert!(!cell.admitted, "a prompt was admitted into {sink:?}");
-        assert_eq!(cell.reason, TelemetryRefusal::PayloadShapeForbidden.as_str());
+        assert_eq!(
+            cell.reason,
+            TelemetryRefusal::PayloadShapeForbidden.as_str()
+        );
     }
     // A prompt has no sentinel shape, so the shared scanner cannot see it. The refusal has to come
     // from the key, or "the prompt was not redacted" would be the only defence and it is false.
@@ -145,7 +158,10 @@ fn a_raw_provider_response_is_refused_in_every_channel() {
         )
         .expect("BQ-25 admission");
         assert!(!cell.admitted, "a raw response was admitted into {sink:?}");
-        assert_eq!(cell.reason, TelemetryRefusal::PayloadShapeForbidden.as_str());
+        assert_eq!(
+            cell.reason,
+            TelemetryRefusal::PayloadShapeForbidden.as_str()
+        );
     }
 }
 
@@ -181,7 +197,10 @@ fn a_run_id_is_refused_as_a_metric_label_and_admitted_as_an_event_field() {
     )
     .expect("BQ-25 admission");
     assert!(!metric.admitted, "a run_id became a metric dimension");
-    assert_eq!(metric.reason, TelemetryRefusal::HighCardinalityLabel.as_str());
+    assert_eq!(
+        metric.reason,
+        TelemetryRefusal::HighCardinalityLabel.as_str()
+    );
 
     // The same value, the same class derivation, a different sink, a different fate. This pairing
     // is the entire content of "telemetry separation".
@@ -192,7 +211,11 @@ fn a_run_id_is_refused_as_a_metric_label_and_admitted_as_an_event_field() {
         None,
     )
     .expect("BQ-25 admission");
-    assert!(event.admitted, "a run_id was refused as an event field: {}", event.reason);
+    assert!(
+        event.admitted,
+        "a run_id was refused as an event field: {}",
+        event.reason
+    );
     assert_eq!(event.derived_class, metric.derived_class);
     assert_eq!(event.basis, metric.basis);
 }
@@ -217,7 +240,11 @@ fn a_filesystem_path_is_refused_in_metric_and_trace_but_not_in_the_log() {
         None,
     )
     .expect("BQ-25 admission");
-    assert!(log.admitted, "a path was refused in the log: {}", log.reason);
+    assert!(
+        log.admitted,
+        "a path was refused in the log: {}",
+        log.reason
+    );
 }
 
 #[test]
@@ -233,7 +260,10 @@ fn free_text_is_not_representable_as_a_metric_dimension() {
     )
     .expect("BQ-25 admission");
     assert!(!cell.admitted);
-    assert_eq!(cell.reason, TelemetryRefusal::PayloadShapeForbidden.as_str());
+    assert_eq!(
+        cell.reason,
+        TelemetryRefusal::PayloadShapeForbidden.as_str()
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -254,7 +284,10 @@ fn a_caller_asserted_class_is_refused_rather_than_believed() {
             Some(&catalog()),
         )
         .expect("BQ-25 admission");
-        assert!(!cell.admitted, "a caller-asserted class was honoured in {sink:?}");
+        assert!(
+            !cell.admitted,
+            "a caller-asserted class was honoured in {sink:?}"
+        );
         assert_eq!(
             cell.reason,
             SinkAdmissionRefusal::CallerSuppliedClass.as_str(),
@@ -301,7 +334,10 @@ fn a_label_over_the_budget_is_refused_and_the_budget_is_the_guards_own() {
     )
     .expect("BQ-25 admission");
     assert!(!cell.admitted);
-    assert_eq!(cell.reason, TelemetryRefusal::LabelCardinalityExceeded.as_str());
+    assert_eq!(
+        cell.reason,
+        TelemetryRefusal::LabelCardinalityExceeded.as_str()
+    );
 
     // Exactly at the budget is admitted. An off-by-one here would silently drop a legitimate
     // dimension, which is how a cardinality guard starts getting disabled.
@@ -313,7 +349,11 @@ fn a_label_over_the_budget_is_refused_and_the_budget_is_the_guards_own() {
         Some(&catalog()),
     )
     .expect("BQ-25 admission");
-    assert!(cell.admitted, "a label exactly at the budget was refused: {}", cell.reason);
+    assert!(
+        cell.admitted,
+        "a label exactly at the budget was refused: {}",
+        cell.reason
+    );
 }
 
 #[test]
@@ -353,16 +393,19 @@ fn the_live_runtime_guard_refuses_a_label_the_source_rules_would_admit() {
     .expect("BQ-25 admission");
     assert!(!cell.admitted, "a secret-bearing label reached a metric");
     match &cell.reason[..] {
-        reason if reason
-            == SinkAdmissionRefusal::Runtime(
-                kiana_core::TelemetryRuntimeRefusal::LabelForbidden("secret_ref".to_owned()),
-            )
-            .as_str() => {}
+        reason
+            if reason
+                == SinkAdmissionRefusal::Runtime(
+                    kiana_core::TelemetryRuntimeRefusal::LabelForbidden("secret_ref".to_owned()),
+                )
+                .as_str() => {}
         other => panic!("expected the runtime guard to refuse, got {other}"),
     }
-    assert!(kiana_core::is_actionable_refusal(&SinkAdmissionRefusal::Runtime(
-        kiana_core::TelemetryRuntimeRefusal::LabelForbidden("secret_ref".to_owned()),
-    )));
+    assert!(kiana_core::is_actionable_refusal(
+        &SinkAdmissionRefusal::Runtime(kiana_core::TelemetryRuntimeRefusal::LabelForbidden(
+            "secret_ref".to_owned()
+        ),)
+    ));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -372,15 +415,12 @@ fn the_live_runtime_guard_refuses_a_label_the_source_rules_would_admit() {
 #[test]
 fn a_sink_that_never_reported_its_guarantee_is_refused() {
     let field = SinkField::reference("trace_ref", "trace:01J8ZQ");
-    let cell = admit_field(
-        &field,
-        TelemetryChannel::Trace,
-        None,
-        None,
-    )
-    .expect("BQ-25 admission");
+    let cell = admit_field(&field, TelemetryChannel::Trace, None, None).expect("BQ-25 admission");
     assert!(!cell.admitted, "an unreported channel was treated as safe");
-    assert_eq!(cell.reason, TelemetryRefusal::ChannelGuaranteeUnknown.as_str());
+    assert_eq!(
+        cell.reason,
+        TelemetryRefusal::ChannelGuaranteeUnknown.as_str()
+    );
 }
 
 #[test]
@@ -393,8 +433,14 @@ fn an_explicitly_unverified_exporter_is_refused_even_for_a_clean_digest() {
         None,
     )
     .expect("BQ-25 admission");
-    assert!(!cell.admitted, "an unverified exporter was treated as redacting at the sink");
-    assert_eq!(cell.reason, TelemetryRefusal::ChannelGuaranteeUnknown.as_str());
+    assert!(
+        !cell.admitted,
+        "an unverified exporter was treated as redacting at the sink"
+    );
+    assert_eq!(
+        cell.reason,
+        TelemetryRefusal::ChannelGuaranteeUnknown.as_str()
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -415,7 +461,10 @@ fn an_export_ceiling_above_the_sink_floor_is_refused() {
     )
     .expect("BQ-25 admission");
     assert!(!cell.admitted);
-    assert_eq!(cell.reason, TelemetryRefusal::ExportClassCeilingTooHigh.as_str());
+    assert_eq!(
+        cell.reason,
+        TelemetryRefusal::ExportClassCeilingTooHigh.as_str()
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -464,7 +513,8 @@ fn an_admitted_cell_may_not_carry_a_reason_and_a_refused_cell_may_not_lack_one()
     let report =
         evaluate_sink_admission(request(), &fields, &guarantees, Some(&catalog())).expect("report");
     for cell in &report.admissions {
-        cell.validate().expect("a sealed cell failed its own validation");
+        cell.validate()
+            .expect("a sealed cell failed its own validation");
     }
 
     let mut contradictory = report.clone();
@@ -517,7 +567,9 @@ fn an_unreachable_sink_is_unknown_and_never_a_business_outcome() {
 
     let field = &report.fields[0];
     assert_eq!(
-        field.observation(TelemetryChannel::Metric).map(|o| o.outcome),
+        field
+            .observation(TelemetryChannel::Metric)
+            .map(|o| o.outcome),
         Some(ObservationOutcome::Unknown)
     );
     assert_eq!(
@@ -551,7 +603,9 @@ fn an_unreachable_sink_never_manufactures_a_safety_decision() {
     let field = &report.fields[0];
     // Unreachable: unknown, with no reason, even though the matrix would have refused it.
     assert_eq!(
-        field.observation(TelemetryChannel::Metric).map(|o| o.outcome),
+        field
+            .observation(TelemetryChannel::Metric)
+            .map(|o| o.outcome),
         Some(ObservationOutcome::Unknown)
     );
     // Reachable: refused, with the matrix's reason.
@@ -560,7 +614,9 @@ fn an_unreachable_sink_never_manufactures_a_safety_decision() {
         Some(ObservationOutcome::Refused)
     );
     assert_eq!(
-        field.observation(TelemetryChannel::Log).map(|o| o.reason.as_str()),
+        field
+            .observation(TelemetryChannel::Log)
+            .map(|o| o.reason.as_str()),
         Some(TelemetryRefusal::PayloadShapeForbidden.as_str())
     );
     assert!(!field.is_entirely_unknown());
@@ -599,7 +655,9 @@ fn a_substitution_between_sinks_is_refused_with_a_reason() {
         vec![(
             TelemetryChannel::Metric,
             TelemetryChannel::Log,
-            SubstitutionRefusal::DestinationNotDeclared.as_str().to_owned(),
+            SubstitutionRefusal::DestinationNotDeclared
+                .as_str()
+                .to_owned(),
         )]
     );
 }
@@ -642,7 +700,9 @@ fn a_separation_report_cannot_publish_its_own_outcome() {
         .with_guarantees(all_established())
         .with_catalog(catalog());
     let report = separate(&request).expect("BQ-25 separation");
-    report.validate_against(&request).expect("a sealed report failed re-derivation");
+    report
+        .validate_against(&request)
+        .expect("a sealed report failed re-derivation");
 
     // A forged "admitted" for the sink that was down, re-sealed so the digest agrees.
     let mut forged = report.clone();
@@ -673,7 +733,9 @@ fn a_refused_observation_may_not_omit_its_reason() {
         value_digest: "sha256:0".to_owned(),
     };
     assert_eq!(
-        observation.validate().expect_err("a reasonless refusal validated"),
+        observation
+            .validate()
+            .expect_err("a reasonless refusal validated"),
         "telemetry_observation_refused_without_reason"
     );
 }
@@ -685,7 +747,10 @@ fn a_refused_observation_may_not_omit_its_reason() {
 #[test]
 fn a_digest_and_a_low_cardinality_label_correlate_across_all_five_sinks() {
     let fields = vec![
-        SinkField::reference("cost_digest", "sha256:1111111111111111111111111111111111111111111111111111111111111111"),
+        SinkField::reference(
+            "cost_digest",
+            "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        ),
         SinkField::label("status", "ok", 3),
     ];
     let guarantees = all_established();
@@ -694,17 +759,29 @@ fn a_digest_and_a_low_cardinality_label_correlate_across_all_five_sinks() {
         evaluate_sink_admission(request(), &fields, &guarantees, Some(&catalog))
             .expect("BQ-25 report");
 
-    assert!(report.refused_keys.is_empty(), "unexpected refusals: {:?}", report.refused_keys);
+    assert!(
+        report.refused_keys.is_empty(),
+        "unexpected refusals: {:?}",
+        report.refused_keys
+    );
     assert_eq!(report.admissions.len(), 2 * TelemetryChannel::ALL.len());
     for cell in &report.admissions {
-        assert!(cell.admitted, "{} into {} refused: {}", cell.key, cell.sink.as_str(), cell.reason);
+        assert!(
+            cell.admitted,
+            "{} into {} refused: {}",
+            cell.key,
+            cell.sink.as_str(),
+            cell.reason
+        );
     }
 
     // The same value digest on both sides of the event/metric boundary. This is what "digest/ref and
     // low-cardinality labels correlate" means operationally: a number in a metric can be joined back
     // to a fact in the event log without the value ever having been readable in the metric.
-    let event = admission_cell(&report, "cost_digest", TelemetryChannel::Event).expect("event cell");
-    let metric = admission_cell(&report, "cost_digest", TelemetryChannel::Metric).expect("metric cell");
+    let event =
+        admission_cell(&report, "cost_digest", TelemetryChannel::Event).expect("event cell");
+    let metric =
+        admission_cell(&report, "cost_digest", TelemetryChannel::Metric).expect("metric cell");
     assert_eq!(event.value_digest, metric.value_digest);
     assert_eq!(event.derived_class, DataClass::Internal);
     report

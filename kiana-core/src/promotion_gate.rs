@@ -228,9 +228,7 @@ fn evidence_reaches(manifest: &EvidenceManifest) -> ClaimedLevel {
 /// statement *about* it; then the recorded limitations, because a review that produced none did
 /// not happen; then the evidence ceiling, which is the general rule; then the three specific
 /// requirements, each of which is a precondition its own level carries and no other.
-pub fn evaluate_promotion(
-    request: &PromotionGateRequest,
-) -> Result<PromotionGateDecision, String> {
+pub fn evaluate_promotion(request: &PromotionGateRequest) -> Result<PromotionGateDecision, String> {
     if request.schema != PROMOTION_GATE_REQUEST_SCHEMA
         || !request.version.is_compatible_with(&PROMOTION_GATE_VERSION)
     {
@@ -267,8 +265,7 @@ pub fn evaluate_promotion(
     if request.claimed_level.implies_measured() && request.provider_receipt_ref.is_none() {
         return Err("promotion_measured_requires_provider_receipt".to_owned());
     }
-    if request.claimed_level == ClaimedLevel::OfflineDurable
-        && request.restart_replay_ref.is_none()
+    if request.claimed_level == ClaimedLevel::OfflineDurable && request.restart_replay_ref.is_none()
     {
         return Err("promotion_durable_requires_restart_replay".to_owned());
     }

@@ -407,9 +407,7 @@ impl ControlPlane {
             // 为什么要求 operator：这条判定决定的是「一个已经发出去的请求算什么」——
             // 重发、放弃还是补偿，每一个都会改变真实世界的后果。让 cell 内部的 worker 参与
             // 裁定自己发出去的请求算什么，等于让它为自己的行为定性。
-            if context.cell_id.is_some()
-                || context.actor_id.as_deref().is_none_or(str::is_empty)
-            {
+            if context.cell_id.is_some() || context.actor_id.as_deref().is_none_or(str::is_empty) {
                 return Ok(CoreResponse::blocked(
                     context.request_id,
                     "effect_reconcile_operator_required",
@@ -433,8 +431,7 @@ impl ControlPlane {
                 ));
             };
             let observation: kiana_domain::EffectObservation =
-                match serde_json::from_value(raw_observation.clone())
-                {
+                match serde_json::from_value(raw_observation.clone()) {
                     Ok(observation) => observation,
                     Err(_) => {
                         return Ok(CoreResponse::blocked(
@@ -460,12 +457,8 @@ impl ControlPlane {
                 }
             };
             let optional_object = |key: &str| object.get(key).cloned();
-            let optional_text = |key: &str| {
-                object
-                    .get(key)
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-            };
+            let optional_text =
+                |key: &str| object.get(key).and_then(Value::as_str).map(str::to_owned);
             let external_receipt = match optional_object("external_receipt") {
                 Some(raw) => match serde_json::from_value(raw) {
                     Ok(receipt) => Some(receipt),
@@ -507,9 +500,7 @@ impl ControlPlane {
                 optional_text("idempotency_key").unwrap_or_default(),
             ) {
                 Ok(request) => request,
-                Err(reason) => {
-                    return Ok(CoreResponse::blocked(context.request_id, reason))
-                }
+                Err(reason) => return Ok(CoreResponse::blocked(context.request_id, reason)),
             };
             // 不可记录是一个**结论**：调用方需要区分「不能这样记」和「你的请求坏了」，
             // 所以连同模块自己的稳定 reason 一起以 blocked 返回。
@@ -531,9 +522,7 @@ impl ControlPlane {
             //
             // 为什么要求 operator：这份判定的结论会被用来解释「当时有没有越界」。
             // 让 cell 内部的 worker 参与裁定系统是否守住了边界，等于让它为自己的行为作证。
-            if context.cell_id.is_some()
-                || context.actor_id.as_deref().is_none_or(str::is_empty)
-            {
+            if context.cell_id.is_some() || context.actor_id.as_deref().is_none_or(str::is_empty) {
                 return Ok(CoreResponse::blocked(
                     context.request_id,
                     "capacity_envelope_operator_required",
@@ -589,9 +578,7 @@ impl ControlPlane {
             //
             // 为什么仍然要求 operator 身份：promotion 是决定「对外声称什么」的动作。让 cell 内部的
             // worker 自行决定一条主张能不能升到 `opt_in_live`，等于给了它一个自我提权的口子。
-            if context.cell_id.is_some()
-                || context.actor_id.as_deref().is_none_or(str::is_empty)
-            {
+            if context.cell_id.is_some() || context.actor_id.as_deref().is_none_or(str::is_empty) {
                 return Ok(CoreResponse::blocked(
                     context.request_id,
                     "promotion_operator_required",
@@ -606,7 +593,8 @@ impl ControlPlane {
                     ))
                 }
             };
-            let (Some(raw_evidence), Some(raw_level)) = (object.get("evidence"), object.get("claimed_level"))
+            let (Some(raw_evidence), Some(raw_level)) =
+                (object.get("evidence"), object.get("claimed_level"))
             else {
                 return Ok(CoreResponse::blocked(
                     context.request_id,
@@ -639,7 +627,8 @@ impl ControlPlane {
                     ))
                 }
             };
-            let string_field = |key: &str| object.get(key).and_then(Value::as_str).map(str::to_owned);
+            let string_field =
+                |key: &str| object.get(key).and_then(Value::as_str).map(str::to_owned);
             let request = PromotionGateRequest::new(
                 object
                     .get("claim_id")

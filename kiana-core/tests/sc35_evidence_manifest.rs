@@ -6,8 +6,9 @@
 //! has been refused, a passing manifest proves very little.
 
 use kiana_core::{
-    CommandInvocation, EnvironmentFact, EvidenceFeatureStatus, EvidenceManifest, EvidenceProofLevel,
-    FixtureKind, FixtureRef, FixtureRegistry, EVIDENCE_MANIFEST_SCHEMA, FIXTURE_REGISTRY_SCHEMA,
+    CommandInvocation, EnvironmentFact, EvidenceFeatureStatus, EvidenceManifest,
+    EvidenceProofLevel, FixtureKind, FixtureRef, FixtureRegistry, EVIDENCE_MANIFEST_SCHEMA,
+    FIXTURE_REGISTRY_SCHEMA,
 };
 
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -37,7 +38,12 @@ fn manifest() -> EvidenceManifest {
         "recorder",
         "reviewer",
         CommandInvocation::new(
-            vec!["cargo".to_owned(), "test".to_owned(), "-p".to_owned(), "kiana-core".to_owned()],
+            vec![
+                "cargo".to_owned(),
+                "test".to_owned(),
+                "-p".to_owned(),
+                "kiana-core".to_owned(),
+            ],
             "/repo",
             Some(0),
         ),
@@ -365,7 +371,11 @@ fn a_deferred_thing_cannot_carry_a_durable_claim() {
 
 #[test]
 fn an_absolute_or_escaping_fixture_path_is_refused() {
-    for path in ["/etc/passwd", "../outside.json", "https://example.com/x.json"] {
+    for path in [
+        "/etc/passwd",
+        "../outside.json",
+        "https://example.com/x.json",
+    ] {
         let claim = EvidenceManifest::new(
             "id",
             "0be643aa",
@@ -427,7 +437,9 @@ fn a_manifest_whose_predecessor_digest_does_not_match_is_refused() {
 fn a_complete_manifest_validates_and_binds_to_its_registry() {
     let claim = manifest();
     claim.validate().expect("shape");
-    claim.validate_against(&registry()).expect("registry binding");
+    claim
+        .validate_against(&registry())
+        .expect("registry binding");
     assert_eq!(claim.schema, EVIDENCE_MANIFEST_SCHEMA);
     assert_eq!(claim.manifest_digest, claim.digest());
     assert_eq!(registry().schema, FIXTURE_REGISTRY_SCHEMA);
@@ -459,7 +471,11 @@ fn a_chain_of_two_manifests_verifies() {
         "0be643aa",
         "recorder",
         "reviewer",
-        CommandInvocation::new(vec!["cargo".to_owned(), "test".to_owned()], "/repo", Some(0)),
+        CommandInvocation::new(
+            vec!["cargo".to_owned(), "test".to_owned()],
+            "/repo",
+            Some(0),
+        ),
         vec![EnvironmentFact::new("CI", "github-actions")],
         vec![fixture("kiana-core/tests/fixtures/one.json")],
         "",

@@ -91,7 +91,10 @@ fn sc35_manifest_refuses_a_claim_stronger_than_its_subject() {
         "Physical",
         "local_behavior",
     ] {
-        assert!(source.contains(marker), "SC-35 module lost the {marker} rung");
+        assert!(
+            source.contains(marker),
+            "SC-35 module lost the {marker} rung"
+        );
     }
 }
 

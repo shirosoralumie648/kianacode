@@ -13223,6 +13223,25 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### Baseline fmt gate repair evidence (2026-09-28)
+
+source_snapshot: `1dfee068` (master, clean tree, equal to `origin/master`) plus this formatting-only repair; 53 files across `kiana-client`, `kiana-core`, `kiana-domain`, `kiana-entrypoints`, `kiana-eventlog`, `kiana-provider`
+worktree_status: no roadmap step was claimed or completed by this change. `cargo fmt --all --check` had been failing on master since at least `2a9ee9e0` (2026-09-25), and because every GitHub Actions workflow runs that gate as its first step, all 25+ jobs on that commit failed before any test target was compiled or executed. This is classified 基线遗留 (baseline legacy): a formatting regression accumulated across 606 commits, unrelated to any single roadmap slice.
+command_argv:
+  cargo fmt --all --check            # before: exit 1, 177 diffs in 55 files
+  cargo fmt --all                    # apply
+  cargo fmt --all --check            # after: exit 0, 0 diffs
+  cargo check --workspace --locked --offline   # exit 0, 0 errors (static compile only, no test executed)
+  git diff --check
+  per-file non-whitespace character-multiset comparison, HEAD vs working tree
+cwd/environment: repository root; Linux x86_64; cargo 1.97.1, rustfmt 1.9.0-stable; `rust-toolchain.toml` pins `channel = "stable"` and CI uses `dtolnay/rust-toolchain@stable`, so local and CI formatters track the same channel. Local tests, builds, clippy and smoke scripts were deliberately not run per user instruction; GitHub Actions remains the test authority.
+fixture·cassette: none. This is not a fixture-backed slice; the gate involved is the `cargo fmt --all --check` step already present in every workflow.
+exit_code: 0 for local format, diff and static-compile checks; no local test was executed; remote CI result on this commit is pending/unobserved
+status change: none. No roadmap row, card status, feature_status or proof_level was promoted. The 305 rows currently at 🔄 — including P4-J7-18 (row 395) and P4-J7-19 (row 396), whose dedicated runs previously stopped at this same fmt gate — remain 🔄 until a remote green run is actually observed.
+proof-level change: none. The repair makes the existing gate pass; it does not by itself prove any step's behaviour.
+limitations: the repair is formatting-only and proves nothing about runtime behaviour, provider semantics, or any step's acceptance criteria. It restores the *ability* to obtain CI evidence; it does not substitute for it. A green fmt gate is a precondition for running tests, never a substitute for their results. Compilation was verified statically only; no test target was run. Whether the 305 🔄 steps now pass their own fixtures is unobserved and must be established by GitHub Actions.
+reviewer: Codex root review of the CI failure log for run 36105439076 plus a whole-tree format diff; a per-file character-multiset comparison was used to confirm no code was added, removed or altered, and the residual brace/comma deltas were manually confirmed to be rustfmt multi-line expansion and line wrapping. No local runtime test reviewer.
+
 ### P4-J7-19 Gemini Interactions evidence (2026-09-23)
 
 source_snapshot: current master `5f12d89c` plus P4-J7-19 Gemini source slice; `kiana-provider/src/{request.rs,response.rs}`, `kiana-domain/src/memory_workbench.rs` (CM-36 fmt dependency); `kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs`; `.github/workflows/p4-j7-19-gemini-interactions.yml`; `docs/roadmap/p4-j7-19-gemini-interactions-baseline.md`; `docs/roadmap/provider.md`; `docs/roadmap.md`

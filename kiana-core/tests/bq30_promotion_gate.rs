@@ -18,7 +18,11 @@ fn manifest(proof_level: EvidenceProofLevel) -> EvidenceManifest {
         "0be643aa",
         "recorder",
         "reviewer",
-        CommandInvocation::new(vec!["cargo".to_owned(), "test".to_owned()], "/repo", Some(0)),
+        CommandInvocation::new(
+            vec!["cargo".to_owned(), "test".to_owned()],
+            "/repo",
+            Some(0),
+        ),
         vec![EnvironmentFact::new("CI", "github-actions")],
         vec![FixtureRef::new(
             "kiana-core/tests/fixtures/one.json",
@@ -183,7 +187,10 @@ fn a_claim_the_evidence_reaches_is_promoted_and_the_decision_says_so_plainly() {
     assert_eq!(decision.claimed_level, ClaimedLevel::OfflineDurable);
     // The limitations travel with the decision, so a reader of the decision sees the caveats and
     // not only the verdict.
-    assert_eq!(decision.limitations, vec!["no external system was exercised".to_owned()]);
+    assert_eq!(
+        decision.limitations,
+        vec!["no external system was exercised".to_owned()]
+    );
 
     let live = PromotionGateRequest::new(
         "bq30-claim",

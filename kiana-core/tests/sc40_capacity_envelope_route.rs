@@ -135,7 +135,12 @@ async fn an_anonymous_caller_cannot_reach_the_envelope() {
 
 #[tokio::test]
 async fn a_missing_or_malformed_request_is_refused_before_any_decision() {
-    for arguments in [Value::Null, json!("not an object"), json!({}), json!({"sample": {}})] {
+    for arguments in [
+        Value::Null,
+        json!("not an object"),
+        json!({}),
+        json!({"sample": {}}),
+    ] {
         assert_eq!(
             check(&operator(), arguments.clone()).await,
             "capacity_envelope_payload_required",
@@ -184,7 +189,10 @@ async fn a_sample_inside_the_envelope_is_admitted_and_the_route_stays_read_only(
         Arc::new(UnavailableRunner),
     );
     let response = core
-        .handle_command(operator(), CommandIntent::new("capacity.envelope", payload()))
+        .handle_command(
+            operator(),
+            CommandIntent::new("capacity.envelope", payload()),
+        )
         .await
         .expect("response");
     let value = serde_json::to_value(&response).expect("serialized");

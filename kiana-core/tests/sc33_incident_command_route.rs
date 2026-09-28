@@ -12,7 +12,8 @@ use kiana_core::{
     SecurityIncidentState,
 };
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, CapabilityRequest, CommandIntent, PendingApproval, RequestContext,
+    ApprovalChallenge, ApprovalId, CapabilityRequest, CommandIntent, PendingApproval,
+    RequestContext,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -80,8 +81,7 @@ fn trusted() -> RequestContext {
 }
 
 fn evidence() -> SecurityIncidentEvidence {
-    SecurityIncidentEvidence::new("evidence-1", DIGEST, 1_000)
-        .expect("evidence")
+    SecurityIncidentEvidence::new("evidence-1", DIGEST, 1_000).expect("evidence")
 }
 
 fn incident() -> SecurityIncident {
@@ -231,7 +231,9 @@ async fn a_well_formed_action_is_admitted_and_the_route_stays_read_only() {
     );
     // 判定不产生副作用：事件流仍然是空的。这条断言是接线的核心不变式——
     // 一次只读判定绝不能顺手写一条事实。
-    let stream = events.read_stream("security.incident.evaluate", "incident-1").await;
+    let stream = events
+        .read_stream("security.incident.evaluate", "incident-1")
+        .await;
     assert!(
         stream.expect("readable stream").is_empty(),
         "a read-only decision must not append an event"

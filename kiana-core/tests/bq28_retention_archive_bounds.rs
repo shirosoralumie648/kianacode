@@ -90,8 +90,14 @@ fn a_p95_over_its_bound_is_refused_using_a_fixed_fixture() {
     // One slow observation in ten is a p95 of 30 and a p100 of 100, which is the whole reason to
     // name a percentile instead of a maximum.
     sample.latency_observations_ms = vec![10, 10, 10, 10, 10, 10, 10, 10, 10, 9_000];
-    assert_eq!(percentile_ms(&sample.latency_observations_ms, 95).unwrap(), 10);
-    assert_eq!(percentile_ms(&sample.latency_observations_ms, 100).unwrap(), 9_000);
+    assert_eq!(
+        percentile_ms(&sample.latency_observations_ms, 95).unwrap(),
+        10
+    );
+    assert_eq!(
+        percentile_ms(&sample.latency_observations_ms, 100).unwrap(),
+        9_000
+    );
     assert_eq!(
         evaluate_retention_archive(&sample, &bounds()).unwrap_err(),
         "retention_latency_p95_exceeded"
@@ -168,7 +174,9 @@ fn a_report_cannot_be_edited_after_the_fact() {
     let bounds = bounds();
     let report: RetentionArchiveReport =
         evaluate_retention_archive(&sample, &bounds).expect("report");
-    report.validate_against(&sample, &bounds).expect("un edited");
+    report
+        .validate_against(&sample, &bounds)
+        .expect("un edited");
 
     let mut shrunk = report.clone();
     shrunk.latency_p95_ms = 1;
@@ -190,7 +198,9 @@ fn a_pass_inside_every_bound_produces_a_report_with_percentiles_and_an_intact_le
     let sample = clean();
     let bounds = bounds();
     let report = evaluate_retention_archive(&sample, &bounds).expect("report");
-    report.validate_against(&sample, &bounds).expect("re-derives");
+    report
+        .validate_against(&sample, &bounds)
+        .expect("re-derives");
     assert_eq!(report.latency_p50_ms, 50);
     assert_eq!(report.latency_p95_ms, 100);
     assert!(report.ledger_fact_unchanged);

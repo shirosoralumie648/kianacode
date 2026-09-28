@@ -36,11 +36,7 @@ fn sc33_module_pins_the_incident_record_and_its_admission_rules() {
 
     // The three conditions the workflow exists for. A fourth catch-all bucket would be a way to
     // open an incident with no severity ladder, no deadline and no reviewer.
-    for marker in [
-        "UnknownOutcome",
-        "SecretLeak",
-        "SupplyChainDrift",
-    ] {
+    for marker in ["UnknownOutcome", "SecretLeak", "SupplyChainDrift"] {
         assert!(source.contains(marker), "SC-33 module lost class {marker}");
     }
 

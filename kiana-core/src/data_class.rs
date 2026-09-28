@@ -39,8 +39,8 @@
 use kiana_domain::{
     is_high_cardinality_label, is_payload_key, json_digest, redact_text, scan_secret_sentinels,
     DataClass, EventId, MetricCatalog, MetricPoint, RequestId, SchemaVersion, SecretScanChannel,
-    TelemetryChannel, TelemetryChannelGuarantee,
-    TelemetryChannelPolicy, TelemetryRefusal, MAX_METRIC_LABEL_VALUES, MAX_METRIC_SERIES,
+    TelemetryChannel, TelemetryChannelGuarantee, TelemetryChannelPolicy, TelemetryRefusal,
+    MAX_METRIC_LABEL_VALUES, MAX_METRIC_SERIES,
 };
 use serde::{Deserialize, Serialize};
 
@@ -487,7 +487,9 @@ impl SinkAdmissionReport {
         if self.reason != leading {
             return Err("sink_admission_reason_mismatch".to_owned());
         }
-        let expected_catalog = catalog.map(|catalog| catalog.catalog_digest.clone()).unwrap_or_default();
+        let expected_catalog = catalog
+            .map(|catalog| catalog.catalog_digest.clone())
+            .unwrap_or_default();
         if self.catalog_digest != expected_catalog {
             return Err("sink_admission_catalog_digest_mismatch".to_owned());
         }
@@ -512,7 +514,10 @@ pub fn derive_sink_class(field: &SinkField, sink: TelemetryChannel) -> DerivedCl
     } else if field.is_reference {
         (DataClass::Internal, ClassBasis::OpaqueReference)
     } else if field.is_label && is_high_cardinality_label(&field.key) {
-        (DataClass::Confidential, ClassBasis::HighCardinalityIdentifier)
+        (
+            DataClass::Confidential,
+            ClassBasis::HighCardinalityIdentifier,
+        )
     } else if field.is_label {
         (DataClass::Public, ClassBasis::BoundedLabel)
     } else {
@@ -613,7 +618,9 @@ pub fn admit_field(
         && !TelemetryChannelPolicy::admits_identifier_label(sink)
         && is_high_cardinality_label(&field.key)
     {
-        return refuse(SinkAdmissionRefusal::Shared(TelemetryRefusal::HighCardinalityLabel));
+        return refuse(SinkAdmissionRefusal::Shared(
+            TelemetryRefusal::HighCardinalityLabel,
+        ));
     }
     // A metric label is a dimension, so free text is not representable in that position at all.
     if sink == TelemetryChannel::Metric && !field.is_label && !field.is_reference {
@@ -631,12 +638,16 @@ pub fn admit_field(
     // 3. Content. `derive_sink_class` already ran both content tests; reading its basis back is how
     //    the refusal is attributed to content rather than to shape.
     if derived.basis == ClassBasis::SecretContent {
-        return refuse(SinkAdmissionRefusal::Shared(TelemetryRefusal::UnredactedContent));
+        return refuse(SinkAdmissionRefusal::Shared(
+            TelemetryRefusal::UnredactedContent,
+        ));
     }
 
     // 4. Class ceiling.
     if class_rank(derived.class) > class_rank(TelemetryChannelPolicy::ceiling(sink)) {
-        return refuse(SinkAdmissionRefusal::Shared(TelemetryRefusal::DataClassTooHigh));
+        return refuse(SinkAdmissionRefusal::Shared(
+            TelemetryRefusal::DataClassTooHigh,
+        ));
     }
 
     // 5. Export ceiling against the sink's floor.
@@ -779,7 +790,9 @@ pub fn evaluate_sink_admission(
         admissions,
         refused_keys,
         reason,
-        catalog_digest: catalog.map(|catalog| catalog.catalog_digest.clone()).unwrap_or_default(),
+        catalog_digest: catalog
+            .map(|catalog| catalog.catalog_digest.clone())
+            .unwrap_or_default(),
         report_digest: String::new(),
     };
     report.report_digest = report.digest();

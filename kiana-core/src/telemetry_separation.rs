@@ -141,7 +141,9 @@ impl SinkObservation {
             ObservationOutcome::Refused if self.reason.trim().is_empty() => {
                 Err("telemetry_observation_refused_without_reason".to_owned())
             }
-            ObservationOutcome::Admitted | ObservationOutcome::Unknown if !self.reason.is_empty() => {
+            ObservationOutcome::Admitted | ObservationOutcome::Unknown
+                if !self.reason.is_empty() =>
+            {
                 Err("telemetry_observation_reason_without_refusal".to_owned())
             }
             _ => Ok(()),
@@ -319,7 +321,9 @@ impl SeparationRequest {
         let mut previous: Option<TelemetryChannel> = None;
         for sink in &sinks {
             if !crate::data_class::OBSERVATION_SINKS.contains(sink) {
-                return Err(SubstitutionRefusal::NotAnObservationSink.as_str().to_owned());
+                return Err(SubstitutionRefusal::NotAnObservationSink
+                    .as_str()
+                    .to_owned());
             }
             if let Some(earlier) = previous {
                 if *sink <= earlier {
@@ -347,7 +351,11 @@ impl SeparationRequest {
         self
     }
 
-    pub fn with_substitution(mut self, source: TelemetryChannel, destination: TelemetryChannel) -> Self {
+    pub fn with_substitution(
+        mut self,
+        source: TelemetryChannel,
+        destination: TelemetryChannel,
+    ) -> Self {
         self.attempted_substitutions.push((source, destination));
         self
     }
@@ -394,7 +402,10 @@ fn admission_report(request: &SeparationRequest) -> Result<SinkAdmissionReport, 
     )
 }
 
-fn reachable(reachability: &[(TelemetryChannel, SinkReachability)], sink: TelemetryChannel) -> bool {
+fn reachable(
+    reachability: &[(TelemetryChannel, SinkReachability)],
+    sink: TelemetryChannel,
+) -> bool {
     reachability
         .iter()
         .find(|(seen, _)| *seen == sink)
@@ -460,7 +471,8 @@ pub fn separate(request: &SeparationRequest) -> Result<SeparationReport, String>
         field.validate()?;
     }
     let admission = admission_report(request)?;
-    let refused_substitutions = refuse_substitutions(&request.declared_sinks, &request.attempted_substitutions);
+    let refused_substitutions =
+        refuse_substitutions(&request.declared_sinks, &request.attempted_substitutions);
     let mut fields = Vec::new();
     for field in &request.fields {
         fields.push(derive_field(

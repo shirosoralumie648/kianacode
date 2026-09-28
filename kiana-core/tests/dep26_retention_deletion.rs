@@ -58,8 +58,14 @@ fn admissible() -> RetentionDeletionRequest {
 
 #[test]
 fn deleting_something_a_legal_hold_covers_is_refused() {
-    let hold = BackupLegalHold::new("hold-1", vec!["obj-1".to_owned()], "counsel", "litigation", 1)
-        .expect("hold");
+    let hold = BackupLegalHold::new(
+        "hold-1",
+        vec!["obj-1".to_owned()],
+        "counsel",
+        "litigation",
+        1,
+    )
+    .expect("hold");
     let mut request = admissible();
     request.demanded = vec![target(RevocationLayer::Facts, "obj-1")];
     request.legal_holds = vec![hold];
@@ -162,12 +168,9 @@ fn a_revocation_that_has_not_propagated_blocks_the_deletion() {
             observations,
             Vec::new(),
             CURRENT_EPOCH,
-        digest('a'),
+            digest('a'),
         );
-        assert_eq!(
-            plan_retention_deletion(&request).unwrap_err(),
-            expected
-        );
+        assert_eq!(plan_retention_deletion(&request).unwrap_err(), expected);
     }
 }
 
@@ -194,11 +197,10 @@ fn a_dry_run_names_no_deletions_at_all() {
     let plan = plan_retention_deletion(&request).expect("dry run");
     assert!(plan.deletable.is_empty(), "a dry run must delete nothing");
     assert_eq!(plan.protected.len(), 2);
-    assert!(
-        plan.protected
-            .iter()
-            .all(|ProtectedTarget { reason, .. }| reason == "dry_run")
-    );
+    assert!(plan
+        .protected
+        .iter()
+        .all(|ProtectedTarget { reason, .. }| reason == "dry_run"));
     // And the order is still stated, so a reader can see what a real run would do.
     assert_eq!(plan.deletion_order.len(), 2);
 }
@@ -210,7 +212,9 @@ fn a_plan_cannot_be_edited_after_the_fact() {
     plan.validate_against(&request).expect("un edited");
 
     let mut promoted = plan.clone();
-    promoted.deletable.push(target(RevocationLayer::Memory, "obj-1"));
+    promoted
+        .deletable
+        .push(target(RevocationLayer::Memory, "obj-1"));
     assert_eq!(
         promoted.validate_against(&request).unwrap_err(),
         "retention_deletion_plan_digest_mismatch"
@@ -255,11 +259,14 @@ fn a_bounded_plan_deletes_upstream_first_and_says_a_rebuild_is_needed() {
         digest('a'),
     );
     let plan: RetentionDeletionPlan = plan_retention_deletion(&request).expect("bounded plan");
-    assert_eq!(plan.deletion_order, vec![
-        RevocationLayer::Facts,
-        RevocationLayer::Artifact,
-        RevocationLayer::Index,
-    ]);
+    assert_eq!(
+        plan.deletion_order,
+        vec![
+            RevocationLayer::Facts,
+            RevocationLayer::Artifact,
+            RevocationLayer::Index,
+        ]
+    );
     assert_eq!(plan.deletable.len(), 3);
     assert!(plan.rebuild_required, "a derived layer was touched");
     plan.validate_against(&request).expect("re-derives");
@@ -277,17 +284,25 @@ fn a_bounded_plan_deletes_upstream_first_and_says_a_rebuild_is_needed() {
         CURRENT_EPOCH,
         digest('a'),
     );
-    assert!(!plan_retention_deletion(&facts_only)
-        .expect("facts only")
-        .rebuild_required);
+    assert!(
+        !plan_retention_deletion(&facts_only)
+            .expect("facts only")
+            .rebuild_required
+    );
 }
 
 #[test]
 fn a_held_object_is_kept_and_the_reason_is_recorded() {
     // The same hold that refuses a *demanded* deletion simply protects the object in an ordinary
     // plan. Refusing and protecting are the same rule seen from two directions.
-    let hold = BackupLegalHold::new("hold-2", vec!["obj-1".to_owned()], "counsel", "litigation", 1)
-        .expect("hold");
+    let hold = BackupLegalHold::new(
+        "hold-2",
+        vec!["obj-1".to_owned()],
+        "counsel",
+        "litigation",
+        1,
+    )
+    .expect("hold");
     let mut request = admissible();
     request.legal_holds = vec![hold];
     request.request_digest = request.digest();
@@ -315,7 +330,10 @@ fn commit_for(plan: &RetentionDeletionPlan) -> DeletionCommitReceipt {
         plan.plan_digest.clone(),
         plan.deletable.clone(),
         vec!["exec-1".to_owned(), "exec-2".to_owned()],
-        vec![verified(RevocationLayer::Facts), verified(RevocationLayer::Artifact)],
+        vec![
+            verified(RevocationLayer::Facts),
+            verified(RevocationLayer::Artifact),
+        ],
         500,
         digest('a'),
         1_700,
@@ -418,7 +436,9 @@ fn a_dry_run_plan_cannot_be_committed_and_an_unplanned_target_cannot_be_carried(
     let request = admissible();
     let plan = plan_retention_deletion(&request).expect("plan");
     let mut smuggled = commit_for(&plan);
-    smuggled.committed_targets.push(target(RevocationLayer::Facts, "obj-999"));
+    smuggled
+        .committed_targets
+        .push(target(RevocationLayer::Facts, "obj-999"));
     smuggled.execution_receipts.push("exec-3".to_owned());
     smuggled.commit_digest = smuggled.digest();
     assert_eq!(

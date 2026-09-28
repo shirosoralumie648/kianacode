@@ -10,7 +10,8 @@ use kiana_core::{
     EvidenceManifest, EvidenceProofLevel, FixtureKind, FixtureRef,
 };
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, CapabilityRequest, CommandIntent, PendingApproval, RequestContext,
+    ApprovalChallenge, ApprovalId, CapabilityRequest, CommandIntent, PendingApproval,
+    RequestContext,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -84,7 +85,11 @@ fn evidence(proof_level: EvidenceProofLevel) -> EvidenceManifest {
         "0be643aa",
         "recorder",
         "reviewer",
-        CommandInvocation::new(vec!["cargo".to_owned(), "test".to_owned()], "/repo", Some(0)),
+        CommandInvocation::new(
+            vec!["cargo".to_owned(), "test".to_owned()],
+            "/repo",
+            Some(0),
+        ),
         vec![EnvironmentFact::new("CI", "github-actions")],
         vec![FixtureRef::new(
             "kiana-core/tests/fixtures/one.json",
@@ -133,7 +138,11 @@ async fn a_cell_worker_cannot_decide_whether_its_own_claim_is_promoted() {
     let mut context = operator();
     context.cell_id = Some(kiana_domain::CellId::new());
     assert_eq!(
-        check(&context, payload("offline_durable", EvidenceProofLevel::Durable)).await,
+        check(
+            &context,
+            payload("offline_durable", EvidenceProofLevel::Durable)
+        )
+        .await,
         "promotion_operator_required"
     );
 }
@@ -143,7 +152,11 @@ async fn an_anonymous_caller_cannot_reach_the_promotion_gate() {
     let mut context = operator();
     context.actor_id = None;
     assert_eq!(
-        check(&context, payload("offline_durable", EvidenceProofLevel::Durable)).await,
+        check(
+            &context,
+            payload("offline_durable", EvidenceProofLevel::Durable)
+        )
+        .await,
         "promotion_operator_required"
     );
 }
@@ -168,7 +181,11 @@ async fn a_missing_or_malformed_request_is_refused_before_any_decision() {
         "promotion_payload_required"
     );
     assert_eq!(
-        check(&operator(), payload("platinum", EvidenceProofLevel::Durable)).await,
+        check(
+            &operator(),
+            payload("platinum", EvidenceProofLevel::Durable)
+        )
+        .await,
         "promotion_level_unknown"
     );
     let mut broken_evidence = payload("offline_durable", EvidenceProofLevel::Durable);

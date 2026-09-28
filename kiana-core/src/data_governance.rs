@@ -23,22 +23,22 @@ use std::collections::HashSet;
 /// Keep receipt audit metadata and payload references as separate, independently governed data.
 /// This helper only derives digest references from committed events; it never copies event or
 /// artifact bytes into a receipt.
-    /// 从产生它的那批事件，导出一条 receipt 的数据绑定。
-    ///
-    /// 【它在回答「这份 receipt 的数据是从哪来的」】
-    /// 输出包含源事件 id 列表与 payload 引用列表。两者都是**引用**，不是内容——
-    /// 于是「这份收据碰过哪些数据」可以被回答，而数据本身没有被复制一遍。
-    ///
-    /// 【两个防护，各挡一类】
-    /// - `events.is_empty()` → `receipt_data_source_empty`：
-    ///   一份**指不出来源**的 receipt 无法被复核。没有源事件的 receipt
-    ///   和凭空写下的 receipt 在证据能力上是一样的。
-    /// - `payload_refs.len() >= MAX_RECEIPT_PAYLOAD_REFS` → `receipt_payload_ref_limit`：
-    ///   引用数量也必须有上限，否则「一份收据」可以变成整个存储的索引。
-    ///
-    /// 【`seen` 去重不是可选的优化】
-    /// 同一批事件里可能有多个事件引用同一个对象；不去重的话，
-    /// 引用列表会随事件的重复投递而膨胀，而那正是重放场景下会发生的事。
+/// 从产生它的那批事件，导出一条 receipt 的数据绑定。
+///
+/// 【它在回答「这份 receipt 的数据是从哪来的」】
+/// 输出包含源事件 id 列表与 payload 引用列表。两者都是**引用**，不是内容——
+/// 于是「这份收据碰过哪些数据」可以被回答，而数据本身没有被复制一遍。
+///
+/// 【两个防护，各挡一类】
+/// - `events.is_empty()` → `receipt_data_source_empty`：
+///   一份**指不出来源**的 receipt 无法被复核。没有源事件的 receipt
+///   和凭空写下的 receipt 在证据能力上是一样的。
+/// - `payload_refs.len() >= MAX_RECEIPT_PAYLOAD_REFS` → `receipt_payload_ref_limit`：
+///   引用数量也必须有上限，否则「一份收据」可以变成整个存储的索引。
+///
+/// 【`seen` 去重不是可选的优化】
+/// 同一批事件里可能有多个事件引用同一个对象；不去重的话，
+/// 引用列表会随事件的重复投递而膨胀，而那正是重放场景下会发生的事。
 pub fn receipt_data_binding_from_events(
     receipt_digest: &str,
     project_ref: &str,
