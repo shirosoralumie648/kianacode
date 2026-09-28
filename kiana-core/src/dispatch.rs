@@ -1,9 +1,35 @@
+//! 派发：把「已授权的动作」变成一次真实的执行，并管理它的许可（permit）。
+//!
+//! # permit 为什么必须存在
+//!
+//! 「已授权」是一句结论，而「允许开始执行」是一张**凭证**。
+//! 两者之间隔着排队、等待、重试——而在这段时间里，授权可能被撤销、
+//! 租约可能过期、epoch 可能推进。permit 就是「授权在执行开始的那一刻仍然有效」
+//! 这件事的可核对凭证。
+//!
+//! 没有它，就只能靠「我记得我批过」——而授权撤销之后，那句记忆就是漏洞。
 use super::*;
 use kiana_domain::{
     derived_request_id, json_digest, AggregateVersion, CommitOutcome, DispatchPermit, ExecutionId,
     InvocationId, TransitionBatch, TurnId, DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
 };
 
+    /// 取一个项目根目录的**文件系统身份**。
+    ///
+    /// 【为什么不能只用路径字符串】
+    /// 路径是不稳定的：目录可以被改名、被移动、可以被替换成另一个目录。
+    /// 一个只认路径的守卫，会在「原来的目录被换掉」之后仍然认为一切正常。
+    ///
+    /// 【Unix 上返回 device + inode】
+    /// 这是文件系统给的**身份**，重命名不改变它。因此它能回答
+    /// 「这还是当初那个目录吗」，而路径只能回答「现在这个名字指向哪里」。
+    ///
+    /// 【非 Unix 上降级，而且明说降级了】
+    /// 拿不到 dev/ino 时返回 `identity_strength: "path_only"`。
+    /// 关键在于**这个标记被写进了载荷**——使用方能读到「这次的身份是弱的」，
+    /// 而不是拿到一个看起来和 Unix 一样强、实际只是路径的返回值。
+    ///
+    /// 一个诚实的降级，比一个看起来没降级的降级有用得多。
 pub fn project_root_identity(root: &str) -> Result<Value, PortError> {
     let canonical = Path::new(root)
         .canonicalize()

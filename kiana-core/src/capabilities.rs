@@ -1,3 +1,18 @@
+//! 能力（capability）的准备、授权、派发与结果回传。
+//!
+//! # 这个文件在链条上的位置
+//!
+//! ```text
+//! 任何入口的命令
+//!    ↓ approvals.rs::authorize_and_execute   ← 唯一入口
+//! 【本文件】prepare_capability_action       把请求变成「可授权的动作」
+//!    ↓ authorize_capability_action          策略 → 关卡
+//!    ↓ dispatch.rs::dispatch_authorized     派发
+//!    ↓ deliver_capability_result            结果回传与事实记录
+//! ```
+//!
+//! `authorize_and_execute` 决定「能不能做」，本文件处理「怎么做、做成了什么」。
+//! 两者分开，是为了让「授权」与「执行细节」各自能独立演进，而不必同步改。
 use super::capability_scheduler::{AdmissionLease, AdmissionOutcome};
 use super::events::*;
 use super::redaction::*;
@@ -67,6 +82,23 @@ fn grant_scope_layer(
 /// Derive the non-controller child grant from the server-owned intersection of all authority
 /// layers.  This function is deliberately pure: it creates no Cell, Broker permit or model
 /// session. The caller must still reserve the returned grant atomically in `MemoryCellRegistry`.
+    /// 从父级授予派生出**子代理**的授予。
+    ///
+    /// 【这个函数是「权限交集」规则的一个具体实现】
+    /// 仓库宪法那句「子 Cell 权限只能是父级、模板、部门、项目、packet、approval 的
+    /// **交集**」，在这里变成一段代码：输入是父级授予、AgentTemplate、RoleSpec、
+    /// 项目路径、WorkPacket 与 principal，输出是一份**每一项都不超过**父级的授予。
+    ///
+    /// 与 `cell_registry.rs` 里 `budget_is_subset` 同一个原则：**逐项 `<=`**，
+    /// 而不是「取交集值」。区别在于，静默收窄会让调用方以为自己申请到了
+    /// 请求的额度，而实际上没有——所以宁可拒绝。
+    ///
+    /// 【它先验证输入，再看角色】
+    /// 顺序是：authority_epoch 非零 → 父级授予合法 → 模板合法 → 角色合法
+    /// → 角色确实是 builder / 执行部门、模板与角色对得上……
+    ///
+    /// 也就是说，**先确认「这是一个被授权过的角色」**，再谈它能拿到什么。
+    /// 反过来做的话，一个随便什么角色都能先拿到一份授予再被检查。
 pub fn derive_swarm_child_grant(
     parent: &kiana_domain::CapabilityGrant,
     template: &kiana_domain::AgentTemplate,
