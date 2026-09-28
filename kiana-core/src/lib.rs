@@ -153,6 +153,7 @@ mod quality_gate;
 mod quality_report;
 mod receipts;
 mod recovery;
+mod recovery_rehearsal;
 mod redaction;
 mod replay_diagnostics;
 mod resource_leases;
@@ -379,6 +380,10 @@ pub use quality_evidence_archive::validate_quality_evidence_archive;
 pub use quality_feedback::{derive_quality_feedback, QUALITY_FEEDBACK_COMMAND};
 pub use quality_report::{validate_quality_report, QUALITY_REPORT_COMMAND};
 pub use receipts::aggregate_receipt_facts;
+pub use recovery_rehearsal::{
+    evaluate_post_recovery_lease, evaluate_recovery_rehearsal, RecoveryLeaseObservation,
+    RecoveryRehearsalOutcome, RECOVERY_REHEARSAL_CORE_VERSION, RECOVERY_REHEARSAL_OUTCOME_SCHEMA,
+};
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use resource_projection::project_recovery_resources;
 pub use restore_activation::{
