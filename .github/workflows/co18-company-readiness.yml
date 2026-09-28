@@ -1,0 +1,25 @@
+name: "CO-18 Company readiness and explainable blockers baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co18-company-readiness:
+    name: "CO-18 Company readiness and explainable blockers baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co18_company_readiness_guard
+        run: cargo test -p kiana-core --test co18_company_readiness_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co18_company_readiness
+        run: cargo test -p kiana-domain --test co18_company_readiness --locked -- --test-threads=1

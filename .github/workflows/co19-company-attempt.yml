@@ -1,0 +1,25 @@
+name: "CO-19 Company packet attempt and lease fencing baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co19-company-attempt:
+    name: "CO-19 Company packet attempt and lease fencing baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co19_company_attempt_guard
+        run: cargo test -p kiana-core --test co19_company_attempt_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co19_company_attempt
+        run: cargo test -p kiana-domain --test co19_company_attempt --locked -- --test-threads=1

@@ -1,0 +1,25 @@
+name: "CO-11 typed criterion coverage baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co11-criteria-coverage:
+    name: "CO-11 typed criterion coverage baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co11_criteria_coverage_guard
+        run: cargo test -p kiana-core --test co11_criteria_coverage_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co11_criteria_coverage
+        run: cargo test -p kiana-domain --test co11_criteria_coverage --locked -- --test-threads=1

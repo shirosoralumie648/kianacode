@@ -1,0 +1,25 @@
+name: "CO-37 Company decision, lesson candidate and Memory promotion baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co37-company-knowledge:
+    name: "CO-37 Company decision, lesson candidate and Memory promotion baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co37_company_knowledge_guard
+        run: cargo test -p kiana-core --test co37_company_knowledge_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co37_company_knowledge
+        run: cargo test -p kiana-domain --test co37_company_knowledge --locked -- --test-threads=1

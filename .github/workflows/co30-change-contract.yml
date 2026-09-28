@@ -1,0 +1,25 @@
+name: "CO-30 baseline change impact and publication baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co30-change-contract:
+    name: "CO-30 baseline change impact and publication baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co30_change_contract_guard
+        run: cargo test -p kiana-core --test co30_change_contract_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co30_change_contract
+        run: cargo test -p kiana-domain --test co30_change_contract --locked -- --test-threads=1

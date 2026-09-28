@@ -1,0 +1,25 @@
+name: "CO-13 versioned department packet baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co13-department-packets:
+    name: "CO-13 versioned department packet baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co13_department_packets_guard
+        run: cargo test -p kiana-core --test co13_department_packets_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co13_department_packets
+        run: cargo test -p kiana-domain --test co13_department_packets --locked -- --test-threads=1
