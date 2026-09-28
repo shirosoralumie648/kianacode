@@ -1,3 +1,14 @@
+//! 平台层：把「本地的人类操作」落成事件，同时**保留原有的 Approval / Company 权限与事件事实**。
+//!
+//! # 为什么要专门有一个「平台层」
+//!
+//! 因为有一类操作既不是跑模型，也不是改配置，而是「人对系统做的一次动作」：
+//! 批准、取消、恢复、指派、看状态。它们过去散落在各处，现在集中在这里，
+//! 而集中之后最重要的一条是文件头那句：**保留原有的权限与事件事实**。
+//!
+//! 也就是说，这一层**不新造一套权限**，它只是把已有的那条链
+//! （ControlPlane → policy → gates → approval）接到本地界面上。
+//! 任何「为了方便本地操作而绕过审批」的实现都不该出现在这里。
 //! Local human operations retain the original Approval/Company authorities and event facts.
 use super::*;
 use kiana_domain::{
@@ -29,6 +40,33 @@ pub(crate) fn materialize_notification_inbox(
 ///
 /// `unknown` carries the caller's existing "the effect outcome is not confirmed" bit, which the
 /// incident projector already computes from the event kind and payload.
+    /// 把一段人类可读的失败摘要归到一个粗分类里。
+    ///
+    /// 【⚠ 这是一个基于子串匹配的分类器，它知道自己不可靠】
+    /// 读到这里如果心里想的是「靠字符串判断状态很脆弱」——对，所以这个函数
+    /// **只用于给人看的摘要**。
+    ///
+    /// 真正需要程序判定的地方，用的是
+    /// `kiana_domain::CapabilityResultDimensions`（`capabilities.rs`）里的
+    /// 结构化取值。那里的注释专门写了「不得用子串匹配重建」以及三个理由。
+    ///
+    /// 所以这里的定位是：**展示层的归类，不是判定面**。
+    /// 如果哪天有人想拿它的结果去做分支控制，那是在把文案变成接口。
+    ///
+    /// 【顺序即优先级，读的时候要按顺序理解】
+    /// ```text
+    /// 磁盘满   ← 最先判，因为它往往导致后面几种现象一起出现
+    /// 超时
+    /// mcp      ← 注意在 cancelled 之前
+    /// 取消     ← 所以「取消过程中发生的 MCP 失败」会被归为 McpFailure
+    /// 提供方未知
+    /// 崩溃     ← 兜底：什么都不匹配时的默认结论
+    /// ```
+    ///
+    /// 最后那个 `Crash` 值得警惕：它是**「我不知道」**的代名词，
+    /// 而不是「我确认它崩了」。文案不认识的新错误类型会落到这里——
+    /// 这是分类器的固有代价：新增错误文案时忘了加关键词，
+    /// 表现会是「莫名其妙地归成崩溃」。
 pub fn classify_failure_summary(summary: &str, unknown: bool, cancelled: bool) -> FailureClass {
     let lower = summary.to_ascii_lowercase();
     if lower.contains("no space") || lower.contains("disk_full") || lower.contains("os error 28") {

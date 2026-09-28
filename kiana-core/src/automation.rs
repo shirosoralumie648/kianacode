@@ -1,3 +1,18 @@
+//! 持久化的**确定性 workflow** 与触发器，跑在既有的 EventStore 与执行脊柱上。
+//!
+//! # 「确定性」在这里指什么
+//!
+//! 指同一份定义 + 同一份输入 → 同一串步骤。
+//! 这与模型驱动的「agent 自主决定下一步」是两种东西：workflow 的每一步都是
+//! **事先定义好的**，因此它可以被重放、被核对、被证明「它确实按定义走了」。
+//!
+//! 文件头那句「on the existing EventStore and execution spine」是硬约束：
+//! 这里的每一步都通过 `ControlPlane`，不开第二条执行循环。
+//!
+//! # 与 `kiana-workflow` 的分工
+//!
+//! crate 负责**定义**（步骤、依赖、fan-out/join 的形状），
+//! 这个文件负责**在控制面里执行它**：准入、状态、事件。
 //! Durable deterministic workflows and triggers on the existing EventStore and execution spine.
 use super::*;
 use kiana_domain::*;
@@ -107,6 +122,28 @@ fn authority(context: &RequestContext) -> AutomationAuthority {
 }
 
 impl ControlPlane {
+    /// 判断「这次能力请求，是不是在执行某个 workflow 的合法一步」。
+    ///
+    /// 【六个条件同时成立才放行，任何一个不成立就整条拒绝】
+    /// ```text
+    /// 1 workflow_ancestors_active   上游节点都还活着
+    /// 2 !instance.status.terminal() 实例没结束
+    /// 3 实例不是 Paused / CancelRequested
+    /// 4 !node.status.terminal()      节点没结束
+    /// 5 node.session_id == 上下文     同一个会话
+    /// 6 instance.role_id == 上下文   同一个角色
+    /// ```
+    ///
+    /// 【为什么要写成一个 `if` 里的六个条件】
+    /// 因为它们是**合取**的：缺任何一个，这次调用就「不是这个 workflow 的合法一步」。
+    /// 拆成六个独立的报错不会让安全性变好，只会让调用方更难判断是哪一条不满足
+    /// ——而这个仓库里其它地方（`company_business_runtime_guard`）也是同样的取舍：
+    /// 修法相同时，合并成一个码更好读。
+    ///
+    /// 【⚠ 第 5、6 条是真正起作用的两条】
+    /// 前面四条是「流程还没走完」，后两条是「**你**不是执行这一步的那个人」。
+    /// 少了它们，一个 workflow 就能被任何会话、任何角色推进——
+    /// 那等于把 workflow 的执行权发给了所有登录用户。
     pub(crate) async fn guard_workflow_capability(
         &self,
         context: &RequestContext,
