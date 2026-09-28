@@ -19,6 +19,18 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// 三个准入上限，都是**硬边界**而不是建议值。
+///
+/// - `MAX_ROOT_CELLS = 64`：同时存活的**根** Cell 数。一个根 Cell 就是一个自治执行域，
+///   它的存在意味着进程里有一段独立的预算、路径锁和生命周期。根 Cell 不设上限的话，
+///   单次批量派发就能把进程的内存和路径锁表撑满，而这些东西回收要等 Cell 真正结束。
+/// - `MAX_ACTIVE_CELLS = 64`：所有层级的活跃 Cell 总数。它和上一个分开，是因为
+///   「根少但每个根生很多子」同样会撑爆，只盯根数是不够的。
+/// - `MAX_CHILDREN_PER_PARENT = 8`：单个父 Cell 的活跃子 Cell 数。它比前两个小得多，
+///   因为父子之间还有别的共享状态；一个父派生太多子，父子预算的求交结果会迅速收敛到
+///   最小的那个，父的预算也就失去了意义。
+///
+/// 三个数字都写在这里而不是散落，是为了让「准入能长到多大」有一个可以一眼看完的答案。
 pub(crate) const TEMPLATE_VERSION: &str = "1.0.0";
 const MAX_ROOT_CELLS: usize = 64;
 const MAX_ACTIVE_CELLS: usize = 64;
@@ -135,6 +147,17 @@ impl MemoryCellRegistry {
             })
     }
 
+    /// 判断两份预算是**同一份**（逐字段相等）。
+    ///
+    /// 【和 `budget_is_subset` 的区别】
+    /// 这是相等判断，只在「这就是同一个租约的同一份预算」时为真。
+    /// 它服务的是幂等：同一个 spawn plan 重复到达时，应该认出「我见过了」，
+    /// 而不是重新分配一份。
+    ///
+    /// 【为什么要逐字段比，而不是比 digest】
+    /// 因为预算是**不可变值**：一旦分配，任何字段变化都意味着另一份预算。
+    /// 少比一个字段，就等于允许一个字段在无人察觉的情况下变化——
+    /// 而预算字段是钱。
     fn immutable_budget_matches(left: &BudgetLease, right: &BudgetLease) -> bool {
         left.schema == right.schema
             && left.lease_id == right.lease_id
@@ -147,6 +170,24 @@ impl MemoryCellRegistry {
             && left.max_reserved_budget == right.max_reserved_budget
     }
 
+    /// 判断子预算是否**每一项都不超过**父预算。
+    ///
+    /// 【这是整个仓库最重要的一条权限规则】
+    /// 仓库宪法写的是「子 Cell 权限只能是父级、模板、部门、项目、packet、approval 的**交集**」。
+    /// 交集在这里被实现成了「逐项 `<=`」：只要有**任何一项**超出，就不成立。
+    ///
+    /// 【为什么不用并集 / 为什么不是「取小的」】
+    /// 如果实现成「子超出就截断成父的值」，调用方会以为它申请到了自己请求的额度，
+    /// 实际上拿到的是被悄悄削过的额度——**静默收窄比明确拒绝危险得多**。
+    /// 拒绝让调用方知道自己的请求不成立，从而去改请求或者去申请更大的父预算。
+    ///
+    /// 【为什么是每一项都比】
+    /// 因为预算是多个维度的合取约束：工具调用数、模型调用数、token、墙钟、并发、
+    /// effect 数、预留额度。任何一项超出，child 就可能做父不允许它做的事。
+    /// 少比一项，那一项就是一个可以被子 Cell 放大的口子。
+    ///
+    /// 【⚠ 改这个函数前先想清楚】
+    /// 放宽任何一个 `<=` 成 `<` 之外的比较，都会让「权限并集」这个反模式重新长出来。
     fn budget_is_subset(child: &BudgetLease, parent: &BudgetLease) -> bool {
         child.max_tool_calls <= parent.max_tool_calls
             && child.model_call_limit() <= parent.model_call_limit()
@@ -157,6 +198,29 @@ impl MemoryCellRegistry {
             && child.max_reserved_budget <= parent.max_reserved_budget
     }
 
+    /// 释放一个 Cell 持有的资源，并且**可重复调用**。
+    ///
+    /// 【作用】
+    /// 归还预算预留、释放它持有的路径锁。
+    ///
+    /// 【为什么第一行是 `if record.resources_released { return Ok(()) }`】
+    /// 因为释放是**幂等**的。retire 路径可能被走两次（一次是显式 retire，一次是
+    /// retire_cell 触发的清理），两次都调用释放时，第二次必须什么都不做而不是报错。
+    /// 预算重复释放会算成两次退款，路径锁重复释放会把别人的锁删掉。
+    ///
+    /// 【路径锁为什么要先确认「现在这把锁还是我的」】
+    /// ```rust
+    /// if state.path_locks.get(path) == Some(&record.reservation.cell.cell_id)
+    /// ```
+    /// 因为锁可能已经被回收并**重新授予**给另一个 Cell。此时无条件 `remove` 会删掉新主人的锁。
+    /// 所有权检查是这个函数里最容易写错、也最难在测试里发现的一行：
+    /// 它只在「A 释放、锁已经给了 B」这个时序下才有区别。
+    ///
+    /// 【⚠ 注意本函数的边界】
+    /// 它释放的是**进程内**资源。仓库的 review 记录指出：retire 目前没有追加
+    /// `grant.revoked` / `lease.fenced` 这类可投影的 server-owned 事实，
+    /// 所以 `authority_read_model` 理论上仍可能把已退役 Cell 的 grant 当作 active。
+    /// 那是持久化事实层的缺口，不是本函数能补的——本函数不能凭空写事件。
     fn release_resources(
         state: &mut RegistryState,
         record: &mut CellRecord,
@@ -181,6 +245,19 @@ impl MemoryCellRegistry {
         Ok(())
     }
 
+    /// 当前墙钟毫秒。
+    ///
+    /// 【两个降级都是刻意的】
+    /// - `.min(u128::from(u64::MAX))`：时钟返回的毫秒数在 5.8 亿年后才会溢出 `u64`，
+    ///   但**夹住**比 `as u64` 的截断更诚实——截断会得到一个看起来合理但完全错误的数字，
+    ///   而夹住得到的是「至少是极大值」；
+    /// - `.unwrap_or(0)`：系统时钟早于 Unix 纪元时返回 0，而不是 panic。
+    ///   一个还没对时的机器不应该因为读一次时间就把 Cell 注册表搞崩。
+    ///
+    /// 【⚠ 这不是单调时钟】
+    /// 墙钟会往回走（对时、NTP 校正）。预算的墙钟维度依赖它，所以时钟回拨会让一个
+    /// 已经用掉的预算看起来没用完。SC-40 的 `capacity_fault_clock_rollback` 就是为这类
+    /// 情况准备的：检测到回拨时，先拒绝、再谈其它数字，因为用倒拨过的钟测出来的一切都不算数。
     fn now_unix_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
