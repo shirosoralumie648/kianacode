@@ -1,12 +1,92 @@
+//! `ControlPlane` 的**构造**与**命令入口**。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! 入口（CLI / Workbench / Web / Desktop）
+//!    ↓  versioned command（kiana-protocol 的 CommandIntent）
+//! 【本文件 ControlPlane::handle_command】   唯一命令入口：分派 + 前置校验
+//!    ↓
+//! ControlPlane 的其它模块（lifecycle / collaboration / company / …）或
+//! authorize_and_execute → policy → gates → approval → broker
+//!    ↓
+//! kiana-eventlog（EventStore）→ Receipt
+//! ```
+//!
+//! **它是「所有命令的唯一入口」**。任何入口想产生副作用，都必须把命令送到这里。
+//! 仓库宪法明确禁止在 entrypoint、UI、MCP、workflow 或 artifact 里另起一条执行路径——
+//! 本文件就是那条唯一路径的起点。
+//!
+//! # 两件事
+//!
+//! 1. **构造 `ControlPlane`**：把策略引擎、关卡引擎、事件存储、能力 broker、审批存储、
+//!    runner 六个依赖装配进来。构造器分成四层是历史演进 + 测试便利的折中，见下方说明。
+//! 2. **分派命令**：[`ControlPlane::handle_command`] 是一个大 `if/match` 链，
+//!    把命令名路由到对应的处理函数。路由**不等于**授权——真正的授权在下游。
+//!
+//! # 数据流
+//!
+//! ```text
+//! RequestContext（我是谁：actor / role / project / cell / request_id）
+//! CommandIntent（要做什么：name + arguments）
+//!        ↓  handle_command 按 name 分派
+//!        ↓  ① 少数命令有「前置硬校验」（如 operator 身份、扩展变更必填字段）
+//!        ↓  ② 其余命令转交对应处理函数
+//!        ↓  ③ 需要副作用的命令统一走 authorize_and_execute
+//! 策略（policy）→ 关卡（gates）→ 审批（approval）→ 执行（broker）
+//!        ↓
+//! 事件写入 EventStore → 生成 Receipt → 返回 CoreResponse
+//! ```
+//!
+//! # 为什么「路由」和「授权」要分开
+//!
+//! 因为它们回答的是两个不同问题。路由回答「这个命令归谁管」，授权回答「**你**能不能做」。
+//! 如果把授权写进路由分支，就会出现「某个新命令忘了写授权检查」这种致命漏洞。
+//! 所以本文件里的分支只做**形状与前置条件**校验，任何真正产生副作用的路径最终都必须
+//! 汇入 `authorize_and_execute`。
+
 use super::*;
 
 impl ControlPlane {
+    /// 设置「按角色区分的单轮最大步数」覆盖值。
+    ///
+    /// 【作用】
+    /// `ControlPlane` 内部有两处步数限制：全局的 `max_steps_per_turn`，以及按角色目录
+    /// 查出来的每轮上限。这里只改后者。
+    ///
+    /// 【输入】
+    /// - `max_steps_override`：`Some(n)` 表示**信任调用方**（通常是受控的组合根 `DaemonHost`）
+    ///   已经算好了角色上限；`None` 表示「按角色目录现算」。
+    ///
+    /// 【为什么用 `Option` 而不是直接传数字】
+    /// 因为 `None` 和 `Some(0)` 语义完全不同：`None` 是「我不知道，你去查」，
+    /// `Some(0)` 是「这个角色一步都不能走」。用 `Option` 能把两者区分开，
+    /// 不会在某个调用点不小心把 0 当成「不限制」。
+    ///
+    /// 【⚠ 安全边界】
+    /// 这是 builder 链上的**内部旋钮**，不是对外的权限开关。它只能影响「跑多少步」，
+    /// 不能新增工具、不能改变授权结果。真正的信任来源是组合根——所以它被放在
+    /// `with_*` 构造链的**最后**一步，调用方无法在中间插入。
+    ///
+    /// 【为什么是 `mut self` 消耗式 builder】
+    /// 返回 `Self` 而不是 `&mut Self`，是为了让「忘记赋值」在编译期就失败。
     /// Select a per-run role limit unless the trusted composition root supplies an override.
     pub fn with_role_step_limits(mut self, max_steps_override: Option<u32>) -> Self {
         self.max_steps_per_turn = max_steps_override;
         self
     }
 
+    /// 最简构造：六个核心依赖 + 一个「全部放行」的工具前置钩子。
+    ///
+    /// 【⚠ 这里的默认值有讲究】
+    /// `AllowAllPreToolHooks` 意味着**不做任何工具前置拦截**。它是默认值而不是「更安全的默认」，
+    /// 是因为工具前置钩子（pre-tool hook）属于项目本地扩展能力，默认开启会让
+    /// 「没配 hook 的项目」也走一遍钩子判定路径。真正的安全网不在这里——
+    /// 在 policy / gates / approval 那条链上。
+    ///
+    /// 【上层谁来调】
+    /// `kiana-daemon::DaemonHost` 在生产装配时不会用这个简版，而是用
+    /// 带 hook、带 runtime config、带 cell registry 的完整版。
     pub fn new(
         policy: Arc<dyn PolicyEngine>,
         gates: Arc<dyn GateEngine>,
@@ -26,6 +106,27 @@ impl ControlPlane {
         )
     }
 
+    /// 构造器第 2 层：显式注入工具前置钩子。
+    ///
+    /// 【为什么要分这么多层】
+    /// 因为依赖是逐步长出来的：先有六个核心端口，后来加了 hook，再后来加了 runtime config
+    /// 和 cell registry。Rust 没有默认参数，于是每一层加依赖就多一个构造器。
+    ///
+    /// 【⚠ 这是一个已知的可维护性代价】
+    /// 更好的做法是一个 `ControlPlaneDeps` 结构体 + `Default`。现在这样写的好处是
+    /// **每个构造器的能力集合在签名里一目了然**，坏处是层数会继续增长。
+    /// 后续如果再加依赖，应当考虑引入依赖结构体，而不是继续加第 5、第 6 个构造器。
+    ///
+    /// 【本层额外做了什么】
+    /// 用**默认 runtime config**（`max_steps_per_turn = 32`）构造，然后调用
+    /// `.with_role_step_limits(None)`，也就是「角色步数不覆盖，按角色目录现算」。
+    ///
+    /// 【32 这个数字】
+    /// 32 是「一个对话轮次内模型最多被驱动多少步」的兜底上限。
+    /// 为什么要有一个总上限：模型可能在两个工具之间反复横跳，没有硬上限就会一直烧钱。
+    /// 为什么是 32 而不是更大：32 步足够完成绝大多数真实任务（读几个文件、改一个函数、
+    /// 跑一次测试），而超出通常意味着模型卡住了。与其让它烧到上限，
+    /// 不如早点停下来把「未完成」如实暴露出来。
     pub fn with_pre_tool_hooks(
         policy: Arc<dyn PolicyEngine>,
         gates: Arc<dyn GateEngine>,
@@ -50,6 +151,18 @@ impl ControlPlane {
         .with_role_step_limits(None)
     }
 
+    /// 构造器第 3 层：额外注入运行时配置（当前只有单轮步数上限）。
+    ///
+    /// 【注意它做了什么、没做什么】
+    /// 做了：把调用方给的 `runtime_config.max_steps_per_turn` 传下去。
+    /// 没做：**没有**在这里校验这个值是否合理（比如是否超过某个硬上限）。
+    /// 校验放在更下游的运行时闸门，这样即使有人绕过本构造器直接构造 `ControlPlane`，
+    /// 也不会拿到一个无上限的运行时。
+    ///
+    /// 【额外装配了什么】
+    /// 用 `MemoryCellRegistry`（**进程内**的 Cell 注册表）作为默认实现。
+    /// ⚠ 它是内存实现：不跨进程、不持久化。重启后 Cell 状态会丢。
+    /// 需要持久化语义时，组合根必须显式注入别的实现——这正是本构造器存在的意义。
     pub fn with_pre_tool_hooks_and_runtime_config(
         policy: Arc<dyn PolicyEngine>,
         gates: Arc<dyn GateEngine>,
@@ -75,6 +188,30 @@ impl ControlPlane {
         )
     }
 
+    /// 构造器第 4 层（最终层）：**唯一真正干活的地方**，前三层都转发到这里。
+    ///
+    /// 【作用】
+    /// 把八个依赖 + 运行时配置写进 `ControlPlane`，并初始化十张进程内状态表。
+    ///
+    /// 【那些 `Mutex<HashMap<..>>` 是什么】
+    /// 它们是控制面的**进程内运行态**，不是事实来源：
+    /// - `sessions`：活跃会话 → 会话状态；
+    /// - `invocation_projections` / `invocation_projection_event_ids`：Invocation 的投影缓存
+    ///   （可重建，丢了能从事件重算）；
+    /// - `pending_invocations`：已发起但还没收到结果的调用（**结果未知**的那一类）；
+    /// - `cancellations` / `capability_stops`：取消请求与停止信号；
+    /// - `active_terminal_scopes`：已经进入终态的作用域，防止重复终结；
+    /// - `path_locks` / `durable_path_locks`：进程内路径锁 + 持久化路径锁；
+    /// - `admission_scheduler`：能力准入调度器（并发上限、排队）。
+    ///
+    /// 【⚠ 为什么它们是 `Mutex<HashMap>` 而不是 `RwLock`/`DashMap`】
+    /// 控制面的写操作远少于读操作，而且这些表都很小。用最简单的 `Mutex` 换来的是
+    /// 「不可能写出数据竞争」这个强保证。当某张表真的成为瓶颈时再换，
+    /// 比一开始就引入更复杂的并发原语更容易证明正确。
+    ///
+    /// 【⚠ 关键边界】
+    /// 这些表**不是事实**。它们丢了，理论上可以从 EventLog 重建。
+    /// 任何把「重启后表空了所以放行」当策略的代码都是错的——正确做法是重建或拒绝。
     pub fn with_pre_tool_hooks_and_cell_registry(
         policy: Arc<dyn PolicyEngine>,
         gates: Arc<dyn GateEngine>,
@@ -111,6 +248,53 @@ impl ControlPlane {
         }
     }
 
+    /// **所有命令的唯一入口**：把一个 `CommandIntent` 路由到处理它的地方。
+    ///
+    /// 【作用】
+    /// 1. 识别少数「特权命令」（operator 命令、运行轮次、通信、swarm、automation、company…），
+    ///    为它们做**前置硬校验**，然后转交对应处理函数；
+    /// 2. 其余命令统一走 `authorize_and_execute` 这条受控通道。
+    ///
+    /// 【调用者】
+    /// `kiana-daemon::DaemonHost` 在收到 versioned command 后调用。CLI、Workbench、
+    /// Web、Desktop 全部经过这里——这正是「唯一执行脊柱」的落地方式。
+    ///
+    /// 【输入】
+    /// - `context: RequestContext`：**服务端解析出来的**调用者身份（actor / role /
+    ///   project / cell / request_id）。⚠ 它不是客户端自称的，客户端自称的字段会被忽略或拒绝；
+    /// - `intent: CommandIntent`：命令名 + JSON 参数。
+    ///
+    /// 【输出】
+    /// `Result<CoreResponse, CoreError>`。注意有两种「失败」表达方式，含义不同：
+    /// - `Ok(CoreResponse::blocked(..))`：**请求本身合法，但当前条件不满足**
+    ///   （例如需要 operator 身份而调用方是 cell 内的 worker）。这是一次正常的业务拒绝，
+    ///   应当如实展示给用户；
+    /// - `Err(..)`：请求不合法（参数缺失、id 非法、扩展变更字段不全等）。
+    ///
+    /// 【副作用】
+    /// 取决于被路由到的分支：有的分支只读（快照查询），有的会真正执行能力、
+    /// 写入 EventStore、生成 Receipt。**本函数自己不直接做副作用**，
+    /// 它只是决定「这件事该由谁去做」，实际执行必须过 policy/gates/approval/broker。
+    ///
+    /// 【核心流程】
+    /// ```text
+    /// 1. 特权命令组：要求 operator 身份（非 cell 内的、有 actor_id、参数是对象）
+    ///    ├─ workspace.transaction / execution.output.read / environment.inspect
+    ///    ├─ tool.search / process.*（启动、轮询、写 stdin、改尺寸、停止）
+    ///    ├─ run.turn.v2（一轮对话）
+    ///    ├─ communication.* / swarm.* / automation.* / company.*
+    ///    └─ extension.*（扩展安装/升级/回滚）
+    /// 2. 每一个都转交给专用处理函数，**不**在本函数里实现业务逻辑
+    /// 3. 未识别的命令 → 由最后的兜底分支拒绝（fail-closed）
+    /// ```
+    ///
+    /// 【为什么用一长串 `if` 而不是 `match`】
+    /// 因为大部分判断是「命令名等于某个常量」的相等性判断，`matches!` 比 `match` 更省事；
+    /// 而少数分支需要读参数才能决定（例如 `run.turn.v2` 要从参数里取 `run_id`）。
+    /// 代价是这个函数很长——**这是已知的可维护性代价**。
+    /// 将来如果命令数量继续增长，应当抽成「命令注册表 + 分派表」，
+    /// 但要注意：**注册表只能做路由，不能携带授权逻辑**，否则就等于给「新增命令」开了一条
+    /// 默认放行的后门。
     pub async fn handle_command(
         &self,
         context: RequestContext,
