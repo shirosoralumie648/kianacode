@@ -54,8 +54,22 @@ symptom.
 
 This is a comparator over supplied observations. It opens no transport, starts no process, runs no
 command, appends no event and reads no file — the guard asserts the absence of each of those tokens.
-It is not wired into `ControlPlane::handle_command`, into a release gate or into any entrypoint, so
-no surface is actually forced through it yet. It compares what a surface *reports*; a surface that
+It is not wired into a release gate or into any entrypoint, so no surface is actually forced
+through it yet.
+
+**Why there is no `ControlPlane::handle_command` route, and why that is not an oversight.** The two
+sibling routes this batch added — `security.incident.evaluate` and `promotion.check` — are both
+reachable from `handle_command` because their types live in `kiana-core`. This comparator's types
+live in `kiana-client`, and `kiana-core` does not depend on `kiana-client` (nor the reverse): the
+two are siblings under `kiana-domain`. A route would therefore require adding a dependency edge
+between them purely so that a command handler could name a type.
+
+That edge is the wrong trade. Parity is a property of the client protocol — it compares what the
+surfaces *said* — so the comparator belongs where the protocol DTOs are, and pulling it into the
+control plane would make the control plane aware of surfaces it does not own. The honest statement
+is therefore the structural one: this gate is reachable from wherever `kiana-client` surfaces are
+driven, and closing that would be a different decision about where parity is enforced rather than a
+missing branch. It compares what a surface *reports*; a surface that
 reports faithfully and behaves differently is not caught here, and neither is a surface that never
 produces an observation at all — a missing surface is `protocol_parity_surfaces_missing`, but a
 surface that is silently absent from the product is invisible to this check. No real browser, PTY,
