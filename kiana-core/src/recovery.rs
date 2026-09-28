@@ -1,3 +1,13 @@
+//! 恢复：把一次中断的 run 重新接上，并把它留下的 Cell 归位。
+//!
+//! # 「恢复」不等于「重试」
+//!
+//! 恢复的前提是**当初那次执行到底发生了什么并不完全清楚**。
+//! 这件事一旦搞错，代价是重复执行或状态错乱，所以这个文件里的每个判断都偏向
+//! 「不确定就保持不确定」：
+//! - 状态机不允许从 `ResultUnknown` 走回成功（见 `states.rs`）；
+//! - 恢复本身要走 `authorize_and_execute` 那条链，不开第二个执行循环；
+//! - Cell 的归位由**已知的执行状态**决定，而不是由「我们希望它成功」决定。
 use super::redaction::*;
 use super::*;
 use kiana_domain::{json_digest, ApprovalView, RunSnapshot};
@@ -619,6 +629,36 @@ impl ControlPlane {
         ))
     }
 
+    /// 一次执行结束后，把它所属的 Cell 放到对应的生命周期状态上。
+    ///
+    /// 【三个「什么都不做」的出口，先看它们】
+    /// ```text
+    /// 没有 cell_id            → 这次执行不属于任何 Cell，不用归位
+    /// 找不到 reservation      → 没有登记过，不归位（不凭空造一个）
+    /// current 已经是终态      → 已经归位过了，重复调用是安全的空操作
+    /// ```
+    /// 这三个出口都是「幂等」而不是「跳过检查」：恢复流程可能被重放，
+    /// 归位也必须能重放。
+    ///
+    /// 【状态映射里最要紧的一条】
+    /// ```text
+    /// Completed         → ReadyToMerge
+    /// AwaitingApproval  → WaitingInput
+    /// ResultUnknown     → Quarantined     ← 不是 Failed
+    /// Cancelled         → CancelRequested
+    /// Failed/Blocked/Denied → Failed
+    /// 其它              → 不动
+    /// ```
+    ///
+    /// ⚠ `ResultUnknown` 映射到 **Quarantined 而不是 Failed**，是本仓库最一致的一个选择。
+    ///   「不知道」不等于「失败」：失败的 Cell 可以被重试或丢弃，
+    ///   而 Quarantined 的含义是「先别动它，等对账给出答案」。
+    ///   如果这里写成 Failed，一个可能已经产生了副作用的 Cell 就会被当成干净的失败品处理掉。
+    ///
+    /// 【为什么每次都记事件】
+    /// 归位不是内存操作，它会写一条 `cell.<状态>` 事件。
+    /// 理由和 approvals.rs 里 `request.accepted` 一样：Cell 处于什么状态是一个事实，
+    /// 而这个事实必须在事后可查。
     pub(crate) async fn settle_resumed_cell(
         &self,
         context: &RequestContext,
