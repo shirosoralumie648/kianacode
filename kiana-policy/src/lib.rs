@@ -31,6 +31,8 @@ mod provider;
 pub use provider::*;
 mod project_trust;
 pub use project_trust::*;
+mod security_control_registry;
+pub use security_control_registry::*;
 
 /// 对单个能力请求作出纯策略决定的接口。
 ///
