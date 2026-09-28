@@ -69,6 +69,19 @@ own, because a second fault taxonomy is a second answer to "what went wrong".
 
 ## Honest limitations
 
+**The command route.** The envelope is reachable from a command: `capacity.envelope` in
+`ControlPlane::handle_command` takes the sample and the budget, and returns the sealed report. Like
+the other two routes this batch added it does **not** go through `authorize_and_execute` — a
+decision with no effect has no business spending a capability quota, and an entry in the audit
+trail for something that never happened is worse than a slow query.
+
+What the route adds is the operator requirement, and the reason is specific rather than
+housekeeping: this decision's conclusion is what gets quoted when someone asks "did it stay bounded
+at the time". A Cell-internal worker taking part in ruling on whether the system held its bounds is
+a witness for its own conduct.
+
+## Honest limitations
+
 This module **computes**. It injects no fault, starts no timer, reads no clock, opens no socket,
 allocates no queue and dispatches nothing — the guard asserts the absence of each of those tokens.
 Every latency, queue depth and byte count in a report was supplied by the caller, and so was the

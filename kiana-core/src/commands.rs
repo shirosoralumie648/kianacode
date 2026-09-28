@@ -398,6 +398,62 @@ impl ControlPlane {
                 )
                 .await;
         }
+        if intent.name == "capacity.envelope" {
+            // SC-40 的接线：一次「故障期间系统是否仍在有界 latency/queue/bytes 之内」的只读判定。
+            //
+            // 与前两条路线同样不走 `authorize_and_execute`：判定不写事件、不改状态、不发能力。
+            //
+            // 为什么要求 operator：这份判定的结论会被用来解释「当时有没有越界」。
+            // 让 cell 内部的 worker 参与裁定系统是否守住了边界，等于让它为自己的行为作证。
+            if context.cell_id.is_some()
+                || context.actor_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "capacity_envelope_operator_required",
+                ));
+            }
+            let object = match intent.arguments.as_object() {
+                Some(object) => object,
+                None => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "capacity_envelope_payload_required",
+                    ))
+                }
+            };
+            let (Some(raw_sample), Some(raw_budget)) = (object.get("sample"), object.get("budget"))
+            else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "capacity_envelope_payload_required",
+                ));
+            };
+            let (sample, budget) = match (
+                serde_json::from_value::<CapacityFaultSample>(raw_sample.clone()),
+                serde_json::from_value::<CapacityBudget>(raw_budget.clone()),
+            ) {
+                (Ok(sample), Ok(budget)) => (sample, budget),
+                _ => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "capacity_envelope_payload_invalid",
+                    ))
+                }
+            };
+            // 越界是一个**结论**，不是协议错误：调用方需要区分「越界了，界是这个」和
+            // 「你给的数据我读不懂」，而这两者的下一步完全不同。
+            return match evaluate_capacity_fault(&sample, &budget) {
+                Ok(report) => Ok(CoreResponse::completed(
+                    context.request_id,
+                    json!({
+                        "schema": CAPACITY_FAULT_REPORT_SCHEMA,
+                        "report": report,
+                    }),
+                )),
+                Err(reason) => Ok(CoreResponse::blocked(context.request_id, reason)),
+            };
+        }
         if intent.name == "promotion.check" {
             // BQ-30 的接线：一次「这个主张能不能被叫得比它的证据更强」的只读判定。
             //
