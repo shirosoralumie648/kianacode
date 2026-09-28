@@ -52,6 +52,18 @@ pub struct CliNotificationView {
     pub limitations: Vec<String>,
 }
 
+    /// 把服务端的通知页 DTO 投影成 CLI 能显示的行。
+    ///
+    /// 【和 `web_notifications.rs` 是同一件事的两种输出】
+    /// 那边给浏览器、这边给终端，但**边界完全一样**：都只保留显示需要的字段，
+    /// 都不提交动作、都不改状态、都不重试、都不把断流当成完成。
+    ///
+    /// 写成两份而不是抽一个公共函数，是因为两边的显示形态差别很大
+    /// （终端是纯文本行，浏览器是结构化 DTO）。共享的是**规则**，不是**代码**——
+    /// 而规则要靠两边各自的注释写清楚，靠一个共用函数反而没人读。
+    ///
+    /// ⚠ 这意味着改这条边界时**两处都要改**。这是有意的成本：
+    ///   少写一处的诱惑，正是一条 payload 悄悄越过边界的机会。
 pub fn present_notification_page(page: &Value) -> Result<CliNotificationView, String> {
     if page.get("schema").and_then(Value::as_str) != Some("kiana.notification-page.v1") {
         return Err("cli_notification_page_schema_invalid".to_owned());
