@@ -397,7 +397,12 @@ docs/roadmap/pd28-storage-security-baseline.md :: pd28_storage_security.yml
 
 docs/roadmap/capability.md :: /tmp/kiana-capability-research-20260912-w6cflz32/snapshot.json
 
-# --- stale-or-misattributed-paths (16) ---
+# --- stale-or-misattributed-paths (21) ---
+CURRENT_STATUS.md :: kiana-daemon/src/health.rs
+CURRENT_STATUS.md :: knowledge_sources.rs
+CURRENT_STATUS.md :: notification_worker.rs
+CURRENT_STATUS.md :: outcome.rs
+CURRENT_STATUS.md :: tool_batch.rs
 CURRENT_STATUS.md :: kiana-core/src/notifications.rs
 CURRENT_STATUS.md :: kiana-daemon/src/notification_projector.rs
 
