@@ -1,3 +1,15 @@
+//! 「一份工作」的完整契约：WorkPacket 本身、派生出它的 AgentTemplate、
+//! 它的预算（BudgetLease）、它要占用的 Cell（CellSpec），以及派发与退役的记录。
+//!
+//! # 这几件事为什么在同一个文件里
+//!
+//! 因为它们是**一次授权的完整链条**：谁能做（模板里的角色）、
+//! 能做多少（预算租约）、在哪做（Cell 与沙箱）、做什么（WorkPacket）、
+//! 做完留下什么（SpawnReceipt / RetirementRecord）。
+//! 拆到不同文件，读者就没法在一个地方看清「一个请求的权限是从哪几项**交集**里来的」。
+//!
+//! 对应的运行时交集计算在 `kiana-core/src/cell_registry.rs` 的
+//! `budget_is_subset`——那里的注释解释了「为什么每一项都是 `<=` 而不是取交集值」。
 use crate::roles::{default_department_id, default_role_id};
 use crate::{
     allow_list_covers, builder_lock_paths, json_digest, normalize_role_path, BudgetLeaseId,
@@ -16,6 +28,23 @@ use serde::{Deserialize, Serialize};
 /// WorkPacket 是 Builder 获得工作范围的主要契约。`validate` 只检查领域不变量；真正的
 /// 文件写集、budget、cell 和审批仍须由 ControlPlane 再次绑定，不能因为 packet 中存在
 /// `path_allow` 就直接执行。
+/// 一份工作：要被完成的那件事。
+///
+/// 【它为什么几乎所有字段都是可选的】
+/// 每一项都带 `#[serde(default, skip_serializing_if = ...)]`——也就是说
+/// **线上格式是稀疏的**：不填的字段根本不会出现。
+/// 这是刻意的，因为 packet 会出现在很多上下文里（列表、事件、投影），
+/// 一个永远带一长串 `null` 的结构体会让这些地方变得难以阅读。
+///
+/// 【但「可选」有一个必须想清楚的后果】
+/// `data_scope: Option<Vec<String>>` 缺省时，**它到底是「没声明任何范围」
+/// 还是「范围是空的」？** 这两种解释在授权上完全不同。
+/// 读到这个字段时不要凭直觉假设——要去它被消费的地方看代码怎么区分这两种情况。
+/// 凭直觉猜正是这类字段出 bug 的方式。
+///
+/// 【`acceptor_id` 为什么要单独存在】
+/// 因为「谁做」和「谁验收」必须是两个主体。
+/// 合成一个字段，就等于允许执行者自己验收自己的工作。
 pub struct WorkPacket {
     /// packet schema 版本。
     pub schema: String,
@@ -353,6 +382,22 @@ impl AgentTemplate {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 一份预算租约：**一次执行最多能被允许做多少**。
+///
+/// 【七项额度合起来是一个合取约束】
+/// 工具调用数、模型调用数、token、墙钟、并发、effect 数、预留额度。
+/// 任何一项耗尽，这次执行就必须停下来。这就是为什么它们是七个独立字段
+/// 而不是一个「额度」——它们以完全不同的方式被耗尽。
+///
+/// 【⚠ 这里有一个反直觉但正确的设计：零值是「收紧」不是「放开」】
+/// `max_model_calls == 0` 被当作**旧 wire 格式的哨兵**，解析时解析成
+/// `max_tool_calls`。
+///
+/// 为什么这样：如果 0 表示「不限制」，那么一份老快照（没有这个字段）
+/// 会在新代码里突然获得**无限的模型调用**——一个纯粹的格式演进
+/// 变成了额度放宽。而「0 收紧到工具调用数」让老快照最多拿到一个**更小**的额度。
+///
+/// 方向是刻意的：**缺字段应该让限制更紧，不是更松。**
 pub struct BudgetLease {
     pub schema: String,
     pub lease_id: BudgetLeaseId,

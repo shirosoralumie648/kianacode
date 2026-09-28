@@ -14,6 +14,22 @@ pub const CAPABILITY_RESULT_RECEIPT_SCHEMA: &str = "kiana.capability-result-rece
 pub const CAPABILITY_RESULT_RECEIPT_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TOOL_OBSERVATION_SCHEMA: &str = "kiana.tool-observation.v1";
 pub const TOOL_OBSERVATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+/// 工具输出摘要的上限：8192 字节。
+///
+/// 【为什么工具输出需要摘要而不是全文】
+/// 一次 `cat` 一个大文件、一次 `grep` 整个仓库，输出可以是几十兆。
+/// 全量塞进事件流，会把 EventLog 撑爆，并且让任何读这条事件的人
+/// （包括投影和日志系统）都要处理一个巨大的字符串。
+///
+/// 【为什么是 8K 而不是更小或更大】
+/// 它要能装下「足够定位问题的那部分」：一个报错栈、一个失败断言、
+/// 几行上下文。低于 2K 会开始切掉有用的东西；高于 32K 之后，
+/// 多出来的内容对定位问题的帮助迅速衰减，而存储成本线性上升。
+/// 8K 是这个权衡点。
+///
+/// 【⚠ 截断必须是显式的】
+/// 被截断的内容要让读者知道被截断了。一段看起来完整的输出、
+/// 实际上少了一半，会把人引向错误的结论——这比直接报错更糟。
 pub const TOOL_OBSERVATION_MAX_SUMMARY: usize = 8 * 1024;
 
 /// Process evidence is intentionally separate from the capability effect.  A process can exit
@@ -21,6 +37,13 @@ pub const TOOL_OBSERVATION_MAX_SUMMARY: usize = 8 * 1024;
 /// cancellation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 被执行的那个子进程，现在处于什么状态。
+///
+/// 【`Unknown` 是一等取值，不是异常】
+/// 「我启动了它但不知道它怎么样了」是一个**真实且常见**的状态：
+/// 机器重启了、连接断了、查询超时了。
+/// 它必须有一个自己的取值，因为把它塞进 `NotStarted` 或 `Exited`
+/// 都是在凭空做一个没有证据的判断。
 pub enum CapabilityProcessState {
     NotStarted,
     Running,
@@ -31,6 +54,25 @@ pub enum CapabilityProcessState {
 /// Stable, low-cardinality result dimensions shared by the broker, projections and wire
 /// adapters.  The original diagnostic error remains in `CapabilityResult.output`; this value is
 /// the machine-readable decision surface and must not be reconstructed with substring matching.
+/// 一次能力调用的**低基数**结果维度。
+///
+/// 【它与 `CapabilityResult.output` 的分工】
+/// `output` 里是原始的诊断信息（错误文本、上下文），它**不适合**被程序判断。
+/// 而这一组维度是给机器读的**判定面**。
+///
+/// 【⚠ 上面那句注释里的「不得用子串匹配重建」是本文件最重要的一条规则】
+/// 意思是：不允许出现
+/// ```text
+/// if output.contains("timeout") { 判定为超时 }
+/// ```
+/// 这类写法。原因有三个，每一个都足以单独禁止它：
+/// 1. 错误文本会随版本、语言、甚至本地化而变——子串匹配会在某次升级后静默失效；
+/// 2. 一条错误消息里可能同时提到多个原因（"timeout while retrying after X"），
+///    子串匹配会挑错那一个；
+/// 3. 它把「判定」建立在**给人看的文本**上，于是文案变成了接口——
+///    之后没人敢改文案，因为改了会坏功能。
+///
+/// 有了这一组结构化取值，判定就只依赖枚举，文案可以自由改。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilityResultDimensions {
