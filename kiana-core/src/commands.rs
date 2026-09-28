@@ -398,6 +398,91 @@ impl ControlPlane {
                 )
                 .await;
         }
+        if intent.name == "promotion.check" {
+            // BQ-30 的接线：一次「这个主张能不能被叫得比它的证据更强」的只读判定。
+            //
+            // 和 `security.incident.evaluate` 一样，它不产生副作用，所以不走 `authorize_and_execute`——
+            // 一条 promotion 记录不是能力请求，把纯判定塞进执行通道会同时浪费配额并在审计里
+            // 留下一个从未发生的 effect。
+            //
+            // 为什么仍然要求 operator 身份：promotion 是决定「对外声称什么」的动作。让 cell 内部的
+            // worker 自行决定一条主张能不能升到 `opt_in_live`，等于给了它一个自我提权的口子。
+            if context.cell_id.is_some()
+                || context.actor_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "promotion_operator_required",
+                ));
+            }
+            let object = match intent.arguments.as_object() {
+                Some(object) => object,
+                None => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "promotion_payload_required",
+                    ))
+                }
+            };
+            let (Some(raw_evidence), Some(raw_level)) = (object.get("evidence"), object.get("claimed_level"))
+            else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "promotion_payload_required",
+                ));
+            };
+            let evidence: EvidenceManifest = match serde_json::from_value(raw_evidence.clone()) {
+                Ok(evidence) => evidence,
+                Err(_) => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "promotion_payload_invalid",
+                    ))
+                }
+            };
+            // 缺 `claimed_level` 与写错它是两件事：前者是「没说要升到哪一档」，
+            // 后者是「说了但系统不认识」。分开才能让调用方知道该补字段还是该改字段。
+            let Some(raw_level) = raw_level.as_str() else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "promotion_payload_required",
+                ));
+            };
+            let claimed_level = match ClaimedLevel::parse(raw_level) {
+                Ok(level) => level,
+                Err(_) => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "promotion_level_unknown",
+                    ))
+                }
+            };
+            let string_field = |key: &str| object.get(key).and_then(Value::as_str).map(str::to_owned);
+            let request = PromotionGateRequest::new(
+                object
+                    .get("claim_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                claimed_level,
+                evidence,
+                string_field("provider_receipt_ref"),
+                string_field("opt_in_ref"),
+                string_field("restart_replay_ref"),
+            );
+            // 「证据够不着这个级别」是一个**业务结论**，不是协议错误，所以带上门自己的稳定 reason
+            // 一起以 blocked 返回：调用方需要区分「证据不足」和「你的请求坏了」，
+            // 而这两者的下一步动作完全不同。
+            return match evaluate_promotion(&request) {
+                Ok(decision) => Ok(CoreResponse::completed(
+                    context.request_id,
+                    json!({
+                        "schema": PROMOTION_GATE_DECISION_SCHEMA,
+                        "decision": decision,
+                    }),
+                )),
+                Err(reason) => Ok(CoreResponse::blocked(context.request_id, reason)),
+            };
+        }
         if intent.name == "security.incident.evaluate" {
             // SC-33 的接线：一次「这个动作对这份事件是否可被记录」的只读判定。
             //

@@ -10,7 +10,7 @@
 | roadmap card | [`BQ-30`](#step-bq-30) |
 | code landing | `kiana-core/src/promotion_gate.rs`, registered by `kiana-core/src/lib.rs` |
 | script | none added; the unified `ci.yml` remains the only automatic gate |
-| fixtures | `kiana-core/tests/bq30_promotion_gate.rs`, `kiana-core/tests/bq30_promotion_gate_guard.rs` |
+| fixtures | `kiana-core/tests/bq30_promotion_gate.rs`, `kiana-core/tests/bq30_promotion_gate_guard.rs`, `kiana-core/tests/bq30_promotion_route.rs` |
 | documentation | `CURRENT_STATUS.md` (one evidence block per step) and `docs/module-map.md` (the new section "BQ-30 契约层回填") |
 | feature_status | `partial` — the decision is decidable in source; no release is gated by it yet |
 | proof_level | `source`; no local_behavior/durable/live/physical promotion |
@@ -48,9 +48,27 @@ request is refused, not by asserting a particular code.
 
 ## Honest limitations
 
-This module decides and promotes nothing. It does not run a release, read a status file, edit the
-roadmap, touch `CURRENT_STATUS.md` or the module map, and it is not wired into `ci.yml`, a release
-workflow or `ControlPlane::handle_command`. The manifest it consumes is supplied by the caller, so a
+**The command route.** The gate is reachable from a command: `promotion.check` in
+`ControlPlane::handle_command` takes the evidence, the claimed level and the optional references,
+and returns the sealed decision. Like the SC-33 route it deliberately does **not** go through
+`authorize_and_execute` — a promotion record is not a capability request, and sending a pure query
+through the execution channel would spend a quota and leave an effect in the audit trail that never
+happened.
+
+What the route adds on top of the gate is the rule that makes it a gate rather than a function: a
+caller inside a Cell cannot reach it at all (`promotion_operator_required`). Promotion decides what
+the system claims about itself, and a worker that could raise its own claim to `opt_in_live` would
+have a self-promotion path. That check lives in the route rather than in the gate because the gate
+is a pure function over a request and has no business knowing what a Cell is.
+
+A missing `claimed_level` and an unknown one stay separate refusals (`_payload_required` vs
+`_level_unknown`), for the same reason SC-33 separates them: one means "add the field", the other
+means "fix the field", and a caller cannot act on a merged code. A fixture asserts that a successful
+evaluation leaves the event stream empty.
+
+What is still missing. This module decides and promotes nothing. It does not run a release, read a
+status file, edit the roadmap, touch `CURRENT_STATUS.md` or the module map, and the route is not
+wired into `ci.yml` or any release workflow. The manifest it consumes is supplied by the caller, so a
 caller that hands over a manifest at `live` with a plausible receipt defeats this check the way a
 lying `present_artifacts` inventory defeated DEP-22. `Physical` has no rung on this ladder and is
 mapped to the top rather than rounded down silently, which is a limitation of the ladder rather than

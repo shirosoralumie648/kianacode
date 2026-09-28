@@ -73,6 +73,23 @@ impl ClaimedLevel {
         }
     }
 
+    /// 解析字符串形式的级别，未知取值一律拒绝。
+    ///
+    /// 【为什么要有成对的 `as_str` / `parse`】
+    /// 因为级别要穿过 wire（命令参数、事件载荷、决策 receipt）。只有 `as_str` 的话，
+    /// 写出去和读回来的拼写可能对不上，而那种漂移会安静地让一个主张落到错误的档位上。
+    /// 成对定义让「有哪些取值」这件事只有一个地方说了算。
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value.trim() {
+            "type_only" => Ok(Self::TypeOnly),
+            "unit_test" => Ok(Self::UnitTest),
+            "estimated" => Ok(Self::Estimated),
+            "offline_durable" => Ok(Self::OfflineDurable),
+            "opt_in_live" => Ok(Self::OptInLive),
+            _ => Err("promotion_level_unknown".to_owned()),
+        }
+    }
+
     /// Does this level mean a number was *measured* rather than computed?
     ///
     /// `OfflineDurable` does not, on its own: a fact can be durable and still be an estimate. Only
