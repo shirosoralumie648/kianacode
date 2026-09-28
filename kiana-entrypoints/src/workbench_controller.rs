@@ -5,6 +5,36 @@
 //! The returned [`WorkbenchUiAction`] is an input to the typed UI client; its protocol digest is
 //! supplied by that client boundary before [`kiana_protocol::UiActionV1::validate`] is called.
 
+//! Workbench 的**纯控制器**：把「用户想干什么」翻译成「协议上该发什么」。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! 键盘 / 鼠标 / 命令面板
+//!    ↓  Keymap / CommandPalette：按键 → WorkbenchIntent
+//! 【本文件】纯翻译：intent → WorkbenchUiAction → UiActionV1
+//!    ↓  （交给 client 去算 digest、提交）
+//! kiana-client 的 typed client
+//!    ↓
+//! DaemonHost → ControlPlane   ← 授权在那边，不在这里
+//! ```
+//!
+//! # 「纯」是这里最重要的性质
+//!
+//! 文件头那句「never calls a daemon, starts a task, cancels a run, resumes a session,
+//! or executes a capability」不是客套。整层控制器**只做翻译与状态**：
+//! 不发请求、不改 run、不动能力、不碰 EventLog。
+//!
+//! 这样做换来三件事：
+//! 1. 它可以被**整个读完再测**——没有 I/O、没有并发、没有时序；
+//! 2. 「界面上有个 Cancel 按钮」与「真的取消了某个 run」之间隔着一整条授权链，
+//!    按钮只能产生**意图**，取消必须由控制面在拿到命令后决定；
+//! 3. 想新增一种界面行为时，改的是这一层的一个 `match`，而不是在四个入口里各写一遍副作用。
+//!
+//! # 与本仓库其它入口层的对照
+//!
+//! `command_dispatch.rs` 会真的把请求发给 `DaemonHost`；`harness_run.rs` 会真的发起一次 run。
+//! 本文件两者都不做——它是这三个文件里**唯一**可以脱离 daemon 单独运行的一层。
 use kiana_protocol::{
     ExecutionStatus, RequestId, RunId, SessionSummary, UiActionDisposition, UiActionV1,
     UiCapability, UI_ACTION_SCHEMA,
@@ -20,6 +50,14 @@ pub const MAX_CONTROLLER_AUDIT_ENTRIES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Workbench 能发出的**全部**命令。
+///
+/// 【为什么要是一个封闭枚举，而不是字符串】
+/// 因为它是「这个界面到底能做什么」的完整声明。命令面板里能出现什么、快捷键能绑到什么、
+/// 哪些动作在协议上合法——三处都从这一个枚举派生。加一个字符串就等于加一个没人审计过的新能力。
+///
+/// 它同时也是**能力边界的文档**：读一遍这个枚举，就知道 Workbench 在设计上能做什么、
+/// 以及刻意不做什么（比如没有「删除会话」）。
 pub enum WorkbenchCommand {
     Open,
     Attach,
@@ -124,6 +162,14 @@ pub struct KeyBinding {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// 按键绑定表。
+///
+/// 【为什么按键映射要是一等公民，而不是散在事件处理里】
+/// 因为「这个键对应哪个命令」是**用户能读懂**的东西：它应该能被列出来、被导出、被改。
+/// 埋在 `match key { .. }` 里就只剩写代码的人知道了。
+///
+/// 也因为它让「同一套命令，既能来自按键、也能来自命令面板」成为可能——
+/// 两条入口最后都收敛到同一个 `WorkbenchCommand`。
 pub struct Keymap {
     bindings: BTreeMap<KeyChord, WorkbenchCommand>,
 }
@@ -199,6 +245,11 @@ pub struct CommandPaletteEntry {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// 命令面板：按名字检索可用命令。
+///
+/// 【与 Keymap 的关系】
+/// 两者是**同一套命令的两种入口**。面板按名字找，键位按物理键找。
+/// 把它们分开，是因为它们的可发现性来源不同：面板要能被搜索，键位要能被打印成帮助。
 pub struct CommandPalette {
     entries: Vec<CommandPaletteEntry>,
 }
@@ -283,6 +334,11 @@ impl CommandPalette {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// 会话切换器。
+///
+/// 【它属于「纯」的一层意味着什么】
+/// 切换会话只改变「当前看哪个会话」这个本地状态。它**不会**取消或恢复任何 run——
+/// 那些都要发命令、都要控制面点头。会话切换器只负责「我现在在看谁」。
 pub struct SessionSwitcher {
     sessions: Vec<SessionSummary>,
     active_session_id: Option<String>,
@@ -337,6 +393,16 @@ impl SessionSwitcher {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 用户意图：比命令**更宽**的一层。
+///
+/// 【为什么要分 intent 和 command 两层】
+/// 因为用户表达意图的方式比协议命令丰富：`Attach` 带着目标、`Run` 带着 prompt、
+/// `Continue` 带着要续的 run。这些参数属于**界面**。
+/// 而协议命令只需要一个名字加一个 payload。
+///
+/// 分成两层之后，界面参数不会渗进协议，而协议命令也不会因为界面多一种表达方式就变多。
+///
+/// `WindowClose` 刻意没有对应命令——它不是一次操作系统的命令，只是一个「离开」信号。
 pub enum WorkbenchIntent {
     Open {
         workspace: String,
@@ -370,6 +436,15 @@ pub enum WorkbenchIntent {
 }
 
 impl WorkbenchIntent {
+    /// 把意图**收窄**成命令名。
+    ///
+    /// 【这个方法为什么重要】
+    /// 它是意图与协议之间唯一的收敛点。收窄之后，参数被放进 payload，名字被固定，
+    /// 后面无论走哪条路（按键、面板、脚本），拿到的都是同一个 `WorkbenchCommand`。
+    ///
+    /// 【返回 `Option` 而不是 `enum`】
+    /// 因为确实存在「有意图但没有命令」的情况（`WindowClose`）。
+    /// 用 `Option` 表达「这一条走不通」比造一个假的命令名更诚实。
     fn command(&self) -> Option<WorkbenchCommand> {
         match self {
             Self::Open { .. } => Some(WorkbenchCommand::Open),
@@ -387,6 +462,18 @@ impl WorkbenchIntent {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// 交给 client 的动作，尚未成为协议动作。
+///
+/// 【`expected_*` 三个字段是这一层最要紧的设计】
+/// `expected_epoch` / `expected_cursor` / `expected_revision` 表达的是
+/// **「我以为现在是这样」**。它们是乐观并发：提交时控制面会比对，不一致就拒绝。
+///
+/// 为什么界面要主动报出自己看到的位置？因为人和机器都会慢半拍——用户盯着一个
+/// 已经变了的界面点「取消」，如果系统照做，取消的就是另一个 run。把这三个数报出来，
+/// 就能把这种时差变成一次明确的拒绝，而不是一次执行在错误对象上的取消。
+///
+/// 【`idempotency_key`】
+/// 同一次点击被重发（网络重试、用户双击）不能变成两次操作。
 pub struct WorkbenchUiAction {
     pub command: WorkbenchCommand,
     pub command_id: RequestId,
@@ -402,6 +489,20 @@ pub struct WorkbenchUiAction {
 impl WorkbenchUiAction {
     /// Convert the controller intent into the versioned wire action after the client has computed
     /// the canonical payload digest.  The controller cannot authorize or execute this action.
+    /// 转成协议动作。
+    ///
+    /// 【⚠ 为什么 `payload_digest` 是参数而不是在这里算】
+    /// 这是整个模块最容易被「顺手优化掉」的地方。digest 只能由**能看到规范化字节**
+    /// 的那一层计算，而本层不是那一层：它既不决定最终发出去的字节，也不该假装自己知道。
+    /// 于是它把 digest 收下，转手填进协议动作。
+    ///
+    /// 如果改成在这里自己算，就会出现两个问题：一是可能算出与真正发出去的字节不一致的
+    /// digest（于是控制面永远拒绝，表现为「这个界面坏了」）；二是控制面将无法再用
+    /// 「你报的 digest 与你发的内容是否一致」来发现伪造。所以这一步的注释写在这里，
+    /// 而不是留给下一个读代码的人去发现。
+    ///
+    /// 【`deadline_unix_ms` 为什么写死为 `None`】
+    /// 超时是控制面的策略，不是界面的决定。界面无权给自己发的动作设一个期限。
     pub fn into_protocol(self, payload_digest: impl Into<String>) -> UiActionV1 {
         UiActionV1 {
             schema: UI_ACTION_SCHEMA.to_owned(),

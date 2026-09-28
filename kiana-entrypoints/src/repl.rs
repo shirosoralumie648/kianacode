@@ -19,10 +19,29 @@
 //! `/命令` 走的是 `command_dispatch`，也就是本仓库认定的那条唯一授权通道：
 //! 界面把命令交给 `DaemonHost`，由 `ControlPlane` 判定后才可能产生副作用。
 //!
-//! 而普通提问（以及 `!` 快捷）走的是 `sdk::unstable_v2_prompt`，它传下去的
-//! permission handler 是 `None`（见 `sdk.rs`），并最终进入 `kiana_tools` 的执行层。
-//! **这一轮没有把那条路追到底**，所以这里不对它是否同样受控下结论。
-//! 要确认的话，起点就是 `sdk::prompt_with_persistence_at`。
+//! 而普通提问（以及 `!` 快捷）走的是 `sdk::unstable_v2_prompt`。它表面上把
+//! permission handler 传成 `None`（`sdk.rs`），看起来像是「不询问就执行」，
+//! 但**追下去会发现它并不是一条独立的执行路径**：
+//!
+//! ```text
+//! unstable_v2_prompt
+//!    → prompt_with_persistence_at        （sdk.rs）
+//!    → execute_owned_harness_turn        （sdk.rs:1078）
+//!    → crate::harness_run::HarnessRunResult
+//!    → KianaClient → DaemonHost → ControlPlane
+//! ```
+//!
+//! 也就是说提问最终仍然落在本文件上面那条产品执行面上，授权照常发生。
+//! `permission_handler` 为 `None` 的后果只是：遇到需要批准的动作时，**不弹窗**，
+//! 而是把 `AwaitingApproval` 原样返回给调用方（见 [ `run_repl_prompt` ]）。
+//! 决定权仍在控制面，缺的只是呈现。
+//!
+//! 另外 `sdk::should_execute_model` 默认是 false：没有 `execute` / `run_model` 选项、
+//! 也没有 `KIANA_SDK_EXECUTE_MODEL` 时，SDK 只**记录**这次提问而不执行。
+//! REPL 在 [ `run_repl_prompt` ] 里显式打开了 `execute`，所以它确实会跑。
+//!
+//! 这条路与 `mcp.rs` 的差别正在这里：那边不经过控制面，是真的没有授权；
+//! 这边只是把「谁来点这个批准」交回给了调用方。
 //!
 //! 对比同目录下的 `mcp.rs`：那条路的工具执行完全不经过 ControlPlane，
 //! 已经作为安全发现记录在
