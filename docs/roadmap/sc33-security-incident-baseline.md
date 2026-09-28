@@ -12,7 +12,7 @@
 |---|---|
 | roadmap card | [`SC-33`](security-compliance.md#step-sc-33) |
 | code landing | `kiana-core/src/security_incident.rs`, registered by `kiana-core/src/lib.rs` |
-| fixtures | `kiana-core/tests/sc33_security_incident.rs` (30 tests, deny-first, the two success paths last) |
+| fixtures | `kiana-core/tests/sc33_security_incident.rs` (30 tests, deny-first, the two success paths last), `kiana-core/tests/sc33_security_incident_guard.rs`, and `kiana-core/tests/sc33_incident_command_route.rs` for the command route |
 | feature_status | `partial` for the source-level admission, ordering, evidence and closure contracts |
 | proof_level | `source`; no local_behavior/durable/live/physical promotion |
 | canonical path | supplied facts -> `SecurityIncident::evaluate` -> `SecurityIncidentReport` -> `validate_against` re-derivation |
@@ -119,8 +119,22 @@ This is a source-only decision over supplied records, states and timestamps. **I
 an `incident.*` event, persist an incident, schedule a deadline, page anybody, fence a real
 capability, verify a vulnerability against an advisory feed, or bind the closure to an approval. The
 `derive` order is fixed and deny-first, and the 30 fixtures assert the refusal reasons rather than
-any runtime effect. Two further gaps are named rather than papered over: the workflow is not yet
-reachable from a command (no branch in `ControlPlane::handle_command`, which needs
-`kiana-core/src/commands.rs`), and the vulnerability record is asserted by the caller rather than
-resolved from a real advisory source, so a withdrawn-advisory check is only as good as the
-`SecurityVulnerability` the caller supplies.
+any runtime effect.
+
+**The command route.** The workflow is reachable from a command: `security.incident.evaluate` in
+`ControlPlane::handle_command` takes the incident, the current state and a proposed action, and
+returns the sealed report. It deliberately does **not** go through `authorize_and_execute`, because
+that channel is for capability requests with effects and this query has none — routing it there
+would spend a capability quota on a pure decision and leave an effect in the audit trail that never
+happened. What the route *does* check first is identity and trust, because a decision names an owner
+and a reviewer, and an untrusted project's local configuration is not something that should drive a
+security response. Both refusals are `blocked` rather than `Err`: a caller needs to distinguish
+"you may not ask this" from "your request broke the protocol", and mixing the two destroys that
+distinction. A malformed payload (`_payload_invalid`) is kept separate from a missing one
+(`_payload_required`) for the same reason. A fixture asserts that a successful evaluation leaves the
+event stream empty, because a read-only decision that quietly appends a fact is the failure mode
+this route exists to avoid.
+
+One gap remains named rather than papered over: the vulnerability record is asserted by the caller
+rather than resolved from a real advisory source, so a withdrawn-advisory check is only as good as
+the `SecurityVulnerability` the caller supplies.

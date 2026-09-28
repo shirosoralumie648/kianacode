@@ -398,6 +398,75 @@ impl ControlPlane {
                 )
                 .await;
         }
+        if intent.name == "security.incident.evaluate" {
+            // SC-33 的接线：一次「这个动作对这份事件是否可被记录」的只读判定。
+            //
+            // 为什么它不走 `authorize_and_execute`：那个通道是为**有副作用**的能力请求准备的，
+            // 而这里不写事件、不改状态、不发能力——判定结果本身就是答案。把它塞进执行通道
+            // 会让一次纯查询占掉一个能力配额，并在审计里留下一条并不存在的 effect。
+            //
+            // 为什么仍然要检查身份与信任：判定要指名 owner 与 reviewer，匿名调用等于让任何人
+            // 替别人签署一次响应；而项目未信任时，项目本地的配置可以注入指令，不该由它来驱动
+            // 一次安全响应。
+            if context.actor_id.as_deref().is_none_or(str::is_empty) {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "security_incident_actor_required",
+                ));
+            }
+            if !context.project_trusted {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "security_incident_project_untrusted",
+                ));
+            }
+            let object = match intent.arguments.as_object() {
+                Some(object) => object,
+                None => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "security_incident_payload_required",
+                    ))
+                }
+            };
+            let (Some(raw_incident), Some(raw_state), Some(raw_action)) = (
+                object.get("incident"),
+                object.get("state"),
+                object.get("action"),
+            ) else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "security_incident_payload_required",
+                ));
+            };
+            // 形状错误是 blocked 而不是 Err：调用方需要知道的是「你给的这份记录不能用来判定」，
+            // 而不是「你的请求把协议说坏了」。两者的界面表现不同，混用会让上层分不清。
+            let (incident, state, action) = match (
+                serde_json::from_value::<SecurityIncident>(raw_incident.clone()),
+                serde_json::from_value::<SecurityIncidentState>(raw_state.clone()),
+                serde_json::from_value::<SecurityIncidentActionRequest>(raw_action.clone()),
+            ) {
+                (Ok(incident), Ok(state), Ok(action)) => (incident, state, action),
+                _ => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "security_incident_payload_invalid",
+                    ))
+                }
+            };
+            // 判定不可被记录是一个**业务结论**，不是协议错误，所以同样走 blocked，并把模块的
+            // 稳定 reason code 原样带出去——调用方要靠它区分「跳过了步骤」和「证据被重放」。
+            return match incident.evaluate(&state, &action) {
+                Ok(report) => Ok(CoreResponse::completed(
+                    context.request_id,
+                    json!({
+                        "schema": SECURITY_INCIDENT_REPORT_SCHEMA,
+                        "report": report,
+                    }),
+                )),
+                Err(reason) => Ok(CoreResponse::blocked(context.request_id, reason)),
+            };
+        }
         if intent.name == "run.turn.v2" {
             let prompt = intent.arguments["prompt"]
                 .as_str()
