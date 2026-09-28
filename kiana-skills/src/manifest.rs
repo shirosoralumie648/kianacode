@@ -530,7 +530,7 @@ fn parse_legacy_plugin_manifest(
         .map(str::to_owned);
     let mut components = Vec::new();
     if let Some(entries) = object.get("components") {
-        components.extend(parse_legacy_components(entries, None)?);
+        components.extend(parse_legacy_components(entries, None, "component")?);
     }
     for (field, kind) in [
         ("commands", PluginComponentKind::Commands),
@@ -540,7 +540,7 @@ fn parse_legacy_plugin_manifest(
         ("outputStyles", PluginComponentKind::OutputStyles),
     ] {
         if let Some(entries) = object.get(field) {
-            components.extend(parse_legacy_components(entries, Some(kind))?);
+            components.extend(parse_legacy_components(entries, Some(kind), field)?);
         }
     }
     validate_components(&name, &version, description.as_deref(), &components)?;
@@ -555,9 +555,19 @@ fn parse_legacy_plugin_manifest(
     })
 }
 
+/// 把一个 legacy 字段（`commands` / `skills` / `hooks` …）归一化成 component 列表。
+///
+/// 【为什么 id 必须带上字段名前缀】
+/// 旧 manifest 把各类型的资源摊平成并列字段：`{"skills": ["skills/review"],
+/// "hooks": ["hooks/review.json"]}`。早先这里对每个字段各自 `enumerate()`，
+/// 于是两个字段的首元素都被命名为 `component-0`。随后 `validate_components`
+/// 用 BTreeSet 检查 id 唯一性，第二个 `component-0` 插入失败，整份 manifest 被判为
+/// `InvalidIdentity`——也就是说，任何同时声明两种以上资源的合法 legacy plugin
+/// 都会被拒绝。字段名前缀让 (字段, 下标) 成为一个稳定且唯一的 id。
 fn parse_legacy_components(
     value: &Value,
     kind: Option<PluginComponentKind>,
+    id_prefix: &str,
 ) -> Result<Vec<PluginComponent>, ExtensionError> {
     let values = value.as_array().ok_or_else(|| {
         error(
@@ -583,7 +593,7 @@ fn parse_legacy_components(
                     )
                 })?;
                 return Ok(PluginComponent {
-                    id: format!("component-{index}"),
+                    id: format!("{id_prefix}-{index}"),
                     kind,
                     entry: entry.to_owned(),
                 });
@@ -601,7 +611,7 @@ fn parse_legacy_components(
                 )
             })?;
             Ok(PluginComponent {
-                id: raw.id.unwrap_or_else(|| format!("component-{index}")),
+                id: raw.id.unwrap_or_else(|| format!("{id_prefix}-{index}")),
                 kind,
                 entry: raw.entry,
             })

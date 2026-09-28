@@ -13223,6 +13223,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### EXT-03 legacy component id collision fix evidence (2026-09-28)
+
+source_snapshot: `0e008327` plus this fix; `kiana-skills/src/manifest.rs` (`parse_legacy_components`, `parse_legacy_plugin_manifest`, `validate_components`)
+worktree_status: First product defect repaired from the 705 failures surfaced by run 36429735999. `kiana-skills/tests/ext03_manifest.rs::legacy_plugin_and_hook_manifests_require_explicit_adapter_and_entry` failed with `ExtensionError { code: InvalidIdentity, message: "plugin component id or entry is invalid" }`. Root cause: a legacy plugin manifest flattens resource kinds into sibling fields (`skills`, `hooks`, `commands`, `agents`, `outputStyles`), and `parse_legacy_components` ran a fresh `enumerate()` per field, so the first element of every field was named `component-0`. `validate_components` then enforces id uniqueness with a `BTreeSet`, and the second `component-0` insert failed, rejecting the whole manifest. Any legacy plugin declaring two or more resource kinds was therefore always refused. Fixed by scoping the synthesised id to its owning field, in both the string-entry and object-entry branches; the object branch only synthesises when the legacy object omits an explicit `id`, so explicitly identified components keep their author-supplied id.
+command_argv:
+  cargo fmt --all --check                                   # exit 0
+  cargo check -p kiana-skills --all-targets --locked --offline   # exit 0, 0 errors (static compile only; no test executed)
+  GitHub Actions: cargo test -p kiana-skills --test ext03_manifest --locked -- --test-threads=1
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No local Cargo test was run, per user instruction; GitHub Actions is the test authority and was not awaited.
+fixture·cassette: `ext03_manifest` legacy-adapter fixtures, GitHub-only via the sharded `Tests (kiana-skills)` job.
+exit_code: 0 for local format and static compile; the fixture has NOT been re-run and its pass is unproven
+status change: none yet. EXT-03 remains 🔄. This commit claims no promotion: the fix is source-level until the sharded `kiana-skills` job is observed green.
+proof-level change: none. No step moved from 🔄 to ✅.
+limitations: the repair is justified by tracing the exact rejection path in the source, not by an observed green run; a green `ext03_manifest` still proves only that this parser accepts the legacy shape, nothing about legacy plugin execution, trust, capability grant or live effects. The remaining 704 failures are untouched, and most of them are `include_str!` source-marker guards whose failures mean the promised marker was never implemented — those must not be made green by inserting strings without the behaviour behind them. The §1.1 rows reopened in the previous evidence block still have unreconciled ✅ in their detailed cards.
+reviewer: Codex root-cause review of the panic from run 36429735999 against `manifest.rs`; no local runtime test reviewer.
+
 ### First observed full-workspace test result evidence (2026-09-28)
 
 source_snapshot: `98cdb5ee` (sharded test matrix); GitHub Actions run `36429735999`; `.github/workflows/ci.yml`, `scripts/ci/test-shards.json`, `scripts/ci/validate-workflows.sh`
