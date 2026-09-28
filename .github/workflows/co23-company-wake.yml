@@ -1,0 +1,25 @@
+name: "CO-23 durable Company wake and intent-consumption baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co23-company-wake:
+    name: "CO-23 durable Company wake and intent-consumption baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co23_company_wake_guard
+        run: cargo test -p kiana-core --test co23_company_wake_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co23_company_wake
+        run: cargo test -p kiana-domain --test co23_company_wake --locked -- --test-threads=1

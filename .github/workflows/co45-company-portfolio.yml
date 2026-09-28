@@ -1,0 +1,25 @@
+name: "CO-45 Company portfolio capacity and cost baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co45-company-portfolio:
+    name: "CO-45 Company portfolio capacity and cost baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co45_company_portfolio_guard
+        run: cargo test -p kiana-core --test co45_company_portfolio_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co45_company_portfolio
+        run: cargo test -p kiana-domain --test co45_company_portfolio --locked -- --test-threads=1

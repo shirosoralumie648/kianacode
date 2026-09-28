@@ -1,0 +1,29 @@
+name: "BQ-23 billing query and protocol baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bq23-query:
+    name: "BQ-23 billing query and protocol baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-daemon bq23_billing_query_guard
+        run: cargo test -p kiana-daemon --test bq23_billing_query_guard --locked -- --test-threads=1
+      - name: Run kiana-protocol bq23_billing_query
+        run: cargo test -p kiana-protocol --test bq23_billing_query --locked -- --test-threads=1
+      - name: Run kiana-query bq23_billing_api
+        run: cargo test -p kiana-query --test bq23_billing_api --locked -- --test-threads=1
+      - name: Run kiana-query bq23_billing_api_guard
+        run: cargo test -p kiana-query --test bq23_billing_api_guard --locked -- --test-threads=1

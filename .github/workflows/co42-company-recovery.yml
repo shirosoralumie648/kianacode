@@ -1,0 +1,25 @@
+name: "CO-42 Company durable-fact recovery and schema baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co42-company-recovery:
+    name: "CO-42 Company durable-fact recovery and schema baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co42_company_recovery_guard
+        run: cargo test -p kiana-core --test co42_company_recovery_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co42_company_recovery
+        run: cargo test -p kiana-domain --test co42_company_recovery --locked -- --test-threads=1

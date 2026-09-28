@@ -1,0 +1,25 @@
+name: "CO-39 unified Company Human Inbox baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co39-company-inbox:
+    name: "CO-39 unified Company Human Inbox baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co39_company_inbox_guard
+        run: cargo test -p kiana-core --test co39_company_inbox_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co39_company_inbox
+        run: cargo test -p kiana-domain --test co39_company_inbox --locked -- --test-threads=1

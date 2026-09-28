@@ -1,0 +1,25 @@
+name: "CO-20 Cell admission and resource lifecycle baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co20-cell-admission:
+    name: "CO-20 Cell admission and resource lifecycle baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co20_cell_admission_guard
+        run: cargo test -p kiana-core --test co20_cell_admission_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co20_cell_admission
+        run: cargo test -p kiana-domain --test co20_cell_admission --locked -- --test-threads=1

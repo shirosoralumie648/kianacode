@@ -1,0 +1,25 @@
+name: "CO-21 Company task scope and fresh Run baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co21-company-task-scope:
+    name: "CO-21 Company task scope and fresh Run baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co21_company_task_scope_guard
+        run: cargo test -p kiana-core --test co21_company_task_scope_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co21_company_task_scope
+        run: cargo test -p kiana-domain --test co21_company_task_scope --locked -- --test-threads=1
