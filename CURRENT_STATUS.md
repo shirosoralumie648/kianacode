@@ -7868,10 +7868,17 @@ commit 上运行过。因此**不重写历史**，改为：
 ——`.claude/worktrees/` 下的陈旧 checkout 里存在从未合入 master 的同名文件，用文件遍历会让
 守卫把引用判成已解析。
 
-本次同时暴露一类**真实漂移**，与历史引用不同，尚未修复：16 条指名只存在于陈旧 worktree 的源码
-（如 `kiana-core/src/notifications.rs`、`kiana-daemon/src/notification_projector.rs`），
-20 条是散文里的示例数据文件名。NM-04..NM-16 有基线文档但 Rust 侧无对应实现文件，
-这一点需要后续 step 单独核实，不能按本条记录当作已实现。
+本次同时暴露一类**路径漂移**，与历史引用不同，尚未修复：14 条源码引用指向的模块确实存在，
+但写错了 crate 或省略了 crate。例如 `kiana-core/src/notifications.rs` 的真实落点是
+`kiana-domain/src/notifications.rs`，`kiana-daemon/src/notification_projector.rs` 的真实落点是
+`kiana-core/src/notification_projector.rs`，`kiana-daemon/src/health.rs` 的真实落点是
+`kiana-core/src/health.rs`。另有 4 条（`knowledge_sources.rs`、`notification_worker.rs`、
+`outcome.rs`、`tool_batch.rs`）在 master 上没有同名文件，20 条是散文里的示例数据文件名。
+
+**更正**：本条最初写作「NM-04..NM-16 有基线文档但 Rust 侧无对应实现文件」，该断言不成立。
+逐条核对后，NM 系列的实现与夹具都在 master 上（`kiana-core/src/notification_projector.rs`、
+`notification_materializer.rs` 等，以及 `kiana-core/tests/nm04..nm12`），问题是文档写错了路径，
+不是缺少实现。
 
 本条不改变任何 step 的 `feature_status` 或 `proof_level`。
 

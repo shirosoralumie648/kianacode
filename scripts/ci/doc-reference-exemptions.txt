@@ -18,7 +18,7 @@
 #   workflows-deleted-by-08552ada  the consolidated per-step lanes
 #   scratch-paths                  absolute paths into throwaway working directories
 #   bare-workflow-names            the same deleted lanes written without a directory
-#   never-merged-source            names source that exists only in stale .claude/worktrees
+#   stale-or-misattributed-paths   names a real module under the wrong crate/path
 #   example-data-names             illustrative fixture filenames in prose, not repo files
 
 
@@ -397,7 +397,7 @@ docs/roadmap/pd28-storage-security-baseline.md :: pd28_storage_security.yml
 
 docs/roadmap/capability.md :: /tmp/kiana-capability-research-20260912-w6cflz32/snapshot.json
 
-# --- never-merged-source (16) ---
+# --- stale-or-misattributed-paths (16) ---
 CURRENT_STATUS.md :: kiana-core/src/notifications.rs
 CURRENT_STATUS.md :: kiana-daemon/src/notification_projector.rs
 
