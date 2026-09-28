@@ -96,6 +96,45 @@ PD-26 卡片（facts/artifact/memory/index/cache/checkpoint）、ER-29 的
 复现 → 分类 → 最小修复 → 审 diff + 证据 → 提交推送 → 回填完成态。
 不等 CI。红了下一轮再修。
 
+## 2026-09-28 进展
+
+### 队列现状
+
+`docs/roadmap.md` §1.1 共 749 行：✅ 444 / 🔄 269 / ⏳ 36。前置全为 ✅ 且自身未收口的行有 26 张。
+CAP-31/32/33 的剩余项是真实平台行为（Seatbelt / Job Object / runsc），Linux CI 无法验证，
+不能诚实收口，保持未完成。
+
+### 本轮完成
+
+| 项 | 内容 | 提交 |
+|---|---|---|
+| SC-32 | 修正 6 个不可达的负向夹具（错误码不存在 / 游标取值错误 / 长度守卫抢先命中） | `b45df29d` |
+| EQ-43 | `quality_promote_fixtures.rs`，17 个拒绝优先夹具，含卡片验收名 | `4e1ba6b4` |
+| EQ-45 | `quality_feedback_fixtures.rs`，8 个夹具，钉住 feedback 只引用不改写 | `cc587325` |
+| EQ-46 | `quality_drift_fixtures.rs`，11 个夹具，含 `drift_alert_does_not_change_route_or_grant` | `b01e222d` |
+| 文档守卫 | `validate-doc-references.sh` + 豁免清单 + 接入 ci.yml | `8cfc6cbf` |
+| 更正 | 撤回「NM-04..NM-16 无实现」的错误断言 | `dcf34731` / `5f96b629` |
+
+### 文档引用漂移（已量化）
+
+`08552ada` 合并并删除 704 个 per-step workflow 后，证据块仍在指名它们：718 份文档中 **401 条**
+引用无法解析，其中 365 条是被删的 lane。已归档到 `scripts/ci/doc-reference-exemptions.txt`
+并加 CI 守卫，清单不得增长。
+
+剩余 14 条源码引用是**写错 crate**（模块存在）：`kiana-core/src/notifications.rs` 实为
+`kiana-domain/src/notifications.rs`；`kiana-daemon/src/notification_projector.rs` 实为
+`kiana-core/src/notification_projector.rs`；`kiana-daemon/src/health.rs` 实为
+`kiana-core/src/health.rs`。4 条无同名对应，20 条是散文示例文件名。
+
+**教训**：basename 索引必须取自 `git ls-files`。`.claude/worktrees/` 下的陈旧 checkout 里有
+从未合入 master 的同名文件，用文件遍历会让守卫把引用误判为已解析——这正是守卫要防的缺陷。
+
+### 错误码纪律
+
+本轮先烧掉一次提交：SC-32 夹具断言了源码里不存在的错误码和取不到的游标。之后的每个夹具
+都机械校验过：把测试里所有 snake_case 字面量与全仓源码比对，未命中的必须解释。
+并行 worker 也必须独立复核，不能只信报告。
+
 ## 提交约定
 
 - 一个 Step 一个提交，message `step: add <ID> <主题>`。
