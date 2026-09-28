@@ -13223,6 +13223,23 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### Roadmap CI wiring overclaim repair evidence (2026-09-28)
+
+source_snapshot: `6551599a` (AUT-14) through `01d10e3f` (CI wiring batches 1-3); 111 new files under `.github/workflows/`
+worktree_status: A repository-wide audit found that 252 baseline documents under `docs/roadmap/` assert their CI runs a specific `.github/workflows/<name>.yml`, while 252 of those workflow files did not exist. This is a systemic instance of the forbidden "state written stronger than evidence": the documentation described a CI path that did not exist, so those steps' fixtures had no route to ever produce evidence and their 🔄 status was permanently unreachable. 110 of the 252 were resolved without ambiguity and the missing workflow was supplied; the remaining 142 cite no machine-checkable test target and were deliberately NOT generated, because inventing a command would be a worse overclaim than the gap.
+command_argv:
+  bash scripts/ci/validate-workflows.sh   # exit 0; before: "42 files, 5 automatic, 37 manual"; after: "152 files, 5 automatic, 147 manual"
+  ruby -ryaml YAML.safe_load_file over .github/workflows/*.{yml,yaml}   # all parse
+  python3 audit: every `cargo test -p <crate> --test <stem>` in every workflow resolves to an existing <crate>/tests/<stem>.rs   # 274 invocations, 0 missing
+  cargo fmt --all --check ; cargo check --workspace --all-targets --locked --offline   # exit 0 (static compile only; no test executed)
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. Local Cargo tests, builds and clippy deliberately not run per user instruction; GitHub Actions is the test authority and has not executed any job for this account since 2026-09-27T11:16Z.
+fixture·cassette: none executed. The 110 new workflows reference 274 pre-existing test targets; none has been dispatched to a runner.
+exit_code: 0 for the workflow-structure validator, YAML parse, target-existence audit, format gate and static compile. Every new workflow's own exit code is unobserved because no runner has executed it.
+status change: none. No roadmap row, card status, feature_status or proof_level was promoted by this work. All 111 affected steps remain 🔄 exactly as before.
+proof-level change: none. This repair restores the *possibility* of evidence; it is not evidence.
+limitations: no new workflow has ever run, so this proves only that the wiring now exists and is internally consistent, not that any step passes. Each generated workflow's test targets were resolved from the repository's own `<step_id>_<topic>` / `_guard` naming convention and the crate each file actually lives in; a step whose fixtures do not follow that convention would have been excluded rather than guessed, which is why 142 baselines remain unwired. 111 of these steps' guards are `include_str!` source-marker checks rather than behavioural tests, so even a green run would prove less than it appears to for those steps. The 142 unresolved baselines still overclaim their CI path and remain an open, honestly-recorded defect.
+reviewer: Codex audit of every baseline's referenced workflow name against the on-disk workflow directory, plus repository-native validation (workflow validator, YAML parse, target-existence audit); no local runtime test reviewer.
+
 ### AUT-14 CI wiring gap evidence (2026-09-28)
 
 source_snapshot: `f1260b2b` plus this AUT-14 CI-wiring repair; `.github/workflows/aut14-effect-reservation.yml` (new); `kiana-domain/src/automation_effect_reservation.rs`; `kiana-core/src/automation_effect_reservation.rs`; `kiana-domain/tests/automation_effect_reservation.rs`; `kiana-core/tests/automation_effect_reservation_guard.rs`; `docs/roadmap/aut14-effect-reservation-baseline.md`; `docs/roadmap.md`
