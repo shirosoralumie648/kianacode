@@ -1,13 +1,60 @@
+//! 一次 Run 的生命周期：开始、继续、注入、取消。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! 入口发起 run.turn / resume_run / steer / inject / cancel
+//!    ↓  【本文件】生命周期与状态转移
+//! ControlPlane → 事件（EventLog）→ 投影
+//! ```
+//!
+//! **上游**：`kiana-core/src/commands.rs` 把这些命令路由到这里。
+//! **下游**：本文件写事件、调用 runner、请求取消；它不直接碰模型或文件系统。
+//!
+//! # 三层入口是有意的，不是历史遗留
+//!
+//! `start_run` → `start_run_with_history` → `start_run_with_id` 层层加参数，
+//! 而不是用默认参数或 builder。原因是**每一层都是一个真实的调用形态**：
+//! 不带历史的开始、带历史的开始、以及内部需要指定 run id 与前驱 turn 的开始。
+//! 折进一个带 Option 的大函数，会让「哪些参数在什么场景下必须同时给」这件事
+//! 从签名里消失。
+//!
+//! # 乐观并发：turn id 是「我以为现在轮到谁」
+//!
+//! `steer_run` 要求调用方给出 `expected_turn_id`。这不是装饰：如果 run 已经推进到下一个
+//! turn，而 UI 还按旧认知插话，那么这条 steer 会被写到错误的 turn 上，模型看到的是
+//! 「上一轮和这一轮之间」的顺序错乱。要求调用方声明它以为的 turn，让不匹配变成拒绝，
+//! 是比事后修正便宜得多的做法。
 use super::events::*;
 use super::redaction::*;
 use super::*;
 use kiana_domain::CapabilityErrorCode;
 
+/// 把生命周期里的字符串理由翻译成结构化的能力错误码。
+///
+/// 【为什么需要这一层】
+/// 生命周期内部大量用字符串表达拒绝理由（`run_not_found`、`cancel_not_confirmed` 之类），
+/// 因为它们要进事件载荷、要在 UI 上显示、要能被测试断言。
+/// 但**下游**（receipt、投影、重试策略）需要的是可枚举、可穷举匹配的错误码。
+///
+/// 直接把字符串丢给下游，下游就只能做字符串匹配——漏一个拼写就静默走错分支。
+/// 集中在这里翻译一次，`CapabilityErrorCode::from_reason` 就是唯一认识这些字符串的地方。
 fn lifecycle_error_code(error: &str) -> CapabilityErrorCode {
     CapabilityErrorCode::from_reason(error)
 }
 
 impl ControlPlane {
+    /// 开始一次新的 Run。
+    ///
+    /// 【作用】
+    /// 最简入口：不带历史、不指定 run id，交给下一层推导。
+    ///
+    /// 【调用者】
+    /// `handle_command` 里 `run.turn.v2` 且参数里没有 `run_id` 时走这里。
+    ///
+    /// 【为什么 run id 是「推导」出来的】
+    /// 见 `start_run_with_id`：先尝试用 session id 解析，解析不出来才新生成。
+    /// 这样同一个会话的第一次运行能拿到可预测的 id，调试和重放时不必去日志里捞。
     pub async fn start_run(
         &self,
         context: RequestContext,
@@ -18,6 +65,11 @@ impl ControlPlane {
             .await
     }
 
+    /// 带对话历史开始一次 Run。
+    ///
+    /// 【和 `start_run` 的区别】
+    /// 只有「是否携带已有历史」这一项。历史进来之后不会立刻发给模型，
+    /// 它先成为可被引用的既有 turn，让第一轮新输入有一个真实的「上一轮」可以接。
     pub async fn start_run_with_history(
         &self,
         context: RequestContext,
@@ -29,6 +81,19 @@ impl ControlPlane {
             .await
     }
 
+    /// 真正干活的开始路径：可指定 run id 与前驱 turn。
+    ///
+    /// 【作用】
+    /// 装配 turn 身份、写入开始事件、请求 runner 驱动第一轮。
+    ///
+    /// 【`TurnSemantics` 为什么有两种取值】
+    /// `Start` 表示这是这条历史的第一个 turn；`NewTurn` 表示它前面有一个 `predecessor`。
+    /// 区别不是措辞：重放时它决定了折叠是从零开始还是从 predecessor 续上，
+    /// 弄错会让同一段历史被折叠两次或一次都不折叠。
+    ///
+    /// 【⚠ 内部入口】
+    /// 标成 `pub(crate)`，外部 crate 不该直接调用——绕过 `start_run` 就会绕过
+    /// 它对 session id 的推导规则，产生同一会话两个 run 的情况。
     pub(crate) async fn start_run_with_id(
         &self,
         mut context: RequestContext,
@@ -344,6 +409,17 @@ impl ControlPlane {
     }
 
     /// New protocol semantics: a terminal Run is immutable; a new turn links a fresh Run.
+    /// 在已有 Run 上开一个**新 turn**。
+    ///
+    /// 【和 `continue_run` 的区别】
+    /// 这里开的是新 turn：前一轮已经结束，新输入开始新的一轮。
+    /// `continue_run` 是**恢复**一条中断的 run。两者对 `predecessor` 的处理不同，
+    /// 因此不能合并成一个带 flag 的函数——合并后调用方很容易传错 flag，
+    /// 而传错的后果是历史被错误地续接或错误地断开。
+    ///
+    /// 【memory distill 的特殊分支】
+    /// 蒸馏会话有自己的一套生命周期，不走普通 run 的继续路径，所以在前置就被挡住。
+    /// 挡住而不是放行再走特殊处理，是为了避免普通路径和蒸馏路径互相污染状态。
     pub async fn continue_new_turn(
         &self,
         context: RequestContext,
@@ -717,6 +793,19 @@ impl ControlPlane {
     }
 
     /// Queue a turn-bound steering message; it is consumed at the next safe step boundary.
+    /// 在**当前 turn 进行中**插入一条引导。
+    ///
+    /// 【作用】
+    /// 用户在模型还在跑的时候追加一句「顺便也看看 X」。这条输入进入当前 turn，
+    /// 会被下一次模型调用看到。
+    ///
+    /// 【为什么必须带 `expected_turn_id`】
+    /// 见文件头：这是乐观并发。调用方声明「我以为现在轮到这一轮」，
+    /// 不匹配就拒绝，否则 steer 会被写进错误的 turn。
+    ///
+    /// 【注意它传的是 `Some(expected_turn_id)` 两次】
+    /// 一次是「目标 turn」（写进哪一轮），一次是「前置条件」（必须还是这一轮）。
+    /// 对 steer 来说两者相同，因为它只对当前轮生效。
     pub async fn steer_run(
         &self,
         context: RequestContext,
@@ -736,6 +825,19 @@ impl ControlPlane {
         .await
     }
 
+    /// 注入一条**带来源标签**的上下文输入，且**不唤醒**空闲的 run。
+    ///
+    /// 【和 `steer_run` 的三点区别】
+    /// 1. `target_turn_id` 是 `Option`，可以指定某一轮，也可以不指定；
+    /// 2. **没有** `expected_turn_id`，也就是不做前置条件校验——注入的语义是
+    ///    「把这条信息放进去」，不是「插进正在跑的那一轮」；
+    /// 3. **不唤醒空闲的 run**。空闲时注入的内容会在 run 下次被驱动时读到，
+    ///    但不会为了这一条输入去启动一次模型调用。
+    ///
+    /// 【为什么 `source` 是必填的】
+    /// 因为注入的内容会进入模型的上下文。来源决定了它在上下文里意味着什么
+    /// （检索结果、用户补充、外部事实）。没有来源标签，模型无法区分
+    /// 「这是检索到的资料」和「这是用户刚刚说的话」，而这两者的可信度完全不同。
     /// Queue source-labelled context input without waking an idle run.
     pub async fn inject_run(
         &self,
@@ -750,6 +852,18 @@ impl ControlPlane {
             .await
     }
 
+    /// 记录一次取消请求，并回答「这是不是第一次取消」。
+    ///
+    /// 【为什么返回值是 `bool` 而不是 `()`】
+    /// 因为「首次取消」和「重复取消」要走不同的路：第一次要开始排空，
+    /// 重复的那次只能更新目标列表、不能重置排空进度。
+    /// 把这个判断放在写事件的同一个临界区里，才能保证「写入的事实」和
+    /// 「得出的结论」不会因为并发而互相矛盾。
+    ///
+    /// 【取消不等于已停止】
+    /// 这里记录的是**请求**。真正确认停止需要进程组确认，那由后面的路径完成。
+    /// 仓库的约定是：`cancel_requested` 与 `stop_confirmed` 是两个不同的事实，
+    /// 中间不能合并——否则「我请求了取消」会被读成「它已经停了」。
     async fn record_cancel_requested(
         &self,
         context: &RequestContext,
