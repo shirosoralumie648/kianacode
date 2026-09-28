@@ -53,12 +53,34 @@ trace type. The guard asserts both that the existing route is imported and that 
 `GOLDEN_CHAIN_ROUTE` or `GoldenStage` was invented — a second route string would be a second answer
 to "how does an entry reach the control plane".
 
+## Binding to the trace it claims to reproduce
+
+`GoldenTraceChain` carries a `golden_trace_digest`, and until `bind_golden_trace` existed nothing
+ever compared it to an actual `GoldenTrace`. **A digest nobody checks is a string.** The binding
+closes that, in the order the argument runs:
+
+1. the digest does not match, so the chain is not reproducing that trace at all;
+2. the trace cannot reproduce anything -- no normalized events, an inverted cursor range, no source
+   snapshot;
+3. it has expired, because a past baseline cannot prove today's behaviour;
+4. it was never human-accepted, because nobody signed for it and it is only a machine output;
+5. the chain claims it reached `Receipt` but the trace carries no receipt hash -- then the chain
+   proves "it got somewhere", not "it finished".
+
+The binding requires a non-zero binding time, because otherwise "now" is unanswerable and the
+expiry check would be theatre.
+
+What it still does **not** do is replay anything. It checks that the trace the chain names is
+worthy of it; comparing the trace's normalized events against what the chain actually produced is a
+different action, and this module neither performs it nor pretends to.
+
 ## Honest limitations
 
-This module **verifies and replays nothing**. It does not load a `GoldenTrace`, does not run a
+This module **verifies and replays nothing**. Beyond the binding it does not replay a `GoldenTrace`, does not run a
 model, a tool, a provider or a handler, does not append an event, and does not produce a receipt. The
 chain, the counts, the routes and the business claims are all supplied by the caller, so a caller
 that reports a flattering chain defeats this check the way a lying `present_artifacts` inventory
-defeated DEP-22; the report's own always-non-empty `limitations` says this outright. No golden
-trace from `kiana-domain` was compared, no fake provider or local executor was driven, no synthetic
-stream was parsed, and nothing is wired into `ControlPlane::handle_command` or into the harness.
+defeated DEP-22; the report's own always-non-empty `limitations` says this outright. The binding
+to a `GoldenTrace` is a real comparison of identity and admissibility, not a replay: no fake
+provider or local executor was driven, no synthetic stream was parsed, and nothing is wired into
+`ControlPlane::handle_command` or into the harness.
