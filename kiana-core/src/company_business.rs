@@ -1,3 +1,20 @@
+//! Company 业务面：**把「运行观测」与「业务结论」分开**的那一层。
+//!
+//! # 这个文件存在的理由
+//!
+//! 「模型跑完了、工具返回了 200、进程退出码是 0」——这些都是**运行时事实**。
+//! 「这笔订单付了款」「这个方案被客户接受了」——这些是**业务结论**。
+//! 两者没有任何因果关系，但它们在日志和界面上经常挨在一起，于是就被人顺手连起来了。
+//!
+//! 这个文件的存在就是为了让它们**必须经过不同的检查**：
+//! - [ `company_business_proof` ] 与 [ `business_closeout_proof` ] 回答「凭什么这么说」；
+//! - [ `company_business_effect` ] 是真正产生业务效果的地方；
+//! - [ `company_business_runtime_guard` ] 是最容易漏掉的那道门——见它的注释。
+//!
+//! # 它不做第二条执行循环
+//!
+//! 文件头那句「verified runtime observations and the existing Harness」是约束：
+//! 这里复用既有的 Harness，不自己开一个模型循环。
 //! Company business adapters: verified runtime observations and the existing Harness.
 use super::*;
 use kiana_domain::*;
@@ -551,6 +568,28 @@ impl ControlPlane {
         Ok(None)
     }
 
+    /// 业务动作执行前的最后一道守卫。
+    ///
+    /// 【它一次性挡住了六件事，顺序就是论证顺序】
+    /// 1. **时钟回拨**（`business_clock_rollback`）：`now` 小于状态里记的时间，
+    ///    说明这台机器的钟走过。所有基于「现在」的判断随之失效——
+    ///    继续判就是在拿一个不可信的时钟做决定。
+    /// 2. **任务已完成**：已经做完的事不能再做一遍。
+    /// 3. **指派版本对不上**（`assignment.version != task.assignment_version`）：
+    ///    这是乐观并发。任务是在某个版本的指派上创建的，指派之后被改过，
+    ///    那么基于旧指派做出的评审结论已经不对应当前 reality。
+    /// 4. **当前主体不是这个项目的 reviewer**：`assignment.active(actor, "reviewer", …)`
+    ///    判的是**此刻**的指派，而不是「曾经有过一个 reviewer」。
+    /// 5. **证据被换过**（`acceptance.evidence_digest != task.evidence_digest`）：
+    ///    评审是基于某份具体证据做出的。证据换了而结论照旧，等于没评审。
+    /// 6. **项目状态不允许**：Paused / CancelRequested / Cancelled / ResultUnknown
+    ///    的项目上做业务动作，都是在未定状态上叠加一个确定结论。
+    ///
+    /// 【⚠ 这道门为什么容易漏】
+    /// 因为前五项检查的字段看起来都「差不多对」——项目在、任务在、证据在。
+    /// 而**业务结论一旦写进 EventLog 就成了事实**，事后没人会去问
+    /// 「写这条的时候指派版本对不对」。所以它必须在这里被挡住，
+    /// 而不是等到复核阶段。
     pub(crate) fn company_business_runtime_guard(
         &self,
         context: &RequestContext,
