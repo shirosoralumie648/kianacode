@@ -455,7 +455,10 @@ impl EvidenceManifest {
             return Err("evidence_manifest_fixture_absent_reason_conflict".to_owned());
         }
         if !self.fixture_absent_reason.trim().is_empty() {
-            safe_text(&self.fixture_absent_reason, "evidence_manifest_fixture_absent_reason")?;
+            safe_text(
+                &self.fixture_absent_reason,
+                "evidence_manifest_fixture_absent_reason",
+            )?;
         }
         if self.status_change.trim().is_empty() {
             return Err("evidence_manifest_status_change_required".to_owned());
@@ -516,7 +519,8 @@ impl EvidenceManifest {
                 if previous.manifest_id == self.manifest_id {
                     return Err("evidence_manifest_chain_identity".to_owned());
                 }
-                if self.previous_manifest_digest.as_deref() != Some(previous.manifest_digest.as_str())
+                if self.previous_manifest_digest.as_deref()
+                    != Some(previous.manifest_digest.as_str())
                 {
                     return Err("evidence_manifest_chain_broken".to_owned());
                 }
@@ -549,7 +553,11 @@ fn valid_digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {
         return Err(format!("{field}_invalid"));
     };
-    if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {
+    if hex.len() != 64
+        || !hex
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    {
         return Err(format!("{field}_invalid"));
     }
     Ok(())

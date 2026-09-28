@@ -316,9 +316,10 @@ pub fn plan_retention_deletion(
         .iter()
         .any(|target| target.layer == RevocationLayer::Facts);
     if !facts_targeted
-        && request.targets.iter().any(|target| {
-            target.layer != RevocationLayer::Facts
-        })
+        && request
+            .targets
+            .iter()
+            .any(|target| target.layer != RevocationLayer::Facts)
     {
         return Err("retention_deletion_facts_missing".to_owned());
     }
@@ -563,7 +564,9 @@ pub fn commit_retention_deletion(
 ) -> Result<DeletionCommitReceipt, String> {
     plan.validate_against(request)?;
     if commit.schema != RETENTION_COMMIT_RECEIPT_SCHEMA
-        || !commit.version.is_compatible_with(&RETENTION_DELETION_VERSION)
+        || !commit
+            .version
+            .is_compatible_with(&RETENTION_DELETION_VERSION)
     {
         return Err("retention_commit_header_invalid".to_owned());
     }

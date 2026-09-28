@@ -31,34 +31,34 @@ use std::path::PathBuf;
 
 const USAGE: &str = "kiana command <name> --arguments '<JSON>' [--session-id ID] [--project-root DIR] [--role ROLE] [--permission-profile safe|balanced]\nkiana approvals|resume --session-id ID [--project-root DIR] [--role ROLE] [--permission-profile safe|balanced]\nkiana approval <ID> --decision approve|deny --request-hash HASH --nonce NONCE --session-id ID [--project-root DIR] [--role ROLE] [--permission-profile safe|balanced]";
 
-    /// 解析参数、构造 `RequestEnvelope`、交给 daemon。
-    ///
-    /// 【流程】
-    /// 1. `--help` 打印用法并返回；
-    /// 2. 第一个非 flag 参数决定模式：`command` / `approval` 是「具名」模式
-    ///    （需要再读一个名字），`approvals` / `resume` 是直接模式；
-    /// 3. 逐个解析 flag。其中 `--arguments` 收的是一整段 JSON，
-    ///    它被原样放进请求的 `arguments` 字段，由下游按命令自己的 schema 校验；
-    /// 4. 按模式构造四种不同的 `RequestEnvelope` 并发出。
-    ///
-    /// 【`--permission-profile` 的缺省值是 `safe`】
-    /// 缺省 `PermissionProfile::Safe` 而不是 `balanced`：脚本不该因为「没写参数」
-    /// 就自动拿到更大的权限。要放宽必须显式写出来——这样「这条脚本到底要多大权限」
-    /// 一眼可读。
-    ///
-    /// 【⚠ 批准为什么必须带 `--request-hash` 和 `--nonce`】
-    /// 这两个字段是**防重放**的一对，缺一不可：
-    /// - `request_hash` 把「你批准的到底是哪一个请求」钉死。少了它，
-    ///   一次批准可能被拿去套用到另一个内容不同的请求上；
-    /// - `nonce` 让这一次批准只能用一次。少了它，同一条批准可以被反复提交。
-    ///
-    /// 也就是说：**批准不是一句「我同意」，而是对某个具体请求的一次性签章。**
-    /// 这正是 [ `harness_run.rs` ] 里说「决定权在控制面、呈现权在调用方」的那件事
-    /// 在脚本面上的样子——这里提供凭证，落章仍然在控制面。
-    ///
-    /// 【它不验证 hash 是否对得上】
-    /// 这里只是把值传下去。核对是下游的事：控制面会比对它手上那个请求算出来的 hash。
-    /// 本地校验等于把「我以为的请求」当成事实。
+/// 解析参数、构造 `RequestEnvelope`、交给 daemon。
+///
+/// 【流程】
+/// 1. `--help` 打印用法并返回；
+/// 2. 第一个非 flag 参数决定模式：`command` / `approval` 是「具名」模式
+///    （需要再读一个名字），`approvals` / `resume` 是直接模式；
+/// 3. 逐个解析 flag。其中 `--arguments` 收的是一整段 JSON，
+///    它被原样放进请求的 `arguments` 字段，由下游按命令自己的 schema 校验；
+/// 4. 按模式构造四种不同的 `RequestEnvelope` 并发出。
+///
+/// 【`--permission-profile` 的缺省值是 `safe`】
+/// 缺省 `PermissionProfile::Safe` 而不是 `balanced`：脚本不该因为「没写参数」
+/// 就自动拿到更大的权限。要放宽必须显式写出来——这样「这条脚本到底要多大权限」
+/// 一眼可读。
+///
+/// 【⚠ 批准为什么必须带 `--request-hash` 和 `--nonce`】
+/// 这两个字段是**防重放**的一对，缺一不可：
+/// - `request_hash` 把「你批准的到底是哪一个请求」钉死。少了它，
+///   一次批准可能被拿去套用到另一个内容不同的请求上；
+/// - `nonce` 让这一次批准只能用一次。少了它，同一条批准可以被反复提交。
+///
+/// 也就是说：**批准不是一句「我同意」，而是对某个具体请求的一次性签章。**
+/// 这正是 [ `harness_run.rs` ] 里说「决定权在控制面、呈现权在调用方」的那件事
+/// 在脚本面上的样子——这里提供凭证，落章仍然在控制面。
+///
+/// 【它不验证 hash 是否对得上】
+/// 这里只是把值传下去。核对是下游的事：控制面会比对它手上那个请求算出来的 hash。
+/// 本地校验等于把「我以为的请求」当成事实。
 pub async fn main_from_args(args: &[String]) -> Result<()> {
     if args
         .iter()

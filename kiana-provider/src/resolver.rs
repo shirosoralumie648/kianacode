@@ -164,24 +164,24 @@ pub struct WorkspaceProfile {
 
 impl ConfigResolver {
     /// Resolve the only production provider connection/profile parser.
-/// 解析生产环境唯一的 provider 连接/配置。
-///
-/// 【作用】 组装 `Resolution`：连接表 + 是否有显式 profile + 无密钥快照。
-///
-/// 【调用者】 `ProviderGateway::from_env`（`kiana-provider/src/lib.rs`），
-/// 再往上追就是 `kiana-daemon/src/model_client.rs::from_config`。
-///
-/// 【输入】 `config`：由 daemon 组装的原始配置（provider / model / base_url / api_key）。
-///   每一项都是 `Option`——`None` 表示“去环境变量找，再找不到用内置默认”。
-///
-/// 【输出】 `Resolution`。
-///
-/// 【副作用】
-/// 无网络 I/O、无环境变量**写入**。它会**读取**环境变量（通过 `config::connections`），
-/// 并构造 `reqwest::Client`。构造 client 会创建连接池，但不建立连接（reqwest 是惰性的）。
-///
-/// 【失败情况】 任何 profile / provider / endpoint 校验失败都会向上传播为 `ModelError`。
-///   注意这里是**启动即失败**，不是运行时失败——配置错了就该立刻知道。
+    /// 解析生产环境唯一的 provider 连接/配置。
+    ///
+    /// 【作用】 组装 `Resolution`：连接表 + 是否有显式 profile + 无密钥快照。
+    ///
+    /// 【调用者】 `ProviderGateway::from_env`（`kiana-provider/src/lib.rs`），
+    /// 再往上追就是 `kiana-daemon/src/model_client.rs::from_config`。
+    ///
+    /// 【输入】 `config`：由 daemon 组装的原始配置（provider / model / base_url / api_key）。
+    ///   每一项都是 `Option`——`None` 表示“去环境变量找，再找不到用内置默认”。
+    ///
+    /// 【输出】 `Resolution`。
+    ///
+    /// 【副作用】
+    /// 无网络 I/O、无环境变量**写入**。它会**读取**环境变量（通过 `config::connections`），
+    /// 并构造 `reqwest::Client`。构造 client 会创建连接池，但不建立连接（reqwest 是惰性的）。
+    ///
+    /// 【失败情况】 任何 profile / provider / endpoint 校验失败都会向上传播为 `ModelError`。
+    ///   注意这里是**启动即失败**，不是运行时失败——配置错了就该立刻知道。
 
     pub(crate) fn resolve(config: ProviderConfig) -> Result<Resolution, kiana_domain::ModelError> {
         let (connections, explicit_profiles) = config::connections(config)?;
@@ -194,36 +194,36 @@ impl ConfigResolver {
     }
 
     /// Parse a strict workspace overlay after the caller has established ProjectTrust.
-/// 在**已建立 ProjectTrust 的前提下**解析工作区覆盖配置。
-///
-/// 【作用】 把项目里的 JSON 文本变成经过校验的 `WorkspaceConfig`。
-///
-/// 【调用者】
-/// 仓库中未在 daemon/core 找到直接调用点；`workspace_snapshot` 内部会调用它。
-/// 它是 `pub` 的，供未来接入工作区配置面时使用。
-///
-/// 【输入】
-/// - `raw`：配置文件文本。
-/// - `project_trusted`：**由调用方提供的信任结论**。本函数不自己判断。
-///
-/// 【输出】 校验通过的 `WorkspaceConfig`。
-///
-/// 【副作用】 无。不读文件、不写文件、不查网。
-///
-/// 【核心流程】 三步，顺序不可换：
-/// ```text
-///   1. project_trusted == false ?  -> 立即拒绝   ← 必须在最前面
-///   2. 长度 / NUL 字节检查        -> 拒绝
-///   3. JSON 解析 + validate_workspace() -> 拒绝或返回
-/// ```
-///
-/// 【⚠ 为什么信任检查必须在解析之前】
-/// 如果先解析再检查信任，一个恶意仓库可以用一个“超大 / 结构诡异”的 JSON
-/// 触发解析器里的 CPU/内存消耗——**信任检查晚一步，攻击面就大一步**。
-/// 先问“你是谁”，再问“你说了什么”。
-///
-/// 【⚠ 为什么拒绝 NUL 字节】 NUL 会截断后续传递给 C 层（libc / 某些系统调用）的字符串，
-/// 是典型的路径穿越前奏。
+    /// 在**已建立 ProjectTrust 的前提下**解析工作区覆盖配置。
+    ///
+    /// 【作用】 把项目里的 JSON 文本变成经过校验的 `WorkspaceConfig`。
+    ///
+    /// 【调用者】
+    /// 仓库中未在 daemon/core 找到直接调用点；`workspace_snapshot` 内部会调用它。
+    /// 它是 `pub` 的，供未来接入工作区配置面时使用。
+    ///
+    /// 【输入】
+    /// - `raw`：配置文件文本。
+    /// - `project_trusted`：**由调用方提供的信任结论**。本函数不自己判断。
+    ///
+    /// 【输出】 校验通过的 `WorkspaceConfig`。
+    ///
+    /// 【副作用】 无。不读文件、不写文件、不查网。
+    ///
+    /// 【核心流程】 三步，顺序不可换：
+    /// ```text
+    ///   1. project_trusted == false ?  -> 立即拒绝   ← 必须在最前面
+    ///   2. 长度 / NUL 字节检查        -> 拒绝
+    ///   3. JSON 解析 + validate_workspace() -> 拒绝或返回
+    /// ```
+    ///
+    /// 【⚠ 为什么信任检查必须在解析之前】
+    /// 如果先解析再检查信任，一个恶意仓库可以用一个“超大 / 结构诡异”的 JSON
+    /// 触发解析器里的 CPU/内存消耗——**信任检查晚一步，攻击面就大一步**。
+    /// 先问“你是谁”，再问“你说了什么”。
+    ///
+    /// 【⚠ 为什么拒绝 NUL 字节】 NUL 会截断后续传递给 C 层（libc / 某些系统调用）的字符串，
+    /// 是典型的路径穿越前奏。
 
     pub fn parse_workspace(
         raw: &str,
@@ -248,30 +248,30 @@ impl ConfigResolver {
     /// Parse a trusted overlay and produce the canonical secret-free domain snapshot used for
     /// revision fencing. `project_trust_revision` must already be a digest from the authority
     /// boundary; this function does not infer trust from the config text.
-/// 解析可信覆盖配置，并产出用于版本围栏（revision fencing）的**无密钥**规范快照。
-///
-/// 【作用】 `parse_workspace` 的加强版：除了解析，还把结果转成
-/// `ConfigSnapshot`（领域类型），附带内容摘要与信任版本号。
-///
-/// 【调用者】 同上，未在 daemon/core 找到直接调用点。
-///
-/// 【输入】
-/// - `raw` / `project_trusted`：同 `parse_workspace`。
-/// - `project_trust_revision`：**必须已经是权威边界算出的摘要**。
-///   本函数原样塞进快照，不做二次解释、不从配置文本推断。
-///
-/// 【输出】 `ConfigSnapshot`，包含：
-/// - 来源标签 `"workspace:provider-config"`（用于溯源：这份配置从哪来）。
-/// - `effective`：解析后的配置重新序列化成的规范 JSON。
-/// - 摘要 `json_digest(&effective)`：内容变了摘要就变。
-/// - `project_trust_revision`：信任侧版本。
-///
-/// 【副作用】 无。
-///
-/// 【⚠ 为什么先 parse 再 to_value 再 hash，而不是直接 hash 原始文本】
-/// 因为 `raw` 里字段顺序、空白、是否省略默认值都可能不同，但**语义相同**。
-/// 先规范化再哈希，得到的是“语义摘要”：只改格式不会让摘要变，
-/// 改真实内容才会。这正是版本围栏需要的语义。
+    /// 解析可信覆盖配置，并产出用于版本围栏（revision fencing）的**无密钥**规范快照。
+    ///
+    /// 【作用】 `parse_workspace` 的加强版：除了解析，还把结果转成
+    /// `ConfigSnapshot`（领域类型），附带内容摘要与信任版本号。
+    ///
+    /// 【调用者】 同上，未在 daemon/core 找到直接调用点。
+    ///
+    /// 【输入】
+    /// - `raw` / `project_trusted`：同 `parse_workspace`。
+    /// - `project_trust_revision`：**必须已经是权威边界算出的摘要**。
+    ///   本函数原样塞进快照，不做二次解释、不从配置文本推断。
+    ///
+    /// 【输出】 `ConfigSnapshot`，包含：
+    /// - 来源标签 `"workspace:provider-config"`（用于溯源：这份配置从哪来）。
+    /// - `effective`：解析后的配置重新序列化成的规范 JSON。
+    /// - 摘要 `json_digest(&effective)`：内容变了摘要就变。
+    /// - `project_trust_revision`：信任侧版本。
+    ///
+    /// 【副作用】 无。
+    ///
+    /// 【⚠ 为什么先 parse 再 to_value 再 hash，而不是直接 hash 原始文本】
+    /// 因为 `raw` 里字段顺序、空白、是否省略默认值都可能不同，但**语义相同**。
+    /// 先规范化再哈希，得到的是“语义摘要”：只改格式不会让摘要变，
+    /// 改真实内容才会。这正是版本围栏需要的语义。
 
     pub fn workspace_snapshot(
         raw: &str,

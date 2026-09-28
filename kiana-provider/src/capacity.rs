@@ -102,37 +102,37 @@ pub(crate) struct CapacityWindow {
 }
 
 impl CapacityWindow {
-/// 尝试在当前窗口里为一次调用预留配额。
-///
-/// 【作用】 三个动作合一：校验策略 → 判断/滚动窗口 → 扣减计数。
-/// 这三步必须在**同一个锁持有期**内完成，否则并发下会超限。
-///
-/// 【调用者】 `transport.rs::send_inner_attempt`，在任何网络 I/O 之前。
-///
-/// 【输入】
-/// - `policy`：服务端下发的容量策略（每分钟请求数、每分钟 token 数）。不可变、服务端所有。
-/// - `now_unix_ms`：当前时间。由调用方注入，方便测试。
-/// - `requested_tokens`：本次预计消耗的 token 数（调用方用预算上限 `max(1)` 传入）。
-///
-/// 【输出】 `Ok(())` 表示已扣减；`Err(String)` 是稳定错误码。
-///
-/// 【副作用】
-/// 会修改本对象的窗口状态（这是它唯一的副作用，也是它存在的意义）。
-/// **不**发网络请求、**不**写事件、**不**扣任何账户余额。
-///
-/// 【失败情况】
-/// | 错误码 | 触发条件 |
-/// |---|---|
-/// | `policy.validate()` 的错误 | 策略自身不合法（0 上限等） |
-/// | `provider_capacity_window_request_invalid` | `now_unix_ms == 0` 或 `requested_tokens == 0` |
-/// | `provider_capacity_clock_rollback` | 当前时间早于本窗口起点（系统时钟被回拨） |
-/// | `provider_capacity_window_overflow` | 窗口边界计算溢出 `u64` |
-/// | `provider_capacity_quota_exhausted` | 请求数或 token 数已到上限 |
-/// | `provider_capacity_requests_overflow` / `..._tokens_overflow` | 计数累加溢出 |
-///
-/// 【⚠ 为什么时钟回拨要报错而不是继续】
-/// 如果系统时间从 10:05 被拨回 10:01，当前窗口看起来“还没用满”，配额就会被重复使用。
-/// 这里选择直接失败：宁可这一次调用被拒，也不要在无法判断时间基准时放行。
+    /// 尝试在当前窗口里为一次调用预留配额。
+    ///
+    /// 【作用】 三个动作合一：校验策略 → 判断/滚动窗口 → 扣减计数。
+    /// 这三步必须在**同一个锁持有期**内完成，否则并发下会超限。
+    ///
+    /// 【调用者】 `transport.rs::send_inner_attempt`，在任何网络 I/O 之前。
+    ///
+    /// 【输入】
+    /// - `policy`：服务端下发的容量策略（每分钟请求数、每分钟 token 数）。不可变、服务端所有。
+    /// - `now_unix_ms`：当前时间。由调用方注入，方便测试。
+    /// - `requested_tokens`：本次预计消耗的 token 数（调用方用预算上限 `max(1)` 传入）。
+    ///
+    /// 【输出】 `Ok(())` 表示已扣减；`Err(String)` 是稳定错误码。
+    ///
+    /// 【副作用】
+    /// 会修改本对象的窗口状态（这是它唯一的副作用，也是它存在的意义）。
+    /// **不**发网络请求、**不**写事件、**不**扣任何账户余额。
+    ///
+    /// 【失败情况】
+    /// | 错误码 | 触发条件 |
+    /// |---|---|
+    /// | `policy.validate()` 的错误 | 策略自身不合法（0 上限等） |
+    /// | `provider_capacity_window_request_invalid` | `now_unix_ms == 0` 或 `requested_tokens == 0` |
+    /// | `provider_capacity_clock_rollback` | 当前时间早于本窗口起点（系统时钟被回拨） |
+    /// | `provider_capacity_window_overflow` | 窗口边界计算溢出 `u64` |
+    /// | `provider_capacity_quota_exhausted` | 请求数或 token 数已到上限 |
+    /// | `provider_capacity_requests_overflow` / `..._tokens_overflow` | 计数累加溢出 |
+    ///
+    /// 【⚠ 为什么时钟回拨要报错而不是继续】
+    /// 如果系统时间从 10:05 被拨回 10:01，当前窗口看起来“还没用满”，配额就会被重复使用。
+    /// 这里选择直接失败：宁可这一次调用被拒，也不要在无法判断时间基准时放行。
     pub(crate) fn reserve(
         &self,
         policy: &ProviderCapacityPolicy,
@@ -208,14 +208,14 @@ impl CapacityWindow {
         Ok(())
     }
 
-/// 读出当前窗口的 `(start_ms, end_ms, requests, tokens)`，供诊断展示。
-///
-/// 【作用】 只读快照，用于 `/health` 之类的诊断投影与测试断言。
-/// 【副作用】 只短暂加锁读取，不修改任何计数。
-///
-/// 【⚠ 返回值不是配额真相】
-/// 它是**本进程**的记账视图，不是上游服务商的真实用量。
-/// 真正的账单以上游返回的 usage 为准（见 `usage.rs`）。
+    /// 读出当前窗口的 `(start_ms, end_ms, requests, tokens)`，供诊断展示。
+    ///
+    /// 【作用】 只读快照，用于 `/health` 之类的诊断投影与测试断言。
+    /// 【副作用】 只短暂加锁读取，不修改任何计数。
+    ///
+    /// 【⚠ 返回值不是配额真相】
+    /// 它是**本进程**的记账视图，不是上游服务商的真实用量。
+    /// 真正的账单以上游返回的 usage 为准（见 `usage.rs`）。
 
     pub(crate) fn snapshot(&self) -> (u64, u64, u64, u64) {
         let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);

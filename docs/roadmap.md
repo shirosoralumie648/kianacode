@@ -1236,6 +1236,7 @@
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-09-28 | **基线 fmt 门修复（不推进任何 step）**：`cargo fmt --all --check` 自 `2a9ee9e0`（2026-09-25）起在 master 上失败（exit 1，55 文件 177 处 diff），而每个 workflow 都把该门作为第一步，导致 `2a9ee9e0` 上 25+ 个 job 在编译/执行任何测试前即失败，`P4-J7-18`（第 395 行）与 `P4-J7-19`（第 396 行）的专属 run 也停在此门。判定为基线遗留（跨 606 次提交累积的格式回归，与任何单个切片无关），按 `cargo fmt --all` 施加仓库规范格式，53 文件；`cargo check --workspace --locked --offline` exit 0 证明未破坏编译；逐文件非空白字符多重集比对证明无代码增删改。**不提升任何 step 状态、feature_status 或 proof_level**——本修复只恢复取得 CI 证据的能力，不替代 CI 证据；本地未运行任何测试 | 待本提交 |
 | 2026-09-26 | `CO-11` typed Criterion coverage source slice：复用 CO-06 Criterion/ID，新增 Project→Milestone→Packet covers/refines/verifies graph、scope/baseline/digest/cycle/weakening/missing-parent gates、deterministic trace/gaps；typed CriteriaSnapshot ID 优先、legacy text 仅回放兼容；补 domain/core fixtures、GitHub-only workflow、baseline 与状态回填；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-26 | `CO-12` Plan/WorkGraph proposal source slice：新增 Charter baseline/coverage digest 绑定的批量节点与 typed parent-child/artifact/run-success/acceptance/related edges，拒绝缺引用、跨项目、循环、孤立必需节点并提供稳定拓扑；补 domain/core fixtures、GitHub-only workflow、baseline 与状态回填；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |
 | 2026-09-26 | `CO-13` versioned department packet source slice：新增分析/评估/Charter/Plan/实现/验证/交付准备/知识整理工作种类、输入依据、责任角色、ResultContract 和受控写集；拒绝未批准 Plan 的实现包、Builder 写集越权与 runtime Grant/Lease 注入，保留旧 Builder v1；补 domain/core fixtures、GitHub-only workflow、baseline 与状态回填；本地不运行测试/build/check/clippy/smoke，CI 不等待，step 保持 🔄 | 待本提交 |

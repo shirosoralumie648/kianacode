@@ -34,7 +34,10 @@
 //! it, and re-derives that decision in `validate_against` so an edited receipt cannot publish
 //! itself.
 
-use kiana_domain::{json_digest, redact_text, scan_secret_sentinels, EffectObservation, EffectObservationState, SchemaVersion, SecretScanChannel};
+use kiana_domain::{
+    json_digest, redact_text, scan_secret_sentinels, EffectObservation, EffectObservationState,
+    SchemaVersion, SecretScanChannel,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -210,7 +213,9 @@ impl EffectReconciliationRequest {
 
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != EFFECT_RECONCILIATION_SCHEMA
-            || !self.version.is_compatible_with(&EFFECT_RECONCILIATION_VERSION)
+            || !self
+                .version
+                .is_compatible_with(&EFFECT_RECONCILIATION_VERSION)
         {
             return Err("effect_reconcile_header_invalid".to_owned());
         }
@@ -280,7 +285,9 @@ impl EffectReconciliationReceipt {
         request.validate()?;
         let (reason, observed_state) = decide(request)?;
         if self.schema != EFFECT_RECONCILIATION_RECEIPT_SCHEMA
-            || !self.version.is_compatible_with(&EFFECT_RECONCILIATION_VERSION)
+            || !self
+                .version
+                .is_compatible_with(&EFFECT_RECONCILIATION_VERSION)
             || self.observation_digest != request.observation.observation_digest
             || self.resolution != request.resolution
             || self.observed_state != observed_state
@@ -322,7 +329,9 @@ impl EffectReconciliationReceipt {
 ///
 /// It returns the reason **and** the observed state rather than a bare `Result`, because the state
 /// is part of what the receipt has to say and recomputing it in two places is how the two drift.
-fn decide(request: &EffectReconciliationRequest) -> Result<(String, EffectObservationState), String> {
+fn decide(
+    request: &EffectReconciliationRequest,
+) -> Result<(String, EffectObservationState), String> {
     let state = request.observation.state;
     let resolution = request.resolution;
     match resolution {

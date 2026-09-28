@@ -53,10 +53,7 @@ fn bq29_reuses_the_existing_route_and_trace_vocabulary() {
         assert!(source.contains(marker), "BQ-29 module lost {marker}");
     }
     // A second route string would be a second answer to "how does an entry reach the control plane".
-    for forbidden in [
-        "const GOLDEN_CHAIN_ROUTE",
-        "pub enum GoldenStage",
-    ] {
+    for forbidden in ["const GOLDEN_CHAIN_ROUTE", "pub enum GoldenStage"] {
         assert!(
             !source.contains(forbidden),
             "BQ-29 invented a parallel vocabulary: {forbidden}"

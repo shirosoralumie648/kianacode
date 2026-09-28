@@ -180,23 +180,23 @@ impl PersistedSession {
     }
 }
 
-    /// 发一句话，然后把**整个会话**读回来。
-    ///
-    /// 【它与 `unstable_v2_prompt` 的差别】
-    /// `unstable_v2_prompt` 返回的是**这一轮**的结果；`query` 多做一步：
-    /// 拿到 session_id 之后把落盘的会话整个读回来。
-    ///
-    /// 【⚠ 它无条件打开 `execute`】
-    /// 第一行就是 `options.insert("execute", true)`，而且**排在**调用之前——
-    /// 也就是说调用方即使在 options 里显式写了 `execute: false`，也会被这里覆盖。
-    ///
-    /// 这是有意的：`query` 的语义就是「问一句」，问而不答没有意义。
-    /// 但它也意味着**这个开关对 `query` 不可用**——想在不执行模型的情况下问一句，
-    /// 得用底层那个函数。
-    ///
-    /// 【为什么多这一次读盘】
-    /// 因为调用方要的通常是「这一轮之后会话变成什么样了」，而不只是「这一轮说了什么」。
-    /// 从会话文件读，才能拿到完整历史。
+/// 发一句话，然后把**整个会话**读回来。
+///
+/// 【它与 `unstable_v2_prompt` 的差别】
+/// `unstable_v2_prompt` 返回的是**这一轮**的结果；`query` 多做一步：
+/// 拿到 session_id 之后把落盘的会话整个读回来。
+///
+/// 【⚠ 它无条件打开 `execute`】
+/// 第一行就是 `options.insert("execute", true)`，而且**排在**调用之前——
+/// 也就是说调用方即使在 options 里显式写了 `execute: false`，也会被这里覆盖。
+///
+/// 这是有意的：`query` 的语义就是「问一句」，问而不答没有意义。
+/// 但它也意味着**这个开关对 `query` 不可用**——想在不执行模型的情况下问一句，
+/// 得用底层那个函数。
+///
+/// 【为什么多这一次读盘】
+/// 因为调用方要的通常是「这一轮之后会话变成什么样了」，而不只是「这一轮说了什么」。
+/// 从会话文件读，才能拿到完整历史。
 pub async fn query(prompt: String, mut options: HashMap<String, Value>) -> Result<Query> {
     options.insert("execute".to_string(), Value::Bool(true));
     let result = unstable_v2_prompt(prompt, options).await?;
@@ -223,14 +223,14 @@ pub async fn unstable_v2_resume_session(
     read_session(&default_sessions_dir(), &session_id).map(|session| session.sdk_session())
 }
 
-    /// 提问，v2 接口。**函数名里的 `unstable_` 是提示，不是装饰。**
-    ///
-    /// 它把 permission handler 传成 `None` 交给下一层。看的人很容易因此以为
-    /// 「不询问就执行」——**不是**，见文件头：执行仍然经 `harness_run` → `ControlPlane`。
-    /// `None` 的实际后果只是：遇到需要批准的动作时不弹窗，而是把 `AwaitingApproval`
-    /// 原样返回给调用方。
-    ///
-    /// 真正决定授权的是下游的 `execute_owned_harness_turn`，不是这里的参数。
+/// 提问，v2 接口。**函数名里的 `unstable_` 是提示，不是装饰。**
+///
+/// 它把 permission handler 传成 `None` 交给下一层。看的人很容易因此以为
+/// 「不询问就执行」——**不是**，见文件头：执行仍然经 `harness_run` → `ControlPlane`。
+/// `None` 的实际后果只是：遇到需要批准的动作时不弹窗，而是把 `AwaitingApproval`
+/// 原样返回给调用方。
+///
+/// 真正决定授权的是下游的 `execute_owned_harness_turn`，不是这里的参数。
 pub async fn unstable_v2_prompt(
     message: String,
     options: HashMap<String, Value>,
@@ -259,29 +259,29 @@ async fn unstable_v2_prompt_with_optional_permission_handler(
     prompt_with_persistence_at(default_sessions_dir(), message, options, permission_handler).await
 }
 
-    /// 「要不要真的跑模型」在这里分叉。
-    ///
-    /// ```text
-    /// should_execute_model(options) == false
-    ///     → 只把这句话追加进会话文件，返回 status: recorded
-    /// should_execute_model(options) == true
-    ///     → execute_owned_harness_turn(...) → 真的跑
-    /// ```
-    ///
-    /// 【默认值是 false】
-    /// `should_execute_model` 在既没有 `execute` / `run_model` 选项、
-    /// 也没有 `KIANA_SDK_EXECUTE_MODEL` 时返回 false。
-    /// 也就是说：**SDK 默认只记录，不执行。** 要执行必须显式打开。
-    ///
-    /// 这个默认值方向是刻意的——一个会反复调用模型的接口，默认必须是「不动」。
-    ///
-    /// 【两种分支的差别不只是「跑不跑」】
-    /// record_only 分支返回的 `execution` 字段明确写着 `record_only`。
-    /// 调用方能一眼看出「这次我只是记了个话，没真跑」，而不用去猜。
-    ///
-    /// 【为什么要有 record_only 这条路】
-    /// 因为「先把一段对话攒起来，之后再执行」是真实存在的用法。
-    /// 若只有执行这一条路，想攒对话就必须真的付出模型的代价。
+/// 「要不要真的跑模型」在这里分叉。
+///
+/// ```text
+/// should_execute_model(options) == false
+///     → 只把这句话追加进会话文件，返回 status: recorded
+/// should_execute_model(options) == true
+///     → execute_owned_harness_turn(...) → 真的跑
+/// ```
+///
+/// 【默认值是 false】
+/// `should_execute_model` 在既没有 `execute` / `run_model` 选项、
+/// 也没有 `KIANA_SDK_EXECUTE_MODEL` 时返回 false。
+/// 也就是说：**SDK 默认只记录，不执行。** 要执行必须显式打开。
+///
+/// 这个默认值方向是刻意的——一个会反复调用模型的接口，默认必须是「不动」。
+///
+/// 【两种分支的差别不只是「跑不跑」】
+/// record_only 分支返回的 `execution` 字段明确写着 `record_only`。
+/// 调用方能一眼看出「这次我只是记了个话，没真跑」，而不用去猜。
+///
+/// 【为什么要有 record_only 这条路】
+/// 因为「先把一段对话攒起来，之后再执行」是真实存在的用法。
+/// 若只有执行这一条路，想攒对话就必须真的付出模型的代价。
 async fn prompt_with_persistence_at(
     root: PathBuf,
     message: String,
@@ -1607,12 +1607,12 @@ fn validate_session_id(session_id: &str) -> Result<()> {
     Ok(())
 }
 
-    /// 会话落盘的缺省目录，可用 `KIANA_SDK_SESSIONS_DIR` 覆盖。
-    ///
-    /// 【为什么值得单独一个函数】
-    /// 因为「会话存在哪」是一个会被多方问到的问题（提问、恢复、审批、事件关联），
-    /// 而环境变量名如果散落写多处，改名就会漏掉一处——而漏掉的那一处会静静地
-    /// 写到另一个目录，于是「恢复会话」找不到东西。
+/// 会话落盘的缺省目录，可用 `KIANA_SDK_SESSIONS_DIR` 覆盖。
+///
+/// 【为什么值得单独一个函数】
+/// 因为「会话存在哪」是一个会被多方问到的问题（提问、恢复、审批、事件关联），
+/// 而环境变量名如果散落写多处，改名就会漏掉一处——而漏掉的那一处会静静地
+/// 写到另一个目录，于是「恢复会话」找不到东西。
 fn default_sessions_dir() -> PathBuf {
     if let Ok(path) = std::env::var("KIANA_SDK_SESSIONS_DIR") {
         return PathBuf::from(path);
@@ -1692,17 +1692,17 @@ fn session_title_option(options: &HashMap<String, Value>) -> Option<String> {
     )
 }
 
-    /// 该不该真的调模型。
-    ///
-    /// 【三个来源，任意一个为真即为真】
-    /// `execute` 选项 → `run_model` 选项 → `KIANA_SDK_EXECUTE_MODEL` 环境变量。
-    ///
-    /// 【⚠ 为什么两个选项要分开存在】
-    /// 它们是历史遗留：早期只有 `execute`，后来加了 `run_model`。
-    /// 保留两个而不是合并，是为了不破坏已有调用方——但代价是
-    /// 「这两个词到底有什么区别」成了只有写代码的人才知道的事。
-    /// 读到这个函数的���，不必试图推断它们的语义差别：**一个都不会执行**，
-    /// 真正的分叉在 [ `prompt_with_persistence_at` ]。
+/// 该不该真的调模型。
+///
+/// 【三个来源，任意一个为真即为真】
+/// `execute` 选项 → `run_model` 选项 → `KIANA_SDK_EXECUTE_MODEL` 环境变量。
+///
+/// 【⚠ 为什么两个选项要分开存在】
+/// 它们是历史遗留：早期只有 `execute`，后来加了 `run_model`。
+/// 保留两个而不是合并，是为了不破坏已有调用方——但代价是
+/// 「这两个词到底有什么区别」成了只有写代码的人才知道的事。
+/// 读到这个函数的���，不必试图推断它们的语义差别：**一个都不会执行**，
+/// 真正的分叉在 [ `prompt_with_persistence_at` ]。
 fn should_execute_model(options: &HashMap<String, Value>) -> bool {
     bool_option(options, "execute")
         .or_else(|| bool_option(options, "run_model"))

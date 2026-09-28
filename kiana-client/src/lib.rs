@@ -21,9 +21,9 @@ mod conformance;
 mod ide_capability;
 mod legacy_migration;
 mod live_acp;
+mod protocol_parity;
 mod provider_diagnostics;
 mod surface_parity;
-mod protocol_parity;
 mod typed;
 mod ui_budget;
 mod ui_recovery;
@@ -79,7 +79,8 @@ pub use protocol_parity::{
     compare_protocol_parity, ApprovalPresentation, DecisionSource, ProtocolObservation,
     ProtocolParityError, ProtocolParityReport, ProtocolSurface, PROTOCOL_PARITY_REPORT_SCHEMA,
     PROTOCOL_PARITY_SCHEMA,
-};pub use typed::{
+};
+pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,

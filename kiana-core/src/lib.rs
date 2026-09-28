@@ -19,8 +19,8 @@ mod billing_recovery;
 mod bq26_fault_harness;
 mod capabilities;
 mod capability_scheduler;
-mod cell_registry;
 mod capacity_fault_envelope;
+mod cell_registry;
 mod change_contract;
 mod ci12_product_gate;
 mod clarification;
@@ -69,24 +69,24 @@ mod deployment_shutdown;
 mod deployment_startup;
 mod deployment_supervisor;
 mod dispatch;
+mod effect_reconciliation;
 mod effect_usage_projection;
 mod er31_fault_matrix;
 mod er32_adapter_conformance;
 mod er33_capacity_migration;
 mod er34_durable_gate;
-mod effect_reconciliation;
-mod evidence_manifest;
 mod eval;
 mod events;
+mod evidence_manifest;
 mod fallback_admission;
 mod fault_injection;
 mod milestone_acceptance;
 mod ops_diagnostics;
 mod outcome_measurement;
 mod packet_acceptance;
-mod promotion_gate;
 mod project_acceptance;
 mod project_control;
+mod promotion_gate;
 mod rework_contract;
 mod storage_diagnostics;
 mod storage_preflight;
@@ -166,9 +166,9 @@ mod resource_leases;
 mod resource_projection;
 mod restore_activation;
 mod retention;
-mod revocation_propagation;
 mod retention_archive_bounds;
 mod retention_deletion;
+mod revocation_propagation;
 mod security_authority;
 mod security_context;
 mod security_fence;
@@ -238,11 +238,11 @@ pub use bq26_fault_harness::{
     BQ26_FAULT_CASES_SCHEMA, BQ26_FAULT_HARNESS_SCHEMA, BQ26_FAULT_HARNESS_VERSION,
     BQ26_FAULT_MAX_CASES,
 };
-pub use capacity_fault_envelope::*;
 pub use capabilities::derive_swarm_child_grant;
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
+pub use capacity_fault_envelope::*;
 pub use ci12_product_gate::validate_ci12_product_gate;
 pub use clarification::{
     clarification_human_inbox_item, commit_clarification_answer, ClarificationCommit,
@@ -268,6 +268,14 @@ pub use credential_recovery::{
     CredentialRecoveryProjectionError, CredentialRecoveryReplayRequest,
     CREDENTIAL_RECOVERY_PROJECTION_VERSION,
 };
+pub use data_class::{
+    admit_field, derive_sink_class, evaluate_sink_admission, metric_label_budget,
+    metric_series_budget, runtime_metric_refusal, ClassBasis, ClassClaimOrigin, DerivedClass,
+    SinkAdmission, SinkAdmissionRefusal, SinkAdmissionReport, SinkField, TelemetryGuarantees,
+    TelemetryRuntimeRefusal, DATA_CLASS_ADMISSION_VERSION, DATA_CLASS_DERIVATION_SCHEMA,
+    MAX_SINK_ADMISSION_FIELDS, MAX_SINK_FIELD_KEY, MAX_SINK_FIELD_VALUE, OBSERVATION_SINKS,
+    SINK_ADMISSION_REPORT_SCHEMA,
+};
 pub use data_governance::{
     plan_data_propagation, project_data_governance, project_data_governance_snapshot,
     receipt_data_binding_from_events, seal_governance_events,
@@ -288,6 +296,7 @@ pub use deployment_release::validate_deployment_release;
 pub use deployment_shutdown::{evaluate_shutdown, validate_shutdown_report};
 pub use deployment_startup::{evaluate_startup, validate_startup_report};
 pub use deployment_supervisor::validate_supervisor_observation;
+pub use effect_reconciliation::*;
 pub use effect_usage_projection::{
     project_effect_usage, EffectUsageProjectionError, EFFECT_USAGE_PROJECTION_SCHEMA,
 };
@@ -299,9 +308,8 @@ pub use er31_fault_matrix::validate_er31_fault_matrix;
 pub use er32_adapter_conformance::validate_er32_conformance_report;
 pub use er33_capacity_migration::validate_er33_capacity_migration_drill;
 pub use er34_durable_gate::validate_er34_durable_gate_evidence;
-pub use effect_reconciliation::*;
-pub use evidence_manifest::*;
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
+pub use evidence_manifest::*;
 pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
@@ -314,14 +322,6 @@ pub use incident_projection::{
     project_incidents, project_observability_incidents, IncidentProjectionError,
 };
 pub use invocation_projection::{project_invocations, InvocationProjection};
-pub use data_class::{
-    admit_field, derive_sink_class, evaluate_sink_admission, metric_label_budget,
-    metric_series_budget, runtime_metric_refusal, ClassBasis, ClassClaimOrigin, DerivedClass,
-    SinkAdmission, SinkAdmissionRefusal, SinkAdmissionReport, SinkField, TelemetryGuarantees,
-    TelemetryRuntimeRefusal, DATA_CLASS_ADMISSION_VERSION, DATA_CLASS_DERIVATION_SCHEMA,
-    MAX_SINK_ADMISSION_FIELDS, MAX_SINK_FIELD_KEY, MAX_SINK_FIELD_VALUE, OBSERVATION_SINKS,
-    SINK_ADMISSION_REPORT_SCHEMA,
-};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
     MetricCardinalityGuard, MetricReducer, MetricReducerError, MetricsProjectionError,
@@ -392,8 +392,8 @@ pub use persistence_read_model::{
 };
 pub use platform::classify_failure_summary;
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
-pub use promotion_gate::*;
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
+pub use promotion_gate::*;
 pub use provider_diagnostics::{
     project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,
 };

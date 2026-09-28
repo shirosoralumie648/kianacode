@@ -176,7 +176,9 @@ fn a_report_cannot_be_edited_after_the_fact() {
     let sample = healthy();
     let budget = budget();
     let report: CapacityFaultReport = evaluate_capacity_fault(&sample, &budget).expect("report");
-    report.validate_against(&sample, &budget).expect("un edited");
+    report
+        .validate_against(&sample, &budget)
+        .expect("un edited");
 
     let mut shrunk = report.clone();
     shrunk.observed_queue_depth = 1;
@@ -198,7 +200,9 @@ fn a_fault_inside_every_bound_produces_a_report_that_says_what_it_did_not_show()
     let sample = healthy();
     let budget = budget();
     let report = evaluate_capacity_fault(&sample, &budget).expect("report");
-    report.validate_against(&sample, &budget).expect("re-derives");
+    report
+        .validate_against(&sample, &budget)
+        .expect("re-derives");
     assert!(!report.limitations.is_empty());
     assert_eq!(report.budget_digest, budget.budget_digest);
     assert_eq!(report.reservations_after_recovery, 0);

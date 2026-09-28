@@ -561,13 +561,13 @@ async fn send_inner_attempt(
         }) {
             return Err(ModelError::invalid("provider_content_type_invalid"));
         }
-    // 流式主循环的四根支柱：
-    // ```text
-    //   Framer      把任意切分的字节流还原成一个个完整的帧（SSE 或 NDJSON）
-    //   Accumulator 把帧累积成 ModelReply，并逐块回调 sink
-    //   total       累计字节数，超过 max_body 立刻中止
-    //   idle/first  分阶段空闲超时，见下面的 loop
-    // ```
+        // 流式主循环的四根支柱：
+        // ```text
+        //   Framer      把任意切分的字节流还原成一个个完整的帧（SSE 或 NDJSON）
+        //   Accumulator 把帧累积成 ModelReply，并逐块回调 sink
+        //   total       累计字节数，超过 max_body 立刻中止
+        //   idle/first  分阶段空闲超时，见下面的 loop
+        // ```
 
         let mut chunks = response.bytes_stream();
         let mut framer = Framer::new(ndjson, connection.limits.max_frame);

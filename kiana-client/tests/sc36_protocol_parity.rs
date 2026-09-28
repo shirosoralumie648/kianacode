@@ -9,10 +9,8 @@ use kiana_client::{
     ProtocolParityError, ProtocolSurface, PROTOCOL_PARITY_SCHEMA,
 };
 
-const RECEIPT: &str =
-    "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const REDACTION: &str =
-    "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const RECEIPT: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+const REDACTION: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 const APPROVAL_REF: &str = "approval-7f3a";
 
 fn observation(surface: ProtocolSurface) -> ProtocolObservation {
@@ -231,5 +229,8 @@ fn five_agreeing_surfaces_produce_a_report_naming_the_daemon_as_the_reference() 
     assert_eq!(report.receipt_digest.as_deref(), Some(RECEIPT));
     // The limitations are unioned rather than taken from one surface, so a limitation only one
     // surface knows about still reaches the report.
-    assert_eq!(report.limitations, vec!["no transport was opened".to_owned()]);
+    assert_eq!(
+        report.limitations,
+        vec!["no transport was opened".to_owned()]
+    );
 }

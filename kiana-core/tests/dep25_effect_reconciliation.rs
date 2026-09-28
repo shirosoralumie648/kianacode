@@ -86,7 +86,10 @@ fn an_unknown_outcome_is_never_resolved_by_retrying_it() {
             vec![],
         )
         .unwrap_err();
-        assert_eq!(error, "effect_reconcile_unknown_auto_retry", "state {state:?}");
+        assert_eq!(
+            error, "effect_reconcile_unknown_auto_retry",
+            "state {state:?}"
+        );
     }
 }
 
@@ -96,7 +99,11 @@ fn success_cannot_be_asserted_without_something_external_behind_it() {
     // reference over an observation the provider never receipted.
     assert_eq!(
         request(
-            observation(EffectObservationState::ConfirmedSuccess, Some("receipt-1"), vec![]),
+            observation(
+                EffectObservationState::ConfirmedSuccess,
+                Some("receipt-1"),
+                vec![]
+            ),
             EffectResolution::Reconciled,
             None,
             None,
@@ -374,7 +381,11 @@ fn each_of_the_four_resolutions_produces_its_own_receipt() {
     let cases = [
         (
             EffectResolution::Reconciled,
-            observation(EffectObservationState::ConfirmedSuccess, Some("receipt-1"), vec![]),
+            observation(
+                EffectObservationState::ConfirmedSuccess,
+                Some("receipt-1"),
+                vec![],
+            ),
             Some(external_receipt()),
             None,
             None,
