@@ -10,7 +10,7 @@
 | roadmap card | [`DEP-26`](#step-dep-26) |
 | code landing | `kiana-core/src/retention_deletion.rs`, registered by `kiana-core/src/lib.rs` |
 | fixtures | `kiana-core/tests/dep26_retention_deletion.rs`, `kiana-core/tests/dep26_retention_deletion_guard.rs` |
-| feature_status | `partial` — the plan is decidable in source; nothing is deleted and no commit receipt exists |
+| feature_status | `partial` — the plan, the commit receipt and the rebuild verification are decidable in source; nothing is deleted, rebuilt or archived |
 | proof_level | `source`; no local_behavior/durable/live/physical promotion |
 
 ## The four failures the card names, and the rule behind each
