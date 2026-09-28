@@ -244,7 +244,9 @@ fn an_edited_commit_report_cannot_publish_itself_over_the_re_derived_decision() 
         "audit_projection_commit_binding_invalid"
     );
 
-    // A rejection that carries no reason would hide which rule fired.
+    // A rejection whose reason has been blanked out can never publish itself: the reason is one
+    // of the re-derived fields, so emptying it trips the binding check before the reason/state
+    // invariant further down is ever consulted.
     let rejected = resign_report(
         AuditProjectionCommitReport::evaluate(
             &head,
@@ -259,7 +261,7 @@ fn an_edited_commit_report_cannot_publish_itself_over_the_re_derived_decision() 
         resign_report(silent)
             .validate_against(&head, &claim(1, 2, 10, 12, digest('a'), digest('b'), None))
             .unwrap_err(),
-        "audit_projector_claim_digest_mismatch"
+        "audit_projection_commit_binding_invalid"
     );
 }
 
@@ -374,7 +376,7 @@ fn a_rebuild_that_lands_on_a_different_state_is_divergent_and_says_so() {
         &digest('a'),
         &digest('e'),
         10,
-        &digest('z'),
+        &digest('9'),
         &digest('e'),
     )
     .expect("SC-32 rebuild proof");
@@ -450,13 +452,15 @@ fn a_tampered_rebuild_report_cannot_publish_itself_over_the_re_derived_decision(
         &digest('a'),
         &digest('e'),
         10,
-        &digest('z'),
+        &digest('9'),
         &digest('e'),
     )
     .expect("SC-32 rebuild proof");
     let report =
         AuditProjectionRebuildReport::evaluate(&head, &proof).expect("SC-32 rebuild report");
 
+    // The rebuild diverged on state, so re-labelling the report as converged edits two re-derived
+    // fields at once. Binding is checked first, which is the code that actually refuses it.
     let mut converged = report.clone();
     converged.status = AuditProjectionRebuildStatus::Converged;
     converged.reason = String::new();
@@ -464,7 +468,7 @@ fn a_tampered_rebuild_report_cannot_publish_itself_over_the_re_derived_decision(
     converged.report_digest = converged.digest();
     assert_eq!(
         converged.validate_against(&head, &proof).unwrap_err(),
-        "audit_projector_claim_digest_mismatch"
+        "audit_projection_rebuild_binding_invalid"
     );
 
     let mut edited_state = report;

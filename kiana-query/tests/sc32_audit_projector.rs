@@ -187,9 +187,13 @@ fn a_projection_that_would_cover_a_fact_is_refused_by_the_append_only_rule() {
         AuditProjectorError::ProjectionRewroteRecord
     );
 
-    // A row removed while its identity stays is the same edit seen from the other side.
-    records = head.records().to_vec();
-    records.remove(0);
+    // A row swapped for a different identity while the list length stays put. The length guard
+    // cannot see this, so the per-identity check is the only thing that notices the answer the
+    // projection already gave is no longer present under the identity it gave it.
+    let mut substituted = head.records().to_vec();
+    substituted[0].audit_id = "audit:sc32:substituted".to_owned();
+    substituted[0].record_digest = substituted[0].digest();
+    records = substituted;
     assert_eq!(
         audit_projection_is_append_only(&head, &records, &identities).unwrap_err(),
         AuditProjectorError::ProjectionDroppedRecord
@@ -206,11 +210,15 @@ fn a_projection_that_would_cover_a_fact_is_refused_by_the_append_only_rule() {
 
 #[test]
 fn a_tail_that_re_states_a_projected_source_event_is_refused() {
-    let head = fold(&[1, 2]);
-    // Same event, claimed at the cursor that would line up next. The identity check fires before
-    // the reducer runs, because a source event the projection already consumed is not new history.
+    // The identity check compares event_id, and committed_event mints a fresh random one on every
+    // call, so re-stating a sequence is not the same as re-stating an event. Fold and re-tail the
+    // SAME event object. That fold publishes cursor 1, so the tail starts at 2: both cursor checks
+    // pass and the identity check is the only thing left that can fire.
+    let replayed_event = committed_event(2);
+    let head =
+        project_audit_from_scratch(PROJECTOR, &[replayed_event.clone()], 1).expect("SC-32 fold");
     assert_eq!(
-        append_audit_tail(&head, &tail_from(2), 3).unwrap_err(),
+        append_audit_tail(&head, &[replayed_event], 2).unwrap_err(),
         AuditProjectorError::ProjectionEventReplay
     );
 }
@@ -218,12 +226,10 @@ fn a_tail_that_re_states_a_projected_source_event_is_refused() {
 #[test]
 fn a_tail_that_starts_before_the_published_cursor_is_a_regression() {
     let head = fold(&[1, 2]);
+    // The head published cursor 2, so a tail starting below it is a regression. A tail starting
+    // exactly at 2 is a gap instead, which the next fixture covers.
     assert_eq!(
         append_audit_tail(&head, &tail_from(2), 1).unwrap_err(),
-        AuditProjectorError::CursorRegression
-    );
-    assert_eq!(
-        append_audit_tail(&head, &tail_from(1), 2).unwrap_err(),
         AuditProjectorError::CursorRegression
     );
 }
