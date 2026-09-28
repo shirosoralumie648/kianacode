@@ -28,6 +28,14 @@ pub struct ConnectorHealthRenderRow {
     pub limitations: Vec<String>,
 }
 
+    /// 把连接器健康数据投影成一行行纯文本。
+    ///
+    /// 【它是投影，不是判定】
+    /// 输入是一段 JSON，输出是给人看的行。**它不判断连接器是否健康**——
+    /// 上游说 degraded，这里就显示 degraded；上游说错，它就显示错。
+    ///
+    /// ⚠ 所以它绝不能被当作健康结论的依据。要「这个连接器现在到底行不行」的答案，
+    ///    得问控制面，不是问这块渲染代码。
 pub fn render_connector_health(value: &Value) -> Result<Vec<ConnectorHealthRenderRow>, String> {
     let projection: UiConnectorHealthProjection = serde_json::from_value(value.clone())
         .map_err(|error| format!("connector_health_ui_decode:{error}"))?;
@@ -87,6 +95,21 @@ pub enum TimelineApply {
 
 /// A bounded and cursor-aware display projection for one run.
 #[derive(Debug, Clone, PartialEq, Eq)]
+    /// 把 run 流渲染成一条**有界**的时间线。
+    ///
+    /// 【「有界」是这个类型存在的理由】
+    /// 一次长 run 可能产生成千上万条流事件。全部留着，界面会越来越慢、
+    /// 内存会一直涨。`TimelineRenderer` 在超限时丢弃最旧的项，
+    /// 从而保证渲染的代价与 run 的长度无关。
+    ///
+    /// 【⚠ 丢弃是有代价的，而且这个代价必须是显式的】
+    /// 被丢掉的那部分**从界面上消失了**。所以时间线只能回答
+    /// 「最近发生了什么」，回答不了「从头到尾发生了什么」。
+    /// 要后者，去看 EventLog——那才是完整的。
+    ///
+    /// 文件头那句「Cursor/epoch checks are retained at this boundary so a display gap
+    /// cannot look like success」说的就是这件事：即便有丢弃，游标与世代的检查仍然保留，
+    /// 免得「界面没显示」被读成「没发生」。
 pub struct TimelineRenderer {
     run_id: RunId,
     cursor: UiCursor,
@@ -379,6 +402,14 @@ fn event_kind_name(event: &RunStreamEvent) -> &'static str {
     }
 }
 
+    /// 从一个响应信封里取出该给人看的终止文本。
+    ///
+    /// 【⚠ 它不判断这次运行成功还是失败】
+    /// 它只取文本。成功、失败、被拒绝、结果未知，在这一层都只是「一段文字」。
+    /// 真正的结论在信封的 status 字段里，而那属于控制面。
+    ///
+    /// 把两者混在一处，就会出现「界面上打着一句『已完成』，而 status 是
+    /// `result_unknown`」的情况——这正是本仓库最忌讳的那类显示与事实不一致。
 fn terminal_text(response: &ResponseEnvelope) -> String {
     let mut parts = vec![response.status.as_str().to_owned()];
     if let Some(error) = response.error.as_deref() {

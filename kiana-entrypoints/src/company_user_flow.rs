@@ -54,6 +54,17 @@ fn take_value(args: &[String], index: &mut usize, flag: &str) -> Result<String, 
     Ok(value)
 }
 
+    /// 把命令行参数解析成一个 Company 流程请求。
+    ///
+    /// 【第二个参数是一个封闭集合】
+    /// `inspect` / `next` / `inbox` / `decide` / `delivery` / `close`——六种，
+    /// 写不进其它值。封闭集合的价值在于：**「这个界面能做什么」是一眼可数的**，
+    /// 而不是一个可以随便传字符串进去的黑箱。
+    ///
+    /// 【它只解析，不执行】
+    /// 解析结果是 [ `CompanyFlowRequest` ]，一个纯数据。真正的执行在
+    /// [ `main_from_args` ] 里、经 versioned `RequestEnvelope` 交给 daemon。
+    /// 分开是为了让「参数写错了」和「执行失败了」是两回事。
 pub fn parse_args(args: &[String]) -> Result<CompanyFlowRequest, String> {
     if args.first().map(String::as_str) != Some("company") {
         return Err("company_command_required".to_owned());
@@ -198,6 +209,18 @@ pub fn workbench_command(raw: &str) -> Result<(String, Value), String> {
     }
 }
 
+    /// Company 流程的入口：解析、构造信封、交给 daemon。
+    ///
+    /// 【这个文件刻意不做的事，文件头已经写明】
+    /// 「不施加 Company 状态、不批准未来的工作、不开第二条执行循环」。
+    /// 对第二句尤其要当心：`decide` 这个命令看起来像「做决定」，
+    /// 但它发出的是一个**请求**，决定仍然要由控制面在拿到请求后作出并记录。
+    /// 界面能提出决定，不能做出决定。
+    ///
+    /// 【⚠ 边界】
+    /// 这里是「友好动作 → versioned RequestEnvelope」的适配层。
+    /// 它让 CLI/Workbench 用人能懂的动词说话，而下游看到的始终是同一套协议命令——
+    /// 于是「换个界面换个语义」这件事不会发生。
 pub async fn main_from_args(args: &[String]) -> Result<()> {
     if args
         .iter()
