@@ -18,6 +18,18 @@ fn bq29_pins_the_three_named_failures() {
         "golden_chain_digest_mismatch",
         "golden_chain_report_binding_invalid",
         "golden_chain_report_digest_mismatch",
+        // The binding to a real GoldenTrace. Without these, the chain carries a digest that
+        // nothing ever compares -- a string, not evidence.
+        "bind_golden_trace",
+        "GoldenTrace",
+        "golden_chain_trace_digest_mismatch",
+        "golden_chain_trace_empty",
+        "golden_chain_trace_cursor_invalid",
+        "golden_chain_trace_source_missing",
+        "golden_chain_trace_expired",
+        "golden_chain_trace_not_accepted",
+        "golden_chain_trace_receipt_missing",
+        "golden_chain_binding_time_required",
     ] {
         assert!(source.contains(marker), "BQ-29 module lost {marker}");
     }

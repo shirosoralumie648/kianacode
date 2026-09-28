@@ -5,9 +5,11 @@
 //! express.
 
 use kiana_core::{
-    verify_golden_trace_chain, ChainStage, ChainStageObservation, GoldenTraceChain,
-    GoldenTraceChainReport, ENTRYPOINT_ROUTE,
+    bind_golden_trace, verify_golden_trace_chain, ChainStage, ChainStageObservation,
+    GoldenTraceChain, GoldenTraceChainReport, ENTRYPOINT_ROUTE,
 };
+use kiana_domain::{EvalCaseId, EvalSuiteId, GoldenTrace};
+use std::collections::BTreeMap;
 
 fn digest(byte: char) -> String {
     format!("sha256:{}", byte.to_string().repeat(64))
@@ -256,4 +258,132 @@ fn a_complete_chain_verifies_and_says_it_replayed_nothing() {
     claimed.chain_digest = claimed.digest();
     let report = verify_golden_trace_chain(&claimed).expect("claimed chain");
     assert!(report.business_outcome_claimed);
+}
+
+// ---------------------------------------------------------------------------
+// 链路声称能复现一条 golden trace；在这一步之前，那个 digest 字段没有任何人验证过。
+// 一个没人检查的 digest 只是一个字符串。
+// ---------------------------------------------------------------------------
+
+/// 一条被接受、未过期、形状完整、并且带 receipt 的 golden trace。
+fn accepted_trace() -> GoldenTrace {
+    GoldenTrace::new(
+        EvalSuiteId::new(),
+        EvalCaseId::new(),
+        None,
+        "0be643aa",
+        digest('i'),
+        BTreeMap::new(),
+        1,
+        12,
+        vec![serde_json::json!({"kind": "model_call"})],
+        vec![digest('j')],
+        Some(digest('k')),
+        "v1",
+        Some(true),
+        Some(0.9),
+        1_000,
+        Some(9_000),
+        "provenance-1",
+    )
+    .expect("trace")
+}
+
+fn chain_bound_to(trace: &GoldenTrace) -> GoldenTraceChain {
+    GoldenTraceChain::new("trace-1", trace.trace_digest.clone(), 2, 2, valid().stages)
+}
+
+#[test]
+fn a_chain_that_does_not_reproduce_the_trace_it_names_is_refused() {
+    let trace = accepted_trace();
+    let mut chain = chain_bound_to(&trace);
+    chain.golden_trace_digest = digest('z');
+    chain.chain_digest = chain.digest();
+    assert_eq!(
+        bind_golden_trace(&chain, &trace, 2_000).unwrap_err(),
+        "golden_chain_trace_digest_mismatch"
+    );
+}
+
+#[test]
+fn an_expired_or_unaccepted_trace_cannot_back_a_chain() {
+    // 过去的基线不能证明今天的行为；没人签过字的只是一次机器输出。
+    let mut trace = accepted_trace();
+    trace.expires_at_unix_ms = Some(1_500);
+    let chain = chain_bound_to(&trace);
+    assert_eq!(
+        bind_golden_trace(&chain, &trace, 2_000).unwrap_err(),
+        "golden_chain_trace_expired"
+    );
+
+    let mut unaccepted = accepted_trace();
+    unaccepted.human_acceptance = None;
+    let chain = chain_bound_to(&unaccepted);
+    assert_eq!(
+        bind_golden_trace(&chain, &unaccepted, 2_000).unwrap_err(),
+        "golden_chain_trace_not_accepted"
+    );
+
+    let mut rejected = accepted_trace();
+    rejected.human_acceptance = Some(false);
+    let chain = chain_bound_to(&rejected);
+    assert_eq!(
+        bind_golden_trace(&chain, &rejected, 2_000).unwrap_err(),
+        "golden_chain_trace_not_accepted"
+    );
+}
+
+#[test]
+fn a_trace_that_cannot_reproduce_anything_is_refused() {
+    // 没有归一化事件、cursor 区间倒置、或没有源码快照——它什么也证明不了。
+    let mut empty = accepted_trace();
+    empty.normalized_events.clear();
+    let chain = chain_bound_to(&empty);
+    assert_eq!(
+        bind_golden_trace(&chain, &empty, 2_000).unwrap_err(),
+        "golden_chain_trace_empty"
+    );
+
+    let mut inverted = accepted_trace();
+    inverted.event_cursor_start = 30;
+    inverted.event_cursor_end = 10;
+    let chain = chain_bound_to(&inverted);
+    assert_eq!(
+        bind_golden_trace(&chain, &inverted, 2_000).unwrap_err(),
+        "golden_chain_trace_cursor_invalid"
+    );
+
+    let mut unsourced = accepted_trace();
+    unsourced.source_snapshot = "  ".to_owned();
+    let chain = chain_bound_to(&unsourced);
+    assert_eq!(
+        bind_golden_trace(&chain, &unsourced, 2_000).unwrap_err(),
+        "golden_chain_trace_source_missing"
+    );
+}
+
+#[test]
+fn a_chain_that_claims_the_receipt_must_find_one_on_the_trace() {
+    // 少了终点的凭证，这条链路只能证明「跑到了某处」，不能证明「跑完了」。
+    let mut trace = accepted_trace();
+    trace.receipt_hash = None;
+    let chain = chain_bound_to(&trace);
+    assert_eq!(
+        bind_golden_trace(&chain, &trace, 2_000).unwrap_err(),
+        "golden_chain_trace_receipt_missing"
+    );
+}
+
+#[test]
+fn a_chain_binds_to_an_accepted_unexpired_trace_and_still_replays_nothing() {
+    let trace = accepted_trace();
+    let chain = chain_bound_to(&trace);
+    assert!(bind_golden_trace(&chain, &trace, 2_000).is_ok());
+    // 过期时间之前也应当通过——边界上相等即视为过期，所以用 8_999 试。
+    assert!(bind_golden_trace(&chain, &trace, 8_999).is_ok());
+    // 绑定时间本身为 0 不成立：否则「现在」是什么都无法回答，过期判断就成了摆设。
+    assert_eq!(
+        bind_golden_trace(&chain, &trace, 0).unwrap_err(),
+        "golden_chain_binding_time_required"
+    );
 }

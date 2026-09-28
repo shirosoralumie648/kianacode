@@ -24,7 +24,7 @@
 //!
 //! This module verifies. It replays nothing and calls nothing.
 
-use kiana_domain::{json_digest, SchemaVersion};
+use kiana_domain::{json_digest, GoldenTrace, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -212,6 +212,65 @@ impl GoldenTraceChainReport {
             "limitations": self.limitations,
         }))
     }
+}
+
+/// Bind a reported chain to the `GoldenTrace` it claims to reproduce.
+///
+/// 【为什么这一步不能省】
+/// `GoldenTraceChain` carries a `golden_trace_digest`, and until this function existed nothing
+/// ever compared it to an actual trace. A digest nobody checks is a string; a chain bound to an
+/// accepted, unexpired, non-empty trace is evidence.
+///
+/// 【判定的顺序即论证】
+/// 1. digest 对不上 → 它复现的根本不是那条 trace；
+/// 2. trace 自身形状不对（没有归一化事件、cursor 区间倒置、没有源码快照）→ 它什么也复现不了；
+/// 3. 过期 → 过去的基线不能证明今天的行为；
+/// 4. 未经人工接受 → 没人签过字，它只是一次机器输出；
+/// 5. 声称走到 receipt 却没有 receipt hash → 终点缺失。
+///
+/// 【⚠ 它仍然不重放】
+/// 这一步只核对「这条链路声称对应的那条 trace 是否配得上它」。真正的重放——把 trace 里的
+/// 归一化事件与链路实际产生的事件逐条比对——是另一个动作，这里不做，也不假装做了。
+pub fn bind_golden_trace(
+    chain: &GoldenTraceChain,
+    trace: &GoldenTrace,
+    now_unix_ms: u64,
+) -> Result<(), String> {
+    if chain.golden_trace_digest != trace.trace_digest {
+        return Err("golden_chain_trace_digest_mismatch".to_owned());
+    }
+    if trace.normalized_events.is_empty() {
+        return Err("golden_chain_trace_empty".to_owned());
+    }
+    if trace.event_cursor_start == 0 || trace.event_cursor_start > trace.event_cursor_end {
+        return Err("golden_chain_trace_cursor_invalid".to_owned());
+    }
+    if trace.source_snapshot.trim().is_empty() {
+        return Err("golden_chain_trace_source_missing".to_owned());
+    }
+    if now_unix_ms == 0 {
+        return Err("golden_chain_binding_time_required".to_owned());
+    }
+    if trace
+        .expires_at_unix_ms
+        .is_some_and(|expires_at| expires_at <= now_unix_ms)
+    {
+        return Err("golden_chain_trace_expired".to_owned());
+    }
+    if trace.human_acceptance != Some(true) {
+        return Err("golden_chain_trace_not_accepted".to_owned());
+    }
+    // 链路走到了 receipt 这一步，就意味着它声称复现到了终点；此时 trace 必须带着终点的凭证。
+    // 少了它，这条链路只能证明「跑到了某处」，不能证明「跑完了」。
+    if chain
+        .stages
+        .iter()
+        .any(|stage| stage.stage == ChainStage::Receipt)
+        && trace.receipt_hash.is_none()
+    {
+        return Err("golden_chain_trace_receipt_missing".to_owned());
+    }
+    Ok(())
 }
 
 /// Verify a reported chain.
