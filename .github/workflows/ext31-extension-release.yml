@@ -1,0 +1,25 @@
+name: "EXT-31 · Extension performance, supply-chain and release baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext31-extension-release:
+    name: "EXT-31 · Extension performance, supply-chain and release baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core ext31_extension_release_guard
+        run: cargo test -p kiana-core --test ext31_extension_release_guard --locked -- --test-threads=1
+      - name: Run kiana-domain ext31_extension_release
+        run: cargo test -p kiana-domain --test ext31_extension_release --locked -- --test-threads=1

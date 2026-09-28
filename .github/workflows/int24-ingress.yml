@@ -1,0 +1,25 @@
+name: "INT-24 Webhook/A2A ingress baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int24-ingress:
+    name: "INT-24 Webhook/A2A ingress baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-daemon int24_connector_ingress
+        run: cargo test -p kiana-daemon --test int24_connector_ingress --locked -- --test-threads=1
+      - name: Run kiana-daemon int24_connector_ingress_guard
+        run: cargo test -p kiana-daemon --test int24_connector_ingress_guard --locked -- --test-threads=1

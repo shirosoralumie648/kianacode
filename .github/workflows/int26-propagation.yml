@@ -1,0 +1,23 @@
+name: "INT-26 connector data propagation baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int26-propagation:
+    name: "INT-26 connector data propagation baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int26_connector_propagation_guard
+        run: cargo test -p kiana-core --test int26_connector_propagation_guard --locked -- --test-threads=1

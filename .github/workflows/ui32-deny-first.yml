@@ -1,0 +1,23 @@
+name: "UI-32 deny-first 安全路径集成基线"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui32-deny-first:
+    name: "UI-32 deny-first 安全路径集成基线"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-entrypoints ui32_deny_first
+        run: cargo test -p kiana-entrypoints --test ui32_deny_first --locked -- --test-threads=1

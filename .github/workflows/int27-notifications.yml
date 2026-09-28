@@ -1,0 +1,23 @@
+name: "INT-27 connector notification baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int27-notifications:
+    name: "INT-27 connector notification baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int27_connector_notifications_guard
+        run: cargo test -p kiana-core --test int27_connector_notifications_guard --locked -- --test-threads=1

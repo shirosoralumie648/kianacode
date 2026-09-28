@@ -1,0 +1,23 @@
+name: "UI-30 IDE editor/terminal capability boundary 基线"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui30-ide-capability:
+    name: "UI-30 IDE editor/terminal capability boundary 基线"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-client ui30_ide_capability
+        run: cargo test -p kiana-client --test ui30_ide_capability --locked -- --test-threads=1

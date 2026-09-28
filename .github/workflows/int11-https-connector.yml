@@ -1,0 +1,27 @@
+name: "INT-11 HTTPS connector endpoint baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int11-https-connector:
+    name: "INT-11 HTTPS connector endpoint baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int11_https_connector_guard
+        run: cargo test -p kiana-core --test int11_https_connector_guard --locked -- --test-threads=1
+      - name: Run kiana-domain int11_https_connector
+        run: cargo test -p kiana-domain --test int11_https_connector --locked -- --test-threads=1
+      - name: Run kiana-ports int11_https_connector
+        run: cargo test -p kiana-ports --test int11_https_connector --locked -- --test-threads=1

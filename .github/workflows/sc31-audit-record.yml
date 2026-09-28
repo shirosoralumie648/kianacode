@@ -1,0 +1,27 @@
+name: "SC-31 AuditRecord append-only baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sc31-audit-record:
+    name: "SC-31 AuditRecord append-only baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core sc31_audit_record_guard
+        run: cargo test -p kiana-core --test sc31_audit_record_guard --locked -- --test-threads=1
+      - name: Run kiana-domain sc31_audit_record
+        run: cargo test -p kiana-domain --test sc31_audit_record --locked -- --test-threads=1
+      - name: Run kiana-eventlog sc31_audit_event
+        run: cargo test -p kiana-eventlog --test sc31_audit_event --locked -- --test-threads=1

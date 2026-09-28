@@ -1,0 +1,23 @@
+name: "INT-32 connector write pilot baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int32-write-pilot:
+    name: "INT-32 connector write pilot baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int32_connector_write_pilot_guard
+        run: cargo test -p kiana-core --test int32_connector_write_pilot_guard --locked -- --test-threads=1

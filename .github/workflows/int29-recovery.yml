@@ -1,0 +1,23 @@
+name: "INT-29 connector recovery baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int29-recovery:
+    name: "INT-29 connector recovery baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int29_connector_recovery_guard
+        run: cargo test -p kiana-core --test int29_connector_recovery_guard --locked -- --test-threads=1

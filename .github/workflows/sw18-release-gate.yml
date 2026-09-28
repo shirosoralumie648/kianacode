@@ -1,0 +1,23 @@
+name: "SW-18 swarm release gate baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sw18-release-gate:
+    name: "SW-18 swarm release gate baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core sw18_release_gate_guard
+        run: cargo test -p kiana-core --test sw18_release_gate_guard --locked -- --test-threads=1
