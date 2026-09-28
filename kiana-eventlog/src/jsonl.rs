@@ -1,3 +1,19 @@
+//! 落盘的 append-only 事件账本：完整、带校验和、阻塞 I/O 有界的 JSONL 事务帧。
+//!
+//! # 这个文件是「持久」这个词的落地处
+//!
+//! 仓库的证明阶梯里有 `durable` 这一级。它不是评审给的一个标签，
+//! 而是**由这个文件的行为决定的**：帧完整、有校验和、写完 fsync、
+//! 目录项也 fsync、并发写者被锁住。任何一条不成立，结论就上不到那一级。
+//!
+//! 对照 `lib.rs` 里那句「内存实现不是轻量的持久实现」——差别就在这里。
+//!
+//! # 「complete frame」的含义
+//!
+//! 一条事件要么**完整地**在文件里，要么**不在**。半行、截断的帧、
+//! 校验和对不上的帧，都会被读回来时识别出来并拒绝，而不是当成有效事件。
+//! 事件一旦写进去就是**永久可查**的，所以「写了一半」这种状态必须被消除，
+//! 而不是被容忍。
 //! Complete, checksummed JSONL transaction frames with bounded blocking I/O.
 use crate::event_store_core::{validate_idempotency_key, AppendPlan};
 use crate::journal_core::{append_result, capabilities, JournalState, TransitionPlan};
@@ -58,6 +74,24 @@ impl JournalFiles {
             directory,
         })
     }
+        /// 确认**父目录还是打开时那个父目录**。
+        ///
+        /// 【这是一个 TOCTOU 防御，而且是必要的】
+        /// 打开时把父目录的 device + inode 记下来，之后**每一次**操作前都重新读一次
+        /// 当前的父目录元数据，对不上就拒绝。
+        ///
+        /// 攻击方式是：进程打开账本之后，攻击者把父目录换成另一个——
+        /// 一个指向别处的符号链接，或者直接换成一个新目录。
+        /// 这时「我打开的仍然是原来那个账本」这个假设就不成立了，
+        /// 而后续的写入会落到攻击者控制的地方。
+        ///
+        /// 只在 open 时检查一次是不够的：检查与使用之间存在窗口。
+        /// 必须在**每次使用前**复核。
+        ///
+        /// 【与仓库其它地方同源】
+        /// `kiana-core/src/dispatch.rs` 的 `project_root_identity` 用 dev+ino
+        /// 是同一个道理；`kiana-daemon` 的 loopback 绑定、`mcp.rs` 缺的那道检查，
+        /// 讲的也都是「拿不准的时候宁可拒绝」。
     fn verify_parent(&self) -> Result<(), PortError> {
         #[cfg(unix)]
         {
@@ -176,6 +210,23 @@ impl JournalFiles {
         }
         Ok(())
     }
+        /// fsync **目录本身**，而不只是文件。
+        ///
+        /// 【为什么这是必须的】
+        /// 在大多数文件系统上，一个**新建文件**的持久性不取决于文件内容有没有落盘，
+        /// 而取决于**目录项**有没有落盘。文件写完并 fsync 之后，目录项仍可能只在内存里——
+        /// 这时断电，文件就「不存在」，而事件已经被判定为写入成功。
+        ///
+        /// 也就是说：只 fsync 文件，得到的是「文件内容安全，但目录项可能丢」。
+        /// 那正好是最坏的一种丢失——**看起来写成功了，其实没有**。
+        ///
+        /// 【它前后各调一次 verify_parent】
+        /// 因为 fsync 目录这个动作本身也作用在「当前那个目录」上。
+        /// 中间目录被换掉的话，sync 到的就是别的地方。
+        ///
+        /// ⚠ 非 Unix 平台上这些检查不做。**这意味着该平台上达不到 `durable` 那一级**，
+        ///   而不是「大概也可以」。这与 `project_root_identity` 里
+        ///   `identity_strength: "path_only"` 的处理是同一条纪律：降级要标明。
     fn sync_directory(&self) -> Result<(), PortError> {
         self.verify_parent()?;
         #[cfg(unix)]
