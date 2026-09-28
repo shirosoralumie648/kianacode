@@ -3,12 +3,88 @@
 //! The driver owns only bounded state transitions. It never calls a model, Broker, EventLog or
 //! filesystem. External IDs, time and effect observations arrive as `DriverInput`; callers then
 //! perform the existing I/O and persist the resulting RunnerEvent facts through ControlPlane.
+//!
+//! ===========================================================================
+//! 【下面这一段是给「刚接手本 crate」的读者做的导读】
+//!
+//! ## 本文件在系统里的位置
+//!
+//! `state_driver` 是 `kiana-runner` 内部**最底层的构件**：它把「一次运行现在处于哪个阶段」
+//! 这件事变成一张纯数据状态机。它自己什么都不做——不发模型请求、不写事件、不碰磁盘。
+//!
+//! * 上游（谁调用我）：`kiana-runner/src/harness.rs`（`use crate::state_driver::RunDriver`）。
+//!   harness 在开始一轮、开一个 step、收到模型输出、收到工具结果、被取消时
+//!   把这些事实喂进来，并按照本文件返回的「意图（intent）」去执行真正的 I/O。
+//! * 下游（我输出给谁）：只输出 `DriverIntent` 列表 + 新的 `RunFrame`。
+//!   真正的动作由 harness 执行。
+//! * 外部测试：crate 外的 `kiana-core/tests/{p0_b01_state_machine_guard,er22_cancel_recovery_guard,
+//!   sc15_cancel_unknown_guard}.rs` 用 `include_str!` 读本文件源码做守卫断言。
+//!
+//! ## 数据流
+//!
+//! ```text
+//!   现实世界的观察（模型回了、工具结了、用户取消了……）
+//!        │  由 harness 打包成 DriverInput
+//!        ▼
+//!   transition(&frame, input)  ←── 纯函数：只读旧帧 + 输入，返回新帧 + 意图
+//!        │
+//!        ├──► Vec<DriverIntent>  ──▶ harness 照着做（调模型 / 发能力请求 / 等待）
+//!        └──► RunFrame（新的）    ──▶ 覆盖回 driver.frame；并且可以被 checkpoint 序列化
+//! ```
+//!
+//! ## 为什么核心是「纯函数」
+//!
+//! `transition` 是自由函数：签名是 `fn(&RunFrame, DriverInput) -> Result<DriverTransition, DriverError>`，
+//! **既不接收 `&mut self`，也不做任何 I/O、时钟读取或 ID 分配**。
+//! 这带来三个直接好处：
+//!
+//! 1. **可确定性测试**：同样的帧 + 同样的输入，永远得到同样的结果帧。
+//!    `kiana-runner/tests/h03_state_driver.rs` 里的
+//!    `stream_and_buffered_calls_share_transitions` 就是断言
+//!    「走增量方法的 `RunDriver`」和「直接连续调 `transition` 自由函数」最终得到**完全相等**的帧。
+//! 2. **状态机不依赖 I/O**：因此不可能在迁移过程里偷偷发一次网络请求或写一条事件。
+//!    「副作用全部由 harness 在状态机之外执行」是本设计最核心的边界。
+//! 3. **可以被别的层复用**：daemon / 恢复流程可以拿一个反序列化的 `RunFrame` 直接重放。
+//!
+//! `RunDriver` 只是给这个纯函数加了一个 `&mut self` 外壳，方便链式调用；它没有任何额外逻辑。
+//!
+//! ## 三个必须分清的概念
+//!
+//! * `HarnessPhase` —— **运行到哪儿了**（阶段，可能继续推进）。
+//! * `DriverTerminal` —— **怎么结束的**（终态：正常结束/失败/取消/未知）。
+//! * `DriverError`   —— **这次迁移被拒绝了**（异常：状态机拒绝了你要求的迁移）。
+//!   终态和错误是两回事：**终态是正常流程的一部分**（比如用户主动取消是 `DriverTerminal::Cancelled`，
+//!   这是一次成功执行的取消），而 `DriverError` 表示状态机认为这次操作不合法
+//!   （比如第二个 driver 来抢同一个 turn 所有权），调用方应该把运行当作失败处理。
 
 use kiana_domain::{InteractionId, RunId, StepId, TurnId};
 use serde::{Deserialize, Serialize};
 
+// ---------------------------------------------------------------------------
+// schema 版本串（Serialized schema version）
+// ---------------------------------------------------------------------------
+//
+// `RunFrame` / `TurnFrame` 会被 `KianaHarness::checkpoint()` 序列化成 JSON 存到 checkpoint 里
+// （harness.rs:1919 附近），也可能在进程重启后被 `restore()` 反序列化回来。
+// 一旦线上已经存在按旧格式写下的 checkpoint，后来代码改了字段，
+// 就必须能**认出「这份数据是哪一版写的」**，否则会把新字段用默认值静默填成看起来合法的帧，
+// 造成状态错乱却查不出来。
+//
+// 所以帧里带一个 `schema` 字符串，格式是 `kiana.<名字>.v<主版本>`：
+// 破坏性变更升主版本号（v1 → v2），然后由 `RunDriver::validate()` 和
+// `harness::restore()` 明确拒绝不匹配的版本，而不是猜测。
 pub const RUN_FRAME_SCHEMA: &str = "kiana.harness-run-frame.v1";
 pub const TURN_FRAME_SCHEMA: &str = "kiana.harness-turn-frame.v1";
+
+// 邮箱容量：一次运行在「等待处理」期间最多能接受多少个外部输入。
+//
+// 为什么必须有上限：外部输入（steering 文本、命令、澄清回答）是**外部输入源**。
+// 如果一个客户端不停往里灌而运行侧迟迟不消费，队列会无界增长直到把进程内存吃光。
+// 满了之后 `transition(QueueInput)` 返回 `DriverError::MailboxFull`——
+// **明确拒绝（fail-closed）而不是丢弃**，这样调用方知道消息没进去，可以重试或报错。
+//
+// 64 这个值：一次 agent 循环里的实际人机交互量级（几条 steering、几条澄清）远小于 64；
+// 留出这个量级既能覆盖突发批量注入，又能把最坏内存占用钉在一个可预测的小数字上。
 pub const DEFAULT_MAILBOX_CAPACITY: u32 = 64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

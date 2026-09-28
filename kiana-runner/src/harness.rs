@@ -8,6 +8,127 @@
 //! Copied into Kiana; `reference/` is audit-only and is not a workspace member.
 //! Tools never execute here. Each call becomes a `CapabilityRequest` for the
 //! control plane broker.
+//!
+//! ---------------------------------------------------------------------------
+//! 【本文件负责什么】
+//! ---------------------------------------------------------------------------
+//! 这是 Kiana 的**规范 Agent loop（canonical agent loop，即全系统唯一的、
+//! 被认可的那条「模型 ↔ 工具」循环）**的内存态实现。
+//! 所谓「规范」，是说 Kiana 里**不允许存在第二条执行循环**：
+//! 任何想驱动模型、想让模型干活的路径，都必须经过本文件。
+//!
+//! 它负责的六件事：
+//! 1. **组装消息**（assemble messages）：把 system prompt、用户提示、
+//!    历史对话、工具观测、收件箱注入按顺序拼成一次模型请求。
+//! 2. **决定何时调模型**（何时 / 调几次）：受 `max_steps_per_turn`、
+//!    预算、墙钟、取消信号、工具目录摘要共同约束。
+//! 3. **翻译工具调用**：把模型吐出的 `ModelToolCall` 翻成
+//!    `CapabilityRequest`（能力请求 = 「申请干活的单子」，不是执行本身）。
+//! 4. **上下文超限就压缩**（compaction）：消息太长时把旧内容折叠成摘要。
+//! 5. **暂停与恢复**（inbox / continue）：等 Broker 回话时挂起，暂停期间
+//!    到达的注入消息存在收件箱里，下次模型步取走。
+//! 6. **防空转**（repeated tool call）：同一个工具同一组参数反复调用就拒绝。
+//!
+//! **它自己一个副作用都不执行。** 这是本文件最重要的性质。
+//! 模型的工具调用在这里**只会被转换成事件**，真正的执行发生在
+//! kiana-capability-broker 那侧。
+//!
+//! ---------------------------------------------------------------------------
+//! 【在系统里的位置 / 上下游】
+//! ---------------------------------------------------------------------------
+//! ```
+//!   kiana-entrypoints (CLI / workbench / web / desktop / MCP)
+//!        │  RunnerCommand (版本化 wire 命令)
+//!        ▼
+//!   kiana-daemon::DaemonHost  ← 唯一组合根，生产上唯一构造本文件类型的地方
+//!        │  持有 Arc<KianaHarness>
+//!        ▼
+//!   kiana-core::ControlPlane  ← 授权与生命周期权威
+//!        │  通过 kiana_ports::RunnerPort 这个 trait 驱动本文件
+//!        ▼
+//!   kiana-runner::KianaHarness  ←【本文件】规范 Agent loop
+//!        │  只产出 RunnerEvent（kiana_runner_protocol 的 wire 类型）
+//!        ▼
+//!   Broker 执行副作用 → 回 CapabilityResult → ControlPlane → 事件日志
+//! ```
+//!
+//! * **上游调用者（已核实）**：生产上只有 `kiana-daemon` 的 `DaemonHost`
+//!   构造 `KianaHarness`
+//!   （`kiana-daemon/src/lib.rs:1098`、`:1668-1670` `configured_env_harness()`）。
+//!   测试里 `kiana-core/tests/control_plane.rs:317-318` 与多个
+//!   `kiana-daemon/tests/*.rs` 也构造它。
+//!   `ControlPlane` 通过 `impl RunnerPort for KianaHarness`（:1812）调用它，
+//!   具体调用点在 `kiana-core/src/lifecycle.rs`（Start / Continue / Inject / Cancel）、
+//!   `kiana-core/src/dispatch.rs:241`（CapabilityResult 回灌）、
+//!   `kiana-core/src/recovery.rs:273/588`（checkpoint / restore）。
+//! * **下游依赖（本文件调用谁）**：同 crate 的兄弟文件
+//!   `crate::budget`、`crate::compact`、`crate::inbox`、`crate::model`、
+//!   `crate::progress`、`crate::retry`、`crate::state_driver`、
+//!   `crate::stream_normalizer`、`crate::tools`。
+//!   另有 `kiana-domain`（值对象与脱敏/摘要）、`kiana-ports`（trait 契约与错误类型）。
+//!   依赖方向永远是 domain/ports 在底层。
+//!
+//! ---------------------------------------------------------------------------
+//! 【入口在哪】
+//! ---------------------------------------------------------------------------
+//! 唯一入口是 `RunnerPort::send` / `send_with_events`（:2060 / :2064），
+//! 二者都转调私有 `dispatch`（:549）。`dispatch` 把 `RunnerCommand` 分派到五个处理函数：
+//!
+//! | RunnerCommand | 处理函数 | 语义 |
+//! |---|---|---|
+//! | `Start` | `start` :615 | 开一个新 run，组装消息，跑第一个模型步 |
+//! | `CapabilityResult` | `on_capability_result` :754 | Broker 回话，**唤醒挂起的 run** |
+//! | `Inject` | `enqueue_injected` :433 | 往收件箱塞一条消息 |
+//! | `Continue` | `continue_run` :869 | 对已有 run 追加一轮 |
+//! | `Cancel` | `cancel` :923 | 取消 |
+//!
+//! ---------------------------------------------------------------------------
+//! 【数据如何流过】
+//! ---------------------------------------------------------------------------
+//! ```
+//!   RunnerCommand::Start
+//!         │
+//!         ▼
+//!   start()  组装 ActiveRun { messages, inbox, driver, ... }
+//!         │
+//!         ▼
+//!   model_step()  ──循环──▶  model_step_once()        ← 「一个模型步」
+//!                                │
+//!                                │ 1. 取消 / 步数 / 墙钟 / 预算 / 工具目录摘要 检查
+//!                                │ 2. 取走收件箱 NextStep 消息 → messages
+//!                                │ 3. compact_if_needed()  上下文压缩
+//!                                │ 4. invoke_model()  流式调模型，Delta 事件逐条外发
+//!                                │
+//!                     ┌──────────┴───────────┐
+//!                     │ 有工具调用？            │ 无工具调用
+//!                     ▼                       ▼
+//!        emit_tool_request()  ──▶ 发出         messages 里没有待注入消息？
+//!        （不发执行命令！）       CapabilityRequested       有 ─▶ 继续循环
+//!        pending_tools.front()        事件，然后【返回】，        无 ─▶ 发出
+//!        标记 Dispatched              run 存回 runs 表 =【挂起】   Completed
+//!                     │                                          事件
+//!        ═══ 控制权交回 ControlPlane / Broker ═══
+//!                     │
+//!        on_capability_result()  ← Broker 执行完，回灌结果
+//!                     │
+//!         ├─ 还有下一个 pending_tool？ ──▶ 再 emit_tool_request()，继续串行
+//!         └─ 没有？ ──▶ 回到 model_step()，跑下一个模型步
+//! ```
+//!
+//! 【为什么工具调用后要「挂起」而不是直接返回给调用方？】
+//! 因为执行权不在本文件。发出 `CapabilityRequested` 之后，本文件就把 run
+//! 从 `runs` 表里拿出来（`take_run`），整个状态存进事件流返回给上层。
+//! 上层（ControlPlane）把申请单过审、交给 Broker 执行，再把
+//! `CapabilityResult` 用新命令送回来。只有这时循环才继续。
+//! 这样做的直接好处是：**一次只有一把钥匙在系统里流转**，
+//! 不存在「模型一边等审批一边继续往下跑」的可能。
+//!
+//! 【注意 `model_step_once` 返回 `StepProgress::Finished` 的两种含义】
+//! * 「这一轮真的结束了」（失败 / 取消 / Completed）
+//! * 「挂起了，等 `CapabilityResult`」
+//! 两者共用 `Finished`，因为对 `model_step` 的循环来说，
+//! 「不再继续循环」这两者没有区别。区分靠的是**有没有发出
+//! `CapabilityRequested` 事件**，以及 run 有没有被 `store_unless_terminal` 存回去。
 
 use crate::budget::{BudgetLedger, HarnessBudgetConfig};
 use crate::compact::{
@@ -38,26 +159,98 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+/// 本文件在事件与收据里的稳定身份（stable id）。
+///
+/// 它的作用是让「这份结果/这份进度**是哪个 Agent loop 产生的**」可以被机器判定，
+/// 而不是靠调用方口头声称。写进 `Completed` 事件的 `source` 字段和
+/// `HarnessCheckpoint.schema` 里的 `kiana.harness-` 前缀都来自这里。
+///
+/// 值 `"kiana-harness"` 而不是别的：它是**跨版本、跨语言、跨进程**都要保持不变的
+/// 标识符，所以不带任何实现细节、版本号或主机信息。
 pub const HARNESS_ID: &str = "kiana-harness";
+/// 完成的 harness 结果（harness result）所遵循的 JSON 结构版本号。
+///
+/// 带 `.v1` 后缀是**刻意的版本化约定**：将来结构要改时新增 `v2`，
+/// 旧消费方看到 `v1` 仍能正确解析，而不是被静默地按新结构误读。
+/// 写进 `RunnerEvent::Completed` 的 `output.schema` 字段。
 pub const HARNESS_RESULT_SCHEMA: &str = "kiana.harness-result.v1";
+/// 环境变量名：指向一个 cassette（本地录制脚本）文件路径。
+///
+/// 设置它 = 用 `ScriptedModel` 回放录制好的模型输出，而不是真的调 provider。
+/// 用途是**确定性重放**（把一次真实执行录下来，之后每次都跑出同样结果），
+/// 用来写测试和做可复现的排障。
 const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
+/// 稳定的结构化错误码：墙钟预算（wall time budget）超了。
+///
+/// **为什么必须是常量字符串而不是格式化生成的？**
+/// 上层按错误码做分支处理（「超时」可以 `continue` 重来，其它失败就是终局）。
+/// `store_unless_terminal`（:1684）就靠**精确字符串相等**判断
+/// 「这个失败只终止当前 turn，run 仍要留下来给 Continue 用」。
+/// 一旦这个值被改成动态拼接，run 就会在超时后被丢弃，
+/// 表现为「Continue 之后 run_not_found」——一个极难定位的 bug。
 const RUN_BUDGET_EXCEEDED_WALL_TIME: &str = "run_budget_exceeded:wall_time";
 
+/// 运行时可调参数的快照（runtime config）。
+///
+/// 【为什么是 `Copy`】
+/// 它只是一组标量 + 一个 `Option<Duration>`，没有堆分配。
+/// `KianaHarness` 存一份、`config()` 又返回一份，全程按值传递，
+/// 不需要 clone 出第二个所有权。
+///
+/// 【为什么 `max_steps_per_turn` 和 `repeated_tool_call_threshold` 是 `u32`】
+/// 两者都是「次数」：没有分数、不会为负。用 `u32` 而不是 `usize` 是为了
+/// 跨平台宽度一致，并且能直接和事件里的 `step: u32` 字段对齐，
+/// 避免跨 crate 传递时的隐式转换。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeConfig {
+    /// 单个 turn 内**最多跑多少个模型步**。
+    ///
+    /// 一个「模型步」（model step）= 调一次模型 + 处理它的输出。
+    /// 默认 32（见 `Default`）。32 是个经验值：一个正常的多文件改动任务
+    /// 通常用 5～15 步；32 留足了余量，但又不是无限，所以卡死的循环会在这里被掐断。
+    /// 还有一个更重要的含义：**它是防挂死的兜底**——
+    /// 即便 `repeated_tool_call_threshold` 因为工具参数每次都变而没触发，
+    /// 32 步也足够把一个失控循环停下来。
     pub max_steps_per_turn: u32,
+    /// **连续**几次发出「同一个工具 + 同一组参数」就判定为空转并拒绝。
+    ///
+    /// 默认 3。为什么不是 2：合法的工作流里重试完全正常
+    /// （文件刚被另一个进程改了就再读一次）；为什么不是 4+：
+    /// 真正有用的重试很少超过 2 次，第三次还在做同一件事基本就是死循环了。
+    /// 精确语义见 `record_tool_call`（:1768）的注释。
     pub repeated_tool_call_threshold: u32,
+    /// 单个 run 的**墙钟预算**：从 `start` 起经过多久就强制停止。
+    ///
+    /// **为什么是 `Option<Duration>` 而不是 `Duration`**：
+    /// `None` = 不设墙钟上限（由别的预算维度兜底，例如模型分配里的
+    /// `max_wall_time_ms`）。测试用的 `ScriptedModel` 是本地回放、毫秒级完成，
+    /// 挂表对它毫无意义；生产环境则由 daemon 显式设置。
+    /// 另外注意 `Duration` 是**相对时长**而不是绝对时间戳——
+    /// `Instant` 本身就不可序列化进 checkpoint（见 :1929 那里存的是
+    /// `wall_time_elapsed_ms` 而不是 `Instant`），所以这里是「已经过了多久」。
     pub wall_time_budget: Option<Duration>,
+    /// 通用预算额度（token 数、工具调用次数、压缩次数等），见 `crate::budget`。
     pub budget: HarnessBudgetConfig,
+    /// 消息总 token 数**超过**这个值就触发上下文压缩（compaction）。
+    ///
+    /// 默认取 `DEFAULT_COMPACT_TRIGGER_TOKENS`（32_000），见 `crate::compact`。
     pub compact_trigger_tokens: usize,
+    /// 压缩时，每条用户消息最多保留多少 token。
+    ///
+    /// 默认取 `COMPACT_USER_MESSAGE_MAX_TOKENS`（20_000），见 `crate::compact`。
+    /// 单独设一个值而不是复用触发阈值，是因为「触发压缩」和「压缩到什么粒度」
+    /// 是两个独立决策：前者关心总窗口，后者关心单条消息别被砍得太碎。
     pub compact_user_message_max_tokens: usize,
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
+            // 32：见字段注释。留足余量，同时是失控循环的硬上限。
             max_steps_per_turn: 32,
+            // 3：允许 2 次正常重试，第 3 次判定为空转。
             repeated_tool_call_threshold: 3,
+            // None：默认不设墙钟。调用方（daemon）显式设置才生效。
             wall_time_budget: None,
             budget: HarnessBudgetConfig::default(),
             compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
@@ -66,14 +259,43 @@ impl Default for RuntimeConfig {
     }
 }
 
+/// 本文件能产生的两类错误。
+///
+/// 【为什么只有 Unavailable / Failed 两档，而不是几十个变体】
+/// 真正的错误**内容**（哪个工具被拒、哪个字段非法）不放在 enum 变体里，
+/// 而是编码进字符串消息（例如 `"invalid_arguments:shell:cmd"`）。
+/// 理由有两点：
+/// 1. 错误码要能一路透传到事件流、CLI 和 UI，用 `enum` 反而会被
+///    `#[derive(Error)]` 的格式化层拦下来做额外转换。
+/// 2. 变体数量一多就必然漏 `match` 分支。分两档之后，
+///    **调用方只需区分「可重试的环境问题」和「已决定的失败」**，
+///    具体含义从消息里读。
+///
+/// 两档的语义边界（对应 `kiana_ports::PortError`）：
+/// * `Unavailable` = 环境不支持 / 还没就绪（可以稍后重试）
+/// * `Failed` = 本次操作已经确定失败（重试同一个输入也没用）
 #[derive(Debug, thiserror::Error)]
 pub enum KianaHarnessError {
+    /// 运行时不可用。消息会原样拼成 `kiana_harness_unavailable:<消息>`。
     #[error("kiana_harness_unavailable:{0}")]
     Unavailable(String),
+    /// 本次操作失败。消息会原样拼成 `kiana_harness_failed:<消息>`。
     #[error("kiana_harness_failed:{0}")]
     Failed(String),
 }
 
+/// 事件收集器：把一次命令处理期间产生的 `RunnerEvent` **同时**送到两个地方。
+///
+/// 【为什么需要两个去处】
+/// 1. `events`（`Vec`）：最终作为 `send` 的返回值交给 ControlPlane，
+///    用来做投影和落盘。
+/// 2. `sink`（`FnMut`）：**流式**回调，让上层在事件产生的那一刻就拿到它
+///    （比如推到 SSE 推给 UI）。没有 sink 的话，用户要等整个 run 跑完
+///    才看得到第一个字。
+///
+/// 【为什么把 sink 放在结构体里而不是单独传参数】
+/// 因为 `emit` 需要同时写这两个去处，而几乎所有处理函数都要发事件。
+/// 绑在 `&mut self` 上就不用在每个函数签名里拖着一个 `&mut dyn FnMut`。
 struct EventEmitter<'a> {
     events: Vec<RunnerEvent>,
     sink: Option<&'a mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send)>,
@@ -87,6 +309,16 @@ impl<'a> EventEmitter<'a> {
         }
     }
 
+    /// 发一条事件：先交给 sink（流式推送），再收进 `events`。
+    ///
+    /// 【顺序为什么是 sink 在前】
+    /// sink 返回 `Err` 表示**下游取消了**或背压了。这时候必须立刻停，
+    /// 不能再往 `events` 里堆——那些事件永远不会被交付出去了，
+    /// 收下来只会造成「看起来发生过」的假象。
+    ///
+    /// 【为什么失败码是 `runner_event_sink_failed:<原文>`】
+    /// 前缀让上层一眼分清「这是下游推送失败」和「这是执行失败」，
+    /// 两者的处置完全不同：前者是基础设施问题，后者是任务结果。
     fn emit(&mut self, event: RunnerEvent) -> Result<(), String> {
         if let Some(sink) = self.sink.as_mut() {
             sink(event.clone()).map_err(|error| format!("runner_event_sink_failed:{error}"))?;
@@ -95,10 +327,29 @@ impl<'a> EventEmitter<'a> {
         Ok(())
     }
 
+    /// `emit` 的便捷包装：把 sink 的 `String` 错误转成本文件的错误类型。
+    ///
+    /// 注意这里**只转换错误类型，不改错误码**——`runner_event_sink_failed:` 前缀
+    /// 依然保留在消息里，信息没有丢。
     fn emit_event(&mut self, event: RunnerEvent) -> Result<(), KianaHarnessError> {
         self.emit(event).map_err(KianaHarnessError::Failed)
     }
 
+    /// **回滚**到 `checkpoint` 下标，再发新事件。用于「撤销已发的不该发的消息」。
+    ///
+    /// 【什么时候需要回滚】
+    /// 流式 Delta 是在**还不知道模型这次会不会成功**的情况下就发出去的。
+    /// 如果这次模型步后来发现工具参数非法、或者工具名不存在，
+    /// 前面那几段 Delta 就不该留在事件流里——它们描述的是一个
+    /// 最终会被拒绝的模型步的输出。回滚让「已交付的事件」和
+    /// 「最终成立的结论」保持一致。
+    ///
+    /// 【为什么有 sink 时不回滚】
+    /// sink 已经把事件推给上游了，撤回不了。
+    /// 这种情况下改为**追加一条 `Failed` 事件**（见 `model_step_once` 里的
+    /// `replace_event_since` 调用点），让下游自己能判断
+    /// 「之前那批 Delta 属于一个失败的步」。
+    /// 宁可让下游多处理一条消息，也不谎称消息没发过。
     fn replace_since(&mut self, checkpoint: usize, event: RunnerEvent) -> Result<(), String> {
         if self.sink.is_none() {
             self.events.truncate(checkpoint);
@@ -106,6 +357,7 @@ impl<'a> EventEmitter<'a> {
         self.emit(event)
     }
 
+    /// `replace_since` 的便捷包装，错误类型转换规则同 `emit_event`。
     fn replace_event_since(
         &mut self,
         checkpoint: usize,
@@ -115,84 +367,243 @@ impl<'a> EventEmitter<'a> {
             .map_err(KianaHarnessError::Failed)
     }
 
+    /// 交出已收集的全部事件，结束 emitter 的生命周期。
     fn into_events(self) -> Vec<RunnerEvent> {
         self.events
     }
 }
 
+/// 一个「正在跑或者挂起着的 run」的**全部内存状态**。
+///
+/// 【架构角色：这是 harness 的「寄存器堆」】
+/// Kiana 的 run 是**可挂起**的：跑到一半要等 Broker 回话时，
+/// 整个 `ActiveRun` 会从 `KianaHarness.runs` 表里被取出来，
+/// 序列化进事件流交给上层；上层把结果送回来时再整个装回去。
+/// 所以这个结构体必须**完整到足以自洽地恢复一个 run**——
+/// 少一个字段，恢复出来的 run 就和崩溃前不是同一个 run。
+///
+/// 【为什么用 `Mutex<HashMap<RunId, ActiveRun>>` 而不是每 run 一个 task】
+/// 因为 run 的生命周期**跨命令**。`Start` 命令结束时它可能还没跑完
+/// （挂起等能力结果），此时没有 task 持有它了。
+/// 用表来存，才能在下一条 `CapabilityResult` 命令里找回来。
+/// 代价是**单个 run 的状态不能被两个命令同时改**——
+/// `take_run`（:1625）就是「把整个 run 原子地从表里摘走」的动作，
+/// 第二个命令再来就会拿到 `run_not_found`。
 struct ActiveRun {
+    /// 这个 run 的全局唯一 id。跨进程、跨重启稳定。
     run_id: RunId,
+    /// 当前 turn 的 id。`Option` = 还没有 turn。
+    ///
+    /// **为什么可能为 `None`**：`RunnerCommand::Start` 的 `turn_id` 字段本身
+    /// 就是 `Option` —— 老协议允许不带 turn 启动。带上之后，
+    /// 所有派生 id（`model.call`、`harness.invocation`）都带 turn 维度，
+    /// 不同 turn 的同名调用不会撞 id。
     turn_id: Option<TurnId>,
+    /// 当前 step 的 id。`Option` = 还没开始任何 step。
+    ///
+    /// 由 `model_step_once` 在每一步开始时新建（:1064），
+    /// 之后所有工具请求都带着它。
     step_id: Option<StepId>,
+    /// 状态机驱动器（`crate::state_driver::RunDriver`），
+    /// 负责「这一步到底走到哪了」的合法转换检查。
+    ///
+    /// 【为什么需要它】harness 的所有对外操作
+    /// （`begin_turn` / `begin_step` / `model_output` / `tool_result` / `release`）
+    /// 都要先跟它说话。非法顺序（例如没 `begin_step` 就发工具请求）
+    /// 会在这一步就被挡住，而不是留到事件流里才暴露。
     driver: RunDriver,
+    /// 进度记录器（`crate::progress::ProgressTracker`）：
+    /// 记「这个 run 干过哪些外部观测」，用于向用户展示已完成的工作。
     progress_tracker: ProgressTracker,
     /// The server-owned question remains attached to the same run across checkpoint/restore.
+    /// 待澄清的问题。`Option` = 当前没有。
+    ///
+    /// 【为什么它能跨 checkpoint/restore 存活】
+    /// 因为它在 `HarnessCheckpoint`（:191）里，而且**权限属于服务端**：
+    /// 模型既不能读它也不能改它，只能等上层把答案通过 inject 送进来。
     pending_clarification: Option<kiana_domain::ClarificationRequest>,
+    /// 沙箱档位，只可能是 `"read-only"` 或 `"workspace-write"`。
+    ///
+    /// 经过 `normalize_sandbox`（:2109）归一化，未知值直接拒绝，
+    /// 所以这里没有「脏值」。它**只是参数上下文，不是授权凭证**——
+    /// ControlPlane 和 Broker 会独立再验一次。
     sandbox: String,
+    /// 项目根目录。**同样只是参数上下文**，
+    /// 会被抄进 `shell` 工具的 `CapabilityRequest` 里（见 :1248），
+    /// 不构成对任何路径的访问授权。
     project_root: String,
+    /// 收件箱（inbox，暂停期间到达的注入消息），见 `crate::inbox`。
     inbox: Inbox,
+    /// 累积的消息历史，**下一次调模型时整体作为 `messages` 传出去**。
+    ///
+    /// 这是 run 的「思考草稿纸」：包含 system、用户、助手、工具观测。
+    /// 可能被 `compact_if_needed` 折叠变短，所以类型是 `Vec` 而不是只增的追加日志。
     messages: Vec<ModelMessage>,
+    /// prompt 的来源出处（provenance），来自 `PromptBundle`。
+    /// 原样写进 `ModelTurn` 事件，用于事后追查「这段上下文是谁给的」。
     prompt_sources: Vec<serde_json::Value>,
+    /// 控制面下发的模型分配（model assignment）：角色、配额、模型路由权限。
+    ///
+    /// **由 `bind_model_assignment`（:1813）在 run 启动前单独写入**，
+    /// 模型对它没有写入路径——模型文本永远无法给自己提权。
+    /// `start` 时用 `remove` 把它从待绑定表里取走并搬进本字段。
     model_assignment: Option<kiana_domain::ModelAssignment>,
+    /// 第一次调模型时由 provider 解析出来的实际路由（route）。
+    ///
+    /// 【为什么第一次之后要钉住】
+    /// 一个 run 生命周期内模型路由不能变。
+    /// 如果中途 provider 把请求路由到了别的模型，同一个 run 的前后两段输出
+    /// 就来自不同模型，却顶着同一个 `run_id` 混在一起——
+    /// 事后根本无法解释结果是怎么来的。所以这里不一致就报
+    /// `model_route_changed_during_run`（:1403）。
     model_route: Option<kiana_domain::ModelRoute>,
+    /// 本次模型步要执行的工具队列（先进先出）。
+    ///
+    /// **一个模型步里的多个工具在这里排队，但只发一个**：
+    /// `emit_tool_request` 永远只看 `front()`，
+    /// 要等前一个的 `CapabilityResult` 回来（`on_capability_result`）
+    /// 才发下一个。测试
+    /// `serial_tools_in_one_model_step_request_one_capability_at_a_time`（:2949）
+    /// 锁定了这条规格。
     pending_tools: VecDeque<PendingTool>,
+    /// 上一条工具调用的指纹（工具名 + 规范化参数）和连续次数，
+    /// 用于空转检测。`None` = 本轮还没调过工具。见 `record_tool_call`。
     last_tool_call: Option<RepeatedToolCall>,
+    /// 本 turn 已经跑过的模型步数。`model_step_once` 每次进来 `+= 1`。
     steps: u32,
+    /// 本 run 的步数上限 = `Start` 命令带来的值与 harness 全局值的较小者。
+    ///
+    /// 【为什么取 min 而不是覆盖】
+    /// 一次具体请求可以要求更严（`max_steps_per_turn` 调小），
+    /// 但**不能要求更松** —— 否则调用方就能绕过 harness 的全局保护。
     max_steps_per_turn: u32,
+    /// run 启动那一刻的**工具目录摘要**。
+    ///
+    /// 每次模型步都和当前摘要比对（:1045），不一致就报
+    /// `tool_catalog_changed` 并停止：
+    /// 同一轮对话里工具集忽然变了，模型之前学到的用法可能已经不成立，
+    /// 继续跑下去只会产生无法解释的结果。
     tool_catalog_digest: String,
+    /// 墙钟计时的起点。用 `Instant`（单调时钟）而不是 `SystemTime`，
+    /// 因为后者会被 NTP 校时和手动改表影响，可能算出负的耗时。
     wall_time_started_at: Instant,
+    /// 本次模型步最后一段文本（已脱敏），用于填 `Completed` 事件的 `text` 字段。
     last_text: String,
+    /// 取消令牌。用 `Arc` 是因为 cancel 命令和正在跑的模型步
+    /// 要能各自拿到同一份（`cancel` :923 走 `in_flight` 表拿的就是它的 clone）。
     cancellation: Arc<RunCancellation>,
 }
 
+/// 一个待处理工具调用的阶段。
+///
+/// 【为什么是三态而不是布尔 `in_flight`】
+/// 区分「还没发出去」和「发出去了但没回话」至关重要：
+/// 前者可以安全地取消（证明没执行过），
+/// 后者**不能**假设没执行 —— 见 `cancel`（:947）那里对队首的特殊处理。
+/// 用 `bool` 会把这两者压成同一个值，丢掉「能否证明未执行」这条信息。
+///
+/// 顺带 `#[serde(rename_all = "snake_case")]` 是为了让 checkpoint 的 JSON
+/// 可读且稳定：字段序列化成 `"queued"` / `"dispatched"` / `"settled"`。
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum PendingToolPhase {
+    /// 已进队列，`CapabilityRequest` 还没发出。可以证明**尚未执行**。
     Queued,
+    /// `CapabilityRequested` 事件已发出，等 Broker 回话。
+    /// 此时**无法证明有没有执行**，取消它只能等回执。
     Dispatched,
+    /// 结果已回填给模型。这个状态不该出现在待处理队列里，
+    /// `restore`（:2005）会显式拒绝它。
     Settled,
 }
 
+/// 一个待处理的工具调用。
+///
+/// 【为什么 `deny_unknown_fields`】
+/// checkpoint 是要被反序列化的持久化数据。加这个属性后，
+/// 任何拼错的字段名都会**立刻报错**而不是被静默忽略。
+/// 对状态恢复来说，静默丢字段 = 恢复出一个残缺的 run，比直接失败危险得多。
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PendingTool {
+    /// 能力请求 id。**必须稳定**：审批、发出、恢复三处用的是同一个值，
+    /// 否则每次都造新 invocation，审批就失效了。见 `stable_invocation_request_id`。
     request_id: kiana_domain::RequestId,
+    /// 模型的原始工具调用。
     call: ModelToolCall,
+    /// 当前阶段。
     phase: PendingToolPhase,
 }
 
+/// 一次 `model_step_once` 之后循环要不要继续。
+///
+/// 借用标准库 `ControlFlow` 的形状，但独立定义是为了不额外引依赖，
+/// 并且语义更明确：`Finished` 覆盖了「真结束」和「挂起等回话」两种情况（见文件头）。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum StepProgress {
+    /// 还有下一步（收到新注入消息等），继续循环。
     Continue,
+    /// 停止循环。真正结束，或者是挂起等 `CapabilityResult`。
     Finished,
 }
 
+/// 「连续重复调用同一工具」的指纹和计数。
+///
+/// 需要 `Serialize + Deserialize` 是因为它必须能进 checkpoint：
+/// 崩溃重启后要接着数，否则「已经空转 2 次」这个事实会丢。
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct RepeatedToolCall {
+    /// 工具名（如 `shell`）。
     name: String,
+    /// 规范化后的参数字符串（键已排序），见 `canonical_json`。
+    /// 比较必须基于它而不是原始 JSON，否则键序不同会被误判成两次不同调用。
     canonical_arguments: String,
+    /// 连续相同调用的次数。第 1 次调用后为 1。
     count: u32,
 }
 
+/// 一个 run 的**完整快照**，用于崩溃/重启后接着跑。
+///
+/// 【为什么 Agent loop 需要快照能力】
+/// run 是可挂起的：它会等 Broker 审批、等用户回答澄清问题。
+/// 在这个等待窗口里进程可能崩溃、被杀、被机器重启。
+/// 没有快照的话，这个 run 就永远停在原地——已经发生的对话、
+/// 已排队的工具、已用的步数全部丢失，只能从头重来。
+///
+/// 【`deny_unknown_fields` 的理由同上】
+/// 快照来自**不可信的持久化存储**（事件日志重放出来的东西），
+/// 宁可因为多一个字段就明确报错，也不要悄悄按不完整的理解恢复。
+///
+/// 【`#[serde(default)]` 的取舍】
+/// 凡是标了 `default` 的字段都是**后加的**。给老快照留后路，
+/// 让新版本能读旧版本写的数据。这是显式的向前兼容，
+/// 不是通用兜底 —— 没标 `default` 的字段（如 `messages`、`sandbox`）
+/// 缺失即报错。
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessCheckpoint {
+    /// 快照结构版本。写死 `"kiana.harness-checkpoint.v1"`，由 `restore`（:1942）校验。
     schema: String,
+    /// 这个快照属于哪个 run。`restore` 会核对它和参数 `run_id` 一致。
     run_id: RunId,
     #[serde(default)]
     turn_id: Option<TurnId>,
     #[serde(default)]
     step_id: Option<StepId>,
+    /// 状态机状态。`None` 时 `restore` 会造一个新的 `RunDriver`。
     #[serde(default)]
     driver: Option<RunDriver>,
     #[serde(default)]
     progress_tracker: Option<ProgressTracker>,
     #[serde(default)]
     pending_clarification: Option<kiana_domain::ClarificationRequest>,
+    /// 沙箱档位。`restore` 会重新过一遍 `normalize_sandbox` —— 绝不信任快照里的值。
     sandbox: String,
+    /// 项目根目录。同样**只是参数上下文**，restore 时不重新校验其真实性。
     project_root: String,
     #[serde(default)]
     inbox: Inbox,
+    /// 完整消息历史。这是最占体积的字段，也是压缩后重新可能变长的原因。
     messages: Vec<ModelMessage>,
     #[serde(default)]
     prompt_sources: Vec<serde_json::Value>,
@@ -206,6 +617,14 @@ struct HarnessCheckpoint {
     max_steps_per_turn: u32,
     #[serde(default)]
     tool_catalog_digest: String,
+    /// 快照时刻**已经过去的墙钟毫秒数**，而不是 `Instant` 本身。
+    ///
+    /// 【为什么不能存 `Instant`】
+    /// `Instant` 是进程内的单调时钟，跨进程没有意义，也序列化不出来。
+    /// 只能存「已用掉多少」这个相对量；`restore` 再用
+    /// `Instant::now().checked_sub(elapsed)` 把它还原成一个「等价的起点」（:2028）。
+    /// 这样重启后墙钟预算**不会因为停机时间而白送**——
+    /// 停了 1 小时，预算还是只扣了停机前真正用掉的那部分。
     wall_time_elapsed_ms: u64,
     last_text: String,
 }
