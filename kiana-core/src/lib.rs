@@ -99,6 +99,7 @@ mod connector_propagation;
 mod connector_recovery;
 mod connector_surfaces;
 mod connector_write_pilot;
+mod golden_trace_chain;
 mod health;
 mod health_aggregation;
 mod history;
@@ -304,6 +305,7 @@ pub use fallback_admission::ControlPlaneFallbackAdmission;
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };
+pub use golden_trace_chain::*;
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use health_aggregation::{aggregate_health, validate_health_aggregation};
 pub use hook_reauthorization::*;
