@@ -1,0 +1,27 @@
+name: "CP-24 scheduler, WorkPacket, delegation and Workflow baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cp24-scheduler-workflow:
+    name: "CP-24 scheduler, WorkPacket, delegation and Workflow baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core cp24_scheduler_transaction
+        run: cargo test -p kiana-core --test cp24_scheduler_transaction --locked -- --test-threads=1
+      - name: Run kiana-core cp24_scheduler_transaction_guard
+        run: cargo test -p kiana-core --test cp24_scheduler_transaction_guard --locked -- --test-threads=1
+      - name: Run kiana-domain cp24_scheduler_transaction
+        run: cargo test -p kiana-domain --test cp24_scheduler_transaction --locked -- --test-threads=1

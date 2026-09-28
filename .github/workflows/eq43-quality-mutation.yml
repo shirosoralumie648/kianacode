@@ -1,0 +1,23 @@
+name: "EQ-43 quality promote/rollback admission baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq43-quality-mutation:
+    name: "EQ-43 quality promote/rollback admission baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core eq43_quality_mutation_guard
+        run: cargo test -p kiana-core --test eq43_quality_mutation_guard --locked -- --test-threads=1

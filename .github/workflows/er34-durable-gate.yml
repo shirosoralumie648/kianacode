@@ -1,0 +1,25 @@
+name: "ER-34 local durable gate baseline (CI-only proof ceiling)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  er34-durable-gate:
+    name: "ER-34 local durable gate baseline (CI-only proof ceiling)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core er34_durable_gate_guard
+        run: cargo test -p kiana-core --test er34_durable_gate_guard --locked -- --test-threads=1
+      - name: Run kiana-domain er34_durable_gate
+        run: cargo test -p kiana-domain --test er34_durable_gate --locked -- --test-threads=1

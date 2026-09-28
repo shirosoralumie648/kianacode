@@ -1,0 +1,25 @@
+name: "DEP-03 · Deployment compatibility baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dep03-compatibility:
+    name: "DEP-03 · Deployment compatibility baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core dep03_compatibility_guard
+        run: cargo test -p kiana-core --test dep03_compatibility_guard --locked -- --test-threads=1
+      - name: Run kiana-domain dep03_compatibility
+        run: cargo test -p kiana-domain --test dep03_compatibility --locked -- --test-threads=1

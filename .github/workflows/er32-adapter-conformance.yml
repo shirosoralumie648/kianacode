@@ -1,0 +1,25 @@
+name: "ER-32 Memory/JSONL adapter conformance baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  er32-adapter-conformance:
+    name: "ER-32 Memory/JSONL adapter conformance baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core er32_adapter_conformance_guard
+        run: cargo test -p kiana-core --test er32_adapter_conformance_guard --locked -- --test-threads=1
+      - name: Run kiana-domain er32_adapter_conformance
+        run: cargo test -p kiana-domain --test er32_adapter_conformance --locked -- --test-threads=1

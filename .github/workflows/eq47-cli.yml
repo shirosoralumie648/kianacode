@@ -1,0 +1,25 @@
+name: "EQ-47 evaluation CLI routing baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq47-cli:
+    name: "EQ-47 evaluation CLI routing baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-commands eq47_cli
+        run: cargo test -p kiana-commands --test eq47_cli --locked -- --test-threads=1
+      - name: Run kiana-entrypoints eq47_cli_guard
+        run: cargo test -p kiana-entrypoints --test eq47_cli_guard --locked -- --test-threads=1

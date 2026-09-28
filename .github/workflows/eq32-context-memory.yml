@@ -1,0 +1,25 @@
+name: "EQ-32 context and memory evaluator baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq32-context-memory:
+    name: "EQ-32 context and memory evaluator baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq32_context
+        run: cargo test -p kiana-quality --test eq32_context --locked -- --test-threads=1
+      - name: Run kiana-quality eq32_context_guard
+        run: cargo test -p kiana-quality --test eq32_context_guard --locked -- --test-threads=1

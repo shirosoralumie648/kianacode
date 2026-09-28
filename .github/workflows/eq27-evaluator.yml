@@ -1,0 +1,25 @@
+name: "EQ-27 deterministic evaluator baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq27-evaluator:
+    name: "EQ-27 deterministic evaluator baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq27_evaluator
+        run: cargo test -p kiana-quality --test eq27_evaluator --locked -- --test-threads=1
+      - name: Run kiana-quality eq27_evaluator_guard
+        run: cargo test -p kiana-quality --test eq27_evaluator_guard --locked -- --test-threads=1

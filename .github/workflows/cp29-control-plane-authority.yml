@@ -1,0 +1,25 @@
+name: "CP-29 ControlPlane authority and crash-matrix baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cp29-control-plane-authority:
+    name: "CP-29 ControlPlane authority and crash-matrix baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core cp29_control_plane_authority_guard
+        run: cargo test -p kiana-core --test cp29_control_plane_authority_guard --locked -- --test-threads=1
+      - name: Run kiana-domain cp29_control_plane_authority
+        run: cargo test -p kiana-domain --test cp29_control_plane_authority --locked -- --test-threads=1

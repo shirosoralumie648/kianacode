@@ -1,0 +1,25 @@
+name: "EQ-42 quality blocking rules baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq42-blocking-rules:
+    name: "EQ-42 quality blocking rules baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq42_rules
+        run: cargo test -p kiana-quality --test eq42_rules --locked -- --test-threads=1
+      - name: Run kiana-quality eq42_rules_guard
+        run: cargo test -p kiana-quality --test eq42_rules_guard --locked -- --test-threads=1
