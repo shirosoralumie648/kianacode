@@ -1,3 +1,65 @@
+//! Kiana 的命令行入口。**本文件的注释是结构性的，不是逐行的。**
+//!
+//! # 为什么这样注释
+//!
+//! 这个文件约 26000 行，而 `AGENTS.md` 的 FZ-CLI 明确**不许拆分**它。
+//! 对一个不能拆、也不会有人逐行读的大文件，逐行注释既写不完、也没有人看。
+//! 真正有价值的是一张**地图**：这个文件有几层、每层负责什么、
+//! 一条命令从命令行走到控制面要经过哪些地方，以及**哪些路径受控、哪些不受控**。
+//! 想了解细节的人应该顺着地图跳到对应的小文件，而不是读 26k 行。
+//!
+//! # 分层
+//!
+//! ```text
+//! main()
+//!   └─ main_with_args()                    ← 全部参数分派都在这里
+//!        ├─ 提取 runtime flags、--version
+//!        ├─ 顶层子命令 match：server / agents / tui / remote-session /
+//!        │    mcp-server / …
+//!        ├─ 无参数 → cli_main_with_terminal()  ← 必须是交互式终端
+//!        │    └─ cli_main()
+//!        └─ 各类命令的具体实现（文件后半部分）
+//! ```
+//!
+//! # ⚠ 最该先知道的一件事：命令面分两类，走不同的路
+//!
+//! **A. 本地管理类命令**——`config` / `model` / `auth` / `license` / `doctor` /
+//! `checks` / `diff` / `checkpoint` / `review`。
+//! 它们通过 `kiana_commands::create_default_command_registry()` 拿到 handler 后
+//! **直接 `.execute(CommandContext { .. })`**（本文件里 16 处）。
+//!
+//! 关键在于：`kiana-commands` 这个 crate **在依赖上就够不到控制面**
+//! （它不依赖 `kiana-daemon` / `kiana-core` / `kiana-client`）。
+//! 这不是疏漏，而是 `AGENTS.md` 把它列在「兼容边界」的原因——它只保留兼容性。
+//! 对这一组命令来说这是成立的：它们读写本地配置、查状态、做 diff，
+//! 本来就不该产生需要授权的系统副作用。
+//!
+//! **B. 一切要产生后果的路径**——run、工具调用、审批、取消、恢复。
+//! 它们走 `crate::command_dispatch::dispatch_command`（本文件里 1 处，
+//! 在 `direct_connect_app_command_run_payload`），也就是
+//! `DaemonHost → ControlPlane → policy → gates → approval → broker`。
+//!
+//! REPL、Workbench、TUI 走的是同一条路（见 `repl.rs` / `harness_run.rs` /
+//! `workbench_controller.rs`）。
+//!
+//! **判断一条命令走哪一类，最快的办法**是看它的名字：上面 A 组是管理与诊断，
+//! 其余都是 B 组。
+//!
+//! # ⚠ 两条不走 A 也不走 B 的例外
+//!
+//! - `mcp-server-http` / `-sse` / `-ws`：**不经过控制面**。它直接执行注册表里的
+//!   工具，没有鉴权。已作为安全发现记录在
+//!   [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+//! - `--resident-teammate`：编排走 `runner.rs`，但它把每一轮交给
+//!   `sdk::unstable_v2_prompt`，最终仍落到 B 组那条路上。
+//!
+//! # 还有一处历史包袱
+//!
+//! 本文件引用了 `crate::runner::` 十余次，但**全部是类型引用**
+//! （`ResidentTeammateLoopResult` 之类），不是调用那个 legacy 执行循环。
+//! `kiana-entrypoints/tests/cli_architecture.rs` 会断言本文件不含
+//! `run_assistant_turn`——那是被架构守卫挡着的第二条执行循环，详见
+//! [安全发现文档的附录](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use kiana_bridge::{
@@ -42,11 +104,31 @@ use tokio_tungstenite::tungstenite::{
     client::IntoClientRequest, http::header::AUTHORIZATION, http::HeaderValue, Message,
 };
 
+    /// 二进制入口：只做一件事——把 `argv` 去掉程序名之后交给 [ `main_with_args` ]。
+    ///
+    /// 【为什么单独拆一层】
+    /// 因为 `main` 必须返回进程退出码，而把参数收集和分派混在一起会让「哪些参数被
+    /// 消费掉了」变得不可查。拆开后，[ `main_with_args` ] 拿到的就是干净的用户参数。
 pub async fn main() -> Result<()> {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
     main_with_args(raw_args).await
 }
 
+    /// **全部参数分派都在这里**，本文件前几千行的大部分体量就是这一个函数。
+    ///
+    /// 【处理顺序】
+    /// 1. `extract_runtime_flags` —— 把 `--debug` / `--verbose` 这类**运行时开关**
+    ///    从参数里摘出来。它们要在任何命令开始之前就生效，所以必须先分离。
+    /// 2. `--version` / `-v` —— 打印版本并返回。
+    /// 3. 无参数 —— 走交互式 REPL，但要过终端检查（见 `cli_main_with_terminal`）。
+    /// 4. 顶层子命令 match —— `server` / `agents` / `tui` / `remote-session` /
+    ///    `mcp-server` / `workbench` / …… 每个分支各自负责。
+    /// 5. 其余按具体命令分派，最终落到 A 组（legacy registry）或 B 组
+    ///    （`command_dispatch`）——见文件头的分类说明。
+    ///
+    /// 【⚠ 为什么这里值得写这么多】
+    /// 因为这是整个命令行界面的**唯一入口**。想知道「某个命令会不会绕过控制面」，
+    /// 答案就在这个函数的分支里。文件头那张 A/B 分类表，就是从这里读出来的。
 async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
     let (args, runtime_flags) = extract_runtime_flags(raw_args)?;
     apply_runtime_flags(&runtime_flags)?;
@@ -14163,6 +14245,20 @@ fn parse_json_schema_flag(value: &str) -> Result<Value> {
     Ok(schema)
 }
 
+    /// 进入交互式 REPL 之前，先确认**确实有交互式终端**。
+    ///
+    /// 【为什么要挡】
+    /// REPL 会占用 stdin/stdout，并且假设对面坐着一个人。管道里跑 `kiana` 时它会
+    /// 立刻抢走输入、然后卡在那里等——脚本作者看到的现象是「命令挂住了」，
+    /// 而真实原因是「它以为你在跟它对话」。
+    ///
+    /// 【报错信息为什么写得那么长】
+    /// 因为出错的人多半是在脚本里误用了它。消息直接给出两条替代路径
+    /// （`kiana workbench --workdir DIR -- <prompt>` 与 `kiana -p <prompt>`），
+    /// 比只说「需要终端」有用得多。
+    ///
+    /// 【⚠ 注意它只挡了「无参数」这一条路】
+    /// 带子命令的调用不受这个检查约束——那是另一类调用形态。
 async fn cli_main_with_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Result<()> {
     ensure_repl_terminal(stdin_is_terminal, stdout_is_terminal)?;
     cli_main().await
