@@ -23,6 +23,115 @@
 //! This module is read-only evidence. It enqueues nothing, flushes nothing, opens no file, takes
 //! no OS lock and releases none; it decides and reports over facts an adapter supplies. It does
 //! not prove that a real queue ever rejected anything.
+//!
+//! ============================================================================
+//! 中文说明（本文件在系统中的位置）
+//! ============================================================================
+//!
+//! **本文件负责什么**：为一个「有界多写者（bounded multi-writer）写入队列」定义完整的
+//! **契约层（contract layer）**——准入策略、租约登记、接管、关闭确认、以及一整套稳定错误码。
+//! 它只做**判定与记账**：给定适配器报告的事实（队列多满、还剩多少字节、租约归谁），
+//! 它回答「这次写入允不允许、不允许的原因码是什么」。它不碰文件、不拿系统锁、不追加事件。
+//!
+//! **属于哪个模块**：`kiana-eventlog` crate 的一个私有模块。它本身是**只读证据（read-only
+//! evidence）**——注意上文的英文说明：「它不证明真实队列曾经拒绝过任何东西」。
+//!
+//! **在系统里的位置**：Kiana 的唯一执行脊柱是
+//! `入口 -> kiana-daemon::DaemonHost（组合根）-> kiana-core::ControlPlane -> ... -> EventStore`。
+//! 本文件是 eventlog 这一层的**写侧准入规范**，位于 EventStore 之下、适配器之上：
+//!
+//! ```text
+//!   ControlPlane / 适配器（把真实队列的事实报上来）
+//!            │  WriterQueuePolicy（上限）  WriterRegistry（谁持有租约）
+//!            │  WriterAdmission（一次写入尝试） WriterTakeover（接管声明）
+//!            ▼
+//!   ┌──────────────────────────────────────────┐
+//!   │  writer_queue.rs：纯判定，不持有状态     │
+//!   │  derive_admission() / derive_takeover()  │
+//!   │  → WriterAdmissionReport（准入裁决）      │
+//!   │  → WriterShutdown（关闭确认）              │
+//!   └──────────────────────────────────────────┘
+//!            │  稳定原因码（writer_queue_full 等）
+//!            ▼
+//!   上层据此重试、退避，或 fail-closed 拒绝服务
+//! ```
+//!
+//! **上游是谁、下游是谁**（实测自 `rg`）：
+//! - 生产代码中，**没有找到任何调用者**。`kiana-daemon/src/lib.rs:75` 只导入了
+//!   `JsonlEventLog` 与 `MemoryEventLog` 两个具体存储适配器，没有引用本文件的任何类型。
+//! - 仓库内唯一使用这些类型的地方是 `kiana-eventlog/tests/pd27_writer_queue.rs`（行为规格）
+//!   与 `kiana-eventlog/tests/pd27_writer_queue_guard.rs`（源码守卫：断言本文件不碰文件系统）。
+//! - `kiana-ports/src/storage_capacity_budget.rs:132` 里有一个同名枚举变体
+//!   `BudgetOrigin::WriterQueuePolicy`，但那是**纯文本提及**（注释 + 一个不 import 本 crate 的
+//!   枚举值），`kiana-ports` 并不依赖 `kiana-eventlog`。
+//! - **结论：调用者未在仓库中找到，当前为契约层（contract layer）。**
+//!   它是 PD-06 / ER-06 留下的问题的**源头规范（source contract）**，不是运行期必经的一环。
+//!
+//! **入口在哪**：没有 I/O 入口。四个纯函数是全部决策面——
+//! `WriterAdmissionReport::evaluate` / `WriterAdmissionReport::validate_against`（准入）、
+//! `WriterTakeoverReport::evaluate` / `validate_against`（接管）、
+//! `WriterQueuePolicy::new` / `from_capacity_envelope`（策略构造）、
+//! `WriterShutdown::new` / `validate`（关闭确认）。所有判定都收敛到两个 reducer：
+//! `derive_admission()` 与 `derive_takeover()`。
+//!
+//! **数据如何流过**：适配器测量真实队列状态 → 装进 `WriterAdmission` → `evaluate()` 跑 reducer
+//! → 产出带 `status` + 稳定 `reason` + `remediation`（补救建议）的 `WriterAdmissionReport`
+//! → 上层据 `remediation` 决定退避重试还是放弃。报告自身带 `report_digest` 摘要，
+//! 重新校验时会被逐字段比对，**伪造的裁决无法通过**。
+//!
+//! ---------------------------------------------------------------------------
+//! **为什么这个模块存在 —— 三个核心概念**
+//! ---------------------------------------------------------------------------
+//!
+//! **1. 为什么必须「有界（bounded）」**
+//! 队列如果满了还不拒绝，就只能无限等待。无限等待 = 内存/磁盘持续增长 = 拒绝服务
+//! （denial of service）。所以本文件的**第一条铁律**是：
+//! 队列满了必须**明确拒绝并给出稳定错误码**，绝不静默丢弃。
+//! 静默丢弃为什么最危险？因为丢弃是**不可见**的：调用方以为写入成功了，存储却从没收到，
+//! 两边从此分叉，而**任何地方都不会报错**。一个不可见的分叉比一个可见的失败危险得多。
+//! 所以 `derive_admission` 里所有拒绝分支都强制 `accepted_depth_after = 0` 且
+//! `accepted_bytes_after = 0`——被拒绝的报告绝不可能长得像一次成功的写入。
+//!
+//! **2. 为什么需要「租约（lease）」和「围栏（fencing）」**
+//! 多写者意味着多个进程可能同时往同一份日志写。本地进程内的状态（内存变量）不够用：
+//! 第二个进程必须在写之前先看到第一个进程的租约、纪元（epoch）和围栏令牌。
+//! - **租约**：一段**有期限的所有权声明**。持有者在期限内独占写权限；期限过后自动失效，
+//!   别人才可以合法接管。`WriterRegistry` 的 `acquired_at_unix_ms` / `expires_at_unix_ms`
+//!   就是这个窗口，`validate` 强制 `expires > acquired`——否则那不是租约，是一句没约束任何
+//!   东西的宣称，下游所有接管判断都会建立在它上面。
+//! - **围栏令牌（fence token）**：一次性的凭证 UUID。持有者一旦被接管就失效。
+//!   `MAX_OUTSTANDING_LEASES` 给它设了上限，防止无限多个写者挂着租约不放。
+//!
+//! **3. 为什么需要「接管（takeover）」和「纪元（epoch）」—— 防「僵尸写者」**
+//! 场景：原写者被 `kill -9`，机器卡死，网络分区。它自己不知道，也没法主动交接。
+//! 新写者要凭什么接手？靠**单调递增的纪元（data_epoch）**。
+//! **epoch 就像「第几代」：每一代严格大于上一代。** 新写者接手时领到第 N+1 代，
+//! 而那个被硬杀的旧写者手里还是第 N 代。存储在写入点一比对——
+//! **epoch 小的写入直接被拒**（`writer_epoch_stale`）。这就是围栏机制：
+//! 旧写者哪天「诈尸」复活（虚拟机暂停后恢复、网络分区后重连），它手里的租约已过期、
+//! epoch 已过时，写不进去一个字节。**没有 epoch，僵尸写者就能覆盖新写者的数据。**
+//! 同理 `new_fence_token` 必须与前一个不同（`writer_takeover_fence_token_reused`），
+//! 否则复用了令牌就等于放行了它替换掉的那个写者。
+//!
+//! **4. 与 PD-06 / ER-06 的关系（为什么本文件是「source contract」）**
+//! - PD-06 已经让满队列返回稳定的饱和码（`jsonl.rs:289` 的
+//!   `eventlog_worker_queue_full`，由 `MAX_STORAGE_WORKERS = 16` 的信号量控制），
+//!   而不是无界等待。**注意：本文件故意不重新定义这个码**——`pd27_writer_queue_guard.rs`
+//!   专门断言源码里不含 `eventlog_worker_queue_full`，因为重新定义就是造出第二套容量词汇。
+//! - ER-06 已经让 `flush` / `close` 成为**可观测的确认（acknowledgement）**。
+//! - 本模块回答这两个卡片**没回答完的问题**：写者可以入队什么？拒绝长什么样？
+//!   队列关闭后什么时候才真正停止接收？被取消或硬杀的写者必须交还什么？
+//!   ——**规范说要怎样，代码在这里把它钉死。**
+//!
+//! ---------------------------------------------------------------------------
+//! **关于本文件与锁 / async 的说明（重要，避免误读）**
+//! ---------------------------------------------------------------------------
+//! 本文件**完全是同步纯函数**：没有 `async fn`、没有 `.await`、没有 `Mutex` / `RwLock` /
+//! 原子操作、没有文件 IO。之所以看起来像可以用同步锁——**因为它根本不需要锁**：
+//! 它不持有任何跨调用可变状态，判定只依赖传入的不可变值，天然可重入、可并发。
+//! （真正需要并发控制的是 `jsonl.rs`，那里用 `std::sync::Mutex` 保护 `DiskCache`，
+//! 临界区极短且**不含 await**；`integrity.rs` 则相反，用 `async` 但不持锁。）
+//! 所有函数都是 `fn` 而非 `async fn`，调用方无需 `.await` 即可同步得到裁决。
 
 use kiana_domain::{
     json_digest, redact_text, scan_secret_sentinels, CapacityEnvelope, EventCursor, FenceTokenId,
