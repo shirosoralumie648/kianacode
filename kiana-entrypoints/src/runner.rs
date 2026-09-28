@@ -1,3 +1,43 @@
+//! **legacy 模型/工具循环层。读这个文件之前请先读完这一段。**
+//!
+//! # 这里面住着两种东西，可达性完全不同
+//!
+//! ```text
+//! 【A】run_assistant_turn* / call_tool
+//!        自带一整套模型→工具→模型的循环，直接调 kiana_tools 的 execute_tool_call(s)。
+//!        ⚠ 不经过 DaemonHost，不经过 ControlPlane，没有 policy / gate / 审批 / EventLog。
+//!        它就是 `AGENTS.md` 禁止的「第二条执行循环」。
+//!        现状：**被隔离**——没有任何产品代码调用它（见下面的守卫）。
+//!
+//! 【B】run_resident_teammate_loop_with
+//!        本身不含任何工具执行。它把「跑一轮模型」这件事**作为回调注入**
+//!        （`run_prompt`），真实的执行走注入进来的那个函数。
+//!        CLI 传进来的是 `crate::sdk::unstable_v2_prompt`，而那条路
+//!        → sdk::prompt_with_persistence_at → execute_owned_harness_turn
+//!        → harness_run → KianaClient → DaemonHost → ControlPlane
+//!        现状：**可达且受控**。
+//! ```
+//!
+//! # 隔离是怎么维持的
+//!
+//! `kiana-entrypoints/tests/cli_architecture.rs` 会读 7 个产品文件
+//! （cli / harness_run / repl / tui / bg / mcp / lib），逐个断言它们
+//! **不包含字符串 `run_assistant_turn`**。谁在产品路径里引用它，CI 就红。
+//!
+//! # ⚠ 但这个守卫匹配的是「符号名」，不是「模式」——这是本文件最该记住的一件事
+//!
+//! 守卫挡不住「直接调用 `execute_tool_call`」这种写法。同目录的 `mcp.rs`
+//! 同样直接执行工具、同样不过控制面，但它从不提及 `run_assistant_turn`，
+//! 于是守卫看不见它——而那一条是**真的可达**（`kiana mcp-server-http` 会绑端口）。
+//!
+//! 换句话说：legacy 循环被按名字挡住了，绕过模式没有被按模式挡住。
+//! 完整分析见
+//! [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+//!
+//! # 对照：产品面应该在哪儿
+//!
+//! `harness_run.rs` 才是产品执行面。`runner.rs` 里的 [B] 段最终也会走到那里，
+//! 但它是绕了一大圈走过去的。
 use anyhow::{anyhow, Result};
 use kiana_services::api::{
     messages::Message,
@@ -76,6 +116,17 @@ pub enum RunnerStreamEvent {
     },
 }
 
+    /// 把这个模块的流式事件翻译成 `kiana_types` 的运行时事件。
+    ///
+    /// 【为什么需要一次翻译】
+    /// 流式事件的形状是「给界面看的」，运行时事件的形状是「给事件日志看的」。
+    /// 两者需要的字段不同：界面要增量与增量，事实要可重放。
+    ///
+    /// 【⚠ 翻译不等于记账】
+    /// 把流事件变成运行时事件，**不代表**这次调用被记录进 EventLog。
+    /// 真正的事实由控制面在批准与执行时写下。这里做的是「让界面能显示发生了什么」，
+    /// 不是「发生了什么所以它发生了」。
+    /// 把前者当成后者，就会得到一个看起来有审计、其实没有的界面。
 pub fn runtime_events_from_runner_stream_event(
     session_id: &str,
     turn_id: &str,
@@ -291,6 +342,7 @@ fn stream_error_message(error: &Value) -> String {
 }
 
 #[derive(Debug, Clone)]
+/// 常驻队友循环的三个节奏参数。
 pub struct ResidentTeammateLoopConfig {
     pub poll_interval: Duration,
     pub max_idle_polls: Option<usize>,
@@ -306,6 +358,15 @@ pub struct ResidentTeammateLoopResult {
 }
 
 impl ResidentTeammateLoopConfig {
+    /// 从环境变量读这三个参数。
+    ///
+    /// 【只有 `poll_interval` 有默认值】
+    /// `KIANA_RESIDENT_TEAMMATE_POLL_MS` 缺省 1000ms——没它循环无法进行。
+    /// 而 `KIANA_RESIDENT_TEAMMATE_MAX_IDLE_POLLS` 与 `KIANA_RESIDENT_TEAMMATE_MAX_TURNS`
+    /// **没有默认值**：没设置时调用方拿到的是 0，也就是「不轮询、不多跑」。
+    ///
+    /// 这个方向是刻意的：一个会反复调用模型的循环，默认必须是「停」而不是「跑」。
+    /// 如果给它们一个宽松的默认值，忘记配置就会变成一个静默烧钱的常驻进程。
     pub fn from_env() -> Self {
         Self {
             poll_interval: Duration::from_millis(env_u64("KIANA_RESIDENT_TEAMMATE_POLL_MS", 1000)),
@@ -315,6 +376,27 @@ impl ResidentTeammateLoopConfig {
     }
 }
 
+    /// 常驻队友循环：**编排**，不是执行。
+    ///
+    /// 【它做的事】
+    /// 按 `poll_interval` 反复调用注入进来的 `run_prompt`，直到「连续空闲次数超限」
+    /// 或「轮数超限」，并把每一轮的结果与终止原因记进 [ `ResidentTeammateLoopResult` ]。
+    ///
+    /// 【它刻意不做的事】
+    /// 它不构造请求、不判定授权、不执行工具。`run_prompt` 是一个函数参数，
+    /// 调用方（CLI）传的是 `crate::sdk::unstable_v2_prompt`。
+    ///
+    /// 这样设计的好处是**授权不取决于这个循环**：换成任何一个别的回调，
+    /// 授权就跟着那个回调走。这正是 [B] 段能受控的原因——它自己不碰工具。
+    ///
+    /// 【⚠ 代价是：读这个循环看不出它是否受控】
+    /// 「有没有授权」这件事不在这个函数里，而在调用方传进来的那个函数里。
+    /// 所以审这条路径时，**必须一路看到 CLI 传了谁**，
+    /// 只看 `runner.rs` 会得出「它执行了模型循环」的印象，而事实是它只是编排。
+    ///
+    /// 【注意它硬编码打开了 `execute`】
+    /// 循环开始时无条件写入 `execute: true` 与 `create_session_if_missing: true`。
+    /// 也就是说常驻模式**一定**会真的跑模型，不会只记录。
 pub async fn run_resident_teammate_loop_with<F, Fut>(
     initial_prompt: String,
     mut options: HashMap<String, Value>,
@@ -433,6 +515,25 @@ pub async fn run_assistant_turn(
 }
 
 #[cfg(test)]
+    /// ⚠ **legacy 执行循环——被隔离，不要在产品路径里调用。**
+    ///
+    /// 【为什么说它被隔离】
+    /// `kiana-entrypoints/tests/cli_architecture.rs` 断言 7 个产品文件里都不出现
+    /// 字符串 `run_assistant_turn`，谁引用谁 CI 红。当前树里也没有其它调用点。
+    ///
+    /// 【它和 [B] 段的差别】
+    /// 这个函数**自带**执行：它拿到模型的工具调用后，直接
+    /// `execute_tool_calls_with_permission_handler`。不经过 DaemonHost，不经过 ControlPlane。
+    /// 对比 [B] 段——那里执行是被注入的、因而受控；这里是内建的、因而绕过。
+    ///
+    /// 【⚠ 它是 `pub` 的】
+    /// 隔离靠的是「守卫 + 无人调用」这个约定，而不是类型系统或可见性。
+    /// 任何新的调用点只要不写出那个符号名就能绕过守卫——`mcp.rs` 正是这样。
+    ///
+    /// 【为什么它还在树里】
+    /// 删除它会让 `runner.rs` 里那批针对它的单测（`call_tool_*` 那一组）一起失效，
+    /// 而那些测试目前仍在跑。换句话说：**它是被测试锁住的死代码**。
+    /// 要移除，应该连同它自己的测试一起移除，而不是让它继续以「legacy」的名义留着。
 pub async fn run_assistant_turn_with_permission_handler(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -1226,6 +1327,16 @@ struct ToolUseBlock {
 }
 
 #[cfg(test)]
+    /// ⚠ **直接执行一个工具，绕过控制面。**（属于上面那处 legacy 循环内部）
+    ///
+    /// 它同时提供两条路：带 `permission_handler`（会询问）与不带（不询问）。
+    /// 两条路都**不经过** `ControlPlane`——也就是说这里的 permission 询问是
+    /// 这个模块自己问的，不是控制面授权流程里的那一步。
+    ///
+    /// 作为对照：产品面（`harness_run.rs`）里，批准必须回到控制面去落成事实，
+    /// handler 只负责把那个**已经作出的决定**呈现出来。两者不是一回事。
+    ///
+    /// ⚠ 这个函数是私有的，属于 [ `run_assistant_turn_with_permission_handler` ] 那一族。
 async fn call_tool(
     registry: &kiana_tools::ToolRegistry,
     enabled_tools: Option<&HashSet<String>>,

@@ -87,3 +87,48 @@ here rather than pick one.
 No code was changed. The finding was found while annotating `kiana-entrypoints` for a reader who
 does not know the architecture, and the annotation pass is explicitly forbidden from changing
 behaviour or "fixing things along the way".
+
+---
+
+## Addendum (2026-09-28): the same pattern exists in `runner.rs`, and the existing guard does not see it
+
+While annotating `kiana-entrypoints`, the same class of bypass was found in
+`kiana-entrypoints/src/runner.rs`. It is **not** currently reachable, and the difference is worth
+stating precisely, because it shows exactly where the existing defences stop.
+
+### What `runner.rs` contains
+
+| Group | What it does | Reachable? |
+|---|---|---|
+| `run_assistant_turn*`, `call_tool` | A complete model-to-tool-to-model loop that calls `kiana_tools::execute_tool_call(s)` directly. No `DaemonHost`, no `ControlPlane` — the file contains **zero** references to either. | **No.** Nothing in the current tree calls them. |
+| `run_resident_teammate_loop_with` | Contains no tool execution at all. It takes the "run one model turn" function as an injected callback; the CLI passes `crate::sdk::unstable_v2_prompt`, which reaches `harness_run.rs` -> `KianaClient` -> `DaemonHost` -> `ControlPlane`. | **Yes, and it is authorized.** |
+
+So the legacy loop in `runner.rs` is exactly the "second execution loop" `AGENTS.md` forbids — and it
+is genuinely dead from the product's perspective.
+
+### What keeps it dead, and why that is not enough
+
+`kiana-entrypoints/tests/cli_architecture.rs` reads seven product files (`cli.rs`, `harness_run.rs`,
+`repl.rs`, `tui.rs`, `bg.rs`, `mcp.rs`, `lib.rs`) and asserts that **none of them contains the
+string `run_assistant_turn`**. Any new product-path reference fails CI. That guard works.
+
+But it matches a **symbol name**, not a **pattern**. It cannot see "calls `execute_tool_call`
+directly", because that phrase appears nowhere in the forbidden list. `mcp.rs` executes tools
+directly and never mentions `run_assistant_turn` — so the guard passes it, while the HTTP transport
+in the same file is live and reachable.
+
+That is the generalisable finding: **a quarantine that names what it forbids will always be
+circumventible by doing the same thing under a different name.** The forbidden unit here should be
+the *pattern* — any direct call into `kiana_tools::tool_execution` from a product file — rather than
+one identifier.
+
+`runner.rs` also keeps the legacy loop alive by another route: its own `call_tool_*` unit tests
+still exercise it, so removing the loop means removing those tests too. "Legacy" here currently
+means "guarded and unused", not "removed".
+
+### Recommendation (additive to the three options above)
+
+Add a fourth guard, in the same spirit as `cli_architecture.rs`, that asserts no file listed as a
+product surface calls `kiana_tools::tool_execution::execute_tool_call` directly. That closes the
+pattern hole without requiring the behavioural refactor, and it would have caught `mcp.rs` at the
+moment it was written.
