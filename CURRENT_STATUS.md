@@ -13223,6 +13223,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### AUT-14 CI wiring gap evidence (2026-09-28)
+
+source_snapshot: `f1260b2b` plus this AUT-14 CI-wiring repair; `.github/workflows/aut14-effect-reservation.yml` (new); `kiana-domain/src/automation_effect_reservation.rs`; `kiana-core/src/automation_effect_reservation.rs`; `kiana-domain/tests/automation_effect_reservation.rs`; `kiana-core/tests/automation_effect_reservation_guard.rs`; `docs/roadmap/aut14-effect-reservation-baseline.md`; `docs/roadmap.md`
+worktree_status: The AUT-14 baseline asserted that CI runs the domain fixture and the Core source guard in `.github/workflows/aut14-effect-reservation.yml`. That workflow did not exist, so the assertion was an overstatement of evidence and the fixtures had no CI path at all. The underlying source slice was genuine and is untouched. This commit supplies the missing workflow that the baseline already specified; no runtime behaviour, no product path and no second execution loop was added.
+command_argv:
+  bash scripts/ci/validate-workflows.sh    # exit 0: "workflow check passed: 42 files, 5 automatic, 37 manual"
+  cargo fmt --all --check                  # exit 0
+  cargo check --workspace --all-targets --locked --offline   # exit 0, 0 errors (static compile only)
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. Local Cargo tests, builds and clippy were deliberately not run per user instruction; GitHub Actions is the test authority and has not executed any job for this account since 2026-09-27T11:16Z.
+fixture·cassette: GitHub-only `automation_effect_reservation` domain fixtures and `automation_effect_reservation_guard` core source guard, wired by the new workflow. Not yet executed anywhere.
+exit_code: 0 for the local workflow-structure validator, format check and static compile; the new workflow has never been dispatched to a runner, so its fixture and guard exit codes are unobserved
+status change: none. Roadmap row 556 and the AUT-14 card remain 🔄 with `feature_status=partial`, `proof_level=source`. Creating a workflow makes evidence obtainable; it is not evidence.
+proof-level change: none. No promotion to local_behavior, durable, live or physical.
+limitations: no AUT-14 fixture or guard has ever been executed; the guard itself is a source-marker check (`include_str!` over the two reservation modules) and not a behavioural test, so even a green run would only prove the reservation modules contain the expected markers and contain no forbidden effect calls. Durable CAS, permit consumption, worker dispatch and live effects remain AUT-15+. The broader finding is that 257 baseline documents across the roadmap reference workflows that do not exist; AUT-14 is the first of these to be repaired, and the remaining overstatements are not yet fixed.
+reviewer: Codex source review of the baseline text against the on-disk workflow directory, plus the repository's own workflow validator; no local runtime test reviewer.
+
 ### Baseline fmt gate repair evidence (2026-09-28)
 
 source_snapshot: `1dfee068` (master, clean tree, equal to `origin/master`) plus this formatting-only repair; 53 files across `kiana-client`, `kiana-core`, `kiana-domain`, `kiana-entrypoints`, `kiana-eventlog`, `kiana-provider`

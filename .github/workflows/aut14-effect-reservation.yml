@@ -1,0 +1,25 @@
+name: AUT-14 effect reservation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  effect-reservation:
+    name: AUT-14 effect reservation fence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run domain effect reservation fixtures
+        run: cargo test -p kiana-domain --test automation_effect_reservation --locked -- --test-threads=1
+      - name: Run core effect reservation source guard
+        run: cargo test -p kiana-core --test automation_effect_reservation_guard --locked -- --test-threads=1
