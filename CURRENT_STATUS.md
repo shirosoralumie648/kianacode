@@ -13223,6 +13223,23 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### `Workflow structure` job unblock evidence (2026-09-28)
+
+source_snapshot: `b185a6fb` through this fix; `.github/workflows/ci.yml`, `.github/workflows/eq51-evidence-archive.yml`, `.github/workflows/sc42-security-rehearsal.yml`, `scripts/ci/doc-reference-exemptions.txt`
+worktree_status: With the format gate fixed, the `Rust workspace` job cleared `cargo fmt --all --check` and `cargo check --workspace --locked` and reached clippy — the fmt repair did its job. The `Workflow structure` job then failed for two further reasons, both pre-existing and both invisible locally.
+command_argv:
+  git clone --depth 1 file://<repo> $SIM   # tracked-files-only clone: reproduces CI (no gitignored reference/, no bundled rg on PATH by default)
+  bash scripts/ci/validate-doc-references.sh   # in $SIM, before: exit 1, "2 unresolved reference(s) in 732 document(s)"; after: exit 0, "732 document(s) checked, all references resolve"
+  full `Validate workflow YAML` block (13 validators) re-run inside $SIM   # exit 0
+  bash scripts/ci/validate-workflows.sh ; ruby -ryaml YAML.safe_load_file over all workflows   # exit 0
+cwd/environment: repository root; Linux x86_64. No Cargo test, build or clippy was run locally per user instruction. GitHub Actions run 36407557426 on `8393bd74` is the authority and is in progress at the time of writing.
+fixture·cassette: none. These are repository-structure gates, not behavioural fixtures.
+exit_code: local structural gates exit 0; the CI result for this fix is pending/unobserved
+status change: none. No roadmap row, card status, feature_status or proof_level was promoted.
+proof-level change: none.
+limitations: the ripgrep dependency is now declared and installed in the three jobs that need it, but that installation cannot be verified outside a real runner; only the subsequent CI run proves it. Two independent false-pass traps were involved and both make local runs non-authoritative for these gates: `reference/` is gitignored so doc references resolve on disk but never in CI, and `rg` is present on a developer machine (here only via a bundled codex binary) but absent from the runner image. Rewriting the `rg` calls in `oa26-durable-observability-gate.sh`, `eq51-evidence-archive-static.sh`, `int33-connector-closeout-static.sh`, `verify-ui36-release-gate.sh` and `verify-ui37-docs.sh` was deliberately rejected: several use `--pcre2`, `--glob` and `-Eiq` in fail-closed security guards, and substituting `grep` would silently change their matching semantics. A green format gate is a precondition for tests, never a substitute for them; the same caution applies to these structural gates.
+reviewer: Codex diagnosis from the CI job log for run 36407557426, then reproduction and verification in a tracked-files-only clone that matches the runner's view of the tree; no local runtime test reviewer.
+
 ### Roadmap CI wiring overclaim repair evidence (2026-09-28)
 
 source_snapshot: `6551599a` (AUT-14) through `01d10e3f` (CI wiring batches 1-3); 111 new files under `.github/workflows/`

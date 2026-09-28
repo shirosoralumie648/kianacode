@@ -20,6 +20,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq ripgrep
+          rg --version
       - name: Validate workflow YAML
         run: |
           bash scripts/ci/validate-workflows.sh
