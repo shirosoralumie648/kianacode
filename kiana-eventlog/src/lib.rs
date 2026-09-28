@@ -1,3 +1,33 @@
+//! Kiana 的 **append-only 事件存储适配器**。
+//!
+//! # 这个 crate 是什么
+//!
+//! 它是全仓库**唯一**能写事实的地方。控制面判定了一件事之后，那件事要变成
+//! 「永久可查、不可篡改」的记录，就只能经过这里。
+//!
+//! 所以整个仓库里到处都能看到同一句话的不同说法——「显示不等于事实」
+//! 「翻译不等于记账」「Receipt 不是日志」。它们都在描述同一个边界：
+//! **EventLog 是事实的边界，其它都是投影。**
+//!
+//! # 两类适配器，注意它们的地位完全不同
+//!
+//! | | 是什么 | 能不能作为证据 |
+//! |---|---|---|
+//! | [`JsonlEventLog`] | 落盘的、真的 append-only | 这是「持久」的含义所在 |
+//! | [`MemoryEventLog` | 进程内，退出即消失 | 只能用于测试与临时投影 |
+//!
+//! ⚠ 内存实现**不是**「轻量的持久实现」。它没有落盘、没有 fsync、
+//!   进程结束就没了。用它跑出来的一切，**只能**算 local_behavior 及以下，
+//!   永远不能被写成 durable —— 这个区分不是注释里的客套，是结论能否成立的前提。
+//!
+//! # 这个 crate 里的其它模块
+//!
+//! 它们大多不是「事件存储」本身，而是围绕它的契约：产物存储、凭据轮换、
+//! 审计契约、治理契约、完整性扫描、通知去重与 outbox、保留策略、workflow 队列、
+//! 以及 PD-27 那个有界写入队列。
+//!
+//! 有界写入队列（`writer_queue`）值得单独一提：队列满了要**可观察地拒绝**，
+//! 而不是静默丢事件——静默丢失会让人以为「没发生的事真的没发生」。
 //! Append-only event storage adapters for Kiana.
 
 mod artifact_store;
@@ -44,6 +74,22 @@ pub use writer_queue::{
 use kiana_ports::PortError;
 use std::path::PathBuf;
 
+    /// 决定会话事件默认落在哪个文件。
+    ///
+    /// ```text
+    /// KIANA_HOME 设了 → 用它
+    /// 否则            → $HOME/.kiana
+    /// 最终路径         → <上面那个目录>/sessions/events.jsonl
+    /// ```
+    ///
+    /// 【⚠ `KIANA_HOME` 必须是绝对路径，否则直接拒绝】
+    /// 这一条是整个函数里最容易被「顺手放宽」的地方。
+    /// 一个相对的 `KIANA_HOME` 会按**进程当时的工作目录**解析，
+    /// 于是同一份配置在不同目录下会指向不同的文件——
+    /// 数据散落在「启动它时恰好在哪」，而事后没人说得清该去哪找。
+    ///
+    /// 和 `dispatch.rs` 里 `project_root_identity` 是同一条纪律：
+    /// **拿不准的时候，宁可拒绝，也不要给一个看起来能用的答案。**
 pub fn default_sessions_log_path() -> Result<PathBuf, PortError> {
     let home = if let Ok(value) = std::env::var("KIANA_HOME") {
         let home = PathBuf::from(value.trim());
