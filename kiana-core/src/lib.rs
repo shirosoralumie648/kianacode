@@ -163,6 +163,7 @@ mod revocation_propagation;
 mod security_authority;
 mod security_context;
 mod security_fence;
+mod security_incident;
 mod sessions;
 mod span_projection;
 mod trace_export;
@@ -402,6 +403,7 @@ pub use security_authority::{
     SECURITY_AUTHORITY_SNAPSHOT_VERSION,
 };
 pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};
+pub use security_incident::*;
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 pub use storage_diagnostics::{
     evaluate_storage_diagnostics, storage_diagnostic_ui_view, validate_storage_diagnostic_report,
