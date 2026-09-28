@@ -33,6 +33,7 @@ jobs:
           bash scripts/validate-sc42-recovery-rehearsal.sh
           bash scripts/validate-sc43-security-closeout.sh
           bash scripts/validate-pd35-persistence-closeout.sh
+          bash scripts/validate-evidence-manifest.sh scripts/fixtures/sc35-evidence-manifest.example.json
           bash scripts/verify-ui37-docs.sh
           find scripts -type f -name '*.sh' -exec bash -n {} +
 

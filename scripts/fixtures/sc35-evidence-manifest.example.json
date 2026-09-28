@@ -1,0 +1,35 @@
+{
+  "schema": "kiana.evidence-manifest.v1",
+  "version": { "major": 1, "minor": 0 },
+  "manifest_id": "sc35-example",
+  "source_snapshot": "0be643aa",
+  "recorded_by": "slice-owner",
+  "reviewer": "integration-reviewer",
+  "command": {
+    "argv": ["cargo", "test", "-p", "kiana-core", "--test", "sc35_evidence_manifest", "--locked"],
+    "cwd": "/media/shirosora/4A183E5C183E46EB/codestorage/kianacode",
+    "exit_code": 0
+  },
+  "environment": [
+    { "key": "CI", "value": "github-actions" },
+    { "key": "local_tests_run", "value": "none" }
+  ],
+  "fixtures": [
+    {
+      "path": "kiana-core/tests/sc35_evidence_manifest.rs",
+      "kind": "fixture",
+      "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "fixture_absent_reason": "",
+  "status_change": "SC-35 evidence manifest contract added at the source proof level",
+  "feature_status": "partial",
+  "proof_level": "source",
+  "limitations": [
+    "No manifest in this repository is loaded by the validator automatically.",
+    "The registry is supplied by the caller; no digest here was read from a filesystem.",
+    "The seal is re-derived by the Rust module, not by the shell script."
+  ],
+  "previous_manifest_digest": null,
+  "manifest_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+}
