@@ -1,3 +1,31 @@
+//! MCP（Model Context Protocol）服务器：把 Kiana 的工具目录用 MCP 协议暴露出去。
+//!
+//! # 这个文件在系统里的位置
+//!
+//! ```text
+//! MCP 客户端（别的 agent / IDE）
+//!    ↓  JSON-RPC 2.0
+//! 【本文件】stdio  或  HTTP / SSE / WebSocket
+//!    ↓
+//! kiana_tools::ToolRegistry（默认注册表）
+//!    ↓
+//! execute_tool_call —— 直接执行
+//! ```
+//!
+//! **上游**：MCP 客户端。**下游**：`ToolRegistry` 与 `execute_tool_call`。
+//!
+//! # 两种传输入，差别很大
+//!
+//! - **stdio**（`kiana mcp-server`）：本进程的标准输入输出。客户端就是启动你的那个进程，
+//!   能跟你对话的人，本来就能用你的命令行。
+//! - **HTTP / SSE / WebSocket**（`kiana mcp-server-http` 等）：一个**真的 TCP 套接字**。
+//!   任何能连上这个端口的东西都能发 JSON-RPC。
+//!
+//! ⚠ 这条差别不是风格问题，而是安全边界问题。**HTTP 变体当前不做任何鉴权**，
+//! 详见 [`McpServer::handle_call_tool`] 的注释与
+//! [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+//! 本文件**不是**产品执行主路径：产品主路径是
+//! `kiana-entrypoints → DaemonHost → ControlPlane`，任何有后果的动作都必须从那里经过。
 use anyhow::{anyhow, Result};
 use axum::{
     extract::{
@@ -27,11 +55,25 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufRea
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
+// 三个内置 prompt 的名字，以及下面那个工具资源的 URI 前缀。
+//
+// 它们是**协议层的稳定标识**：客户端按名字请求，所以改动等于破坏兼容性。
+// 因此写在这里而不是散落在各自的处理分支里——让「一共有哪些」这个问题只需要看一处。
 const PROMPT_STATUS_REPORT: &str = "kiana-status-report";
 const PROMPT_TOOL_AUDIT: &str = "kiana-tool-audit";
 const PROMPT_PERMISSIONS_REVIEW: &str = "kiana-permissions-review";
 const TOOL_RESOURCE_PREFIX: &str = "kiana://tool/";
 
+/// 一个 MCP 服务器实例。
+///
+/// 【它持有什么】
+/// - `name` / `version`：在 `initialize` 响应里报给客户端的身份，取自 crate 版本号；
+/// - `registry`：**默认工具注册表**。这是本文件最要紧的一个字段——它决定了暴露面有多大；
+/// - `tool_context`：工具执行时共享的可变上下文（工作目录、读文件状态、app_state、中止信号），
+///   所以需要一把 `Mutex`。
+///
+/// ⚠ 注意它**没有**任何授权字段：没有 actor、没有角色、没有审批引用。
+///   这不是疏忽，是本文件当前的真实状态，后果见 [`McpServer::handle_call_tool`]。
 pub struct McpServer {
     name: String,
     version: String,
@@ -39,6 +81,11 @@ pub struct McpServer {
     tool_context: Mutex<ToolContext>,
 }
 
+/// HTTP 传输层共享的状态。
+///
+/// `sse_sessions` 保存每个 SSE 连接的发送端，用来把异步产生的事件推回那条连接。
+/// 之所以要一张表而不是一个局部变量，是因为 SSE 是**长连接**：处理连接的协程和处理
+/// 消息的协程不是同一个，它们通过这张表里的 channel 交接。
 struct McpHttpState {
     server: Arc<McpServer>,
     sse_sessions: Mutex<HashMap<String, mpsc::Sender<Value>>>,
@@ -82,6 +129,25 @@ impl McpHttpState {
 }
 
 impl McpServer {
+    /// 构造一个服务器。
+    ///
+    /// 【最需要留意的一行】
+    /// `registry: create_default_registry()` —— 暴露面由这个函数决定，而默认注册表里
+    /// 包含写文件、删文件、bash、PowerShell、web fetch、remote trigger。
+    ///
+    /// 换句话说：**这个服务器暴露的不是「五个受控工具」，而是注册表里的全部**。
+    /// 对比一下产品主路径：模型可见工具面在 `kiana-runner/src/tools.rs` 里被冻结为五个，
+    /// 并且每一个都要过 ControlPlane。这里两者都不成立。
+    ///
+    /// 【app_state 里放了什么】
+    /// `cwd` 始终放；`MCP_SERVERS_APP_STATE_KEY` 只在环境变量声明了 MCP 服务器时才放。
+    /// 工具执行时会读这些键，所以它们是「工具与外部世界之间的交接点」，
+    /// 读的时候要假设它是不可信的。
+    ///
+    /// 【`abort_signal` 从哪来】
+    /// 来自一个立刻被丢弃的 `watch::Sender`。构造它只是为了拿到 `Receiver`：
+    /// MCP 协议没有「中止一次工具调用」的语义，于是中止信号永远是 false。
+    /// 这是一个**已知缺口**，不是一个设计选择。
     pub fn new(name: String, version: String, cwd: String) -> Self {
         let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
         let mut app_state = HashMap::from([("cwd".to_string(), json!(cwd.clone()))]);
@@ -365,6 +431,32 @@ impl McpServer {
         }))
     }
 
+    /// 执行一次工具调用。**这是本文件里最需要警惕的函数。**
+    ///
+    /// 【它做了什么】
+    /// 把请求直接交给 `execute_tool_call`，第二个参数是 `None`、第六个参数也是 `None`。
+    ///
+    /// 【那两个 `None` 的含义】
+    /// - `enabled_tools: Option<&HashSet<String>>` —— 在 `kiana-tools` 里，
+    ///   `None` 的语义是**跳过 allow-list 检查**（代码写的是 `if let Some(enabled) = …
+    ///   { if !enabled.contains(name) { … } }`）。也就是说「没有配置允许清单」=
+    ///   **所有工具都可调用**；
+    /// - `permission_handler: Option<&dyn PermissionPromptHandler>` —— `None` 表示不询问。
+    ///
+    /// 【因此这条路径上没有任何授权】
+    /// 没有 `ControlPlane`、没有 policy、没有 gate、没有审批、也**没有写 EventLog**。
+    /// 对比产品主路径：界面里的任何命令都要经 `DaemonHost → ControlPlane`，
+    /// 才会变成一条可审计的事实。这里两者都不成立。
+    ///
+    /// 【⚠ 这不是我能在这里修的】
+    /// 修它是一次架构决策（拒绝这个 transport，还是把调用改走 ControlPlane），
+    /// 按 `AGENTS.md` §10 应当上报而不是自行选择。完整证据链与三个方案见
+    /// [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+    ///
+    /// 【为什么执行失败仍返回 `Ok`】
+    /// 因为 MCP 协议里「工具执行失败」是一个**结果**，不是一个传输错误：内容以
+    /// `isError: true` 的形式回给客户端。把它包成 Err 会让客户端分不清
+    /// 「工具失败了」和「服务器坏了」。
     pub async fn handle_call_tool(&self, name: &str, args: Value) -> Result<Value> {
         let mut context = self.tool_context.lock().await;
         let result = execute_tool_call(&self.registry, None, &mut context, name, &args, None).await;
@@ -387,6 +479,19 @@ impl McpServer {
         }))
     }
 
+    /// JSON-RPC 2.0 的总入口：按 `method` 分派。
+    ///
+    /// 【为什么返回 `Option`】
+    /// JSON-RPC 规定：**没有 `id` 的消息是通知（notification），不���回响应**。
+    /// 所以「不回」不是错误，是一种合法结果，用 `None` 表达。
+    /// 把它建模成 `Option` 而不是空 JSON，是为了让调用方无法「忘记区分」。
+    ///
+    /// 【`method` 缺失直接返回 `None`】
+    /// 一个连方法名都没有的消息既不是通知也不是请求，没有可回的语义。
+    ///
+    /// 【分派表】
+    /// `initialize` / `tools/list` / `tools/call` / `resources/*` / `prompts/*`。
+    /// 真正需要警惕的是 `tools/call`，它直通 [`McpServer::handle_call_tool`]。
     async fn handle_json_rpc(&self, message: Value) -> Option<Value> {
         let id = message.get("id").cloned();
         let method = message.get("method").and_then(Value::as_str)?;
@@ -497,6 +602,17 @@ pub async fn start_mcp_http_server(
     Ok(())
 }
 
+/// 组装 HTTP 传输的路由。
+///
+/// 【⚠ 这里没有鉴权层】
+/// 没有中间件、没有 token 校验、没有来源检查。任何能连上这个端口的客户端
+/// 都可以直接发 `tools/call`。这一点在 stdio 传输下不构成问题（客户端就是你启动的
+/// 那个进程），在 HTTP 传输下就是完整的暴露面。见
+/// [安全发现文档](../../docs/security/mcp-http-unauthenticated-tool-execution.md)。
+///
+/// 【为什么同时挂 `/` 和 `/mcp`】
+/// 不同 MCP 客户端对默认端点的约定不一样，两个都挂上是为了兼容，
+/// 它们指向同一个处理函数，不代表两条不同的能力。
 fn mcp_http_router(server: Arc<McpServer>) -> Router {
     let state = Arc::new(McpHttpState::new(server));
     Router::new()
@@ -508,6 +624,12 @@ fn mcp_http_router(server: Arc<McpServer>) -> Router {
         .with_state(state)
 }
 
+/// `POST /` 与 `POST /mcp` 的处理函数。
+///
+/// 【为什么 `None` 变成 204 而不是 200 + 空 body】
+/// 因为 `None` 的含义是「这是一条通知，按协议不该回」。用 204 No Content 表达
+/// 「服务器收到了，并且按约定不回答」，比回一个空 JSON 更贴近协议语义，
+/// 也避免客户端把空对象误当成一个空结果。
 async fn handle_http_json_rpc(
     State(state): State<Arc<McpHttpState>>,
     Json(message): Json<Value>,
@@ -591,6 +713,16 @@ async fn handle_ws_session(mut socket: WebSocket, state: Arc<McpHttpState>) {
     }
 }
 
+/// 按行分隔地写一条 JSON——stdio 传输的帧格式。
+///
+/// 【为什么自己拼 `\n` 而不用 serde 的行分隔序列化】
+/// 因为 stdio 的 MCP 传输约定就是「一行一个 JSON 对象」。换行符是**帧的一部分**，
+/// 不是内容的一部分，所以它必须在序列化之后单独追加。
+///
+/// 【为什么每次都 flush】
+/// 因为对端在同步地等这一行。不 flush 的话数据会留在缓冲区里，
+/// 表现为「客户端发出请求后一直挂着，直到缓冲区被填满」。
+/// stdio 上这个代价尤其真实，因为它没有任何别的机制会把缓冲区推出去。
 async fn write_json_line<W>(writer: &mut W, value: &Value) -> Result<()>
 where
     W: AsyncWrite + Unpin,
@@ -602,6 +734,16 @@ where
     Ok(())
 }
 
+/// 把工具返回值整理成给模型看的文本。
+///
+/// 【为什么要分两种情况】
+/// 字符串原样透传，其余才做 pretty-print。因为工具作者如果已经返回了一段
+/// 人类可读的文本，再 JSON 编码一次就会把它变成带引号和转义的一坨——
+/// 模型读到的是 `{"status":"ok"}` 而不是 `{"status":"ok"} 这行字。
+///
+/// 【`unwrap_or_else` 兜底成什么】
+/// 兜底成紧凑的 `value.to_string()`。也就是说：一个**无法 pretty-print 的值**
+/// 仍然会以某种可读形式出现，而不是变成空白或 panic。
 fn stringify_tool_output(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
@@ -609,6 +751,12 @@ fn stringify_tool_output(value: &Value) -> String {
     }
 }
 
+/// 构造一个 MCP 工具错误。
+///
+/// 【⚠ 注意它不是 JSON-RPC 的 error】
+/// 它是一个**成功返回的结果**，内容里带 `isError: true`。这是 MCP 协议对
+/// 「工具执行失败」的规定表示法，和 JSON-RPC 层的 `error` 是两回事。
+/// 混淆二者会让客户端把一次普通的工具失败当成传输故障去重试。
 fn mcp_tool_error(message: String) -> Value {
     json!({
         "content": [{
