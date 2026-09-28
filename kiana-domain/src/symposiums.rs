@@ -1,3 +1,19 @@
+//! 「开一次会」这件事被落成了类型：议题、主持、与会者、发言（Claim）、投票（Vote）、
+//! 黑板、以及最后产出的决策记录。
+//!
+//! # 为什么值得一个专门的文件
+//!
+//! 因为「多角色讨论」很容易滑向**自由消息总线**——大家随便发、随便读、
+//! 结论从聊天记录里捞出来。`AGENTS.md` 的 FZ-TEAM 永久冻结了那种东西。
+//!
+//! 这里的设计正相反：讨论被拆成**结构化的几种记录**
+//! （Claim 是发言、Vote 是立场、Blackboard 是当前累积、DecisionRecord 是结论），
+//! 每一种都有明确的字段与归属。聊天记录不是事实，DecisionRecord 才是。
+//!
+//! # 与「自由群聊」的区别，一句话
+//!
+//! 自由群聊里，**说过什么**就是事实；
+//! 这里，**通过了什么**才是事实，说过什么只是一份可被复核的输入。
 use crate::{
     DepartmentSpec, RoleSpec, WorkPacket, DECISION_RECORD_PATH, DECISION_RECORD_SCHEMA,
     DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING, REVIEW_PACKET_SCHEMA, ROLE_BUILDER, ROLE_PM,
@@ -92,6 +108,15 @@ pub struct SymposiumVote {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+/// 会议进行到当前为止的全部发言与投票。
+///
+/// 【它是「当前累积」，不是「最终结论」】
+/// 黑板随时可以被改写。真正的结论在 `DecisionRecord` 里，
+/// 而且结论必须能指回它依据的那些发言与投票。
+///
+/// 【⚠ `draft_decision` 为什么是可选的】
+/// 因为**很多会议不会达成结论**。允许「开完什么也没定」是一个诚实的状态；
+/// 强迫每次会议都产出一个结论，就会让会议变成一个走过场的仪式。
 pub struct Blackboard {
     #[serde(default)]
     pub claims: Vec<SymposiumClaim>,
@@ -102,6 +127,20 @@ pub struct Blackboard {
 }
 
 impl Blackboard {
+    /// 把黑板渲染成一段提示词，交给模型。
+    ///
+    /// 【这一步值得警惕的地方】
+    /// 它是「结构化数据」变成「自然语言」的地方。一旦发生，
+    /// 下游看到的就是一段文本，发言人与投票的对应关系只存在于渲染者的心智里。
+    ///
+    /// 之所以仍然可以接受，是因为：黑板本身是**被保存的**（`claims` / `votes` 是字段），
+    /// 渲染只是其中一次消费。事后要复核「当时谁投了什么」，读的是字段而不是这段文本。
+    ///
+    /// **如果哪天有人把这段 prompt 当成唯一记录保存，审计能力就没了。**
+    ///
+    /// 【空黑板也要显式说明】
+    /// `claims` 为空时它写下 "Blackboard claims: (none)" 而不是省略这一行。
+    /// 省略的话，模型无法区分「没人发言」和「这一部分没被渲染出来」。
     pub fn as_prompt(&self) -> String {
         let mut lines = Vec::new();
         if self.claims.is_empty() {
@@ -187,6 +226,16 @@ pub struct Symposium {
 }
 
 impl Symposium {
+    /// 默认最多讨论 4 轮。
+    ///
+    /// 【为什么必须有上限】
+    /// 一场没有轮次上限的会议不会自己结束：每个角色都能继续发言，
+    /// 而每次发言又会产生新的发言点。会议因此变成一个不会收敛的循环，
+    /// 而且每一次循环都在消耗模型调用。
+    ///
+    /// 4 轮不是「差不多够」的估计，而是一条**明确的退出线**：
+    /// 到了就走 `DecisionRecord`（哪怕结论是「没定」），
+    /// 而不是继续开会。
     pub const DEFAULT_MAX_ROUNDS: u32 = 4;
     pub const MAX_ROUNDS_CAP: u32 = 8;
 

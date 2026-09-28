@@ -1,3 +1,22 @@
+//! 授权词汇表：**你是谁（RoleSpec / 角色目录）、你这次带了什么身份（RequestContext）、
+//! 你声明自己要多宽（PermissionProfile）**。
+//!
+//! # 这个文件里最该先理解的一件事
+//!
+//! `PermissionProfile` 看起来像「权限档位」，很容易被读成「选了这个档就能做这些事」。
+//! **不是。** 它是一次**请求里调用方的声明**，输入给策略引擎；
+//! 真正决定放行什么的是 `kiana-policy` + `kiana-gates` + 审批。
+//!
+//! 三档的关系是「请求得更宽」，不是「绕过限制」。`Autonomous` 的注释写得很准：
+//! 「仍不能跳过硬拒绝和 ControlPlane」。
+//!
+//! 读到这个枚举时，请把它当成一个**参数**而不是一把**钥匙**。
+//!
+//! # RequestContext 为什么被这么多地方引用
+//!
+//! 因为它是「一次请求在控制面里的身份、信任与范围快照」——
+//! 谁发的、项目在哪、这个项目可不可信、权限档位、Cell 归属，全在里面。
+//! 几乎每个「这里该拒绝」的判断，最终读的都是它的某几个字段。
 use crate::ids::fnv1a64;
 use crate::{
     json_digest, normalize_role_path, CellId, RequestId, SchemaVersion, SessionId,
@@ -42,6 +61,18 @@ pub struct ConversationMessage {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// 请求可声明的权限档位；它本身不构成授权。
+    /// 调用方声明的权限档位。**它是请求，不是授权。**
+    ///
+    /// 【为什么默认是最保守的 `Safe`】
+    /// 因为档位是**被声明**的。一个忘了设置、或者设置失败的调用方，
+    /// 拿到的应该是最窄的那一档，而不是「没设置=不限制」。
+    /// 这与 `BudgetLease` 里 `max_model_calls == 0` 的处理是同一个原则：
+    /// **缺省必须收紧，不能放开。**
+    ///
+    /// 【⚠ 容易被误读的地方】
+    /// 看到 `Autonomous` 很容易以为「自主模式=无人值守=什么都行」。
+    /// 它不是。它只表示「本次请求希望被考虑更宽的能力」，
+    /// 而是否真的放宽，由策略与关卡逐条判定；硬拒绝的东西在这里也一样硬拒绝。
 pub enum PermissionProfile {
     #[default]
     /// 最保守档位，默认拒绝高风险或未明确授权动作。
@@ -60,6 +91,17 @@ pub(crate) fn default_department_id() -> String {
     DEPARTMENT_EXECUTING.to_owned()
 }
 
+/// 一次请求在控制面里的**身份、信任与范围快照**。
+///
+/// 【为什么是「快照」而不是「实时查询」】
+/// 因为一次请求的判定必须基于**一个稳定的时刻**。
+/// 如果 actor、信任、项目在整个处理过程中都能变，那么同一次请求的前半段和
+/// 后半段可能按不同的规则判定——而事后无法复现当时发生了什么。
+///
+/// 【它与控制面无关】
+/// 这个结构体只携带信息，不做任何判定。
+/// 因此它可以被入口层构造、被事件携带、被投影读取，而不会变成第二个授权点。
+/// 判定一律发生在 `ControlPlane`。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// 一次协议请求在控制平面中的身份、信任和范围快照。
 pub struct RequestContext {
