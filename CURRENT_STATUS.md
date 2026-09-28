@@ -16661,3 +16661,18 @@ proof-level change: unchanged at feature_status=partial and proof_level=source. 
 limitations: the binding compares identity and admissibility, not content. It checks that the trace the chain names is accepted, unexpired, non-empty, correctly ranged and carries a receipt when the chain claims one -- it does not compare the trace's normalized events against what the chain actually produced, because that is a different action and this module neither performs it nor pretends to. No replay happened, no fake provider or local executor was driven, no synthetic stream was parsed, and nothing is wired into ControlPlane::handle_command or into the harness
 reviewer: owner review. One process defect worth recording: this commit was first written with a stale message, because a temporary message file from the earlier BQ-29 slice still held the old text. It was caught before the push, so the commit was amended rather than left wrong in history, and the message file was given a unique name. That is the same failure as the one recorded for c1c50e25, which could not be amended because it was already pushed -- the difference is that this one was caught in time. No local runtime/CI test reviewer
 ```
+
+### SC-40 command route (`capacity.envelope`) (2026-09-28)
+
+```text
+source_snapshot: master=a5bf151c plus the SC-40 route; kiana-core/src/commands.rs; kiana-core/tests/sc40_capacity_envelope_route.rs; docs/roadmap/sc40-capacity-fault-envelope-baseline.md
+worktree_status: branch master. This adds a branch to an existing module rather than a new slice, so the SC-40 roadmap row is not moved again and no feature_status is raised
+command_argv: cargo check -p kiana-core --lib --locked --offline (exit 0); cargo test -p kiana-core --test sc40_capacity_envelope_route --locked --offline --no-run (compiled, zero tests executed). No test was executed and no CI run was awaited
+cwd·environment: /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux/bash; no local runtime test reviewer
+fixture·cassette: the new CI-only target covers a Cell-internal caller, an anonymous caller, a missing or non-object request, a request missing the budget, a malformed sample, a clock rollback, an unbounded queue, and a sample inside every bound -- where the last case also asserts the event stream is still empty. Nothing was executed locally
+exit_code: local compile exit 0; remote fixtures and workspace gate pending/unobserved
+status_change: no roadmap row moves. What changes is that one limitation SC-40's own baseline admitted -- "nothing here is wired into ControlPlane::handle_command" -- is now implemented rather than described
+proof-level change: unchanged at feature_status=partial and proof_level=source. A route that can be called has still never been called
+limitations: the route decides and returns; it records nothing. No fault is injected, no timer started, no clock read, no queue allocated and no capability dispatched. The sample and the budget are both supplied by the caller, so a caller reporting flattering numbers defeats this check exactly as it would any other input-shaped judgement. Three read-only command routes now exist -- security.incident.evaluate, promotion.check and capacity.envelope -- and none of them is reachable from a Cell
+reviewer: owner review. The operator requirement is the part worth keeping: this decision's conclusion is what gets quoted when someone asks whether the system held its bounds, so a worker participating in that ruling is a witness for its own conduct. The process defect recorded two turns ago -- a stale temporary message file producing a wrong commit message -- was avoided by using a uniquely named file and verifying the subject line after committing. No local runtime/CI test reviewer
+```
