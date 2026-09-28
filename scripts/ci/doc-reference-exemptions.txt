@@ -445,3 +445,5 @@ docs/roadmap/sc28-supply-chain-baseline.md :: quarantine.json
 docs/roadmap/sc28-supply-chain-baseline.md :: supply-chain-report.json
 docs/roadmap/ui-entrypoints.md :: desktop.json
 docs/roadmap/ui-entrypoints.md :: lib/asset-manifest.js
+docs/roadmap.md :: reference/goose/crates/goose/src/agents/state_machine/session.rs
+docs/roadmap/persistence-data-layer.md :: reference/codex/codex-rs/rollout/src/recorder.rs
