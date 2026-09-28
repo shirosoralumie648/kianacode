@@ -1,0 +1,27 @@
+name: "DEP-07 · Storage preflight baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dep07-storage-preflight:
+    name: "DEP-07 · Storage preflight baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core dep07_storage_preflight_guard
+        run: cargo test -p kiana-core --test dep07_storage_preflight_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon dep07_storage_adapter_guard
+        run: cargo test -p kiana-daemon --test dep07_storage_adapter_guard --locked -- --test-threads=1
+      - name: Run kiana-domain dep07_storage_preflight
+        run: cargo test -p kiana-domain --test dep07_storage_preflight --locked -- --test-threads=1

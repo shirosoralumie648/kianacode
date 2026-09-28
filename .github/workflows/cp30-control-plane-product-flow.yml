@@ -1,0 +1,25 @@
+name: "CP-30 ControlPlane product flow and evidence baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cp30-control-plane-product-flow:
+    name: "CP-30 ControlPlane product flow and evidence baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core cp30_control_plane_product_flow_guard
+        run: cargo test -p kiana-core --test cp30_control_plane_product_flow_guard --locked -- --test-threads=1
+      - name: Run kiana-domain cp30_control_plane_product_flow
+        run: cargo test -p kiana-domain --test cp30_control_plane_product_flow --locked -- --test-threads=1

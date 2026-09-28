@@ -1,0 +1,25 @@
+name: "CO-48 real-model closeout status and handover"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co48-company-closeout:
+    name: "CO-48 real-model closeout status and handover"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core co48_company_closeout_guard
+        run: cargo test -p kiana-core --test co48_company_closeout_guard --locked -- --test-threads=1
+      - name: Run kiana-domain co48_company_live_evidence
+        run: cargo test -p kiana-domain --test co48_company_live_evidence --locked -- --test-threads=1

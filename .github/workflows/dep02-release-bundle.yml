@@ -1,0 +1,25 @@
+name: "DEP-02 · Release bundle baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dep02-release-bundle:
+    name: "DEP-02 · Release bundle baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core dep02_release_bundle_guard
+        run: cargo test -p kiana-core --test dep02_release_bundle_guard --locked -- --test-threads=1
+      - name: Run kiana-domain dep02_release_bundle
+        run: cargo test -p kiana-domain --test dep02_release_bundle --locked -- --test-threads=1

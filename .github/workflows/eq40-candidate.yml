@@ -1,0 +1,25 @@
+name: "EQ-40 QualityCandidate binding baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq40-candidate:
+    name: "EQ-40 QualityCandidate binding baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq40_candidate
+        run: cargo test -p kiana-quality --test eq40_candidate --locked -- --test-threads=1
+      - name: Run kiana-quality eq40_candidate_guard
+        run: cargo test -p kiana-quality --test eq40_candidate_guard --locked -- --test-threads=1

@@ -1,0 +1,25 @@
+name: "EQ-37 retry-once flake classifier baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq37-flake:
+    name: "EQ-37 retry-once flake classifier baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq37_flake
+        run: cargo test -p kiana-quality --test eq37_flake --locked -- --test-threads=1
+      - name: Run kiana-quality eq37_flake_guard
+        run: cargo test -p kiana-quality --test eq37_flake_guard --locked -- --test-threads=1

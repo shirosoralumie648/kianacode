@@ -1,0 +1,25 @@
+name: "ER-31 Event/Receipt/Recovery crash-point matrix baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  er31-fault-matrix:
+    name: "ER-31 Event/Receipt/Recovery crash-point matrix baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core er31_fault_matrix_guard
+        run: cargo test -p kiana-core --test er31_fault_matrix_guard --locked -- --test-threads=1
+      - name: Run kiana-domain er31_fault_matrix
+        run: cargo test -p kiana-domain --test er31_fault_matrix --locked -- --test-threads=1

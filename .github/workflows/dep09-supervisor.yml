@@ -1,0 +1,27 @@
+name: "DEP-09 · SupervisorPort baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dep09-supervisor:
+    name: "DEP-09 · SupervisorPort baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core dep09_supervisor_guard
+        run: cargo test -p kiana-core --test dep09_supervisor_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon dep09_supervisor_adapter_guard
+        run: cargo test -p kiana-daemon --test dep09_supervisor_adapter_guard --locked -- --test-threads=1
+      - name: Run kiana-domain dep09_supervisor
+        run: cargo test -p kiana-domain --test dep09_supervisor --locked -- --test-threads=1

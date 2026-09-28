@@ -1,0 +1,25 @@
+name: "EQ-38 EvalExperiment replay baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eq38-experiment:
+    name: "EQ-38 EvalExperiment replay baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-quality eq38_experiment
+        run: cargo test -p kiana-quality --test eq38_experiment --locked -- --test-threads=1
+      - name: Run kiana-quality eq38_experiment_guard
+        run: cargo test -p kiana-quality --test eq38_experiment_guard --locked -- --test-threads=1
