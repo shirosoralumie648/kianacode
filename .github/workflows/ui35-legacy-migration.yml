@@ -1,0 +1,23 @@
+name: "UI-35 旧 Web/CLI 迁移与兼容收口基线"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui35-legacy-migration:
+    name: "UI-35 旧 Web/CLI 迁移与兼容收口基线"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-client ui35_legacy_migration
+        run: cargo test -p kiana-client --test ui35_legacy_migration --locked -- --test-threads=1

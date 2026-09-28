@@ -1,0 +1,23 @@
+name: "SW-15 swarm retirement baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sw15-retirement:
+    name: "SW-15 swarm retirement baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core sw15_retirement_guard
+        run: cargo test -p kiana-core --test sw15_retirement_guard --locked -- --test-threads=1

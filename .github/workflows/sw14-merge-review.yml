@@ -1,0 +1,23 @@
+name: "SW-14 independent swarm merge review baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sw14-merge-review:
+    name: "SW-14 independent swarm merge review baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core sw14_merge_review_guard
+        run: cargo test -p kiana-core --test sw14_merge_review_guard --locked -- --test-threads=1

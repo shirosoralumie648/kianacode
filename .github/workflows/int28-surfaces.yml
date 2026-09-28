@@ -1,0 +1,25 @@
+name: "INT-28 connector surface baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int28-surfaces:
+    name: "INT-28 connector surface baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-core int28_connector_surfaces_guard
+        run: cargo test -p kiana-core --test int28_connector_surfaces_guard --locked -- --test-threads=1
+      - name: Run kiana-protocol int28_connector_surfaces
+        run: cargo test -p kiana-protocol --test int28_connector_surfaces --locked -- --test-threads=1
