@@ -300,6 +300,24 @@ impl ControlPlane {
         context: RequestContext,
         intent: CommandIntent,
     ) -> Result<CoreResponse, CoreError> {
+        // ────────────────────────────────────────────────────────────────────
+        // 第一组：operator（运维）特权命令
+        //
+        // 这一组命令能碰工作区文件、长驻进程、宿主环境，**不允许**由 cell 内部的
+        // worker 触发。三个硬条件，缺一即拒：
+        //   1. `context.cell_id.is_none()` —— 调用方不是某个受限 Cell；
+        //   2. `actor_id` 非空             —— 必须有具名主体，匿名操作无法追责；
+        //   3. `arguments` 是 JSON 对象     —— 参数形状必须可判定。
+        //
+        // ⚠ 这里返回 `Ok(blocked)` 而不是 `Err`：「你不是 operator」是一个**正常的
+        //    业务拒绝**，界面应如实显示；而 `Err` 留给「你的请求本身是错的」。
+        //    两种表达混用，上层就分不清「你不能做」和「你请求错了」。
+        //
+        // ⚠ 这段是**纵深防御**，不是唯一防线。即使放行，命令仍要走
+        //    `authorize_and_execute` 完整过一遍 policy/gates/approval。
+        //    删掉它不会让命令变得可用，只会让「谁能用」这条边界变模糊。
+        // ────────────────────────────────────────────────────────────────────
+
         if matches!(
             intent.name.as_str(),
             "workspace.transaction"
@@ -331,6 +349,25 @@ impl ControlPlane {
                 arguments["sandbox"] = json!(sandbox);
             }
             arguments["operator_authorized"] = json!(true);
+            // 打上「已经过 operator 校验」的标记。
+            //
+            // ⚠ 这是一个**在服务端**写入的标记，不是客户端能传的字段。
+            //    如果允许客户端自己带 `operator_authorized: true`，等于把特权校验架空。
+            //    下游的 sandbox 解析、风险分级都依赖它，所以它必须在这里被无条件覆盖。
+            //
+            // 紧接着的 `match` 是「命令名 -> 授权强度」的翻译层，
+            // **必须与实际副作用一致**，否则就会出现「一个 Critical 操作被标成
+            // ReadOnly 从而跳过审批」这种致命漏洞。
+            //
+            //   workspace.transaction : list/inspect -> 只读；其余 -> Critical（要审批）
+            //   process.start         : sandbox=read-only -> 只读；否则 -> 本地写
+            //   process.stdin/resize/stop : 一律本地写（能影响已启动的进程就是写）
+            //   其余（tool.search / environment.inspect / output.read）-> 只读
+            //
+            // ⚠ 新增命令时必须在这里显式落一个分支。兜底的 `_ => (Query, ReadOnly)`
+            //    看起来安全，但它只在「确实只读」时才安全——有人加了有副作用的命令
+            //    却忘了改这里，就会被静默降级成只读。这是本函数最需要 reviewer 盯住的一处。
+
             let (kind, risk) = match intent.name.as_str() {
                 "workspace.transaction" => (
                     CapabilityKind::Filesystem,
@@ -737,6 +774,28 @@ fn normalize_extension_command(
     {
         return Err("extension_visibility_max_results_invalid");
     }
+    // 扩展（extension）变更的额外闸门。
+    //
+    // 只读操作（列出/查询已装扩展）不受这里约束；**任何非只读的扩展变更**
+    // 都必须同时满足四个条件，缺一不可：
+    //
+    //   1. operator 身份（同上：非 cell 内、actor_id 非空）；
+    //   2. `extension_id` 合法 + `expected_registry_version` 存在
+    //      —— 后者是**乐观并发（optimistic concurrency）**字段：调用方声明
+    //      「我看到的注册表版本是 N」，服务端比对，不一致就拒绝。
+    //      没有它，两个人同时装扩展会后写覆盖先写；
+    //   3. `idempotency_key` 非空且 <= 128 字符
+    //      —— 幂等键让重试不会重复执行同一次安装；
+    //   4. `reason` 非空且 <= 4096 字符
+    //      —— 装一个能注入指令和能力的扩展属于高风险动作，必须留下书面理由。
+    //
+    // 另外：install / upgrade / rollback 还额外要求 `package_sha256` 是合法十六进制哈希。
+    // 理由很直接——**扩展就是可执行代码**，不知道它是什么字节就执行它，
+    // 等于放弃了供应链安全。
+    //
+    // ⚠ 这些校验放在这里而不是 registry 内部，是因为它们校验的是「请求形状」；
+    //    「这个扩展该不该被信任」是另一回事，由 trust / provenance 机制回答。
+
     if risk != RiskLevel::ReadOnly {
         if context.cell_id.is_some()
             || context
