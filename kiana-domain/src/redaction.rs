@@ -1,12 +1,58 @@
+//! 脱敏（redaction）与 secret 哨兵扫描。整个仓库**每一次**要把内容写进事件、
+//! 日志、指标、Trace 或 Receipt 的地方，都要经过这里。
+//!
+//! # 为什么单独一个文件、而且放在最底层
+//!
+//! 因为脱敏是**唯一一件「漏了就无法挽回」的事**。其它数据写错了还能改；
+//! 一个 secret 写进了 EventLog，它就已经在那本账里了——而且那本账按设计是 append-only。
+//!
+//! 所以这个文件的函数被其它所有层复用，而不是各写各的。
+//!
+//! # 两条独立的防线
+//!
+//! ```text
+//! redact_text / redact_value    把「已知的敏感形状」替换掉
+//!        ↓
+//! scan_secret_sentinels         找出「长得像 secret」的东西并报告
+//! ```
+//!
+//! 前者是**替换**，后者是**发现**。两者都需要，因为：
+//! 前者能处理已知标记（`api_key = …`），但对「没有标记的一段随机字符串」无能为力；
+//! 后者能认出 AWS key、GitHub token 这类**固定形状**，但它只能报告、不能替你决定要不要保留。
+//!
+//! # ⚠ redaction 是尽力而为，不是保证
+//!
+//! 这是本文件最需要被理解的一点。按标记扫描意味着：**一个不以已知标记出现的 secret
+//! 不会被替换掉**。它会原样通过。
+//!
+//! 所以正确的用法是「先 redact，再 scan」——两道都过一遍，而不是指望其中一道。
+//! 单靠 redact 的代码，安全性等于「你的标记列表有多全」。
 use crate::{check_schema_compatibility, json_digest, DataClass, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
+/// 替换后的占位文本。
+///
+/// 【为什么是固定的常量，而不是每次现场生成】
+/// 替换标记必须**稳定**：如果它每次都不一样（比如带时间戳），
+/// 那么「同一段内容在两次记录里是否相同」这个问题就无法回答，
+/// 而 diff、比对、幂等判断都依赖这一点。
+///
+/// 同时它必须**显眼到不会误认成真数据**——`[REDACTED]` 在日志里一眼可辨，
+/// 不会和某个真实的字段值混淆。
 const REDACTED: &str = "[REDACTED]";
 
 pub const REDACTION_PROFILE_SCHEMA: &str = "kiana.redaction-profile.v1";
 pub const REDACTION_PROFILE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+/// 脱敏时递归的最大深度：32 层。
+///
+/// 【为什么需要上限】
+/// 恶意或意外构造的深层嵌套 JSON 会让递归脱敏一直往下走。
+/// 32 层对真实业务数据（一般 3–5 层）绰绰有余，而它把最坏情况的代价钉住了。
+///
+/// ⚠ 超过上限的处理是「停止下钻」——那一层以下的内容**原样保留**。
+///   所以深度上限是安全与保真的取舍，不是纯粹的加固。
 pub const MAX_REDACTION_DEPTH: usize = 32;
 pub const MAX_REDACTION_VALUE_BYTES: usize = 64 * 1024;
 pub const MAX_REDACTION_PROFILE_BYTES: usize = 256 * 1024;
@@ -846,6 +892,24 @@ const SENSITIVE_MARKERS: &[SensitiveMarker] = &[
 ];
 
 /// Redact secrets in one complete text value.
+    /// 脱敏一段文本。**这是全仓库被调用最多的函数之一。**
+    ///
+    /// 【它做两件事，顺序不能换】
+    /// 1. 如果这段文本**看起来像 JSON**（首字符是 `{` 或 `[`）且能解析成功，
+    ///    就走 [ `redact_value` ] 做**结构化**脱敏——按字段名判断，而不是按文本模式；
+    /// 2. 否则按标记做**文本扫描**：找到 `api_key`、`token` 这类词，
+    ///    把它们后面跟的值替换掉。
+    ///
+    /// 【为什么 JSON 要走结构化】
+    /// 因为结构化脱敏能按**字段名**判断敏感度，而文本扫描只能按**出现位置**猜。
+    /// 一段 `{"notes": "the api_key is abc"}` 里，结构化路径知道 `notes` 不是敏感字段，
+    /// 而文本路径会把 `abc` 也一起替换掉——过度脱敏会让日志失去诊断价值。
+    ///
+    /// 【⚠ 返回类型是 `String` 而不是 `Result`】
+    /// 这是个刻意的取舍：它让调用点写起来很轻（我在多个模块里都是直接调用）。
+    /// 代价是**脱敏失败会被静默吞掉**——解析失败时它退回文本扫描，
+    /// 而文本扫描对无标记的 secret 无能为力。
+    /// 需要「失败必须被看见」的地方，应该用 [ `redact_text_with_profile` ]。
 pub fn redact_text(text: &str) -> String {
     let trimmed = text.trim();
     if matches!(trimmed.as_bytes().first(), Some(b'{') | Some(b'[')) {

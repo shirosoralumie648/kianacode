@@ -1,9 +1,39 @@
+//! 本仓库所有**状态机**的定义处。
+//!
+//! # 读这个文件之前要先接受一件事
+//!
+//! 这里没有一个 `bool` 表示「成功/失败」，也**没有一个 `bool` 表示「取消/没取消」**。
+//! 每一个枚举都把「我做了什么」「发生了什么」「我还不知道」分成不同的取值。
+//!
+//! 原因很直接：把这三件事压成一个布尔值，等于允许代码在没有证据的情况下二选一。
+//! 而「我请求了取消」被当成「它已经停了」，是本仓库反复强调要避免的那类错误。
+//!
+//! # 取消这条线值得单独看
+//!
+//! ```text
+//! RunCancellationState
+//!   Active ──► Requested ──► Stopping ──┬──► Cancelled      （确认停了）
+//!                                       └──► ResultUnknown   （不知道停没停）
+//! ```
+//!
+//! `ResultUnknown` 只能从 `Stopping` 到达，而且**到不了任何地方**——它是一个终点。
+//! 这是刻意的：一旦进入「不知道」，就不能再靠本地推断回到「成功」或「失败」，
+//! 只能靠对账（reconcile）从外部事实解决。
 use crate::{EventId, RequestId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 审批的生命周期。
+///
+/// 【`Consumed` 为什么是一个独立状态】
+/// 因为「批过了」和「这次批准已经被用掉了」是两件事。
+/// 少一个 `Consumed`，同一个批准就能被反复使用——而这正是审批重放攻击的形状。
+///
+/// 【`Expired` 与 `Cancelled` 也各自独立】
+/// 过期是时间造成的，���消是有人主动收回。合成一个 `Invalid` 会让日志说不清
+/// 「这次批准没生效，是因为等太久了，还是因为有人撤销了」。
 pub enum ApprovalState {
     Staged,
     Active,
@@ -454,6 +484,15 @@ impl Default for CellLifecycle {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 一次执行的对外状态。
+///
+/// 【注意 `Cancelled` 与 `ResultUnknown` 是两个取值】
+/// 它们看起来都可以翻译成「没成」，但含义相反：
+/// - `Cancelled`：确认没有发生副作用；
+/// - `ResultUnknown`：**不知道**有没有发生。
+///
+/// 把它们合成一个，UI 上就会出现「已完成」或「已取消」这种**凭空结论**。
+/// 本仓库多处注释在讲同一件事：Unknown 必须保持 Unknown。
 pub enum ExecutionStatus {
     Accepted,
     Queued,
