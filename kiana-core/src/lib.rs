@@ -84,6 +84,7 @@ mod milestone_acceptance;
 mod ops_diagnostics;
 mod outcome_measurement;
 mod packet_acceptance;
+mod promotion_gate;
 mod project_acceptance;
 mod project_control;
 mod rework_contract;
@@ -391,6 +392,7 @@ pub use persistence_read_model::{
 };
 pub use platform::classify_failure_summary;
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
+pub use promotion_gate::*;
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
 pub use provider_diagnostics::{
     project_provider_diagnostics, replay_provider_terminal, ProviderDiagnosticsProjectionError,

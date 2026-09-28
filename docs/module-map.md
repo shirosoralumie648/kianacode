@@ -247,3 +247,29 @@ source gate；handoff 不拥有发布、审批、Broker 或任何第二执行循
 这张图描述职责和边界，具体能力仍须结合证据。[状态账本](../CURRENT_STATUS.md) 记录当前源码快照、命令、测试和证明等级。规范里的 `target`、`partial`、`deferred` 或模块名称本身，都不能推断功能已经交付。
 
 进一步阅读：[白话总览](company-os-overview.md)、[CompanyOS 平台架构](company-os-platform-architecture.md)、[实施大纲](company-os-implementation-outline.md)、[执行路线图](roadmap.md)。
+
+## BQ-30 契约层回填：2026-09-28 批次新增的决策模块
+
+> 这一节回填最近一批 roadmap 切片新增的模块。它们**全部是只读契约层**：不写文件、不发网络、
+> 不 append 事件、不新增执行循环，也都没有接进 `ControlPlane::handle_command`。
+> 列在这里是为了让「有哪些判断已经存在」和「哪些行为仍然只是纸面」同时可查。
+
+| 模块 | 回答什么问题 | 明确不做什么 |
+|---|---|---|
+| [security incident](../kiana-core/src/security_incident.rs) | 一次安全事件由谁负责、什么时候到期、每一步响应引用了哪条已提交证据 | 不开事件、不落盘、不 fence 真实租约 |
+| [evidence manifest](../kiana-core/src/evidence_manifest.rs) | 一份证据在被采信之前必须写全哪五样东西，以及它如何被封口 | 不读盘确认 digest；封口由调用方提供的 registry 约束 |
+| [security control registry](../kiana-policy/src/security_control_registry.rs) | 一个控制项能否以高于其证据的证明等级被登记 | 不做认证；`kiana-policy` 结构上够不到控制面 |
+| [data class 与遥测分离](../kiana-core/src/data_class.rs) | 同一个值写进 Event/Log/Metric/Trace/Receipt 时各自的命运 | 不启动任何 exporter，不迁移任何真实 sink |
+| [protocol parity](../kiana-client/src/protocol_parity.rs) | 五个面是否对同一条命令给出同一个答案，且没有各自算权限 | 不开传输、不比较真实界面 |
+| [recovery objective](../kiana-domain/src/recovery_objective.rs) | 声明的 RPO/RTO 与演练声称的观测之间的差距 | 不杀进程、不恢复、不备份、**不产生任何 RPO/RTO 数字** |
+| [recovery rehearsal](../kiana-core/src/recovery_rehearsal.rs) | 把上者的判定绑到一个 lease 形状上 | 不铸造 lease，不持久化 |
+| [dynamic discovery](../kiana-capability-broker/src/discovery.rs) | 搜索结果在当前授权面下能否被提升为候选 | 不加载包、不验签、不新增第六个模型工具 |
+| [retention deletion](../kiana-core/src/retention_deletion.rs) | 一次保留/删除计划里什么可以删、顺序如何、其余为什么不行 | **只做计划**：不删、不归档；且**没有 commit receipt 与重建验证** |
+| [capacity fault envelope](../kiana-core/src/capacity_fault_envelope.rs) | 故障期间系统是否仍在有界 latency/queue/bytes 之内 | 不注入故障、不启定时器、不读时钟 |
+| [retention archive bounds](../kiana-core/src/retention_archive_bounds.rs) | 保留/归档的边界，以及「不得改动账本事实」这条不变量 | 不剪、不归档；账本 digest 由调用方给出 |
+| [golden trace chain](../kiana-core/src/golden_trace_chain.rs) | 被报告的 model→tool→event→receipt→correction 链路是不是那条链路 | **不重放**：不加载 trace、不驱动 provider/handler |
+| [effect reconciliation](../kiana-core/src/effect_reconciliation.rs) | 外部 effect 结果未知时，四种诚实动作里哪一种可被记录 | 不查询 provider、不执行补偿、不签发审批 |
+| [promotion gate](../kiana-core/src/promotion_gate.rs) | 一个主张能否被叫得比它的证据更强 | 不提升任何东西；消费 SC-35 的 evidence manifest |
+
+**读法**：想判断「某件事是否已经做到什么程度」，先看 `CURRENT_STATUS.md` 里对应切片的 proof_level，
+再看本表最后一列。两者一致时，本表最后一列就是那条限制。
