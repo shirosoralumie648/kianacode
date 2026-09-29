@@ -13255,6 +13255,21 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Verified effect of the web-tab, metric-probe and SC-38 fixes (2026-09-30)
+
+source_snapshot: `afd06eb8`; GitHub Actions run 36619950738
+worktree_status: The three most recent fixes are now measured rather than assumed. Reading the logs of the 21 shards that had already finished with a `failure` conclusion: `web_tab_required` went from 4 occurrences to **0**, `observability_source_cursor_required` from 4 to **0**, and `sc38_property_case_duplicate_outcome_invalid` from 4 to **0**. The aggregate failure-message count across those shards fell from 543 to 524. This is the first point in the session at which three consecutive fixes are all confirmed against a run rather than reasoned about.
+command_argv:
+  GitHub Actions run 36619950738 (commit afd06eb8)
+  per-shard log readback: 21 failing shards, 524 failure messages
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+fixture·cassette: the pre-existing web CLI, BQ-25 and SC-38 fixtures; none added or removed.
+exit_code: the three targeted error classes are at zero; the overall run is still red
+status change: none. No step, feature_status or proof_level is promoted.
+proof-level change: none.
+limitations: this was read from 21 of the run's 23 failing shards — `Tests (kiana-core-s2/6)` and `Tests (kiana-daemon)` were still executing, so 524 is a partial total and the three zero counts hold for the shards that finished, not necessarily for those two. Shard pass/fail stood at 18 pass / 21 fail of 41 at the time of reading. The run was not allowed to finish before this entry was written, because recording the measurement required a push and the workflow's `cancel-in-progress` would have cancelled the two remaining shards; the measurement was taken first for exactly that reason. No step is claimed as complete on the strength of an error string reaching zero.
+reviewer: Codex readback of run 36619950738 shard logs; no local runtime test reviewer.
+
 ### Sweep for the "can never succeed" class — negative result (2026-09-30)
 
 source_snapshot: `2341ec30`; tree-wide scan of `kiana-*/src/**/*.rs`
