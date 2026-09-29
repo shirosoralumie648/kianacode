@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Web integration tests never sent a UI tab header evidence (2026-09-30)
+
+source_snapshot: `95eed3f3` plus this fix; `kiana-entrypoints/tests/cli_web.rs`
+worktree_status: Twelfth real defect, and the fifth fixture-layer one. Four tests in the web CLI suite fail, two of them with symptoms that point somewhere other than the real cause: `web_cassette_writes_through_daemon_host` asserts `trusted["trusted"] == true` but reads `left: Null` because the response body was `{"error":"web_tab_required"}`, and another expects `session_unknown` but receives `String("web_tab_required")` — the request is refused at the tab gate before it ever reaches the session logic the test means to exercise. The suite carries no tab header at all (zero occurrences of "tab" before this change). The web surface has required tab ownership since UI-19: eight routes call `require_web_tab(&headers)`, and the SSE `events` route demands `tab_id` as a query parameter. That requirement is deliberate — it is the per-tab fencing that stops one browser tab from acting on another's session — so the fix is in the fixture. A `TAB` constant and the `x-kiana-ui-tab` header were added alongside every existing `x-kiana-web-token` header (eleven sites), and `&tab_id={TAB}` was added to the three SSE URLs.
+command_argv:
+  cargo fmt --all --check                                          # exit 0
+  cargo check -p kiana-entrypoints --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-entrypoints) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing web CLI fixtures; their assertions are untouched, only the requests now carry the tab the surface has required all along.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes test files. No assertion, expected value or deny case was altered, and no production code was touched: `require_web_tab` still refuses a request without a tab, which is the point. The eleven header sites and three SSE URLs now carry a single fixed tab id, so these tests exercise one tab's view; they do not and were not intended to test two-tab fencing, which remains UI-19's own subject. Whether the four affected tests now pass is unobserved, and the tab id `tab-1` satisfies `validate_web_tab_id` (non-empty, bounded, no separator or control characters).
+reviewer: Codex review of the four failures against `require_web_tab`, the SSE `events` route and the suite's request construction; no local runtime test reviewer.
+
 ### BQ-29 accepted golden trace pinned no target version evidence (2026-09-30)
 
 source_snapshot: `d8b244e7` plus this fix; `kiana-core/tests/bq29_golden_trace_chain.rs` (`accepted_trace`)

@@ -7,6 +7,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 
+/// UI tab 归属头（UI-19 多 tab 并发）。
+///
+/// Web 面的会话操作按 tab 归属并做 fencing，`/api/trust`、`/api/state` 等入口都用
+/// `require_web_tab` 拒绝没有 tab 的请求。这些用例此前只带 token、不带 tab，
+/// 于是请求在 tab 闸口就被 `web_tab_required` 挡下，根本走不到被测的领域逻辑。
+/// 生产侧的要求是刻意的（UI-19），所以修的是夹具：补上 tab 头，而不是放宽归属校验。
+const TAB: &str = "tab-1";
+
 fn unique_dir(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -152,7 +160,11 @@ async fn web_cassette_writes_through_daemon_host() {
     let unauthorized = client.get(format!("{url}/api/state")).send().await.unwrap();
     assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
 
-    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+    let auth = |request: reqwest::RequestBuilder| {
+        request
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", TAB)
+    };
 
     let trusted: Value = auth(
         client
@@ -245,7 +257,11 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
         .and_then(|value| value.split('\'').next())
         .expect("web token")
         .to_owned();
-    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+    let auth = |request: reqwest::RequestBuilder| {
+        request
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", TAB)
+    };
 
     let state: Value = auth(client.get(format!("{url}/api/state")))
         .send()
@@ -256,7 +272,7 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
         .unwrap();
     let session_id = state["session_id"].as_str().expect("session id").to_owned();
     let events_base = format!(
-        "{url}/api/events?session_id={}",
+        "{url}/api/events?session_id={}&tab_id={TAB}",
         urlencoding_encode(&session_id)
     );
     let events_url = format!("{events_base}&token={}", urlencoding_encode(&token));
@@ -390,7 +406,11 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
         .and_then(|value| value.split('\'').next())
         .expect("web token")
         .to_owned();
-    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+    let auth = |request: reqwest::RequestBuilder| {
+        request
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", TAB)
+    };
 
     let state: Value = auth(client.get(format!("{url}/api/state")))
         .send()
@@ -401,7 +421,7 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
         .unwrap();
     let session_id = state["session_id"].as_str().expect("session id").to_owned();
     let events_url = format!(
-        "{url}/api/events?session_id={}&token={}",
+        "{url}/api/events?session_id={}&tab_id={TAB}&token={}",
         urlencoding_encode(&session_id),
         urlencoding_encode(&token)
     );
@@ -432,6 +452,7 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
             client
                 .post(format!("{url}/api/run"))
                 .header("x-kiana-web-token", token)
+                .header("x-kiana-ui-tab", TAB)
                 .json(&serde_json::json!({
                     "prompt": "stream then sleep",
                     "session_id": session_id,
@@ -545,7 +566,7 @@ async fn web_sse_unknown_session_connection_fails_closed_with_explicit_error() {
 
     let response = client
         .get(format!(
-            "{url}/api/events?session_id=missing-session&token={}",
+            "{url}/api/events?session_id=missing-session&token={}&tab_id={TAB}",
             urlencoding_encode(token)
         ))
         .send()
@@ -689,6 +710,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let wrong_loopback_origin = client
         .post(format!("{url}/api/trust"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .header("origin", format!("http://127.0.0.1:{wrong_port}"))
         .send()
         .await
@@ -701,6 +723,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let wrong_loopback_host = client
         .post(format!("{url}/api/trust"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .header("host", format!("127.0.0.1:{wrong_port}"))
         .send()
         .await
@@ -713,6 +736,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let wrong_origin = client
         .post(format!("{url}/api/trust"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .header("origin", "https://attacker.example")
         .send()
         .await
@@ -722,6 +746,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let wrong_host = client
         .post(format!("{url}/api/trust"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .header("host", "attacker.example")
         .send()
         .await
@@ -731,6 +756,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let state: Value = client
         .get(format!("{url}/api/state"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .send()
         .await
         .unwrap()
@@ -742,6 +768,7 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
     let trusted: Value = client
         .post(format!("{url}/api/trust"))
         .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
         .header("origin", &url)
         .send()
         .await
@@ -952,7 +979,11 @@ async fn web_projects_each_run_to_its_requested_session() {
         .and_then(|value| value.split('\'').next())
         .expect("web token")
         .to_owned();
-    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+    let auth = |request: reqwest::RequestBuilder| {
+        request
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", TAB)
+    };
 
     let initial: Value = auth(client.get(format!("{url}/api/state")))
         .send()
