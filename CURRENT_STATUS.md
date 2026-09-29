@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### CO-06 ArtifactVersion::new could never succeed evidence (2026-09-30)
+
+source_snapshot: `8d8a789f` plus this fix; `kiana-domain/src/artifact_contracts.rs` (`valid_digest`, `ArtifactVersion::new`, `ArtifactVersion::validate`)
+worktree_status: Sixth real defect, and the second instance of the "constructor rejected by its own validator" pattern already found in `SecurityControl::new`. `ArtifactVersion::new` fills `content_hash` with `journal_sha256(content)`, and `journal_sha256` is `format!("{:x}", Sha256::digest(bytes))` — bare 64-character hex with no prefix. The very next line calls `artifact.validate()`, whose `valid_digest` required a `sha256:` prefix via `strip_prefix`. The value the constructor had just produced was therefore rejected by the constructor's own validation, so `ArtifactVersion::new` returned `Err` every time and the CO-06 family of tests failed at their `.unwrap()`. The bare form is not incidental: `kiana-eventlog/src/artifact_store.rs` and `kiana-ports/src/lib.rs` both verify artifacts with `journal_sha256(content) != version.content_hash`, i.e. they too interpret the field as bare hex. Meanwhile `scope_digest` arrives from callers and follows the prefixed `json_digest` convention used across the rest of the domain. `valid_digest` now accepts either spelling, with the strength unchanged: the body must still be exactly 64 characters and entirely hex, otherwise `{field}_invalid` is returned as before.
+command_argv:
+  cargo fmt --all --check                                  # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: the 41-shard matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing CO-06 / PD-14 / PD-31 artifact fixtures; none added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: as with the journal validator, accepting both spellings is a widening relative to either single form, and the justification is again empirical — bare hex is what the constructor writes and what two independent consumers compare against, so the prefixed-only check was simply wrong for this field. The hash itself is unchanged; only the accepted spelling widened. The deeper problem is that the repository has no single digest convention, and this is the second time that has surfaced as a defect; a normalisation decision would remove the whole class rather than patching each site. Whether the affected fixtures now pass is unobserved, and `artifact_content_hash_invalid` stood at 10 occurrences in run 36595558875 before this change.
+reviewer: Codex root-cause review of the ten `artifact_content_hash_invalid` occurrences against the constructor, its validator and the two consumers; no local runtime test reviewer.
+
 ### Test digest-fixture hex bug across 28 files evidence (2026-09-30)
 
 source_snapshot: `aaefb261` plus this fix; 28 `kiana-*/tests/*.rs` files

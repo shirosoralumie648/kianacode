@@ -24,10 +24,24 @@ fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     }
 }
 
+/// 校验一个 sha256 摘要，`sha256:` 前缀可有可无。
+///
+/// 【为什么前缀可选】
+/// 本文件里的 `content_hash` 与 `scope_digest` 实际上由两种写法产生：
+///
+/// - `ArtifactVersion::new` 用 `journal_sha256(content)` 填 `content_hash`，而
+///   `journal_sha256` 是 `format!("{:x}", Sha256::digest(bytes))`——**裸 64 位 hex**。
+///   `kiana-eventlog` 的 `artifact_store` 与 `kiana-ports` 的 artifact port 也都用
+///   `journal_sha256(content) != version.content_hash` 来比对，因此同样按裸 hex 理解。
+/// - `scope_digest` 由调用方给出，仓库其余契约（`adapter_result`、`approval_journal`、
+///   `assignment` 等）统一使用 `json_digest` 的 `sha256:` 前缀形式。
+///
+/// 此前本函数强制要求前缀，于是 `ArtifactVersion::new` 产出的裸 hex 摘要被它自己的
+/// 校验当场拒绝——**该构造器从未成功过一次**，CO-06 一族用例全部卡在 `.unwrap()`。
+/// 改为两种写法都接受，强度不变：摘要本体仍须恰好 64 位且全为 hex，否则仍返回
+/// `{field}_invalid`。
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {
-    let Some(hex) = value.strip_prefix("sha256:") else {
-        return Err(format!("{field}_invalid"));
-    };
+    let hex = value.strip_prefix("sha256:").unwrap_or(value);
     if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(format!("{field}_invalid"));
     }
