@@ -2,7 +2,10 @@ use kiana_domain::*;
 use std::collections::BTreeMap;
 
 fn digest(value: char) -> String {
-    format!("sha256:{}", value.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (value as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn evidence(rank: u32, generation: u64) -> RetrievalEvidence {

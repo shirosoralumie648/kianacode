@@ -11,7 +11,10 @@ fn plan() -> CompanyParallelPlan {
         partition_ids: vec!["partition-a".to_owned(), "partition-b".to_owned()],
         input_version: 3,
         authority_epoch: 7,
-        isolation_digest: format!("sha256:{}", "i".repeat(64)),
+        isolation_digest: format!(
+            "sha256:{}",
+            format!("{:04x}", ('i' as u32) & 0xffff).repeat(16)
+        ),
         output_contract: "receipt-only".to_owned(),
         max_concurrency: 2,
         expires_at: 100,

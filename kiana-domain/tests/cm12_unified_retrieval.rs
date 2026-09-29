@@ -1,7 +1,10 @@
 use kiana_domain::*;
 
 fn digest(value: char) -> String {
-    format!("sha256:{}", value.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (value as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn item(id: &str, text: &str, allowed: bool, created_at_ms: u64) -> RetrievalItem {

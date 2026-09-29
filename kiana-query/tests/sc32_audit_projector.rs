@@ -23,7 +23,10 @@ const SUBJECT: &str = "principal:auditor";
 const DATA_EPOCH: u64 = 4;
 
 fn digest(seed: char) -> String {
-    format!("sha256:{}", seed.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (seed as u32) & 0xffff).repeat(16)
+    )
 }
 
 /// A committed event the audit reducer recognises. `run.authorized` is an authorization decision

@@ -15,7 +15,10 @@ fn role_pack(role_id: &str, profile: &PolicyProfile) -> CompanyRolePackVersion {
         schema: COMPANY_ROLE_PACK_SCHEMA.to_owned(),
         role_id: role_id.to_owned(),
         version: 1,
-        prompt_hash: format!("sha256:{}", "p".repeat(64)),
+        prompt_hash: format!(
+            "sha256:{}",
+            format!("{:04x}", ('p' as u32) & 0xffff).repeat(16)
+        ),
         input_schema: format!("kiana.company.input.{role_id}.v1"),
         output_schema: format!("kiana.company.output.{role_id}.v1"),
         model_profile: format!("{role_id}-profile"),

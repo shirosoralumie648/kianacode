@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Test digest-fixture hex bug across 28 files evidence (2026-09-30)
+
+source_snapshot: `aaefb261` plus this fix; 28 `kiana-*/tests/*.rs` files
+worktree_status: Fifth real defect, and the first one located in test fixtures rather than product code. A widely copied helper builds a digest as `format!("sha256:{}", seed.to_string().repeat(64))`. That is only a well-formed digest when the seed is itself a hex digit. Most call sites happen to use `'a'`..`'f'` and are fine, but 28 files use seeds outside `[0-9a-f]` — `'q'`, `'s'`, `'x'`, `'z'`, `'p'`, `'i'`, `'t'`, `'u'`, `'k'`, `'g'`, `'j'`, `'m'`, `'o'`, `'r'`, `'l'` — producing a `sha256:` body that the canonical validators correctly refuse, e.g. `query_data_boundary_scope_digest_invalid`. The helpers now derive the body from the seed's code point as hex (`format!("{:04x}", (seed as u32) & 0xffff).repeat(16)`), which is 64 hex characters for any ASCII seed and stays injective, so distinct seeds keep producing distinct digests. 186 files share the helper shape; only the 28 with a non-hex seed were touched.
+command_argv:
+  cargo fmt --all --check                                  # exit 0
+  cargo check --workspace --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: the 41-shard matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing fixtures in the 28 files; none added or removed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes test files, so the justification is stated plainly. No assertion, expected value, deny case or `#[ignore]` was touched — every test still asserts exactly what it asserted before. What changed is only the generation of an *input* that the production contract requires to be a well-formed digest: a `sha256:` body of 64 hex characters. The validators were left alone because they are the canonical ones and they were right to refuse the malformed fixtures. An earlier, broader version of this edit also rewrote `"compile output\n".repeat(64)` in `kiana-tasks/tests/evidence_ledger.rs`, which is a legitimate non-digest fixture string rather than a seed; that edit was caught and reverted, and the file is unchanged in this commit. Whether the affected fixtures now pass is unobserved. This also does not establish that `seed.repeat(64)` was a good digest fixture to begin with — a repeated character is not a realistic hash — but it is a deterministic, format-valid one, which is what these tests require.
+reviewer: Codex sweep of every `repeat(64)` call site under `kiana-*/tests`, with a tree-wide format and type-check afterwards; no local runtime test reviewer.
+
 ### Journal digest validator: correcting an over-correction evidence (2026-09-29)
 
 source_snapshot: `ca7a2fcc` plus this fix; `kiana-domain/src/journal.rs` (`TransitionBatch::validate_identity`)

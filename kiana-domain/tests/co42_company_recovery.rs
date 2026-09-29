@@ -13,7 +13,10 @@ fn fact(sequence: u64, cursor: u64, outcome: CompanyFactOutcome) -> CompanyRecov
             CompanyFactKind::RuntimeObservation
         },
         outcome,
-        payload_digest: format!("sha256:{}", "p".repeat(64)),
+        payload_digest: format!(
+            "sha256:{}",
+            format!("{:04x}", ('p' as u32) & 0xffff).repeat(16)
+        ),
         evidence_digest: (outcome == CompanyFactOutcome::Known)
             .then(|| format!("sha256:{}", "e".repeat(64))),
         digest: String::new(),

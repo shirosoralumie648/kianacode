@@ -6,7 +6,10 @@ use kiana_domain::{
 use serde_json::json;
 
 fn digest(ch: char) -> String {
-    format!("sha256:{}", ch.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (ch as u32) & 0xffff).repeat(16)
+    )
 }
 
 #[test]

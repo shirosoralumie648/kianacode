@@ -104,7 +104,10 @@ impl RunnerPort for NoRunner {
 
 /// A well-formed `sha256:<64 hex>` value; every argument digest the gate accepts has this shape.
 fn digest(seed: char) -> String {
-    format!("sha256:{}", seed.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (seed as u32) & 0xffff).repeat(16)
+    )
 }
 
 /// A fresh project root, already canonicalized so the fixture hashes exactly what the gate hashes

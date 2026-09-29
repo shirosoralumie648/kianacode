@@ -2,7 +2,10 @@ use kiana_domain::*;
 use serde_json::json;
 
 fn digest(letter: char) -> String {
-    format!("sha256:{}", letter.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (letter as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn route() -> ModelRoute {

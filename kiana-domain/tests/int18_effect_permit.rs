@@ -3,7 +3,10 @@ use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn digest(seed: char) -> String {
-    format!("sha256:{}", seed.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (seed as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn binding() -> ConnectorBindingSnapshot {

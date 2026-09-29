@@ -3,7 +3,10 @@ use kiana_ports::RetrievalPort;
 use kiana_query::{rank_unified, UnifiedRetrievalPort};
 
 fn digest(value: char) -> String {
-    format!("sha256:{}", value.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (value as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn items() -> Vec<RetrievalItem> {

@@ -12,7 +12,10 @@ use kiana_domain::{EvalCaseId, EvalSuiteId, GoldenTrace};
 use std::collections::BTreeMap;
 
 fn digest(byte: char) -> String {
-    format!("sha256:{}", byte.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (byte as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn stage(kind: ChainStage) -> ChainStageObservation {

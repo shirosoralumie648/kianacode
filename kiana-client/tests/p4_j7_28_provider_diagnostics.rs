@@ -2,7 +2,10 @@ use kiana_client::{ProviderDiagnosticsClientError, ProviderDiagnosticsClientStat
 use kiana_domain::*;
 
 fn digest(seed: char) -> String {
-    format!("sha256:{}", seed.to_string().repeat(64))
+    format!(
+        "sha256:{}",
+        format!("{:04x}", (seed as u32) & 0xffff).repeat(16)
+    )
 }
 
 fn snapshot() -> ProviderDiagnosticsSnapshot {
