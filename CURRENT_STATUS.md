@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### BQ-29 accepted golden trace pinned no target version evidence (2026-09-30)
+
+source_snapshot: `d8b244e7` plus this fix; `kiana-core/tests/bq29_golden_trace_chain.rs` (`accepted_trace`)
+worktree_status: Eleventh real defect, and the fourth fixture-layer one. Five tests in the BQ-29 golden-trace suite fail with `golden_trace_target_versions_invalid`. The suite's own helper is named `accepted_trace` and is documented as "一条被接受、未过期、形状完整、并且带 receipt 的 golden trace", yet it passed `BTreeMap::new()` for `target_versions`. `GoldenTrace::validate` requires that map to be non-empty and bounded, and the rule is right: a golden trace exists to pin the behaviour of a specific target, and a trace that pins no version cannot be reproduced or compared against anything. The fixture was manufacturing a trace that violated the contract it was claiming to satisfy. It now pins one target, `kiana-core` at `0.1.0`, which satisfies the bound on the key (64), the bound on the value (2048) and the requirement that neither be rewritten by `redact_text`.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-core --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s*) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing BQ-29 fixtures; the pinned version is new metadata, and no assertion was altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: unlike the previous three fixture repairs, this one adds a value rather than merely correcting a malformed one — the fixture was previously claiming to be an accepted trace while pinning nothing. The added entry is inert metadata checked by the same validator as any other, and the trace's digest is recomputed from it, so it cannot be used to smuggle anything past the binding. A tree-wide check confirmed this was the only genuinely empty `target_versions`: `kiana-domain/tests/eq03_eval_objects.rs` also writes `BTreeMap::new()`, but immediately inserts `runtime -> v1` before use. Whether the five affected fixtures now pass is unobserved.
+reviewer: Codex review of the five `golden_trace_target_versions_invalid` occurrences against `accepted_trace` and the `validate_cursor`-adjacent bound checks; no local runtime test reviewer.
+
 ### Eventlog integration fixtures: completing the 0o600 repair evidence (2026-09-30)
 
 source_snapshot: `cd5f2e38` plus this fix; `kiana-eventlog/tests/pd06_jsonl_recovery.rs`, `kiana-eventlog/tests/er05_jsonl_v2.rs`

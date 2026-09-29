@@ -276,7 +276,11 @@ fn accepted_trace() -> GoldenTrace {
         None,
         "0be643aa",
         digest('i'),
-        BTreeMap::new(),
+        // 一条 golden trace 必须钉住它所针对的版本；`target_versions` 为空意味着「什么都没钉」，
+        // `validate()` 会以 `golden_trace_target_versions_invalid` 拒绝。生产契约是对的——
+        // 不钉版本的 trace 无法复现。这里补上被钉住的那一项（key ≤ 64、value ≤ 2048，
+        // 且两者都不得被 `redact_text` 改写）。
+        BTreeMap::from([("kiana-core".to_owned(), "0.1.0".to_owned())]),
         1,
         12,
         vec![serde_json::json!({"kind": "model_call"})],
