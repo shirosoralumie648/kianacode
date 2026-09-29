@@ -475,7 +475,23 @@ impl Sc38PropertyCase {
             iteration,
             shape,
             invariant,
-            outcome: Sc38Outcome::Denied,
+            // 【为什么 outcome 必须由 invariant 推导，而不是写死 Denied】
+            // `validate()` 要求 `invariant == DuplicateDeduplicated` 的 case 其 outcome
+            // 必须是 `Deduplicated`；而 `new()` 原本无条件写 `Denied`，紧接着又在同一函数
+            // 末尾调用 `validate()`。两者相加的结果是：**这个构造器永远无法构造出
+            // DuplicateDeduplicated 的 case**，每次都以
+            // `sc38_property_case_duplicate_outcome_invalid` 失败。
+            // 夹具层已经在事后手工纠正 outcome（再重算 case_digest），但那发生在构造之后，
+            // 根本走不到。
+            //
+            // 这里让 outcome 随 invariant 走：只有 DuplicateDeduplicated 用 Deduplicated，
+            // 其余保持 Denied。需要「把重复帧记成一次新的拒绝」这种**错误**组合的用例，
+            // 仍然可以照常在构造之后改写 outcome 再断言 `validate()` 拒绝——那条路径不受影响。
+            outcome: if invariant == Sc38Invariant::DuplicateDeduplicated {
+                Sc38Outcome::Deduplicated
+            } else {
+                Sc38Outcome::Denied
+            },
             expected_reason,
             observed_reason: expected_reason.as_str().to_owned(),
             input_digest: input_digest.into(),

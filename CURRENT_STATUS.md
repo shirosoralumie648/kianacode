@@ -13255,6 +13255,23 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### SC-38 property case constructor could never build a duplicate case evidence (2026-09-30)
+
+source_snapshot: `bc498e01` plus this fix; `kiana-domain/src/security_fixture_contracts.rs` (`Sc38PropertyCase::new`)
+worktree_status: Fourteenth real defect and the fourth instance of the "function could never succeed" class, after `SecurityControl::new`, `ArtifactVersion::new` and the BQ-25 label probe. `Sc38PropertyCase::new` hardcoded `outcome: Sc38Outcome::Denied` and then called `case.validate()` at the end of the same function. `validate()` requires that a case whose `invariant` is `DuplicateDeduplicated` carry `outcome == Deduplicated`. The two together mean the constructor could never build a duplicate-frame case: every attempt failed with `sc38_property_case_duplicate_outcome_invalid`. Both affected fixtures already knew this — each constructs the case and then hand-corrects `outcome` and recomputes `case_digest` — but that correction happens *after* the constructor has already returned its error, so it was unreachable. The outcome is now derived from the invariant: `DuplicateDeduplicated` yields `Deduplicated`, everything else keeps `Denied`.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  cargo check -p kiana-core   --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-domain), Tests (kiana-core-s*)
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing SC-38 fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the fixtures that deliberately assert a *wrong* outcome is refused — `sc38_duplicate_frame_is_deduplicated_not_re_effect` builds the case, sets `outcome = Denied`, recomputes the digest and expects `validate()` to reject it — still work, because the constructor now produces a valid case that the test then corrupts on purpose. The deny path is therefore preserved rather than bypassed. Only one invariant constrains the outcome today; if a second invariant later requires its own outcome, the same derivation should be extended rather than a caller-side fixup. Whether the affected fixtures now pass is unobserved.
+reviewer: Codex review of the four `sc38_property_case_duplicate_outcome_invalid` occurrences against the constructor and `validate`; no local runtime test reviewer.
+
 ### Metric label probe could never be constructed evidence (2026-09-30)
 
 source_snapshot: `fd00a905` plus this fix; `kiana-core/src/data_class.rs` (`metric_point_for`, new `PROBE_SOURCE_CURSOR`)
