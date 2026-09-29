@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Metric label probe could never be constructed evidence (2026-09-30)
+
+source_snapshot: `fd00a905` plus this fix; `kiana-core/src/data_class.rs` (`metric_point_for`, new `PROBE_SOURCE_CURSOR`)
+worktree_status: Thirteenth real defect, and the third instance of the "function could never succeed" class already found in `SecurityControl::new` and `ArtifactVersion::new`. `metric_point_for` builds a `MetricPoint` to run the metric label decision, and it passed `0` for `source_cursor` and an empty `Vec` for `source_event_ids`. `MetricPoint::new` validates both through `validate_cursor`, which requires a non-zero cursor and at least one event id, so the construction failed immediately with `observability_source_cursor_required` / `observability_source_event_ids_required` and the label decision never ran. Six BQ-25 tests report the cursor variant. The reference-field path was already broken this way before the previous commit; it was simply hidden behind the earlier `metric_unregistered`, which returned first. The cursor and the event id here are probe placeholders, not observed facts — the point exists only to be handed to `runtime_metric_refusal` and is never persisted or placed in a Receipt — so the probe now supplies a fixed cursor of 1 and one event id, which is what the shape check needs and nothing more.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-core --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s*) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing BQ-25 fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the event id is generated with `EventId::new()` and is therefore random per call, which is acceptable only because the probe is discarded after the label decision and never serialised; had the point been persisted this would have been a defect, and the comment in the code says so. The cursor is the fixed value 1 and likewise carries no meaning. Neither value is compared against anything, so the label decision — the only thing this function exists to make — is unaffected. This is a defect in a decision helper, not in any persistence or receipt path, and nothing about observability provenance is claimed or changed. Whether the six affected tests now pass is unobserved.
+reviewer: Codex review of the six `observability_source_cursor_required` occurrences against `metric_point_for` and `validate_cursor`; no local runtime test reviewer.
+
 ### Web integration tests never sent a UI tab header evidence (2026-09-30)
 
 source_snapshot: `95eed3f3` plus this fix; `kiana-entrypoints/tests/cli_web.rs`

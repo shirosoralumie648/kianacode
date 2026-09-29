@@ -728,10 +728,22 @@ fn metric_point_for(field: &SinkField, catalog: &MetricCatalog) -> Result<Metric
         definition.unit.clone(),
         labels,
         definition.source,
-        0,
-        Vec::<EventId>::new(),
+        // 【为什么这里必须给一个非零 cursor 和至少一个 event id】
+        // 这两点是**探针的占位值**，不是被观测事实：point 只用于跑标签准入判断，
+        // 不会落库、也不会进入任何 Receipt。但 `MetricPoint::new` 会校验它们——
+        // `validate_cursor` 要求 cursor != 0 且 source_event_ids 非空。
+        // 此前这里传 `0` 和空 vec，于是构造当场被拒：
+        // `observability_source_cursor_required` / `observability_source_event_ids_required`，
+        // **这个函数从来没有成功过一次**，标签准入判断根本跑不到。
+        // 标签字段与 reference 字段都受影响；reference 字段的失败早于本次改动，
+        // 只是先前被更早的 `metric_unregistered` 挡住了看不见。
+        PROBE_SOURCE_CURSOR,
+        vec![EventId::new()],
     )
 }
+
+/// 探针用的合成 source cursor。只用于让 `MetricPoint` 构造通过形状校验，不承载事实。
+const PROBE_SOURCE_CURSOR: u64 = 1;
 
 /// Position of a [`DataClass`] on the existing public/internal/confidential/restricted ladder.
 ///
