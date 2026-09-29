@@ -275,7 +275,7 @@ impl Fixture {
     }
 
     fn context(&self) -> RequestContext {
-        reviewer_context(SESSION)
+        reviewer_context(SESSION, &self.root)
     }
 
     /// A legitimately approved promotion, bound to `context`'s scope and to `epoch`.
@@ -324,8 +324,18 @@ impl Fixture {
     }
 }
 
-fn reviewer_context(session: &str) -> RequestContext {
-    let mut context = RequestContext::local(session, "");
+/// 【为什么必须把 project_root 传进来】
+/// `RequestContext::local(session_id, project_root)` 的第二个参数就是项目根。此前这里
+/// 写死了 `""`，于是 `Fixture::context()` 交出去的 context 带着**空的项目根**，
+/// 而 authority 修订是按 fixture 自己的 `self.root` 播种的。
+///
+/// 质量门读 epoch 时走 `authority_epoch(&context.project_root)`，它以
+/// `json_digest({"project_root": canonical(root)})` 为 key 去读 authority 流——
+/// 空根算出的 key 与 `self.root` 算出的 key 不同，查不到任何修订，epoch 退化为 0，
+/// 于是**每一次**质量请求都先被 `quality_authority_epoch_missing` 挡下，
+/// 把后面那些更具体的拒绝（secondary approval、scope digest、stale epoch…）全部掩盖。
+fn reviewer_context(session: &str, project_root: &str) -> RequestContext {
+    let mut context = RequestContext::local(session, project_root);
     context.project_trusted = true;
     context.permission_profile = PermissionProfile::Balanced;
     context.actor_id = Some(ACTOR.to_owned());
@@ -414,7 +424,7 @@ async fn scope_digest_from_another_session_cannot_promote() {
     let approved_session = fixture.context();
     let promotion = fixture.promotion(&approved_session, 1);
     fixture.approve(&promotion, PROMOTE).await;
-    let other_session = reviewer_context("eq43-other-session");
+    let other_session = reviewer_context("eq43-other-session", &fixture.root);
 
     let response = fixture
         .submit(other_session, PROMOTE, promotion.arguments(PROMOTE))
