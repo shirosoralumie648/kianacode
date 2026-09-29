@@ -166,6 +166,21 @@ async fn web_cassette_writes_through_daemon_host() {
             .header("x-kiana-ui-tab", TAB)
     };
 
+    // 会话归属：session 建于 `owner_tab_id: None`，必须由某个 tab 经
+    // `GET /api/bootstrap` 认领（`claim_session_tab`），之后带同一 tab 的请求才通过
+    // `session_owner_required` 归属校验。此前这些用例直接发请求、会话从未被认领，
+    // 于是每个带 tab 的请求都撞上归属拒绝。生产侧的归属栅栏是刻意的（UI-19），
+    // 所以这里补上认领步骤，而不是放宽校验。
+    let claimed = auth(client.get(format!("{url}/api/bootstrap")))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        claimed.status().is_success(),
+        "bootstrap must claim the session for this tab: {}",
+        claimed.status()
+    );
+
     let trusted: Value = auth(
         client
             .post(format!("{url}/api/trust"))
@@ -262,6 +277,21 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
             .header("x-kiana-web-token", &token)
             .header("x-kiana-ui-tab", TAB)
     };
+
+    // 会话归属：session 建于 `owner_tab_id: None`，必须由某个 tab 经
+    // `GET /api/bootstrap` 认领（`claim_session_tab`），之后带同一 tab 的请求才通过
+    // `session_owner_required` 归属校验。此前这些用例直接发请求、会话从未被认领，
+    // 于是每个带 tab 的请求都撞上归属拒绝。生产侧的归属栅栏是刻意的（UI-19），
+    // 所以这里补上认领步骤，而不是放宽校验。
+    let claimed = auth(client.get(format!("{url}/api/bootstrap")))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        claimed.status().is_success(),
+        "bootstrap must claim the session for this tab: {}",
+        claimed.status()
+    );
 
     let state: Value = auth(client.get(format!("{url}/api/state")))
         .send()
@@ -411,6 +441,21 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
             .header("x-kiana-web-token", &token)
             .header("x-kiana-ui-tab", TAB)
     };
+
+    // 会话归属：session 建于 `owner_tab_id: None`，必须由某个 tab 经
+    // `GET /api/bootstrap` 认领（`claim_session_tab`），之后带同一 tab 的请求才通过
+    // `session_owner_required` 归属校验。此前这些用例直接发请求、会话从未被认领，
+    // 于是每个带 tab 的请求都撞上归属拒绝。生产侧的归属栅栏是刻意的（UI-19），
+    // 所以这里补上认领步骤，而不是放宽校验。
+    let claimed = auth(client.get(format!("{url}/api/bootstrap")))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        claimed.status().is_success(),
+        "bootstrap must claim the session for this tab: {}",
+        claimed.status()
+    );
 
     let state: Value = auth(client.get(format!("{url}/api/state")))
         .send()
@@ -984,6 +1029,21 @@ async fn web_projects_each_run_to_its_requested_session() {
             .header("x-kiana-web-token", &token)
             .header("x-kiana-ui-tab", TAB)
     };
+
+    // 会话归属：session 建于 `owner_tab_id: None`，必须由某个 tab 经
+    // `GET /api/bootstrap` 认领（`claim_session_tab`），之后带同一 tab 的请求才通过
+    // `session_owner_required` 归属校验。此前这些用例直接发请求、会话从未被认领，
+    // 于是每个带 tab 的请求都撞上归属拒绝。生产侧的归属栅栏是刻意的（UI-19），
+    // 所以这里补上认领步骤，而不是放宽校验。
+    let claimed = auth(client.get(format!("{url}/api/bootstrap")))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        claimed.status().is_success(),
+        "bootstrap must claim the session for this tab: {}",
+        claimed.status()
+    );
 
     let initial: Value = auth(client.get(format!("{url}/api/state")))
         .send()

@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Web sessions were never claimed by a tab evidence (2026-09-30)
+
+source_snapshot: `d70c7027` plus this fix; `kiana-entrypoints/tests/cli_web.rs`; production behaviour in `kiana-entrypoints/src/web.rs` (session construction, `claim_session_tab`, `bootstrap`, the ownership gate) left untouched
+worktree_status: Fifteenth real defect, and a direct follow-on to the tab-header repair. After the tab header was supplied, four web CLI tests moved from `web_tab_required` to `session_owner_required`, which is the next gate down the same path. The cause is a second missing step rather than a second wrong value: a session is constructed with `owner_tab_id: None`, and ownership is established only when a tab claims it through `GET /api/bootstrap`, which calls `claim_session_tab`. The suite never called bootstrap, so no tab ever owned the session and every tab-bearing request was refused by the ownership gate. The fix adds the bootstrap claim after each of the four `auth` closures, so the tab that will make the requests is the tab that owns the session.
+command_argv:
+  cargo fmt --all --check                                             # exit 0
+  cargo check -p kiana-entrypoints --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-entrypoints) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing web CLI fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes test files, and the production contract is untouched — `bootstrap` still claims, and the ownership gate still refuses a tab that does not own the session. The four tests now perform the real two-step client flow (trust, then claim) instead of skipping the second step. An earlier attempt to apply this edit matched zero closures because rustfmt had already reflowed them into a block form; that first attempt was a no-op and the edit was reapplied against the actual formatting. Whether the four now pass is unobserved, and they may expose further defects in the same chain — the tab and owner gates were the two that had been masking each other.
+reviewer: Codex review of the four `session_owner_required` occurrences against session construction, `claim_session_tab` and the ownership gate; no local runtime test reviewer.
+
 ### Verified effect of the web-tab, metric-probe and SC-38 fixes (2026-09-30)
 
 source_snapshot: `afd06eb8`; GitHub Actions run 36619950738
