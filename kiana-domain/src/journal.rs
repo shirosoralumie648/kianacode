@@ -61,13 +61,20 @@ pub struct TransitionBatch {
     pub events: Vec<RuntimeEvent>,
 }
 impl TransitionBatch {
+    /// 【为什么这里接受 `sha256:` 前缀】
+    /// 本仓库的 digest 规范由 `json_digest` 决定，它返回 `format!("sha256:{:x}", ..)`。
+    /// domain 内的其他契约——`adapter_result`、`approval_journal`、`approval_preview`、
+    /// `artifact_contracts`、`assignment`——都先用 `strip_prefix("sha256:")` 再校验 64 位 hex。
+    /// 此前本函数是唯一的例外，只接受裸 64 位 hex，于是它与生产代码自相矛盾：
+    /// `kiana-core` 的 `model_budget` 等路径正是用 `json_digest` 构造 `command_digest`，
+    /// 而 `kiana-eventlog` 的 `journal_core` / `jsonl` 写入路径会调用本函数——
+    /// 也就是说，一条由本仓库自己生成、且格式完全合法的 digest 会被判为 invalid。
+    /// 这里改为遵循既有规范；错误码、长度与 hex 校验强度均未放宽。
     pub fn validate_identity(&self) -> Result<(), &'static str> {
-        if self.command_digest.len() != 64
-            || !self
-                .command_digest
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
+        let Some(hex) = self.command_digest.strip_prefix("sha256:") else {
+            return Err("journal_command_digest_invalid");
+        };
+        if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("journal_command_digest_invalid");
         }
         Ok(())

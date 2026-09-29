@@ -13223,6 +13223,23 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### Journal command digest contract fix evidence (2026-09-29)
+
+source_snapshot: `022b5455` plus this fix; `kiana-domain/src/journal.rs` (`TransitionBatch::validate_identity`)
+worktree_status: Second real defect repaired from the 705 failures. All 22 of them sit in `kiana-core/tests/support/bq26_adapter_seam.rs` and report `port_failed:journal_command_digest_invalid`. Root cause: this repository's digest contract is defined by `kiana_domain::json_digest`, which returns `format!("sha256:{:x}", ..)`. Six other domain validators — `adapter_result`, `approval_journal`, `approval_preview`, `artifact_contracts`, `assignment` — all `strip_prefix("sha256:")` and then check 64 hex characters. `TransitionBatch::validate_identity` was the lone outlier, accepting only bare 64-character hex, so it rejected digests this repository itself produces. This is not test-only: `kiana-eventlog/src/journal_core.rs` and `jsonl.rs` both call `validate_identity` on the write path, and `kiana-core/src/model_budget.rs` builds batches whose `command_digest` comes from `json_digest` — a well-formed, contract-conformant digest was being refused on a production path. The check now follows the established convention: the `sha256:` prefix is required, the hex body must be exactly 64 characters, and the error code is unchanged.
+command_argv:
+  cargo fmt --all --check                                   # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline   # exit 0, 0 errors
+  cargo check -p kiana-core   --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s1/6) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the 22 existing `bq26_adapter_seam` cases; no fixture was added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this aligns one validator with the convention the rest of the domain already follows; it is not a relaxation of the exit condition, because a missing prefix, a wrong-length body and a non-hex body are all still rejected with the same `journal_command_digest_invalid` code. The previous check was case-restricted to lowercase hex while the canonical `is_ascii_hexdigit` is not — `json_digest` emits lowercase via `{:x}`, so this widens acceptance only for uppercase hex, which no producer in the tree emits. Whether the 22 fixtures all pass afterwards is unproven until a run observes it, and other `journal_command_digest_invalid` call sites may exist that this fix does not cover.
+reviewer: Codex root-cause review of the 22 clustered failures against `json_digest` and the six peer validators; no local runtime test reviewer.
+
 ### bubblewrap dependency gap in the test matrix evidence (2026-09-29)
 
 source_snapshot: `812a8bd4` plus this fix; `.github/workflows/ci.yml` (`rust-tests` job)
