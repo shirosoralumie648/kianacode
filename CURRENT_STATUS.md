@@ -13255,6 +13255,21 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Measured state after fixes 18-22 (2026-09-30)
+
+source_snapshot: `af211b28`; GitHub Actions run 36630664782 (commit c434f520)
+worktree_status: A partial but much broader reading than the earlier ones. Of the run's 41 shards, 33 completed — 14 pass, 15 fail, 3 still running — and across those 15 failing shards all four targeted error classes are at **zero**: `connector_dispatch_pre_effect_artifacts_forbidden`, `memory_mutation_journal_approval_invalid`, `swarm_partition_fingerprint_invalid` and `memory_projection_fence_invalid`. The failure-message count across the measured shards is 317, against 267 measured earlier over a *smaller* set; the two are not comparable because the denominators differ, and the higher number reflects more shards having run rather than a regression.
+command_argv:
+  GitHub Actions run 36630664782 (commit c434f520)
+  per-shard log readback: 15 failing shards, 317 failure messages
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+fixture·cassette: unchanged; this is a measurement, not a change.
+exit_code: four targeted classes at zero; the run as a whole is still red
+status change: none. No step, feature_status or proof_level is promoted by this entry.
+proof-level change: none.
+limitations: the coverage is uneven in a way that matters. Three of the four fixes just measured — the memory-journal authority check, the swarm fingerprint length, and the PD-18 fence fixture — live in `kiana-domain`, and only `kiana-domain-s1/4` of that crate's four shards had completed when this was read. Their zeros are firm for the shard that ran and say nothing yet about the other three. The connector-dispatch fix is also in `kiana-domain`. Earlier in this session I twice saw a class read zero on a single failing shard and declined to call it verification; the same caution applies here in weaker form: this is better evidence than before, not complete evidence. The overall run remains red and no step is claimed complete.
+reviewer: Codex readback of run 36630664782 shard logs; no local runtime test reviewer.
+
 ### Route-test helpers read the wrong field, masking every refusal assertion (2026-09-30)
 
 source_snapshot: `c434f520` plus this fix; `kiana-core/tests/sc33_incident_command_route.rs`, `kiana-core/tests/bq30_promotion_route.rs`, `kiana-core/tests/dep25_effect_reconcile_route.rs`; the shape under test is `kiana_domain::CoreResponse` in `kiana-domain/src/states.rs`
