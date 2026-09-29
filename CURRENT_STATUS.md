@@ -13265,11 +13265,11 @@ command_argv:
   GitHub Actions: the 41-shard matrix
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
 fixture·cassette: the pre-existing fixtures in the 28 files; none added or removed.
-exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+exit_code: 0 for local format and static compile; GitHub Actions run 36595558875 (commit 6dbc88e3) measured the effect: total failure messages across the 21 failing shards fell from 665 to 481 (-184, about 28%), and `query_data_boundary_scope_digest_invalid`, `golden_trace_input_hash_invalid` and `journal_command_digest_invalid` all reached zero occurrences. `artifact_content_hash_invalid` remains at 10, which is an unrelated cause. Shard-level pass/fail moved 16/23 -> 18/21 across the session, because clearing individual failures inside a shard does not turn the whole shard green while other tests in it still fail.
 status change: none. No step, feature_status or proof_level is promoted by this commit.
 proof-level change: none.
 limitations: this changes test files, so the justification is stated plainly. No assertion, expected value, deny case or `#[ignore]` was touched — every test still asserts exactly what it asserted before. What changed is only the generation of an *input* that the production contract requires to be a well-formed digest: a `sha256:` body of 64 hex characters. The validators were left alone because they are the canonical ones and they were right to refuse the malformed fixtures. An earlier, broader version of this edit also rewrote `"compile output\n".repeat(64)` in `kiana-tasks/tests/evidence_ledger.rs`, which is a legitimate non-digest fixture string rather than a seed; that edit was caught and reverted, and the file is unchanged in this commit. Whether the affected fixtures now pass is unobserved. This also does not establish that `seed.repeat(64)` was a good digest fixture to begin with — a repeated character is not a realistic hash — but it is a deterministic, format-valid one, which is what these tests require.
-reviewer: Codex sweep of every `repeat(64)` call site under `kiana-*/tests`, with a tree-wide format and type-check afterwards; no local runtime test reviewer.
+reviewer: Codex sweep of every `repeat(64)` call site under `kiana-*/tests`, with a tree-wide format and type-check afterwards, then a before/after comparison of run 36590352539 against run 36595558875; no local runtime test reviewer.
 
 ### Journal digest validator: correcting an over-correction evidence (2026-09-29)
 
