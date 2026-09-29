@@ -13255,6 +13255,20 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### CAP-01 alias-registration error code — minor, needs a decision (2026-09-30)
+
+source_snapshot: `d0af4185`; `kiana-capability-broker/src/lib.rs` (`insert_handler`), `kiana-domain/src/actions.rs` (`canonical_action_operation`, `capability_action_descriptor`), `kiana-capability-broker/tests/cap01_registry.rs`
+worktree_status: Third and smallest item escalated under AGENTS.md §10. `kiana-capability-broker/tests/cap01_registry.rs` registers the bare tool name `shell` and expects `capability_operation_unknown`; the broker returns `capability_binding_catalog_mismatch`. Both are refusals, so nothing unsafe is being let through — the disagreement is purely about which stable error code is the honest one.
+command_argv:
+  GitHub Actions run 36595558875 (commit 6dbc88e3), Tests (kiana-capability-broker): 4 x capability_operation_unknown
+cwd/environment: GitHub-hosted runner; no local Cargo test was run per user instruction.
+fixture·cassette: the existing `cap01_registry` deny case; nothing added, removed or weakened.
+exit_code: not applicable — no change was made
+status change: none. No step, feature_status or proof_level is promoted.
+proof-level change: none.
+limitations: documented, not fixed. The mechanism: `canonical_action_operation` deliberately maps the five model-visible tool names onto canonical operations — `shell` -> `shell.exec`, `mcp` -> `mcp.call`, `apply_patch` -> `apply_patch`, `memory.search`, `memory.write` — which is exactly the locked five-tool surface AGENTS.md §3 mandates. So `capability_action_descriptor("shell")` resolves to a descriptor whose `operation` is `shell.exec`, and `insert_handler`'s `descriptor.operation != operation` guard then reports `capability_binding_catalog_mismatch`. The test's expectation of `_unknown` asserts that `shell` is not a known operation, but `shell` *is* known — it is a documented alias — so `_catalog_mismatch` is arguably the more accurate of the two codes. The fork is whether `register_static` should treat the five tool aliases as refusable-but-unknown, or as known-yet-not-registrable. Only one call site in the tree registers a bare alias, so the blast radius is small either way. Neither the expectation nor the guard was changed, because picking one would mean editing either a test expectation or a fail-closed guard to suit the other, which is what AGENTS.md §8 rules out.
+reviewer: Codex analysis of the four `capability_operation_unknown` occurrences against `canonical_action_operation` and the AGENTS.md §3 tool-surface rule; no local runtime test reviewer; no code changed for this item.
+
 ### CO-06 ArtifactVersion::new could never succeed evidence (2026-09-30)
 
 source_snapshot: `8d8a789f` plus this fix; `kiana-domain/src/artifact_contracts.rs` (`valid_digest`, `ArtifactVersion::new`, `ArtifactVersion::validate`)
