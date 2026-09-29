@@ -504,8 +504,19 @@ impl SecurityControl {
             status,
             control_digest: String::new(),
         };
-        control.validate()?;
+        // 【为什么必须先盖章再校验，而不是反过来】
+        // `control_digest` 是**派生值**：`digest()` 只对 schema/version/control_id/title/
+        // owner/parent/scope/assumptions/mappings/evidence/proof_ceiling/status 求摘要，
+        // 并不把 `control_digest` 自身算进去，因此这里不存在循环依赖。
+        //
+        // 原写法是「先 validate()、再盖章」，而 validate() 的第一步就是
+        // `validate_digest(&self.control_digest, ...)`，要求 `sha256:` 前缀加 64 位 hex。
+        // 此刻该字段还是 `String::new()`，于是每一次 `SecurityControl::new()` 都必然返回
+        // `security_control_digest_invalid` —— 构造器从未能成功过一次，SC-34 的 18 个用例
+        // 全部因此失败。改成先盖章再校验：validate() 依旧完整执行（含 digest 与重算值的
+        // 一致性检查），没有任何检查被跳过或放宽。
         control.control_digest = control.digest();
+        control.validate()?;
         Ok(control)
     }
 

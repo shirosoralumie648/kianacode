@@ -13239,6 +13239,22 @@ proof-level change: none.
 limitations: this does narrow a check, so it is worth being explicit about why that is a correction rather than a relaxation: the security property being protected is "never invent a number the server did not state", and a server-stated limit with no remainder invents nothing — the card reports the remainder as unknown. The invented-number case, `remaining` without `limit`, remains refused with the same error code. A green run still proves only this validation, not the billing, quota settlement or projection behaviour behind it, and the 16 fixtures are unproven until a run observes them. This item is independent of the open BQ-26 framer decision, which remains unresolved.
 reviewer: Codex review of the sixteen clustered failures against the fixture and the two binding tests; no local runtime test reviewer.
 
+### SC-34 SecurityControl constructor could never succeed evidence (2026-09-29)
+
+source_snapshot: `51e02a4e` plus this fix; `kiana-policy/src/security_control_registry.rs` (`SecurityControl::new`)
+worktree_status: Fourth real defect from the 705 failures, and the most consequential one found so far. Eighteen tests in `kiana-policy/tests/sc34_control_registry.rs` fail with `security_control_digest_invalid`. The cause is an ordering bug in the constructor: it built the struct with `control_digest: String::new()`, then called `control.validate()?`, and only afterwards assigned `control.control_digest = control.digest()`. The first thing `validate()` does is `validate_digest(&self.control_digest, "security_control_digest")`, which requires a `sha256:` prefix and a 64-character hex body. At the moment `validate()` ran, that field was still empty, so the check failed and `new()` returned `Err` every single time. `SecurityControl::new()` had never once succeeded, and every test that builds a control through it was failing at the `.expect(...)` on the constructor. The digest is a derived value — `digest()` hashes schema, version, control_id, title, owner, parent, scope, assumptions, mappings, evidence, proof_ceiling and status, and does not hash `control_digest` itself — so stamping it before validating introduces no circular dependency. The fix stamps first, then validates. No check was skipped or relaxed: `validate()` still runs in full, including the `security_control_digest_mismatch` comparison between the stored digest and the recomputed one.
+command_argv:
+  cargo fmt --all --check                                      # exit 0
+  cargo check -p kiana-policy --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-policy) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the 18 existing `sc34_control_registry` cases; none added, removed, weakened or re-expressed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
+reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
+
 ### BQ-26 framer contract conflict — needs a decision (2026-09-29)
 
 source_snapshot: `81b26c7a`; `kiana-provider/src/transport.rs` (`Framer::finish`), `kiana-core/tests/support/bq26_adapter_seam.rs` (`drive_network_eof`), `kiana-core/src/bq26_fault_harness.rs`
