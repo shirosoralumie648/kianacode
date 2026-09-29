@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### EventLog JSONL fixtures written with default permissions evidence (2026-09-30)
+
+source_snapshot: `51317448` plus this fix; `kiana-eventlog/src/lib.rs` (test module: new `write_fixture` helper, `temp_log`)
+worktree_status: Ninth real defect, and the second fixture-layer one. Six fixtures in the `kiana-eventlog` in-crate test module — `jsonl_corrupt_line_fails_closed`, `jsonl_repairs_a_torn_final_line_and_preserves_prior_events`, `jsonl_malformed_final_complete_line_fails_closed`, `jsonl_malformed_first_line_fails_closed` and two further call sites — plus `pd06_jsonl_recovery.rs` and `er05_jsonl_v2.rs` fail with `eventlog_permissions_too_broad`. They hand-craft corrupt or torn JSONL with `fs::write`, which creates the file 0o644, i.e. group- and other-readable. `JsonlEventLog::open` then calls `validate_unix_storage_file` (gated `#[cfg(unix)]`), whose `metadata.mode() & 0o077 != 0` test refuses the file outright. That check is correct and is not being touched: a world-readable event log is itself a disclosure surface, and the production writer genuinely creates files with 0o600 via `libc::openat(..., 0o600)`. The fixtures were simply manufacturing inputs that violate the production contract. A `write_fixture` helper now creates the file with `.mode(0o600)` on unix and falls back to `fs::write` elsewhere, mirroring the production writer.
+command_argv:
+  cargo fmt --all --check                                       # exit 0
+  cargo check -p kiana-eventlog --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-eventlog) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing corrupt/torn-JSONL fixtures; their content is unchanged, only the mode they are created with.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes test files, and the justification is the same shape as the earlier digest-fixture repair: no assertion, expected value or deny case was altered, and the bytes each fixture writes are identical — only the permission bits under which the file is created changed, so that the fixture satisfies the same contract the production writer satisfies. The security check itself is untouched and still refuses any event log another user can read. `fs` remains used elsewhere in the module, so no import was orphaned; the fifteen warnings `cargo check` reports for this crate are pre-existing and unrelated (cost-correction, `MemoryState`, `MilestoneAcceptanceDecision` imports). Whether the affected fixtures now pass is unobserved.
+reviewer: Codex review of the `eventlog_permissions_too_broad` occurrences against `validate_unix_storage_file` and the production `openat(..., 0o600)` writer; no local runtime test reviewer.
+
 ### BQ-25 label field looked up as a metric name evidence (2026-09-30)
 
 source_snapshot: `68ce727a` plus this fix; `kiana-core/src/data_class.rs` (`metric_point_for`)

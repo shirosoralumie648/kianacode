@@ -72,7 +72,7 @@ pub use writer_queue::{
 };
 
 use kiana_ports::PortError;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// 决定会话事件默认落在哪个文件。
 ///
@@ -121,6 +121,36 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("kiana-eventlog-{stamp}.jsonl"))
+    }
+
+    /// 以生产写入器使用的私有权限（0o600）写入 JSONL 夹具。
+    ///
+    /// 【为什么要专门写这个 helper】
+    /// `fs::write` 建出来的文件是 0o644（group/other 可读），而 `JsonlEventLog::open`
+    /// 在 unix 上会调用 `validate_unix_storage_file`，以
+    /// `mode & 0o077 != 0` 判定 `eventlog_permissions_too_broad` 并拒绝打开。
+    /// 那是**正确**的安全检查——一个 world-readable 的事件日志本身就是泄漏面，
+    /// 生产写入器也确实用 0o600 建文件（`jsonl.rs` 的 `openat(..., 0o600)`）。
+    /// 所以这里修的是夹具：让它们按生产契约造出合法的输入，而不是放宽那条检查。
+    fn write_fixture(path: &Path, contents: impl AsRef<str>) {
+        let contents = contents.as_ref();
+        #[cfg(unix)]
+        {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(path)
+                .unwrap();
+            file.write_all(contents.as_bytes()).unwrap();
+        }
+        #[cfg(not(unix))]
+        {
+            fs::write(path, contents).unwrap();
+        }
     }
 
     #[tokio::test]
@@ -210,7 +240,7 @@ mod tests {
     #[test]
     fn jsonl_corrupt_line_fails_closed() {
         let path = temp_log();
-        fs::write(&path, "{\"kind\":\"not-an-event\"}\n").unwrap();
+        write_fixture(&path, "{\"kind\":\"not-an-event\"}\n");
         let error = JsonlEventLog::open(&path).unwrap_err();
         assert!(error.to_string().contains("eventlog_corrupt"), "{error}");
     }
@@ -221,7 +251,7 @@ mod tests {
         let request_id = RequestId::new();
         let first = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
         let encoded = serde_json::to_string(&first).unwrap();
-        fs::write(&path, format!("{encoded}\n{{\"event_id\":")).unwrap();
+        write_fixture(&path, format!("{encoded}\n{{\"event_id\":"));
 
         let store = JsonlEventLog::open(&path).unwrap();
         assert_eq!(store.read_all().await.unwrap(), vec![first.clone()]);
@@ -242,7 +272,7 @@ mod tests {
         let request_id = RequestId::new();
         let first = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
         let first_encoded = serde_json::to_string(&first).unwrap();
-        fs::write(&path, &first_encoded).unwrap();
+        write_fixture(&path, &first_encoded);
 
         let second = RuntimeEvent::new(request_id, 2, "run.completed", Value::Null).unwrap();
         let second_encoded = serde_json::to_string(&second).unwrap();
@@ -270,7 +300,7 @@ mod tests {
         let request_id = RequestId::new();
         let first = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
         let encoded = serde_json::to_string(&first).unwrap();
-        fs::write(&path, format!("{encoded}\n{{\"kind\":\"not-an-event\"}}")).unwrap();
+        write_fixture(&path, format!("{encoded}\n{{\"kind\":\"not-an-event\"}}"));
         let error = JsonlEventLog::open(&path).unwrap_err();
         assert!(error.to_string().contains("eventlog_corrupt"), "{error}");
     }
@@ -278,7 +308,7 @@ mod tests {
     #[test]
     fn jsonl_malformed_first_line_fails_closed() {
         let path = temp_log();
-        fs::write(&path, "{\"event_id\":").unwrap();
+        write_fixture(&path, "{\"event_id\":");
         let error = JsonlEventLog::open(&path).unwrap_err();
         assert!(error.to_string().contains("eventlog_corrupt"), "{error}");
     }
@@ -620,7 +650,7 @@ mod tests {
         let next = RuntimeEvent::new(request_id, 2, "run.completed", Value::Null).unwrap();
         let store = JsonlEventLog::open(&root).unwrap();
         store.append(existing.clone()).await.unwrap();
-        fs::write(&outside, "outside\n").unwrap();
+        write_fixture(&outside, "outside\n");
         fs::remove_file(&root).unwrap();
         symlink(&outside, &root).unwrap();
 
