@@ -124,8 +124,15 @@ async fn check(context: &RequestContext, arguments: Value) -> String {
         .await
         .expect("response");
     let value = serde_json::to_value(&response).expect("serialized response");
+    // `CoreResponse::blocked(request_id, reason)` 把原因放进 **`error`** 字段
+    // （见 kiana-domain::CoreResponse），并不存在顶层 `reason` 字段。此前这里读 `reason`，
+    // 于是**每一次拒绝断言都拿到默认值 `"completed"`**——包括本该 fail-closed 的
+    // 「载荷为 null / 形状不完整必须被拒」这类用例，看起来像是「空载荷被放行了」。
+    // 先读 `error`，再回退到 `reason`（万一某个响应把原因放在 output 的 reason 上），
+    // 最后才落到 "completed"。
     value
-        .get("reason")
+        .get("error")
+        .or_else(|| value.get("reason"))
         .and_then(Value::as_str)
         .unwrap_or_else(|| "completed")
         .to_owned()
