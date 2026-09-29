@@ -13255,6 +13255,21 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Verified effect of the web-claim, SC-25 digest and rollout-digest fixes (2026-09-30)
+
+source_snapshot: `a8191345`; GitHub Actions run 36627061510
+worktree_status: Three more fixes are now measured rather than assumed. Across the 12 shards that finished with a `failure` conclusion, `session_owner_required` is at **0** occurrences, `project_trust_project_digest_invalid` at **0**, and `rollout_evidence_digest_mismatch` at **0**. The self-referential digest fix is therefore confirmed against a run, which matters because it was the one production-logic defect in the "can never succeed" series rather than a construction-ordering or fixture problem.
+command_argv:
+  GitHub Actions run 36627061510 (commit a8191345)
+  per-shard log readback: 12 failing shards, 267 failure messages
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+fixture·cassette: the pre-existing web CLI, SC-25 and local-rollout fixtures; none added or removed.
+exit_code: the three targeted error classes are at zero; the overall run is still red
+status change: none. No step, feature_status or proof_level is promoted.
+proof-level change: none.
+limitations: this run completed only 23 of its 41 shards — 11 pass, 12 fail, 18 never ran — so it is not a full-pipeline measurement and the 267 message count is not comparable with the 524 recorded earlier, which came from a different and larger set of shards. The three zero counts are firm for the shards that ran. The incomplete shard count is most likely the same `cancel-in-progress` interaction that has truncated earlier runs, though the run's own conclusion is recorded as `completed` rather than `cancelled`, so that is an inference and not an established cause. No step is claimed complete on the strength of an error string reaching zero.
+reviewer: Codex readback of run 36627061510 shard logs; no local runtime test reviewer.
+
 ### Sweep for further self-referential digests — negative result, and a trap (2026-09-30)
 
 source_snapshot: `a8191345`; tree-wide scan of `kiana-*/src/**/*.rs`

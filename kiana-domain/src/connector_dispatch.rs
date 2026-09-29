@@ -126,8 +126,23 @@ impl ConnectorDispatchLifecycle {
         {
             return Err("connector_dispatch_observation_changed".to_owned());
         }
+        // 【为什么这里必须判断 next_stage 而不是 self.stage】
+        // 这条不变式的含义是「**还处在 effect 之前的状态时，不得已经带着 effect 的产物**」。
+        // 它约束的是**转移之后**的状态，而不是转移之前的状态。
+        //
+        // 原写法判断 `self.stage`，于是 `Dispatching -> Observed` 这一合法转移被误伤：
+        // 进入 `Observed` 按定义就要带上 receipt 与 observation（这正是「已观测」的含义），
+        // 但此刻 `self.stage` 仍是 `Dispatching`，于是三个判据里前两个必然非空，
+        // 直接被判 `connector_dispatch_pre_effect_artifacts_forbidden`。
+        // 结果是：经 `advance` **永远无法到达 `Observed`**，整条生命周期
+        // Prepared→Dispatching→Observed→ResultCommitted 在第一步之后就断了。
+        //
+        // 改为判断 `next_stage`：只有当**即将进入**的状态仍处于 effect 之前
+        // （Prepared/Dispatching）时，携带产物才是 premature。`-> Observed` 与
+        // `-> ResultCommitted` 携带产物是合法的，原有拒绝面没有被削弱——
+        // 「进入 effect 之前的状态却已经带产物」这一真正危险的情形依然被拒。
         if matches!(
-            self.stage,
+            next_stage,
             ConnectorDispatchStage::Prepared | ConnectorDispatchStage::Dispatching
         ) && (receipt_digest.is_some()
             || observation_digest.is_some()
