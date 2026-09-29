@@ -691,9 +691,28 @@ pub fn admit_field(
 /// A label field is checked as a label on a real catalog metric; a reference field is checked as a
 /// label-free point, because a dimension is the only thing that can grow without bound.
 fn metric_point_for(field: &SinkField, catalog: &MetricCatalog) -> Result<MetricPoint, String> {
-    let definition = catalog
-        .metric(&field.key)
-        .ok_or_else(|| "metric_unregistered".to_owned())?;
+    // 【为什么 label 字段不能按 key 直接查 metric】
+    // `SinkField` 有两种形态：`reference` 的 key **就是 metric 名**，而 `label` 的 key 是
+    // **标签名**。此前两种都走 `catalog.metric(&field.key)`，于是 label 字段永远查不到
+    // （`"status"` 不是一个 metric 名），直接被判 `metric_unregistered`——BQ-25 的
+    // separation/round-trip 用例因此全部失败，而这个模块存在的目的恰恰是判断
+    // 「这个标签能不能进 metric」。
+    //
+    // 正确做法：标签字段要挂在一个**确实声明了该标签**的真实 metric 上；`allowed_labels`
+    // 正是为此存在，且 `MetricCatalog` 在构造时已按名字排序，选择是确定的。
+    // 找不到声明该标签的 metric 时才报 `metric_unregistered`——那意味着这个标签在任何
+    // metric 上都没有登记，确实是未注册。
+    let definition = if field.is_label {
+        catalog.metrics.iter().find(|definition| {
+            definition
+                .allowed_labels
+                .iter()
+                .any(|allowed| allowed == &field.key)
+        })
+    } else {
+        catalog.metric(&field.key)
+    }
+    .ok_or_else(|| "metric_unregistered".to_owned())?;
     let mut labels = std::collections::BTreeMap::new();
     if field.is_label {
         labels.insert(field.key.clone(), field.value.clone());

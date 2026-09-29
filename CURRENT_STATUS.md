@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### BQ-25 label field looked up as a metric name evidence (2026-09-30)
+
+source_snapshot: `68ce727a` plus this fix; `kiana-core/src/data_class.rs` (`metric_point_for`)
+worktree_status: Eighth real defect. Four tests in `kiana-core/tests/bq25_telemetry_separation.rs` fail with `metric_unregistered`: `a_separation_over_reachable_sinks_reports_one_outcome_per_sink`, `a_separation_report_cannot_publish_its_own_outcome`, `a_substitution_between_sinks_is_refused_with_a_reason` and `an_unreachable_sink_is_unknown_and_never_a_business_outcome`. `metric_point_for` resolved the catalog entry with `catalog.metric(&field.key)` for every field, but `SinkField` has two shapes: a `reference` field's key IS a metric name, whereas a `label` field's key is a *label* name. The fixtures submit `SinkField::label("status", "ok", 2)` against a catalog that registers the metric `kiana.bq25.probe_total` and declares `allowed_labels = ["status"]`, so the lookup asked the catalog for a metric literally named `status`, found none, and returned `metric_unregistered` — for every label field, unconditionally. The module whose entire purpose is deciding whether a label may enter a metric could therefore never accept one. The lookup now branches: a reference field still resolves by metric name, while a label field is hosted on a real metric that declares that label in `allowed_labels`. `MetricCatalog` sorts its definitions by name at construction, so the choice is deterministic. `metric_unregistered` is now returned only when no metric declares the label at all, which genuinely is an unregistered label.
+command_argv:
+  cargo fmt --all --check                                  # exit 0
+  cargo check -p kiana-core --all-targets --locked --offline # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s*) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the existing `bq25_telemetry_separation` cases; none added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the label-admission decision is unchanged in substance — the point is still built from the catalog's own kind, unit and source rather than from local constants, and `validate_with_catalog` still independently rejects any label the chosen definition does not declare, so a label that slipped onto the wrong metric would still be refused. What changed is only which definition a label is measured against. The runtime-guard case in the same file, where `leaky_catalog` deliberately allows `secret_ref` so that the *runtime* guard is what refuses it, keeps that shape: the label is now found, and the guard still does the refusing. Whether the four affected fixtures now pass is unobserved.
+reviewer: Codex review of the four `metric_unregistered` occurrences against `SinkField::label` and the fixture catalog; no local runtime test reviewer.
+
 ### BQ-24 overage reason on an unknown state evidence (2026-09-30)
 
 source_snapshot: `b1a15a50` plus this fix; `kiana-commands/src/billing_card.rs` (`BudgetCard::validate`)
