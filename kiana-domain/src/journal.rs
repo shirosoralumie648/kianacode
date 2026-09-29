@@ -61,19 +61,31 @@ pub struct TransitionBatch {
     pub events: Vec<RuntimeEvent>,
 }
 impl TransitionBatch {
-    /// 【为什么这里接受 `sha256:` 前缀】
-    /// 本仓库的 digest 规范由 `json_digest` 决定，它返回 `format!("sha256:{:x}", ..)`。
-    /// domain 内的其他契约——`adapter_result`、`approval_journal`、`approval_preview`、
-    /// `artifact_contracts`、`assignment`——都先用 `strip_prefix("sha256:")` 再校验 64 位 hex。
-    /// 此前本函数是唯一的例外，只接受裸 64 位 hex，于是它与生产代码自相矛盾：
-    /// `kiana-core` 的 `model_budget` 等路径正是用 `json_digest` 构造 `command_digest`，
-    /// 而 `kiana-eventlog` 的 `journal_core` / `jsonl` 写入路径会调用本函数——
-    /// 也就是说，一条由本仓库自己生成、且格式完全合法的 digest 会被判为 invalid。
-    /// 这里改为遵循既有规范；错误码、长度与 hex 校验强度均未放宽。
+    /// 【为什么 `sha256:` 前缀可有可无】
+    ///
+    /// 本仓库对「digest 长什么样」并不统一，而 journal 是两种写法的交汇点：
+    ///
+    /// - `kiana-domain::json_digest` 返回 `sha256:<64 hex>`。`kiana-core` 的
+    ///   `authority.rs` / `lifecycle.rs` / `model_budget.rs` 都用它构造 `command_digest`。
+    /// - `kiana-core` 的 `connector_quota.rs` 与 `ui_actions.rs` 则先经过本地的
+    ///   `journal_digest()`——它做的正是 `value.strip_prefix("sha256:").unwrap_or(value)`，
+    ///   即**主动剥掉前缀**，把裸 64 位 hex 交给 journal。
+    ///
+    /// 早先本函数只接受裸 hex，于是拒绝 `json_digest` 那一族（22 个 BQ-26 用例）；
+    /// 若改成只接受带前缀的形式，又会反过来拒绝 `journal_digest` 那一族
+    /// （`kiana-eventlog` / `kiana-entrypoints` 共 11 个用例）。两种「二选一」都会打断
+    /// 仓库里真实存在的生产者。
+    ///
+    /// 因此这里接受两种写法，但**强度没有任何放宽**：无论带不带前缀，摘要本体都必须
+    /// 恰好 64 位且全为 hex，否则一律 `journal_command_digest_invalid`。与 domain 内
+    /// `adapter_result` / `approval_journal` / `artifact_contracts` 等使用
+    /// `strip_prefix("sha256:")` 的契约相比，本函数多容忍的只是「无前缀」这一种形式，
+    /// 因为 journal 的另一批生产者就是这么写的。
     pub fn validate_identity(&self) -> Result<(), &'static str> {
-        let Some(hex) = self.command_digest.strip_prefix("sha256:") else {
-            return Err("journal_command_digest_invalid");
-        };
+        let hex = self
+            .command_digest
+            .strip_prefix("sha256:")
+            .unwrap_or(&self.command_digest);
         if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("journal_command_digest_invalid");
         }

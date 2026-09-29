@@ -13255,6 +13255,23 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Journal digest validator: correcting an over-correction evidence (2026-09-29)
+
+source_snapshot: `ca7a2fcc` plus this fix; `kiana-domain/src/journal.rs` (`TransitionBatch::validate_identity`)
+worktree_status: **This entry corrects a regression introduced by the earlier journal fix in this same session, and the regression is recorded rather than quietly rewritten.** Requiring the `sha256:` prefix removed 22 `journal_command_digest_invalid` failures, but the next run exposed 11 new ones in `kiana-eventlog` and `kiana-entrypoints` — the opposite direction. The cause is that this repository genuinely has two producers of `command_digest`. `kiana_domain::json_digest` emits `sha256:<64 hex>` and is used by `kiana-core`'s `authority.rs`, `lifecycle.rs` and `model_budget.rs`. But `kiana-core/src/connector_quota.rs` and `ui_actions.rs` each define a local `journal_digest()` whose entire body is `value.strip_prefix("sha256:").unwrap_or(value).to_owned()` — it deliberately *removes* the prefix before handing the value to the journal. So the original bare-hex-only check rejected the `json_digest` family, and my prefix-required check rejected the `journal_digest` family. Either exclusive choice breaks a real producer. The validator now accepts both spellings while keeping the strength identical: the digest body must still be exactly 64 characters and entirely hex, and a wrong length, a non-hex body or an over-long prefixed value is still refused with the same `journal_command_digest_invalid` code.
+command_argv:
+  cargo fmt --all --check                                        # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline   # exit 0, 0 errors
+  cargo check -p kiana-core   --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s*), Tests (kiana-eventlog), Tests (kiana-entrypoints)
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing `cp06_atomic_transitions`, `pd07_indexes_page`, `oa06_commit_observer`, `er04_command_receipt` and related eventlog/entrypoint fixtures; none added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: accepting both spellings is a genuine widening relative to either single-form check, and the justification is empirical — both forms are produced by code in this tree, and `journal_digest()` exists precisely to bridge them. It is not a claim that the repository has one canonical digest format; it has two, and the honest fix is for the shared validator to meet both producers rather than to pick a winner. No test anywhere requires a well-formed digest to be rejected, so nothing that previously passed is expected to flip. Whether all 33 affected fixtures now pass is unobserved. The underlying inconsistency — two digest spellings across `kiana-core` — is a design smell that arguably deserves its own normalisation ticket; this fix makes the tree consistent, not the tree's conventions.
+reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
+
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
 
 source_snapshot: `ad880147`; `kiana-policy/src/security_control_registry.rs` (`safe_text`), `kiana-policy/tests/sc34_control_registry.rs`
