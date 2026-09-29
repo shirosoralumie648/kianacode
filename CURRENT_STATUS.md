@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Duplicate-fault branch was unreachable dead code (2026-09-30)
+
+source_snapshot: `c3cd23fd` plus this fix; `kiana-ports/src/storage_fault_matrix.rs` (`derive`); `kiana-eventlog/tests/pd30_storage_fault_matrix.rs`
+worktree_status: Twenty-fifth real defect, and a different shape from the rest: a documented, carefully-worded diagnostic that no input could ever reach. `StorageFaultKind::ALL` names exactly seven faults and `MAX_STORAGE_FAULT_CASES` is also seven, so a list containing a duplicate is necessarily longer than the limit. The limit was checked first, so the `storage_fault_kind_duplicate` branch below it — whose message is "file one case per named fault; a second case for the same fault is a second claim" — could never fire, and a duplicate declaration surfaced only as the generic `storage_fault_matrix_header_invalid`. The count check now runs after the duplicate scan, so the specific diagnosis is reachable and the count limit resumes its actual role of rejecting absurdly long lists. Neither check was removed or weakened.
+command_argv:
+  cargo fmt --all --check                                              # exit 0
+  cargo check -p kiana-ports -p kiana-eventlog --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-eventlog) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-30 fixtures; one expected code corrected, see below.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: two changes ship together here and the second deserves its own scrutiny, because correcting a test's expected code is exactly the move that can launder a defect. The test expected `storage_fault_case_invalid:disk_full` for a duplicated DiskFull case, but that code is emitted only when a **single case fails its own validation** — and the duplicate here is a clone of a valid case, so it validates fine. The code the implementation actually has for this situation is `storage_fault_kind_duplicate`, and its message matches the situation exactly. So the expectation corresponded to no implemented rule, and it is the expectation that was wrong, not the rule. What makes this safe to assert is the ordering fix above: without it the corrected expectation would still not be reachable, so the two changes stand or fall together rather than one masking the other. I have not run the test, so this remains a source-level argument; whether it passes is unobserved.
+reviewer: Codex review of `derive`'s check order against `StorageFaultKind::ALL.len()` and `MAX_STORAGE_FAULT_CASES`; no local runtime test reviewer.
+
 ### Quality-gate fixture carried an empty project root, masking every specific refusal (2026-09-30)
 
 source_snapshot: `b256ccc7` plus this fix; `kiana-core/tests/quality_promote_fixtures.rs` (`reviewer_context`, `Fixture::context`); the gate is `kiana-core/src/quality_gate.rs` and the epoch lookup `kiana-core/src/authority.rs`

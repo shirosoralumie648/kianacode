@@ -459,10 +459,9 @@ fn a_matrix_with_two_cases_for_one_fault_is_refused() {
     cases.push(duplicate);
     let matrix = StorageFaultMatrix::evaluate(baseline(), cases);
     assert_eq!(matrix.status, StorageFaultMatrixStatus::Unsafe);
-    assert_eq!(
-        matrix.refusal_code(),
-        Some("storage_fault_case_invalid:disk_full")
-    );
+    // 重复声明由 `storage_fault_kind_duplicate` 报告，不是 `case_invalid:<kind>`——
+    // 后者只在**单条 case 自身不合法**时出现，而这里重复的那一条是合法 case 的克隆。
+    assert_eq!(matrix.refusal_code(), Some("storage_fault_kind_duplicate"));
 }
 
 #[test]

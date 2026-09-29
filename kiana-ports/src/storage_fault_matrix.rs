@@ -470,7 +470,6 @@ fn derive(
 ) -> (StorageFaultMatrixStatus, String, String) {
     if validate_digest(baseline_digest, "storage_fault_matrix_baseline_digest").is_err()
         || cases.is_empty()
-        || cases.len() > MAX_STORAGE_FAULT_CASES
     {
         return (
             StorageFaultMatrixStatus::Unsafe,
@@ -478,6 +477,15 @@ fn derive(
             "supply a sealed baseline digest and at most one case per named fault".to_owned(),
         );
     }
+    // 【为什么数量上限要排在「同一故障重复」之后】
+    // 卡片点名的故障恰好有 `StorageFaultKind::ALL.len()` 个，而 `MAX_STORAGE_FAULT_CASES`
+    // 与它相等。于是**任何一份重复清单都必然先撞上数量上限**——上面那个检查若留在原处，
+    // 下面 `storage_fault_kind_duplicate` 分支就成了**永远走不到的死代码**：它那句
+    // 「a second case for the same fault is a second claim」永远不会对调用方说出口，
+    // 重复声明只会被报成一句笼统的 header 错误。
+    // 把数量上限挪到重复检测之后：重复是一条**更具体、更有诊断价值**的结论，
+    // 应当先说；数量上限则退回到它本来的角色——挡住荒谬的大清单。
+    // 两个检查都仍在，没有被删除或放宽。
     // Coverage first: a matrix that is missing a fault has not classified it, and a green report
     // over five of the seven would otherwise read as a green report over all of them.
     let mut kinds = BTreeSet::new();
@@ -498,6 +506,13 @@ fn derive(
                     .to_owned(),
             );
         }
+    }
+    if cases.len() > MAX_STORAGE_FAULT_CASES {
+        return (
+            StorageFaultMatrixStatus::Unsafe,
+            "storage_fault_matrix_header_invalid".to_owned(),
+            "supply a sealed baseline digest and at most one case per named fault".to_owned(),
+        );
     }
     if kinds.len() != StorageFaultKind::ALL.len() {
         let missing = StorageFaultKind::ALL
