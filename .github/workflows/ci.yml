@@ -129,6 +129,20 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
           sudo rm -rf /usr/local/lib/node_modules/npm
           df -h / | tail -1
+      - name: Install bubblewrap for sandboxed swarm tests
+        run: |
+          # The bounded-swarm tests in kiana-commands/kiana-core shell out through bwrap and
+          # fail closed without it. release-smoke.yml already installs it; the test matrix did
+          # not, so those tests panicked on the runner. A panic taken while a shared lock is
+          # held poisons that lock, which is the likely origin of the 34 PoisonError failures
+          # seen immediately after this error in run 36429735999. Same fail-closed install as
+          # release-smoke.yml: `update` may fail on the image's third-party sources, and the
+          # explicit `install` below is what must succeed.
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces by default, which makes bwrap fail
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
       - uses: dtolnay/rust-toolchain@stable
       - name: Run shard
         run: |

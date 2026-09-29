@@ -13223,6 +13223,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### bubblewrap dependency gap in the test matrix evidence (2026-09-29)
+
+source_snapshot: `812a8bd4` plus this fix; `.github/workflows/ci.yml` (`rust-tests` job)
+worktree_status: Clustering the 705 failures from run 36429735999 showed 34 of them reporting `PoisonError { .. }`, and in the captured log those PoisonError lines sit immediately after `bounded swarm requires bubblewrap (bwrap) on Linux; configure sandbox.bwrapPath or install bwrap`. `kiana-commands` invokes bwrap directly for bounded-swarm sandboxing and fails closed when it is absent. `release-smoke.yml` already installs bubblewrap — including the Ubuntu 24.04 unprivileged-userns sysctl — but the sharded test matrix introduced in `98cdb5ee` never did, so the swarm tests panicked on the runner. This adds the identical, already-proven install to the `rust-tests` job.
+command_argv:
+  ruby -ryaml YAML.safe_load_file .github/workflows/ci.yml          # parses; jobs: workflow-structure, rust-gates, rust-tests
+  bash scripts/ci/validate-workflows.sh                            # "workflow check passed: 152 files, 5 automatic, 147 manual" + "test shard check passed: 33 members, 41 shards, 1466 test targets covered"
+  full `Validate workflow YAML` block re-run in a tracked-files-only clone  # exit 0
+cwd/environment: repository root; Linux x86_64. No Cargo test was run locally per user instruction. Outbound network became unavailable partway through this work (the sandbox proxy on 127.0.0.1:7897 is refused), so the effect of this change has NOT been observed on a runner and the push could not be confirmed at the time of writing.
+fixture·cassette: none added. The affected fixtures are the existing bounded-swarm tests in `kiana-commands` and `kiana-core`.
+exit_code: local structural gates exit 0; remote effect unobserved
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the bwrap -> PoisonError link is an inference from adjacency in the captured log, not a proven causal chain — the sandbox lost network access before the failing test names behind those 34 PoisonErrors could be read back, so which lock was poisoned and by which test is still unconfirmed. Installing bubblewrap is justified on its own regardless, because the swarm code requires it and the repository already treats it as a CI dependency. This fixes an environment gap, not a product defect; if the PoisonErrors persist after this lands, the cascade has a different cause and must be re-diagnosed from a fresh run. Note also that a fail-closed test panicking while holding a shared lock is itself a robustness problem worth addressing separately, since one failure should not be able to cascade.
+reviewer: Codex clustering of the failure messages from run 36429735999 plus comparison against the existing `release-smoke.yml` bubblewrap step; no local runtime test reviewer.
+
 ### EXT-03 legacy component id collision fix evidence (2026-09-28)
 
 source_snapshot: `0e008327` plus this fix; `kiana-skills/src/manifest.rs` (`parse_legacy_components`, `parse_legacy_plugin_manifest`, `validate_components`)
