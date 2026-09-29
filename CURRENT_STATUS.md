@@ -13255,6 +13255,19 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Sweep for the "can never succeed" class — negative result (2026-09-30)
+
+source_snapshot: `2341ec30`; tree-wide scan of `kiana-*/src/**/*.rs`
+worktree_status: Four defects of the shape "a constructor validates a field it has just hardcoded" have now been found and fixed (`SecurityControl::new`, `ArtifactVersion::new`, the BQ-25 label probe, `Sc38PropertyCase::new`), so a sweep for the rest of the class was run. The heuristic looks for `Self { ... }` immediately followed by `x.validate()?`, and collects the fields initialised to a literal in that literal block. It returns **230 candidates**, and they are overwhelmingly legitimate: most are builder-style constructors that validate before optional fields are populated, or set a defaulted field that `validate()` does not constrain at all. The heuristic cannot tell those apart from a genuine defect, and a stricter version would need to resolve, for each field, whether `validate()` actually constrains it — which is the whole of `validate()`'s body per type.
+command_argv:
+  python3 tree-wide scan for `Self {...}` followed by `.validate()?`, collecting literal-initialised fields   # 230 candidates
+cwd/environment: repository root; Linux x86_64. No Cargo test was run locally per user instruction.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this is recorded as a negative result so the sweep is not repeated blind, and so the four real fixes are not mistaken for a closed class. No candidate was changed: acting on 230 unverified candidates would be speculation, and every fix in this session has been a traced mechanism rather than a plausible-looking patch. The four confirmed instances were each found by an observed failure, not by this heuristic, which is the reason the heuristic is not trusted to find the rest. A genuine sweep would need the failing-test signal per candidate — that is, the same shard logs already used throughout this work — narrowed to the specific type each candidate belongs to.
+reviewer: Codex sweep; no local runtime test reviewer; no code changed for this item.
+
 ### SC-38 property case constructor could never build a duplicate case evidence (2026-09-30)
 
 source_snapshot: `bc498e01` plus this fix; `kiana-domain/src/security_fixture_contracts.rs` (`Sc38PropertyCase::new`)
