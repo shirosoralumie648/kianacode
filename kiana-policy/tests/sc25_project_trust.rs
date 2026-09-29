@@ -1,9 +1,18 @@
 use kiana_policy::{ProjectTrustDecision, ProjectTrustRoot, ProjectTrustScope, ProjectTrustState};
 
+/// 由 seed 的码位按十六进制推导摘要本体。
+///
+/// 【为什么不能直接重复 seed】
+/// `ProjectTrustRoot` 的 `project_root_digest` 要经 `valid_digest` 校验：
+/// 必须是 `sha256:` 加 64 位 hex。把 seed 原样重复只有在 seed 本身是十六进制位时才成立，
+/// 而这里用的 `'p'` / `'r'` / `'z'` 都不是——于是生成出来的「摘要」被校验器正确拒绝，
+/// `project_trust_project_digest_invalid`，三个用例全灭。
+/// 码位按十六进制展开后对任意 ASCII seed 都恰好 64 位 hex，且保持单射，
+/// 不同 seed 仍得到不同摘要——这些用例依赖的正是这种差异。
 fn digest(byte: char) -> String {
     format!(
         "sha256:{}",
-        std::iter::repeat(byte).take(64).collect::<String>()
+        format!("{:04x}", (byte as u32) & 0xffff).repeat(16)
     )
 }
 

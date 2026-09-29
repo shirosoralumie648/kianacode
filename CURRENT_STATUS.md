@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### SC-25 project trust digest fixture used non-hex seeds evidence (2026-09-30)
+
+source_snapshot: `078febd2` plus this fix; `kiana-policy/tests/sc25_project_trust.rs` (`digest`)
+worktree_status: Sixteenth real defect, and the same class as the earlier 28-fixture repair — but reached through a helper shape that repair did not match, so it survived. `sc25_project_trust.rs` builds digests with `format!("sha256:{}", std::iter::repeat(byte).take(64).collect::<String>())` and seeds it with `'p'`, `'r'` and `'z'`, none of which are hex digits. `ProjectTrustRoot`'s `project_root_digest` is checked by `valid_digest`, which requires a `sha256:` prefix followed by exactly 64 hex characters, so every digest this helper produced was correctly refused and three tests failed with `project_trust_project_digest_invalid`. The earlier repair rewrote helpers shaped like `seed.to_string().repeat(64)`; this one is `std::iter::repeat(byte).take(64)`, so it was never in scope. The body is now derived from the seed's code point in hex, which yields 64 hex characters for any ASCII seed and stays injective, so the distinct-seeds-distinct-digests property these tests rely on is preserved. A tree-wide scan for the `std::iter::repeat(...)` form found eleven files using it and confirmed this was the only one with a non-hex seed.
+command_argv:
+  cargo fmt --all --check                                   # exit 0
+  cargo check -p kiana-policy --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-policy) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing SC-25 fixtures; their assertions are untouched and the digests remain distinct per seed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes a test helper, and the justification is the same as the earlier fixture repairs: the validator is canonical and was not touched, no assertion or expected value was altered, and the change is confined to producing an input that satisfies the format the production contract already requires. The digests are synthetic fixture values, not hashes of anything, so changing their derivation changes nothing the tests assert beyond distinctness. Whether the three affected tests now pass is unobserved. The broader lesson is recorded here rather than treated as closed: the earlier sweep matched one helper spelling, and a second spelling carrying the identical bug survived it.
+reviewer: Codex review of the three `project_trust_project_digest_invalid` occurrences against the fixture helper and `valid_digest`, plus a tree-wide scan for the `std::iter::repeat` helper shape; no local runtime test reviewer.
+
 ### Web sessions were never claimed by a tab evidence (2026-09-30)
 
 source_snapshot: `d70c7027` plus this fix; `kiana-entrypoints/tests/cli_web.rs`; production behaviour in `kiana-entrypoints/src/web.rs` (session construction, `claim_session_tab`, `bootstrap`, the ownership gate) left untouched
