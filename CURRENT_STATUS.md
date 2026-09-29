@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Eventlog integration fixtures: completing the 0o600 repair evidence (2026-09-30)
+
+source_snapshot: `cd5f2e38` plus this fix; `kiana-eventlog/tests/pd06_jsonl_recovery.rs`, `kiana-eventlog/tests/er05_jsonl_v2.rs`
+worktree_status: Follow-on to the earlier `write_fixture` repair in `kiana-eventlog/src/lib.rs`, which cleared the in-crate fixtures but not the two integration suites. Run 36610309278 measured `eventlog_permissions_too_broad` falling from 7 to 2, and both remaining occurrences were in `pd06_jsonl_recovery.rs` and `er05_jsonl_v2.rs`, which write their torn/malformed/tampered JSONL with the same bare `fs::write` and therefore hit the same correct refusal. The identical `write_fixture` helper is now present in both, creating the fixture 0o600 on unix and falling back to `fs::write` elsewhere. The same run also confirmed the other fixes in this batch: `storage_diagnostic_input_incident_store_mismatch` and `budget_card_overage_reason_unexpected` are both at zero, and `metric_unregistered` fell from 8 to 1.
+command_argv:
+  cargo fmt --all --check                                      # exit 0
+  cargo check -p kiana-eventlog --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-eventlog) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing torn/malformed/tampered JSONL fixtures; their bytes are unchanged, only the mode they are created with.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: same shape as the earlier fixture repair and the justification is unchanged: no assertion, expected value or deny case was altered, the security check is untouched, and the fixture bytes are identical — only the permission bits under which the file is created. `fs` remains used in both files so no import was orphaned. Whether both suites now pass is unobserved; one `metric_unregistered` also remains in `kiana-core/tests/bq25_telemetry_separation.rs` and is not addressed by this commit.
+reviewer: Codex review of the two residual `eventlog_permissions_too_broad` occurrences against the already-merged helper; no local runtime test reviewer.
+
 ### PD-29 storage diagnostic incident bound to a different store evidence (2026-09-30)
 
 source_snapshot: `2d1ccb4c` plus this fix; `kiana-core/tests/pd29_storage_diagnostics.rs` (new `input_for` helper; `input` now delegates to it)

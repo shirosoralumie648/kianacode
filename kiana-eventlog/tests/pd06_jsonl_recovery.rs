@@ -6,6 +6,33 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// 以生产写入器使用的私有权限（0o600）写入 JSONL 夹具。
+///
+/// `fs::write` 建出的文件是 0o644（group/other 可读），而 `JsonlEventLog::open`
+/// 在 unix 上会以 `mode & 0o077 != 0` 判定 `eventlog_permissions_too_broad` 并拒绝打开。
+/// 那是正确的安全检查——world-readable 的事件日志本身就是泄漏面，生产写入器也确实
+/// 用 `openat(..., 0o600)` 建文件。这里修的是夹具：让它们按生产契约造出合法输入。
+fn write_fixture(path: &Path, contents: impl AsRef<[u8]>) {
+    let contents = contents.as_ref();
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .unwrap();
+        file.write_all(contents).unwrap();
+    }
+    #[cfg(not(unix))]
+    {
+        write_fixture(path, contents);
+    }
+}
+
 fn temp_path(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -25,7 +52,7 @@ async fn jsonl_frame_checksum_and_torn_tail_recovery_are_bounded() {
     let event =
         RuntimeEvent::new(RequestId::new(), 1, "run.started", json!({"safe": true})).unwrap();
     let encoded = serde_json::to_string(&event).unwrap();
-    fs::write(&torn, format!("{encoded}\n{{\"event_id\":")).unwrap();
+    write_fixture(&torn, format!("{encoded}\n{{\"event_id\":"));
     let store = JsonlEventLog::open(&torn).unwrap();
     assert_eq!(store.read_all().await.unwrap(), vec![event]);
     assert_eq!(fs::read_to_string(&torn).unwrap(), format!("{encoded}\n"));

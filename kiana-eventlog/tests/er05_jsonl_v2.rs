@@ -9,6 +9,33 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// 以生产写入器使用的私有权限（0o600）写入 JSONL 夹具。
+///
+/// `fs::write` 建出的文件是 0o644（group/other 可读），而 `JsonlEventLog::open`
+/// 在 unix 上会以 `mode & 0o077 != 0` 判定 `eventlog_permissions_too_broad` 并拒绝打开。
+/// 那是正确的安全检查——world-readable 的事件日志本身就是泄漏面，生产写入器也确实
+/// 用 `openat(..., 0o600)` 建文件。这里修的是夹具：让它们按生产契约造出合法输入。
+fn write_fixture(path: &Path, contents: impl AsRef<[u8]>) {
+    let contents = contents.as_ref();
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .unwrap();
+        file.write_all(contents).unwrap();
+    }
+    #[cfg(not(unix))]
+    {
+        write_fixture(path, contents);
+    }
+}
+
 fn temp_log(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -69,7 +96,7 @@ async fn jsonl_v2_transaction_page_is_atomic_and_replays_after_reopen() {
 #[test]
 fn jsonl_v2_rejects_malformed_first_record_and_tampered_frame() {
     let malformed = temp_log("malformed");
-    fs::write(&malformed, b"{\"schema\":\n").unwrap();
+    write_fixture(&malformed, b"{\"schema\":\n");
     let error = JsonlEventLog::open(&malformed).unwrap_err();
     assert!(error.to_string().contains("eventlog_corrupt"));
     cleanup(&malformed);
@@ -82,7 +109,7 @@ fn jsonl_v2_rejects_malformed_first_record_and_tampered_frame() {
     let mut value = serde_json::to_value(frame).unwrap();
     value["body_sha256"] = json!("0".repeat(64));
     let frame = serde_json::to_string(&value).unwrap();
-    fs::write(&tampered, format!("{header}{frame}\n")).unwrap();
+    write_fixture(&tampered, format!("{header}{frame}\n"));
     let error = JsonlEventLog::open(&tampered).unwrap_err();
     assert!(error.to_string().contains("eventlog_corrupt"));
     cleanup(&tampered);
@@ -93,7 +120,7 @@ async fn jsonl_v2_repairs_only_a_torn_tail_and_rejects_legacy_after_upgrade() {
     let torn = temp_log("torn");
     let first = RuntimeEvent::new(RequestId::new(), 1, "legacy", Value::Null).unwrap();
     let encoded = serde_json::to_string(&first).unwrap();
-    fs::write(&torn, format!("{encoded}\n{{\"event_id\":")).unwrap();
+    write_fixture(&torn, format!("{encoded}\n{{\"event_id\":"));
     let store = JsonlEventLog::open(&torn).unwrap();
     assert_eq!(store.read_all().await.unwrap(), vec![first.clone()]);
     assert_eq!(fs::read_to_string(&torn).unwrap(), format!("{encoded}\n"));
