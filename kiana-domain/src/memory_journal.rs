@@ -71,6 +71,37 @@ pub enum MemoryMutationJournalStage {
 }
 
 impl MemoryMutationJournalStage {
+    /// 构造期就要判定的阶段规则。
+    ///
+    /// `validate_record` 需要一条 `MemoryRecord`（admission_state / state /
+    /// reviewed_by / reviewed_at），而 `MemoryMutationJournal::new` 手上只有 mutation 与
+    /// stage。因此 `new` 此前只做了 header + mutation 的校验，**完全没有触及阶段规则**——
+    /// 阶段规则要等 `validate_with_record` 绑定 record 之后才生效。
+    ///
+    /// 后果是：一条由 **Agent** 发起的 Approve 记录可以被直接构造出来，
+    /// 直到很 later 绑定 record 时才被拒。这等于把「Agent 不得批准」这条边界
+    /// 推得太晚——中间那个已构造的 journal 本身是可以流通的。
+    ///
+    /// 这里只提前判定**仅依赖 mutation 的那部分**，即授权方：需要 record 才能判的
+    /// 那些（admission/state/reviewed_by）仍然留在 `validate_record`，不重复也不放宽。
+    /// 操作种类（operation）同理未在此提前判定——它与 record 阶段的组合约束是一体的，
+    /// 提前单独判定会误伤目前合法的组合。
+    fn validate_authority(self, mutation: &MemoryMutation) -> Result<(), String> {
+        match self {
+            Self::Qualify | Self::Approve | Self::Supersede => {
+                if mutation.authority == MemoryMutationAuthority::Agent {
+                    return Err(match self {
+                        Self::Supersede => "memory_mutation_journal_supersede_invalid",
+                        _ => "memory_mutation_journal_approval_invalid",
+                    }
+                    .to_owned());
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn validate_record(
         self,
         mutation: &MemoryMutation,
@@ -171,6 +202,7 @@ impl MemoryMutationJournal {
         stage: MemoryMutationJournalStage,
     ) -> Result<Self, String> {
         mutation.validate()?;
+        stage.validate_authority(&mutation)?;
         let journal = Self {
             schema: MEMORY_MUTATION_JOURNAL_SCHEMA.to_owned(),
             mutation_digest: mutation.digest(),

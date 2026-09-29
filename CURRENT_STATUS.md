@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Agent-authored memory approval was constructible (2026-09-30)
+
+source_snapshot: `25243e11` plus this fix; `kiana-domain/src/memory_journal.rs` (`MemoryMutationJournalStage::validate_authority`, `MemoryMutationJournal::new`)
+worktree_status: Nineteenth real defect, and the first in this session with a direct authorisation consequence. `MemoryMutationJournalStage::validate_record` does refuse `MemoryMutationAuthority::Agent` for the `Qualify`, `Approve` and `Supersede` stages. But that method needs a `MemoryRecord` — admission state, record state, reviewer and review timestamp — and `MemoryMutationJournal::new` has only a mutation and a stage. So `new` validated the header and the mutation and never touched the stage rules at all: a journal carrying an **agent-authored approval** could be constructed successfully, and the denial only arrived later, when some other call site bound a record. The constructed journal was, in between, a valid value that could be carried around. PD-17's `agent_cannot_commit_approval_or_scope_superset` asserts the denial belongs at construction and was failing with `unwrap_err()` on an `Ok` value. `new` now applies the part of the stage rule that is decidable from the mutation alone — the authority — so an agent cannot author an approval or a supersede at any stage that forbids it.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-domain) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-17 fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: deliberately narrow. Only the authority half of the stage rule is applied at construction; the operation half is left where it was, because in `validate_record` the permitted operations are constrained jointly with the record's admission and state, and deciding the operation alone at construction would reject combinations that are currently legal — for instance a `Qualify` stage whose record is not yet qualified. Everything that still needs a record is still checked in `validate_record`, so no existing refusal was moved or removed; a journal that passes construction can still be rejected at record binding. The consequence to weigh is that a caller which legitimately relied on constructing an agent-authored approval journal and only later reconciling it will now fail earlier — which is the intended direction, but it is a behaviour change at a boundary and deserves the review this entry asks for. Whether the affected test now passes is unobserved.
+reviewer: Codex root-cause review of the `unwrap_err()`-on-`Ok` failure against the constructor and the stage rules; no local runtime test reviewer.
+
 ### Verified effect of the web-claim, SC-25 digest and rollout-digest fixes (2026-09-30)
 
 source_snapshot: `a8191345`; GitHub Actions run 36627061510
