@@ -13279,11 +13279,11 @@ command_argv:
   GitHub Actions: the 41-shard matrix
 cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
 fixture·cassette: the pre-existing CO-06 / PD-14 / PD-31 artifact fixtures; none added, removed or weakened.
-exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+exit_code: 0 for local format and static compile; GitHub Actions run 36602371945 (commit c555100c) measured the effect: `artifact_content_hash_invalid` fell from 10 occurrences to 0. The overall failure-message count across the 21 failing shards however ROSE from 481 to 559, and that is expected rather than alarming: the CO-06 tests used to die at the `.unwrap()` on a constructor that could never succeed, so everything behind that line was never executed. With the constructor usable they run on and fail at the next real defect underneath. The raw message count is therefore a poor progress metric here — it moves up whenever a masked defect is unmasked, while the count of *distinct* defects is what actually falls.
 status change: none. No step, feature_status or proof_level is promoted by this commit.
 proof-level change: none.
 limitations: as with the journal validator, accepting both spellings is a widening relative to either single form, and the justification is again empirical — bare hex is what the constructor writes and what two independent consumers compare against, so the prefixed-only check was simply wrong for this field. The hash itself is unchanged; only the accepted spelling widened. The deeper problem is that the repository has no single digest convention, and this is the second time that has surfaced as a defect; a normalisation decision would remove the whole class rather than patching each site. Whether the affected fixtures now pass is unobserved, and `artifact_content_hash_invalid` stood at 10 occurrences in run 36595558875 before this change.
-reviewer: Codex root-cause review of the ten `artifact_content_hash_invalid` occurrences against the constructor, its validator and the two consumers; no local runtime test reviewer.
+reviewer: Codex root-cause review of the ten `artifact_content_hash_invalid` occurrences against the constructor, its validator and the two consumers, then a before/after comparison of run 36595558875 against run 36602371945; no local runtime test reviewer.
 
 ### Test digest-fixture hex bug across 28 files evidence (2026-09-30)
 
