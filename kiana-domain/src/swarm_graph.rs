@@ -200,8 +200,13 @@ impl Partition {
         if self.work_fingerprint != expected {
             return Err("swarm_partition_fingerprint_mismatch".to_owned());
         }
+        // `WorkFingerprint` 的格式是 `fnv1a64:{:016x}`——前缀 8 字符 + 16 位十六进制
+        // = **24** 字符。此前这里写的是 `!= 23`，于是每一个由 `fingerprint()` 正确算出的
+        // 指纹都会被判 `swarm_partition_fingerprint_invalid`：上一行的
+        // `work_fingerprint != expected` 比对其实已经通过（指纹确实是按同样的入参算出来的），
+        // 紧接着的长度检查却因为差一而把合法值全部拒掉。SW-02 的三个用例因此失败。
         if !self.work_fingerprint.as_str().starts_with("fnv1a64:")
-            || self.work_fingerprint.as_str().len() != 23
+            || self.work_fingerprint.as_str().len() != 24
         {
             return Err("swarm_partition_fingerprint_invalid".to_owned());
         }

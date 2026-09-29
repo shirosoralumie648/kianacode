@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Swarm partition fingerprint length check was off by one (2026-09-30)
+
+source_snapshot: `5e750873` plus this fix; `kiana-domain/src/swarm_graph.rs` (`Partition::validate`); the format itself is produced in `kiana-domain/src/ids.rs` (`WorkFingerprint`)
+worktree_status: Twentieth real defect, and the narrowest so far — a single wrong integer. `WorkFingerprint` is formatted as `fnv1a64:{:016x}`: an eight-character prefix plus sixteen hex digits, which is **24** characters. `Partition::validate` required `work_fingerprint.len() != 23`, so every correctly formed fingerprint was rejected as `swarm_partition_fingerprint_invalid`. The check is misleading in a way worth stating: the line immediately above it, `self.work_fingerprint != expected`, *passes* — the fingerprint really was computed from the same four inputs, and the normalisation ordering (trim, then sort, before hashing) is consistent between the constructor and the validator. So the digest comparison succeeded and the length assertion that followed rejected the value anyway. Three SW-02 cases failed on this. The comparison check and the prefix check are untouched; only the constant changed.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-domain) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing SW-02 fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the constant was derived by reading the format string rather than by running the code, so it rests on `{:016x}` always emitting exactly sixteen characters — true for a `u64`, which is what `fnv1a64` returns. If that width ever changes, this literal will need to move with it; a length check expressed against the prefix length plus the digest width would be more durable, and that is noted rather than done, since it is a refactor of a validation rather than the fix. The check remains fail-closed for genuinely malformed fingerprints: the prefix and the exact length are both still required. Whether the three affected tests now pass is unobserved.
+reviewer: Codex review of the three `swarm_partition_fingerprint_invalid` occurrences against the `WorkFingerprint` format string; no local runtime test reviewer.
+
 ### Agent-authored memory approval was constructible (2026-09-30)
 
 source_snapshot: `25243e11` plus this fix; `kiana-domain/src/memory_journal.rs` (`MemoryMutationJournalStage::validate_authority`, `MemoryMutationJournal::new`)
