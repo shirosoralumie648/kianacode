@@ -265,23 +265,26 @@ fn a_fault_claimed_as_completed_is_refused() {
 fn a_confirmed_effect_on_an_unreconciled_fault_is_refused() {
     // The shape a real adapter would report after a kill -9 it "knows" finished: the write
     // started and the outcome was never reconciled. Confirming it is a `Completed` claim.
-    let unsafe_case = StorageFaultCase::new(
-        StorageFaultKind::KillNine,
-        None,
-        error(
-            StorageErrorClass::Unknown,
-            "eventlog_commit_outcome_unknown",
-        ),
-        AdapterKind::Jsonl,
-        StorageFaultRecovery::ReconcileFromFacts,
-        StorageFaultExit::UnknownOutcome,
-        true,
-        true,
-        limitation("the effect was never reconciled from facts"),
-    )
-    .expect("a case may be built before it is judged");
+    // `StorageFaultCase::new` 在返回前就调用 `validate()`，所以不合规的 case 是
+    // **构造期**就被拒的——错误码与它随后 `validate()` 会给出的完全相同。
+    // 此前这里先 `.expect(...)` 造出 case、再断言 `validate()` 报错，
+    // 但构造器已经先拒了，于是这个 deny 路径永远走不到断言处。
     assert_eq!(
-        unsafe_case.validate().unwrap_err(),
+        StorageFaultCase::new(
+            StorageFaultKind::KillNine,
+            None,
+            error(
+                StorageErrorClass::Unknown,
+                "eventlog_commit_outcome_unknown",
+            ),
+            AdapterKind::Jsonl,
+            StorageFaultRecovery::ReconcileFromFacts,
+            StorageFaultExit::UnknownOutcome,
+            true,
+            true,
+            limitation("the effect was never reconciled from facts"),
+        )
+        .unwrap_err(),
         "storage_fault_unknown_outcome_not_fenced",
         "an unreconciled outcome may not be reported as confirmed"
     );
@@ -347,23 +350,26 @@ fn an_unreconciled_effect_may_not_be_replayed_without_reconciling_first() {
     assert_ne!(network.recovery, StorageFaultRecovery::RefuseWithoutEffect);
 
     // A network Unknown answered with "nothing happened" is unconstructible.
-    let unfenced = StorageFaultCase::new(
-        StorageFaultKind::NetworkUnknown,
-        None,
-        error(
-            StorageErrorClass::ResultUnknown,
-            "connector_delivery_unknown",
-        ),
-        AdapterKind::Jsonl,
-        StorageFaultRecovery::RefuseWithoutEffect,
-        StorageFaultExit::UnknownOutcome,
-        true,
-        false,
-        limitation("answered with nothing happened, which is the failure the card names"),
-    )
-    .expect("a case may be built before it is judged");
+    // `StorageFaultCase::new` 在返回前就调用 `validate()`，所以不合规的 case 是
+    // **构造期**就被拒的——错误码与它随后 `validate()` 会给出的完全相同。
+    // 此前这里先 `.expect(...)` 造出 case、再断言 `validate()` 报错，
+    // 但构造器已经先拒了，于是这个 deny 路径永远走不到断言处。
     assert_eq!(
-        unfenced.validate().unwrap_err(),
+        StorageFaultCase::new(
+            StorageFaultKind::NetworkUnknown,
+            None,
+            error(
+                StorageErrorClass::ResultUnknown,
+                "connector_delivery_unknown",
+            ),
+            AdapterKind::Jsonl,
+            StorageFaultRecovery::RefuseWithoutEffect,
+            StorageFaultExit::UnknownOutcome,
+            true,
+            false,
+            limitation("answered with nothing happened, which is the failure the card names"),
+        )
+        .unwrap_err(),
         "storage_fault_unknown_outcome_not_fenced"
     );
 }
@@ -392,20 +398,23 @@ fn a_recovery_beyond_the_adapters_authority_is_refused() {
 fn a_corrupt_frame_may_not_be_recovered_from_it_is_quarantined() {
     // "Recover" from a torn tail by truncating it is a data-loss decision, not a recovery action.
     // The only accepted action is a quarantine plus an operator.
-    let corrupt = StorageFaultCase::new(
-        StorageFaultKind::CorruptFrame,
-        None,
-        error(StorageErrorClass::Corrupt, "eventlog_frame_invalid"),
-        AdapterKind::Jsonl,
-        StorageFaultRecovery::RestartFromCommittedPrefix,
-        StorageFaultExit::Quarantined,
-        true,
-        false,
-        limitation("restarting from the committed prefix would drop the tail"),
-    )
-    .expect("a case may be built before it is judged");
+    // `StorageFaultCase::new` 在返回前就调用 `validate()`，所以不合规的 case 是
+    // **构造期**就被拒的——错误码与它随后 `validate()` 会给出的完全相同。
+    // 此前这里先 `.expect(...)` 造出 case、再断言 `validate()` 报错，
+    // 但构造器已经先拒了，于是这个 deny 路径永远走不到断言处。
     assert_eq!(
-        corrupt.validate().unwrap_err(),
+        StorageFaultCase::new(
+            StorageFaultKind::CorruptFrame,
+            None,
+            error(StorageErrorClass::Corrupt, "eventlog_frame_invalid"),
+            AdapterKind::Jsonl,
+            StorageFaultRecovery::RestartFromCommittedPrefix,
+            StorageFaultExit::Quarantined,
+            true,
+            false,
+            limitation("restarting from the committed prefix would drop the tail"),
+        )
+        .unwrap_err(),
         "storage_fault_corrupt_not_quarantined"
     );
     // And the quarantined form is the one the matrix accepts.
@@ -460,20 +469,23 @@ fn a_matrix_with_two_cases_for_one_fault_is_refused() {
 fn a_fault_that_exits_zero_is_refused() {
     // A shell script that observes exit 0 from a store that lost a write is exactly the drift the
     // exit-code column exists to catch.
-    let clean = StorageFaultCase::new(
-        StorageFaultKind::DiskFull,
-        None,
-        error(StorageErrorClass::Unavailable, "eventlog_disk_limit"),
-        AdapterKind::Jsonl,
-        StorageFaultRecovery::RefuseWithoutEffect,
-        StorageFaultExit::Clean,
-        false,
-        false,
-        limitation("declared exit zero for a fault that never happened cleanly"),
-    )
-    .expect("a case may be built before it is judged");
+    // `StorageFaultCase::new` 在返回前就调用 `validate()`，所以不合规的 case 是
+    // **构造期**就被拒的——错误码与它随后 `validate()` 会给出的完全相同。
+    // 此前这里先 `.expect(...)` 造出 case、再断言 `validate()` 报错，
+    // 但构造器已经先拒了，于是这个 deny 路径永远走不到断言处。
     assert_eq!(
-        clean.validate().unwrap_err(),
+        StorageFaultCase::new(
+            StorageFaultKind::DiskFull,
+            None,
+            error(StorageErrorClass::Unavailable, "eventlog_disk_limit"),
+            AdapterKind::Jsonl,
+            StorageFaultRecovery::RefuseWithoutEffect,
+            StorageFaultExit::Clean,
+            false,
+            false,
+            limitation("declared exit zero for a fault that never happened cleanly"),
+        )
+        .unwrap_err(),
         "storage_fault_exit_code_invalid"
     );
     // The correct code for each class is fixed, so two adapters cannot drift on it.
@@ -493,20 +505,23 @@ fn a_fault_that_exits_zero_is_refused() {
 
 #[test]
 fn a_case_with_no_limitation_evidence_is_refused() {
-    let unproven = StorageFaultCase::new(
-        StorageFaultKind::LockContention,
-        None,
-        error(StorageErrorClass::Conflict, "eventlog_lock_contended"),
-        AdapterKind::Jsonl,
-        StorageFaultRecovery::FenceThenReconcile,
-        StorageFaultExit::Refused,
-        false,
-        false,
-        Vec::new(),
-    )
-    .expect("a case may be built before it is judged");
+    // `StorageFaultCase::new` 在返回前就调用 `validate()`，所以不合规的 case 是
+    // **构造期**就被拒的——错误码与它随后 `validate()` 会给出的完全相同。
+    // 此前这里先 `.expect(...)` 造出 case、再断言 `validate()` 报错，
+    // 但构造器已经先拒了，于是这个 deny 路径永远走不到断言处。
     assert_eq!(
-        unproven.validate().unwrap_err(),
+        StorageFaultCase::new(
+            StorageFaultKind::LockContention,
+            None,
+            error(StorageErrorClass::Conflict, "eventlog_lock_contended"),
+            AdapterKind::Jsonl,
+            StorageFaultRecovery::FenceThenReconcile,
+            StorageFaultExit::Refused,
+            false,
+            false,
+            Vec::new(),
+        )
+        .unwrap_err(),
         "storage_fault_limitation_required",
         "每个故障有…限制证据: a case with nothing to disclose is unproven"
     );

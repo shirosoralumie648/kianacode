@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### PD-30 deny paths built a case the constructor already refuses (2026-09-30)
+
+source_snapshot: `8f61e0d1` plus this fix; `kiana-eventlog/tests/pd30_storage_fault_matrix.rs`; the constructor under discussion is `StorageFaultCase::new` in `kiana-ports/src/storage_fault_matrix.rs`
+worktree_status: Twenty-third real defect. Five deny-path cases in PD-30 all had the same impossible shape: build a deliberately invalid case with `StorageFaultCase::new(...).expect("a case may be built before it is judged")`, then assert `case.validate().unwrap_err()` equals a specific refusal code. But `new` ends with `value.validate()?` before returning, so an invalid case is refused at construction and the `.expect` fires first — the assertion the case exists to make is never reached. The tests now assert the refusal at the point it actually happens, with the same expected codes: `storage_fault_unknown_outcome_not_fenced` (twice), `storage_fault_corrupt_not_quarantined`, `storage_fault_exit_code_invalid` and `storage_fault_limitation_required`. The production constructor is untouched.
+command_argv:
+  cargo fmt --all --check                                        # exit 0
+  cargo check -p kiana-eventlog --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-eventlog) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-30 fixtures; no expected code was changed, only where the refusal is observed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the expected refusal codes are unchanged at every site, so this relocates the observation rather than relaxing it — the same five rules are still being asserted, just at the constructor that actually enforces them. It is worth being explicit that the surrounding comments were already right: one of them reads "A network Unknown answered with 'nothing happened' is **unconstructible**", which is precisely what the constructor does, while the code beneath it asserted the opposite. The code contradicted its own stated intent; the test now matches the comment. A design question this exposes but does not answer is whether a "build then judge" constructor is wanted at all for deny-path testing; the fields are `pub`, so a test could assemble such a case directly, but every other PD-30 case relies on `new` validating, and changing that would weaken the safe construction path. Whether the five now pass is unobserved.
+reviewer: Codex review of the five `a case may be built before it is judged` sites against the constructor's trailing `validate()`; no local runtime test reviewer.
+
 ### Measured state after fixes 18-22 (2026-09-30)
 
 source_snapshot: `af211b28`; GitHub Actions run 36630664782 (commit c434f520)
