@@ -13223,6 +13223,22 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### BQ-24 budget card remaining/limit binding fix evidence (2026-09-29)
+
+source_snapshot: `e79a3b7b` plus this fix; `kiana-commands/src/billing_card.rs` (`BudgetCard::validate`)
+worktree_status: Third real defect from the 705 failures. Sixteen tests in `kiana-commands/tests/bq24_budget_card.rs` all failed with `budget_card_remaining_limit_binding_invalid`, because the file's shared base fixture supplies `limit: Some(USD 1000)` and no `remaining`. The check was a symmetric exclusive-or, `self.remaining.is_some() != self.limit.is_some()`, so it rejected two different situations: a card claiming a remainder with no limit (genuinely suspicious — a remainder with nothing to be measured against is an invented number), and a card stating a limit with no remainder (a legitimate partially-known server state). The second rejection is the bug. `ui_does_not_compute_a_remaining_amount_when_the_server_omits_it` states the intended behaviour directly: when the server sends a limit but no remainder the card must NOT compute `1000 - 400 = 600`, it must render `remaining: <unknown>`. That is only reachable if limit-without-remaining is accepted. The rule is now one-directional — a `remaining` requires a `limit`, a `limit` may stand alone. The deny case `card_rejects_a_remaining_amount_without_a_limit` still holds, and no test anywhere requires limit-without-remaining to be refused.
+command_argv:
+  cargo fmt --all --check                                        # exit 0
+  cargo check -p kiana-commands --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-commands) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the 16 existing `bq24_budget_card` cases; none added, removed, weakened or re-expressed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this does narrow a check, so it is worth being explicit about why that is a correction rather than a relaxation: the security property being protected is "never invent a number the server did not state", and a server-stated limit with no remainder invents nothing — the card reports the remainder as unknown. The invented-number case, `remaining` without `limit`, remains refused with the same error code. A green run still proves only this validation, not the billing, quota settlement or projection behaviour behind it, and the 16 fixtures are unproven until a run observes them. This item is independent of the open BQ-26 framer decision, which remains unresolved.
+reviewer: Codex review of the sixteen clustered failures against the fixture and the two binding tests; no local runtime test reviewer.
+
 ### BQ-26 framer contract conflict — needs a decision (2026-09-29)
 
 source_snapshot: `81b26c7a`; `kiana-provider/src/transport.rs` (`Framer::finish`), `kiana-core/tests/support/bq26_adapter_seam.rs` (`drive_network_eof`), `kiana-core/src/bq26_fault_harness.rs`

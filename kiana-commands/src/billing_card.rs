@@ -315,8 +315,19 @@ impl BudgetCard {
         {
             BudgetAmount::new(amount.currency.clone(), amount.micros)?;
         }
-        // A currency that the server did not state cannot be invented on a partially unknown card.
-        if self.remaining.is_some() != self.limit.is_some() {
+        // 【为什么这条绑定是单向的，而不是「两者同有同无」】
+        // 要防的是**凭空造出服务端没说过的数字**：卡面报出一个 remaining，却不说它相对哪个
+        // limit 算出来的，这个 remainder 无从校验，属于发明。
+        //
+        // 反过来，服务端只给了 limit、没给 remaining，是完全正常的部分已知状态——卡面应当
+        // 老老实实把 remaining 渲染成 unknown，而不是本地拿 limit - spent 去减。BQ-24 正是
+        // 钉这一条：`ui_does_not_compute_a_remaining_amount_when_the_server_omits_it` 明确
+        // 要求「服务端给了 limit 但没给 remainder 时不得算出 600」。
+        //
+        // 之前的写法是 `remaining.is_some() != limit.is_some()`（对称异或），连
+        // 「有 limit、无 remaining」这种合法卡片也一并判为 invalid，于是所有以
+        // 「只有 limit」为基础夹具的用例全部失败。改为单向：只有 remaining 必须依附于 limit。
+        if self.remaining.is_some() && self.limit.is_none() {
             return Err("budget_card_remaining_limit_binding_invalid".to_owned());
         }
         if self.state == BudgetState::OverLimit && self.overage_reason == OverageReason::NotOverage
