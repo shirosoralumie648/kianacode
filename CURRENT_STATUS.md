@@ -13255,6 +13255,25 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+
+source_snapshot: `ad880147`; `kiana-policy/src/security_control_registry.rs` (`safe_text`), `kiana-policy/tests/sc34_control_registry.rs`
+worktree_status: **Second item escalated under AGENTS.md §10; also not resolved unilaterally.** The previous commit's constructor fix is confirmed effective: in run 36590352539 `security_control_digest_invalid` went 13 -> 0, and `sc34_control_registry` went from every case dying at `.expect(...)` to **38 passed / 2 failed**. The two survivors are `a_malformed_owner_is_rejected_as_malformed_not_as_missing` and `an_evidence_reference_that_carries_a_secret_is_refused`. Both feed a URL carrying embedded credentials, `https://alice:hunter2@...`, and both expect `security_control_{owner,evidence_ref}_secret_detected`; both receive `security_control_{owner,evidence_ref}_not_redacted`.
+command_argv:
+  GitHub Actions run 36590352539 (commit ad880147), Tests (kiana-policy)
+  sc34_control_registry: "test result: FAILED. 38 passed; 2 failed"
+  security_control_digest_invalid count 0 (was 13)
+cwd/environment: GitHub-hosted runner; no local Cargo test was run per user instruction.
+fixture·cassette: the 40 existing `sc34_control_registry` cases; nothing added, removed or weakened.
+exit_code: not applicable — no change was made
+status change: none. No step, feature_status or proof_level is promoted.
+proof-level change: none.
+limitations: the conflict is documented, not fixed. `safe_text` in this module is not anomalous in isolation: it is byte-for-byte the same shape as the canonical `safe_text` in `kiana-core/src/audit_projection_commit.rs` (and the same order appears in `restore_activation`, `retention_deletion`, `revocation_propagation`) — first `redact_text(value) != value` -> `_not_redacted`, then `scan_secret_sentinels(...)` -> `_secret_detected`. Because `redact_text` already rewrites a credential-bearing URL, the first branch always wins and the sentinel branch is unreachable for exactly these inputs. So the module is consistent with the rest of the repository, and the two tests encode a different expectation. Both outcomes are fail-closed, so this is a diagnostics-contract question rather than a security hole, but it is still a real fork:
+  Option 1 — keep the current order everywhere. The two tests then assert a code the repository never emits for this shape, and they are the outliers; that means changing two test expectations, which AGENTS.md §8 forbids doing to turn a gate green.
+  Option 2 — run `scan_secret_sentinels` first, so a hard credential reports `_secret_detected` and a merely redaction-shaped value reports `_not_redacted`. This makes the two tests pass and arguably sharpens the diagnostic, but it must then be applied to the four kiana-core modules too, or the repository grows two different precedences, and it may flip other currently-passing assertions.
+  Neither was applied. Choosing between them changes an error-code contract that spans at least five modules, so it is escalated rather than assumed.
+reviewer: Codex analysis of the two surviving failures against `safe_text` and four peer implementations; no local runtime test reviewer; no code changed for this item.
+
 ### BQ-26 framer contract conflict — needs a decision (2026-09-29)
 
 source_snapshot: `81b26c7a`; `kiana-provider/src/transport.rs` (`Framer::finish`), `kiana-core/tests/support/bq26_adapter_seam.rs` (`drive_network_eof`), `kiana-core/src/bq26_fault_harness.rs`
