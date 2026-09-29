@@ -74,12 +74,19 @@ fn incident(
     incident
 }
 
-fn input(
+/// 【为什么需要显式传入 store_id】
+/// `store_id()` 每调用一次都生成一个**全新的随机 id**。此前 `input()` 在内部自行调用
+/// `store_id()`，于是测试里 `let store = store_id();` 之后拿去构造 incident 的那个 id，
+/// 与 `input()` 内部生成的并不是同一个——`validate()` 随即以
+/// `storage_diagnostic_input_incident_store_mismatch` 拒绝，而这条检查本身是对的：
+/// 一份诊断里，incident 描述的 store 必须就是被诊断的那个 store。
+/// 所以修的是夹具：把 store 显式串下去，而不是放宽那条一致性检查。
+fn input_for(
+    store_id: StoreIdentityId,
     health_status: StorageHealthStatus,
     projection: StorageProjectionLag,
     incidents: Vec<StorageIntegrityIncident>,
 ) -> StorageDiagnosticInput {
-    let store_id = store_id();
     StorageDiagnosticInput {
         schema: STORAGE_DIAGNOSTIC_INPUT_SCHEMA.to_owned(),
         version: STORAGE_DIAGNOSTIC_VERSION,
@@ -96,6 +103,15 @@ fn input(
     }
     .sealed()
     .unwrap()
+}
+
+/// 不需要绑定 incident 的用例直接用它，内部自取一个 store id。
+fn input(
+    health_status: StorageHealthStatus,
+    projection: StorageProjectionLag,
+    incidents: Vec<StorageIntegrityIncident>,
+) -> StorageDiagnosticInput {
+    input_for(store_id(), health_status, projection, incidents)
 }
 
 fn caught_up() -> StorageProjectionLag {
@@ -284,7 +300,8 @@ fn an_unknown_store_status_is_never_rendered_healthy() {
 #[test]
 fn an_open_unknown_incident_is_never_rendered_healthy() {
     let store = store_id();
-    let input = input(
+    let input = input_for(
+        store,
         StorageHealthStatus::Ready,
         caught_up(),
         vec![incident(
@@ -311,7 +328,7 @@ fn an_open_unknown_incident_is_never_rendered_healthy() {
 #[test]
 fn a_corrupt_store_or_corrupt_incident_is_reported_as_error() {
     let store = store_id();
-    let corrupt_store = input(StorageHealthStatus::Corrupt, caught_up(), Vec::new());
+    let corrupt_store = input_for(store, StorageHealthStatus::Corrupt, caught_up(), Vec::new());
     let report = evaluate_storage_diagnostics(&corrupt_store).unwrap();
     assert_eq!(report.display_status, SignalStatus::Error);
     assert!(report
@@ -320,7 +337,8 @@ fn a_corrupt_store_or_corrupt_incident_is_reported_as_error() {
         .any(|note| note.text == "storage_health_corrupt"));
 
     // A store that claims `Ready` while a corrupt frame is open is still an error.
-    let corrupt_incident = input(
+    let corrupt_incident = input_for(
+        store,
         StorageHealthStatus::Ready,
         caught_up(),
         vec![incident(
@@ -337,7 +355,8 @@ fn a_corrupt_store_or_corrupt_incident_is_reported_as_error() {
 #[test]
 fn a_resolved_incident_does_not_keep_degrading_the_store() {
     let store = store_id();
-    let input = input(
+    let input = input_for(
+        store,
         StorageHealthStatus::Ready,
         caught_up(),
         vec![incident(
@@ -408,7 +427,7 @@ fn ok_with_a_limitation_is_not_representable() {
 #[test]
 fn a_non_durable_adapter_is_never_reported_ok() {
     let store = store_id();
-    let mut input = input(StorageHealthStatus::Ready, caught_up(), Vec::new());
+    let mut input = input_for(store, StorageHealthStatus::Ready, caught_up(), Vec::new());
     input.health = StorageHealth::new(
         store,
         StorageHealthStatus::Ready,
@@ -516,7 +535,12 @@ fn adapter_incident_code_never_reaches_the_diagnostic_output() {
         Some(7),
     )
     .unwrap();
-    let input = input(StorageHealthStatus::Ready, caught_up(), vec![incident]);
+    let input = input_for(
+        store,
+        StorageHealthStatus::Ready,
+        caught_up(),
+        vec![incident],
+    );
     let report = evaluate_storage_diagnostics(&input).unwrap();
     let rendered = serde_json::to_string(&report).unwrap();
     assert!(!rendered.contains("leaked-into-code"), "{rendered}");
@@ -735,7 +759,7 @@ fn a_projection_cursor_ahead_of_the_facts_is_rejected() {
 #[test]
 fn a_duplicate_incident_is_rejected() {
     let store = store_id();
-    let mut input = input(StorageHealthStatus::Ready, caught_up(), Vec::new());
+    let mut input = input_for(store, StorageHealthStatus::Ready, caught_up(), Vec::new());
     let incident = StorageIntegrityIncident::new(
         store,
         StorageIntegrityIncidentClass::Unknown,

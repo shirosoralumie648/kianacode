@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### PD-29 storage diagnostic incident bound to a different store evidence (2026-09-30)
+
+source_snapshot: `2d1ccb4c` plus this fix; `kiana-core/tests/pd29_storage_diagnostics.rs` (new `input_for` helper; `input` now delegates to it)
+worktree_status: Tenth real defect, and the third fixture-layer one. Six tests in the PD-29 storage-diagnostics suite fail with `storage_diagnostic_input_incident_store_mismatch`: `an_open_unknown_incident_is_never_rendered_healthy`, `a_corrupt_store_or_corrupt_incident_is_reported_as_error`, `a_duplicate_incident_is_rejected`, `a_non_durable_adapter_is_never_reported_ok`, `a_resolved_incident_does_not_keep_degrading_the_store` and `adapter_incident_code_never_reaches_the_diagnostic_output`. The test helper `store_id()` returns `StoreIdentityId::new()`, a *fresh random id on every call*, and the `input(...)` builder called `store_id()` internally. Each affected test separately did `let store = store_id();` and handed that id to `incident(store, ...)`, so the incidents described one store while the diagnostic input described another. `validate()` compares `incident.store_id` against `self.store_id` and refuses, which is correct: an incident that claims to describe a different store than the one being diagnosed is exactly the kind of cross-store confusion the check exists to catch. The fix threads the store through explicitly — `input_for(store_id, ...)` is now the real builder and `input(...)` delegates to it with a fresh id for the tests that do not bind incidents.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-core --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-core-s*) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-29 fixtures; their assertions are untouched, only the id the builder is given changed.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this changes test files only. No assertion, expected value or deny case was altered; the six tests still assert exactly what they asserted before, they simply construct a diagnostic whose incidents actually belong to it. The consistency check is untouched and still refuses any incident naming a foreign store. An earlier, broader version of this edit rewrote every `input(` call site in the file, including the eighteen that do not bind a store; that produced a compile error and was reverted before this commit, and only the six affected bodies were rewritten. Whether the six now pass is unobserved, and they may expose further defects once construction succeeds.
+reviewer: Codex review of the six `storage_diagnostic_input_incident_store_mismatch` occurrences against the `store_id()` helper and the `input` builder; no local runtime test reviewer.
+
 ### EventLog JSONL fixtures written with default permissions evidence (2026-09-30)
 
 source_snapshot: `51317448` plus this fix; `kiana-eventlog/src/lib.rs` (test module: new `write_fixture` helper, `temp_log`)
