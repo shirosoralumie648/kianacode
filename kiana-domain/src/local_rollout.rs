@@ -65,8 +65,21 @@ impl LocalRolloutEvidence {
         Ok(())
     }
 
+    /// 【为什么必须把 `evidence_digest` 自己排除在外】
+    /// 早先这里直接 `serde_json::to_value(self)`，而 `self` 里**包含** `evidence_digest`
+    /// 本身——于是摘要把它自己要填的那个字段也算进去了。那是一个自指哈希：
+    /// 要让 `validate()` 里的 `evidence_digest == self.digest()` 成立，
+    /// 就得让某个值等于「包含它自己的哈希」，这在一般情况下无解。
+    /// 结果是这个类型**永远无法通过自己的校验**，`rollout_evidence_digest_mismatch`
+    /// 成为唯一可能的结局。
+    ///
+    /// 正确做法与仓库内其它契约一致（例如 SC-34 的 `Control::digest()` 逐字段列举、
+    /// 刻意不含 `control_digest`）：摘要只覆盖被证明的内容，不覆盖结论本身。
+    /// 这里先把自身克隆一份并把 `evidence_digest` 置空再求摘要。
     pub fn digest(&self) -> String {
-        json_digest(&serde_json::to_value(self).unwrap_or_default())
+        let mut covered = self.clone();
+        covered.evidence_digest = String::new();
+        json_digest(&serde_json::to_value(&covered).unwrap_or_default())
     }
 }
 

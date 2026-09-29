@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Local rollout evidence hashed itself — a self-referential digest evidence (2026-09-30)
+
+source_snapshot: `5ba016ad` plus this fix; `kiana-domain/src/local_rollout.rs` (`LocalRolloutEvidence::digest`)
+worktree_status: Seventeenth real defect, and the fifth and most serious instance of the "can never succeed" class. This one is production logic rather than a fixture. `LocalRolloutEvidence::digest` was `json_digest(&serde_json::to_value(self)...)`, and `self` contains the `evidence_digest` field it is meant to produce. The digest therefore covered itself, so `validate()`'s `self.evidence_digest != self.digest()` compared a value against a hash of itself and could never agree — `rollout_evidence_digest_mismatch` was the only reachable outcome and the type could never validate. The fix hashes a clone whose `evidence_digest` is blanked, which is the same discipline the rest of the repository already follows: SC-34's `Control::digest()` enumerates fields and deliberately omits `control_digest`, and the `SecurityControl` repair in this session moved the stamp ahead of validation for the same reason. A digest is a statement about content; it cannot also be part of the content it describes.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-domain) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing local-rollout fixtures; none added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the digest's covered field set is now everything except `evidence_digest`, which is what the previous code intended and what the surrounding contracts do. Any stored evidence digest computed under the old self-inclusive rule would no longer match after this change; whether such stored values exist is not established here, and no migration is claimed or performed. A consumer that deliberately relied on the self-inclusive hash — for instance to detect a change to the digest field itself — would lose that property, but no such consumer was found and the type never validated anyway, so there could not have been a stored value produced by a successful round trip. Whether the affected tests now pass is unobserved.
+reviewer: Codex root-cause review of the `rollout_evidence_digest_mismatch` occurrences against `digest` and `validate`, cross-checked against the `Control::digest` precedent; no local runtime test reviewer.
+
 ### SC-25 project trust digest fixture used non-hex seeds evidence (2026-09-30)
 
 source_snapshot: `078febd2` plus this fix; `kiana-policy/tests/sc25_project_trust.rs` (`digest`)
