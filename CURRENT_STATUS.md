@@ -13255,6 +13255,20 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Sweep for further self-referential digests — negative result, and a trap (2026-09-30)
+
+source_snapshot: `a8191345`; tree-wide scan of `kiana-*/src/**/*.rs`
+worktree_status: Having fixed one self-referential digest, the obvious next step was to sweep for the rest, and the first sweep looked alarming: of 715 sites that compare a struct's own digest field against `self.digest()`, 39 appeared to have a `digest()` that serialises all of `self`. That number would have meant 39 more broken types. **It is wrong.** All three that survived a second, stricter pass were checked by reading the code, and all three are correct: `CapabilityCatalogEntry::digest` and `IdentityMigration::digest` enumerate their fields explicitly in a `json!({ ... })` literal, and `ProjectIdentity::digest` serialises `self` and then overwrites `identity_digest` with an empty string before hashing. The repository's convention is to exclude the field — either by enumerating fields or by blanking it post-serialisation — and the first heuristic only recognised the `to_value(self)` spelling, so every correct implementation using the blanking idiom was flagged.
+command_argv:
+  python3 tree-wide scan: `self.<field> != self.digest()` sites, then whether that type's `digest()` mentions `to_value(self)`   # 715 sites, 39 flagged
+  manual read of the 3 that survived a stricter re-check   # all 3 correct
+cwd/environment: repository root; Linux x86_64. No Cargo test was run locally per user instruction.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: recorded so the scan is not repeated and so the one real fix is not mistaken for one of many. The stricter pass used a bounded regex window, so it is itself not proof that the remaining 712 sites are all correct — it is evidence that the 39 flagged were not 39 bugs. A genuinely exhaustive check would read each `digest()` body in full; that has not been done, and the honest claim is "the sweep produced no further confirmed instance", not "the class is closed". The general lesson is the one already recorded for the constructor sweep: a heuristic that matches one spelling of a correct-but-differently-written pattern will manufacture a large, confident, wrong number.
+reviewer: Codex sweep plus manual verification of all surviving candidates; no local runtime test reviewer; no code changed for this item.
+
 ### Local rollout evidence hashed itself — a self-referential digest evidence (2026-09-30)
 
 source_snapshot: `5ba016ad` plus this fix; `kiana-domain/src/local_rollout.rs` (`LocalRolloutEvidence::digest`)
