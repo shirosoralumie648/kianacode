@@ -334,7 +334,23 @@ impl BudgetCard {
         {
             return Err("budget_card_overage_reason_missing".to_owned());
         }
-        if self.state != BudgetState::OverLimit && self.overage_reason != OverageReason::NotOverage
+        // 【为什么 `Unknown` 状态可以带 reason，但只能带「诚实的未知」】
+        // 非 OverLimit 的卡面原则上不该带 overage 理由——那等于凭空宣布超支。
+        // 但 `Unknown` 不是「确定没超」，而是「服务端没说」，它与
+        // `UnknownCost` / `ReconciliationRequired` 是一对诚实的组合：本仓库自己的
+        // `overage_reason_for_unknown()` 就会产出这两种理由，若此处一律拒绝，等于
+        // 拒绝自家 helper 的输出（BQ-24 的 round-trip 与 unknown-freshness 用例正是如此）。
+        //
+        // 因此只对**确定的**超支理由保持拒绝：`Unknown` 状态配上 `BudgetExhausted`
+        // 这类理由仍然是发明，`a_within_budget_card_may_not_invent_an_overage_reason`
+        // 依旧被拒。
+        let reason_is_honest_unknown = matches!(
+            self.overage_reason,
+            OverageReason::UnknownCost | OverageReason::ReconciliationRequired
+        );
+        if self.state != BudgetState::OverLimit
+            && self.overage_reason != OverageReason::NotOverage
+            && !(self.state == BudgetState::Unknown && reason_is_honest_unknown)
         {
             return Err("budget_card_overage_reason_unexpected".to_owned());
         }

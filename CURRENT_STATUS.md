@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### BQ-24 overage reason on an unknown state evidence (2026-09-30)
+
+source_snapshot: `b1a15a50` plus this fix; `kiana-commands/src/billing_card.rs` (`BudgetCard::validate`)
+worktree_status: Seventh real defect, and a follow-on exposed by the earlier BQ-24 fix rather than an independent one. Five tests in `kiana-commands/tests/bq24_budget_card.rs` failed with `budget_card_overage_reason_unexpected`: `unknown_counts_survive_the_round_trip_instead_of_being_dropped`, `an_unknown_freshness_renders_unknown_and_never_rounds_to_zero`, `unknown_freshness_renders_the_unknown_token_not_zero`, `an_unknown_state_may_not_also_carry_a_remaining_amount` and the in-crate `budget::tests` pair. The rule was `state != OverLimit && overage_reason != NotOverage -> error`, which admits an overage reason only when the state is `OverLimit`. But `BudgetState::Unknown` does not mean "known to be within budget" — it means the server did not state it — and it legitimately pairs with the reasons this repository's own `overage_reason_for_unknown()` produces, namely `UnknownCost` and `ReconciliationRequired`. The validator was therefore refusing values produced by the module's own helper. The rule now exempts exactly that pairing: an `Unknown` state may carry an honest-unknown reason, while a *definite* reason such as `BudgetExhausted` on an `Unknown` state is still refused, so `a_within_budget_card_may_not_invent_an_overage_reason` keeps passing.
+command_argv:
+  cargo fmt --all --check                                      # exit 0
+  cargo check -p kiana-commands --all-targets --locked --offline   # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-commands) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the existing `bq24_budget_card` cases; none added, removed or weakened.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this widens one rule, so the boundary it preserves is stated explicitly: a card may not announce a definite overage reason unless its state is `OverLimit` or the reason is one of the two honest-unknown variants. `BudgetExhausted`, `QueueFull`, `QuotaWindowExhausted` and `OverCommitted` on a non-`OverLimit` state are all still refused with the same code. Whether the five affected fixtures now pass is unobserved, and they may expose further defects once construction succeeds, as happened with the earlier BQ-24 and CO-06 fixes. This is the third distinct rule in `BudgetCard::validate` that had to be corrected rather than the code around it, which suggests the validator was written against a stricter intent than the render path actually implements.
+reviewer: Codex review of the five `budget_card_overage_reason_unexpected` occurrences against `overage_reason_for_unknown` and the two overage deny cases; no local runtime test reviewer.
+
 ### CAP-01 alias-registration error code — minor, needs a decision (2026-09-30)
 
 source_snapshot: `d0af4185`; `kiana-capability-broker/src/lib.rs` (`insert_handler`), `kiana-domain/src/actions.rs` (`canonical_action_operation`, `capability_action_descriptor`), `kiana-capability-broker/tests/cap01_registry.rs`
