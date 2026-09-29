@@ -13255,6 +13255,22 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### PD-18 fence fixture inherited a zero revision (2026-09-30)
+
+source_snapshot: `0bdf6336` plus this fix; `kiana-domain/tests/pd18_memory_projection.rs` (`active_record`); the divergence itself is in `kiana-domain/src/memory.rs`
+worktree_status: Twenty-first real defect. `MemoryProjectionFence::validate` requires `record_revision != 0`, and revision 0 means "never persisted", which should not carry a projection fence. The PD-18 fixture built its record with `..MemoryRecord::default()` and never set `revision`, so the fence header check rejected it and three cases failed with `memory_projection_fence_invalid`. The fixture now pins `revision: 1`.
+command_argv:
+  cargo fmt --all --check                                    # exit 0
+  cargo check -p kiana-domain --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-domain) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-18 fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the fixture change is the narrow fix, but the underlying divergence is a real inconsistency in the type and is deliberately **not** fixed here. `MemoryRecord` derives `Default`, so `MemoryRecord::default().revision` is `0`; the same field carries `#[serde(default = "first_revision")]`, and `first_revision()` is `1`. The same struct therefore has two different defaults for the same field depending on whether it was built in Rust or decoded from JSON. Reconciling them in the type would mean either a hand-written `Default` impl for a large struct — verbose and liable to drift as fields are added — or deciding that revision 0 is in fact a legitimate value, in which case the fence's `!= 0` rule would be the thing to revisit. Both are design decisions, not a mechanical fix, so the divergence is recorded here rather than silently resolved. A caller anywhere in the tree that builds records with `Default` and expects a projectable record hits the same wall, and this commit fixes only the one fixture. Whether the three affected tests now pass is unobserved.
+reviewer: Codex review of the three `memory_projection_fence_invalid` occurrences against the fence header check, the fixture and the `Default`/serde divergence; no local runtime test reviewer.
+
 ### Swarm partition fingerprint length check was off by one (2026-09-30)
 
 source_snapshot: `5e750873` plus this fix; `kiana-domain/src/swarm_graph.rs` (`Partition::validate`); the format itself is produced in `kiana-domain/src/ids.rs` (`WorkFingerprint`)

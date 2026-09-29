@@ -55,6 +55,15 @@ fn active_record(project_root: &str) -> MemoryRecord {
         }],
         reviewed_by: Some("local-user".to_owned()),
         reviewed_at_ms: Some(2),
+        // 【为什么必须显式给 revision】
+        // `MemoryRecord` 是 `#[derive(Default)]`，所以 `MemoryRecord::default().revision` 是 0；
+        // 而同一个字段上挂着 `#[serde(default = "first_revision")]`，`first_revision()` 返回 1。
+        // 于是「从 JSON 还原、缺 revision」得到 1，「用 Default 构造」得到 0——同一字段两套默认值。
+        // `MemoryProjectionFence::validate` 要求 `record_revision != 0`（revision 0 意味着
+        // 记录尚未持久化，不该有投影栅栏），所以沿用 `..MemoryRecord::default()` 的夹具
+        // 造出的记录永远过不了栅栏，三个用例全部报 `memory_projection_fence_invalid`。
+        // 这里显式给出 1，与 serde 侧的 `first_revision()` 对齐。
+        revision: 1,
         ..MemoryRecord::default()
     }
 }
