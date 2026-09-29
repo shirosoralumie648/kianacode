@@ -13711,6 +13711,20 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### Second instance of the redaction/sentinel precedence conflict (2026-09-30)
+
+source_snapshot: `9c954166`; `kiana-eventlog/src/writer_queue.rs` (`safe_label`, line 374), `kiana-eventlog/tests/pd27_writer_queue.rs` (line 670)
+worktree_status: The pairing method surfaced the same disagreement as the SC-34 case in a second, independent place, and this instance carries its own documentation of the intended semantics — which is what makes the decision materially easier. `pd27_writer_queue.rs` builds a writer label `daemon api_key=sk-live-0123456789abcdef` and expects `writer_registry_holder_secret_detected`; `safe_label` returns `writer_registry_holder_not_redacted` instead, because the redaction comparison runs first. The decisive detail is the comment immediately below that assertion, which states the distinction the code is not making: "`redact_text` would rewrite this one, so it is refused as not-yet-redacted rather than silently stored with the marker intact." So the test file itself already separates the two cases — a value that merely *would be redacted* is `_not_redacted`, a hard `sk-live-` sentinel is `_secret_detected` — and both are asserted in the same test.
+command_argv:
+  GitHub Actions run 36633490245 (commit c434f520): left "writer_registry_holder_not_redacted" vs right "writer_registry_holder_secret_detected"
+cwd/environment: GitHub-hosted runner; no local Cargo test was run per user instruction.
+fixture·cassette: unchanged; this entry records analysis, not a change.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this strengthens the case for resolving the SC-34 item but does not resolve it, and the two sites are not provably identical — `safe_text` in `kiana-policy` and `safe_label` in `kiana-eventlog` are separate implementations that happen to share the ordering, so a decision has to say whether the precedence is fixed once in `kiana-domain` and reused, or corrected at each site. What is now well evidenced is that the disagreement is systematic rather than a one-off, and that at least one test author wrote down the distinction the code fails to make. No code was changed here and the conflict remains open alongside BQ-26 and CAP-01.
+reviewer: Codex pairing analysis plus direct read of the test's own comment; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `ad880147`; `kiana-policy/src/security_control_registry.rs` (`safe_text`), `kiana-policy/tests/sc34_control_registry.rs`
 worktree_status: **Second item escalated under AGENTS.md §10; also not resolved unilaterally.** The previous commit's constructor fix is confirmed effective: in run 36590352539 `security_control_digest_invalid` went 13 -> 0, and `sc34_control_registry` went from every case dying at `.expect(...)` to **38 passed / 2 failed**. The two survivors are `a_malformed_owner_is_rejected_as_malformed_not_as_missing` and `an_evidence_reference_that_carries_a_secret_is_refused`. Both feed a URL carrying embedded credentials, `https://alice:hunter2@...`, and both expect `security_control_{owner,evidence_ref}_secret_detected`; both receive `security_control_{owner,evidence_ref}_not_redacted`.
