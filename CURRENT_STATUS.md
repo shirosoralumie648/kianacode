@@ -13255,6 +13255,21 @@ proof-level change: none.
 limitations: the constructor compiling and validating in the right order does not prove the 18 fixtures pass — they may expose further defects once construction succeeds, and a green run would only show that a control can be built and that its digest is self-consistent. Nothing here claims anything about SC-34's security-control coverage, the honesty of `demonstrated_proof`, or the registry's tamper detection beyond the digest comparison that already existed. The BQ-26 framer decision remains open and unrelated.
 reviewer: Codex root-cause review of the 13 `SC-34 durable control: security_control_digest_invalid` messages against the constructor and `validate()`; no local runtime test reviewer.
 
+### Fixes 23 and 24 measured on shards that actually exercised them (2026-09-30)
+
+source_snapshot: `063b5d4d`; GitHub Actions run 36633490245 (commit c3cd23fd)
+worktree_status: A short but relevant measurement, recorded because it is the first one where the shards carrying the fixes actually failed and were therefore exercised. Twelve of the run's 41 shards completed — 8 pass, 4 fail — and the 4 failures were `kiana-eventlog`, `kiana-core-s4/6`, `kiana-ports` and `kiana-capability-broker`. That matters: the eventlog shard is where fix 23 lives and a core shard is where fix 24 lives, so neither was skipped. Across those four failing shards, `storage_fault_kind_duplicate` and `storage_fault_case_invalid` are both at **0** and `quality_authority_epoch_missing` is at **0**.
+command_argv:
+  GitHub Actions run 36633490245 (commit c3cd23fd)
+  per-shard log readback: 4 failing shards, 73 failure messages
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+fixture·cassette: unchanged; this is a measurement, not a change.
+exit_code: three targeted classes at zero; the run as a whole is still red
+status change: none. No step, feature_status or proof_level is promoted by this entry.
+proof-level change: none.
+limitations: thin in absolute terms — 12 of 41 shards ran, and the earlier ones in this session were truncated the same way, by `cancel-in-progress` reacting to the next push. What makes this reading worth more than the bare counts is that the two fixed areas were among the shards that ran, which the two previous measurements could not say. The consequence for fix 24 is the one that matters: the ten-odd specific quality refusals it unmasks are in `kiana-core`, and only one of that crate's six shards ran, so it is established that the generic `quality_authority_epoch_missing` no longer fires but **not** that the specific refusals behind it now pass. Fix 25's corrected expectation is in `kiana-eventlog`, which did run, so its premise is at least not contradicted here.
+reviewer: Codex readback of run 36633490245 shard logs; no local runtime test reviewer.
+
 ### Duplicate-fault branch was unreachable dead code (2026-09-30)
 
 source_snapshot: `c3cd23fd` plus this fix; `kiana-ports/src/storage_fault_matrix.rs` (`derive`); `kiana-eventlog/tests/pd30_storage_fault_matrix.rs`
