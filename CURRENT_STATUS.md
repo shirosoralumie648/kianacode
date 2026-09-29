@@ -13223,6 +13223,27 @@ proof-level change: source plus remote CI wiring only; no local_behavior, durabl
 limitations: OpenAI Responses, vendor-specific Chat dialects, retry/usage settlement, recovery reconciliation and live OpenAI effects remain open
 reviewer: Codex root implementation review plus Chat request shape, usage-only chunks, tool index/id/name identity, finish/[DONE] and malformed argument deny boundary review; no local runtime test reviewer
 
+### BQ-26 framer contract conflict — needs a decision (2026-09-29)
+
+source_snapshot: `81b26c7a`; `kiana-provider/src/transport.rs` (`Framer::finish`), `kiana-core/tests/support/bq26_adapter_seam.rs` (`drive_network_eof`), `kiana-core/src/bq26_fault_harness.rs`
+worktree_status: **STOPPED per AGENTS.md §10 — this needs an architecture decision, and it is not being resolved unilaterally.** The previous commit's journal fix is confirmed effective: `journal_command_digest_invalid` went from 22 occurrences to 0 in run 36587331706. The 22 BQ-26 fixtures then advanced to a second, independent blocker and now all fail with `bq26_network_eof_unexpected_code:provider_frame_truncated`. Two existing expectations cannot both hold under the current `Framer::finish`, and neither may be changed to make CI green (AGENTS.md §8 forbids altering an expected value to turn a gate green).
+command_argv:
+  GitHub Actions run 36587331706 (commit 81b26c7a), Tests (kiana-core-s1/6)
+  grep of the run log: "journal_command_digest_invalid" count 0 (was 22 in run 36429735999)
+  grep of the run log: 22 x 'bq26 adapter seam run: "bq26_network_eof_unexpected_code:provider_frame_truncated"'
+cwd/environment: GitHub-hosted runner; no local Cargo test was run per user instruction.
+fixture·cassette: the 22 existing `bq26_adapter_seam` cases; nothing added, removed or weakened.
+exit_code: not applicable — no change was made
+status change: none. No step, feature_status or proof_level is promoted.
+proof-level change: none.
+limitations: the conflict is documented, not fixed. The two sides are:
+  (1) `kiana-provider/src/transport.rs` — a currently-green unit test asserts that `Framer::new(false,64).push(b"data: partial\n")` then `finish()` yields `provider_frame_truncated`. `finish()` currently returns that error whenever `buffer` OR `data` is non-empty, and `data` holds completed `data:` field payloads.
+  (2) `kiana-core/tests/support/bq26_adapter_seam.rs` — feeds `data: {json}\n`, structurally the same shape as (1), and asserts `finish()` SUCCEEDS so that the refusal is raised by the accumulator as `provider_stream_incomplete`; its own comment states "Framer::finish succeeds, so the refusal has to come from the accumulator, not the framer". `bq26_fault_harness.rs` documents the same table: PartialFrame -> `provider_frame_truncated`, NetworkEof -> `provider_stream_incomplete`.
+  Because both inputs are one `data:` line terminated by a single newline, `finish()` cannot distinguish them. Exactly one of the two expectations must change, and both changes are someone's decision, not a mechanical fix.
+  Candidate A — make `finish()` flush a pending `data:` payload as a final frame so the accumulator can refuse. Honours the documented harness table and the BQ-26 contract, but breaks the currently-green transport unit test (1), which would then need its input changed to a genuinely mid-frame cut. Candidate B — keep `finish()` as-is and correct the BQ-26 seam expectation plus the harness table to `provider_frame_truncated`. This matches the WHATWG SSE rule that an event left unterminated at EOF is discarded, but contradicts the harness's documented intent. Candidate C — introduce an explicit terminal/dispatch marker so EOF handling distinguishes "frame boundary reached, no terminal event" from "cut mid-frame", which satisfies both but is a real transport change touching the provider stream contract and needs its own review.
+  No candidate was applied. Under AGENTS.md §8, editing either assertion to make the gate green is the forbidden path, so the choice is escalated rather than assumed.
+reviewer: Codex conflict analysis from the run 36587331706 log against the two source sites; no local runtime test reviewer; no code changed for this item.
+
 ### Journal command digest contract fix evidence (2026-09-29)
 
 source_snapshot: `022b5455` plus this fix; `kiana-domain/src/journal.rs` (`TransitionBatch::validate_identity`)
