@@ -13711,6 +13711,22 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### PD-32 Windows assertion contradicted the fixture it builds (2026-09-30)
+
+source_snapshot: `9dfe2984` plus this fix; `kiana-ports/tests/pd32_storage_platform_matrix.rs`
+worktree_status: Twenty-sixth real defect, and the second time a test expectation has turned out to contradict the fixture directly above it (the first was PD-30's deny paths, fix 23). The test builds its Windows row with `rename`, `fsync` **and** `advisory_lock` all set to `StoragePlatformDisposition::Unsupported` — it is a declared row, as the fixture's own comment says: "no Windows backend is implemented in this checkout; this row is a declaration and was never executed on Windows". `first_unsupported()` then walks `StorageSemantic::ALL` in declaration order — Rename, Fsync, AdvisoryLock, PermissionGuard, LinkGuard — and returns the first the cell does not admit, which is `Rename`. The assertion nevertheless expected `...:windows:advisory_lock`, which could only hold if `rename` and `fsync` were both considered available; that is contradicted by the very fixture the test constructs three lines earlier. The expectation now names `rename`, and the comment records why: Windows lacking `flock` is only one of the reasons, atomic replacement also differs, which is why the row withholds all three.
+command_argv:
+  cargo fmt --all --check                                   # exit 0
+  cargo check -p kiana-ports --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-ports) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing PD-32 platform-matrix fixtures; one expected code corrected.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: this is a test-expectation change, which is precisely the move that can conceal a defect, so the justification is stated in full. No production code was touched. Both readings refuse Windows — the outcome is fail-closed either way — so nothing about safety changes; only which of two unsupported capabilities is named in the diagnostic. The test's fixture is the authority here and it is unambiguous: all three semantics are marked Unsupported, and the enum's order is fixed in the source. What the change does not do is make the matrix more permissive; a caller still cannot install a Windows root. Whether the case now passes is unobserved. The pattern is worth watching rather than treating as a one-off: two tests in two different suites have now asserted an outcome their own fixtures rule out, which suggests some expectations were written against an earlier shape of these contracts and never re-derived.
+reviewer: Codex review of the assertion against the fixture's three Unsupported dispositions and `StorageSemantic::ALL`'s order; no local runtime test reviewer.
+
 ### Second instance of the redaction/sentinel precedence conflict (2026-09-30)
 
 source_snapshot: `9c954166`; `kiana-eventlog/src/writer_queue.rs` (`safe_label`, line 374), `kiana-eventlog/tests/pd27_writer_queue.rs` (line 670)

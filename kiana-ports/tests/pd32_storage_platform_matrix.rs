@@ -238,12 +238,19 @@ fn the_install_preflight_refuses_every_cell_that_is_not_fully_supported() {
             .unwrap_err(),
         "storage_platform_semantic_unsupported:linux:rename"
     );
-    // Windows is refused on the lock, which has no `flock`.
+    // Windows 这一行是**声明**——本 checkout 没有任何 Windows 后端，rename / fsync /
+    // advisory_lock 三项全部标记为 Unsupported。`first_unsupported()` 按
+    // `StorageSemantic::ALL` 的顺序（Rename → Fsync → AdvisoryLock → …）取第一个，
+    // 因此最先报出来的是 `rename`，而不是注释里当初写的 advisory_lock。
+    //
+    // 此前这条断言期望 `advisory_lock`，那只有在 rename 与 fsync 都被视为可用时才成立——
+    // 与它自己上面构造的夹具直接矛盾。Windows 没有 `flock` 只是原因之一；
+    // 原子替换的行为同样与 Linux 不同，所以 rename 也被标为 Unsupported。
     assert_eq!(
         matrix
             .install_preflight(StoragePlatformTarget::Windows, StorageFilesystemClass::Ext4)
             .unwrap_err(),
-        "storage_platform_semantic_unsupported:windows:advisory_lock"
+        "storage_platform_semantic_unsupported:windows:rename"
     );
     // The catch-all is refused too, rather than inheriting the Linux row.
     assert_eq!(
