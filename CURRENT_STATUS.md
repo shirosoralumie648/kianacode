@@ -13715,6 +13715,21 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### The pattern holds on a second guard, and the remaining bulk needs judgement I cannot automate (2026-09-30)
 ### Evidence on the baseline-versus-guard convention, gathered rather than assumed (2026-09-30)
 ### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
+### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
+
+source_snapshot: `0a79406a`; `kiana-runner/tests/h08_cancellation_guard.rs`, `kiana-core/tests/cap12_process_supervisor_guard.rs`, and the main tree's process-supervision sources
+worktree_status: Taking one of the 24 markers that appear nowhere in `kiana-*/src` and tracing it to ground, because the class needed a concrete member rather than a count. `terminate_process_group` exists in the repository only inside stale `.claude/worktrees/` copies, and one of those copies even asserts its *absence* (`assert!(!source.contains("terminate_process_group"))`). In the main tree the capability is implemented, using the standard POSIX spelling instead: `kiana-bridge/src/work.rs` sets `command.process_group(0)` when spawning, `kiana-capability-governance-supance-supervisor` — to be precise, `kiana-capability-governance-supervisor/src/lib.rs` — captures the child's pid as a process group and tears the whole group down with `libc::kill(-process_group, libc::SIGKILL)`, and `kiana-capability-broker` reports `stop_confirmed`. That is exactly what roadmap step P0-J1-03, "进程组确认与 stop_confirmed", asks for, and that step is marked ✅. So the capability is real; what is missing is the identifier the guard greps for.
+command_argv:
+  grep for the marker across the tree, excluding .claude/worktrees
+  read of the main tree's process-group spawn and teardown paths
+  roadmap lookup of P0-J1-03
+cwd/environment: repository root; static reads only, no test run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this is one marker, chosen because it appeared in the "absent" set, and absence made it the best candidate to disprove my own earlier claim. It succeeded in doing so, but a single disproof does not establish how the other 23 behave, and the remaining 86 were already classified as present-elsewhere. The honest generalisation is narrow: *at least one* of the 24 is naming drift rather than missing behaviour, so the upper bound of "genuinely unwritten capability" is below 24, but it is not 0. Nothing here says the guard is wrong — `terminate_process_group` may be the name the project intends, in which case the source is the thing that drifted — and that judgement is exactly the one already escalated.
+reviewer: Codex trace of one absent marker to its implementation; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `0cc1f5e7`; cross-reference of the 48 baselines that carry a `cargo test -p ... --test ...` command against the 18 guards that assert one must be present
 worktree_status: The previous entry named this cross-reference as the check that would settle the question, so it was run. 48 baselines carry the command. 18 guards assert that their baseline or workflow carries one. **Only 3 of those 18 have a baseline that actually does; 15 do not.** The overlap matters more than either raw count: if the command were a documented contract, the 18 guards' baselines would be drawn largely from the 48 that carry it, because that is what the contract would have produced. Instead 45 of the 48 that carry the command are not referenced by any of the demanding guards, and 15 of the 18 that demand it have nothing. That pattern fits "recorded ad hoc when someone happened to write it" considerably better than it fits "the contract, with widespread non-compliance".
