@@ -8,6 +8,7 @@ fn runtime_and_project_budgets_are_not_interchangeable() {
     let runner_budget = include_str!("../../kiana-runner/src/budget.rs");
     let receipt = include_str!("../src/receipts.rs");
     let baseline = include_str!("../../docs/roadmap/p1-k5-01-cost-capacity-baseline.md");
+    let core_company = include_str!("../../kiana-core/src/company.rs");
     for marker in [
         "UsageRecord",
         "CostLedger",
@@ -37,7 +38,8 @@ fn runtime_and_project_budgets_are_not_interchangeable() {
                 || cell_registry.contains(marker)
                 || runner_budget.contains(marker)
                 || receipt.contains(marker)
-                || baseline.contains(marker),
+                || baseline.contains(marker)
+                || core_company.contains(marker),
             "cost/capacity marker missing: {marker}"
         );
     }

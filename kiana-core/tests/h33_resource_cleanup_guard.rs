@@ -4,6 +4,9 @@ fn cleanup_contract_and_existing_supervisors_keep_unknown_isolated() {
     let runner = include_str!("../../kiana-runner/src/harness.rs");
     let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
+    // stop_confirmed 这个 JSON 字段由调用方发出，不在 supervisor 自己的
+    // 契约里——supervisor 用 ProcessGroupState/ProcessGuard 表达同一语义。
+    let harness_caps = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
     let core = include_str!("../src/lib.rs");
     for marker in [
         "CleanupCause",
@@ -25,12 +28,16 @@ fn cleanup_contract_and_existing_supervisors_keep_unknown_isolated() {
             "missing runner cleanup marker: {marker}"
         );
     }
-    for marker in ["kill_on_drop", "stop_confirmed", "ProcessGuard", "Unknown"] {
+    for marker in ["kill_on_drop", "ProcessGuard", "Unknown"] {
         assert!(
             supervisor.contains(marker),
             "missing process cleanup marker: {marker}"
         );
     }
+    assert!(
+        harness_caps.contains("stop_confirmed"),
+        "stop_confirmed evidence missing from the capability caller"
+    );
     for marker in ["pub async fn shutdown", "flush", "shutdown_observability"] {
         assert!(
             daemon.contains(marker),

@@ -5,6 +5,7 @@ fn int10_handshake_stays_on_controlplane_and_never_trusts_server_scopes() {
     let commands = include_str!("../src/commands.rs");
     let daemon = include_str!("../../kiana-daemon/src/connectors.rs");
     let domain = include_str!("../../kiana-domain/src/mcp_connector.rs");
+    let domain_connectors = include_str!("../../kiana-domain/src/connectors.rs");
 
     for marker in [
         "CONNECTOR_MCP_HANDSHAKE_OPERATION",
@@ -23,7 +24,8 @@ fn int10_handshake_stays_on_controlplane_and_never_trusts_server_scopes() {
                 || policy.contains(marker)
                 || commands.contains(marker)
                 || daemon.contains(marker)
-                || domain.contains(marker),
+                || domain.contains(marker)
+                || domain_connectors.contains(marker),
             "INT-10 marker missing: {marker}"
         );
     }

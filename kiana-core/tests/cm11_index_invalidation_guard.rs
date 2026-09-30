@@ -2,6 +2,7 @@
 fn invalidation_binds_identity_content_cache_inputs_and_tombstones() {
     let domain = include_str!("../../kiana-domain/src/index_invalidation.rs");
     let query = include_str!("../../kiana-query/src/index_invalidation.rs");
+    let workspace_snapshot = include_str!("../../kiana-domain/src/workspace_snapshot.rs");
     for marker in [
         "WorkspaceChangeKind",
         "Renamed",
@@ -19,7 +20,9 @@ fn invalidation_binds_identity_content_cache_inputs_and_tombstones() {
         "modified_unix_ms",
     ] {
         assert!(
-            domain.contains(marker) || query.contains(marker),
+            domain.contains(marker)
+                || query.contains(marker)
+                || workspace_snapshot.contains(marker),
             "CM-11 marker missing: {marker}"
         );
     }

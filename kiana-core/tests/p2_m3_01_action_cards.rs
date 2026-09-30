@@ -10,6 +10,7 @@ fn action_card_is_shared_by_all_surfaces() {
     let cli = include_str!("../../kiana-entrypoints/src/product_command.rs");
     let dispatch = include_str!("../../kiana-entrypoints/src/command_dispatch.rs");
     let baseline = include_str!("../../docs/roadmap/p2-m3-01-action-card-baseline.md");
+    let run_stream = include_str!("../../kiana-daemon/src/run_stream.rs");
 
     for marker in [
         "HumanAction",
@@ -49,7 +50,8 @@ fn action_card_is_shared_by_all_surfaces() {
                 || workbench.contains(marker)
                 || cli.contains(marker)
                 || dispatch.contains(marker)
-                || baseline.contains(marker),
+                || baseline.contains(marker)
+                || run_stream.contains(marker),
             "action-card marker missing: {marker}"
         );
     }

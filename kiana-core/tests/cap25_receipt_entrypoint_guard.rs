@@ -61,9 +61,14 @@ fn receipts_are_event_projections_with_owner_and_effect_boundaries() {
             "files_changed",
             "evidence_ref_digests",
             "provider_receipt_refs",
-            "AggregationVerification::Unknown",
         ],
         "aggregation",
+    );
+    // 全限定拼法只可能出现在调用点：receipt_aggregation.rs 里声明的是
+    // 裸变体 Unknown。同文件另外两个标记已是这个形式。
+    assert!(
+        receipts.contains("AggregationVerification::Unknown"),
+        "AggregationVerification::Unknown missing at its call site"
     );
     require(
         attempts,

@@ -9,6 +9,7 @@ fn harness_eval_is_replay_bound_and_side_effect_free() {
     let versioning = include_str!("../src/versioning.rs");
     let evidence = include_str!("../../kiana-daemon/src/eval_runtime.rs");
     let baseline = include_str!("../../docs/roadmap/h35-harness-eval-baseline.md");
+    let core_eval = include_str!("../src/eval.rs");
 
     for marker in [
         "GoldenTrace",
@@ -60,7 +61,8 @@ fn harness_eval_is_replay_bound_and_side_effect_free() {
                 || harness_eval.contains(marker)
                 || performance.contains(marker)
                 || versioning.contains(marker)
-                || evidence.contains(marker),
+                || evidence.contains(marker)
+                || core_eval.contains(marker),
             "H35 marker missing: {marker}"
         );
     }

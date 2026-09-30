@@ -14,6 +14,7 @@ fn cp_legacy_authority_records_require_reauthorization() {
     let events = include_str!("../../kiana-domain/src/event_contracts.rs");
     let storage = include_str!("../../kiana-domain/src/storage_schema.rs");
     let identity = include_str!("../../kiana-domain/src/identity_contracts.rs");
+    let daemon = include_str!("../../kiana-daemon/src/lib.rs");
     let approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let recovery = include_str!("../src/recovery.rs");
@@ -50,12 +51,16 @@ fn cp_legacy_authority_records_require_reauthorization() {
         identity,
         &[
             "IdentityMigration",
-            "legacy_local_user_migration",
             "migration_digest",
             "not an authentication assertion",
             "principal_id",
         ],
         "identity migration",
+    );
+    require(
+        daemon,
+        &["legacy_local_user_migration"],
+        "legacy user migration entry point",
     );
     require(
         approvals,

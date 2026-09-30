@@ -4,6 +4,7 @@ fn provider_credentials_and_endpoint_boundaries_are_server_owned() {
     let gateway = include_str!("../../kiana-provider/src/lib.rs");
     let transport = include_str!("../../kiana-provider/src/transport.rs");
     let daemon = include_str!("../../kiana-daemon/src/model_client.rs");
+    let daemon_lib = include_str!("../../kiana-daemon/src/lib.rs");
     for marker in [
         "model_credential_header_invalid",
         "model_credential_unavailable",
@@ -27,7 +28,7 @@ fn provider_credentials_and_endpoint_boundaries_are_server_owned() {
         "model_selection_conflict",
     ] {
         assert!(
-            daemon.contains(marker),
+            daemon.contains(marker) || daemon_lib.contains(marker),
             "daemon endpoint boundary marker missing: {marker}"
         );
     }

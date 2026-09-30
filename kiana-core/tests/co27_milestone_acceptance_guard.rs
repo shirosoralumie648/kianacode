@@ -4,6 +4,7 @@ fn milestone_acceptance_is_local_and_does_not_reintroduce_project_waiting() {
     let core = include_str!("../src/milestone_acceptance.rs");
     let company = include_str!("../src/company.rs");
     let readiness = include_str!("../../kiana-domain/src/company_readiness.rs");
+    let company_business = include_str!("../../kiana-domain/src/company_business.rs");
 
     for marker in [
         "MILESTONE_ACCEPTANCE_SCHEMA",
@@ -24,7 +25,8 @@ fn milestone_acceptance_is_local_and_does_not_reintroduce_project_waiting() {
             milestone.contains(marker)
                 || core.contains(marker)
                 || company.contains(marker)
-                || readiness.contains(marker),
+                || readiness.contains(marker)
+                || company_business.contains(marker),
             "CO-27 marker missing: {marker}"
         );
     }

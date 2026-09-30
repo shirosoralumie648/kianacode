@@ -88,6 +88,9 @@ fn er_child_escape_or_leader_exit_is_unknown() {
     let domain = include_str!("../../kiana-domain/src/capabilities.rs");
     let receipts = include_str!("../src/receipts.rs");
     let fixture = include_str!("../../kiana-daemon/tests/h15_output_limits.rs");
+    // 有界输出排空已抽到 execution_output.rs，capabilities 现在只调
+    // drain_capped，不再自己写这个 reason。
+    let execution_output = include_str!("../../kiana-daemon/src/execution_output.rs");
 
     require(
         execution,
@@ -118,9 +121,13 @@ fn er_child_escape_or_leader_exit_is_unknown() {
             "stop_report",
             "stop_confirmed",
             "shell_result_unknown:cancel_stop_unconfirmed",
-            "output_drain_timeout",
         ],
         "shell process boundary",
+    );
+    require(
+        execution_output,
+        &["output_drain_timeout"],
+        "bounded output drain",
     );
     require(
         domain,

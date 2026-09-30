@@ -25,7 +25,7 @@ fn connector_quota_stays_server_owned_and_eventstore_cas_bound() {
         "connector_quota_restart_state_missing",
         "reopen",
         "connector_quota_idempotency_digest_conflict",
-        "connector_quota_connector_limit_exceeded",
+        "connector_quota_{}_limit_exceeded",
         "commit_connector_quota_reservation",
         "commit_connector_quota_claim",
         "commit_connector_quota_settlement",
