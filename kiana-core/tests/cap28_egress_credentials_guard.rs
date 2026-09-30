@@ -115,7 +115,7 @@ fn egress_and_credentials_are_server_bound_and_deny_first() {
         &[
             "credential_store.issue",
             "validate_for",
-            ".lease.consume",
+            ".consume(lease_now)",
             "connection.endpoint",
         ],
         "transport binding",

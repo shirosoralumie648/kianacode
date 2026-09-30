@@ -49,7 +49,7 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
     for marker in [
         "credential_store.issue",
         "validate_for",
-        ".lease.consume",
+        ".consume(lease_now)",
         "connection.endpoint",
     ] {
         assert!(

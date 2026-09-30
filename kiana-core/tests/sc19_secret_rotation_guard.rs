@@ -42,7 +42,7 @@ fn sc19_secret_rotation_and_revocation_are_generation_fenced() {
         "credential_store.issue",
         "credential_revision",
         "credential_lease_reference_mismatch",
-        ".lease.consume",
+        ".consume(lease_now)",
         "model_credential_revision_changed",
     ] {
         assert!(

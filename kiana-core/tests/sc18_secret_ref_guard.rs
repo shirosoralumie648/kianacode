@@ -94,7 +94,7 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
     for marker in [
         "credential_store.issue",
         "validate_for",
-        ".lease.consume",
+        ".consume(lease_now)",
         "connection.endpoint",
     ] {
         assert!(
