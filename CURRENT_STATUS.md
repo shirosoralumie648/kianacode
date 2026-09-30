@@ -13716,7 +13716,20 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### Evidence on the baseline-versus-guard convention, gathered rather than assumed (2026-09-30)
 ### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
 ### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
-### Flagged, not yet diagnosed: a grant scope a test expected refused was accepted (2026-09-30)
+### Diagnosed: SC-09 asserts an empty intersection from a fixture that overlaps (2026-09-30)
+
+source_snapshot: `ea298549` plus this finding; `kiana-policy/tests/sc09_grant_scope.rs` (`parent_grant`, `network_only`), `kiana-policy/src/grant_scope.rs` (`GrantScope::intersect`, line 346)
+worktree_status: The item flagged last turn as "a refusal test failing because the refusal did not happen" is now diagnosed, and it is **not** a scope-narrowing gap. `parent_grant()` carries `[Filesystem, Network, Secret]`. `network_only` carries `[Network]`. `intersect` keeps the parent's capabilities that also appear in the other scope, so the result is `[Network]` — non-empty — and the function returns `Ok` without reaching its `grant_scope_capability_intersection_empty` branch. The test asserts that branch fires. It cannot, because the fixture it builds shares `Network` with the parent by construction, so no arrangement of those two values produces the empty intersection the assertion is checking. The `unwrap_err()` therefore receives the `Ok(GrantScope { capabilities: [Network], .. })` seen in the log.
+command_argv:
+  read of GrantScope::intersect in kiana-policy/src/grant_scope.rs
+  read of the parent_grant and network_only fixtures in kiana-policy/tests/sc09_grant_scope.rs
+cwd/environment: repository root; static reads only, no test run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: what is established is that this assertion cannot pass with this fixture, not that the fixture is the only thing wrong. The neighbouring assertions in the same test — `grant_scope_secret_dimension_mismatch` and `grant_scope_principal_mismatch` — exercise different branches and were not analysed here. Nor has it been established whether the author's intent was a disjoint capability set (in which case the fixture needs a capability the parent lacks) or something else about the `network_only` shape; fixing it means choosing that intent, and the test's own name, "without union or transfer", suggests the point is that an intersection must not widen — which the current implementation already guarantees by intersecting. I have deliberately not edited the fixture, because inventing a capability set to make a refusal fire is exactly the change that can manufacture a false green. This also narrows last turn's flagged item: the `allow_external: true` that looked alarming is simply inherited from `network_only`, which sets it, and is not evidence of an over-broad grant.
+reviewer: Codex read of `intersect` against the two fixtures; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `5d45302f`; run 36635857452 / `5d45302f` logs as read during the classification pass
 worktree_status: Surfaced while sorting the remaining failure messages and not yet chased down, recorded here so it is not lost among the documentation findings. One failure is `called \`Result::unwrap_err()\` on an \`Ok\` value: GrantScope { ... }` — a test called `unwrap_err()` on a **successful** construction, so a case the suite expects to be refused was accepted. The accepted scope carries `allow_external: true` with `network: Restricted(["api"])`, `delegation_allowed: false`, `allow_secret: false` and `authority_epoch: 4`. That combination is the one worth a second look: an externally-permitting grant whose network surface is nominally restricted is exactly the shape that "permissions are the intersection of parent, template, department, project, packet and approval" exists to prevent, so if the suite is right this is a scope-narrowing gap rather than a cosmetic test problem.
