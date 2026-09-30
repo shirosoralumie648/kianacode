@@ -13711,6 +13711,19 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### Every reported marker classified: 86 are guard-wiring drift, 24 are genuinely absent (2026-09-30)
+
+source_snapshot: `35a04109`; derived from the 110 distinct markers reported by run 36635075898
+worktree_status: The full classification the previous entry only sampled. For each distinct marker named in a `marker missing` failure, the tree was searched for that string. **86 of 110 are present somewhere under `kiana-*/src`** — the guard is inspecting a file, or a call form, that does not contain what it asserts. **24 appear nowhere in the source at all.** That split replaces the "128 missing capabilities" impression decisively: the large majority of the guard failures are about *where the guard looks*, not about behaviour that was never written.
+command_argv:
+  for each of the 110 distinct markers in the run's failure log: grep -r over kiana-*/src for that string
+cwd/environment: GitHub-hosted runners; this is a read of existing logs and the working tree, no new run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: "present elsewhere" is not the same as "the guard is wrong". For each of the 86 the real question is per-case and unanswerable by search: does the capability live in the file the guard names but under a different call form, or has it moved to another module that the guard should now follow? Either way the fix is a judgement about intent, and I have not made it for any of them here. The 24 absent markers are the ones that genuinely look like unwritten behaviour — among them `terminate_process_group`, `mcp_result_unknown`, `message_body_secret_detected`, `not_executed:true`, `anthropic_stop_reason_without_message_stop_is_incomplete`, `chat_done_without_valid_choice_finish_is_incomplete`, `ollama_load_timeout_is_provider_scoped_and_bounded`, `config_resolver_has_a_trust_and_revision_fence` and `drift_report_is_bucketed_by_version` — but a missing *string* is still not proof of a missing capability, since a behaviour can be implemented under another name. The honest count of unimplemented capability remains unknown; what is established is that it is bounded by 24 candidates, not 110. No roadmap row moves on this.
+reviewer: Codex classification of all 110 markers against the source tree; no local runtime test reviewer; no code changed for this item.
+
 ### What the remaining 481 failures actually consist of (2026-09-30)
 
 source_snapshot: `37eaec62`; the same run 36635075898, re-read by category rather than by error string
