@@ -13711,6 +13711,19 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### What the remaining 481 failures actually consist of (2026-09-30)
+
+source_snapshot: `37eaec62`; the same run 36635075898, re-read by category rather than by error string
+worktree_status: A composition read of the 481 remaining failure messages, because the shape of the remaining work matters more than its size. **128 of them are `include_str!` source-marker guards** — assertions that some source file contains a named string. This is the category I have declined to "fix" throughout, and the reason deserves restating precisely rather than as a slogan: a guard fails because the marker its baseline documents is genuinely not in the code, so it is not test noise but an inventory of **capabilities the baselines promise and the implementation never had**. Making such a guard pass by inserting the string, without the behaviour behind it, would convert an honest gap into a false green — the precise outcome the constitution forbids. The other large coherent block is the **22 BQ-26 framer cases**, which are blocked on a decision rather than on analysis. The remaining 99 are ordinary `left == right` assertions, and the rest are scattered singletons.
+command_argv:
+  category count over the 481 failure messages of run 36635075898
+cwd/environment: GitHub-hosted runners; this is a read of existing logs, no new run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: these are counts of failure *messages*, not of distinct defects — one broken guard can emit more than one line, so 128 does not mean 128 missing capabilities, and the mapping from guard to roadmap step is not established. The bq26 count is a clean 22 because each fixture emits one message. I am not claiming the 128 represent unimplemented product behaviour in every case: some may be guards whose marker was renamed, which is a documentation-drift bug rather than a missing capability, and telling those apart requires reading each guard against its baseline. That distinction is the work this category actually needs, and it is not something a count can settle. No roadmap row moves on the strength of this entry.
+reviewer: Codex category read of run 36635075898 logs; no local runtime test reviewer; no code changed for this item.
+
 ### First complete 41-shard measurement of the session's fixes (2026-09-30)
 
 source_snapshot: `44a65adb`; GitHub Actions run 36635075898 (commit 9dfe2984) — the first run in this session to complete all 41 shards rather than being truncated by `cancel-in-progress`
