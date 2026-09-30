@@ -13711,6 +13711,19 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### One guard resolved end to end: the failures are mostly baseline-completeness, not missing code (2026-09-30)
+
+source_snapshot: `f1380053`; `kiana-core/tests/p4_j7_12_request_compilation_guard.rs`, `docs/roadmap/p4-j7-12-request-compilation-baseline.md`
+worktree_status: Taking the largest block apart one guard at a time, because the previous entry classified markers without saying what the failures *mean*. Every assertion in that guard was checked against the file it actually inspects. The `domain` loop, against `kiana-domain/src/request_compilation.rs`, passes on all seven markers. The `provider` loop, against `kiana-provider/src/request.rs`, passes on all seven, including `TokenBudget::new`, which is present at line 186. The `model` loop, against `kiana-domain/src/model.rs`, passes on all four. The failure is the fourth loop, which asserts the **baseline or the workflow** contains four snake_case names — `wire_tool_name_collision_is_rejected`, `orphan_tool_result_fails_before_send`, `compiled_request_cannot_exceed_context_budget`, `five_tools_round_trip_through_one_reversible_map`. None of the four is in the baseline; the baseline is a short summary that never enumerates individual test cases, even though the test target `kiana-domain/tests/p4_j7_12_request_compilation.rs` does exist.
+command_argv:
+  marker-by-marker check of every loop in kiana-core/tests/p4_j7_12_request_compilation_guard.rs against the file each loop inspects
+cwd/environment: repository root; static reads only, no test run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: one guard is one guard, and I am not claiming the other 85 resolve the same way. What it does show is that "the marker is missing" and "the behaviour was never written" are different questions, and for this guard the answer to the second is clearly *no* — the code is all there and the assertions about it pass; what is absent is test-case names in a documentation file. Whether that makes the guard over-specified or the baseline incomplete is a judgement about the intended contract between a step's baseline and its guard, and it is not settled here. The previous entry's 24 "genuinely absent" markers are unaffected by this, but this resolution does suggest the 86 should be re-examined on the same basis before any of them is treated as missing implementation.
+reviewer: Codex line-by-line resolution of one guard's four assertion loops; no local runtime test reviewer; no code changed for this item.
+
 ### Every reported marker classified: 86 are guard-wiring drift, 24 are genuinely absent (2026-09-30)
 
 source_snapshot: `35a04109`; derived from the 110 distinct markers reported by run 36635075898
