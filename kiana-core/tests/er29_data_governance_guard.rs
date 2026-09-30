@@ -13,6 +13,9 @@ fn er29_separates_receipt_metadata_from_payload_and_fences_every_store() {
     let retention = include_str!("../../kiana-eventlog/src/retention_store.rs");
     let memory = include_str!("../../kiana-eventlog/src/memory_store.rs");
     let query = include_str!("../../kiana-query/src/index_invalidation.rs");
+    // artifact 传播 store 已从 artifacts.rs 独立出去，include 列表没跟上，
+    // 于是 `artifact_data_revoked_or_expired` 对这一组是不可见的。
+    let artifact_store = include_str!("../../kiana-eventlog/src/artifact_store.rs");
     let baseline = include_str!("../../docs/roadmap/er29-data-governance-baseline.md");
 
     for marker in [
@@ -64,6 +67,7 @@ fn er29_separates_receipt_metadata_from_payload_and_fences_every_store() {
     ] {
         assert!(
             artifacts.contains(marker)
+                || artifact_store.contains(marker)
                 || ports.contains(marker)
                 || retention.contains(marker)
                 || memory.contains(marker)

@@ -28,8 +28,11 @@ fn trigger_admission_binds_source_owner_approval_and_occurrence_keys() {
         "t.fired",
         "event_ref",
     ] {
+        // `trigger_approval_event_required` 由 ControlPlane 侧发出
+        // （core/automation.rs），planner 侧带的是 `trigger_approval_required`。
+        // 两个都要断，所以并上 core，而不是把 planner 那条去掉。
         assert!(
-            planner.contains(marker),
+            planner.contains(marker) || core.contains(marker),
             "planner trigger marker missing: {marker}"
         );
     }

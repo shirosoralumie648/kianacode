@@ -102,9 +102,16 @@ fn missing_or_unenforced_backend_never_falls_back_to_host() {
             "harness_workdir_outside_project",
             "sandbox_external_symlink_requires_staging",
             "sandbox_read_deny_symlink_requires_staging",
-            "\"behavior_verified\":false",
         ],
         "fail-closed backend",
+    );
+    // 【这条断言原来挂在 sandbox 组上，但发报的不是 sandbox】
+    // fail-closed 的 `behavior_verified:false` 由
+    // kiana-daemon/src/execution_control.rs 发出；harness_sandbox.rs
+    // 连 `behavior_verified` 都不含。挪到发它的文件上，而不是删掉它。
+    assert!(
+        control.contains("\"behavior_verified\":false"),
+        "fail-closed behavior_verified report missing from execution_control"
     );
     require(
         ports,
