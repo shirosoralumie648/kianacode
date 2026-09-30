@@ -13716,6 +13716,19 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### Evidence on the baseline-versus-guard convention, gathered rather than assumed (2026-09-30)
 ### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
 ### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
+### Flagged, not yet diagnosed: a grant scope a test expected refused was accepted (2026-09-30)
+
+source_snapshot: `5d45302f`; run 36635857452 / `5d45302f` logs as read during the classification pass
+worktree_status: Surfaced while sorting the remaining failure messages and not yet chased down, recorded here so it is not lost among the documentation findings. One failure is `called \`Result::unwrap_err()\` on an \`Ok\` value: GrantScope { ... }` — a test called `unwrap_err()` on a **successful** construction, so a case the suite expects to be refused was accepted. The accepted scope carries `allow_external: true` with `network: Restricted(["api"])`, `delegation_allowed: false`, `allow_secret: false` and `authority_epoch: 4`. That combination is the one worth a second look: an externally-permitting grant whose network surface is nominally restricted is exactly the shape that "permissions are the intersection of parent, template, department, project, packet and approval" exists to prevent, so if the suite is right this is a scope-narrowing gap rather than a cosmetic test problem.
+command_argv:
+  read of the `unwrap_err()`-on-`Ok` failure message in the run's shard logs
+cwd/environment: GitHub-hosted runner; this is a read of existing logs, no new run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: I have not identified which test this is, nor whether the suite's expectation or the implementation is right, and I have not read the narrowing rule that decides it. The shape of the accepted value is suggestive, not conclusive — `allow_external` with a restricted `network` set may be a legitimate combination depending on the contract, and the failure could equally be a test that asserts a rejection for the wrong reason. I am explicitly not claiming a security defect: the finding is that **a refusal test is failing because the refusal did not happen**, which is worth a look, and nothing more than that until it is read. No roadmap row moves on this.
+reviewer: Codex read of a failure message in the run logs; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `0a79406a`; `kiana-runner/tests/h08_cancellation_guard.rs`, `kiana-core/tests/cap12_process_supervisor_guard.rs`, and the main tree's process-supervision sources
 worktree_status: Taking one of the 24 markers that appear nowhere in `kiana-*/src` and tracing it to ground, because the class needed a concrete member rather than a count. `terminate_process_group` exists in the repository only inside stale `.claude/worktrees/` copies, and one of those copies even asserts its *absence* (`assert!(!source.contains("terminate_process_group"))`). In the main tree the capability is implemented, using the standard POSIX spelling instead: `kiana-bridge/src/work.rs` sets `command.process_group(0)` when spawning, `kiana-capability-governance-supance-supervisor` — to be precise, `kiana-capability-governance-supervisor/src/lib.rs` — captures the child's pid as a process group and tears the whole group down with `libc::kill(-process_group, libc::SIGKILL)`, and `kiana-capability-broker` reports `stop_confirmed`. That is exactly what roadmap step P0-J1-03, "进程组确认与 stop_confirmed", asks for, and that step is marked ✅. So the capability is real; what is missing is the identifier the guard greps for.
