@@ -17,7 +17,7 @@ fn er33_capacity_migration_keeps_storage_and_migration_safety_boundaries() {
         "partial_frame_appended",
         "unknown_version_rejected",
         "facts_deleted_for_capacity",
-        "StorageCapacity",
+        "PersistenceCapacityBudget",
         "MigrationPreflight",
         "validate_er33_capacity_migration_drill",
     ] {

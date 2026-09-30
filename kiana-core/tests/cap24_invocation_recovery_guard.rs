@@ -138,7 +138,7 @@ fn retry_and_reconciliation_are_separate_from_replay() {
     require(
         harness,
         &[
-            "for attempt in 0..3u32",
+            "MAX_PROVIDER_ATTEMPTS",
             "reserve_attempt",
             "settle_attempt",
             "model_attempt_limit",

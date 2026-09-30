@@ -29,7 +29,7 @@ fn packet_lease_scan_renews_and_reclaims_through_company_commands() {
     for marker in [
         "pub(crate) async fn reclaim_packet_leases",
         "claim.active(company_now())",
-        "idempotency_key: format!(\"reclaim:",
+        "\"reclaim:{}:{}:{}\"",
         "ReclaimPacketClaim",
         "renew_company_claim",
     ] {

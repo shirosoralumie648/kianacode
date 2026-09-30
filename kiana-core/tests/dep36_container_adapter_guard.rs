@@ -51,7 +51,7 @@ fn container_adapter_is_identity_bound_and_probe_semantics_are_explicit() {
     for marker in [
         "immutable image",
         "volume/root identity",
-        "env allowlist",
+        "environment allowlist",
         "SIGTERM",
         "startup",
         "readiness",

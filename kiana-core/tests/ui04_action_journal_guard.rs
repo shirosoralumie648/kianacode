@@ -33,7 +33,7 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
         "result_unknown",
         "ui.action.accepted",
         "ui.action.applied",
-        "ui_action_receipt_digest_invalid",
+        "ui_action_receipt_digest",
         "ui_action_applied_receipt_missing",
         "ui_action_receipt_state_mismatch",
     ] {

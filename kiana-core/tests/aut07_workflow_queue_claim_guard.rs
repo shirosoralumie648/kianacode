@@ -32,7 +32,7 @@ fn aut07_claim_contract_keeps_scope_budget_path_and_expiry_gates_explicit() {
         "WorkPacket",
         "scope",
         "budget",
-        "path lock",
+        "path-lock",
         "partial",
         "AUT-08",
         "durable",

@@ -10,7 +10,7 @@ fn inventory_binds_existing_composition_and_fact_sources() {
         "kiana-domain/src/{contracts.rs,migration.rs,migration_registry.rs,migration_runner.rs}",
         "scripts/release-preflight.sh",
         "entrypoints → client/protocol → DaemonHost → ControlPlane",
-        "does not claim durable",
+        "do not claim durable",
     ] {
         assert!(baseline.contains(marker), "DEP-00 inventory marker missing: {marker}");
     }

@@ -124,7 +124,7 @@ fn all_surfaces_use_one_daemon_protocol_and_control_plane() {
     );
     require(
         desktop,
-        &["startHarness", "waitForUrl", "stopWorker", "/api"],
+        &["startHarness", "waitForReady", "stopWorker", "/api"],
         "Desktop",
     );
 }

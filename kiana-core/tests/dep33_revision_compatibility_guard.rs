@@ -35,7 +35,7 @@ fn revision_pins_and_drain_reject_drift_and_active_writers() {
         "provider",
         "extension",
         "replay version",
-        "project skill",
+        "project-skill",
         "old revision",
         "drain",
         "partial",

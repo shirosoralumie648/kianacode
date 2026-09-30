@@ -53,7 +53,7 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
         "durable",
         "live",
         "physical",
-        "limitations",
+        "limitation",
         "reviewer",
         "SupplyChainReleaseEvidence",
         "ReleaseUatEvidence",

@@ -43,7 +43,7 @@ fn ui17_server_queries_are_read_only_and_cursor_bound() {
     assert!(artifact.contains("artifact_page("));
     assert!(!artifact.contains("std::fs"));
     assert!(!artifact.contains("Command::new"));
-    assert!(source.contains("cache: \"memory_only\""));
+    assert!(source.contains("\"cache\": \"memory_only\""));
     let cursor_scope = source
         .split("fn consume_page_cursor")
         .nth(1)

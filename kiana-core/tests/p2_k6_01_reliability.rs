@@ -59,8 +59,8 @@ fn every_failure_class_has_an_incident_and_recovery() {
         );
     }
     assert!(platform.contains("failure.reconciled"));
-    assert!(platform.contains("automatic_retry_allowed:false"));
-    assert!(platform.contains("new_request_required:true"));
+    assert!(platform.contains("\"automatic_retry_allowed\":false"));
+    assert!(platform.contains("\"new_request_required\":true"));
     assert!(platform.contains("!self.await_capability_stop(run_id).await"));
     assert!(!platform.contains("CapabilityBroker"));
     assert!(!platform.contains("ModelClient"));

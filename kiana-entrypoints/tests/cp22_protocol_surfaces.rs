@@ -173,7 +173,7 @@ fn cp_all_surfaces_resolve_the_same_pending_once() {
         desktop,
         &[
             "startHarness",
-            "waitForUrl",
+            "waitForReady",
             "stopWorker",
             "workspace:continue",
             "/api",

@@ -49,7 +49,7 @@ fn retries_are_new_bounded_attempts_with_deadline_and_accounting() {
     require(
         harness,
         &[
-            "for attempt in 0..3u32",
+            "MAX_PROVIDER_ATTEMPTS",
             "ModelAttemptIdentity",
             "reserve_attempt",
             "settle_attempt",

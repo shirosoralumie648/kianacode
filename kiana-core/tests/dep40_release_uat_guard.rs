@@ -65,7 +65,7 @@ fn uat_matrix_and_entrypoints_keep_one_authoritative_spine() {
         (
             "Desktop",
             desktop,
-            &["waitForUrl", "startHarness", "stopWorker"][..],
+            &["waitForReady", "startHarness", "stopWorker"][..],
         ),
         (
             "DaemonHost",

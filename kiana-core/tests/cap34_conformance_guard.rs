@@ -36,7 +36,7 @@ fn conformance_matrix_keeps_unsupported_rows_visible_and_fenced() {
         );
     }
     for marker in [
-        "support matrix",
+        "evidence matrix",
         "NotApplicable",
         "NotImplemented",
         "skip",
