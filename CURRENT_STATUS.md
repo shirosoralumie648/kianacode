@@ -17578,3 +17578,72 @@ proof-level change: none. This block is a report, not a status change
 limitations: THE FINDING IS REPORTED, NOT FIXED. kiana mcp-server-http (and mcp-server-sse / mcp-server-ws / --http / --sse / --ws) binds a TCP socket and serves a bare axum router with no auth layer; a tools/call reaches execute_tool_call with enabled_tools = None, which in kiana-tools skips the allow-list check entirely, and with permission_handler = None, so no ControlPlane, policy, gate, approval or EventLog is consulted. The default registry contains FileDeleteTool, BashTool, PowerShellTool, WebFetchTool and RemoteTriggerTool. This contradicts three frozen items in AGENTS.md: HTTP MCP is meant to return mcp_transport_unsupported (that guard exists on the harness path, not here), tool calls are not meant to bypass ControlPlane, and the model-visible surface is meant to be five tools rather than the whole registry. The finding states its own bounds -- it is opt-in and binds loopback by default -- and also why those bounds do not settle it: any local process can reach a loopback socket, and KIANA_MCP_HTTP_HOST can move the bind to 0.0.0.0 with nothing gating it. No code was changed, because the fix is an architecture decision that AGENTS.md section 10 says to escalate rather than decide
 reviewer: owner. The finding was found while annotating command_dispatch.rs, whose own comments stress that every entrypoint path must funnel through the same authorization chain -- which is exactly the property this path lacks. Chasing it further would have meant changing behaviour during a comment pass, which the task rules forbid. Escalated rather than fixed. No local runtime/CI test reviewer
 ```
+
+### Marker-guard triage: the failing class is not one thing (2026-09-30)
+
+```text
+source_snapshot: master=5a2791ae; the measurement below is static over the whole tree at this commit, and the CI failure data is read from run 36635075898 (commit 9dfe2984) which predates this session's earlier 27 fixes
+worktree_status: clean at 5a2791ae. Two commits in this block (99b8642d, 5a2791ae) change guard tests only; no product source was touched
+command_argv: cargo fmt --all --check (exit 0); cargo check -p kiana-core --tests --locked --offline (exit 0, pre-existing warnings only). No test was executed. 110 guard files were read by read-only research agents, which were forbidden to edit, run cargo, or run git
+cwd·environment: /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux/bash; no local runtime test reviewer
+fixture·cassette: none. Every claim below is a string-containment fact plus a file:line, re-checked in this shell before anything was committed
+exit_code: see command_argv. Nothing here is proven by a test run in either direction
+status_change: no roadmap row moves. Nothing in this block is a status change
+proof-level change: none
+limitations: THIS IS A CLASSIFICATION, NOT A FIX. Roughly 40% of the remaining CI failures are `include_str!` source-marker guards, and this block says what kind of work they are; it does not clear them. The count of 12,594 below is an over-count and is stated as such. Two of the fixes landed here (99b8642d, 5a2791ae) were each re-verified by hand before commit, but neither has an observed green CI run yet
+reviewer: owner. The headline correction is that the previous framing of this class was wrong in a way worth recording: it was described as "128 missing capabilities", which the measurement does not support
+```
+
+**The correction.** The class was previously characterised as missing capabilities. That
+was wrong, and the direction of the error matters, because the previous framing implies
+the fix is to write code and the honest framing implies the fix is mostly to fix tests.
+
+Measured statically over the tree: 706 guard files bind 3,007 `include_str!` targets
+(all 3,007 exist) and assert 27,909 marker strings. 12,594 of those assertions do not
+match the file their guard names. But when each missing marker is searched across the
+**whole** repository, only 12 are absent everywhere — and six of those twelve are
+artifacts of this analysis mis-parsing multi-line string literals. So the markers
+overwhelmingly *do* exist; they are in a different file, under a different spelling, or
+split across a line break. The count of 12,594 is an over-count and is not a count of
+missing capabilities: it counts (guard, target, marker) triples, and one wrong
+`include_str!` binding can invalidate every marker asserted against it.
+
+**Five distinct classes, with the ones that must not be mass-edited called out.**
+
+1. *rustfmt line-wrap* — the guard asserts a contiguous literal that rustfmt split.
+   One root cause, `.lease.consume`, made four guards red at once
+   (`kiana-provider/src/transport.rs:426-428`); fixed in 5a2791ae. The same shape
+   accounts for `budget.release` (3 guards), `request.request.execution_scope` (2),
+   `observation.model_text()`, `self.dispatch_capability_action`. These are safe and
+   mechanical, but each still needs its own verified edit.
+2. *Wrong `include_str!` target* — the fact is real, the guard names the wrong file.
+   e.g. `clock_untrusted` is emitted at `kiana-domain/src/clock.rs:155` while
+   `bq07` asserts it in `billing_quota.rs`. Safe, and the fix is an include-list change.
+3. *Call-site form demanded from a definition site* — `ProcessSupervisor::stop` is
+   asserted inside `process_supervisor.rs`, which only ever writes `pub(crate) async
+   fn stop(`. Here the guard's *intent* is unsatisfied in a way that is not obvious:
+   see the contradiction below.
+4. *Document-vocabulary drift* — the guard quotes a phrase the baseline states in
+   another language or register (`path lock` vs `path-lock`, `limitations` vs
+   `limitation`, `support matrix` vs `evidence matrix`). Safe, but the choice of
+   which side to edit is a documentation decision, not a mechanical one.
+5. **Genuine gaps and real findings — do not "fix" by inserting strings.**
+   `mcp_result_unknown` and `connector_idempotency_payload_mismatch` exist in no
+   source file at all, and in each case the codebase already emits a *differently
+   named* code for the same condition, so the canonical name has to be reconciled
+   first. `ConnectorSurface::Cli` and `ConnectorSurface::Web` are declared at
+   `kiana-domain/src/connector_surfaces.rs:17-22` and are **never constructed or
+   matched in any production code** — the guard that flags this is reporting a real
+   gap, and relaxing it would hide it. Same for the `anthropic_*` fixture names in
+   `p4_j7_15`, which exist only as plan text in `docs/roadmap/provider.md:245`, and
+   for `PROCESS_GROUP_EXIT_GRACE`, which exists nowhere outside its own guard.
+
+**One contradiction that cannot be resolved by any edit, escalated instead.**
+`kiana-runner/tests/h08_cancellation_guard.rs:17` requires `terminate_process_group`
+to appear in `kiana-daemon/src/harness_capabilities.rs`; `kiana-core/tests/
+cap12_process_supervisor_guard.rs:78` requires that same string to be **absent** from
+that same file, calling it a "duplicate process stop helper". The two guards cannot
+both pass, and inserting the string would break CAP-12. The real implementation is
+`ProcessSupervisor::stop(execution_id, &mut child, process_group)` at
+`harness_capabilities.rs:431-449`. Which guard is authoritative is an architecture
+judgement, which AGENTS.md §10 reserves for the owner; it is not resolved here.
