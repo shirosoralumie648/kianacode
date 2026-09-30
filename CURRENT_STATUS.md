@@ -13712,6 +13712,19 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
 ### One guard resolved end to end: the failures are mostly baseline-completeness, not missing code (2026-09-30)
+### The pattern holds on a second guard, and the remaining bulk needs judgement I cannot automate (2026-09-30)
+
+source_snapshot: `aa7a2c53`; `kiana-core/tests/cp28_migration_boundary_guard.rs` as the second case
+worktree_status: A second data point, because one case is an anecdote. `cp28_migration_boundary_guard` reports the missing markers `governance`, `backpressure` and `external` — and all three words are present in the tree (`governance` appears twice in `docs/roadmap/persistence-data-layer.md` and in `kiana-core/src/lib.rs` and `receipts.rs`). The guard fans out through a `require(source, markers, label)` helper across roughly a dozen `include_str!` files, so which of them is being checked for a given word is not visible from the failure message alone. This is the same shape as the P4-J7-12 case: the marker exists, the specific file the guard points at does not contain it, and the guard's own error text cannot tell you which assertion fired.
+command_argv:
+  marker lookup for the three reported strings in the tree and in the baseline the guard includes
+cwd/environment: repository root; static reads only, no test run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this establishes that the class repeats, not that every member of it resolves benignly, and it is the reason I stopped short of bulk-editing. For each guard the question "does the capability live in the file this guard names, under a different call form, or has it moved and the guard should follow" is a per-case judgement about intent; an automated rewrite would have to guess between "fix the guard's file list" and "fix the baseline's content", and those have opposite meanings. Guessing wrong in bulk would convert 86 honest failures into 86 false greens — the exact trade the constitution forbids. So the work this class needs is deliberately left for whoever can decide the baseline-versus-guard contract, and I have not pre-empted it.
+reviewer: Codex second-case check; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `f1380053`; `kiana-core/tests/p4_j7_12_request_compilation_guard.rs`, `docs/roadmap/p4-j7-12-request-compilation-baseline.md`
 worktree_status: Taking the largest block apart one guard at a time, because the previous entry classified markers without saying what the failures *mean*. Every assertion in that guard was checked against the file it actually inspects. The `domain` loop, against `kiana-domain/src/request_compilation.rs`, passes on all seven markers. The `provider` loop, against `kiana-provider/src/request.rs`, passes on all seven, including `TokenBudget::new`, which is present at line 186. The `model` loop, against `kiana-domain/src/model.rs`, passes on all four. The failure is the fourth loop, which asserts the **baseline or the workflow** contains four snake_case names — `wire_tool_name_collision_is_rejected`, `orphan_tool_result_fails_before_send`, `compiled_request_cannot_exceed_context_budget`, `five_tools_round_trip_through_one_reversible_map`. None of the four is in the baseline; the baseline is a short summary that never enumerates individual test cases, even though the test target `kiana-domain/tests/p4_j7_12_request_compilation.rs` does exist.
