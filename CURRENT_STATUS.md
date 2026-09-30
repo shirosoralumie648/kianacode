@@ -13711,6 +13711,23 @@ limitations: accepting both spellings is a genuine widening relative to either s
 reviewer: Codex review of the 11 new failures against the two producer families and their `journal_digest` helpers; no local runtime test reviewer.
 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
+### First complete 41-shard measurement of the session's fixes (2026-09-30)
+
+source_snapshot: `44a65adb`; GitHub Actions run 36635075898 (commit 9dfe2984) — the first run in this session to complete all 41 shards rather than being truncated by `cancel-in-progress`
+worktree_status: This is the reading the earlier entries were waiting on, so it is recorded with its full shape. All 41 shards ran: **18 pass, 21 fail**, and `Workflow structure` is green. Across the 21 failing shards there are 481 failure messages. Of the seventeen error classes this session set out to remove, **sixteen are at zero occurrences**: `journal_command_digest_invalid`, `storage_fault_kind_duplicate`, `storage_fault_case_invalid`, `quality_authority_epoch_missing`, `memory_mutation_journal_approval_invalid`, `swarm_partition_fingerprint_invalid`, `memory_projection_fence_invalid`, `web_tab_required`, `observability_source_cursor_required`, `eventlog_permissions_too_broad`, `connector_dispatch_pre_effect_artifacts_forbidden`, `rollout_evidence_digest_mismatch`, `project_trust_project_digest_invalid`, `artifact_content_hash_invalid`, `metric_unregistered` is the seventeenth and sits at 1, and `sc38_property_case_duplicate_outcome_invalid` and `session_owner_required` each sit at 1.
+command_argv:
+  GitHub Actions run 36635075898 (commit 9dfe2984): 41/41 shards completed, 18 pass / 21 fail
+  per-shard log readback across all 21 failing shards: 481 failure messages
+  Rust gates: fmt / check / clippy all pass; the job fails only on `Run desktop contract tests`
+  desktop contract tests: 46 tests, 43 pass, 3 fail
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+fixture·cassette: unchanged; this is a measurement, not a change.
+exit_code: sixteen targeted classes at zero; three at one occurrence each; the run as a whole is still red
+status change: none. No step, feature_status or proof_level is promoted by this entry.
+proof-level change: none.
+limitations: the three residual occurrences are recorded rather than explained, because at one occurrence each they may be different tests inside the same families and I have not read them back. Sixteen classes at zero across a complete run is the strongest claim this session can make; it is a claim about *those error strings disappearing*, not about the steps behind them being complete, and it does not convert any roadmap row to ✅. Two of them deserve specific caution: `metric_unregistered` had been driven from 8 to 1 by fix 8 and is still not zero, and the fix 24 change removed the generic `quality_authority_epoch_missing` that was masking roughly ten specific quality refusals — this run shows the mask is gone, but whether those ten now pass is a question about the 481 remaining messages, not something this measurement answers. The `Rust gates` failure is pre-existing and unrelated to the Rust fixes: fmt, check and clippy all pass, and the job fails only on the Electron desktop suite (43/46, with `desktop_store_patch_unknown_field` among the failures), which was already failing before any of this session's changes.
+reviewer: Codex readback of all 21 failing shards in run 36635075898; no local runtime test reviewer.
+
 ### PD-32 Windows assertion contradicted the fixture it builds (2026-09-30)
 
 source_snapshot: `9dfe2984` plus this fix; `kiana-ports/tests/pd32_storage_platform_matrix.rs`
