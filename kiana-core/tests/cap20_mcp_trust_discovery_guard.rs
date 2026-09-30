@@ -50,6 +50,13 @@ fn mcp_registry_pins_config_binary_trust_and_discovery_before_call() {
         ],
         "stdio lifecycle",
     );
+    // HTTP/SSE 的冻结拒绝在注册层 harness_mcp.rs（两处 `_ => Err(...)`），
+    // stdio 适配器不发这个码，所以 stdio 组断不到它。冻结边界本身没松：
+    // 下面 `!harness.contains("connect_http")` 仍然成立。
+    assert!(
+        harness.contains("mcp_transport_unsupported"),
+        "CAP-20 frozen transport refusal missing from MCP registry"
+    );
     require(
         trust,
         &[

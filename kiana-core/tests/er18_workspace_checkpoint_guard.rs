@@ -111,6 +111,9 @@ fn er_workspace_revision_changed_during_restore_is_denied() {
         ],
         "patch transaction",
     );
+    // 三个 restore 证据串都由 core/workspace_checkpoints.rs 判定，
+    // daemon 适配器只有 134 行、只抽 expected_revision 再转发，
+    // 所以两边都断。
     require(
         daemon,
         &[
@@ -120,6 +123,16 @@ fn er_workspace_revision_changed_during_restore_is_denied() {
         ],
         "restore evidence",
     );
+    for marker in [
+        "checkpoint_revision_conflict",
+        "checkpoint_data_epoch_changed",
+        "workspace.restored",
+    ] {
+        assert!(
+            core.contains(marker),
+            "ER-18 restore evidence marker missing in core: {marker}"
+        );
+    }
     require(
         fixture,
         &[

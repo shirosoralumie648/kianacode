@@ -35,7 +35,9 @@ fn memory_workbench_stays_redacted_acl_gated_and_outside_execution_authority() {
     assert!(workbench.contains("if !decision.allowed"));
     assert!(workbench.contains("visible_ids.contains(record_id)"));
     assert!(workbench.contains("validate_explicit_split_groups"));
-    assert!(workbench.contains("target.expected_revision"));
+    // expected_revision 的 CAS 落在 memory_mutation（workbench 侧改用
+    // `target.key()`），所以这条断 mutation，不是 workbench。
+    assert!(mutation.contains("target.expected_revision"));
     assert!(!workbench.contains("CapabilityBroker"));
     assert!(!workbench.contains("EventStore"));
     assert!(!workbench.contains("remove_file"));

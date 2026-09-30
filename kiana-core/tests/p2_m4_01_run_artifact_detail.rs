@@ -63,7 +63,9 @@ fn receipt_artifact_and_evidence_cross_locate() {
     assert!(thread.contains("items_from_turn"));
     assert!(thread.contains("fileChange"));
     assert!(thread.contains("commandExecution"));
-    assert!(daemon.contains("run_owner_mismatch"));
+    // run_owner_mismatch 是 core/receipts.rs 的判定，DaemonHost 只透传，
+    // 所以这条断 receipts，不是 daemon。
+    assert!(receipts.contains("run_owner_mismatch"));
     assert!(!receipts.contains("CapabilityBroker"));
     assert!(!thread.contains("ModelClient"));
 }

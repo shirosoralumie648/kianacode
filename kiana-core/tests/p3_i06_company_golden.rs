@@ -29,7 +29,7 @@ fn company_golden_loop_keeps_runtime_and_business_evidence_separate() {
         "CompanyClosingReceipt",
         "CompanyCommandReceipt",
         "CompanyReplayReducer",
-        "source_event_ids",
+        "event_refs",
         "artifact_refs",
         "evidence_refs",
         "ReworkPacket",

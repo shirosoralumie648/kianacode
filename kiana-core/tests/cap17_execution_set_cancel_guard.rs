@@ -46,12 +46,14 @@ fn cancel_persists_intent_then_stops_all_execution_classes() {
     );
     require(
         dispatch,
-        &[
-            "commit_confirmed",
-            "not_executed",
-            "result.delivery_claimed",
-        ],
+        &["commit_confirmed", "result.delivery_claimed"],
         "queued/late dispatch fence",
+    );
+    // `not_executed` 这个事实由 lifecycle.rs 记录（dispatch.rs 里没有），
+    // 守卫的 dispatch 组原来断的是它，所以这里单独对 lifecycle 断。
+    assert!(
+        lifecycle.contains("not_executed"),
+        "CAP-17 not_executed fact missing from lifecycle"
     );
     require(
         approvals,
