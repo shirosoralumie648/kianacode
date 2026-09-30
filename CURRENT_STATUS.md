@@ -13714,6 +13714,21 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### One guard resolved end to end: the failures are mostly baseline-completeness, not missing code (2026-09-30)
 ### The pattern holds on a second guard, and the remaining bulk needs judgement I cannot automate (2026-09-30)
 ### Evidence on the baseline-versus-guard convention, gathered rather than assumed (2026-09-30)
+### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
+
+source_snapshot: `0cc1f5e7`; cross-reference of the 48 baselines that carry a `cargo test -p ... --test ...` command against the 18 guards that assert one must be present
+worktree_status: The previous entry named this cross-reference as the check that would settle the question, so it was run. 48 baselines carry the command. 18 guards assert that their baseline or workflow carries one. **Only 3 of those 18 have a baseline that actually does; 15 do not.** The overlap matters more than either raw count: if the command were a documented contract, the 18 guards' baselines would be drawn largely from the 48 that carry it, because that is what the contract would have produced. Instead 45 of the 48 that carry the command are not referenced by any of the demanding guards, and 15 of the 18 that demand it have nothing. That pattern fits "recorded ad hoc when someone happened to write it" considerably better than it fits "the contract, with widespread non-compliance".
+command_argv:
+  set of docs/roadmap/*.md containing 'cargo test -p ... --test ...'
+  set of *.rs guards asserting that marker against a baseline/workflow include
+  intersection of those two sets via each guard's include_str! path
+cwd/environment: repository root; static reads only.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this leans toward the guards being over-specified rather than the baselines being incomplete, and lean is not settle. Two guards' worth of sample is small, the 18 were selected by a regex over guard source rather than by any declared list, and "the baseline lacks the string" is not the same as "the baseline is wrong" — a baseline could legitimately be terse. I have not checked whether the 15 failing guards are among the 128 marker failures observed, though several share the shape. Acting on this would still mean choosing between relaxing guards and rewriting documentation, and the evidence, while pointing, does not constitute the decision. Recorded so the choice can be made with the numbers in hand rather than re-derived.
+reviewer: Codex cross-reference of baseline and guard sets; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `922cde0b`; a survey of all 730 documents under `docs/roadmap/`
 worktree_status: The open question has been "is a step's baseline contractually required to enumerate its test-case names?", and I had been treating it as a matter of opinion. It is partly measurable, so it was measured. Of 730 baselines, **409** contain a long (four-or-more segment) snake_case identifier and **519** contain snake_case identifiers generally — documenting identifiers is a real convention here. But only **48 (6.6%)** list a `cargo test -p ... --test ...` command, which is the specific shape the guards assert. The P4-J7-12 baseline has neither a cargo test command nor the four test-case names the guard requires.
