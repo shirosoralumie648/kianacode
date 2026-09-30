@@ -13718,6 +13718,19 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
 ### Diagnosed: SC-09 asserts an empty intersection from a fixture that overlaps (2026-09-30)
 ### The trust path could never acquire session ownership — a bootstrap deadlock (2026-09-30)
+### The last `metric_unregistered`: a reference field is looked up in the metric catalog (2026-09-30)
+
+source_snapshot: `ba905354`; `kiana-core/tests/bq25_telemetry_separation.rs` (`a_digest_and_a_low_cardinality_label_correlate_across_all_five_sinks`, line 749)
+worktree_status: The single remaining occurrence of this class, and it is a different situation from the eight that fix 8 cleared. That test submits two fields: a `SinkField::reference("cost_digest", "sha256:1111...")` and a `SinkField::label("status", "ok", 3)`, against a catalog registering only `kiana.bq25.probe_total` with `allowed_labels = ["status"]`. The label resolves correctly after fix 8. The **reference** field does not: `metric_point_for` looks it up by name in the same catalog, `cost_digest` is not a registered metric, and the admission is refused with `metric_unregistered`. The test expects the report to build with no refusals — its stated intent is that a digest and a low-cardinality label correlate across all five sinks.
+command_argv:
+  read of the failing test and of the catalog it builds
+cwd/environment: GitHub-hosted runner; this is a read of an existing log and the tree, no new run.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: recorded rather than fixed, because the two available fixes mean opposite things and I cannot tell from the code which is intended. Either reference fields carrying a digest are not metrics and should not be resolved against the catalog at all, in which case `metric_point_for` should skip them; or every field that reaches the metric sink must name a registered metric, in which case the fixture's `cost_digest` is the wrong input. The test's name points at the first reading — a digest reference and a label are different kinds of thing being correlated — while the function's own comment says a reference field "is checked as a label-free point", which points at the second. That is a design question about what the metric sink requires of a reference field, and it is not one I should settle by making the test pass. No roadmap row moves on this.
+reviewer: Codex read of the failing test, its catalog and `metric_point_for`; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `d969959d` plus this fix; `kiana-entrypoints/src/web.rs` (`trust_folder`)
 worktree_status: Twenty-seventh real defect, and the one remaining `session_owner_required` occurrence in run 36669470506 resolved to it. `trust_folder` resolved the session and then called `require_session_owner`, which requires `owner_tab_id == Some(tab_id)` and `owner_active`. A session that has never been bootstrapped has `owner_tab_id == None`, so the check could never pass — and `/api/trust` had no way to acquire ownership, because claiming lives in `claim_session_tab` and this path never called it. `bootstrap` (`GET /api/bootstrap`) does call it before proceeding, so the two entry points disagreed about who establishes ownership first. The result was a chicken-and-egg deadlock: a fresh session could not be trusted until it had been trusted. `trust_folder` now claims the session for the tab before gating on ownership.
