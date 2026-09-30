@@ -13713,6 +13713,19 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### SC-34 redaction-vs-sentinel error precedence — needs a decision (2026-09-29)
 ### One guard resolved end to end: the failures are mostly baseline-completeness, not missing code (2026-09-30)
 ### The pattern holds on a second guard, and the remaining bulk needs judgement I cannot automate (2026-09-30)
+### Evidence on the baseline-versus-guard convention, gathered rather than assumed (2026-09-30)
+
+source_snapshot: `922cde0b`; a survey of all 730 documents under `docs/roadmap/`
+worktree_status: The open question has been "is a step's baseline contractually required to enumerate its test-case names?", and I had been treating it as a matter of opinion. It is partly measurable, so it was measured. Of 730 baselines, **409** contain a long (four-or-more segment) snake_case identifier and **519** contain snake_case identifiers generally — documenting identifiers is a real convention here. But only **48 (6.6%)** list a `cargo test -p ... --test ...` command, which is the specific shape the guards assert. The P4-J7-12 baseline has neither a cargo test command nor the four test-case names the guard requires.
+command_argv:
+  survey of docs/roadmap/*.md for snake_case identifiers, long (4+ segment) identifiers, and 'cargo test -p ... --test ...' occurrences
+cwd/environment: repository root; static reads only.
+exit_code: not applicable — no change was made
+status change: none.
+proof-level change: none.
+limitations: this narrows the question but does not answer it, and the direction of the answer matters. If the guards' expectation is the intended contract, then roughly 93% of baselines are non-conforming and the work is to fill them in. If the prevailing 6.6% practice is the contract, then the guards are over-specified and the work is to relax them. Those are opposite projects of very different size, and the counts above are consistent with either reading — a small minority can be the correct standard, or it can be drift. Nothing here shows that the 48 baselines carrying a cargo command are the ones whose guards require it, because I did not cross-reference the two sets; that cross-reference would be the next thing to check, and it is the check that would actually settle it. I am recording the numbers rather than the conclusion because the conclusion is not mine to draw.
+reviewer: Codex survey of the 730 baseline documents; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `aa7a2c53`; `kiana-core/tests/cp28_migration_boundary_guard.rs` as the second case
 worktree_status: A second data point, because one case is an anecdote. `cp28_migration_boundary_guard` reports the missing markers `governance`, `backpressure` and `external` — and all three words are present in the tree (`governance` appears twice in `docs/roadmap/persistence-data-layer.md` and in `kiana-core/src/lib.rs` and `receipts.rs`). The guard fans out through a `require(source, markers, label)` helper across roughly a dozen `include_str!` files, so which of them is being checked for a given word is not visible from the failure message alone. This is the same shape as the P4-J7-12 case: the marker exists, the specific file the guard points at does not contain it, and the guard's own error text cannot tell you which assertion fired.
