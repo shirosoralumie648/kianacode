@@ -13717,6 +13717,20 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
 ### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
 ### Diagnosed: SC-09 asserts an empty intersection from a fixture that overlaps (2026-09-30)
+### Second full measurement: the fixes hold, and no new regressions (2026-09-30)
+
+source_snapshot: `c50eaf01`; GitHub Actions run 36669470506
+worktree_status: A second run measured with no documentation-only push interfering, which is what the earlier readings lacked. 39 of 41 shards completed before the measurement — 18 pass, 21 fail — with `kiana-daemon` and `kiana-core-s2/6` still executing, the same two long-running shards seen on every previous run. The 21 completed failures carry **479 messages**, against 481 on the previous full reading, and the three classes that were not at zero then are each still at exactly **1**: `metric_unregistered`, `sc38_property_case_duplicate_outcome_invalid` and `session_owner_required`. So the fixes are stable rather than newly regressing, and nothing in this batch reintroduced an error class that had reached zero. `Rust gates` again fails only at `Run desktop contract tests`, so fmt, check and clippy remain green.
+command_argv:
+  GitHub Actions run 36669470506 (commit c50eaf01)
+  per-shard log readback across the 21 completed failing shards: 479 failure messages
+cwd/environment: GitHub-hosted runners; no local Cargo test was run per user instruction.
+exit_code: three classes at one occurrence each; run still red
+status change: none. No step, feature_status or proof_level is promoted by this entry.
+proof-level change: none.
+limitations: this is a confirmation of stability, not progress — 479 against 481 is within the noise of two shards finishing in a different order, and no new fix is verified by it. The two unmeasured shards are the slow ones, and they have been slow on every run, so the measurement is representative but not complete. Nothing here moves any roadmap row.
+reviewer: Codex readback of run 36669470506; no local runtime test reviewer; no code changed for this item.
+
 
 source_snapshot: `ea298549` plus this finding; `kiana-policy/tests/sc09_grant_scope.rs` (`parent_grant`, `network_only`), `kiana-policy/src/grant_scope.rs` (`GrantScope::intersect`, line 346)
 worktree_status: The item flagged last turn as "a refusal test failing because the refusal did not happen" is now diagnosed, and it is **not** a scope-narrowing gap. `parent_grant()` carries `[Filesystem, Network, Secret]`. `network_only` carries `[Network]`. `intersect` keeps the parent's capabilities that also appear in the other scope, so the result is `[Network]` — non-empty — and the function returns `Ok` without reaching its `grant_scope_capability_intersection_empty` branch. The test asserts that branch fires. It cannot, because the fixture it builds shares `Network` with the parent by construction, so no arrangement of those two values produces the empty intersection the assertion is checking. The `unwrap_err()` therefore receives the `Ok(GrantScope { capabilities: [Network], .. })` seen in the log.
