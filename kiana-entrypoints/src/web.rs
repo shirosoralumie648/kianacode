@@ -2981,6 +2981,16 @@ async fn trust_folder(
         .as_ref()
         .and_then(|Json(body)| body.session_id.as_deref());
     let session_id = resolve_mutable_session(&app, requested).await?;
+    // 【为什么必须先认领再校验归属】
+    // `require_session_owner` 读的是 `owner_tab_id == Some(tab)` 且 `owner_active`；而全新会话
+    // 的 `owner_tab_id` 是 `None`。于是这里形成了一个**先有鸡还是先有蛋**的死锁：
+    // 从未 bootstrap 过的会话，`/api/trust` 永远拿不到归属，于是永远无法被信任。
+    // `bootstrap`（`GET /api/bootstrap`）是先 `claim_session_tab` 再往下走的，trust 这条
+    // 路径却没有，于是两条入口对「谁先建立归属」的处理并不一致。
+    // 补上认领后，`require_session_owner` 校验的仍是**认领之后**的归属，
+    // 并不会绕过它：若该 tab 不是 owner，`claim_session_tab` 不会改写既有归属，
+    // 随后的校验仍会以 `session_owner_required` 拒绝。
+    claim_session_tab(&app, &session_id, &tab_id)?;
     require_session_owner(&app, &session_id, &tab_id)?;
     let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
     if let WebActionClaim::Replay(response) = &action_id {

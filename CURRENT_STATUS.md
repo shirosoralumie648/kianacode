@@ -13717,6 +13717,22 @@ reviewer: Codex review of the 11 new failures against the two producer families 
 ### The cross-reference that was flagged as next: 15 of 18 guards demand what almost no baseline carries (2026-09-30)
 ### A worked example from the 24: `terminate_process_group` is naming drift, not a missing capability (2026-09-30)
 ### Diagnosed: SC-09 asserts an empty intersection from a fixture that overlaps (2026-09-30)
+### The trust path could never acquire session ownership — a bootstrap deadlock (2026-09-30)
+
+source_snapshot: `d969959d` plus this fix; `kiana-entrypoints/src/web.rs` (`trust_folder`)
+worktree_status: Twenty-seventh real defect, and the one remaining `session_owner_required` occurrence in run 36669470506 resolved to it. `trust_folder` resolved the session and then called `require_session_owner`, which requires `owner_tab_id == Some(tab_id)` and `owner_active`. A session that has never been bootstrapped has `owner_tab_id == None`, so the check could never pass — and `/api/trust` had no way to acquire ownership, because claiming lives in `claim_session_tab` and this path never called it. `bootstrap` (`GET /api/bootstrap`) does call it before proceeding, so the two entry points disagreed about who establishes ownership first. The result was a chicken-and-egg deadlock: a fresh session could not be trusted until it had been trusted. `trust_folder` now claims the session for the tab before gating on ownership.
+command_argv:
+  cargo fmt --all --check                                          # exit 0
+  cargo check -p kiana-entrypoints --all-targets --locked --offline  # exit 0, 0 errors
+  GitHub Actions: Tests (kiana-entrypoints) via the sharded matrix
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain. No Cargo test was run locally per user instruction; GitHub Actions is the test authority.
+fixture·cassette: the pre-existing `cli_web.rs` web-tab fixtures; no assertion altered.
+exit_code: 0 for local format and static compile; remote effect unobserved at the time of writing
+status change: none. No step, feature_status or proof_level is promoted by this commit.
+proof-level change: none.
+limitations: the ownership check is not bypassed, and that is the part worth being explicit about. `claim_session_tab` only writes `owner_tab_id` when it is currently `None`; if the session is already owned by a different tab it leaves the existing owner alone, and the immediately following `require_session_owner` still refuses with `session_owner_required`. So this changes who may *acquire* an unowned session, not who may *keep* one they do not own — a second tab cannot take a session away. What it does mean is that any caller holding a valid token and a valid tab id can claim an as-yet-unowned session, which is the same bar `bootstrap` already applied; if the intent was that only `bootstrap` may establish ownership, then this is the wrong fix and the test's expectation is the one to revisit. Whether it now passes is unobserved.
+reviewer: Codex read of `trust_folder`, `require_session_owner` and `claim_session_tab` against the failing `cli_web.rs` case; no local runtime test reviewer.
+
 ### Second full measurement: the fixes hold, and no new regressions (2026-09-30)
 
 source_snapshot: `c50eaf01`; GitHub Actions run 36669470506
