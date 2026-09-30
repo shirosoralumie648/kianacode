@@ -29,7 +29,7 @@ fn h11_tool_results_are_classified_before_model_feedback() {
             "H11 marker missing: {marker}"
         );
     }
-    assert!(harness.contains("observation.model_text()"));
+    assert!(harness.contains(".model_text()"));
     assert!(harness.contains("ToolObservationStatus::Denied"));
     assert!(domain.contains("TOOL_OBSERVATION_MAX_SUMMARY"));
     assert!(domain.contains("!self.untrusted"));

@@ -56,7 +56,7 @@ fn invocation_state_is_rebuilt_from_facts_and_stays_fail_closed() {
             "run_resume_authority_changed",
             "run_resume_data_revoked",
             "run_resume_scope_changed",
-            "redacted arguments/history cannot be used",
+            "Redacted arguments/history cannot be used",
             "restore(run_id",
             "Unknown effects retain their resource reservation",
         ],

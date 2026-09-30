@@ -10,7 +10,7 @@ fn retire_revokes_grants_and_releases_budget() {
         "release_resources",
         "resources_released",
         "path_locks.remove",
-        "budget.release",
+        ".release(record.reservation.plan.budget_reservation)",
         "cell.retired",
     ] {
         assert!(

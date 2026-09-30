@@ -27,7 +27,7 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
         "detect_backend",
         "storage_root_inside_project",
         "storage_lock_conflict",
-        "storage_identity.json",
+        "store-identity.json",
         "create_new(true)",
         "/proc/mounts",
     ] {

@@ -25,7 +25,7 @@ fn cell_admission_binds_all_resources_and_releases_only_its_own_set() {
         "abort_spawn",
         "retire_cell",
         "release_resources",
-        "budget.release",
+        ".release(record.reservation.plan.budget_reservation)",
         "path_locks.remove",
         "cell.retired",
     ] {

@@ -36,7 +36,7 @@ fn er28_keeps_runtime_receipts_incidents_and_business_closeout_separate() {
     for marker in [
         "CompanyCommandReceipt",
         "CompanyClosingReceipt",
-        "business_runtime_evidence_missing",
+        "business_runtime_receipt_missing",
         "business_runtime_evidence_invalid",
         "company_evidence_not_found",
         "company_artifact_changed",

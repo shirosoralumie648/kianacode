@@ -69,7 +69,7 @@ fn ui20_client_and_server_expose_stable_timeline_contract() {
     }
     for marker in [
         "pub id: String",
-        "array position as a key",
+        "position as a key",
         "format!(\"{item_prefix}:user\")",
         "format!(\"{item_prefix}:error\")",
     ] {

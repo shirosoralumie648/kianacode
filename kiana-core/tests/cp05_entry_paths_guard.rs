@@ -24,7 +24,7 @@ fn capability_entry_paths_share_one_authorization_pipeline() {
     assert!(approvals.contains("decision_context"));
     assert!(approvals.contains("Some((approval_id, &validated.challenge.reason))"));
     assert!(approvals.contains("self.prepare_capability_action"));
-    assert!(approvals.contains("self.dispatch_capability_action"));
+    assert!(approvals.contains(".dispatch_capability_action("));
     assert!(capabilities.contains("self.prepare_capability_action_cancellable"));
     assert!(capabilities.contains("self.authorize_capability_action_cancellable"));
     assert!(capabilities.contains("self.dispatch_authorized"));

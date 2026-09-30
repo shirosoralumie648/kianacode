@@ -22,7 +22,7 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
         "active_capabilities",
         "cell_capability_in_flight",
         "path_locks.remove",
-        "budget.release",
+        ".release(record.reservation.plan.budget_reservation)",
         "cell.retired",
         "spawn_reservation_already_released",
     ] {

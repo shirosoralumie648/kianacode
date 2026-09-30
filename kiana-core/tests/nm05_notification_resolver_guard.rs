@@ -4,7 +4,8 @@ fn notification_resolver_requires_server_context_and_never_dispatches() {
     for marker in [
         "resolve_notification_subscriptions",
         "context.project_trusted",
-        "context.actor_id",
+        "let actor = context",
+        ".actor_id",
         "server_project_id",
         "validate_for_subscription",
         "notification_recipient_subscription_not_found",

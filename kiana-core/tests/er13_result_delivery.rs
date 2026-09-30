@@ -39,8 +39,8 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
     assert!(dispatch.contains("AggregateVersion::new(\"result_delivery\""));
     assert!(dispatch.contains("AggregateVersion::new(\"run\""));
     assert!(capabilities.contains("self.finalize_capability_action"));
-    assert!(approvals.contains("self.dispatch_capability_action"));
-    assert!(approvals.contains("self.deliver_capability_result"));
+    assert!(approvals.contains(".dispatch_capability_action("));
+    assert!(approvals.contains(".deliver_capability_result("));
     assert!(runner.contains("unexpected_capability_result"));
     for forbidden in [
         "retry_tool_after_delivery_claim",
