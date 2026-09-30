@@ -17647,3 +17647,44 @@ both pass, and inserting the string would break CAP-12. The real implementation 
 `ProcessSupervisor::stop(execution_id, &mut child, process_group)` at
 `harness_capabilities.rs:431-449`. Which guard is authoritative is an architecture
 judgement, which AGENTS.md §10 reserves for the owner; it is not resolved here.
+
+### SC-28 supply-chain gate has been quarantined since at least 2026-09-27 (2026-09-30)
+
+```text
+source_snapshot: master=f2be4d26; the failing run is 36674930340, which the push at 99b8642d triggered. The failure is NOT caused by that change and the evidence below shows why
+worktree_status: clean. This block changes no source and no test
+command_argv: gh run view 36674930340 --log-failed; gh run list --workflow=sc28-supply-chain.yml. No local test, scan or build was run
+cwd·environment: /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux/bash; GitHub Actions ubuntu runner
+fixture·cassette: the runner's own machine-readable report at $RUNNER_TEMP/sc28-supply-chain/supply-chain-report.json, quoted verbatim below
+exit_code: the scan step exits 1 by design once it quarantines
+status_change: no roadmap row moves
+proof-level change: none
+limitations: REPORTED, NOT FIXED, AND NOT FIXABLE BY TEST EDITS. This gate cannot be made green by correcting any guard, and it is not a test failure in the ordinary sense
+reviewer: owner. This is the kind of failure that looks like "another red test" in a run list and is not
+```
+
+Run `36674930340` fails with a quarantine, not an assertion:
+
+```json
+{"quarantine_reasons": [
+  {"code": "advisory_scan_failed",  "detail": "cargo audit exited 1"},
+  {"code": "advisory_found",        "detail": "cargo-audit reported 5 vulnerable package(s)"},
+  {"code": "dependency_policy_failed", "detail": "cargo deny exited 1"}
+], "status": "quarantined"}
+```
+
+The gate is fail-closed by design (`SC28_MAX_HIGH_ADVISORIES: 0`,
+`SC28_MAX_CRITICAL_ADVISORIES: 0`) and is correctly refusing to pass. It is **not** a
+regression from this session: `gh run list --workflow=sc28-supply-chain.yml` shows the
+same workflow failing at `36315171095` ("fix: make cargo fmt --all --check pass",
+2026-09-27) and again at `36356384863` ("step: add the second parallel roadmap batch",
+2026-09-27) — three days before the first commit in this block. GitHub's own push
+output independently reports 34 open advisories on the default branch (7 high,
+20 moderate, 7 low).
+
+This matters to the roadmap beyond this one workflow: §0 requires a ✅ to be bound to
+"CI 全绿", so while the supply-chain gate quarantines, no row can be promoted on the
+strength of a green run. Clearing it means upgrading the five vulnerable dependencies
+and reconciling `deny.toml` — a real dependency change with real risk, not a test edit.
+It is not started here, and it is recorded so the red run is not mistaken for
+regression introduced by the guard fixes in this block.
