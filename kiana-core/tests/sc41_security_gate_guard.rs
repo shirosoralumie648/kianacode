@@ -7,6 +7,7 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
     let baseline = include_str!("../../docs/roadmap/sc41-security-gate-baseline.md");
     let current_status = include_str!("../../CURRENT_STATUS.md");
     let roadmap = include_str!("../../docs/roadmap.md");
+    let card = include_str!("../../docs/roadmap/security-compliance.md");
     for marker in [
         "permissions:",
         "contents: read",
@@ -63,6 +64,11 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
         );
     }
     assert!(current_status.contains("### SC-41"));
-    assert!(roadmap.contains("<a id=\"step-sc-41\"></a>SC-41"));
+    // 【锚点在专项卡里，不在总队列里】同 SC-28/SC-30：
+    // `docs/roadmap.md` 总队列里是指向卡片的链接行，锚点写在
+    // `docs/roadmap/security-compliance.md`。合并归一个文件断言会把
+    // “卡片在”误读成“队列行在”，语义不对。
+    assert!(card.contains("<a id=\"step-sc-41\"></a>SC-41"));
+    assert!(roadmap.contains("[`SC-41`](roadmap/security-compliance.md#step-sc-41)"));
     assert!(!workflow.contains("CapabilityBroker::new"));
 }

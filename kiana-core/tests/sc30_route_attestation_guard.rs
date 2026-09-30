@@ -8,6 +8,7 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
     let baseline = include_str!("../../docs/roadmap/sc30-route-attestation-baseline.md");
     let current_status = include_str!("../../CURRENT_STATUS.md");
     let roadmap = include_str!("../../docs/roadmap.md");
+    let card = include_str!("../../docs/roadmap/security-compliance.md");
 
     for marker in [
         "RouteAttestation",
@@ -78,7 +79,12 @@ fn sc30_attestation_binds_route_policy_credentials_and_audience() {
         );
     }
     assert!(current_status.contains("### SC-30"));
-    assert!(roadmap.contains("<a id=\"step-sc-30\"></a>SC-30"));
+    // 【锚点在专项卡里，不在总队列里】同 SC-28：
+    // 总队列 `docs/roadmap.md` 里是指向卡片的链接行，锚点写在
+    // `docs/roadmap/security-compliance.md`。当它们合并归一个文件断言时，
+    // 卡片在不在变成了队列行在不在，语义不对。
+    assert!(card.contains("<a id=\"step-sc-30\"></a>SC-30"));
+    assert!(roadmap.contains("[`SC-30`](roadmap/security-compliance.md#step-sc-30)"));
     assert!(!domain.contains("reqwest"));
     assert!(!domain.contains("std::net"));
 }

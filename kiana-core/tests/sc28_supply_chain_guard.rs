@@ -10,6 +10,7 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
     let baseline = include_str!("../../docs/roadmap/sc28-supply-chain-baseline.md");
     let current_status = include_str!("../../CURRENT_STATUS.md");
     let roadmap = include_str!("../../docs/roadmap.md");
+    let card = include_str!("../../docs/roadmap/security-compliance.md");
     for marker in [
         "permissions:",
         "contents: read",
@@ -93,7 +94,12 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         );
     }
     assert!(current_status.contains("### SC-28"));
-    assert!(roadmap.contains("<a id=\"step-sc-28\"></a>SC-28"));
-    assert!(roadmap.contains("| 501 | W6 | 专项 | [`SC-28`]"));
+    // 【为什么分开读两份文档】
+    // 专项卡的锚点写在 `docs/roadmap/security-compliance.md`，不在总队列
+    // `docs/roadmap.md`；总队列里的是指向卡片的链接行。
+    // 两者合并归一个文件断言，只会把“卡片在”误读成
+    // “队列行在”，而且把行号变了就报失败。
+    assert!(card.contains("<a id=\"step-sc-28\"></a>SC-28"));
+    assert!(roadmap.contains("[`SC-28`](roadmap/security-compliance.md#step-sc-28)"));
     assert!(!scanner.contains("git push"));
 }
