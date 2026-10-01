@@ -112,6 +112,9 @@ impl TransitionBatch {
             if event.sequence == 0 || event.kind.trim().is_empty() || event.kind.len() > 256 {
                 return Err("journal_event_invalid");
             }
+            event
+                .validate_identity_links()
+                .map_err(|_| "journal_event_identity_invalid")?;
             let Some(kind) = event.aggregate_type.as_ref() else {
                 return Err("journal_event_aggregate_required");
             };
@@ -407,6 +410,9 @@ impl JournalFrame {
                 {
                     return Err("journal_frame_event_invalid".into());
                 }
+                event
+                    .validate_identity_links()
+                    .map_err(|error| format!("journal_frame_event_identity_invalid:{error}"))?;
             }
         }
         if canonical_journal_bytes(self)?.len() > MAX_JOURNAL_FRAME_BYTES {

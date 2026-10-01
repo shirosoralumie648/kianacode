@@ -1,4 +1,4 @@
-use kiana_domain::{EventId, RequestId, RuntimeEvent};
+use kiana_domain::{EventId, JournalFrame, JournalFramePayload, RequestId, RuntimeEvent};
 use serde_json::json;
 
 #[test]
@@ -38,5 +38,16 @@ fn legacy_events_without_links_remain_readable_but_self_links_fail_closed() {
     assert_eq!(
         linked.validate_identity_links().unwrap_err(),
         "event_causation_self"
+    );
+}
+
+#[test]
+fn journal_frames_reject_identity_link_drift() {
+    let mut event = RuntimeEvent::new(RequestId::new(), 1, "run.accepted", json!({})).unwrap();
+    event.parent_event_id = Some(event.event_id);
+    let frame = JournalFrame::new(JournalFramePayload::Event { event }).unwrap();
+    assert_eq!(
+        frame.validate().unwrap_err(),
+        "journal_frame_event_identity_invalid:event_parent_self"
     );
 }

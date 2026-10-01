@@ -18,6 +18,9 @@ pub(crate) enum AppendPlan {
 /// Every persisted event crosses the same secret-free and audit-specific boundary before a
 /// storage lock, CAS check or idempotent replay can mutate state.
 pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), PortError> {
+    event
+        .validate_identity_links()
+        .map_err(|error| PortError::Failed(format!("event_identity_links_invalid:{error}")))?;
     audit_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
     governance_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
     kiana_domain::validate_secret_free(&event.data)
@@ -144,6 +147,10 @@ fn ensure_idempotent_match(
         && existing.sequence == candidate.sequence
         && existing.kind == candidate.kind
         && existing.data == candidate.data
+        && existing.command_id == candidate.command_id
+        && existing.correlation_id == candidate.correlation_id
+        && existing.causation_event_id == candidate.causation_event_id
+        && existing.parent_event_id == candidate.parent_event_id
         && existing.aggregate_type == candidate.aggregate_type
         && existing.aggregate_id == candidate.aggregate_id
         && existing.stream_version == candidate.stream_version;

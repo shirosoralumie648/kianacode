@@ -3256,6 +3256,25 @@ limitations: the correction only fixes assertion shape; the current full CI run 
 reviewer: Codex source review; verified the error variant/reason returned by EventStore, the exact remote assertion output, no weakening of the deny condition, and no local test execution
 ```
 
+### ER-02 EventStore identity-link boundary and replay drift (2026-10-02)
+
+```text
+source_snapshot: `202e82a4` plus the current ER-02 source slice; `kiana-eventlog/src/event_store_core.rs`; `kiana-domain/src/journal.rs`; `kiana-eventlog/tests/er02_identity.rs`; `kiana-core/tests/er02_identity_guard.rs`; `docs/roadmap/event-receipt-identity-baseline.md`
+worktree_status: EventStore append validation now calls `RuntimeEvent::validate_identity_links`; Journal transition/event frames reject malformed links; idempotent replay compares command/correlation/causation/parent links. Legacy events with all optional links absent remain readable. No second EventLog or authority path.
+command_argv:
+  `gh run view 36315170823 --job 108608404129 --log-failed`
+  `gh run view 36913765446 --json status,conclusion,jobs,headSha,workflowName,url`
+  `git diff --check`
+  no local test, build, check, fmt, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only runtime-test environment by user instruction
+fixture·cassette: `malformed_identity_links_are_denied_before_append`; `idempotent_replay_rejects_identity_link_drift`; existing default-correlation, legacy/self-link, event-id reuse, command-digest conflict, cross-run sequence and source-guard fixtures; old ER-02 receipt `36315170823` failed during unrelated workspace compilation, current unified CI run `36913765446` is still in progress and has no completed ER-02 eventlog receipt
+exit_code: 0 for source/diff checks; no local test exit code; remote receipts are recorded without waiting for completion
+status_change: ER-02 remains `feature_status=partial`, with the append/frame identity boundary and replay-link drift denial now implemented in source and CI fixtures
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: current CI run has not completed; unified shard results are not yet known; optional identity links remain additive for legacy writers, in-memory/JSONL CAS guards do not prove power-loss or cross-host durability, and full InvocationLedger/attempt retry/reconcile, receipt correctness, retention/delete and external/live evidence remain future work
+reviewer: Codex ER-02 source review; verified a single EventStore validator is used by append/replay paths, frame validation remains compatibility-readable for legacy links, and no local runtime tests were executed
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text

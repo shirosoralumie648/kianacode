@@ -69,12 +69,19 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 |---|---|
 | `new_events_have_request_correlation_and_explicit_links_round_trip` | 默认 correlation、command/causation/parent links、serde round trip |
 | `legacy_events_without_links_remain_readable_but_self_links_fail_closed` | legacy decode、可选 links 和 self-link 拒绝 |
+| `journal_frames_reject_identity_link_drift` | Journal frame validation preserves the same self-link fail-closed boundary |
 | `event_id_reuse_is_denied` | EventStore 全局 event_id duplicate fail-closed |
 | `same_request_different_command_digest_conflicts` | command digest drift 不覆盖既有事实 |
+| `malformed_identity_links_are_denied_before_append` | EventStore append 边界拒绝 self-causation/self-parent 与 command-without-correlation |
+| `idempotent_replay_rejects_identity_link_drift` | 相同幂等键 replay 必须保持 command/correlation/causation/parent identity |
 | `cross_run_result_cannot_pair_by_sequence` | 同 sequence/同 capability ID 的 foreign run result 不配对 |
 | `event_identity_links_and_projection_use_stable_ids_not_request_sequence` | domain/core source guard |
 
 `.github/workflows/er02-identity.yml` 在 GitHub runner 串行执行 domain/eventlog/core fixtures、fmt/fetch；本地不运行测试，CI 结果不等待。
+
+当前统一 CI 已接管原专项 workflow；新增 EventStore identity-boundary fixtures 随
+`kiana-eventlog` shard 执行，core source guard 同时锁定 storage validator 与幂等 replay
+的 identity-link 比较。拒绝路径仍只在 GitHub Actions 验证。
 
 ## 6. 限制与交接
 

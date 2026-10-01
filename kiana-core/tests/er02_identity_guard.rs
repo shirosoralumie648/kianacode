@@ -31,4 +31,7 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     assert!(baseline.contains("same_request_different_command_digest_conflicts"));
     assert!(baseline.contains("cross_run_result_cannot_pair_by_sequence"));
     assert!(baseline.contains("legacy"));
+    let event_store = include_str!("../../kiana-eventlog/src/event_store_core.rs");
+    assert!(event_store.contains("event_identity_links_invalid"));
+    assert!(event_store.contains("existing.causation_event_id == candidate.causation_event_id"));
 }
