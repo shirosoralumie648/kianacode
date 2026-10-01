@@ -1,6 +1,6 @@
 use kiana_domain::{AggregateVersion, EventId, RequestId, RuntimeEvent, TransitionBatch};
 use kiana_eventlog::MemoryEventLog;
-use kiana_ports::EventStorePort;
+use kiana_ports::{EventStorePort, PortError};
 use serde_json::json;
 
 #[tokio::test]
@@ -13,10 +13,10 @@ async fn event_id_reuse_is_denied() {
     let mut duplicate = first.clone();
     duplicate.sequence = 2;
     assert!(store.append(first).await.is_ok());
-    assert_eq!(
-        store.append(duplicate).await.unwrap_err().to_string(),
-        "event_id_duplicate"
-    );
+    assert!(matches!(
+        store.append(duplicate).await,
+        Err(PortError::Conflict(reason)) if reason == "event_id_duplicate"
+    ));
 }
 
 #[tokio::test]
@@ -29,7 +29,10 @@ async fn same_request_different_command_digest_conflicts() {
         .commit_transition(transition(command_id, 'b'))
         .await
         .unwrap_err();
-    assert_eq!(error.to_string(), "event_store_command_digest_mismatch");
+    assert!(matches!(
+        error,
+        PortError::Conflict(reason) if reason == "event_store_command_digest_mismatch"
+    ));
 }
 
 fn transition(command_id: RequestId, digest: char) -> TransitionBatch {
