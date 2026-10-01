@@ -47,9 +47,10 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 | `legacy_memory_is_unverifiable_until_reviewed` | v1 legacy import 保持 Unknown/Candidate/Draft/unsearchable/unverified |
 | `invalid_admission_state_combination_is_denied` | Candidate/Active、错误 validity 等组合 fail-closed |
 | `qualified_memory_requires_review_evidence_and_purpose` | Qualified/Active 缺 provenance/review/evidence 不可接受 |
+| `qualified_memory_requires_review_evidence_and_purpose` malformed cases | nil event/request/run IDs, blank/oversize quotes, invalid Purpose, blank reviewer and zero review time fail closed |
 | `legacy_memory_is_unverifiable_until_reviewed`（daemon） | 真实 JSONL reader 使用 explicit import，不把旧行直接暴露给检索 |
 
-`.github/workflows/cm02-memory-lifecycle.yml` 在 GitHub runner 执行 domain lifecycle fixtures、daemon legacy reader fixture 和 fmt；本地只做格式、workspace test-target 静态编译和 diff 检查。
+以前的独立 `.github/workflows/cm02-memory-lifecycle.yml` 已删除并合并进 `.github/workflows/ci.yml`：`cm02_memory` 由 `kiana-domain-s1/4` shard 执行，daemon legacy reader fixture 随 `kiana-daemon` 包测试执行，fmt 由 Rust gates 执行。本地不运行测试或格式检查。
 
 ## 5. 限制与交接
 
@@ -57,3 +58,25 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 - purpose/retention/sensitivity 尚未由 processing grant/data policy 全量派生，用户私有跨项目隔离与删除传播仍是 CM-03+/PD/SC。
 - Legacy import 在内存中转成 v2-compatible record 便于统一 reader，但不改写原 v1 文件或伪造历史 review；没有 successor 之前不可检索。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 6. Qualified evidence and review-value validation (2026-10-02)
+
+Source review found that Qualified/Active previously treated any present `Purpose`, nonempty
+evidence vector, and present review fields as complete. Empty Purpose fields, evidence with nil
+typed IDs or blank/oversize quotes, blank reviewer strings, and a zero review timestamp could
+therefore pass lifecycle admission. The domain validator now validates Purpose values and
+requires evidence IDs/quotes and review identity/time to be meaningful; CI-only negative cases
+cover these inputs without changing the qualified valid control or the previous fixture-error fix.
+
+```text
+source_snapshot: ae4120924ebf28e96b3ac8b96074c89a5a9c7a2f + CM-02 lifecycle validation correction
+worktree_status: isolated /tmp/kiana-cm02-audit on audit/cm02-qualified-record-ae412092; only memory lifecycle code, CM-02 fixture, and this baseline changed
+command_argv: gh run view 36677090825 --job 109764373568 --log-failed; gh run view 36899317942 --json jobs; git diff --check
+cwd/environment: /tmp/kiana-cm02-audit; Linux; local test/build/check/clippy/fmt/smoke commands not run
+fixture or cassette: kiana-domain/tests/cm02_memory.rs::qualified_memory_requires_review_evidence_and_purpose; common CI maps it into kiana-domain-s1/4 and also runs the daemon package tests
+exit_code: 0 for source review and git diff --check; historical CI run 36677090825 showed the pre-correction broad-error assertion; current master run 36899317942 domain-s1 job was queued when inspected
+status_change: none; CM-02 remains 🔄 pending current GitHub CI evidence
+proof-level_change: none; source only
+limitations: new negative fixtures are unexecuted locally and current remote domain-s1 evidence is pending; exact event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation and data epochs remain CM-06; normalization/sensitive-text handling remains CM-09; no semantic recall or durable-memory claim is made
+reviewer: CM-02 implementation agent source review; no runtime test reviewer
+```
