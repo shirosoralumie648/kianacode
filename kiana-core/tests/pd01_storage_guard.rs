@@ -2,6 +2,7 @@
 fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() {
     let domain = include_str!("../../kiana-domain/src/storage.rs");
     let daemon = include_str!("../../kiana-daemon/src/storage.rs");
+    let local_io = include_str!("../../kiana-daemon/src/local_packages.rs");
     let host = include_str!("../../kiana-daemon/src/lib.rs");
     for marker in [
         "StorageRoot",
@@ -28,7 +29,7 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
         "storage_root_inside_project",
         "storage_lock_conflict",
         "store-identity.json",
-        "create_new(true)",
+        "create_new_file",
         "/proc/mounts",
     ] {
         assert!(
@@ -38,6 +39,31 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
     }
     assert!(host.contains("pub fn storage_root"));
     assert!(host.contains("pub fn acquire_storage"));
-    assert!(!daemon.contains("ControlPlane"));
-    assert!(!daemon.contains("CapabilityBroker"));
+    for marker in [
+        "libc::O_EXCL",
+        "libc::O_NOFOLLOW",
+        "libc::O_NONBLOCK",
+        "libc::openat",
+        "libc::unlinkat",
+        "metadata.is_file()",
+        "read_optional",
+        "remove_owned_file",
+    ] {
+        assert!(
+            local_io.contains(marker),
+            "storage I/O marker missing: {marker}"
+        );
+    }
+    // Module documentation describes the execution boundary. Check executable source so
+    // documenting that boundary cannot be mistaken for depending on the execution layer.
+    for source in [daemon, local_io] {
+        let code = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!code.contains("ControlPlane"));
+        assert!(!code.contains("CapabilityBroker"));
+        assert!(!code.contains("dispatch_capability"));
+    }
 }

@@ -3,12 +3,13 @@
 //! Resolution is shared by every daemon-backed surface. It derives a user-level storage root,
 //! keeps it outside the project tree, persists StoreIdentity, and acquires one create-new lock;
 //! storage itself never becomes a second ControlPlane execution path.
+use crate::local_packages::LocalDir;
 use kiana_domain::{
     canonical_journal_bytes, StorageBackend, StorageLockRecord, StorageNamespace,
     StorageOwnerScope, StorageRoot, StoreIdentity,
 };
 use kiana_ports::PortError;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -17,6 +18,7 @@ const KIANA_HOME_ENV: &str = "KIANA_HOME";
 const HOME_ENV: &str = "HOME";
 const STORE_IDENTITY_FILE: &str = "store-identity.json";
 const STORAGE_LOCK_FILE: &str = "storage.lock";
+const MAX_STORAGE_METADATA_BYTES: usize = 16 * 1024;
 
 pub fn resolve_storage_root(
     project_root: &Path,
@@ -62,6 +64,7 @@ pub struct StorageLease {
     identity: StoreIdentity,
     record: StorageLockRecord,
     lock_path: PathBuf,
+    lock_directory: LocalDir,
     lock_file: Option<File>,
 }
 
@@ -69,6 +72,7 @@ impl StorageLease {
     pub fn acquire(root: StorageRoot) -> Result<Self, PortError> {
         root.validate().map_err(PortError::Failed)?;
         let root_path = PathBuf::from(&root.canonical_path);
+        let directory = LocalDir::open(&root_path, true).map_err(storage_io_error)?;
         for namespace in [
             StorageNamespace::Meta,
             StorageNamespace::Facts,
@@ -82,27 +86,25 @@ impl StorageLease {
             StorageNamespace::Quarantine,
             StorageNamespace::Locks,
         ] {
-            let path = root.namespace_path(namespace).map_err(PortError::Failed)?;
-            fs::create_dir_all(path)
-                .map_err(|error| PortError::Failed(format!("storage_namespace_create:{error}")))?;
+            directory
+                .subdir(namespace.as_str(), true)
+                .map_err(storage_io_error)?;
         }
         let now = now_unix_ms();
-        let identity_path = root_path
-            .join(StorageNamespace::Meta.as_str())
-            .join(STORE_IDENTITY_FILE);
-        let identity = load_or_create_identity(&root, &identity_path, now)?;
+        let meta_directory = directory
+            .subdir(StorageNamespace::Meta.as_str(), false)
+            .map_err(storage_io_error)?;
+        let identity = load_or_create_identity(&root, &meta_directory, now)?;
+        let lock_directory = directory
+            .subdir(StorageNamespace::Locks.as_str(), false)
+            .map_err(storage_io_error)?;
         let lock_path = root_path
             .join(StorageNamespace::Locks.as_str())
             .join(STORAGE_LOCK_FILE);
-        reject_symlink(&lock_path, "storage_lock_symlink")?;
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut lock_file = match options.open(&lock_path) {
+        let mut lock_file = match lock_directory.create_new_file(STORAGE_LOCK_FILE) {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(lock_conflict(&lock_path, &identity, &root.owner_scope));
+                return Err(lock_conflict(&lock_directory, &identity, &root.owner_scope));
             }
             Err(error) => {
                 return Err(PortError::Failed(format!("storage_lock_open:{error}")));
@@ -120,6 +122,7 @@ impl StorageLease {
             identity,
             record,
             lock_path,
+            lock_directory,
             lock_file: Some(lock_file),
         })
     }
@@ -141,33 +144,34 @@ impl StorageLease {
     }
 
     pub fn release(mut self) -> Result<(), PortError> {
-        self.cleanup();
-        Ok(())
+        self.cleanup()
     }
 
-    fn cleanup(&mut self) {
-        self.lock_file.take();
-        if !is_symlink(&self.lock_path) {
-            let _ = fs::remove_file(&self.lock_path);
+    fn cleanup(&mut self) -> Result<(), PortError> {
+        if let Some(file) = self.lock_file.take() {
+            self.lock_directory
+                .remove_owned_file(STORAGE_LOCK_FILE, &file)
+                .map_err(storage_io_error)?;
         }
+        Ok(())
     }
 }
 
 impl Drop for StorageLease {
     fn drop(&mut self) {
-        self.cleanup();
+        let _ = self.cleanup();
     }
 }
 
 fn load_or_create_identity(
     root: &StorageRoot,
-    path: &Path,
+    directory: &LocalDir,
     now: u64,
 ) -> Result<StoreIdentity, PortError> {
-    if path.exists() {
-        reject_symlink(path, "storage_identity_symlink")?;
-        let bytes = fs::read(path)
-            .map_err(|error| PortError::Failed(format!("storage_identity_read:{error}")))?;
+    if let Some(bytes) = directory
+        .read_optional(STORE_IDENTITY_FILE, MAX_STORAGE_METADATA_BYTES)
+        .map_err(storage_io_error)?
+    {
         let identity: StoreIdentity = serde_json::from_slice(&bytes)
             .map_err(|_| PortError::Failed("storage_identity_invalid".to_owned()))?;
         identity
@@ -177,55 +181,44 @@ fn load_or_create_identity(
     }
     let identity = StoreIdentity::new(root, 1, 1, now).map_err(PortError::Failed)?;
     let bytes = canonical_journal_bytes(&identity).map_err(PortError::Failed)?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("storage_identity_create:{error}")))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|error| PortError::Failed(format!("storage_identity_permissions:{error}")))?;
-    }
-    file.write_all(&bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|error| PortError::Failed(format!("storage_identity_sync:{error}")))?;
+    directory
+        .publish(STORE_IDENTITY_FILE, &bytes)
+        .map_err(storage_io_error)?;
     Ok(identity)
 }
 
 fn lock_conflict(
-    path: &Path,
+    directory: &LocalDir,
     identity: &StoreIdentity,
     owner_scope: &StorageOwnerScope,
 ) -> PortError {
-    if let Ok(bytes) = fs::read(path) {
-        if let Ok(record) = serde_json::from_slice::<StorageLockRecord>(&bytes) {
-            if record.store_id != identity.store_id
-                || record.owner_id != owner_scope.owner_id
-                || record.instance_id != owner_scope.instance_id
-            {
-                return PortError::Conflict("storage_lock_owner_mismatch".to_owned());
+    match directory
+        .read(STORAGE_LOCK_FILE, MAX_STORAGE_METADATA_BYTES)
+        .map_err(storage_io_error)
+    {
+        Ok(bytes) => {
+            if let Ok(record) = serde_json::from_slice::<StorageLockRecord>(&bytes) {
+                if record.store_id != identity.store_id
+                    || record.owner_id != owner_scope.owner_id
+                    || record.instance_id != owner_scope.instance_id
+                {
+                    return PortError::Conflict("storage_lock_owner_mismatch".to_owned());
+                }
             }
         }
+        Err(error) => return error,
     }
     PortError::Conflict("storage_lock_conflict".to_owned())
 }
 
-fn reject_symlink(path: &Path, reason: &str) -> Result<(), PortError> {
-    if fs::symlink_metadata(path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err(PortError::Failed(reason.to_owned()));
+fn storage_io_error(error: PortError) -> PortError {
+    match error {
+        PortError::Failed(reason) if reason == "local_package_platform_unsupported" => {
+            PortError::Failed("storage_platform_unsupported".to_owned())
+        }
+        PortError::Failed(reason) => PortError::Failed(reason.replacen("package_", "storage_", 1)),
+        error => error,
     }
-    Ok(())
-}
-
-fn is_symlink(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
 }
 
 fn canonicalize_nonexistent(path: &Path) -> Result<PathBuf, PortError> {
