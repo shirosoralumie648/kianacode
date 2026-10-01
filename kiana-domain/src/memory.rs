@@ -1,6 +1,7 @@
 //! Memory admission and deterministic relevance. Missing provenance never becomes approval.
 use crate::{
-    MemoryCollection, Purpose, Retention, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_RECORD_SCHEMA,
+    MemoryCollection, Purpose, Retention, MEMORY_EXTRACTION_MAX_QUOTE_BYTES,
+    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_RECORD_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -192,6 +193,9 @@ impl MemoryRecord {
         if let Some(retention) = &self.retention {
             retention.validate()?;
         }
+        if let Some(purpose) = &self.purpose {
+            purpose.validate()?;
+        }
         if self.dependencies.len() > 64
             || self.dependencies.iter().any(|dependency| {
                 dependency.trim().is_empty() || dependency.len() > 512 || dependency.contains('\0')
@@ -228,13 +232,27 @@ impl MemoryRecord {
             return Err("memory_qualified_provenance_invalid".to_owned());
         }
         if self.admission_state == MemoryAdmission::Qualified
+            && self.evidence.iter().any(|evidence| {
+                evidence.event_id.as_uuid().is_nil()
+                    || evidence.request_id.as_uuid().is_nil()
+                    || evidence.run_id.is_some_and(|run_id| run_id.as_uuid().is_nil())
+                    || evidence.quote.trim().is_empty()
+                    || evidence.quote.len() > MEMORY_EXTRACTION_MAX_QUOTE_BYTES
+            })
+        {
+            return Err("memory_qualified_provenance_invalid".to_owned());
+        }
+        if self.admission_state == MemoryAdmission::Qualified
             && self.state == MemoryState::Active
             && self.import_mode != MemoryImportMode::LegacyImport
             && (self.origin == MemoryOrigin::Unknown
                 || self.purpose.is_none()
                 || self.sensitivity == MemorySensitivity::Unknown
-                || self.reviewed_by.is_none()
-                || self.reviewed_at_ms.is_none())
+                || self
+                    .reviewed_by
+                    .as_deref()
+                    .is_none_or(|reviewer| reviewer.trim().is_empty())
+                || self.reviewed_at_ms.is_none_or(|reviewed_at| reviewed_at == 0))
         {
             return Err("memory_active_qualification_incomplete".to_owned());
         }

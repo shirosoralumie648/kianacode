@@ -1,6 +1,6 @@
 use kiana_domain::{
     EventId, MemoryAdmission, MemoryClassification, MemoryEvidence, MemoryImportMode, MemoryOrigin,
-    MemoryRecord, MemorySensitivity, MemoryState, MemoryValidity, Purpose, RequestId,
+    MemoryRecord, MemorySensitivity, MemoryState, MemoryValidity, Purpose, RequestId, RunId,
 };
 use serde_json::json;
 
@@ -111,11 +111,56 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         "memory_qualified_provenance_invalid"
     );
 
+    let mut blank_evidence = record.clone();
+    blank_evidence.evidence[0].quote = "  \n".to_owned();
+    assert_eq!(
+        blank_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let mut oversize_evidence = record.clone();
+    oversize_evidence.evidence[0].quote =
+        "x".repeat(kiana_domain::MEMORY_EXTRACTION_MAX_QUOTE_BYTES + 1);
+    assert_eq!(
+        oversize_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let mut nil_event_evidence = record.clone();
+    nil_event_evidence.evidence[0].event_id =
+        EventId::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    assert_eq!(
+        nil_event_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let nil_id = "00000000-0000-0000-0000-000000000000";
+    let mut nil_request_evidence = record.clone();
+    nil_request_evidence.evidence[0].request_id = RequestId::parse_str(nil_id).unwrap();
+    assert_eq!(
+        nil_request_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let mut nil_run_evidence = record.clone();
+    nil_run_evidence.evidence[0].run_id = Some(RunId::parse_str(nil_id).unwrap());
+    assert_eq!(
+        nil_run_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
     let mut missing_purpose = record.clone();
     missing_purpose.purpose = None;
     assert_eq!(
         missing_purpose.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
+    );
+
+    let mut malformed_purpose = record.clone();
+    malformed_purpose.purpose.as_mut().unwrap().id = "  ".to_owned();
+    assert_eq!(
+        malformed_purpose.validate_lifecycle().unwrap_err(),
+        "purpose_id_invalid"
     );
 
     let mut missing_sensitivity = record.clone();
@@ -132,10 +177,24 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         "memory_active_qualification_incomplete"
     );
 
+    let mut blank_reviewer = record.clone();
+    blank_reviewer.reviewed_by = Some(" \t".to_owned());
+    assert_eq!(
+        blank_reviewer.validate_lifecycle().unwrap_err(),
+        "memory_active_qualification_incomplete"
+    );
+
     let mut missing_review_time = record;
     missing_review_time.reviewed_at_ms = None;
     assert_eq!(
         missing_review_time.validate_lifecycle().unwrap_err(),
+        "memory_active_qualification_incomplete"
+    );
+
+    let mut zero_review_time = record;
+    zero_review_time.reviewed_at_ms = Some(0);
+    assert_eq!(
+        zero_review_time.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
 }
