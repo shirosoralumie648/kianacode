@@ -370,9 +370,9 @@ impl ArtifactPage {
         {
             return Err("artifact_page_bounds_invalid".to_owned());
         }
-        digest(&self.page_digest, "artifact_page_digest")?;
+        let page_digest = artifact_digest_hex(&self.page_digest, "artifact_page_digest")?;
         let computed = artifact_content_digest(&self.artifact_ref, &self.content)?;
-        if self.page_digest != computed {
+        if page_digest != computed {
             return Err("artifact_page_digest_mismatch".to_owned());
         }
         Ok(())
@@ -476,7 +476,9 @@ impl ArtifactViewer {
                 }
             }
             let computed = artifact_content_digest(&self.artifact_ref, &content)?;
-            if computed != self.artifact_ref.content_hash {
+            let expected =
+                artifact_digest_hex(&self.artifact_ref.content_hash, "artifact_content_hash")?;
+            if computed != expected {
                 return Err("artifact_digest_mismatch".to_owned());
             }
         }
@@ -697,6 +699,16 @@ impl WorkbenchReceipt {
             provenance: self.provenance.clone(),
         }
     }
+}
+
+// ArtifactVersion produces bare SHA-256 hashes; ArtifactRef also permits the prefixed form.
+// Validate the entire digest before comparing its hex bytes with the computed content hash.
+fn artifact_digest_hex<'a>(value: &'a str, field: &str) -> Result<&'a str, String> {
+    let hex = value.strip_prefix("sha256:").unwrap_or(value);
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(hex)
 }
 
 fn artifact_content_digest(reference: &ArtifactRef, content: &[u8]) -> Result<String, String> {

@@ -143,6 +143,139 @@ fn deny_expiry_revision_and_client_payload_mutation_before_action() {
 }
 
 #[test]
+fn artifact_pages_reject_malformed_and_forged_byte_digests() {
+    let reference = artifact(b"abc");
+    let page = ArtifactPage {
+        artifact_ref: reference.clone(),
+        revision: 7,
+        page_index: 0,
+        page_count: 1,
+        page_digest: reference.content_hash.clone(),
+        content: b"abd".to_vec(),
+    };
+    for forged in [
+        reference.content_hash.clone(),
+        format!("sha256:{}", reference.content_hash),
+    ] {
+        let mut forged_page = page.clone();
+        forged_page.page_digest = forged;
+        assert_eq!(
+            forged_page.validate(),
+            Err("artifact_page_digest_mismatch".to_owned())
+        );
+    }
+    for invalid in [
+        String::new(),
+        "0".repeat(63),
+        "g".repeat(64),
+        "sha256:".to_owned(),
+        format!("sha256:{}", "0".repeat(65)),
+        format!("sha512:{}", reference.content_hash),
+    ] {
+        let mut invalid_page = page.clone();
+        invalid_page.page_digest = invalid;
+        assert_eq!(
+            invalid_page.validate(),
+            Err("artifact_page_digest_invalid".to_owned())
+        );
+    }
+}
+
+#[test]
+fn artifact_viewer_rejects_changed_reference_and_assembled_content() {
+    let reference = artifact(b"abcdef");
+    let mut viewer = ArtifactViewer::new(reference.clone(), 7).unwrap();
+    let page = ArtifactPage {
+        artifact_ref: reference.clone(),
+        revision: 7,
+        page_index: 0,
+        page_count: 1,
+        page_digest: reference.content_hash.clone(),
+        content: b"abcdef".to_vec(),
+    };
+    let mut wrong_scope = page.clone();
+    wrong_scope.artifact_ref.scope_digest = json_digest(&json!({"scope": "all/"}));
+    let mut wrong_version = page.clone();
+    wrong_version.artifact_ref.version += 1;
+    let mut wrong_id = page.clone();
+    wrong_id.artifact_ref.artifact_id = ArtifactId::new();
+    let mut wrong_provenance = page;
+    wrong_provenance.artifact_ref.provenance.recorded_by = "other-daemon".to_owned();
+    for changed in [wrong_scope, wrong_version, wrong_id, wrong_provenance] {
+        assert_eq!(
+            viewer.accept_page(changed),
+            Err("artifact_reference_mismatch".to_owned())
+        );
+    }
+    assert_eq!(viewer.page_count(), 0);
+    assert!(!viewer.is_complete());
+    assert!(viewer.content().is_none());
+
+    viewer
+        .accept_page(ArtifactPage {
+            artifact_ref: reference.clone(),
+            revision: 7,
+            page_index: 0,
+            page_count: 2,
+            page_digest: page_digest(&reference, b"abc"),
+            content: b"abc".to_vec(),
+        })
+        .unwrap();
+    let mut last = ArtifactPage {
+        artifact_ref: reference.clone(),
+        revision: 7,
+        page_index: 1,
+        page_count: 2,
+        page_digest: page_digest(&reference, b"dxf"),
+        content: b"dxf".to_vec(),
+    };
+    assert_eq!(
+        viewer.accept_page(last.clone()),
+        Err("artifact_digest_mismatch".to_owned())
+    );
+    assert_eq!(viewer.page_count(), 1);
+    assert!(!viewer.is_complete());
+    assert!(viewer.content().is_none());
+    last.page_digest = page_digest(&reference, b"def");
+    last.content = b"def".to_vec();
+    viewer.accept_page(last).unwrap();
+    assert!(viewer.is_complete());
+    assert_eq!(viewer.content().unwrap().as_slice(), b"abcdef");
+}
+
+#[test]
+fn artifact_viewer_accepts_verified_bare_and_prefixed_sha256_hashes() {
+    const SHA256_ABC: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    for (prefixed_reference, prefixed_page) in
+        [(false, false), (false, true), (true, false), (true, true)]
+    {
+        let mut reference = artifact(b"abc");
+        assert_eq!(reference.content_hash, SHA256_ABC);
+        if prefixed_reference {
+            reference.content_hash = format!("sha256:{SHA256_ABC}");
+        }
+        let page = ArtifactPage {
+            artifact_ref: reference.clone(),
+            revision: 7,
+            page_index: 0,
+            page_count: 1,
+            page_digest: if prefixed_page {
+                format!("sha256:{SHA256_ABC}")
+            } else {
+                SHA256_ABC.to_owned()
+            },
+            content: b"abc".to_vec(),
+        };
+        let mut viewer = ArtifactViewer::new(reference, 7).unwrap();
+        viewer.accept_page(page.clone()).unwrap();
+        viewer.accept_page(page).unwrap();
+        assert_eq!(viewer.page_count(), 1);
+        assert!(viewer.is_complete());
+        assert_eq!(viewer.content().unwrap().as_slice(), b"abc");
+    }
+}
+
+#[test]
 fn inbox_deduplicates_cards_and_artifact_viewer_fences_ref_revision_digest() {
     let card = card();
     let mut inbox = WorkbenchInbox::default();
