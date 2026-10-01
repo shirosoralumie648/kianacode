@@ -110,8 +110,31 @@ fn ports_never_return_raw_secret_to_core() {
         resolved_digest: Some(kiana_domain::json_digest(&serde_json::json!("secret"))),
     };
     resolution.validate(1_000).unwrap();
-    let encoded = serde_json::to_string(&resolution.secret_ref).unwrap();
+    let encoded = serde_json::to_string(&resolution).unwrap();
+    assert!(encoded.contains("\"state\":\"available\""));
+    assert!(encoded.contains("\"expires_at_unix_ms\":10000"));
+    assert!(encoded.contains("\"resolved_digest\":\"sha256:"));
     assert!(!encoded.contains("secret"));
+    let decoded: CredentialResolution = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, resolution);
+
+    let mut forged = serde_json::to_value(&resolution).unwrap();
+    forged["raw_secret"] = serde_json::json!("sk-live-secret");
+    assert!(serde_json::from_value::<CredentialResolution>(forged).is_err());
+
+    let mut expired = resolution.clone();
+    expired.expires_at_unix_ms = Some(1_000);
+    assert_eq!(
+        expired.validate(1_000).unwrap_err(),
+        kiana_ports::PortError::Conflict("credential_resolution_expired".to_owned())
+    );
+
+    let mut malformed_digest = resolution;
+    malformed_digest.resolved_digest = Some("not-a-digest".to_owned());
+    assert_eq!(
+        malformed_digest.validate(1_000).unwrap_err(),
+        kiana_ports::PortError::Failed("credential_resolution_digest_invalid".to_owned())
+    );
     let _ = MissingCredential;
     let _ = UnsupportedIdentity;
     let _ = UnsupportedConfig;

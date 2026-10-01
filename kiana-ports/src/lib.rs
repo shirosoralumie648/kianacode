@@ -321,7 +321,8 @@ pub trait IdentityResolver: Send + Sync {
     ) -> Result<AuthoritySnapshot, PortError>;
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CredentialState {
     Available,
     Missing,
@@ -333,7 +334,8 @@ pub enum CredentialState {
 /// Credential availability returned to core/runner. It carries only the opaque SecretRef,
 /// generation, expiry and a digest; a provider transport may resolve the actual value later at
 /// the effect boundary, but this port never returns raw secret bytes or strings.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CredentialResolution {
     pub secret_ref: SecretRef,
     pub state: CredentialState,
