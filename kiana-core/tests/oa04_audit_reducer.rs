@@ -45,3 +45,22 @@ fn core_facade_rejects_untrusted_audit_event_and_missing_source_cursor() {
         "audit_source_cursor_required"
     );
 }
+
+#[test]
+fn core_facade_rejects_malformed_decision_and_capability_gate() {
+    let mut malformed = event("command.rejected", json!({}));
+    malformed.data["decision"] = json!({"nested": true});
+    assert_eq!(
+        reduce_committed_audit_records(&[malformed], 1).unwrap_err(),
+        "audit_decision_invalid"
+    );
+
+    let malformed_gate = event(
+        "capability.decision",
+        json!({"capability_request_id":"cap-core-malformed", "gate": []}),
+    );
+    assert_eq!(
+        reduce_committed_audit_records(&[malformed_gate], 1).unwrap_err(),
+        "audit_capability_gate_invalid"
+    );
+}
