@@ -68,3 +68,15 @@ fn scope_digest_version_and_unknown_fields_fail_closed() {
     forged.budget = ScopeLimit::Restricted(1_000);
     assert_eq!(forged.validate().unwrap_err(), "scope_set_digest_mismatch");
 }
+
+#[test]
+fn scope_intersect_all_validates_a_single_layer() {
+    let mut forged = parent_scope();
+    forged.scope_digest =
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned();
+
+    assert_eq!(
+        ScopeSet::intersect_all(std::slice::from_ref(&forged)).unwrap_err(),
+        "scope_set_digest_mismatch"
+    );
+}
