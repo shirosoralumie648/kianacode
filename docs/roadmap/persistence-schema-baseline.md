@@ -27,7 +27,7 @@
 | `storage_upcaster_requires_named_migration_and_rejects_unknown_major_or_field` | memory v1→v2 named upcast、unknown major/field/expected schema reject |
 | `storage_schema_registry_is_canonical_and_upcast_is_explicit` | source guard 锁定 no Tokio/Broker/implicit migration |
 
-`.github/workflows/pd02-schema.yml` 在 GitHub runner 执行 domain schema/upcast fixtures、core source guard、fmt 和 domain/protocol/core test-target 编译；本地只做格式、静态编译和 diff 检查。
+统一 `.github/workflows/ci.yml` 在 GitHub runner 的 test shards 中执行 `pd02_schema` 与 `pd02_schema_guard` fixtures，并由 Rust gates 执行 fmt/check/clippy；覆盖关系由 `scripts/ci/test-shards.json` 声明。本地不运行测试或构建命令，证明上限仍为 source，CI 结果不在本记录中等待。
 
 ## 4. 限制与交接
 
