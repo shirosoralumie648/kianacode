@@ -35,6 +35,7 @@ mod unix {
     use std::os::fd::{AsRawFd, FromRawFd};
     use std::os::unix::fs::MetadataExt;
 
+    #[derive(Debug)]
     pub(crate) struct LocalDir(File);
 
     fn cstring(value: &std::ffi::OsStr) -> Result<CString, PortError> {
@@ -113,7 +114,27 @@ mod unix {
             Ok(Self(unsafe { File::from_raw_fd(fd) }))
         }
 
+        pub(crate) fn subdir(&self, name: &str, create: bool) -> Result<Self, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            self.child(name.as_ref(), create)
+        }
+
         pub(crate) fn read(&self, relative: &str, limit: usize) -> Result<Vec<u8>, PortError> {
+            self.read_optional(relative, limit)?.ok_or_else(|| {
+                failed(format!(
+                    "package_file_open_failed:{}",
+                    std::io::Error::from(std::io::ErrorKind::NotFound)
+                ))
+            })
+        }
+
+        pub(crate) fn read_optional(
+            &self,
+            relative: &str,
+            limit: usize,
+        ) -> Result<Option<Vec<u8>>, PortError> {
             if !kiana_domain::valid_extension_path(relative) {
                 return Err(failed("package_path_invalid"));
             }
@@ -133,10 +154,11 @@ mod unix {
                     )
                 };
                 if fd < 0 {
-                    return Err(failed(format!(
-                        "package_file_open_failed:{}",
-                        std::io::Error::last_os_error()
-                    )));
+                    let error = std::io::Error::last_os_error();
+                    if error.kind() == std::io::ErrorKind::NotFound {
+                        return Ok(None);
+                    }
+                    return Err(failed(format!("package_file_open_failed:{error}")));
                 }
                 let file = unsafe { File::from_raw_fd(fd) };
                 let metadata = file.metadata().map_err(|e| failed(e.to_string()))?;
@@ -153,9 +175,69 @@ mod unix {
                 if bytes.len() > limit {
                     return Err(failed("package_size_exceeded"));
                 }
-                return Ok(bytes);
+                return Ok(Some(bytes));
             }
             Err(failed("package_path_invalid"))
+        }
+
+        pub(crate) fn create_new_file(&self, name: &str) -> std::io::Result<File> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(std::io::ErrorKind::InvalidInput.into());
+            }
+            let name = cstring(name.as_ref()).map_err(std::io::Error::other)?;
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_WRONLY
+                        | libc::O_CREAT
+                        | libc::O_EXCL
+                        | libc::O_CLOEXEC
+                        | libc::O_NOFOLLOW
+                        | libc::O_NONBLOCK,
+                    0o600,
+                )
+            };
+            if fd < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(unsafe { File::from_raw_fd(fd) })
+        }
+
+        pub(crate) fn remove_owned_file(&self, name: &str, owned: &File) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let name = cstring(name.as_ref())?;
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK,
+                )
+            };
+            if fd < 0 {
+                return Err(failed("package_file_replaced"));
+            }
+            let current = unsafe { File::from_raw_fd(fd) };
+            let current = current.metadata().map_err(|e| failed(e.to_string()))?;
+            let pinned = owned.metadata().map_err(|e| failed(e.to_string()))?;
+            if !current.is_file()
+                || current.nlink() != 1
+                || current.dev() != pinned.dev()
+                || current.ino() != pinned.ino()
+            {
+                return Err(failed("package_file_replaced"));
+            }
+            if unsafe { libc::unlinkat(self.0.as_raw_fd(), name.as_ptr(), 0) } < 0 {
+                return Err(failed(format!(
+                    "package_file_remove_failed:{}",
+                    std::io::Error::last_os_error()
+                )));
+            }
+            self.0
+                .sync_all()
+                .map_err(|e| failed(format!("result_unknown:package_directory_sync_failed:{e}")))
         }
 
         /// Publish an immutable cache entry only after all bytes are durable. Existing
@@ -228,13 +310,26 @@ mod unix {
 pub(crate) use unix::LocalDir;
 
 #[cfg(not(unix))]
+#[derive(Debug)]
 pub(crate) struct LocalDir;
 #[cfg(not(unix))]
 impl LocalDir {
     pub(crate) fn open(_: &Path, _: bool) -> Result<Self, PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
+    pub(crate) fn subdir(&self, _: &str, _: bool) -> Result<Self, PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
     pub(crate) fn read(&self, _: &str, _: usize) -> Result<Vec<u8>, PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
+    pub(crate) fn read_optional(&self, _: &str, _: usize) -> Result<Option<Vec<u8>>, PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
+    pub(crate) fn create_new_file(&self, _: &str) -> std::io::Result<File> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub(crate) fn remove_owned_file(&self, _: &str, _: &File) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn publish(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
