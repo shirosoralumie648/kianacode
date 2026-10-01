@@ -44,6 +44,13 @@ mod unix {
     }
 
     impl LocalDir {
+        pub(crate) fn try_clone(&self) -> Result<Self, PortError> {
+            self.0
+                .try_clone()
+                .map(Self)
+                .map_err(|error| failed(format!("package_directory_clone_failed:{error}")))
+        }
+
         pub(crate) fn open(path: &Path, create: bool) -> Result<Self, PortError> {
             if !path.is_absolute() {
                 return Err(failed("package_path_must_be_absolute"));
@@ -119,6 +126,28 @@ mod unix {
                 return Err(failed("package_path_invalid"));
             }
             self.child(name.as_ref(), create)
+        }
+
+        pub(crate) fn subdir_optional(&self, name: &str) -> Result<Option<Self>, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let name = cstring(name.as_ref())?;
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+                )
+            };
+            if fd < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(None);
+                }
+                return Err(failed(format!("package_directory_open_failed:{error}")));
+            }
+            Ok(Some(Self(unsafe { File::from_raw_fd(fd) })))
         }
 
         pub(crate) fn read(&self, relative: &str, limit: usize) -> Result<Vec<u8>, PortError> {
@@ -303,6 +332,76 @@ mod unix {
                 .map_err(|e| failed(format!("result_unknown:package_cache_sync_failed:{e}")))?;
             result
         }
+
+        /// Read a published regular file, or publish it once and verify an existing copy.
+        /// Unlike the package cache, a conflict is reported distinctly so callers cannot
+        /// interpret a changed immutable object as a successful idempotent publish.
+        pub(crate) fn publish_immutable(
+            &self,
+            name: &str,
+            bytes: &[u8],
+            conflict: &str,
+        ) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let target = cstring(name.as_ref())?;
+            let temp =
+                CString::new(format!(".staged-{}", kiana_domain::RequestId::new())).expect("uuid");
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    temp.as_ptr(),
+                    libc::O_WRONLY
+                        | libc::O_CREAT
+                        | libc::O_EXCL
+                        | libc::O_CLOEXEC
+                        | libc::O_NOFOLLOW,
+                    0o600,
+                )
+            };
+            if fd < 0 {
+                return Err(failed(format!(
+                    "package_stage_failed:{}",
+                    std::io::Error::last_os_error()
+                )));
+            }
+            let mut file = unsafe { File::from_raw_fd(fd) };
+            let result = (|| {
+                file.write_all(bytes)
+                    .and_then(|()| file.sync_all())
+                    .map_err(|e| failed(format!("package_write_failed:{e}")))?;
+                let linked = unsafe {
+                    libc::linkat(
+                        self.0.as_raw_fd(),
+                        temp.as_ptr(),
+                        self.0.as_raw_fd(),
+                        target.as_ptr(),
+                        0,
+                    )
+                };
+                if linked < 0 {
+                    if std::io::Error::last_os_error().kind() != std::io::ErrorKind::AlreadyExists {
+                        return Err(failed(format!(
+                            "package_publish_failed:{}",
+                            std::io::Error::last_os_error()
+                        )));
+                    }
+                    if self.read(name, bytes.len())? != bytes {
+                        return Err(PortError::Conflict(conflict.to_owned()));
+                    }
+                }
+                Ok(())
+            })();
+            let unlinked = unsafe { libc::unlinkat(self.0.as_raw_fd(), temp.as_ptr(), 0) };
+            if unlinked < 0 {
+                return Err(failed("result_unknown:package_stage_cleanup_failed"));
+            }
+            self.0
+                .sync_all()
+                .map_err(|e| failed(format!("result_unknown:package_cache_sync_failed:{e}")))?;
+            result
+        }
     }
 }
 
@@ -314,10 +413,16 @@ pub(crate) use unix::LocalDir;
 pub(crate) struct LocalDir;
 #[cfg(not(unix))]
 impl LocalDir {
+    pub(crate) fn try_clone(&self) -> Result<Self, PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
     pub(crate) fn open(_: &Path, _: bool) -> Result<Self, PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn subdir(&self, _: &str, _: bool) -> Result<Self, PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
+    pub(crate) fn subdir_optional(&self, _: &str) -> Result<Option<Self>, PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn read(&self, _: &str, _: usize) -> Result<Vec<u8>, PortError> {
@@ -333,6 +438,14 @@ impl LocalDir {
         Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn publish(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
+    pub(crate) fn publish_immutable(
+        &self,
+        _: &str,
+        _: &[u8],
+        _: &str,
+    ) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
 }
