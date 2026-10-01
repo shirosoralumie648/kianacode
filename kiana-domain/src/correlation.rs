@@ -325,6 +325,14 @@ impl AttemptRef {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self.run_id.as_uuid().is_nil()
+            || self.turn_id.as_uuid().is_nil()
+            || self.invocation_id.as_uuid().is_nil()
+            || self.execution_id.as_uuid().is_nil()
+            || self.command_id.as_uuid().is_nil()
+        {
+            return Err("correlation_attempt_id_invalid".to_owned());
+        }
         if self.attempt == 0 {
             return Err("correlation_attempt_required".to_owned());
         }
@@ -343,8 +351,17 @@ pub enum CausationRef {
 impl CausationRef {
     pub fn validate_against(&self, context: &CorrelationContext) -> Result<(), String> {
         match self {
-            Self::Event(_) => Ok(()),
+            Self::Event(event_id) => {
+                if event_id.as_uuid().is_nil() {
+                    Err("correlation_causation_event_id_invalid".to_owned())
+                } else {
+                    Ok(())
+                }
+            }
             Self::Command(command_id) => {
+                if command_id.as_uuid().is_nil() {
+                    return Err("correlation_causation_command_id_invalid".to_owned());
+                }
                 if context.command_id == Some(*command_id) {
                     Ok(())
                 } else {
@@ -378,6 +395,18 @@ impl CorrelationScope {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self
+            .organization_id
+            .is_some_and(|organization_id| organization_id.as_uuid().is_nil())
+        {
+            return Err("correlation_organization_id_invalid".to_owned());
+        }
+        if self
+            .project_id
+            .is_some_and(|project_id| project_id.as_uuid().is_nil())
+        {
+            return Err("correlation_project_id_invalid".to_owned());
+        }
         if self.session_id.is_empty() {
             return Err("correlation_session_required".to_owned());
         }
@@ -669,6 +698,43 @@ impl CorrelationContext {
         if self.schema != CORRELATION_CONTEXT_SCHEMA {
             return Err("correlation_schema_mismatch".to_owned());
         }
+        self.scope().validate()?;
+        if self.correlation_id.as_uuid().is_nil() || self.request_id.as_uuid().is_nil() {
+            return Err("correlation_request_id_invalid".to_owned());
+        }
+        if self.correlation_id != self.request_id {
+            return Err("correlation_request_mismatch".to_owned());
+        }
+        if self
+            .command_id
+            .is_some_and(|command_id| command_id.as_uuid().is_nil())
+        {
+            return Err("correlation_command_id_invalid".to_owned());
+        }
+        if self
+            .run_id
+            .is_some_and(|run_id| run_id.as_uuid().is_nil())
+        {
+            return Err("correlation_run_id_invalid".to_owned());
+        }
+        if self
+            .turn_id
+            .is_some_and(|turn_id| turn_id.as_uuid().is_nil())
+        {
+            return Err("correlation_turn_id_invalid".to_owned());
+        }
+        if self
+            .invocation_id
+            .is_some_and(|invocation_id| invocation_id.as_uuid().is_nil())
+        {
+            return Err("correlation_invocation_id_invalid".to_owned());
+        }
+        if self
+            .execution_id
+            .is_some_and(|execution_id| execution_id.as_uuid().is_nil())
+        {
+            return Err("correlation_execution_id_invalid".to_owned());
+        }
         TraceId::parse(self.trace_id.as_str())?;
         SpanId::parse(self.span_id.as_str())?;
         if self.parent_span_id.as_ref() == Some(&self.span_id) {
@@ -679,6 +745,12 @@ impl CorrelationContext {
         }
         for link in &self.span_links {
             link.validate()?;
+            if link.relationship == SpanLinkKind::Parent {
+                return Err("correlation_parent_link_invalid".to_owned());
+            }
+            if link.span.trace_id == self.trace_id && link.span.span_id == self.span_id {
+                return Err("correlation_span_link_self".to_owned());
+            }
         }
         if self.session_id.is_empty() {
             return Err("correlation_session_required".to_owned());

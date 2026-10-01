@@ -1,4 +1,4 @@
-use kiana_domain::{CorrelationScope, RequestContext, SpanLinkKind, TraceParent};
+use kiana_domain::{CorrelationScope, RequestContext, SpanLink, SpanLinkKind, TraceParent};
 use kiana_ports::{CorrelationContextPort, DomainCorrelationContextPort, PortError};
 
 #[test]
@@ -65,4 +65,31 @@ fn port_links_valid_traceparent_to_a_fresh_server_owned_root() {
     assert_eq!(root.span_links[0].span, parent.parent_ref());
     root.validate_for_request(&request, &scope, 2, 4)
         .expect("request identity, scope and epochs remain server owned");
+}
+
+#[test]
+fn port_rejects_forged_parent_and_self_links_before_child_creation() {
+    let request = RequestContext::local("oa02-port-session", "/workspace/project");
+    let scope = CorrelationScope::new(request.session_id.clone(), None, None);
+    let port = DomainCorrelationContextPort;
+    let root = port
+        .root(&request, scope, 2, 4, None)
+        .expect("root context through port");
+
+    let mut parent_link = root.clone();
+    parent_link.span_links = vec![SpanLink::new(root.current_span(), SpanLinkKind::Parent)];
+    assert_eq!(
+        port.child_span(&parent_link).unwrap_err(),
+        PortError::Failed("correlation_context:correlation_parent_link_invalid".to_owned())
+    );
+
+    let mut self_link = root;
+    self_link.span_links = vec![SpanLink::new(
+        self_link.current_span(),
+        SpanLinkKind::FollowsFrom,
+    )];
+    assert_eq!(
+        port.child_span(&self_link).unwrap_err(),
+        PortError::Failed("correlation_context:correlation_span_link_self".to_owned())
+    );
 }
