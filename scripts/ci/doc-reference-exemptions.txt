@@ -328,7 +328,6 @@ docs/roadmap/pd16-receipt-evidence-baseline.md :: .github/workflows/pd16-receipt
 docs/roadmap/pd23-restore-baseline.md :: .github/workflows/pd23-restore.yml
 docs/roadmap/persistence-data-layer-baseline.md :: .github/workflows/pd00-baseline.yml
 docs/roadmap/persistence-health-baseline.md :: .github/workflows/pd03-storage-health.yml
-docs/roadmap/persistence-schema-baseline.md :: .github/workflows/pd02-schema.yml
 docs/roadmap/persistence-storage-ports-baseline.md :: .github/workflows/pd04-storage-ports.yml
 docs/roadmap/persistence-storage-root-baseline.md :: .github/workflows/pd01-storage-root.yml
 docs/roadmap/ports-identity-baseline.md :: .github/workflows/ci03-ports.yml
