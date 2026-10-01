@@ -3390,6 +3390,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus H05 stop/error/retry/complete-gate source-boundary review; no runtime test reviewer
 ```
 
+### H05 CI stop/error guard correction (2026-10-01)
+
+```text
+source_snapshot: `7a7846df` plus `386d5f18` H05 correction; `kiana-domain/src/model.rs`; `kiana-runner/tests/h05_stop_guard.rs`; prior run `36677090825`
+worktree_status: H05 correction merged into current master; `ModelError` now renders only the stable code when legacy detail equals that code, preventing `model_unavailable:model_unavailable`; the stop/retry guard now reads `kiana-runner/src/retry.rs`, the owner of `ModelRetryClass::BeforeSend`; retry policy and 503 behavior were intentionally left untouched because that is a separate P4-J7-23/BQ-17 contract decision
+command_argv:
+  `gh run view 36677090825 --job 109764373718 --log-failed`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
+fixture·cassette: `missing_model_fails_closed`; `harness_stop_and_retry_paths_are_typed_and_fail_closed`; prior remote output showed duplicate model-unavailable display and missing `BeforeSend` marker; the 429/503/Completed failure remains outside this H05 correction
+exit_code: prior H05 job failed the two corrected assertions and a separate 503 retry fixture; local `git diff --check` exit 0; new push CI pending/unobserved
+status_change: H05 remains 🔄 pending new GitHub CI evidence; fixed the two direct source/fixture mismatches without changing retry admission policy
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: the separate provider 503 retry behavior still requires a written P4-J7-23/BQ-17 decision and focused step; the full baseline CI has unrelated failures, and this correction's CI result is not observed
+reviewer: Codex integration review of branch `fix/h05-36677090825`; confirmed stable error display behavior, retry owner source, no policy change and no local test execution
+```
+
 ### P4-J7-05 strict non-streaming provider response evidence (2026-09-16)
 
 ```text
@@ -3451,6 +3469,24 @@ status_change: CM-02 source slice is implemented. MemoryRecord now separates kin
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; lifecycle validation is not an atomic Memory mutation/CAS/index projection, processing grants/purpose/retention/revocation and cross-project user-private isolation remain CM-03+, legacy import does not rewrite source files or provide review evidence, and no semantic recall/business/external outcome is claimed
 reviewer: Codex root implementation review plus CM-02 MemoryRecord lifecycle/provenance/legacy-reader source-boundary review; no runtime test reviewer
+```
+
+### CM-02 qualification fixture correction (2026-10-01)
+
+```text
+source_snapshot: `7a7846df` plus `344fe54f` fixture correction; `kiana-domain/tests/cm02_memory.rs`; prior run `36677090825`
+worktree_status: CM-02 fixture correction merged into current master; the qualified control is now constructed with valid origin, evidence, purpose, sensitivity and review fields, then each missing field is tested independently; provenance failures retain the specific `memory_qualified_provenance_invalid` reason and qualification completeness failures use `memory_active_qualification_incomplete`; the validator was not changed
+command_argv:
+  `gh run view 36677090825 --job 109764373568 --log-failed`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
+fixture·cassette: `qualified_memory_requires_review_evidence_and_purpose`; prior remote output showed the fixture expected the broad completeness code while the validator correctly returned the more specific provenance code
+exit_code: prior CM-02 job failed the over-broad assertion; local `git diff --check` exit 0; new push CI pending/unobserved
+status_change: CM-02 remains 🔄 pending new GitHub CI evidence; corrected fixture preconditions and separated provenance/completeness deny cases without weakening lifecycle validation
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: this corrects the fixture only; legacy import/search durability and the full baseline CI remain separately unproven, and the new CM-02 result is not observed
+reviewer: Codex integration review of branch `fix/cm02-qualified-memory-ci-20261001`; confirmed validator ordering, specific error semantics, no production lifecycle change and no local test execution
 ```
 
 ### CM-03 server-derived Memory scope evidence (2026-09-16)

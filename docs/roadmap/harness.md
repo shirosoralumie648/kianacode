@@ -237,7 +237,7 @@ sequenceDiagram
 
 <a id="step-h05"></a>
 
-#### H05 — 统一停止原因、错误与重试分类　✅
+#### H05 — 统一停止原因、错误与重试分类　🔄
 
 当前 source slice 与 CI-only 证据见 [`harness-stop-retry-baseline.md`](harness-stop-retry-baseline.md)。
 

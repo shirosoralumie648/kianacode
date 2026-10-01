@@ -284,7 +284,7 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-02 · 统一 MemoryRecord 生命周期与兼容导入　✅
+##### CM-02 · 统一 MemoryRecord 生命周期与兼容导入　🔄
 
 当前 source slice 与 CI-only 证据见 [`memory-lifecycle-baseline.md`](memory-lifecycle-baseline.md)。
 
