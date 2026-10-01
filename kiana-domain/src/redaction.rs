@@ -569,12 +569,22 @@ fn marker_has_unredacted_value(lowered: &str, marker: &str) -> bool {
     while let Some(relative) = lowered[offset..].find(marker) {
         let value_start = offset + relative + marker.len();
         let value = lowered[value_start..].trim_start_matches([' ', '\t']);
-        if !value.starts_with("[redacted]") {
+        if !redacted_placeholder_is_complete(value) {
             return true;
         }
         offset = value_start;
     }
     false
+}
+
+fn redacted_placeholder_is_complete(value: &str) -> bool {
+    let Some(remainder) = value.strip_prefix("[redacted]") else {
+        return false;
+    };
+    remainder.is_empty()
+        || remainder.chars().next().is_some_and(|character| {
+            character.is_whitespace() || matches!(character, '&' | ',' | ';' | '"' | '}')
+        })
 }
 
 fn contains_json_secret_key(text: &str) -> bool {
@@ -586,8 +596,7 @@ fn contains_json_secret_key(text: &str) -> bool {
         match value {
             Value::Array(items) => items.iter().any(visit),
             Value::Object(fields) => fields.iter().any(|(key, value)| {
-                let normalized = key.to_ascii_lowercase();
-                (secret_field_key(&normalized, value)
+                (secret_field_key(key, value)
                     && !value.is_null()
                     && !matches!(value, Value::String(text) if text == REDACTED))
                     || visit(value)
@@ -610,8 +619,8 @@ fn scan_secret_value_inner(
         }
         Value::Object(fields) => {
             for (key, item) in fields {
-                let normalized = key.to_ascii_lowercase();
-                if secret_field_key(&normalized, item)
+                let normalized = normalize_secret_key(key);
+                if secret_field_key(key, item)
                     && !item.is_null()
                     && !matches!(item, Value::String(text) if text == REDACTED)
                 {
@@ -630,29 +639,39 @@ fn scan_secret_value_inner(
     Ok(())
 }
 
+fn normalize_secret_key(key: &str) -> String {
+    key.to_ascii_lowercase().replace('-', "_")
+}
+
+fn is_opaque_reference_key(key: &str) -> bool {
+    key.eq_ignore_ascii_case("secret_ref") || key.eq_ignore_ascii_case("credential_ref")
+}
+
 fn secret_field_key(key: &str, value: &Value) -> bool {
-    if key == "secret_ref" || key == "credential_ref" {
+    let normalized = normalize_secret_key(key);
+    if is_opaque_reference_key(key) {
         return false;
     }
     !is_token_metric(key, value)
-        && (key.contains("token")
-            || key.contains("password")
-            || key.contains("api_key")
-            || key.contains("access_key")
-            || key.contains("private_key")
-            || key == "authorization"
-            || key == "proxy_authorization"
-            || key == "x_api_key"
-            || key == "secret"
-            || key == "credential"
-            || (key.contains("credential") && !key.ends_with("_generation")))
+        && (normalized.contains("token")
+            || normalized.contains("password")
+            || normalized.contains("api_key")
+            || normalized.contains("access_key")
+            || normalized.contains("private_key")
+            || normalized == "authorization"
+            || normalized == "proxy_authorization"
+            || normalized == "x_api_key"
+            || normalized == "secret"
+            || normalized == "credential"
+            || (normalized.contains("credential") && !normalized.ends_with("_generation")))
 }
 
 /// Numeric usage metadata shares one allowlist across redaction and residual-secret checks.
 /// Strings and non-allowlisted token fields remain sensitive.
 fn is_token_metric(key: &str, value: &Value) -> bool {
+    let normalized = normalize_secret_key(key);
     matches!(
-        key,
+        normalized.as_str(),
         "reserved_tokens"
             | "tokens"
             | "charged_tokens"
@@ -737,10 +756,9 @@ fn contains_unredacted_secret(value: &Value) -> bool {
     match value {
         Value::Array(items) => items.iter().any(contains_unredacted_secret),
         Value::Object(object) => object.iter().any(|(key, value)| {
-            let normalized = key.to_ascii_lowercase();
-            let sensitive = normalized != "secret_ref"
-                && normalized != "credential_ref"
-                && ((normalized.contains("token") && !is_token_metric(&normalized, value))
+            let normalized = normalize_secret_key(key);
+            let sensitive = !is_opaque_reference_key(key)
+                && ((normalized.contains("token") && !is_token_metric(key, value))
                     || normalized.contains("password")
                     || normalized.contains("api_key")
                     || normalized.contains("access_key")
@@ -1030,10 +1048,9 @@ pub fn redact_value(value: &Value) -> Value {
             object
                 .iter()
                 .map(|(key, value)| {
-                    let normalized = key.to_ascii_lowercase();
-                    let token_metric = is_token_metric(&normalized, value);
-                    let sensitive = normalized != "secret_ref"
-                        && normalized != "credential_ref"
+                    let normalized = normalize_secret_key(key);
+                    let token_metric = is_token_metric(key, value);
+                    let sensitive = !is_opaque_reference_key(key)
                         && ((normalized.contains("token") && !token_metric)
                             || normalized.contains("password")
                             || normalized.contains("api_key")
