@@ -376,17 +376,31 @@ impl ControlPlane {
             .get("reason")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let evidence_refs = arguments
-            .get("evidence_refs")
-            .and_then(Value::as_array)
-            .map(|values| {
-                values
+        let evidence_refs = match arguments.get("evidence_refs") {
+            None => Vec::new(),
+            Some(raw_evidence_refs) => {
+                let Some(values) = raw_evidence_refs.as_array() else {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "communication_lifecycle_evidence_invalid",
+                    ));
+                };
+                let Some(evidence_refs) = values
                     .iter()
-                    .filter_map(Value::as_str)
+                    .map(Value::as_str)
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "communication_lifecycle_evidence_invalid",
+                    ));
+                };
+                evidence_refs
+                    .into_iter()
                     .map(str::to_owned)
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+            }
+        };
         let (message, status, mut sequence) = self.load_communication(message_id).await?;
         if message.kind != CommunicationMessageKind::Incident
             || message.sender_id != context.actor_id.clone().unwrap_or_default()
@@ -395,6 +409,12 @@ impl ControlPlane {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "communication_incident_escalation_denied",
+            ));
+        }
+        if evidence_refs.is_empty() {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "communication_lifecycle_evidence_required",
             ));
         }
         let lifecycle = CommunicationLifecycleEvent::new(

@@ -4301,6 +4301,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-02 lifecycle/recipient/authority/eventlog source-boundary review; no runtime test reviewer
 ```
 
+### NM-02 lifecycle boundary correction (2026-10-02)
+
+```text
+source_snapshot: a2658d95 + NM-02 correction slice; kiana-domain/src/communication.rs; kiana-core/src/communication.rs; kiana-domain/tests/nm02_lifecycle.rs; kiana-core/tests/nm02_lifecycle_guard.rs; docs/roadmap/notifications-lifecycle-baseline.md
+worktree_status: isolated branch step/nm02-evidence-contract-20261002; domain/core lifecycle sources and CI-only fixtures updated; no workflow or manifest change; diff check complete
+command_argv:
+  git diff --check
+  gh run view 36677090825 --job 109764373644 --log
+  gh run view 36677090825 --job 109764373574 --log
+  gh run view 36677090825 --job 109764373583 --log
+cwd·environment: /tmp/kiana-nm02-evidence-20261002; Linux x86_64; GitHub Actions is the only test executor; no local test/build/check/fmt/clippy/smoke command
+fixture·cassette: kiana-domain/tests/nm02_lifecycle.rs adds missing-Incident-evidence denial; kiana-core/tests/nm02_lifecycle_guard.rs checks strict evidence parsing, lifecycle markers, and comment-filtered no-dispatch source boundary; historical CI run 36677090825 supplied the failure evidence
+exit_code: git diff --check=0; historical NM-02 domain fixture failed with terminal error-code ordering, core guard failed on a comment false positive; current CI result is not awaited
+status change: NM-02 remains 🔄; terminal transition classification is checked before kind-specific constraints, Incident escalation rejects missing evidence, non-string evidence entries are rejected instead of dropped, and the core guard no longer treats comments as executable dispatch
+proof-level change: feature_status=implemented for the scoped domain/core source slice; proof_level=source only; no local_behavior, durable, live, or physical promotion
+limitations: unified CI run after this branch is not awaited; the historical run also contains unrelated shard failures; NM-03+ notification materialization, recipient resolution, outbox/delivery/read state, and cross-process recovery remain out of scope
+reviewer: Codex NM-02 source review against P1-E-01/NM-01 boundaries; no runtime test reviewer
+```
+
 ### NM-03 notification event registry evidence (2026-09-17)
 
 ```text
