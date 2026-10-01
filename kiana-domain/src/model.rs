@@ -1063,12 +1063,12 @@ impl ModelError {
 }
 impl std::fmt::Display for ModelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}:{}",
-            self.code,
-            crate::redact_text(&self.safe_message)
-        )
+        let safe_message = crate::redact_text(&self.safe_message);
+        if safe_message == self.code {
+            f.write_str(&self.code)
+        } else {
+            write!(f, "{}:{}", self.code, safe_message)
+        }
     }
 }
 impl std::error::Error for ModelError {}
