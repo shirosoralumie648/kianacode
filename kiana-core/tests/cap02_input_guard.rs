@@ -29,7 +29,7 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     assert!(actions.contains("action_command_required"));
     assert!(actions.contains("action_numeric_argument_invalid"));
     assert!(runner.contains("validate_tool_arguments"));
-    assert!(runner.contains("command_execution"));
+    assert!(runner.contains("TOOL_SHELL =>"));
     assert!(capabilities.contains("stamp_request_identity"));
     assert!(capabilities.contains("PreparedAction::new"));
     assert!(broker.contains("capability_action_not_prepared"));
