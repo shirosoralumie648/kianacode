@@ -64,6 +64,50 @@ fn swarm_plan_rejects_partition_overlap_and_unbound_input() {
 }
 
 #[test]
+fn work_graph_rejects_noncanonical_wire_data_scope() {
+    let swarm = SwarmPlanId::new();
+    let left = partition(swarm, 0, "input-a", "project/a", "src/a.rs");
+    let right = partition(swarm, 1, "input-b", " project/b ", "src/b.rs");
+    assert_eq!(right.data_scope, vec!["project/b".to_owned()]);
+    let valid = graph(swarm, vec![left.clone(), right]).unwrap();
+
+    for scope in [" project/a/item", "project/a/item ", "\tproject/a/item\n"] {
+        let mut untrusted = valid.clone();
+        untrusted.partitions[1].data_scope = vec![scope.to_owned()];
+        untrusted.graph_digest = untrusted.digest();
+        assert_eq!(
+            untrusted.partitions[1].validate().unwrap_err(),
+            "swarm_partition_data_scope_invalid"
+        );
+
+        let wire = serde_json::to_value(&untrusted).unwrap();
+        let decoded = serde_json::from_value::<SwarmWorkGraph>(wire).unwrap();
+        let error = decoded.validate().unwrap_err();
+        assert_eq!(error.code, "swarm_partition_data_scope_invalid");
+        assert_eq!(
+            error.partition_id,
+            decoded.partitions[1].partition_id.to_string()
+        );
+        assert_eq!(decoded.projection(1_001).unwrap_err(), error);
+    }
+
+    let normalized = partition(swarm, 1, "input-b", " project/a/item ", "src/b.rs");
+    assert_eq!(normalized.data_scope, vec!["project/a/item".to_owned()]);
+    assert_eq!(
+        graph(swarm, vec![left, normalized]).unwrap_err().code,
+        "swarm_data_scope_overlap"
+    );
+
+    let wire = serde_json::to_value(&valid).unwrap();
+    let decoded = serde_json::from_value::<SwarmWorkGraph>(wire).unwrap();
+    decoded.validate().unwrap();
+    assert_eq!(
+        decoded.projection(1_001).unwrap(),
+        valid.projection(1_001).unwrap()
+    );
+}
+
+#[test]
 fn work_graph_rejects_cycle_missing_duplicate_and_first_success() {
     let swarm = SwarmPlanId::new();
     let mut first = partition(swarm, 0, "input-a", "project/a", "src/a.rs");

@@ -30,10 +30,32 @@
 | `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/budget 上限拒绝，投影稳定排序且 unknown fields 拒绝 |
 | `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` | domain 复用 shared packet graph；Swarm 仍通过现有 ControlPlane/EventLog 唯一路径 |
 
-`.github/workflows/sw02-work-graph.yml` 在 GitHub runner 执行上述 domain fixtures、core source guard、fmt 和 domain/protocol/core test-target 编译；本地只做格式、静态编译和 diff 检查。
+上述 domain fixtures 和 core source guard 现由 `.github/workflows/ci.yml` 的 `kiana-domain-s4/4` 与 `kiana-core-s6/6` 分片执行；目标清单在 `scripts/ci/test-shards.json`。格式、构建、静态检查和测试均交给 GitHub runner；本地只做 `git diff --check`。
 
 ## 4. 限制与交接
 
 - `SwarmPlan.work_graph` 目前是迁移期 optional；没有 graph 的旧计划仍按旧 packet checks 运行，不能声称所有 Swarm 已使用 typed graph。
 - `PartitionProjection` 是 read-only planning view，ready 不产生执行权；DispatchIntent/QueueEntry、capacity/fair ordering、claim lease 和 retry 由 SW-05/06 负责。
 - WorkFingerprint 是现有 domain 的确定性 FNV 兼容指纹，不是密码学签名；真实跨进程唯一性、持久 CAS 和 worker 效果仍需 EventLog/PD/SC 证据。
+
+## 5. 2026-10-02 canonical data scope follow-up
+
+`Partition::new` 会 trim data scope，但 wire/direct facts 原先只检查非空、长度、NUL 和排序。带首尾空白的 `" project/a/item"` 可通过该检查，并在 graph digest 重新绑定后避开 `scope_conflict("project/a", " project/a/item")` 的原字符串前缀比较。`Partition::validate` 现在先拒绝非 canonical scope，再进入图的重叠检查与 readiness projection；构造器仍接受可规范化输入。
+
+`work_graph_rejects_noncanonical_wire_data_scope` 覆盖 direct facts、重绑 digest 的 JSON round-trip 和 projection 拒绝；它同时验证构造器 trim 后拒绝真实重叠，并保留 disjoint canonical graph 的 wire/projection 成功路径。既有拒绝断言保持不变。
+
+```text
+source_snapshot: 64ae7860 + SW-02 canonical data scope working-tree slice
+worktree_status: isolated step/sw02-work-graph-20261002; only swarm_graph.rs, sw02_work_graph.rs and this baseline changed
+command_argv:
+  gh run view 36677090825 --json status,conclusion,headSha,jobs
+  gh run view 36677090825 --log-failed
+  git diff --check
+cwd/environment: /home/shirosora/kiana-wt/sw02-work-graph-20261002; Linux; no local cargo/fmt/build/check/clippy/test/smoke commands
+fixture/cassette: work_graph_rejects_noncanonical_wire_data_scope in existing CI-sharded sw02_work_graph target; no provider or cassette
+exit_code: 0 for completed CI metadata/log reads and git diff --check; new fixture has not run locally or remotely at this snapshot
+status_change: canonical data scope validation gap closed at source; no overall SW-02 status promotion
+proof-level_change: remains source
+limitations: CI 36677090825 ran c221c211 and passed the three pre-existing SW-02 domain fixtures plus the core source guard, but the overall CI failed elsewhere; the new fixture requires a later GitHub CI receipt; optional graph migration, durable dispatch and effect-time fencing remain outside this slice
+reviewer: Codex SW-02 isolated implementation source review; integration review and GitHub CI pending
+```

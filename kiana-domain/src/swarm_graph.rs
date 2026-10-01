@@ -156,11 +156,12 @@ impl Partition {
         if self.input_digest != json_digest(&json!(self.input_refs)) {
             return Err("swarm_partition_input_digest_mismatch".to_owned());
         }
-        if self
-            .data_scope
-            .iter()
-            .any(|value| value.trim().is_empty() || value.len() > 512 || value.contains('\0'))
-            || self.data_scope.windows(2).any(|pair| pair[0] >= pair[1])
+        if self.data_scope.iter().any(|value| {
+            value.trim().is_empty()
+                || value.as_str() != value.trim()
+                || value.len() > 512
+                || value.contains('\0')
+        }) || self.data_scope.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err("swarm_partition_data_scope_invalid".to_owned());
         }
