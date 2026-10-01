@@ -6368,6 +6368,21 @@ limitations: fixtures do not resolve a real credential or prove adapter/transpor
 reviewer: Codex integration review of exact schema names, sentinel flow and independent fixture names
 ```
 
+### CI-03 credential digest hex-shape correction (2026-10-02)
+
+```text
+source_snapshot: `26e02fd4`; `kiana-ports/src/lib.rs`, `kiana-ports/tests/ci03_ports.rs`, `docs/roadmap/ports-identity-baseline.md`
+worktree_status: merged the CI-03 correction that requires the `sha256:` suffix to contain exactly 64 ASCII hexadecimal bytes; added an equal-length non-hex denial case; no secret adapter or authority behavior changed
+command_argv: source/diff review; `git diff --check`; no local test/build/check/fmt/clippy/smoke
+cwd·environment: repository root; Linux; no local Cargo execution per user instruction; GitHub Actions is the test authority
+fixture·cassette: `credential_resolution_metadata_is_strict_and_fail_closed` now covers malformed prefix, equal-length non-hex digest, expiry, raw_secret field rejection and full non-secret metadata roundtrip
+exit_code: source review and `git diff --check` 0; corrected fixture has not run on GitHub CI; no local tests were run
+status_change: CI-03 remains 🔄; malformed digest encodings now fail closed without promoting ports to a production credential resolver
+proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: corrected fixture and current master CI are pending/unobserved; no production resolver, credential store, rotation/revoke adapter, lease, OAuth or provider effect integration is added
+reviewer: Codex review of digest shape, fixture preconditions and the secret-free port boundary; no runtime test reviewer
+```
+
 ### CI-02 identity and authority contract evidence (2026-09-16)
 
 ```text
