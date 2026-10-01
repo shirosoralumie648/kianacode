@@ -4458,7 +4458,7 @@ reviewer: Codex root implementation review plus SC-02 ID/schema/digest/epoch/seq
 source_snapshot: `004949df` plus `463b4793`; `kiana-domain/src/security_contracts.rs`; prior full CI run `36677090825` / domain shard `kiana-domain-s4/4`
 worktree_status: SC-02 validator correction merged into current master; SecuritySchemaRegistry and SecurityObjectEnvelope now classify schema compatibility before generic header checks, so unknown major versions return their stable `security_*_unknown_major` errors; known-version header validation and all fail-closed checks remain unchanged
 command_argv:
-  `gh run view 36677090825 --job 109764373644 --log-failed`
+  `gh run view 36677090825 --job 109764373608 --log-failed`
   `git diff --check`
   no local test, build, check, clippy or smoke command was run
 cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
@@ -6146,6 +6146,21 @@ status_change: CI-03 remains 🔄 pending remote evidence; strengthened the meta
 proof-level change: `feature_status=partial`; `proof_level=source`
 limitations: CredentialResolution metadata still does not prove credential validity or authorization; production adapters, leases, OAuth, durable identity/config storage and provider effects remain later steps; CI result is not observed
 reviewer: Codex integration review of branch `step/ci03-ports-20261001`; verified full metadata serialization, strict unknown-field boundary, expiry/digest deny cases and no raw secret value path
+```
+
+### CI-03 unique leakage sentinel and metadata fixture names (2026-10-01)
+
+```text
+source_snapshot: `3a7f0c0f` plus the CI-03 fixture correction; `kiana-ports/tests/ci03_ports.rs`
+worktree_status: branch `step/ci03-sentinel-20261001`; integration review found that `secret` also occurs in legal `secret_ref`/schema names; replaced the generic substring with a unique fixture value, checked serialization and Debug for that value, and gave strict metadata checks their documented independent test name
+command_argv: `git diff --check`; no local test/build/check/clippy/smoke executed
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: `ports_never_return_raw_secret_to_core`; `credential_resolution_metadata_is_strict_and_fail_closed`
+exit_code: local diff check 0; new CI pending/unobserved
+status_change: CI-03 remains 🔄; fixture no longer confuses an opaque reference field with a leaked value; corrected SC-02's evidence command to the actual domain-s4 job `109764373608`
+proof-level change: unchanged `feature_status=partial`, `proof_level=source`
+limitations: fixtures do not resolve a real credential or prove adapter/transport safety; new CI not awaited
+reviewer: Codex integration review of exact schema names, sentinel flow and independent fixture names
 ```
 
 ### CI-02 identity and authority contract evidence (2026-09-16)

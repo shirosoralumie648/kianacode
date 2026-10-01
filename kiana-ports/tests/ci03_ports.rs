@@ -101,20 +101,35 @@ impl CredentialRotationPort for UnsupportedRotation {
 
 #[test]
 fn ports_never_return_raw_secret_to_core() {
+    let sentinel = "ci03-fixture-value-unique-9d23";
+    let resolution = credential_resolution(sentinel);
+    resolution.validate(1_000).unwrap();
+    let encoded = serde_json::to_string(&resolution).unwrap();
+    assert!(!encoded.contains(sentinel));
+    assert!(!format!("{resolution:?}").contains(sentinel));
+    let decoded: CredentialResolution = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(decoded, resolution);
+}
+
+fn credential_resolution(value: &str) -> CredentialResolution {
     let reference =
         SecretRef::new("env", "OPENAI_API_KEY", "provider.request", "openai", 4).unwrap();
-    let resolution = CredentialResolution {
-        secret_ref: reference.clone(),
+    CredentialResolution {
+        secret_ref: reference,
         state: CredentialState::Available,
         expires_at_unix_ms: Some(10_000),
-        resolved_digest: Some(kiana_domain::json_digest(&serde_json::json!("secret"))),
-    };
+        resolved_digest: Some(kiana_domain::json_digest(&serde_json::json!(value))),
+    }
+}
+
+#[test]
+fn credential_resolution_metadata_is_strict_and_fail_closed() {
+    let resolution = credential_resolution("ci03-fixture-value-unique-9d23");
     resolution.validate(1_000).unwrap();
     let encoded = serde_json::to_string(&resolution).unwrap();
     assert!(encoded.contains("\"state\":\"available\""));
     assert!(encoded.contains("\"expires_at_unix_ms\":10000"));
     assert!(encoded.contains("\"resolved_digest\":\"sha256:"));
-    assert!(!encoded.contains("secret"));
     let decoded: CredentialResolution = serde_json::from_str(&encoded).unwrap();
     assert_eq!(decoded, resolution);
 
