@@ -2301,6 +2301,22 @@ limitations: CI result was intentionally not awaited; no local test, smoke or cl
 reviewer: Codex root implementation review plus OA-03 redaction/static-boundary review; no runtime test reviewer
 ```
 
+### OA-03 numeric usage metadata boundary correction (2026-10-02)
+
+```text
+source_snapshot: `64ae7860` plus `30f697ce`; `kiana-domain/src/redaction.rs`; `kiana-domain/tests/oa03_redaction.rs`; prior run `36677090825` at `c221c211`
+worktree_status: branch `step/oa03-token-metrics-20261002`; root cause: redact_value preserves allowlisted numeric token usage, while contains_unredacted_secret rejected the same fields; the redactor, structured scan and residual scan now share is_token_metric without changing the existing allowlist or credential-field policy
+command_argv: `gh run view 36677090825 --job 109764373644 --log`; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: existing `every_signal_boundary_redacts_nested_secret_sentinels_before_encoding` plus `numeric_token_metrics_do_not_exempt_string_credentials_or_unknown_fields`; all five signal profiles preserve numeric usage and redact string credentials, unknown token fields and nested string values
+exit_code: prior OA-03 target 2 passed / 1 failed with redaction_secret_sentinel_detected; local diff check 0; post-push CI pending/unobserved
+status_change: OA-03 remains 🔄 pending remote evidence; corrected normal usage rejection while preserving sensitive string/unknown-key handling and secret_ref behavior
+proof-level change: `feature_status=partial`, `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: marker-based redaction cannot identify arbitrary unmarked secrets; complete sink/stream/provider runtime coverage remains downstream, full prior CI has unrelated failures and new CI not awaited
+reviewer: Codex source review of the previously duplicated allowlist, every credential predicate and remote failure
+```
+
+
 ### OA-04 committed audit taxonomy and reducer evidence (2026-09-15)
 
 ```text
