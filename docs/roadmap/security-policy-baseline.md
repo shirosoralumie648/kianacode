@@ -23,7 +23,8 @@
   `hard_policy_denial`，再按 Deny→Ask→Allow 的确定性顺序选择。
 - `PolicyRevision`：独立的 revision/authority/policy digest 记录，可 strict serde round-trip。
 - `DecisionTrace`：`SecurityDecisionId`、policy revision/epoch、request/input/context digest、
-  matched rule IDs、outcome/reason 和 trace digest；不保存原始参数/提示/provider 错误。
+  bounded and unique matched rule IDs、outcome/reason 和 trace digest；反序列化再次校验
+  outcome/reason 配套关系，不保存原始参数/提示/provider 错误。
 - `BundlePolicyEngine`：实现已有 `PolicyEngine` trait 的兼容适配器，异常只返回稳定
   `POLICY_BUNDLE_INVALID` Deny，不创建第二执行循环。
 
@@ -40,6 +41,7 @@ trace，禁止回退旧/默认策略。
 | `policy_evaluator_is_deny_first_and_trace_is_replayable` | 显式 Deny 胜过 Allow，Ask/unknown outcome 与 trace serde 稳定 |
 | `stale_snapshot_and_invalid_policy_never_fall_back_to_allow` | epoch/revision drift 与 unknown major 均 Deny，不回退放行 |
 | `policy_rules_reject_ambiguity_and_unknown_fields` | duplicate selector、effect/reason 组合和未知字段 fail-closed |
+| `decision_trace_rejects_inconsistent_reason_and_rule_shape` | Allow/Ask/Deny reason 配套、规则 ID 上限和重复 ID fail-closed |
 | `policy_bundle_contract_stays_pure_and_consumes_existing_policy_trait` | source guard 固定 pure policy、既有 trait adapter、无 Broker/IO/执行依赖 |
 
 ## 3. Proof ceiling and handoff
