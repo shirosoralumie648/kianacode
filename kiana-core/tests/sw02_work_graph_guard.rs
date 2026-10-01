@@ -39,3 +39,29 @@ fn swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plan
     assert!(core.contains("commit_swarm"));
     assert!(core.contains("ExecutionStatus::ResultUnknown"));
 }
+
+#[test]
+fn swarm_work_graph_is_validated_before_create_state_write() {
+    let plan = include_str!("../../kiana-domain/src/swarm.rs");
+    let create = plan
+        .find("SwarmCommand::Create { plan }")
+        .expect("Create transition branch");
+    let validation = plan
+        .find("graph.validate()")
+        .expect("typed graph validation");
+    let identity = plan
+        .find("graph.swarm_plan_id.to_string()")
+        .expect("typed graph identity check");
+    let state_write = plan
+        .find("next.swarms.insert(")
+        .expect("Create state write");
+
+    assert!(
+        create < validation && validation < state_write,
+        "WorkGraph validation must happen in the Create branch before state mutation"
+    );
+    assert!(
+        create < identity && identity < state_write,
+        "WorkGraph identity binding must happen in the Create branch before state mutation"
+    );
+}
