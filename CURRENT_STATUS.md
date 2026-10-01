@@ -4288,6 +4288,23 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-02 WorkGraph/packet-graph reuse and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+### SW-02 Create-order source guard (2026-10-02)
+
+```text
+source_snapshot: `8348e059` plus SW-02 Create-order guard slice; `kiana-domain/src/swarm.rs`; `kiana-core/tests/sw02_work_graph_guard.rs`; `docs/roadmap/swarm-work-graph-baseline.md`
+worktree_status: isolated `step/sw02-audit-20261002`; CI-only source guard asserts typed WorkGraph validation and swarm-plan identity binding occur inside `SwarmCommand::Create` before `next.swarms.insert`; no production semantics, manifest or lockfile changed
+command_argv:
+  `rg -n 'SwarmCommand::Create|graph.validate\(\)|graph.swarm_plan_id.to_string\(\)|next.swarms.insert' kiana-domain/src/swarm.rs kiana-core/tests/sw02_work_graph_guard.rs`
+  `git diff --check`
+cwd·environment: `/tmp/kiana-sw02-audit-20261002`; Linux; no local cargo/fmt/build/check/clippy/test/smoke commands
+fixture·cassette: `swarm_work_graph_is_validated_before_create_state_write`; source-only, no provider or cassette
+exit_code: 0 for source inspection and `git diff --check`; GitHub CI receipt pending/unobserved
+status_change: SW-02 remains 🔄; pre-write validation order is now source-guarded
+proof-level change: `feature_status=implemented` remains; `proof_level=source`
+limitations: source order does not establish runtime or durable behavior; optional graph migration, typed dispatch/queue/claim, child lifecycle, replay/recovery and effect-time fencing remain outside SW-02
+reviewer: Codex SW-02 isolated source audit; no local runtime test reviewer
+```
+
 ### SW-02 canonical data scope validation (2026-10-02)
 
 ```text

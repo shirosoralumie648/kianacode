@@ -59,3 +59,26 @@ proof-level_change: remains source
 limitations: CI 36677090825 ran c221c211 and passed the three pre-existing SW-02 domain fixtures plus the core source guard, but the overall CI failed elsewhere; the new fixture requires a later GitHub CI receipt; optional graph migration, durable dispatch and effect-time fencing remain outside this slice
 reviewer: Codex SW-02 isolated implementation source review; integration review and GitHub CI pending
 ```
+
+## 6. 2026-10-02 Create-order source guard
+
+The existing core guard checked that the WorkGraph validator and ControlPlane/EventLog markers
+were present, but did not pin the required ordering. The guard now asserts that the typed graph
+validation and swarm-plan identity check both occur inside the `SwarmCommand::Create` branch before
+`next.swarms.insert` can write the new state. This is a source-only regression fence; it does not
+execute a swarm, mint a permit, or add another execution path.
+
+```text
+source_snapshot: 8348e059 + SW-02 Create-order guard slice
+worktree_status: isolated step/sw02-audit-20261002; only kiana-core/tests/sw02_work_graph_guard.rs and this baseline changed
+command_argv:
+  rg -n 'SwarmCommand::Create|graph.validate\(\)|graph.swarm_plan_id.to_string\(\)|next.swarms.insert' kiana-domain/src/swarm.rs kiana-core/tests/sw02_work_graph_guard.rs
+  git diff --check
+cwd/environment: /tmp/kiana-sw02-audit-20261002; Linux; no local cargo/fmt/build/check/clippy/test/smoke commands
+fixture/cassette: swarm_work_graph_is_validated_before_create_state_write in kiana-core/tests/sw02_work_graph_guard.rs; no provider or cassette
+exit_code: 0 for source inspection and git diff --check; GitHub CI receipt pending/unobserved
+status_change: SW-02 remains 🔄; added a source-order fence for pre-write WorkGraph validation
+proof-level_change: remains source
+limitations: source ordering does not prove runtime or durable behavior; optional graph migration, typed dispatch/queue/claim, child lifecycle, replay/recovery and effect-time fencing remain outside SW-02
+reviewer: Codex SW-02 isolated source audit; no local runtime test reviewer
+```
