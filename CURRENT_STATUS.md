@@ -4424,6 +4424,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-01 storage root/owner/identity/namespace/lock and no-second-execution source-boundary review; no runtime test reviewer
 ```
 
+### PD-01 descriptor-relative metadata and owned-lock boundary (2026-10-02)
+
+```text
+source_snapshot: `3b553f0e` plus `7550b2d0`; `kiana-daemon/src/{storage,local_packages}.rs`; daemon/core PD-01 fixtures; old CI `36677090825`
+worktree_status: isolated branch `step/pd01-identity-20261002` integrated into master; namespaces, metadata and lock I/O now use existing LocalDir descriptor-relative no-follow helpers; identity/lock reads reject non-regular/hardlinked files and are bounded to 16 KiB; lock release validates dev/ino against the held descriptor and cannot repeat cleanup after explicit release
+command_argv: old CI log/source reads; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root and isolated Unix worktree; GitHub Actions only for test execution
+fixture·cassette: existing domain/core/daemon PD-01 targets; namespace/root symlink, identity FIFO/dir/hardlink/symlink/oversize, lock FIFO, replacement lock/parent and stable identity after reacquire fixtures
+exit_code: prior core guard failed because its forbidden execution-class word occurred only in module documentation; local diff checks 0; post-push runtime CI pending/unobserved
+status_change: PD-01 remains 🔄; tightened real storage-file and cleanup boundaries; source guard now distinguishes line comments from executable dependency references while preserving and extending forbidden execution checks
+proof-level change: `feature_status=partial`, `proof_level=source`; no durable/platform security promotion
+limitations: non-Unix acquisition explicitly fails storage_platform_unsupported; no crash-stale recovery/cross-process fencing; inode-check-to-unlink remains non-atomic against hostile same-UID leaf replacement; no durability or all-race claim and new CI not awaited
+reviewer: Codex integration review of no-follow/nonblocking/bounded reads, identity creation, exact owned-lock cleanup, retained deny assertions and reuse of existing LocalDir
+```
+
+
 ### PD-02 storage schema/canonical/upcast evidence (2026-09-17)
 
 ```text
