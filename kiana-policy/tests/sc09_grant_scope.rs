@@ -76,15 +76,15 @@ fn grant_scope_intersects_all_layers_without_union_or_transfer() {
 #[test]
 fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimensions() {
     let parent = parent_grant();
-    let network_only = GrantScope::new(
+    let process_only = GrantScope::new(
         GrantId::new(),
         None,
         parent.principal_id,
         parent.project_id,
         scope(&["read"], &[], &["api"]),
-        vec![CapabilityKind::Network],
+        vec![CapabilityKind::Process],
         false,
-        true,
+        false,
         false,
         4,
         500,
@@ -108,7 +108,7 @@ fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimen
         "grant_scope_secret_dimension_mismatch"
     );
     assert_eq!(
-        parent.intersect(&network_only).unwrap_err(),
+        parent.intersect(&process_only).unwrap_err(),
         "grant_scope_capability_intersection_empty"
     );
 
@@ -134,7 +134,9 @@ fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimen
 
 #[test]
 fn grant_scope_allows_only_explicit_capability_scope_and_expiry() {
-    let parent = parent_grant();
+    let mut parent = parent_grant();
+    parent.allow_external = false;
+    parent.grant_digest = parent.digest();
     let mut request = CapabilityRequest::new(
         RequestId::new(),
         CapabilityKind::Filesystem,
@@ -149,6 +151,18 @@ fn grant_scope_allows_only_explicit_capability_scope_and_expiry() {
     request.risk = RiskLevel::ExternalSideEffect;
     assert!(!parent.allows_request(&request, 500).unwrap());
     assert!(!parent.allows_request(&request, 1_000).unwrap());
+}
+
+#[test]
+fn grant_scope_intersect_all_validates_a_single_layer() {
+    let mut tampered = parent_grant();
+    tampered.grant_digest =
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned();
+
+    assert_eq!(
+        GrantScope::intersect_all(std::slice::from_ref(&tampered)).unwrap_err(),
+        "grant_scope_digest_mismatch"
+    );
 }
 
 #[test]

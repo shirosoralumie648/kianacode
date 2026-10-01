@@ -268,6 +268,7 @@ impl ScopeSet {
         let Some((first, rest)) = scopes.split_first() else {
             return Err("scope_layers_required".to_owned());
         };
+        first.validate()?;
         rest.iter()
             .try_fold(first.clone(), |current, next| current.intersect(next))
     }

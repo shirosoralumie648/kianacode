@@ -414,6 +414,7 @@ impl GrantScope {
         let Some((first, rest)) = layers.split_first() else {
             return Err("grant_scope_layers_required".to_owned());
         };
+        first.validate()?;
         rest.iter()
             .try_fold(first.clone(), |current, next| current.intersect(next))
     }
