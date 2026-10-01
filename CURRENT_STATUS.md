@@ -6112,6 +6112,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CI-03 ports/secret-boundary source review; no runtime test reviewer
 ```
 
+### CI-03 strict credential-resolution metadata correction (2026-10-01)
+
+```text
+source_snapshot: `9de562af` plus `174b2cfb`; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `kiana-core/tests/ci03_ports_guard.rs`; prior CI-03 source/ports contract baseline
+worktree_status: CI-03 correction merged into current master; CredentialState/CredentialResolution now have strict snake_case serde metadata and deny unknown fields. The fixture round-trips the complete non-secret resolution, rejects a raw_secret field, and checks expired/digest-invalid fail-closed outcomes. No production SecretStore, raw secret path or second authority was added.
+command_argv:
+  `git diff --check`
+  `git show --check 174b2cfb`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
+fixture·cassette: `ports_never_return_raw_secret_to_core`; `credential_resolution_metadata_is_strict_and_fail_closed`; unified CI test shards cover the fixture/source guard, while the deleted standalone `ci03-ports.yml` is no longer cited as an active workflow
+exit_code: local diff checks exit 0; post-push CI result pending/unobserved
+status_change: CI-03 remains 🔄 pending remote evidence; strengthened the metadata contract and fixture without claiming adapter, SecretStore, OAuth, durable or live proof
+proof-level change: `feature_status=partial`; `proof_level=source`
+limitations: CredentialResolution metadata still does not prove credential validity or authorization; production adapters, leases, OAuth, durable identity/config storage and provider effects remain later steps; CI result is not observed
+reviewer: Codex integration review of branch `step/ci03-ports-20261001`; verified full metadata serialization, strict unknown-field boundary, expiry/digest deny cases and no raw secret value path
+```
+
 ### CI-02 identity and authority contract evidence (2026-09-16)
 
 ```text
