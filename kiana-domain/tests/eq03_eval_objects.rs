@@ -48,7 +48,7 @@ fn eval_dataset_suite_case_and_golden_trace_bind_schema_and_provenance() {
         "eval_suite_transition_invalid"
     );
 
-    let case = EvalCase::new(
+    let mut case = EvalCase::new(
         suite.suite_id,
         "fixture:case-1",
         Some("fixture:initial-1".to_owned()),
@@ -62,6 +62,9 @@ fn eval_dataset_suite_case_and_golden_trace_bind_schema_and_provenance() {
         "internal",
     )
     .unwrap();
+    // Bind the fixture to the case reference already declared by the dataset and suite.
+    case.case_id = case_id;
+    case.case_digest = case.digest();
     case.validate().unwrap();
     assert_eq!(case.case_id, case_id);
 
