@@ -230,7 +230,11 @@ async fn asynchronous_registration_rejects_duplicate_keys() {
         binding_version: descriptor.binding_version,
     });
     broker
-        .register(descriptor.capability, descriptor.operation, handler.clone())
+        .register(
+            descriptor.capability.clone(),
+            descriptor.operation,
+            handler.clone(),
+        )
         .await
         .unwrap();
     let error = broker

@@ -1183,7 +1183,7 @@ mod tests {
         assert_eq!(descriptor.capability, CapabilityKind::Query);
         broker
             .register_static(
-                descriptor.capability,
+                descriptor.capability.clone(),
                 descriptor.operation,
                 Arc::new(NoopHandler),
             )
