@@ -264,16 +264,28 @@ impl StoreIdentity {
 
     pub fn validate(&self, root: &StorageRoot) -> Result<(), String> {
         root.validate()?;
-        if self.schema != STORE_IDENTITY_SCHEMA
-            || self.store_id.as_uuid().is_nil()
-            || self.root_id != root.root_id
+        self.validate_unbound()?;
+        if self.root_id != root.root_id
             || self.owner_scope_digest != root.owner_scope.scope_digest
             || self.instance_id != root.owner_scope.instance_id
-            || self.format_version == 0
-            || self.schema_epoch == 0
         {
             return Err("store_identity_mismatch".to_owned());
         }
+        Ok(())
+    }
+
+    fn validate_unbound(&self) -> Result<(), String> {
+        if self.schema != STORE_IDENTITY_SCHEMA
+            || self.store_id.as_uuid().is_nil()
+            || self.format_version == 0
+            || self.schema_epoch == 0
+        {
+            return Err("store_identity_header_invalid".to_owned());
+        }
+        if self.created_at_unix_ms == 0 {
+            return Err("store_identity_time_invalid".to_owned());
+        }
+        validate_digest(&self.owner_scope_digest, "store_identity_owner_scope_digest")?;
         validate_digest(&self.identity_digest, "store_identity_digest")?;
         if self.identity_digest != self.digest() {
             return Err("store_identity_digest_mismatch".to_owned());
@@ -332,13 +344,23 @@ impl StorageLockRecord {
         identity: &StoreIdentity,
         owner_scope: &StorageOwnerScope,
     ) -> Result<(), String> {
+        identity.validate_unbound()?;
+        owner_scope.validate()?;
         if self.schema != STORAGE_LOCK_SCHEMA
             || self.lock_id.as_uuid().is_nil()
             || self.store_id != identity.store_id
-            || self.owner_id != owner_scope.owner_id
-            || self.instance_id != owner_scope.instance_id
         {
             return Err("storage_lock_owner_mismatch".to_owned());
+        }
+        if self.owner_id != owner_scope.owner_id
+            || self.instance_id != owner_scope.instance_id
+            || identity.owner_scope_digest != owner_scope.scope_digest
+            || identity.instance_id != owner_scope.instance_id
+        {
+            return Err("storage_lock_owner_mismatch".to_owned());
+        }
+        if self.acquired_at_unix_ms == 0 {
+            return Err("storage_lock_time_invalid".to_owned());
         }
         validate_digest(&self.lock_digest, "storage_lock_digest")?;
         if self.lock_digest != self.digest() {
