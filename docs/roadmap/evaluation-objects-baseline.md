@@ -37,3 +37,25 @@
 - Dataset/Suite/Case/GoldenTrace 尚未被 EvalStore 或 deterministic fixture loader 持久化/读取；fixture refs 是声明，不是路径访问授权。
 - `GoldenTrace` normalized_events 只做 bounded safe-value contract，不执行 normalization/diff；volatile allow-list、cursor/checkpoint、artifact reader、source run capture 和 replay proof 留待 EQ-08/17–25、ER/PD。
 - owner/privacy/provenance 是 domain fields，不等于 authenticated Principal/ProjectTrust 或 retention/deletion enforcement；Judge/QualityGate/Promote 仍不存在。
+
+## 5. EQ-03 fixture identity correction (2026-10-02)
+
+GitHub CI [run 36677090825, domain shard 2/4](https://github.com/shirosoralumie648/kianacode/actions/runs/36677090825/job/109764373648)
+在 `c221c211c1c08b6796c4324bcf82d827dbbb0b5a` 上执行 `eq03_eval_objects`，结果为
+2 passed / 1 failed。失败位于成功夹具的 `assert_eq!(case.case_id, case_id)`：dataset/suite
+提前引用一个 `EvalCaseId::new()`，而 `EvalCase::new` 又分配了另一个 ID。夹具现在显式绑定
+已声明的 case ID，再重新计算 `case_digest` 并执行既有 `validate`；原等值断言和其余断言全部保留。
+这与 legacy adapter 预置稳定 ID 后重算摘要的既有做法一致，不改变生产对象的 ID 分配或验证规则。
+
+```text
+source_snapshot: 64ae786072a1aa6f491d1dea0ef5e863646c80bf + EQ-03 fixture correction
+worktree_status: isolated feat/eq03-evaluation-guards worktree; only eq03_eval_objects fixture and this baseline changed
+command_argv: gh run view 36677090825 --job 109764373648 --log-failed; git diff --check
+cwd/environment: /tmp/kiana-eq03-step; Linux; local test/build/check/clippy/fmt/smoke commands not run
+fixture or cassette: kiana-domain/tests/eq03_eval_objects.rs; already included in scripts/ci/test-shards.json kiana-domain-s2/4
+exit_code: 0 for CI log retrieval and git diff --check; corrected fixture has not been executed
+status_change: baseline fixture correction only; existing EQ-03 contract status unchanged
+proof-level_change: source review only; no proof-level promotion
+limitations: historical CI failure is evidence for the pre-fix fixture; the corrected fixture and regressions require GitHub CI after integration, whose result is not awaited; runtime, durable, live and physical behavior remain unproven by this slice
+reviewer: EQ-03 implementation agent source review; no runtime test reviewer
+```
