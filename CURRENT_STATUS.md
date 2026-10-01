@@ -3477,8 +3477,8 @@ reviewer: Codex integration review of branch `fix/h05-36677090825`; confirmed st
 ### H05 unified CI production-classifier guard correction (2026-10-02)
 
 ```text
-source_snapshot: `c5159bed`; `kiana-runner/tests/h05_stop_guard.rs`; `kiana-runner/src/retry.rs`; `kiana-domain/src/retry_policy.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; remote run `36899317942` at `ae412092`
-worktree_status: isolated branch `fix/h05-ci-guard-20261002`; post-386d5f18 CI still failed the H05 source guard because it looked for `ModelRetryClass::Rejected` in harness/model/provider sources, while the production classifier owns that check in `kiana-domain/src/retry_policy.rs`; the earlier BeforeSend check was satisfiable by `retry.rs` unit-test code alone; the guard now excludes `#[cfg(test)]` sections and checks Runner delegation plus both production classifier branches and their request/effect fences; no retry policy behavior changed
+source_snapshot: `c5159bed` plus fix `7e17f153` and local merge `9e9ba864`; `kiana-runner/tests/h05_stop_guard.rs`; `kiana-runner/src/retry.rs`; `kiana-domain/src/retry_policy.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; remote run `36899317942` at `ae412092`
+worktree_status: H05 source guard correction is merged into local master; post-386d5f18 CI still failed the guard because it looked for `ModelRetryClass::Rejected` in harness/model/provider sources, while the production classifier owns that check in `kiana-domain/src/retry_policy.rs`; the earlier BeforeSend check was satisfiable by `retry.rs` unit-test code alone; the guard now excludes `#[cfg(test)]` sections and checks Runner delegation plus both production classifier branches and their request/effect fences; no retry policy behavior changed
 command_argv:
   `gh run view 36899317942 --job 110494819361 --log`
   `gh run view 36899317942 --job 110494819731 --log`
