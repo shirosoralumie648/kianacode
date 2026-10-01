@@ -1,4 +1,6 @@
-use kiana_domain::{EventStoreHealth, RequestId, RuntimeEvent};
+use kiana_domain::{
+    EventStoreHealth, JournalFrame, JournalFramePayload, RequestId, RuntimeEvent,
+};
 use kiana_eventlog::JsonlEventLog;
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::Value;
@@ -17,6 +19,59 @@ fn temp_log(label: &str) -> PathBuf {
 fn cleanup(path: &Path) {
     let _ = fs::remove_file(path);
     let _ = fs::remove_file(path.with_extension("jsonl.lock"));
+}
+
+#[test]
+fn health_ack_rejects_malformed_and_unprefixed_digests() {
+    let health = EventStoreHealth::new(0, true, false, 0, false);
+    for digest in [
+        String::new(),
+        "a".repeat(64),
+        format!("sha256:{}", "a".repeat(63)),
+        format!("sha256:{}", "a".repeat(65)),
+        format!("sha256:{}g", "a".repeat(63)),
+        format!("sha512:{}", "a".repeat(64)),
+        format!("sha256:sha256:{}", "a".repeat(64)),
+    ] {
+        let mut malformed = health.clone();
+        malformed.health_digest = digest;
+        assert_eq!(
+            malformed.validate().unwrap_err(),
+            "event_store_health_header_invalid"
+        );
+    }
+}
+
+#[test]
+fn health_ack_rejects_stale_digest_for_cursor_and_close_claims() {
+    let health = EventStoreHealth::new(2, true, true, 12, false);
+    let mut cursor = health.clone();
+    cursor.last_durable_cursor = 13;
+    let mut closed = health.clone();
+    closed.closed = true;
+    let mut durable = health;
+    durable.durable = false;
+    for tampered in [cursor, closed, durable] {
+        assert_eq!(
+            tampered.validate().unwrap_err(),
+            "event_store_health_digest_mismatch"
+        );
+    }
+}
+
+#[test]
+fn health_ack_digest_format_does_not_change_journal_frame_checksums() {
+    let mut frame = JournalFrame::new(JournalFramePayload::Event {
+        event: RuntimeEvent::new(RequestId::new(), 1, "legacy", Value::Null).unwrap(),
+    })
+    .unwrap();
+    frame.validate().unwrap();
+    assert_eq!(frame.body_sha256.len(), 64);
+    frame.body_sha256 = format!("sha256:{}", frame.body_sha256);
+    assert_eq!(
+        frame.validate().unwrap_err(),
+        "journal_frame_integrity_failed"
+    );
 }
 
 #[tokio::test]

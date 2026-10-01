@@ -289,9 +289,12 @@ impl EventStoreHealth {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        // Health acknowledgements use json_digest's tagged format; journal frame checksums
+        // intentionally retain their separate bare-hex contract.
+        let health_hex = self.health_digest.strip_prefix("sha256:");
         if self.schema != EVENT_STORE_HEALTH_SCHEMA
             || !self.version.is_compatible_with(&EVENT_STORE_HEALTH_VERSION)
-            || !valid_journal_digest(&self.health_digest)
+            || !health_hex.is_some_and(valid_journal_digest)
         {
             return Err("event_store_health_header_invalid".to_owned());
         }
