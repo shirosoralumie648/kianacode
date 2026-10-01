@@ -5061,6 +5061,21 @@ limitations: health acknowledgement remains a projection, not power-loss/durable
 reviewer: Codex integration review of separate health/frame digest contracts and retained stale-health denies
 ```
 
+### ER-06 GitHub formatter correction (2026-10-02)
+
+```text
+source_snapshot: `d4a85ebd`; `kiana-eventlog/tests/er06_async_lifecycle.rs`
+worktree_status: corrected the multiline import to the format required by the repository-wide GitHub `cargo fmt --all --check`; no runtime behavior changed
+command_argv: GitHub `gh run view 36895251170 --job 110481001172 --log`; source comparison; `git diff --check`; no local formatter/test/build/check/clippy/smoke
+cwd·environment: repository root; formatter failure observed on GitHub Actions Linux runner; local test and formatting execution deliberately skipped
+fixture·cassette: no fixture change; formatter output identified only the import layout in `er06_async_lifecycle.rs`
+exit_code: remote fmt check exited 1 at `36895251170`; local `git diff --check` 0; follow-up CI is pending/unobserved
+status_change: ER-06 remains 🔄; corrected the source formatting reported by the shared CI gate without promoting the step
+proof-level change: none; ER-06 remains `feature_status=partial`, `proof_level=source`
+limitations: parent run was cancelled and only the formatter job output is used as evidence; no test outcome was inferred; no local formatter/test/build/check/clippy/smoke was run
+reviewer: Codex comparison of the exact remote rustfmt diff with the checked-in import; no runtime test reviewer
+```
+
 
 ### ER-07 replay projector and checkpoint evidence (2026-09-17)
 

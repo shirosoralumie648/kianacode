@@ -1,6 +1,4 @@
-use kiana_domain::{
-    EventStoreHealth, JournalFrame, JournalFramePayload, RequestId, RuntimeEvent,
-};
+use kiana_domain::{EventStoreHealth, JournalFrame, JournalFramePayload, RequestId, RuntimeEvent};
 use kiana_eventlog::JsonlEventLog;
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::Value;
