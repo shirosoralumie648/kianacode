@@ -2311,6 +2311,21 @@ limitations: no authenticated ingress/span bridge/exporter or cross-process trac
 reviewer: Codex integration review of exact invalid/valid headers, epoch checks and error owner
 ```
 
+### OA-02 correlation malformed-ID and link-boundary correction (2026-10-02)
+
+```text
+source_snapshot: `12fbcd21`; `kiana-domain/src/correlation.rs`; `kiana-domain/tests/oa02_correlation.rs`; `kiana-ports/tests/oa02_correlation_port.rs`; `kiana-core/tests/er02_identity_guard.rs`; `docs/roadmap/observability-audit-baseline.md`
+worktree_status: isolated branch `step/oa02-audit-20261002`; direct decoded CorrelationContext/AttemptRef/CausationRef inputs now reject nil typed IDs and correlation/request drift, and span validation rejects forged `Parent` and self links; external traceparent parsing and fresh server-owned root behavior are unchanged; no manifest or lockfile changes
+command_argv: `gh run view 36677090825 --job 109764373726 --log-failed`; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: `/tmp/kiana-oa02-audit-20261002`; Linux; GitHub Actions only for test execution
+fixture·cassette: `decoded_context_rejects_nil_ids_and_parent_or_self_span_links`; `malformed_attempt_and_causation_command_ids_fail_closed`; `port_rejects_forged_parent_and_self_links_before_child_creation`; ER-02 source guard markers
+exit_code: prior CI receipt `109764373726` recorded the corrected old valid-traceparent denial failure; current source diff check 0; new CI not awaited
+status_change: OA-02 remains 🔄; malformed typed IDs and parent/self span-link boundaries are now fail-closed at the domain and port validation boundary without creating a runtime ingress or sink
+proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no authenticated ingress/span bridge/exporter or cross-process trace proof; full baseline CI has unrelated failures; this correction has no new remote test receipt yet
+reviewer: Codex OA-02 isolated audit; root integration review pending
+```
+
 ### OA-03 redaction profile and bounded encoder evidence (2026-09-15)
 
 ```text

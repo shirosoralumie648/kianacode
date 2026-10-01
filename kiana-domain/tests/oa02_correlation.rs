@@ -1,7 +1,9 @@
 use kiana_domain::{
-    AttemptRef, CausationRef, CorrelationContext, CorrelationScope, ExecutionId, InvocationId,
-    ProjectId, RequestContext, RequestId, RunId, SessionId, SpanLinkKind, TraceParent, TurnId,
+    AttemptRef, CausationRef, CorrelationContext, CorrelationScope, EventId, ExecutionId,
+    InvocationId, OrganizationId, ProjectId, RequestContext, RequestId, RunId, SessionId,
+    SpanLink, SpanLinkKind, TraceParent, TurnId,
 };
+use uuid::Uuid;
 
 fn request() -> RequestContext {
     RequestContext::local("session-oa02", "/workspace/project")
@@ -171,5 +173,107 @@ fn child_and_async_links_never_reuse_a_span_or_foreign_parent_as_owner() {
     assert_eq!(
         root.with_source_cursor(0).unwrap_err(),
         "correlation_source_cursor_required"
+    );
+}
+
+#[test]
+fn decoded_context_rejects_nil_ids_and_parent_or_self_span_links() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
+
+    let mut nil_request = root.clone();
+    nil_request.request_id = RequestId::from_uuid(Uuid::nil());
+    assert_eq!(
+        nil_request.validate().unwrap_err(),
+        "correlation_request_id_invalid"
+    );
+
+    let mut mismatched_request = root.clone();
+    mismatched_request.correlation_id = RequestId::new();
+    assert_eq!(
+        mismatched_request.validate().unwrap_err(),
+        "correlation_request_mismatch"
+    );
+
+    let mut nil_command = root.clone();
+    nil_command.command_id = Some(RequestId::from_uuid(Uuid::nil()));
+    assert_eq!(
+        nil_command.validate().unwrap_err(),
+        "correlation_command_id_invalid"
+    );
+
+    let mut nil_scope = root.clone();
+    nil_scope.project_id = Some(ProjectId::from_uuid(Uuid::nil()));
+    assert_eq!(
+        nil_scope.validate().unwrap_err(),
+        "correlation_project_id_invalid"
+    );
+
+    let mut nil_organization = root.clone();
+    nil_organization.organization_id = Some(OrganizationId::from_uuid(Uuid::nil()));
+    assert_eq!(
+        nil_organization.validate().unwrap_err(),
+        "correlation_organization_id_invalid"
+    );
+
+    let mut nil_event = root.clone();
+    nil_event.causation = Some(CausationRef::Event(EventId::from_uuid(Uuid::nil())));
+    assert_eq!(
+        nil_event.validate().unwrap_err(),
+        "correlation_causation_event_id_invalid"
+    );
+
+    let mut parent_link = root.clone();
+    parent_link.span_links = vec![SpanLink::new(root.current_span(), SpanLinkKind::Parent)];
+    assert_eq!(
+        parent_link.validate().unwrap_err(),
+        "correlation_parent_link_invalid"
+    );
+
+    let mut self_link = root;
+    self_link.span_links = vec![SpanLink::new(
+        self_link.current_span(),
+        SpanLinkKind::FollowsFrom,
+    )];
+    assert_eq!(
+        self_link.validate().unwrap_err(),
+        "correlation_span_link_self"
+    );
+}
+
+#[test]
+fn malformed_attempt_and_causation_command_ids_fail_closed() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let invocation_id = InvocationId::new();
+    let execution_id = ExecutionId::new();
+    let command_id = root.command_id.unwrap();
+
+    let malformed_attempt = AttemptRef {
+        run_id: RunId::from_uuid(Uuid::nil()),
+        turn_id,
+        invocation_id,
+        execution_id,
+        command_id,
+        attempt: 1,
+    };
+    assert_eq!(
+        root.with_run(run_id)
+            .unwrap()
+            .with_turn(turn_id)
+            .unwrap()
+            .with_invocation(invocation_id, execution_id)
+            .unwrap()
+            .with_attempt(malformed_attempt)
+            .unwrap_err(),
+        "correlation_attempt_id_invalid"
+    );
+
+    assert_eq!(
+        root.with_causation(CausationRef::Command(RequestId::from_uuid(Uuid::nil())))
+            .unwrap_err(),
+        "correlation_causation_command_id_invalid"
     );
 }

@@ -35,7 +35,7 @@
 | Model attempt contract（OA-08 overlay） | `kiana-domain/src/observability.rs` | `5e53b7a30fc87243e4c997f2dd9a9f2fb5108e7cfe6eb67ddda0aa40d7deceeb` |
 | Capability attempt contract（OA-09 overlay） | `kiana-domain/src/observability.rs` | `80d4c60dfd20b9508b39c82c2ad39fdb9b7fbd16a45b3854ec27e5ad8903d708` |
 | Signal ports/fakes/observer contract（OA-05/OA-06） | `kiana-ports/src/lib.rs` | `36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0` |
-| Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `6fabe5e7cb8d2c86604738108eebcea6274d36306afac197a6115d13b1bfa951` |
+| Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `9b7614a48f9f348d0f69cc37123b2ca325c4c9ed331a76926d366930ea2a11ab`（nil typed IDs and span-link semantic guard） |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
 | Receipt projection | `kiana-core/src/receipts.rs` | `dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e` |
 | Run/invocation projection | `kiana-core/src/projection.rs` | `20d84eb8fa0ac77ac85b48acb10e2fcc78214cc1c3c10be339b540230b1ff68` |
@@ -282,8 +282,10 @@ parent ref，异步/recovery child 使用新 span + `FollowsFrom` link。
 
 `kiana-ports` 的 `CorrelationContextPort`/`DomainCorrelationContextPort` 仅委托这些纯
 domain 不变量，不访问 EventStore、Broker、Provider 或网络。这是 source/静态编译 proof；
-没有新增 runtime ingress、span sink、授权路径或 durable/live/physical 证明。OA-03 继续
-处理跨 signal 的统一 redaction/classification 和 bounded encoder。
+wire decode 也会拒绝 nil typed IDs、scope ID 漂移、self span links 和把 `Parent` 当作普通
+link 的伪造关系；合法的 parent 仍只由服务端 child-span 产生。没有新增 runtime ingress、
+span sink、授权路径或 durable/live/physical 证明。OA-03 继续处理跨 signal 的统一
+redaction/classification 和 bounded encoder。
 
 ## 9. OA-03 叠加说明
 

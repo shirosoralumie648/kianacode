@@ -23,6 +23,17 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     assert!(events.contains("stamp_event_links"));
     assert!(correlation.contains("CausationRef"));
     assert!(correlation.contains("AttemptRef"));
+    for marker in [
+        "correlation_attempt_id_invalid",
+        "correlation_causation_event_id_invalid",
+        "correlation_parent_link_invalid",
+        "correlation_span_link_self",
+    ] {
+        assert!(
+            correlation.contains(marker),
+            "OA-02 malformed correlation guard missing: {marker}"
+        );
+    }
     assert!(projection.contains("event_run_id"));
     assert!(projection.contains("event_matches_run"));
     assert!(span.contains("turn_id"));
