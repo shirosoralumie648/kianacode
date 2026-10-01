@@ -358,7 +358,10 @@ impl CredentialResolution {
             ));
         }
         if let Some(digest) = &self.resolved_digest {
-            if !digest.starts_with("sha256:") || digest.len() != 71 {
+            let valid_digest = digest.strip_prefix("sha256:").is_some_and(|hex| {
+                hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+            });
+            if !valid_digest {
                 return Err(PortError::Failed(
                     "credential_resolution_digest_invalid".to_owned(),
                 ));

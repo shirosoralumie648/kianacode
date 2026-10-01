@@ -36,3 +36,24 @@
 - 当前没有生产 IdentityResolver/ConfigSnapshotStore/CredentialResolver adapter；CI fake 仅验证接口形状和 deny-first metadata，不证明 OS/keyring/file/OAuth 实际可用。
 - `CredentialResolution.state=Available` 仍不等于凭据有效或动作获授权；SecretStore/lease/transport 只能在后续 CI-06/07/08 通过 Broker 接入。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 5. Credential resolution digest correction (2026-10-02)
+
+Source review found that `CredentialResolution::validate` checked the `sha256:` prefix and
+total string length, but did not require the 64-byte suffix to be hexadecimal. A same-length
+value such as `sha256:gggg...` therefore passed the claimed digest-shape guard. Validation now
+requires exactly 64 ASCII hexadecimal bytes, with a CI fixture for the equal-length invalid case.
+The valid digest and existing malformed-prefix cases remain covered.
+
+```text
+source_snapshot: d4a85ebd0862380549115e91324a9887cd0ded3d + CI-03 digest-shape correction
+worktree_status: isolated /tmp/kiana-ci03-audit on audit/ci03-ports-d4a85ebd; only ports validator, CI fixture and this baseline changed
+command_argv: gh run view 36897771406 --job 110489410130; git diff --check
+cwd/environment: /tmp/kiana-ci03-audit; Linux; local test/build/check/clippy/fmt/smoke commands not run
+fixture or cassette: kiana-ports/tests/ci03_ports.rs::credential_resolution_metadata_is_strict_and_fail_closed; GitHub CI ports job
+exit_code: 0 for source/diff checks; GitHub run 36897771406 ports job was in progress when inspected, so the pre-fix remote result is unobserved
+status_change: none; CI-03 source status remains implemented with its existing limitations
+proof-level_change: none; source only
+limitations: the corrected fixture has not run; latest master CI run is pending/unobserved for kiana-ports; no production resolver, store, rotation or revoke adapter is implemented here
+reviewer: CI-03 implementation agent source review; no runtime test reviewer
+```

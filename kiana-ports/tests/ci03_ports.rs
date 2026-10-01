@@ -150,6 +150,14 @@ fn credential_resolution_metadata_is_strict_and_fail_closed() {
         malformed_digest.validate(1_000).unwrap_err(),
         kiana_ports::PortError::Failed("credential_resolution_digest_invalid".to_owned())
     );
+
+    let mut non_hex_digest = credential_resolution("ci03-fixture-value-unique-9d23");
+    non_hex_digest.resolved_digest = Some(format!("sha256:{}", "g".repeat(64)));
+    assert_eq!(
+        non_hex_digest.validate(1_000).unwrap_err(),
+        kiana_ports::PortError::Failed("credential_resolution_digest_invalid".to_owned())
+    );
+
     let _ = MissingCredential;
     let _ = UnsupportedIdentity;
     let _ = UnsupportedConfig;
