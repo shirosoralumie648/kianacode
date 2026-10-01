@@ -32,7 +32,7 @@ fn write_fixture(path: &Path, contents: impl AsRef<[u8]>) {
     }
     #[cfg(not(unix))]
     {
-        write_fixture(path, contents);
+        fs::write(path, contents).unwrap();
     }
 }
 
@@ -129,11 +129,10 @@ async fn jsonl_v2_repairs_only_a_torn_tail_and_rejects_legacy_after_upgrade() {
     let upgraded = temp_log("upgrade");
     let legacy = RuntimeEvent::new(RequestId::new(), 1, "legacy", Value::Null).unwrap();
     let header = serde_json::to_string(&JournalHeader::default()).unwrap();
-    fs::write(
+    write_fixture(
         &upgraded,
         format!("{header}\n{}\n", serde_json::to_string(&legacy).unwrap()),
-    )
-    .unwrap();
+    );
     let error = JsonlEventLog::open(&upgraded).unwrap_err();
     assert!(error
         .to_string()
