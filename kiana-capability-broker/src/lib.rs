@@ -1160,13 +1160,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unregistered_capability_fails_closed() {
+    async fn unsealed_catalog_fails_closed_before_routing() {
         let broker = CapabilityBroker::new();
         let request = CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Query,
-            "search",
-            Value::Null,
+            "memory.search",
+            serde_json::json!({"query":"search"}),
         );
         let request = AuthorizedCapabilityRequest::new("policy:test", request).unwrap();
         assert!(matches!(
@@ -1179,12 +1179,22 @@ mod tests {
     /// 测试：静态注册时拒绝重复的处理器键。
     fn static_registration_rejects_duplicate_handler_keys() {
         let mut broker = CapabilityBroker::new();
+        let descriptor = kiana_domain::capability_action_descriptor("memory.search").unwrap();
+        assert_eq!(descriptor.capability, CapabilityKind::Query);
         broker
-            .register_static(CapabilityKind::Query, "search", Arc::new(NoopHandler))
+            .register_static(
+                descriptor.capability,
+                descriptor.operation,
+                Arc::new(NoopHandler),
+            )
             .unwrap();
         assert_eq!(
             broker
-                .register_static(CapabilityKind::Query, "search", Arc::new(NoopHandler))
+                .register_static(
+                    descriptor.capability,
+                    descriptor.operation,
+                    Arc::new(NoopHandler),
+                )
                 .unwrap_err(),
             PortError::Conflict("capability_handler_already_registered".to_owned())
         );
