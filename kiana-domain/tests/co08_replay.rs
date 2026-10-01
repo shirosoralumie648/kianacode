@@ -164,3 +164,19 @@ fn legacy_v0_event_migrates_only_when_the_shape_is_currently_parseable() {
     reducer.apply(&legacy).unwrap();
     assert_eq!(reducer.state().revision, 1);
 }
+
+#[test]
+fn replay_rejects_unknown_company_event_fields_before_state_change() {
+    let mut event = event(
+        CompanyCommand::ProposeObjective {
+            objective: objective(),
+        },
+        "unknown-field",
+        0,
+        1,
+    );
+    event.data["unexpected"] = serde_json::json!("must not be ignored");
+    let mut reducer = CompanyReplayReducer::new(AGGREGATE, ROOT, OWNER);
+    assert_eq!(reducer.apply(&event).unwrap_err(), "company_event_invalid");
+    assert_eq!(reducer.state().revision, 0);
+}

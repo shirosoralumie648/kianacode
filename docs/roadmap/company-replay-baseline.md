@@ -20,7 +20,7 @@
 |---|---|---|
 | Domain reducer/migration | `kiana-domain/src/company_replay.rs`, `kiana-domain/src/company.rs`, `kiana-domain/src/lib.rs`, `kiana-domain/src/contracts.rs` | `781bb9542ab04140e9c4206c05d4bcb265c7a8f1333c83ff58fa297754200d0f`, `4cf29654e4f6e3729b47c5f65f1beab9f7daea3e244d643cc8562273d147767b`, `bb71a2feb0f3de2595d7e39db0be897561f0377280cc3f5db733b22d1449ad65`, `aa796d275675e113d0a5fa338664fae0d4234357ee833de19acb384e72370403` |
 | Core replay wiring | `kiana-core/src/company.rs` | `67ae4acefedb2ae8b6392ccbb425f1ca773c123dfcfdfe079118457775af4615` |
-| Fixtures and CI | `kiana-domain/tests/co08_replay.rs`, `kiana-core/tests/co08_replay_guard.rs`, `.github/workflows/co08-company-replay.yml` | `9544dc667642598ef189b29262ad65ad2c182c4f84f5934f00e646accfd0c377`, `a6101f2a35f167b2c617ebfb4090e2f10ab727a0f0a6d64670f835750d659551`, `c00100ce08bf4c369605eb992c76fc36991b0724a970993b281425894ddfe9a5` |
+| Fixtures and CI | `kiana-domain/tests/co08_replay.rs`, `kiana-core/tests/co08_replay_guard.rs`, `.github/workflows/ci.yml` (unified test shard inventory) | `9544dc667642598ef189b29262ad65ad2c182c4f84f5934f00e646accfd0c377`, `a6101f2a35f167b2c617ebfb4090e2f10ab727a0f0a6d64670f835750d659551`, `ci.yml` current source |
 
 ## 2. Reducer invariants
 
@@ -41,7 +41,7 @@
 | `legacy_v0_event_migrates_only_when_the_shape_is_currently_parseable` | 已知 v0 schema 显式迁移，其他 schema 不隐式升级 |
 | `company_load_path_uses_deterministic_reducer_and_explicit_migration` | core load_company 只走 reducer，CompanyState transition 仍是唯一纯应用路径 |
 
-`.github/workflows/co08-company-replay.yml` 在 GitHub runner 执行 domain replay/migration fixtures、core source guard、fmt 和 domain/core/daemon test-target compile；本地只做格式、静态编译和 diff 检查。
+`.github/workflows/ci.yml` 的 unified test shard inventory 在 GitHub runner 执行 `co08_replay`、`co08_replay_guard` 及相关 domain/core/daemon targets；fmt/check/clippy 由同一 workflow 的 Rust gates 负责。本地只做格式、静态编译和 diff 检查。
 
 ## 5. 限制与交接
 

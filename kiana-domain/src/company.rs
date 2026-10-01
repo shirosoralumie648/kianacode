@@ -1058,6 +1058,7 @@ pub struct CompanyState {
     pub closing_receipts: BTreeMap<String, CompanyClosingReceipt>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CompanyEvent {
     pub schema: String,
     pub project_root: String,

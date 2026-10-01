@@ -4078,6 +4078,23 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-08 replay/gap/migration source-boundary review; no runtime test reviewer
 ```
 
+### CO-08 strict event replay and unified CI receipt (2026-10-02)
+
+```text
+source_snapshot: a0258e84 (current master baseline) plus CO-08 strict event/replay hardening; kiana-domain/src/company.rs; kiana-domain/tests/co08_replay.rs; kiana-core/tests/co08_replay_guard.rs; docs/roadmap/company-replay-baseline.md; .github/workflows/ci.yml; scripts/ci/test-shards.json
+worktree_status: isolated worktree `/tmp/kiana-co08-audit-20261002`; CompanyEvent now rejects unknown top-level fields before CompanyState transition, the domain fixture asserts revision remains unchanged on that denial, and the core source guard verifies the strict DTO marker; active CI is the unified workflow because the historical standalone CO-08 workflow was consolidated
+command_argv:
+  rg -n 'CompanyReplayReducer|CompanyEvent|co08_replay|co08_replay_guard' kiana-domain kiana-core docs/roadmap/company-replay-baseline.md .github/workflows/ci.yml scripts/ci/test-shards.json
+  git diff --check
+cwd/environment: `/tmp/kiana-co08-audit-20261002`; Linux/bash; no local cargo test/build/check/fmt/clippy/smoke command executed; GitHub Actions remains the test and compile authority and is not awaited
+fixture·cassette: `kiana-domain/tests/co08_replay.rs::replay_rejects_unknown_company_event_fields_before_state_change`; `kiana-core/tests/co08_replay_guard.rs`; unified `ci.yml` test-shard entries for `co08_replay` and `co08_replay_guard`
+exit_code: 0 for source inspection and `git diff --check`; CI result pending/unobserved
+status_change: CO-08 source boundary now fails closed on unknown top-level CompanyEvent fields before state mutation; active roadmap evidence points at the unified CI workflow and shard inventory rather than the removed standalone workflow
+proof-level_change: source only; no local_behavior, durable, live or physical promotion
+limitations: nested payload strictness follows each nested DTO's serde contract; no independent durable snapshot/cursor migration journal or full typed-ref upcast; CI result is intentionally not awaited
+reviewer: Codex CO-08 replay/migration audit; no local runtime test reviewer
+```
+
 ### P0-A-01b schema registry evidence (2026-09-16)
 
 ```text

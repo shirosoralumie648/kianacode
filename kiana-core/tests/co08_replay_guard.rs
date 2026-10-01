@@ -20,7 +20,12 @@ fn company_load_path_uses_deterministic_reducer_and_explicit_migration() {
             "core reducer wiring missing: {marker}"
         );
     }
-    for marker in ["COMPANY_EVENT_SCHEMA", "CompanyState", "transition"] {
+    for marker in [
+        "COMPANY_EVENT_SCHEMA",
+        "CompanyState",
+        "transition",
+        "#[serde(deny_unknown_fields)]\npub struct CompanyEvent",
+    ] {
         assert!(
             company.contains(marker),
             "domain reducer marker missing: {marker}"
