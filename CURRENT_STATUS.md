@@ -4945,6 +4945,23 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-05 default-deny/deny-first/revision-trace/dependency-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-05 decision trace validation hardening evidence (2026-10-02)
+
+```text
+source_snapshot: b311b138 + isolated SC-05 audit slice; kiana-policy/src/security.rs; kiana-policy/tests/sc05_policy.rs; kiana-core/tests/sc05_policy_guard.rs; docs/roadmap/security-policy-baseline.md
+worktree_status: DecisionTrace::validate now rejects Allow traces carrying a reason, Deny/Ask traces without a reason, oversized matched-rule lists, and duplicate matched rule IDs after digest recomputation; the existing PolicyBundle/ControlPlane boundary and single PolicyEngine spine are unchanged
+command_argv:
+  git diff --check
+  git status --short --branch
+cwd/environment: isolated `/tmp/kiana-sc05-audit-20261002`; Linux x86_64; local cargo test/build/check/fmt/clippy/smoke deliberately not run; GitHub Actions is the test authority and was not awaited
+fixture·cassette: GitHub-only `decision_trace_rejects_inconsistent_reason_and_rule_shape`; existing SC-05 deny-first, digest, revision/epoch, unknown-field and purity fixtures remain; no Broker/handler/approval/provider/filesystem/network effect
+exit_code: 0 for source inspection and git diff check; CI fixture and compile exit codes pending/unobserved
+status_change: SC-05 remains 🔄 with a source-level fail-closed DecisionTrace validation correction; roadmap baseline and core source guard record the new negative cases
+proof-level_change: source; no local_behavior, durable, live, or physical promotion
+limitations: no local tests were run; PolicyBundle/BundlePolicyEngine remains an optional adapter and is not wired as the default ControlPlane policy engine, no durable PolicyStore/revision CAS or cross-entrypoint parity exists, and CI has not been awaited
+reviewer: Codex SC-05 isolated audit; checked trace reason/outcome binding, bounded/unique rule IDs, digest recomputation, default-deny/revision/epoch behavior, and no second execution path
+```
+
 ### SC-06 Principal/session/authn adapter evidence (2026-09-17)
 
 ```text

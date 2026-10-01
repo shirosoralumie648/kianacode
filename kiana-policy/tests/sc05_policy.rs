@@ -4,7 +4,7 @@ use kiana_domain::{
 };
 use kiana_policy::{
     BundlePolicyEngine, DecisionTrace, PolicyBundle, PolicyEffect, PolicyOutcome, PolicyRevision,
-    PolicyRule, POLICY_BUNDLE_SCHEMA, POLICY_DECISION_TRACE_SCHEMA,
+    PolicyRule, MAX_POLICY_RULES, POLICY_BUNDLE_SCHEMA, POLICY_DECISION_TRACE_SCHEMA,
 };
 use serde_json::json;
 
@@ -230,4 +230,58 @@ fn policy_rules_reject_ambiguity_and_unknown_fields() {
     });
     assert!(PolicyBundle::from_json(&unknown).is_err());
     unknown["unexpected"] = json!(false);
+}
+
+#[test]
+fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
+    let rule = PolicyRule::new(
+        "allow-read",
+        1,
+        "safe.read",
+        Some(CapabilityKind::Query),
+        None,
+        PolicyEffect::Allow,
+        None,
+    )
+    .unwrap();
+    let bundle = PolicyBundle::new(SecurityPolicyId::new(), 1, 1, vec![rule]).unwrap();
+    let context = trusted_context();
+
+    let mut allow_trace = bundle
+        .evaluate(&context, &request("safe.read"))
+        .unwrap()
+        .trace;
+    allow_trace.reason = Some(SecurityReasonCode::PolicyApprovalRequired);
+    allow_trace.trace_digest = allow_trace.digest();
+    assert_eq!(
+        DecisionTrace::from_json(&allow_trace.to_json().unwrap()).unwrap_err(),
+        "policy_decision_trace_reason_invalid"
+    );
+
+    let mut deny_trace = bundle.evaluate(&context, &request("unknown")).unwrap().trace;
+    deny_trace.reason = None;
+    deny_trace.trace_digest = deny_trace.digest();
+    assert_eq!(
+        DecisionTrace::from_json(&deny_trace.to_json().unwrap()).unwrap_err(),
+        "policy_decision_trace_reason_invalid"
+    );
+
+    let mut oversized = bundle.evaluate(&context, &request("unknown")).unwrap().trace;
+    oversized.matched_rule_ids = vec!["rule".to_owned(); MAX_POLICY_RULES + 1];
+    oversized.trace_digest = oversized.digest();
+    assert_eq!(
+        DecisionTrace::from_json(&oversized.to_json().unwrap()).unwrap_err(),
+        "policy_decision_trace_header_invalid"
+    );
+
+    let mut duplicate = bundle
+        .evaluate(&context, &request("safe.read"))
+        .unwrap()
+        .trace;
+    duplicate.matched_rule_ids = vec!["allow-read".to_owned(), "allow-read".to_owned()];
+    duplicate.trace_digest = duplicate.digest();
+    assert_eq!(
+        DecisionTrace::from_json(&duplicate.to_json().unwrap()).unwrap_err(),
+        "policy_decision_trace_rules_invalid"
+    );
 }

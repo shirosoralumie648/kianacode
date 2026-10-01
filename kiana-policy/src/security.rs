@@ -1052,9 +1052,25 @@ impl DecisionTrace {
             || self.policy_id.as_uuid().is_nil()
             || self.policy_revision == 0
             || self.authority_epoch == 0
+            || self.matched_rule_ids.len() > MAX_POLICY_RULES
             || self.matched_rule_ids.iter().any(|id| id.trim().is_empty())
         {
             return Err("policy_decision_trace_header_invalid".to_owned());
+        }
+        let mut matched_rule_ids = BTreeSet::new();
+        if self
+            .matched_rule_ids
+            .iter()
+            .any(|id| !matched_rule_ids.insert(id.as_str()))
+        {
+            return Err("policy_decision_trace_rules_invalid".to_owned());
+        }
+        match (self.outcome, self.reason) {
+            (PolicyOutcome::Allow, Some(_))
+            | (PolicyOutcome::Ask | PolicyOutcome::Deny, None) => {
+                return Err("policy_decision_trace_reason_invalid".to_owned());
+            }
+            _ => {}
         }
         validate_digest(&self.input_digest, "policy_decision_trace_input_digest")?;
         validate_digest(&self.context_digest, "policy_decision_trace_context_digest")?;
