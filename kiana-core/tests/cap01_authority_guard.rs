@@ -15,8 +15,14 @@ fn capability_catalog_binding_is_single_source_and_sealed_at_composition_root() 
     assert!(broker.contains("capability_binding_version_mismatch"));
     assert!(broker.contains("capability_catalog_sealed"));
     assert!(daemon.contains("capabilities.validate_catalog_bindings"));
-    assert!(handlers.contains("register(broker"));
-    assert!(memory.contains("register(broker"));
+    assert!(handlers.contains("fn register("));
+    assert!(handlers.contains("broker.register_static("));
+    assert!(memory.contains("fn register("));
+    assert!(memory.contains("broker.register_static("));
+    assert!(memory.contains("SEARCH_OPERATION"));
+    assert!(memory.contains("WRITE_OPERATION"));
+    assert!(memory.contains("REVIEW_OPERATION"));
+    assert!(daemon.contains("harness_memory::register("));
     assert!(mcp.contains("register("));
     assert!(runner.contains("tool_schemas"));
     assert!(runner.contains("tool_unsupported"));
