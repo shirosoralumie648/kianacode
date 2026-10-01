@@ -194,3 +194,52 @@ fn reducer_rejects_unbound_or_forged_and_never_overwrites_a_record() {
         "audit_source_cursor_required"
     );
 }
+
+#[test]
+fn reducer_rejects_malformed_decision_gate_and_retention_fields() {
+    let mut non_string_decision = event("command.rejected", json!({}));
+    non_string_decision.data["decision"] = json!(false);
+    assert_eq!(
+        reduce_audit_records(&[non_string_decision], 1).unwrap_err(),
+        "audit_decision_invalid"
+    );
+
+    let mut empty_outcome = event("command.rejected", json!({}));
+    empty_outcome.data["outcome"] = json!("   ");
+    assert_eq!(
+        reduce_audit_records(&[empty_outcome], 1).unwrap_err(),
+        "audit_decision_invalid"
+    );
+
+    let mut malformed_retention = event("command.rejected", json!({}));
+    malformed_retention.data["retention_class"] = json!(17);
+    assert_eq!(
+        reduce_audit_records(&[malformed_retention], 1).unwrap_err(),
+        "audit_retention_class_invalid"
+    );
+
+    let mut malformed_gate = event("capability.decision", json!({
+        "capability_request_id": "cap-malformed",
+        "gate": "allowed"
+    }));
+    assert_eq!(
+        reduce_audit_records(&[malformed_gate.clone()], 1).unwrap_err(),
+        "audit_capability_gate_invalid"
+    );
+
+    malformed_gate.data["gate"] = json!({"decision": 42});
+    assert_eq!(
+        reduce_audit_records(&[malformed_gate], 1).unwrap_err(),
+        "audit_capability_decision_invalid"
+    );
+
+    let drift = event("capability.decision", json!({
+        "capability_request_id": "cap-drift",
+        "decision": "allowed",
+        "outcome": "denied"
+    }));
+    assert_eq!(
+        reduce_audit_records(&[drift], 1).unwrap_err(),
+        "audit_decision_conflict"
+    );
+}

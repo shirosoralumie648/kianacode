@@ -50,10 +50,22 @@ fn spec(
     Some(AuditEventSpec::new(action_kind, decision, target_kind))
 }
 
-fn declared_decision(data: &Value) -> Option<&str> {
-    data.get("decision")
-        .and_then(Value::as_str)
-        .or_else(|| data.get("outcome").and_then(Value::as_str))
+fn declared_decisions(data: &Value) -> Result<Vec<&str>, String> {
+    let mut declared = Vec::new();
+    for field in ["decision", "outcome"] {
+        let Some(value) = data.get(field) else {
+            continue;
+        };
+        let value = value
+            .as_str()
+            .ok_or_else(|| "audit_decision_invalid".to_owned())?
+            .trim();
+        if value.is_empty() {
+            return Err("audit_decision_invalid".to_owned());
+        }
+        declared.push(value);
+    }
+    Ok(declared)
 }
 
 fn decision_matches(declared: &str, expected: AuditDecision) -> bool {
@@ -92,11 +104,35 @@ fn decision_matches(declared: &str, expected: AuditDecision) -> bool {
 }
 
 fn capability_decision(data: &Value) -> Result<AuditDecision, String> {
-    let gate = data.get("gate");
-    let nested = gate
-        .and_then(|value| value.get("decision"))
-        .and_then(Value::as_str);
-    let direct = data.get("decision").and_then(Value::as_str);
+    let nested = match data.get("gate") {
+        None => None,
+        Some(value) => {
+            let object = value
+                .as_object()
+                .ok_or_else(|| "audit_capability_gate_invalid".to_owned())?;
+            match object.get("decision") {
+                None => None,
+                Some(value) => Some(
+                    value
+                        .as_str()
+                        .ok_or_else(|| "audit_capability_decision_invalid".to_owned())?
+                        .trim(),
+                ),
+            }
+        }
+    };
+    let direct = match data.get("decision") {
+        None => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .ok_or_else(|| "audit_capability_decision_invalid".to_owned())?
+                .trim(),
+        ),
+    };
+    if nested.is_some_and(str::is_empty) || direct.is_some_and(str::is_empty) {
+        return Err("audit_capability_decision_invalid".to_owned());
+    }
     let value = nested
         .or(direct)
         .ok_or_else(|| "audit_capability_decision_required".to_owned())?;
@@ -260,10 +296,12 @@ pub fn classify_audit_event(kind: &str, data: &Value) -> Result<Option<AuditEven
     };
 
     if let Some(spec) = result {
-        if let Some(declared) = declared_decision(data) {
-            if kind != "capability.decision" && !decision_matches(declared, spec.decision) {
-                return Err("audit_decision_conflict".to_owned());
-            }
+        let declared = declared_decisions(data)?;
+        if declared
+            .iter()
+            .any(|value| !decision_matches(value, spec.decision))
+        {
+            return Err("audit_decision_conflict".to_owned());
         }
     }
     Ok(result)
@@ -428,7 +466,16 @@ fn data_class(data: &Value) -> Result<DataClass, String> {
 }
 
 fn retention_class(data: &Value) -> Result<String, String> {
-    let value = string_field(data, &["retention_class"]).unwrap_or("audit");
+    let value = match data.get("retention_class") {
+        None => "audit",
+        Some(value) => value
+            .as_str()
+            .ok_or_else(|| "audit_retention_class_invalid".to_owned())?
+            .trim(),
+    };
+    if value.is_empty() {
+        return Err("audit_retention_class_invalid".to_owned());
+    }
     if value.len() > 64 {
         return Err("audit_retention_class_too_long".to_owned());
     }

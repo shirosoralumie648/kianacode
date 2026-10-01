@@ -2355,6 +2355,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-04 domain/core static-boundary review; no runtime test reviewer
 ```
 
+### OA-04 malformed audit input boundary follow-up (2026-10-02)
+
+```text
+source_snapshot: 9e774904; kiana-domain/src/audit.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/tests/oa04_audit_reducer.rs; docs/roadmap/observability-audit-baseline.md; docs/roadmap.md
+worktree_status: isolated `step/oa04-taxonomy-20261002` worktree; the existing OA-04 reducer remains the only committed-fact path, with a minimal fail-closed hardening slice and domain/core CI-only fixtures; no unrelated WIP was reverted; commit is prepared and push is owned by the integrating root
+command_argv:
+  sha256sum kiana-domain/src/audit.rs kiana-domain/src/lib.rs kiana-core/src/audit.rs kiana-domain/tests/oa04_audit_taxonomy.rs kiana-core/tests/oa04_audit_reducer.rs
+  rg -n 'declared_decisions|audit_decision_invalid|audit_capability_gate_invalid|audit_capability_decision_invalid|audit_retention_class_invalid' kiana-domain/src kiana-domain/tests kiana-core/tests
+  git diff --check
+cwd/environment: isolated repository worktree; Linux x86_64; no local test, build, check, fmt, clippy or smoke command executed per user instruction; GitHub Actions remains the test authority
+fixture or cassette: `kiana-domain/tests/oa04_audit_taxonomy.rs` and `kiana-core/tests/oa04_audit_reducer.rs`; non-string/empty decision and outcome, malformed retention class, non-object/malformed capability gate, and direct/outcome decision drift denial, alongside the existing unknown/self-submitted/unauthorized/duplicate and successful reduction fixtures
+exit_code: 0 for sha256sum, source inspection and `git diff --check`; local tests deliberately not run; CI result is not awaited
+status_change: OA-04 remains 🔄 with `feature_status=partial` at the roadmap acceptance boundary. Known audit taxonomy events now reject malformed decision/outcome and retention fields instead of treating them as absent; capability gate/direct decision values reject malformed types, empty values and semantic drift before reduction. Valid legacy aliases and the existing server-derived reduction path remain intact.
+proof-level_change: source only; no local_behavior, durable, live or physical promotion
+limitations: GitHub Actions is the only execution proof and was not awaited; EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink and authenticated principal binding remain later OA steps; this slice does not claim runtime coverage outside the committed CI fixtures
+reviewer: OA-04 implementation review by Codex subagent; integrating root must review merge against concurrent CURRENT_STATUS/document changes; no runtime test reviewer
+```
+
 ### OA-05 observability ports and fake adapters evidence (2026-09-15)
 
 ```text

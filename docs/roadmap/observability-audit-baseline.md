@@ -28,7 +28,7 @@
 | Transition contract | `kiana-domain/src/journal.rs` | `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48` |
 | Schema/ID registry | `kiana-domain/src/contracts.rs` | `0b6c395976b521cf189af498fcda6a7baf7ce9fcd6a3cd649ae72c1143299a40`（OA-05 health schema 扩展） |
 | Domain exports | `kiana-domain/src/lib.rs` | `ac35afaebdb152eddb0898f7e9a28a886d17abdc35643d71cdfb2267e3f731a4`（OA-04 audit reducer 导出） |
-| Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `b17e84def5825be9c2fbdfa704ffe12f9502821325e0c2f66e977b1d72aed1e1` |
+| Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `87d3f19276ee001422894f5abd84d39b534eed05edd2948fcebcff9ae27ecf3c` |
 | Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
 | Health snapshot（OA-05） | `kiana-domain/src/observability.rs` | `03b6f822d5bac02c4717e2cf32796f6e8bfe53e853670b25ae88c0e98d5c7ea2` |
 | Span lifecycle contract（OA-07 overlay） | `kiana-domain/src/observability.rs` | `2079d5fcc4850d50e9e73a1f386144d81c03c1d4d8ccb7936062ce4e739e0d5f` |
@@ -204,7 +204,7 @@
 | OA-01 | 注册 observability/audit/metric/trace/health schema、版本和 unknown-field 策略 | `source`；四类 domain contract 已实现，HealthSnapshot/runtime adapter 仍未实现 |
 | OA-02 | 服务端构造 CorrelationContext、TraceRef/SpanRef 和 causation/parent link | `source`；domain/port contracts 已实现，尚无 runtime ingress/span bridge |
 | OA-03 | 统一 redaction/classification、bounded encoder 和 secret sentinel 全信号扫描 | `source`；profile/encoder 已实现，EventStore/各 runtime sink 尚未统一接线 |
-| OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；domain/core reducer 已实现，尚无 EventLog commit observer、checkpoint、query 或 durable projection |
+| OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；domain/core reducer 已实现并对 malformed decision/outcome、capability gate/direct drift fail-closed，尚无 EventLog commit observer、checkpoint、query 或 durable projection |
 | OA-05 | Observability/Trace/Metric/Audit/Health ports 与 fake adapters | `source`；ports、Memory/JSONL fake、flush/cancel/capacity/query/probe contracts 已实现，尚无 EventLog observer 或 durable sink |
 | OA-06 | commit observer 只通知 Committed，重放不重复通知，建立 projection cursor | `source`；`kiana-ports` 的 `CommittedTransition`/observer contract 与 `kiana-eventlog::StreamEventStore` 已实现；通知是可丢 wake hint，尚无 durable checkpoint |
 | OA-07 | Run/Turn/Invocation span 生命周期与 runner/event projection bridge | `source`；`SpanLifecycleRecord`、稳定 trace/span ID、只读 reducer 和 ControlPlane bridge 已实现；尚无 exporter、durable checkpoint 或 live backend |
@@ -309,7 +309,7 @@ approval、capability、credential、recovery、query 和 export 的稳定 actio
 `reduce_audit_records` 要求非零起始 EventCursor、非空 source binding、非零 authority/data epoch、
 唯一 source event ID，并为每个来源事件产生 checked cursor、source ID、服务端固定 actor、bounded
 Audit redaction 后的 action digest、可选 input/reason/correlation/causation refs 和 record digest。
-重复逻辑键、矛盾 decision、伪造 actor/record payload、capability gate 冲突、cursor overflow、
+重复逻辑键、矛盾或 malformed decision、伪造 actor/record payload、malformed 或 drifted capability gate、cursor overflow、
 无绑定目标或缺 epoch 均 fail-closed；原始 EventLog 事件不被修改。`kiana-core` 仅暴露同一纯
 reducer facade，不访问 Broker、Provider、UI 或 exporter。
 
