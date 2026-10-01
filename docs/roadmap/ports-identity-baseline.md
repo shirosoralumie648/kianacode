@@ -57,3 +57,23 @@ proof-level_change: none; source only
 limitations: the corrected fixture has not run; latest master CI run is pending/unobserved for kiana-ports; no production resolver, store, rotation or revoke adapter is implemented here
 reviewer: CI-03 implementation agent source review; no runtime test reviewer
 ```
+
+## 6. Latest unified CI receipt (2026-10-02)
+
+The current unified workflow reached the CI-03 ports fixture on run `36916662965`.
+Both CI-03 tests passed. The `kiana-ports` shard was still red because unrelated
+EQ-07, PD-30/32/34 and BQ-05 fixtures failed in the same shard; this receipt does
+not promote the CI-03 roadmap row or claim a green workspace run.
+
+```text
+source_snapshot: `12fbcd21aaa677ed07f28106b02ab1be89b2d927`; `kiana-ports/src/lib.rs`; `kiana-domain/src/identity_contracts.rs`; `kiana-ports/tests/ci03_ports.rs`; `kiana-core/tests/ci03_ports_guard.rs`; `docs/roadmap/ports-identity-baseline.md`
+worktree_status: isolated `/tmp/kiana-ci03-audit-20261002` on `step/ci03-audit-20261002`; docs-only receipt; no port, domain, test, manifest or lockfile implementation changed
+command_argv: `gh run view 36916662965 --job 110509907468 --log`; filtered the CI log for `tests/ci03_ports.rs`; `git diff --check`; `git show --check HEAD`
+cwd/environment: `/tmp/kiana-ci03-audit-20261002`; Linux; GitHub Actions is the only test executor; no local cargo test/build/check/fmt/clippy/smoke command was run
+fixture or cassette: `kiana-ports/tests/ci03_ports.rs::credential_resolution_metadata_is_strict_and_fail_closed` passed; `kiana-ports/tests/ci03_ports.rs::ports_never_return_raw_secret_to_core` passed; job `110509907468` also reported unrelated BQ-05/EQ-07/PD-30/32/34 failures
+exit_code: CI-03 fixture assertions exited 0 in the GitHub log; the containing `kiana-ports` job concluded failure for unrelated targets; no full-workflow green result was observed or awaited
+status_change: none; CI-03 remains 🔄 with the existing production-adapter and recovery limitations
+proof-level_change: none; `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: this receipt proves only the two CI-03 ports fixtures on the observed runner; it does not prove production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth behavior, rotation/revoke durability, or a green workspace CI run
+reviewer: isolated CI-03 ports audit; no local runtime test reviewer
+```
