@@ -27,6 +27,7 @@ Daemon resolver 优先使用 `KIANA_HOME`，否则 `$HOME/.kiana`，canonicalize
 |---|---|
 | `storage_root_namespaces_and_identity_are_stable_and_strict` | root ID/path namespace/identity/lock digest 稳定，unknown field 拒绝 |
 | `storage_root_rejects_relative_network_and_owner_mismatch` | relative/network backend、owner/instance identity mismatch 拒绝 |
+| `storage_identity_and_lock_reject_zero_time_and_nested_scope_drift` | zero identity/lock timestamps and lock scope drift fail closed before a record can be accepted |
 | `daemon_storage_resolver_and_lock_reject_scope_conflicts` | resolver root、identity persistence、single-writer lock conflict 与 owner mismatch |
 | `daemon_storage_resolver_rejects_project_local_root` | 项目内 `.kiana` root fail-closed |
 | `storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane` | domain/daemon/host source guard 无 ControlPlane/Broker second path |

@@ -71,3 +71,31 @@ fn storage_root_rejects_relative_network_and_owner_mismatch() {
         "store_identity_mismatch"
     );
 }
+
+#[test]
+fn storage_identity_and_lock_reject_zero_time_and_nested_scope_drift() {
+    let root = StorageRoot::new(
+        "/tmp/kiana-pd01-time",
+        StorageBackend::LocalFilesystem,
+        owner("instance-a"),
+    )
+    .unwrap();
+    assert_eq!(
+        StoreIdentity::new(&root, 1, 1, 0).unwrap_err(),
+        "store_identity_time_invalid"
+    );
+    let identity = StoreIdentity::new(&root, 1, 1, 100).unwrap();
+    assert_eq!(
+        StorageLockRecord::new(&identity, &root.owner_scope, 0).unwrap_err(),
+        "storage_lock_time_invalid"
+    );
+    assert_eq!(
+        StorageLockRecord::new(
+            &identity,
+            &StorageOwnerScope::new("daemon-owner", "instance-b", None, 7).unwrap(),
+            100,
+        )
+        .unwrap_err(),
+        "storage_lock_owner_mismatch"
+    );
+}

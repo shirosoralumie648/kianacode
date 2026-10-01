@@ -13,6 +13,9 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
         "storage_network_filesystem_unsupported",
         "storage_namespace_map_invalid",
         "storage_lock_owner_mismatch",
+        "store_identity_header_invalid",
+        "store_identity_time_invalid",
+        "storage_lock_time_invalid",
         "stable_root_id",
         "deny_unknown_fields",
     ] {

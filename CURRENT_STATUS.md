@@ -4708,6 +4708,21 @@ limitations: non-Unix acquisition explicitly fails storage_platform_unsupported;
 reviewer: Codex integration review of no-follow/nonblocking/bounded reads, identity creation, exact owned-lock cleanup, retained deny assertions and reuse of existing LocalDir
 ```
 
+### PD-01 identity and lock timestamp/scope validation (2026-10-02)
+
+```text
+source_snapshot: `a0258e84` plus isolated PD-01 validation slice; `kiana-domain/src/storage.rs`; `kiana-domain/tests/pd01_storage.rs`; `kiana-core/tests/pd01_storage_guard.rs`; `docs/roadmap/persistence-storage-root-baseline.md`
+worktree_status: isolated branch `step/pd01-audit-20261002`; StoreIdentity and StorageLockRecord now reject zero creation/acquisition times, validate nested owner scope and identity shape before lock acceptance, and preserve the existing StorageRoot/daemon lifecycle boundary; no manifest or lockfile changes
+command_argv: `git diff --check`; local Cargo test/build/check/fmt/clippy/smoke commands were intentionally not run
+cwd·environment: isolated Unix worktree `/tmp/kiana-pd01-audit-20261002`; GitHub Actions only for fixture execution
+fixture·cassette: `kiana-domain/tests/pd01_storage.rs::storage_identity_and_lock_reject_zero_time_and_nested_scope_drift`; `kiana-core/tests/pd01_storage_guard.rs` source markers; unified CI domain/core shards
+exit_code: 0 for `git diff --check`; remote CI result not awaited
+status_change: PD-01 remains 🔄; malformed zero-time identity/lock records and owner-scope drift now fail closed at the domain boundary
+proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: identity/lock private permission checks, crash-stale recovery, cross-process fencing, fsync-directory guarantees, network/TOCTOU races, and full adapter migration remain open; no local runtime test was run
+reviewer: Codex isolated PD-01 source review; no runtime test reviewer
+```
+
 
 ### PD-02 storage schema/canonical/upcast evidence (2026-09-17)
 
