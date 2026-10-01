@@ -202,33 +202,67 @@ impl LocalArtifactStore {
         Ok((manifest.version, bytes))
     }
 
-    fn stage_sync(
+    fn stage_version_sync(
         &self,
         version: ArtifactVersion,
         content: Vec<u8>,
-    ) -> Result<ArtifactRef, PortError> {
+    ) -> Result<ArtifactVersion, PortError> {
+        Self::validate_content(&version, &content)?;
         let reference = version.as_ref();
         let directory = self.create_key_directory(&reference)?;
         let [blob_name, manifest_name, stage_name, _] = Self::filenames(&reference);
-        let manifest = ArtifactManifest {
-            schema: MANIFEST_SCHEMA.to_owned(),
-            version,
+        let (manifest, manifest_bytes) = match directory.read_optional(
+            &manifest_name,
+            MAX_MANIFEST_BYTES,
+        )? {
+            Some(bytes) => {
+                let manifest: ArtifactManifest = Self::decode(&bytes, "artifact_manifest_invalid")?;
+                if manifest.schema != MANIFEST_SCHEMA {
+                    return Err(failed("artifact_manifest_schema_invalid"));
+                }
+                manifest
+                    .version
+                    .validate()
+                    .map_err(|error| failed(format!("artifact_manifest_version_invalid:{error}")))?;
+                if manifest.version.as_ref() != reference {
+                    return Err(PortError::Conflict(
+                        "artifact_version_conflict".to_owned(),
+                    ));
+                }
+                (manifest, bytes)
+            }
+            None => {
+                let manifest = ArtifactManifest {
+                    schema: MANIFEST_SCHEMA.to_owned(),
+                    version,
+                };
+                let bytes = Self::encode(&manifest, "artifact_manifest_encode_failed")?;
+                (manifest, bytes)
+            }
         };
-        let manifest_bytes = Self::encode(&manifest, "artifact_manifest_encode_failed")?;
         if manifest_bytes.len() > MAX_MANIFEST_BYTES {
             return Err(failed("artifact_manifest_size_exceeded"));
         }
         let manifest_digest = sha256(&manifest_bytes);
-        directory.publish_immutable(
-            &blob_name,
-            &content,
-            "artifact_version_conflict",
-        )?;
-        directory.publish_immutable(
-            &manifest_name,
-            &manifest_bytes,
-            "artifact_version_conflict",
-        )?;
+        if let Some(existing) = directory.read_optional(&blob_name, MAX_ARTIFACT_BYTES)? {
+            if existing != content {
+                return Err(PortError::Conflict(
+                    "artifact_content_hash_mismatch".to_owned(),
+                ));
+            }
+        } else {
+            directory.publish_immutable(&blob_name, &content, "artifact_version_conflict")?;
+        }
+        if directory
+            .read_optional(&manifest_name, MAX_MANIFEST_BYTES)?
+            .is_none()
+        {
+            directory.publish_immutable(
+                &manifest_name,
+                &manifest_bytes,
+                "artifact_version_conflict",
+            )?;
+        }
         let marker = Self::encode(
             &ArtifactMarker {
                 schema: STAGE_SCHEMA.to_owned(),
@@ -241,7 +275,27 @@ impl LocalArtifactStore {
             &marker,
             "artifact_version_conflict",
         )?;
-        Ok(reference)
+        Ok(manifest.version)
+    }
+
+    fn stage_sync(
+        &self,
+        version: ArtifactVersion,
+        content: Vec<u8>,
+    ) -> Result<ArtifactRef, PortError> {
+        let reference = version.as_ref();
+        let directory = self.create_key_directory(&reference)?;
+        let filenames = Self::filenames(&reference);
+        let manifest_name = &filenames[1];
+        if directory
+            .read_optional(&manifest_name, MAX_MANIFEST_BYTES)?
+            .is_some()
+        {
+            return Err(PortError::Conflict(
+                "artifact_version_already_staged".to_owned(),
+            ));
+        }
+        Self::stage_version_sync(self, version, content).map(|version| version.as_ref())
     }
 
     fn commit_sync(
@@ -310,6 +364,24 @@ impl ArtifactStorePort for LocalArtifactStore {
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
             Self { root: Arc::new(root) }.stage_sync(version, content)
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_stage_join_failed:{error}"
+            ))
+        })?
+    }
+
+    async fn stage_artifact_version(
+        &self,
+        version: ArtifactVersion,
+        content: Vec<u8>,
+    ) -> Result<ArtifactVersion, PortError> {
+        Self::validate_content(&version, &content)?;
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self { root: Arc::new(root) }.stage_version_sync(version, content)
         })
         .await
         .map_err(|error| {

@@ -829,6 +829,25 @@ pub trait ArtifactStorePort: Send + Sync {
         ))
     }
 
+    /// Stage an artifact for a retryable ControlPlane transaction and return the version held by
+    /// the store. Implementations should return the first staged version when the immutable
+    /// reference, provenance and bytes match, even if a retry proposes a later creation time.
+    /// Other manifest drift must fail closed. The legacy `stage_artifact` contract keeps its
+    /// adapter-specific duplicate behavior.
+    async fn stage_artifact_version(
+        &self,
+        version: ArtifactVersion,
+        content: Vec<u8>,
+    ) -> Result<ArtifactVersion, PortError> {
+        let reference = self.stage_artifact(version.clone(), content).await?;
+        if reference != version.as_ref() {
+            return Err(PortError::Conflict(
+                "artifact_reference_manifest_mismatch".to_owned(),
+            ));
+        }
+        Ok(version)
+    }
+
     async fn commit_artifact(
         &self,
         _reference: ArtifactRef,

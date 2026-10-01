@@ -831,6 +831,21 @@ limitations: deterministic decoder only, no OS terminal emulator/IME proof, no f
 reviewer: Codex source review of partial paste-prefix retention, UTF-8/escape behavior and immutable Paste boundary; no local runtime test reviewer
 ```
 
+### CO-06 Company ControlPlane artifact wiring source slice (2026-10-02)
+
+```text
+source_snapshot: a2658d95 plus this commit; kiana-core/src/company.rs, kiana-core/src/commands.rs, kiana-core/src/lib.rs, kiana-ports/src/lib.rs, kiana-eventlog/src/artifact_store.rs, kiana-daemon/src/local_artifacts.rs
+worktree_status: clean after commit; no manifest or lockfile changes
+command_argv: git diff --check; no local test/build/check/fmt/clippy/smoke per user instruction; GitHub Actions is the test authority
+cwd·environment: /home/shirosora/kiana-wt/co06-company-wiring-20261002; Linux x86_64; Rust source inspection only
+fixture·cassette: kiana-core/tests/co06_company_artifact_wiring_guard.rs; kiana-eventlog/tests/co06_artifact_retry.rs; existing kiana-daemon/tests/co06_local_artifact_store.rs
+exit_code: git diff --check=0; CI fixtures queued for remote execution and not awaited
+status_change: CO-06 remains 🔄; feature_status=partial; explicit ControlPlane artifact-store wiring added after policy/state transition and before Company EventLog commit
+proof-level change: source only; no promotion to local_behavior, durable, live or physical
+limitations: ArtifactStore and EventStore still have no cross-store transaction; EventLog failure can leave an unreferenced committed blob; default constructors remain text-only unless a composition root injects a store; no orphan cleanup, crash recovery, retention/deletion or power-loss guarantee
+reviewer: CO-06 wiring agent; deny-first ordering, replay timestamp preservation, and hash/provenance drift reviewed from source; no local runtime reviewer
+```
+
 ### UI-13 Authorization header redaction evidence (2026-09-26)
 
 ```text

@@ -88,8 +88,29 @@ reads, malformed or drifted metadata, duplicate-version conflicts, missing/corru
 symlink/directory/FIFO/hardlink denial, concurrent conflicts, reopen reads and isolation from
 later workspace edits. These fixtures have not been observed on GitHub CI for this commit.
 
-CO-06 remains 🔄 with `feature_status=partial` and `proof_level=source`. The adapter is not yet
-injected into the Company product path or coupled to the canonical EventLog/Company fact commit;
-original-versus-current presentation, cross-process recovery, write-boundary fault reconciliation,
-retention/deletion and power-loss guarantees remain open. The local fsync/link sequence is a
-source-level protocol only and does not establish `durable`, `live` or `physical` proof.
+CO-06 remains 🔄 with `feature_status=partial` and `proof_level=source`. The adapter is now
+available through the explicit `ControlPlane::with_artifact_store` composition hook. Company
+artifact commands publish stage→commit only after policy and state-transition validation and before
+the canonical EventLog fact append; immutable reads use `ArtifactContentPort` when a typed
+historical reference is present. The default constructors retain the legacy text-only path until
+the composition root supplies a store. There is still no cross-store transaction: an EventLog
+failure can leave an unreferenced committed blob, so recovery/reconciliation remains open, as do
+original-versus-current presentation, cross-process recovery, retention/deletion and power-loss
+guarantees. The local fsync/link sequence is a source-level protocol only and does not establish
+`durable`, `live` or `physical` proof.
+
+## 8. 2026-10-02 Company ControlPlane wiring source slice
+
+`ControlPlane::with_artifact_store` is an explicit optional dependency; no constructor silently
+derives a project-local or hard-coded blob path. After the existing policy decision and
+`CompanyState::transition` succeed, `persist_company_artifact` calls the port's retry-aware
+`stage_artifact_version`, commits the returned persisted manifest, and only then serializes the
+Company event. A denied transition therefore cannot publish through this path. Retries with the
+same artifact reference, provenance and bytes return the first manifest (including its original
+creation timestamp); changed hash or provenance is rejected. When a typed historical reference is
+used by an immutable Company business command, the proof path re-reads bytes from the injected
+port and rechecks the reference hash before comparing the recorded snapshot.
+
+The CI-only guards cover deny ordering, explicit injection, historical port reads, first-timestamp
+retry, and hash/provenance drift. They are source/contract evidence only; they do not prove a
+cross-store atomic commit, crash recovery, orphan cleanup, or a live/durable deployment.

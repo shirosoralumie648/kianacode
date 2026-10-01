@@ -197,6 +197,26 @@ impl ArtifactStorePort for MemoryArtifactStore {
         Ok(reference)
     }
 
+    async fn stage_artifact_version(
+        &self,
+        version: ArtifactVersion,
+        content: Vec<u8>,
+    ) -> Result<ArtifactVersion, PortError> {
+        Self::validate_content(&version, &content)?;
+        let key = (version.artifact_id, version.version);
+        let mut state = self.state.lock().await;
+        if let Some((existing, existing_content)) = state.staged.get(&key) {
+            if existing.as_ref() == version.as_ref() && existing_content == &content {
+                return Ok(existing.clone());
+            }
+            return Err(PortError::Conflict(
+                "artifact_version_already_staged".to_owned(),
+            ));
+        }
+        state.staged.insert(key, (version.clone(), content));
+        Ok(version)
+    }
+
     async fn commit_artifact(
         &self,
         reference: ArtifactRef,
