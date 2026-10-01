@@ -3290,6 +3290,25 @@ limitations: this repairs two test expectations/guards only; the full baseline C
 reviewer: Codex integration review of branch `fix/cap01-ci-36677090825`; confirmed only the two intended fixtures changed, exact catalog alias mapping, memory handler registration source and no production implementation or authority changes
 ```
 
+### CAP-01 Broker routing fixture correction (2026-10-02)
+
+```text
+source_snapshot: `f1b6eb0f` integration base plus fix `1b40c377`; `kiana-domain/src/actions.rs`; `kiana-capability-broker/src/lib.rs`; `kiana-capability-broker/tests/routing.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; `docs/roadmap/capability-authority-baseline.md`; `docs/roadmap/capability.md`; `docs/roadmap.md`
+worktree_status: CAP-01 routing fixture correction is merged into local master; Broker production catalog, `insert_handler`, exact-key lookup and fail-closed errors are unchanged. Static and async duplicate fixtures now register catalog operations (`memory.search`/`memory.write`) with descriptor capability and binding version. Exact-routing fixture seals the complete catalog with test-only no-op handlers and a permit verifier, then routes `memory.search`; near aliases and wrong-kind `shell.exec` remain explicit denials.
+command_argv:
+  git fetch origin master
+  gh run view 36895251170 --job 110481002417 --log-failed
+  gh run view 36895251170 --json jobs
+  git diff --check
+cwd/environment: `git fetch` and read-only `gh` queries in the shared repository checkout; source edits and `git diff --check` in isolated `/tmp/kiana-cap01-routing` worktree on Linux x86_64; no cargo test/build/check/fmt/clippy/smoke command run
+fixture·cassette: `registered_handler_is_selected_by_exact_capability_and_operation`; `near_aliases_are_rejected_without_invoking_a_handler`; `asynchronous_registration_rejects_duplicate_keys`; `static_registration_rejects_duplicate_handler_keys`; unified `ci.yml` Broker shard
+exit_code: 0 for fetch, read-only GitHub queries and `git diff --check`; historical job `110481002417` ran Broker tests and failed because fixtures used unregistered `search`/`read` operations, returning `capability_operation_unknown` before duplicate/routing assertions; corrected CI result is not awaited
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; fixture inputs now bind to the real closed catalog without expanding it or weakening unknown/near-alias rejection
+proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no corrected GitHub execution has been observed; complete catalog helper is test-only and does not prove production DaemonHost assembly; permit verifier is test-only; catalog/binding remains process-local, and Grant/Approval/ExecutionScope/TOCTOU/external/live/physical effects remain outside this slice
+reviewer: Codex source review against `ACTION_OPERATIONS`, `capability_action_descriptor`, `insert_handler`, Broker seal and CI shard mapping; no runtime test reviewer
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text

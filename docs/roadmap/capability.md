@@ -5,7 +5,7 @@
 ## 20. Capability 专项：调研结论与实现设计（2026-09-12 追加）
 
 > 对应 [module-map.md](../module-map.md) 的「5. Capability：工具执行与沙箱」。
-> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；`CAP-01` 已有实现与 CI 断言修正，当前等待新远端回执；`CAP-02` 已补 provider 字符串参数的有界解析与拒绝夹具。专项 workflow 已并入统一 `ci.yml`，当前等待新远端回执。**
+> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；`CAP-01` 已有 catalog/binding 实现，routing fixtures 已改用真实 descriptor 并保留 unknown/near-alias 拒绝，当前等待统一 CI 回执；`CAP-02` 已补 provider 字符串参数的 bounded parser 与重复键拒绝夹具，也等待统一 CI 回执。**
 > 阅读顺序：§20.1–20.4 看依据，§20.5–20.9 看执行设计，§21 按 step 实施，§22 看验收门。
 > 本追加不重排 §2 正在执行的预算、恢复和记忆任务；另一位实现 agent 先收口当前切片，再按依赖消费这里的细化任务。
 
@@ -369,7 +369,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 - **落点：** `kiana-domain/src/tool_catalog.rs`、runner/tools、policy、broker registry、daemon register。
 - **步骤：** 扩展已有 catalog 为版本化 `ToolSpec`；由 catalog 生成模型 schema、规范别名、risk/effects 元数据和 expected bindings；handler 实现只在组合根绑定一次。将内置 `memory.review`/治理等非模型能力与模型可见集合明确区分。
 - **先拒绝：** `duplicate_alias_or_operation_is_rejected`、`descriptor_binding_version_mismatch_never_dispatches`；同名不同 kind、未绑定 operation、伪造 readonly metadata 都不得回退到 shell。
-- **成功/回归：** `tool_authority_covers_every_model_visible_tool` 覆盖 schema→mapping→policy→broker；旧五工具和合法别名仍跑通，非模型 operator 能力不会自动出现在模型 schema；远程 registry fixtures 验证 binding/version/unknown fallback。
+- **成功/回归：** `tool_authority_covers_every_model_visible_tool` 覆盖 schema→mapping→policy→broker；`registered_handler_is_selected_by_exact_capability_and_operation` 使用 catalog descriptor 和已 seal catalog 验证 exact route；旧五工具和合法别名仍跑通，near-alias 和错误 kind 拒绝且不调用 handler。
 - **完成产物：** registry/binding 一致性检查在 DaemonHost 装配时执行，错误在调用模型前可见；不是再新增一份无人消费的表。
 
 <a id="step-cap-02"></a>
