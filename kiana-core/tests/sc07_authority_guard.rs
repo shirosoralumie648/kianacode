@@ -17,6 +17,14 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
             "authority marker missing: {marker}"
         );
     }
+    assert!(
+        authority.contains("context.project_trusted && !self.project_trust.trusted"),
+        "wire trust may not upgrade a server-owned untrusted snapshot"
+    );
+    assert!(
+        authority.contains("self.project_trust\n            .trusted"),
+        "effect gate must read the server-owned trust snapshot"
+    );
     for marker in [
         "resolve_assignment_for_project",
         "context_from_assignment",

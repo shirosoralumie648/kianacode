@@ -25,6 +25,12 @@ SecurityContextId/authority epoch。它要求 assignment principal/project/role/
 trust/department snapshot 完全一致，提供 `validate_request` 和 `require_trusted_for_effect`；它
 只做值校验，不执行或发放 capability。
 
+`RequestContext.project_trusted` remains a caller assertion: a false value cannot upgrade or replace
+the server snapshot, and a true value against an untrusted server snapshot is rejected. Effect
+admission reads only `SecurityAuthoritySnapshot.project_trust.trusted` through
+`require_trusted_for_effect`, so the deny fixture must construct an untrusted server snapshot rather
+than mutating only the request hint.
+
 `DaemonHost::context_from_assignment` 先以 server principal、project trust、assignment 和
 department snapshot 生成 authority snapshot，再调用既有 company assignment guard。`project_trust_snapshot`
 提供同一 daemon-owned ProjectTrustAuthority 的 typed projection；wire actor/role/trust 仍不是
@@ -38,7 +44,7 @@ authority source。
 | `department_snapshot_is_canonical_and_role_bound` | department role list canonical、unknown/foreign role 拒绝 |
 | `assignment_directory_resolution_binds_principal_project_role_and_epoch` | server AssignmentDirectory 解析绑定 principal/project/role/epoch |
 | `authority_snapshot_round_trips_and_validates_scope` | authority join strict serde/digest/request scope validation |
-| `authority_snapshot_rejects_foreign_role_project_and_untrusted_effect` | role/project tamper 与 untrusted effect fail-closed |
+| `authority_snapshot_rejects_foreign_role_project_and_untrusted_effect` | role/project tamper、server-owned untrusted effect 与 wire trust escalation fail-closed |
 | `authority_snapshot_and_daemon_assignment_paths_are_server_owned` | source guard 固定 daemon-owned assignment/trust、无 Broker/执行依赖 |
 
 ## 3. Proof ceiling and handoff

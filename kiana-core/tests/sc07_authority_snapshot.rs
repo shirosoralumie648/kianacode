@@ -6,7 +6,7 @@ use kiana_domain::{
 };
 use serde_json::json;
 
-fn fixture() -> (SecurityAuthoritySnapshot, RequestContext) {
+fn fixture(trusted: bool) -> (SecurityAuthoritySnapshot, RequestContext) {
     let principal = AuthenticatedPrincipalRef::local();
     let project = ProjectIdentity::new(
         "/repo",
@@ -57,7 +57,7 @@ fn fixture() -> (SecurityAuthoritySnapshot, RequestContext) {
             100,
         )
         .unwrap();
-    let trust = ProjectTrustSnapshot::from_project(&project, true, "fixture", 1).unwrap();
+    let trust = ProjectTrustSnapshot::from_project(&project, trusted, "fixture", 1).unwrap();
     let department = DepartmentSnapshot::from_spec(&DepartmentSpec::executing(), 1, 2).unwrap();
     let snapshot = SecurityAuthoritySnapshot::from_parts(
         SecurityContextId::new(),
@@ -69,13 +69,13 @@ fn fixture() -> (SecurityAuthoritySnapshot, RequestContext) {
     )
     .unwrap();
     let mut context = RequestContext::local("sc07", "/repo");
-    context.project_trusted = true;
+    context.project_trusted = trusted;
     (snapshot, context)
 }
 
 #[test]
 fn authority_snapshot_round_trips_and_validates_scope() {
-    let (snapshot, context) = fixture();
+    let (snapshot, context) = fixture(true);
     assert_eq!(snapshot.schema, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA);
     assert!(snapshot.validate().is_ok());
     assert!(snapshot.validate_request(&context).is_ok());
@@ -88,17 +88,23 @@ fn authority_snapshot_round_trips_and_validates_scope() {
 
 #[test]
 fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
-    let (snapshot, mut context) = fixture();
+    let (snapshot, mut context) = fixture(true);
     context.role_id = "reviewer".to_owned();
     assert_eq!(
         snapshot.validate_request(&context).unwrap_err(),
         "AUTH_ROLE_MISMATCH"
     );
-    context.role_id = "builder".to_owned();
-    context.project_trusted = false;
-    assert!(snapshot.validate_request(&context).is_ok());
+    let (untrusted_snapshot, mut untrusted_context) = fixture(false);
+    assert!(untrusted_snapshot.validate_request(&untrusted_context).is_ok());
+    untrusted_context.project_trusted = true;
     assert_eq!(
-        snapshot.require_trusted_for_effect().unwrap_err(),
+        untrusted_snapshot
+            .validate_request(&untrusted_context)
+            .unwrap_err(),
+        "AUTH_CALLER_UNTRUSTED"
+    );
+    assert_eq!(
+        untrusted_snapshot.require_trusted_for_effect().unwrap_err(),
         "AUTH_PROJECT_UNTRUSTED"
     );
 
