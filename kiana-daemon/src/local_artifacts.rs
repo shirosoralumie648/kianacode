@@ -312,7 +312,11 @@ impl ArtifactStorePort for LocalArtifactStore {
             Self { root: Arc::new(root) }.stage_sync(version, content)
         })
         .await
-        .map_err(|error| failed(format!("artifact_stage_join_failed:{error}")))?
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_stage_join_failed:{error}"
+            ))
+        })?
     }
 
     async fn commit_artifact(
@@ -325,7 +329,11 @@ impl ArtifactStorePort for LocalArtifactStore {
             Self { root: Arc::new(root) }.commit_sync(reference, expected_revision)
         })
         .await
-        .map_err(|error| failed(format!("artifact_commit_join_failed:{error}")))?
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_commit_join_failed:{error}"
+            ))
+        })?
     }
 
     async fn read_artifact(&self, reference: &ArtifactRef) -> Result<Vec<u8>, PortError> {

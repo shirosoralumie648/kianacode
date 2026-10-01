@@ -3866,6 +3866,21 @@ limitations: Company retains text snapshot/optional typed metadata in its facts;
 reviewer: Codex source/CI receipt reconciliation; preserves the original card's full acceptance conditions
 ```
 
+### CO-06 descriptor-pinned local immutable store (2026-10-02)
+
+```text
+source_snapshot: `cc9cc718` plus join-failure classification; `kiana-daemon/src/local_artifacts.rs`, `kiana-daemon/src/local_packages.rs`, `kiana-daemon/tests/co06_local_artifact_store.rs`, `kiana-daemon/src/lib.rs`
+worktree_status: merged local `LocalArtifactStore` adapter for immutable stage/commit/read/verify; it pins an explicitly supplied absolute root through `LocalDir`, stores blob/manifest/stage/commit records, and revalidates full metadata and content on commit/read; join failures on stage/commit are classified as `result_unknown`; Company composition-root/EventLog integration remains open
+command_argv: source review via `git show`, `rg`, and `sed`; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux x86_64; no local Cargo execution per user instruction; tests are delegated to GitHub Actions
+fixture·cassette: GitHub-only `kiana-daemon/tests/co06_local_artifact_store.rs` covers uncommitted reads, malformed/drifted refs and manifests, duplicate version conflict, missing/corrupt records, symlink/directory/FIFO/hardlink denial, concurrent conflict, reopen, workspace edit isolation and root replacement; current CI receipt unobserved
+exit_code: `git diff --check` 0; no test/build/check/fmt/clippy/smoke command run locally; GitHub CI result not awaited
+status_change: CO-06 remains 🔄; an independent descriptor-pinned local adapter now implements the existing ArtifactStorePort and ArtifactContentPort, while Company stage/commit and EventLog fact integration and original-vs-current presentation remain incomplete
+proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no Company composition-root injection or atomic coupling to EventLog/Company facts; no cross-process recovery, retention/deletion, fault-injection reconciliation, current-file freshness UI, or physical erasure; fsync acknowledgements and CI fixtures do not establish power-loss durability; GitHub CI unobserved because this workflow explicitly continues without waiting
+reviewer: Codex source review of descriptor-relative path handling, immutable publication, manifest/hash/scope/provenance validation, result_unknown boundary, and remaining Company integration gaps; no runtime test reviewer
+```
+
 
 ### CO-07 versioned Company receipt evidence (2026-09-16)
 

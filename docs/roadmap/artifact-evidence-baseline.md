@@ -63,9 +63,33 @@ GitHub [run 36677090825](https://github.com/shirosoralumie648/kianacode/actions/
 总 run 仍有其它失败。现在由统一 `ci.yml` 及 `scripts/ci/test-shards.json` 覆盖，
 旧 `co06-artifact-evidence.yml` 是历史快照引用。
 
-完整 CO-06 仍为 🔄：`ControlPlane::company_proof` 把工件文本快照和可选 typed metadata
-写入 Company 事实；`ArtifactStorePort` 的现有 adapter 为内存实现，组合根尚未接入
-独立持久 blob 的 stage/commit/read。`artifact_version_remains_reviewable_after_workspace_file_changes`
+完整 CO-06 仍为 🔄：在上述 `0121cb5b` 快照中，`ControlPlane::company_proof` 把工件文本快照和可选 typed metadata
+写入 Company 事实；当时 `ArtifactStorePort` 只有内存 adapter，组合根尚未接入
+独立持久 blob 的 stage/commit/read。§7 记录新增的本地 adapter；它仍未接入 Company 事实路径。
+`artifact_version_remains_reviewable_after_workspace_file_changes`
 和 `company_evidence_rejects_foreign_run_changed_content_and_missing_blob` 仍需完整产品链
 fixture；原件/当前文件差异展示和 blob/事件写入间故障也必须保留为退出条件。
 通过四个合同用例不会删除这些要求，也不会提升 durable/live 证明。
+
+## 7. 2026-10-02 descriptor-pinned local store source slice
+
+`kiana-daemon::LocalArtifactStore` now implements `ArtifactStorePort` and
+`ArtifactContentPort` behind an explicitly supplied absolute root. It persists immutable blob,
+manifest, stage marker and commit marker files under scope-digest/artifact-ID directories using
+the descriptor-relative `LocalDir` helpers. Reads and commits validate the complete typed
+reference, manifest digest, schema, provenance, content hash and size; missing commit/stage data,
+drift, malformed files and non-regular files fail closed. The adapter does not infer project
+paths, perform authorization, or claim physical erasure. Stage/commit join failures report
+`result_unknown` because the worker may have completed a filesystem effect before its join result
+was observed.
+
+The GitHub-only fixture `kiana-daemon/tests/co06_local_artifact_store.rs` covers uncommitted
+reads, malformed or drifted metadata, duplicate-version conflicts, missing/corrupt files,
+symlink/directory/FIFO/hardlink denial, concurrent conflicts, reopen reads and isolation from
+later workspace edits. These fixtures have not been observed on GitHub CI for this commit.
+
+CO-06 remains 🔄 with `feature_status=partial` and `proof_level=source`. The adapter is not yet
+injected into the Company product path or coupled to the canonical EventLog/Company fact commit;
+original-versus-current presentation, cross-process recovery, write-boundary fault reconciliation,
+retention/deletion and power-loss guarantees remain open. The local fsync/link sequence is a
+source-level protocol only and does not establish `durable`, `live` or `physical` proof.
