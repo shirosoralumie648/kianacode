@@ -4113,6 +4113,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-01 strict contract/scope/secret/upcast and no-second-bus source-boundary review; no runtime test reviewer
 ```
 
+### NM-01 contract receipts and notification baseline guard correction (2026-10-02)
+
+```text
+source_snapshot: `7115e27e` plus `5eb88e6d`; `kiana-core/tests/notifications_baseline.rs`; CI `36677090825` at `c221c211`
+worktree_status: isolated branch `step/nm01-notifications-20261001` integrated into master; all seven existing required baseline markers are preserved; matching now joins prose across Markdown blockquote continuation lines
+command_argv: `gh run view 36677090825 --log-failed`; `git diff --check`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: `notifications_baseline`; `nm01_contracts`; `nm01_contracts_guard`
+exit_code: prior NM-01 domain 4/4 and core guard 1/1 passed; baseline guard failed on `durable\n> NotificationStore`; local diff check 0; new CI pending/unobserved
+status_change: NM-01 remains 🔄; recorded focused contract receipts and corrected a baseline formatting false failure
+proof-level change: `feature_status=partial`, `proof_level=source`; no notification delivery/durable/live promotion
+limitations: focused contract tests do not prove NotificationStore/outbox/recipient/materialization/delivery or the full card exit; separate INT-27/NM-03 source classification failure remains open; full CI has unrelated failures and new CI not awaited
+reviewer: Codex integration review of unchanged contract sources, all retained markers and exact prior failure
+```
+
+
 ### NM-02 communication lifecycle evidence (2026-09-17)
 
 ```text
