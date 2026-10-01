@@ -51,11 +51,13 @@ fn duplicate_alias_or_operation_is_rejected() {
             .unwrap_err(),
         PortError::Conflict("capability_handler_already_registered".to_owned())
     );
+    let shell_alias = kiana_domain::capability_action_descriptor("shell").unwrap();
+    assert_eq!(shell_alias.operation, "shell.exec");
     assert_eq!(
         broker
             .register_static(CapabilityKind::Process, "shell", Arc::new(NoopHandler))
             .unwrap_err(),
-        PortError::Failed("capability_operation_unknown".to_owned())
+        PortError::Failed("capability_binding_catalog_mismatch".to_owned())
     );
 }
 
