@@ -3835,6 +3835,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-06 artifact/hash/scope/provenance/path-boundary source review; no runtime test reviewer
 ```
 
+### CO-06 focused CI receipts and product-path gap reconciliation (2026-10-02)
+
+```text
+source_snapshot: `0121cb5b`; exact fixture receipts from run `36677090825` at `c221c211`; `kiana-core/src/company.rs`, `kiana-core/src/artifacts.rs`, `kiana-eventlog/src/artifact_store.rs`
+worktree_status: branch `step/co06-receipts-20261002`; recorded existing successful contract receipts and reconciled the detailed card with the global 🔄 queue; no production implementation changed
+command_argv: `gh run view 36677090825 --log`; source reads/git diff from c221c211; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root and isolated `/tmp/kiana-step-co06`; Linux; test execution only on GitHub Actions
+fixture·cassette: domain `co06_artifact` 2/2 (job 109764373568), core `co06_artifact_guard` 1/1 (job 109764373645), ports `co06_artifact_port` 1/1 (job 109764373726)
+exit_code: focused fixtures passed at c221c211; entire historical CI failed elsewhere; local diff check 0; no new runtime test run
+status_change: CO-06 remains 🔄; typed contracts are covered, but an independent persisted blob adapter and Company stage/commit/read integration plus original-vs-current and fault fixtures are still missing
+proof-level change: `feature_status=partial`, `proof_level=source`; focused unit/source fixtures do not imply full product behavior or durability
+limitations: Company retains text snapshot/optional typed metadata in its facts; ArtifactStorePort currently has only memory semantics; immutable-original replay, write-boundary faults, complete business evidence and durable/live proof remain open
+reviewer: Codex source/CI receipt reconciliation; preserves the original card's full acceptance conditions
+```
+
+
 ### CO-07 versioned Company receipt evidence (2026-09-16)
 
 ```text

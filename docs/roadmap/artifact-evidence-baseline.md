@@ -53,3 +53,19 @@
 - 现有 CompanyState/BusinessState 仍以 String artifact/event refs 和 text criteria 为兼容事实；typed refs 尚未覆盖全部业务命令、Review/Delivery/Acceptance projector 或历史 upcast。
 - 文件当前内容与历史 artifact bytes 的双向 freshness/availability 查询要在 CO-07+ receipt/evidence 链继续接入；伪造退出码和外部结果仍需独立 adapter 证据。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 6. 2026-10-02 focused CI receipts and remaining exit conditions
+
+GitHub [run 36677090825](https://github.com/shirosoralumie648/kianacode/actions/runs/36677090825)
+在 `c221c211` 上通过 `co06_artifact` 两项、`co06_artifact_port` 一项和
+`co06_artifact_guard` 一项。三组 fixture 到本轮 `0121cb5b` 未改；生产 artifact
+合同未被本轮不相关的 credential/secret-schema/metric 修复改写。这四项只证明各自合同，
+总 run 仍有其它失败。现在由统一 `ci.yml` 及 `scripts/ci/test-shards.json` 覆盖，
+旧 `co06-artifact-evidence.yml` 是历史快照引用。
+
+完整 CO-06 仍为 🔄：`ControlPlane::company_proof` 把工件文本快照和可选 typed metadata
+写入 Company 事实；`ArtifactStorePort` 的现有 adapter 为内存实现，组合根尚未接入
+独立持久 blob 的 stage/commit/read。`artifact_version_remains_reviewable_after_workspace_file_changes`
+和 `company_evidence_rejects_foreign_run_changed_content_and_missing_blob` 仍需完整产品链
+fixture；原件/当前文件差异展示和 blob/事件写入间故障也必须保留为退出条件。
+通过四个合同用例不会删除这些要求，也不会提升 durable/live 证明。

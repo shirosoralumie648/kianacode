@@ -142,7 +142,7 @@
 
 
 
-#### CO-06 · 不可变工件、Evidence 与 Criterion 引用合同　✅
+#### CO-06 · 不可变工件、Evidence 与 Criterion 引用合同　🔄
 
 - **归属**：`P2-K4-01`、`P3-I-01`、`P3-I-04`。
 - **依赖**：CO-02、CO-05。
