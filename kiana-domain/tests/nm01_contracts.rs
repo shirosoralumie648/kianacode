@@ -95,6 +95,25 @@ fn notification_contracts_round_trip_and_scope_stays_bounded() {
             .unwrap_err(),
         "notification_scope_exceeds_subscription"
     );
+
+    let stale_revision = Notification::new(
+        message.message_id,
+        "builder",
+        None,
+        vec!["project/a/file".to_owned()],
+        NotificationChannel::InApp,
+        100,
+        200,
+        subscription.revision + 1,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        stale_revision
+            .validate_for_subscription(&subscription)
+            .unwrap_err(),
+        "notification_subscription_revision_mismatch"
+    );
 }
 
 #[test]

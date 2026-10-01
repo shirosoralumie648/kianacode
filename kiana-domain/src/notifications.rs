@@ -520,6 +520,9 @@ impl Notification {
     pub fn validate_for_subscription(&self, subscription: &Subscription) -> Result<(), String> {
         self.validate()?;
         subscription.validate()?;
+        if self.subscription_revision != subscription.revision {
+            return Err("notification_subscription_revision_mismatch".to_owned());
+        }
         if subscription.status != SubscriptionStatus::Active
             || self.recipient_id != subscription.recipient_id
             || self.project_id != subscription.project_id

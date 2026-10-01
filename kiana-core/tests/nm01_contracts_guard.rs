@@ -15,6 +15,7 @@ fn notification_contracts_are_domain_owned_and_do_not_create_a_delivery_loop() {
         "upcast_message",
         "canonical_notification_bytes",
         "notification_scope_exceeds_subscription",
+        "notification_subscription_revision_mismatch",
         "{field}_secret_detected",
     ] {
         assert!(
