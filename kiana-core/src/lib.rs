@@ -498,8 +498,8 @@ use kiana_gates::GateEngine;
 use kiana_policy::{capability_risk_violation, PolicyEngine};
 use kiana_ports::{
     AllowAllPreToolHooks, ApprovalStorePort, CapabilityBrokerPort, CapabilityLease,
-    CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision, PreToolHookPort, RunnerPort,
-    SpawnReservationRequest,
+    ArtifactStorePort, CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision,
+    PreToolHookPort, RunnerPort, SpawnReservationRequest,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
@@ -611,6 +611,9 @@ pub struct ControlPlane {
     policy: Arc<dyn PolicyEngine>,
     gates: Arc<dyn GateEngine>,
     events: Arc<dyn EventStorePort>,
+    /// Optional immutable artifact persistence. The default remains fail-closed for typed
+    /// artifact publication; composition roots opt in with `with_artifact_store`.
+    artifact_store: Option<Arc<dyn ArtifactStorePort>>,
     capabilities: Arc<dyn CapabilityBrokerPort>,
     approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,

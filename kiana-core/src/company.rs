@@ -364,6 +364,12 @@ impl ControlPlane {
             Ok(next) => next,
             Err(reason) => return self.reject_company(&context, reason).await,
         };
+        if let Err(error) = self.persist_company_artifact(&mut proof).await {
+            return match error {
+                PortError::Conflict(reason) => self.reject_company(&context, &reason).await,
+                other => Err(other.into()),
+            };
+        }
         let event = CompanyEvent {
             schema: COMPANY_EVENT_SCHEMA.to_owned(),
             project_root: company_root(&context),
@@ -981,7 +987,21 @@ impl ControlPlane {
                             == kiana_domain::journal_sha256(artifact.text.as_bytes())
                     });
                 let current = if immutable {
-                    artifact.text.clone()
+                    if let (Some(store), Some(version)) =
+                        (self.artifact_store.as_ref(), artifact.typed_version.as_ref())
+                    {
+                        let reference = version.as_ref();
+                        let bytes = store.read_artifact(&reference).await?;
+                        crate::artifacts::validate_artifact_reference_content(
+                            &reference,
+                            &bytes,
+                        )
+                        .map_err(company_conflict)?;
+                        String::from_utf8(bytes)
+                            .map_err(|_| company_conflict("company_artifact_content_invalid"))?
+                    } else {
+                        artifact.text.clone()
+                    }
                 } else {
                     read_company_artifact(context, &artifact.relative_path).await?
                 };
@@ -1065,6 +1085,36 @@ impl ControlPlane {
         proof.events.sort();
         proof.events.dedup();
         Ok(proof)
+    }
+
+    /// Persist a typed Company artifact only after policy and state-transition validation. The
+    /// adapter owns replay semantics: a retry with the same immutable reference and bytes returns
+    /// the first stored version (including its original timestamp), while manifest drift fails.
+    /// EventLog commit remains a separate operation, so an adapter failure can leave an unreferenced
+    /// blob and must not be reported as an atomic cross-store transaction.
+    async fn persist_company_artifact(&self, proof: &mut CompanyProof) -> Result<(), PortError> {
+        let Some(store) = self.artifact_store.as_ref() else {
+            return Ok(());
+        };
+        let Some(version) = proof.artifact_version.clone() else {
+            return Ok(());
+        };
+        let content = proof
+            .artifact
+            .as_ref()
+            .ok_or_else(|| company_conflict("company_artifact_content_missing"))?
+            .text
+            .as_bytes()
+            .to_vec();
+        let persisted = store.stage_artifact_version(version, content).await?;
+        store
+            .commit_artifact(persisted.as_ref(), Some(persisted.version))
+            .await?;
+        proof.artifact_version = Some(persisted.clone());
+        if let Some(artifact) = proof.artifact.as_mut() {
+            artifact.typed_version = Some(persisted);
+        }
+        Ok(())
     }
 }
 

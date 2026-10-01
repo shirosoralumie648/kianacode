@@ -48,6 +48,14 @@
 use super::*;
 
 impl ControlPlane {
+    /// Inject the artifact persistence adapter used by Company artifact commands. This is an
+    /// optional composition-root dependency so existing embedders keep their legacy text-only
+    /// behavior until they explicitly provide a store.
+    pub fn with_artifact_store(mut self, store: Arc<dyn kiana_ports::ArtifactStorePort>) -> Self {
+        self.artifact_store = Some(store);
+        self
+    }
+
     /// 设置「按角色区分的单轮最大步数」覆盖值。
     ///
     /// 【作用】
@@ -228,6 +236,7 @@ impl ControlPlane {
             policy,
             gates,
             events,
+            artifact_store: None,
             capabilities,
             approvals,
             runner,

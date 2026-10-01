@@ -150,7 +150,7 @@
 - **实现顺序**：①每个引用包含稳定 ID、版本、hash、schema、scope、provenance；②内容持久化后才能提交引用，历史内容与工作区当前内容分开；③为相同文字的标准分配不同 Criterion ID，检查字段大小和密级。
 - **先拒绝**：`company_evidence_rejects_foreign_run_changed_content_and_missing_blob`；断链、hash 错误、symlink/路径逃逸、伪造命令退出码不能形成验收证据。
 - **再成功 / 退出**：`artifact_version_remains_reviewable_after_workspace_file_changes`；能复查批准时的原件，并明确显示当前工作区已变化；blob/事件写入间故障不产出虚假成功。
-- **当前缺口**：本地 adapter 尚未由 Company `ControlPlane`/组合根注入并与事实提交衔接；原件与工作区当前内容的差异展示、跨进程恢复和持久化故障对账仍未完成。
+- **当前缺口**：`ControlPlane::with_artifact_store` 现在提供显式接线：通过 policy 与状态转移后执行 stage→commit，再提交 Company EventLog 事实；默认构造器仍保持旧的 text-only 兼容路径。跨端口原子提交、原件与工作区当前内容的差异展示、跨进程恢复和持久化故障对账仍未完成。
 
 <a id="co-07"></a>
 
