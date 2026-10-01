@@ -3474,6 +3474,25 @@ limitations: the separate provider 503 retry behavior still requires a written P
 reviewer: Codex integration review of branch `fix/h05-36677090825`; confirmed stable error display behavior, retry owner source, no policy change and no local test execution
 ```
 
+### H05 unified CI production-classifier guard correction (2026-10-02)
+
+```text
+source_snapshot: `c5159bed`; `kiana-runner/tests/h05_stop_guard.rs`; `kiana-runner/src/retry.rs`; `kiana-domain/src/retry_policy.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; remote run `36899317942` at `ae412092`
+worktree_status: isolated branch `fix/h05-ci-guard-20261002`; post-386d5f18 CI still failed the H05 source guard because it looked for `ModelRetryClass::Rejected` in harness/model/provider sources, while the production classifier owns that check in `kiana-domain/src/retry_policy.rs`; the earlier BeforeSend check was satisfiable by `retry.rs` unit-test code alone; the guard now excludes `#[cfg(test)]` sections and checks Runner delegation plus both production classifier branches and their request/effect fences; no retry policy behavior changed
+command_argv:
+  `gh run view 36899317942 --job 110494819361 --log`
+  `gh run view 36899317942 --job 110494819731 --log`
+  `git diff --check`
+  no local test, build, check, fmt, clippy or smoke command was run
+cwd/environment: isolated `/home/shirosora/kiana-wt/h05-ci-guard-20261002` worktree on Linux; GitHub logs queried read-only; tests execute only in GitHub Actions by user instruction
+fixture·cassette: `harness_stop_and_retry_paths_are_typed_and_fail_closed` failed with `missing H05 stop/retry marker ModelRetryClass::Rejected`; `missing_model_fails_closed` passed; `h05_model_outcome` passed 4/4 in `kiana-domain-s3/4`; `provider_retries_do_not_consume_the_separate_repair_budget` independently failed after 429→503→success because `RetryPolicy::safe_rejection` admits only 429/408
+exit_code: H05 guard failed on remote runner job `110494819361`; domain H05 fixtures passed on job `110494819731`; whole run `36899317942` was later cancelled by a newer push; local `git diff --check` exit 0; post-fix CI unobserved
+status_change: H05 remains 🔄; source guard now follows the production Runner→RetryPolicy classifier rather than test-only literals; no provider retry policy or 503 behavior changed
+proof-level change: `feature_status=partial`; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: current unified CI run `36900134949` for `c5159bed` was queued when inspected and is not awaited; 503 retry semantics remain an independent P4-J7-23/BQ-17 decision; no local tests were run
+reviewer: Codex root-cause review of the post-fix CI failure and source ownership; no runtime test reviewer
+```
+
 ### P4-J7-05 strict non-streaming provider response evidence (2026-09-16)
 
 ```text
