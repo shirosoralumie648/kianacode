@@ -45,7 +45,7 @@
 | `artifact_read_port_requires_persisted_hash_matching_blob` | 缺 blob、正确 blob、hash drift 分别返回 missing/success/conflict |
 | `company_evidence_uses_immutable_artifact_and_read_port_boundaries` | CompanyProof typed fields、core confined read/atomic path 和只读 port 边界存在 |
 
-`.github/workflows/co06-artifact-evidence.yml` 在 GitHub runner 执行 domain/ports fixtures、core source guard、fmt 和 domain/ports/core/daemon test-target compile；本地只做格式、静态编译和 diff 检查。
+历史 CO-06 专属 workflow 曾在 GitHub runner 执行 domain/ports fixtures、core source guard、fmt 和 domain/ports/core/daemon test-target compile；现由统一 CI shards 覆盖，本地不运行测试。
 
 ## 5. 限制与交接
 
@@ -61,7 +61,7 @@ GitHub [run 36677090825](https://github.com/shirosoralumie648/kianacode/actions/
 `co06_artifact_guard` 一项。三组 fixture 到本轮 `0121cb5b` 未改；生产 artifact
 合同未被本轮不相关的 credential/secret-schema/metric 修复改写。这四项只证明各自合同，
 总 run 仍有其它失败。现在由统一 `ci.yml` 及 `scripts/ci/test-shards.json` 覆盖，
-旧 `co06-artifact-evidence.yml` 是历史快照引用。
+旧 CO-06 专属 workflow 仅供历史快照追溯，不是当前 CI lane。
 
 完整 CO-06 仍为 🔄：在上述 `0121cb5b` 快照中，`ControlPlane::company_proof` 把工件文本快照和可选 typed metadata
 写入 Company 事实；当时 `ArtifactStorePort` 只有内存 adapter，组合根尚未接入

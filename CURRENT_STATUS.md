@@ -6364,7 +6364,7 @@ command_argv:
   `git show --check 174b2cfb`
   no local test, build, check, clippy or smoke command was run
 cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
-fixture·cassette: `ports_never_return_raw_secret_to_core`; `credential_resolution_metadata_is_strict_and_fail_closed`; unified CI test shards cover the fixture/source guard, while the deleted standalone `ci03-ports.yml` is no longer cited as an active workflow
+fixture·cassette: `ports_never_return_raw_secret_to_core`; `credential_resolution_metadata_is_strict_and_fail_closed`; unified CI test shards cover the fixture/source guard, while the deleted standalone CI-03 workflow is no longer treated as an active lane
 exit_code: local diff checks exit 0; post-push CI result pending/unobserved
 status_change: CI-03 remains 🔄 pending remote evidence; strengthened the metadata contract and fixture without claiming adapter, SecretStore, OAuth, durable or live proof
 proof-level change: `feature_status=partial`; `proof_level=source`
@@ -6400,6 +6400,21 @@ status_change: CI-03 remains 🔄; malformed digest encodings now fail closed wi
 proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: corrected fixture and current master CI are pending/unobserved; no production resolver, credential store, rotation/revoke adapter, lease, OAuth or provider effect integration is added
 reviewer: Codex review of digest shape, fixture preconditions and the secret-free port boundary; no runtime test reviewer
+```
+
+### CI documentation reference reconciliation (2026-10-02)
+
+```text
+source_snapshot: `ae412092`; `CURRENT_STATUS.md`, `docs/roadmap/artifact-evidence-baseline.md`, `docs/roadmap/ports-identity-baseline.md`
+worktree_status: rewrote three historical references to deleted standalone workflows as historical-lane descriptions, while keeping the active unified `ci.yml` references and the full-path historical source anchors
+command_argv: `gh run view 36899317942 --job 110494818578 --log`; source reads; `git diff --check`; no local CI validation/test/build/check/fmt/clippy/smoke
+cwd·environment: repository root; run 36899317942 GitHub Actions Linux runner; local validation script deliberately not run
+fixture·cassette: workflow structure log reported three unresolved bare historical workflow references in the three documents; no runtime fixture changed
+exit_code: GitHub `validate-doc-references.sh` exited 1 on run 36899317942; local `git diff --check` 0; no rerun observed
+status_change: none; only stale historical file-name shorthand was removed from current prose, with no roadmap step or proof status promoted
+proof-level change: none
+limitations: subsequent unified CI has not run to confirm the documentation gate is clear; this correction does not imply the full workflow or test matrix passes
+reviewer: Codex compared the exact three CI diagnostics with the historical workflow context and current unified CI statements; no runtime test reviewer
 ```
 
 ### CI-02 identity and authority contract evidence (2026-09-16)
