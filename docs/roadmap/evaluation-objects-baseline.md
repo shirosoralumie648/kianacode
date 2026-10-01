@@ -59,3 +59,24 @@ proof-level_change: source review only; no proof-level promotion
 limitations: historical CI failure is evidence for the pre-fix fixture; the corrected fixture and regressions require GitHub CI after integration, whose result is not awaited; runtime, durable, live and physical behavior remain unproven by this slice
 reviewer: EQ-03 implementation agent source review; no runtime test reviewer
 ```
+
+## 6. Latest unified CI receipt (2026-10-02)
+
+统一 `ci.yml` run `36907707536` 在当前快照 `768764c1` 上重新执行了 EQ-03 夹具。
+`kiana-domain-s2/4` job `110509907766` 的 `eq03_eval_objects` 为 3/3 通过；
+`kiana-core-s3/6` job `110509908033` 的 `eq03_eval_objects_guard` 通过。该 run
+整体仍因其它 roadmap shard 的既有失败而未成为绿门，不能把本次远程 receipt 解释为
+整个 workspace 或 EQ-03 的 durable/live 证明。
+
+```text
+source_snapshot: 768764c1424c25d2e972806d2093d37d28704ece
+worktree_status: docs-only baseline receipt appended on a clean integration snapshot
+command_argv: gh run view 36907707536 --job 110509907766 --log; gh run view 36907707536 --job 110509908033 --log; git diff --check
+cwd/environment: repository root; GitHub-hosted Linux runner for test execution; no local cargo test/build/check/fmt/clippy/smoke
+fixture·cassette: kiana-domain/tests/eq03_eval_objects.rs (3 passed); kiana-core/tests/eq03_eval_objects_guard.rs (1 passed)
+exit_code: 0 for both EQ-03 target receipts and local diff check; overall CI conclusion remains failure from unrelated shards
+status_change: EQ-03 contract and roadmap status unchanged; historical fixture identity correction remains the only EQ-03 code fix
+proof-level change: unchanged at feature_status=implemented, proof_level=source
+limitations: CI result was not awaited; full run was not green because unrelated targets failed; no EvalStore/fixture-loader persistence, normalization/diff, evaluator, or durable/live replay proof exists
+reviewer: EQ-03 contract audit against latest unified CI receipt; no local runtime test reviewer
+```
