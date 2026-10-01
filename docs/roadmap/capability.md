@@ -5,7 +5,7 @@
 ## 20. Capability 专项：调研结论与实现设计（2026-09-12 追加）
 
 > 对应 [module-map.md](../module-map.md) 的「5. Capability：工具执行与沙箱」。
-> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；`CAP-01` 已有实现与 CI 断言修正，当前等待新远端回执；`CAP-02` 的输入边界实现也已有源代码证据，但专项 CI 仍待修复/回执。**
+> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；`CAP-01` 已有实现与 CI 断言修正，当前等待新远端回执；`CAP-02` 已补 provider 字符串参数的有界解析与拒绝夹具。专项 workflow 已并入统一 `ci.yml`，当前等待新远端回执。**
 > 阅读顺序：§20.1–20.4 看依据，§20.5–20.9 看执行设计，§21 按 step 实施，§22 看验收门。
 > 本追加不重排 §2 正在执行的预算、恢复和记忆任务；另一位实现 agent 先收口当前切片，再按依赖消费这里的细化任务。
 
@@ -295,7 +295,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 |---|---|---|---|---|
 | `CAP-00` | 快照、冲突口径、WIP 接线清单 | `P0-A-02`、`P0-B-01`、`P1-H-01` | — | ✅ |
 | `CAP-01` | 统一 descriptor / binding / catalog | `P1-H-01` | `CAP-00` | 🔄 |
-| `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | ⏳ |
+| `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | 🔄 |
 | `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ✅ |
 | `CAP-04` | 状态、outcome 与稳定错误映射 | `P0-A-02`、`P0-B-01` | `CAP-02` | ✅ |
 | `CAP-05` | 可核验许可与单次 dispatch | `P0-G-04`、`P1-H-01` | `CAP-03`、`CAP-04` | ⏳ |
@@ -376,15 +376,15 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-02 — 统一参数边界与输入摘要　✅
+#### CAP-02 — 统一参数边界与输入摘要　🔄
 
 当前 source slice 与 CI-only 证据见 [`capability-input-baseline.md`](capability-input-baseline.md)。
 
-- **落点：** domain schema/canonical helpers、runner/tools、broker 输入校验；复用 `P1-H-02` 现有验证器后再补缺项。
+- **落点：** domain schema/canonical helpers、provider response parser、runner/tools、broker 输入校验；复用 `P1-H-02` 现有验证器后再补缺项。
 - **步骤：** 明确 JSON Schema dialect/支持子集，禁止网络 `$ref`；限制 JSON bytes/depth/array；将 shell string 与 argv、patch、MCP、memory 分别解码为 typed input。规定别名冲突、未知字段和 v1→v2 兼容策略；摘要覆盖规范化参数及 descriptor 版本，不包含展示脱敏占位值。
-- **先拒绝：** `reserved_authority_fields_cannot_change_execution_scope`、`schema_depth_and_reference_limits_fail_before_dispatch`、`conflicting_mcp_tool_aliases_are_rejected`；非法 argv/空 executable/NUL/错误 timeout 同样覆盖。
+- **先拒绝：** `reserved_authority_fields_cannot_change_execution_scope`、`schema_depth_and_reference_limits_fail_before_dispatch`、`conflicting_mcp_tool_aliases_are_rejected`、`duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse`；非法 argv/空 executable/NUL/错误 timeout 同样覆盖。
 - **成功/回归：** `equivalent_json_inputs_have_the_same_digest`、`execution_affecting_input_changes_change_digest`；已有 cassette 无害额外字段测试保持，受保护字段不能因兼容而生效。
-- **完成产物：** mapping 和 broker 使用同一校验契约；输入失败产生对应 call 的结构化结果，handler 调用计数为零；canonical input/action digest 绑定 descriptor version 并经远程 CI 验收。
+- **完成产物：** provider raw-string parameters、mapping 和 broker 使用 bounded parser/schema 契约；输入失败在产生 `ModelToolCall` 前拒绝，handler 调用计数为零；canonical input/action digest 绑定 descriptor version 并经统一 GitHub CI 验收。Object-form provider payload 已先解码成 `Value`，原始重复键不可从该类型恢复，仍作为 provider transport 边界限制记录。
 
 <a id="step-cap-03"></a>
 

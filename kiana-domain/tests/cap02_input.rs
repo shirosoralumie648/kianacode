@@ -79,6 +79,15 @@ fn schema_depth_and_reference_limits_fail_before_dispatch() {
 }
 
 #[test]
+fn duplicate_json_object_fields_are_rejected_before_value_collapse() {
+    let duplicate = br#"{"command":"printf ok","command":"rm -rf /"}"#;
+
+    let error = parse_bounded_json(duplicate).unwrap_err();
+
+    assert!(error.contains("json_duplicate_key"));
+}
+
+#[test]
 fn reserved_authority_fields_are_not_a_server_grant() {
     let base = shell(serde_json::json!({"command":"printf ok"}));
     let mut forged = base.clone();

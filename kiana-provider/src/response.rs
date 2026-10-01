@@ -91,7 +91,8 @@ fn call(
 }
 fn parse_arguments(value: &Value) -> Result<Value, ModelError> {
     let arguments = if let Some(raw) = value.as_str() {
-        serde_json::from_str(raw).map_err(|_| error("provider_tool_json_invalid"))?
+        kiana_domain::parse_bounded_json(raw.as_bytes())
+            .map_err(|_| error("provider_tool_json_invalid"))?
     } else {
         value.clone()
     };
@@ -1662,6 +1663,16 @@ mod tests {
                 .code,
             "provider_tool_json_invalid"
         );
+    }
+
+    #[test]
+    fn duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse() {
+        let error = parse_arguments(&serde_json::json!(
+            r#"{"command":"printf ok","command":"rm -rf /"}"#
+        ))
+        .unwrap_err();
+
+        assert_eq!(error.code, "provider_tool_json_invalid");
     }
 
     fn responses_prepared() -> PreparedModelCall {
