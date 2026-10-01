@@ -628,7 +628,10 @@ mod tests {
         symlink(&outside, &root).unwrap();
 
         let error = JsonlEventLog::open(&root).unwrap_err();
-        assert!(error.to_string().contains("eventlog_open_failed"));
+        assert_eq!(
+            error,
+            PortError::Failed("eventlog_symlink_rejected".to_owned())
+        );
         assert_eq!(
             fs::read_to_string(&outside).unwrap(),
             format!("{}\n", serde_json::to_string(&existing).unwrap())
@@ -655,7 +658,10 @@ mod tests {
         symlink(&outside, &root).unwrap();
 
         let error = store.append(next).await.unwrap_err();
-        assert!(error.to_string().contains("eventlog_open_failed"));
+        assert_eq!(
+            error,
+            PortError::Failed("eventlog_symlink_rejected".to_owned())
+        );
         assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
         let _ = fs::remove_file(&root);
         let _ = fs::remove_file(root.with_extension("jsonl.lock"));

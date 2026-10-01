@@ -29,7 +29,7 @@ fn write_fixture(path: &Path, contents: impl AsRef<[u8]>) {
     }
     #[cfg(not(unix))]
     {
-        write_fixture(path, contents);
+        fs::write(path, contents).unwrap();
     }
 }
 
@@ -67,11 +67,10 @@ async fn jsonl_frame_checksum_and_torn_tail_recovery_are_bounded() {
     let header = serde_json::to_string(&JournalHeader::default()).unwrap();
     let mut body = serde_json::to_value(frame).unwrap();
     body["body_sha256"] = json!("0".repeat(64));
-    fs::write(
+    write_fixture(
         &tampered,
         format!("{}\n{}\n", header, serde_json::to_string(&body).unwrap()),
-    )
-    .unwrap();
+    );
     assert!(JsonlEventLog::open(&tampered)
         .unwrap_err()
         .to_string()
@@ -82,10 +81,12 @@ async fn jsonl_frame_checksum_and_torn_tail_recovery_are_bounded() {
 #[test]
 fn jsonl_v2_source_contract_keeps_checksum_sync_lock_and_bounded_tail() {
     let source = include_str!("../src/jsonl.rs");
+    let journal = include_str!("../../kiana-domain/src/journal.rs");
+    let journal_core = include_str!("../src/journal_core.rs");
     for marker in [
         "JournalHeader",
         "JournalFrame",
-        "body_sha256",
+        ".accept_frame(frame)",
         "sync_all",
         "sync_directory",
         "libc::flock",
@@ -100,4 +101,25 @@ fn jsonl_v2_source_contract_keeps_checksum_sync_lock_and_bounded_tail() {
             "JSONL durability marker missing: {marker}"
         );
     }
+    for marker in [
+        "body_sha256",
+        "encoded.len() as u64 != self.body_len",
+        "journal_sha256(&encoded) != self.body_sha256",
+        "journal_frame_integrity_failed",
+    ] {
+        assert!(
+            journal.contains(marker),
+            "journal frame integrity marker missing: {marker}"
+        );
+    }
+    let (_, accept_frame) = journal_core
+        .split_once("pub fn accept_frame")
+        .expect("journal core must accept decoded frames");
+    let validation = accept_frame
+        .find("frame.validate().map_err(invalid)?;")
+        .expect("journal core must validate frame integrity");
+    let body = accept_frame
+        .find("match frame.body")
+        .expect("journal core must apply validated frame contents");
+    assert!(validation < body, "frame integrity must precede body apply");
 }
