@@ -33,3 +33,14 @@
 - 端口存在不代表有生产 adapter、durable CAS、跨进程恢复、路径隔离或真实 source/fixture ownership；默认方法刻意 fail-closed。
 - `Judge` contract 不证明 LLM judge 质量或解释可信；任何 score/finding 都不能直接 Promote/rollback、修改 policy/Grant/Receipt/Acceptance/Outcome。
 - FixtureStore/TraceSource/ArtifactReader 尚未接入 DaemonHost/ControlPlane；EQ-08/09/12/13/14/16、EQ-17+ 和 ER/PD/SC 负责受控读取、normalization、evidence、replay 与发布门。
+
+## 5. 2026-10-02 default-deny correction
+
+The unified CI shard exposed a contract gap in the original compile-only fixture: only
+`EvalStore` had a default unsupported implementation, while the other asynchronous quality
+ports required every adapter to provide a method. `FixtureStore`, `TraceSource`,
+`ArtifactReader`, `Judge`, and `MetricsSink` now all default to their typed
+`PortError::Unavailable` code. The fixture implements the ports without overrides so a missing
+default fails at compile time; `Clock` remains an explicit synchronous value boundary. This is a
+source-level correction only; the unified `.github/workflows/ci.yml` remains the GitHub test
+authority and no local cargo test/build/check/fmt/clippy/smoke command was run.
