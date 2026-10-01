@@ -215,6 +215,8 @@ impl SecuritySchemaRegistry {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        check_schema_compatibility(&self.schema, &self.version)
+            .map_err(|_| "security_schema_registry_unknown_major".to_owned())?;
         if self.schema != SECURITY_SCHEMA_REGISTRY_SCHEMA
             || !self
                 .version
@@ -229,8 +231,6 @@ impl SecuritySchemaRegistry {
         {
             return Err("security_schema_registry_header_invalid".to_owned());
         }
-        check_schema_compatibility(&self.schema, &self.version)
-            .map_err(|_| "security_schema_registry_unknown_major".to_owned())?;
         if self.contracts_digest != schema_contracts_digest() {
             return Err("security_schema_registry_contracts_digest_stale".to_owned());
         }
@@ -437,6 +437,8 @@ impl SecurityObjectEnvelope {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        check_schema_compatibility(&self.schema, &self.version)
+            .map_err(|_| "security_object_unknown_major".to_owned())?;
         if self.schema != SECURITY_OBJECT_SCHEMA
             || !self.version.is_compatible_with(&SECURITY_OBJECT_VERSION)
             || self.object_id.as_uuid().is_nil()
@@ -447,8 +449,6 @@ impl SecurityObjectEnvelope {
         {
             return Err("security_object_header_invalid".to_owned());
         }
-        check_schema_compatibility(&self.schema, &self.version)
-            .map_err(|_| "security_object_unknown_major".to_owned())?;
         if contains_raw_secret(&self.payload, 0) {
             return Err("security_object_secret_field".to_owned());
         }
