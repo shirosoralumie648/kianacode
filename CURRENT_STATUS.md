@@ -3314,8 +3314,8 @@ reviewer: Codex root implementation review plus CAP-02 input/schema/argv/alias/d
 ### CAP-02 provider raw-argument duplicate-key correction (2026-10-02)
 
 ```text
-source_snapshot: `d4a85ebd` (`master`/`origin/master` at inspection start) plus `kiana-provider/src/response.rs`; `kiana-domain/tests/cap02_input.rs`; `kiana-core/tests/cap02_input_guard.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap/capability.md`; `docs/roadmap.md`
-worktree_status: branch `fix/cap02-provider-boundary-20261002`; provider string-form tool arguments now use `kiana_domain::parse_bounded_json` before producing `ModelToolCall`; raw duplicate-key rejection is covered at domain and provider boundaries, and the CAP-02 cross-layer source guard pins this parser path; no Broker/authority path changed
+source_snapshot: `d4a85ebd` inspection base plus fix `bdfcaa55` and local merge `01019d86`; `kiana-provider/src/response.rs`; `kiana-domain/tests/cap02_input.rs`; `kiana-core/tests/cap02_input_guard.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap/capability.md`; `docs/roadmap.md`
+worktree_status: CAP-02 source/fixture correction is merged into local master; provider string-form tool arguments now use `kiana_domain::parse_bounded_json` before producing `ModelToolCall`; raw duplicate-key rejection is covered at domain and provider boundaries, and the CAP-02 cross-layer source guard pins this parser path; no Broker/authority path changed
 command_argv:
   gh run list --workflow cap02-input.yml --limit 20 --json databaseId,workflowName,displayTitle,status,conclusion,headSha,createdAt,url
   gh run view 36074802434 --json jobs
@@ -3323,7 +3323,7 @@ command_argv:
   git diff --check
 cwd/environment: isolated `/tmp/kiana-cap02-reconcile` worktree on Linux x86_64; GitHub CLI read-only history query; no cargo test/build/check/fmt/clippy/smoke command run
 fixture·cassette: `duplicate_json_object_fields_are_rejected_before_value_collapse`; `duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse`; `capability_input_boundary_is_shared_by_runner_core_broker_and_daemon`; unified `ci.yml` provider/domain/core shards only
-exit_code: 0 for GitHub history query and `git diff --check`; historical CAP-02 run `36074802434` failed at `cargo fmt --all --check` before CAP-02 fixtures; current run `36897771406` for source snapshot `d4a85ebd` was queued when inspected and is not awaited
+exit_code: 0 for GitHub history query and branch/merge diff checks; historical CAP-02 run `36074802434` failed at `cargo fmt --all --check` before CAP-02 fixtures; current run `36897771406` for source snapshot `d4a85ebd` was queued when inspected and is not awaited; this merged correction awaits its GitHub CI run after push
 status_change: provider raw-string JSON arguments reject duplicate keys and bounded-input violations before ModelToolCall construction; `feature_status=implemented` remains source-level, and the roadmap CAP-02 row remains 🔄 pending review of unified CI evidence
 proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: provider object-form arguments arrive as an already decoded `serde_json::Value`, so this parser cannot recover duplicate source keys for that representation; JSON Schema remains a bounded subset; GitHub CI was not awaited; no local test reviewer
