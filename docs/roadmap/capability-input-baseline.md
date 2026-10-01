@@ -1,6 +1,6 @@
 # CAP-02 capability input boundary and digest baseline
 
-> 快照日期：2026-09-16。本文记录 CAP-02 的 bounded JSON/schema、shell/argv、patch、MCP、Memory 输入归一化和摘要合同；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
+> 首次快照：2026-09-16；provider raw-string 参数补充：2026-10-02。本文记录 CAP-02 的 bounded JSON/schema、provider shell/argv、patch、MCP、Memory 输入归一化和摘要合同；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
 
 ## 1. 目标与证明上限
 
@@ -51,8 +51,10 @@
 | `equivalent_json_inputs_have_the_same_digest` | key order/null normalization 后 digest 一致 |
 | `execution_affecting_input_changes_change_digest` | 执行影响字段变化导致新摘要 |
 | `capability_input_boundary_is_shared_by_runner_core_broker_and_daemon` | 五工具 mapping、core prepare、Broker normalized check、daemon argv source guard |
+| `duplicate_json_object_fields_are_rejected_before_value_collapse` | domain raw parser 拒绝重复 key，不让 serde 将冲突值折叠 |
+| `duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse` | provider 字符串形式的 tool arguments 复用 bounded parser，在构造 `ModelToolCall` 前拒绝重复 key |
 
-`.github/workflows/cap02-input.yml` 在 GitHub runner 运行 domain fixtures、core guard 和 fmt/fetch；本地不运行测试，不连接 provider/connector。
+CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。当前 `scripts/ci/test-shards.json` 把 `cap02_input`、`cap02_input_guard` 分配给 domain/core shards；`kiana-provider` shard 运行 provider 单元夹具。GitHub CI 负责执行，本地不运行测试，不连接 provider/connector。
 
 ## Source anchors
 
@@ -60,7 +62,12 @@
 |---|---|---|
 | Domain input/actions | `kiana-domain/src/tool_catalog.rs`, `kiana-domain/src/actions.rs`, `kiana-domain/src/capabilities.rs` | `9c46d8713d6ce55a8eca707179e566036111b2da285539693aac11426dd480ac`, `fd97036676d046ebf801707f72073ff59de96d9e42b257bee01b5fdf3f22d88c`, `1e8c6cb45c2875fcc35a9c876cc780bc2011913d15db7d4376a8ced1c117b522` |
 | Core/Broker/Runner/daemon | `kiana-core/src/capabilities.rs`, `kiana-capability-broker/src/lib.rs`, `kiana-runner/src/tools.rs`, `kiana-daemon/src/harness_capabilities.rs` | `f869c545b6aaf24f494bceb2352ef0a1874ff503de55e1bdf951f5414f7b435a`, `afd4556a453bc6462fb6a66f59f981b67db2ed3041d74869a0f90d145d7d6b28`, `2a757b5ba06622622d949cccacbf50f4caf6d38b04c8806611853e6f4498d213`, `342dcbca27709f41821872c60ab199595f51ebc6fa9dccabbaf0b040ae5c46ce` |
-| Fixtures/guard/workflow | `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, `.github/workflows/cap02-input.yml` | `808fb7152cd8a0d30bbed59a687f7d1f9460091ffb440117e4f13092655f650d`, `0a967045e8044e1e4e2dd718c73b22c8a4e1548420fac075183a3d78f4f339c1`, `2526a6060cc27c11db4462234d2faa9ce189fadefb41a865ca97b08fd2bd155d` |
+| Fixtures/guard/historical workflow | `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, historical `.github/workflows/cap02-input.yml` (removed by CI consolidation `08552ada`) | `808fb7152cd8a0d30bbed59a687f7d1f9460091ffb440117e4f13092655f650d`, `0a967045e8044e1e4e2dd718c73b22c8a4e1548420fac075183a3d78f4f339c1`, `2526a6060cc27c11db4462234d2faa9ce189fadefb41a865ca97b08fd2bd155d` |
+| 2026-10-02 provider raw-argument correction | `kiana-provider/src/response.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs` | `518ed2fbae7da1580fadaaf7b0ac3ee88dd97eee629eaf442a051e8073f6d2b4`, `6a1ea156037fc4536bff8cd75d2ba4f1de97e943df00883c93cc5847cc0e53eb`, `c4d0c8494095dad30b396f27a0db513f1e6f19938ab3418d6f6782e91a46d98e` |
+
+2026-10-02 provider ingress correction: `kiana-provider/src/response.rs::parse_arguments` now parses raw string arguments through `parse_bounded_json`; the raw duplicate-key fixture and the provider string-argument fixture are included in the unified workspace CI shards. Object-form provider arguments arrive as an already parsed `serde_json::Value`, so duplicate keys in those object payloads cannot be detected at this helper boundary.
+
+Remote CI evidence at the correction snapshot: historical CAP-02 run `36074802434` failed at the repository-wide `cargo fmt --all --check` step, before the CAP-02 fixtures ran. The unified CI run for `d4a85ebd` was queued when inspected; the correction's provider/domain/core targets are assigned to the `kiana-provider`, `kiana-domain-s1/4`, and `kiana-core-s1/6` shards and have not yet been observed completing.
 
 这些 hash 只用于 CAP-02 输入边界漂移复核，不是执行授权、secret 或 handler effect 证明。
 
@@ -70,4 +77,4 @@
 - authority fields 在 ControlPlane prepare 清理并覆写，但 `CapabilityRequest` compatibility JSON 仍可被调用者构造；Grant/Approval/ExecutionContext/epoch 的最终交集由 CP-04+/CAP-03+/SC-04+ 完成。
 - shell string/argv 与 patch parser 有局部输入校验，真实文件身份/TOCTOU、网络 endpoint、secret 注入、process stop、external effect/reconcile 仍需 CAP-07+、ER/PD/SC。
 - Digest 证明 canonical input 相等/不同，不证明 handler 已执行、结果正确、幂等或业务 Outcome；catalog drift 只在 PreparedAction/Broker boundaries fail-closed。
-- 本地只做格式、workspace test-target 静态编译和 diff 检查；GitHub CI 结果不等待，不提升 local_behavior/durable/live/physical。
+- Local tests/build/check/fmt/clippy/smoke are not run; only `git diff --check` is used for whitespace validation. GitHub CI results are not awaited and do not promote local_behavior/durable/live/physical.
