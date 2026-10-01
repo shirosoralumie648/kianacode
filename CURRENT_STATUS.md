@@ -2265,6 +2265,21 @@ limitations: CI result was intentionally not awaited; no local test, smoke or cl
 reviewer: Codex root implementation review plus OA-02 domain/port static-boundary review; no runtime test reviewer
 ```
 
+### OA-02 traceparent rejection fixture correction (2026-10-02)
+
+```text
+source_snapshot: `18eb070c` plus `6172038a`; `kiana-ports/tests/oa02_correlation_port.rs`; CI `36677090825`, job `109764373726` at `c221c211`
+worktree_status: isolated branch `step/oa02-20261001` integrated into master; the failing denial fixture supplied a valid traceparent; it now supplies invalid version `ff` and tests zero authority/data epochs independently; a new success fixture verifies a valid external parent produces only a ForeignParent link and a fresh server root
+command_argv: `gh run view 36677090825 --job 109764373726 --log-failed`; `git diff --check`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; Linux; tests execute only in GitHub Actions
+fixture·cassette: `port_preserves_fail_closed_traceparent_and_epoch_errors`; `port_links_valid_traceparent_to_a_fresh_server_owned_root`
+exit_code: prior CI denial test failed at unwrap_err(Ok); local diff check 0; new CI pending/unobserved
+status_change: OA-02 remains 🔄; corrected fixture inputs and strengthened stable-error/link-only checks, with production parser unchanged
+proof-level change: `feature_status=partial`, `proof_level=source`; no durable/live promotion
+limitations: no authenticated ingress/span bridge/exporter or cross-process trace proof; full baseline CI has unrelated failures; new CI not awaited
+reviewer: Codex integration review of exact invalid/valid headers, epoch checks and error owner
+```
+
 ### OA-03 redaction profile and bounded encoder evidence (2026-09-15)
 
 ```text
