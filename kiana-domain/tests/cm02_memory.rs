@@ -1,6 +1,6 @@
 use kiana_domain::{
-    MemoryAdmission, MemoryClassification, MemoryImportMode, MemoryOrigin, MemoryRecord,
-    MemorySensitivity, MemoryState, MemoryValidity,
+    EventId, MemoryAdmission, MemoryClassification, MemoryEvidence, MemoryImportMode, MemoryOrigin,
+    MemoryRecord, MemorySensitivity, MemoryState, MemoryValidity, Purpose, RequestId,
 };
 use serde_json::json;
 
@@ -75,13 +75,67 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         text: "qualified".to_owned(),
         source: "event:2".to_owned(),
         kind: "fact".to_owned(),
+        evidence: vec![MemoryEvidence {
+            event_id: EventId::new(),
+            request_id: RequestId::new(),
+            run_id: None,
+            quote: "qualified evidence".to_owned(),
+        }],
+        origin: MemoryOrigin::User,
         admission_state: MemoryAdmission::Qualified,
         state: MemoryState::Active,
         classification: MemoryClassification::Project,
+        purpose: Some(Purpose {
+            id: "context.read".to_owned(),
+            description: "CM-02 qualification fixture".to_owned(),
+        }),
+        sensitivity: MemorySensitivity::Internal,
+        reviewed_by: Some("operator".to_owned()),
+        reviewed_at_ms: Some(1),
         ..MemoryRecord::default()
     };
+
+    record.validate_lifecycle().unwrap();
+
+    let mut missing_origin = record.clone();
+    missing_origin.origin = MemoryOrigin::Unknown;
     assert_eq!(
-        record.validate_lifecycle().unwrap_err(),
+        missing_origin.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let mut missing_evidence = record.clone();
+    missing_evidence.evidence.clear();
+    assert_eq!(
+        missing_evidence.validate_lifecycle().unwrap_err(),
+        "memory_qualified_provenance_invalid"
+    );
+
+    let mut missing_purpose = record.clone();
+    missing_purpose.purpose = None;
+    assert_eq!(
+        missing_purpose.validate_lifecycle().unwrap_err(),
+        "memory_active_qualification_incomplete"
+    );
+
+    let mut missing_sensitivity = record.clone();
+    missing_sensitivity.sensitivity = MemorySensitivity::Unknown;
+    assert_eq!(
+        missing_sensitivity.validate_lifecycle().unwrap_err(),
+        "memory_active_qualification_incomplete"
+    );
+
+    let mut missing_reviewer = record.clone();
+    missing_reviewer.reviewed_by = None;
+    assert_eq!(
+        missing_reviewer.validate_lifecycle().unwrap_err(),
+        "memory_active_qualification_incomplete"
+    );
+
+    let mut missing_review_time = record;
+    missing_review_time.reviewed_at_ms = None;
+    assert_eq!(
+        missing_review_time.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
 }
