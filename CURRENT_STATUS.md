@@ -5015,6 +5015,22 @@ limitations: CI-only fixtures have not been executed locally; slow-disk/worker-p
 reviewer: Codex root implementation review plus ER-06 bounded worker, health digest, durable cursor, close state and daemon delegation reconciliation; no runtime test reviewer
 ```
 
+### ER-06 health digest contract correction (2026-10-02)
+
+```text
+source_snapshot: `b2391f94` plus `54eac1db`; `kiana-domain/src/journal.rs`; `kiana-eventlog/tests/er06_async_lifecycle.rs`; prior CI `36677090825`, eventlog job `109764373667`
+worktree_status: isolated branch `fix/er06-health-ci-20261002` integrated into master; EventStoreHealth now validates its tagged json_digest form separately from JournalFrame's intentionally bare body checksum
+command_argv: old CI log; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only
+fixture·cassette: health malformed/unprefixed/wrong-prefix/stale cursor/closed/durable deny cases and a JournalFrame prefixed-checksum denial
+exit_code: old er06 health fixtures self-rejected with event_store_health_header_invalid; local diff check 0; new CI pending/unobserved
+status_change: ER-06 remains 🔄; fixed digest contract ordering/format without weakening health claims or changing journal frame checksums
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: health acknowledgement remains a projection, not power-loss/durable storage proof; async writer/backpressure/recovery and cross-platform behavior remain open; new CI not awaited
+reviewer: Codex integration review of separate health/frame digest contracts and retained stale-health denies
+```
+
+
 ### ER-07 replay projector and checkpoint evidence (2026-09-17)
 
 ```text
