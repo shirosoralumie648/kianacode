@@ -29,10 +29,16 @@ Incident 可由原 sender 以 `communication.escalate` 提交带 reason/evidence
 | `message_kinds_never_grant_authority_and_incident_escalation_is_evidenced` | Command/Decision/Evidence 无 authority，Incident escalation 必须是 Incident 且带证据 |
 | `communication_lifecycle_uses_eventlog_and_never_dispatches_from_message_text` | core route 只追加 EventLog，sender/role/aggregate/source guard，无第二执行路径 |
 
-`.github/workflows/nm02-lifecycle.yml` 在 GitHub runner 执行 domain lifecycle fixtures、core source guard、fmt 和 domain/ports/protocol/core test-target 编译；本地只做格式、静态编译和 diff 检查。
+GitHub 的统一 `.github/workflows/ci.yml` matrix 在 runner 执行 `nm02_lifecycle` domain fixture、`nm02_lifecycle_guard` core source guard，以及 workspace gates；此前的 `.github/workflows/nm02-lifecycle.yml` 已在 workflow consolidation 中删除。本地只做格式、静态编译和 diff 检查。
 
 ## 4. 限制与交接
 
 - 当前 `SwarmState`/Company dispatcher 不自动消费 ACK；是否 dispatch 仍需后续 packet/company command 及独立 authorization/approval/lease 检查。
 - `communication` aggregate 的新事件已按 message_id 分流，但旧 request-aggregate communication facts 不会被自动重写；跨进程 replay/projector、cursor、notification materialization 和 outbox 由 NM-03/04/07/08、ER/PD 负责。
 - EventLog commit 证明的是消息事实，不证明现实收件人已读或外部 channel delivery；Unknown/ack reconciliation 仍保持 fail-closed。
+
+## 5. 2026-10-02 source correction
+
+远端 `ci` run `36677090825`（`c221c211`）暴露了三处本步边界问题：终态 Handoff transition 的错误分类被 ACK 专用检查遮蔽；core source guard 把注释中的禁用调用名当成执行路径；Incident escalation 的 `evidence_refs` 可缺失或静默丢弃非字符串值。修复后，transition 校验先保留终态/类型错误的稳定分类，Incident 必须至少有一个 evidence ref，ControlPlane 对 evidence 数组执行严格字符串解析，source guard 只检查去除注释后的可执行文本并保留静默丢弃的负向守卫。
+
+本次修复仍只覆盖 NM-02 的 domain/core lifecycle 边界。统一 CI 的完整结果不作为本地证明；roadmap 状态保持 `🔄`，证明上限保持 `proof_level=source`。

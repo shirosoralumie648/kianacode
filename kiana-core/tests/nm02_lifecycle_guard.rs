@@ -27,6 +27,9 @@ fn communication_lifecycle_uses_eventlog_and_never_dispatches_from_message_text(
         "communication.incident_escalated",
         "communication_sender_mismatch",
         "communication_sender_role_invalid",
+        "communication_lifecycle_evidence_required",
+        "communication_lifecycle_evidence_invalid",
+        "collect::<Option<Vec<_>>>()",
         "CommunicationLifecycleEvent::new",
         "record_event",
     ] {
@@ -39,6 +42,12 @@ fn communication_lifecycle_uses_eventlog_and_never_dispatches_from_message_text(
     assert!(commands.contains("communication.reject"));
     assert!(commands.contains("communication.escalate"));
     assert!(events.contains("\"communication\".to_owned()"));
-    assert!(!core.contains("handle_company_command"));
-    assert!(!core.contains("authorize_and_execute"));
+    let executable_core = core
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(!executable_core.contains("filter_map(Value::as_str)"));
+    assert!(!executable_core.contains("handle_company_command"));
+    assert!(!executable_core.contains("authorize_and_execute"));
 }

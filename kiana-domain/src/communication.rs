@@ -265,13 +265,13 @@ impl CommunicationLifecycleEvent {
         {
             return Err("communication_lifecycle_evidence_invalid".to_owned());
         }
+        if self.to_status == CommunicationLifecycleStatus::Sent && self.from_status.is_some() {
+            return Err("communication_lifecycle_initial_invalid".to_owned());
+        }
         if self.to_status == CommunicationLifecycleStatus::Acknowledged
             || self.to_status == CommunicationLifecycleStatus::Rejected
         {
-            if message.kind != CommunicationMessageKind::Handoff
-                || self.from_status != Some(CommunicationLifecycleStatus::Sent)
-                || message.recipient_id.is_none()
-            {
+            if message.kind != CommunicationMessageKind::Handoff || message.recipient_id.is_none() {
                 return Err("communication_handoff_ack_invalid".to_owned());
             }
         }
@@ -297,8 +297,10 @@ impl CommunicationLifecycleEvent {
                 return Err("communication_lifecycle_transition_invalid".to_owned());
             }
         }
-        if self.to_status == CommunicationLifecycleStatus::Sent && self.from_status.is_some() {
-            return Err("communication_lifecycle_initial_invalid".to_owned());
+        if self.to_status == CommunicationLifecycleStatus::Escalated {
+            if self.evidence_refs.is_empty() {
+                return Err("communication_lifecycle_evidence_required".to_owned());
+            }
         }
         if matches!(
             self.to_status,

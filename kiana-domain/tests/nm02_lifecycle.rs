@@ -119,6 +119,19 @@ fn message_kinds_never_grant_authority_and_incident_escalation_is_evidenced() {
     .unwrap();
     assert!(!escalation.authority_granted);
     assert_eq!(escalation.evidence_refs, vec!["evidence:run-1"]);
+    assert_eq!(
+        CommunicationLifecycleEvent::new(
+            &incident,
+            Some(CommunicationLifecycleStatus::Sent),
+            CommunicationLifecycleStatus::Escalated,
+            "builder",
+            "needs operator review",
+            Vec::new(),
+            2,
+        )
+        .unwrap_err(),
+        "communication_lifecycle_evidence_required"
+    );
 
     let mut tampered = serde_json::to_value(&escalation).unwrap();
     tampered["unexpected"] = json!(true);
