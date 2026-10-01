@@ -57,6 +57,7 @@ fn every_signal_boundary_redacts_nested_secret_sentinels_before_encoding() {
         assert!(!text.contains("raw-bearer-sentinel"), "{text}");
         assert!(!text.contains("raw-api-key-sentinel"), "{text}");
         assert!(text.contains("vault://provider/anthropic"), "{text}");
+        assert_eq!(encoded.value["tokens_used"], 42);
         assert_eq!(encoded.profile_digest, profile.profile_digest);
         assert_eq!(
             redact_with_profile(&profile, &input).unwrap(),
@@ -104,4 +105,39 @@ fn encoder_errors_are_fail_closed_without_returning_original_payload() {
         RedactionProfile::new(RedactionSignal::Log, DataClass::Internal, 4096, 8).unwrap();
     let encoded = encode_bounded_value(&profile, &malformed).unwrap();
     assert!(!encoded.value.to_string().contains("raw-unbounded-sentinel"));
+}
+
+#[test]
+fn numeric_token_metrics_do_not_exempt_string_credentials_or_unknown_fields() {
+    let input = json!({
+        "tokens_used": 42,
+        "input_tokens": "credential-fixture-2fd7",
+        "api_key": "credential-fixture-54d3",
+        "unexpected_token_field": 42,
+        "nested": [{"token_count": 9, "tokens_used": "credential-fixture-cb41"}],
+    });
+    for signal in [
+        RedactionSignal::Log,
+        RedactionSignal::Metric,
+        RedactionSignal::Trace,
+        RedactionSignal::Audit,
+        RedactionSignal::Export,
+    ] {
+        let profile = RedactionProfile::for_signal(signal);
+        let encoded = encode_bounded_value(&profile, &input).unwrap();
+        assert_eq!(encoded.value["tokens_used"], 42);
+        assert_eq!(encoded.value["nested"][0]["token_count"], 9);
+        assert_eq!(encoded.value["input_tokens"], "[REDACTED]");
+        assert_eq!(encoded.value["api_key"], "[REDACTED]");
+        assert_eq!(encoded.value["unexpected_token_field"], "[REDACTED]");
+        assert_eq!(encoded.value["nested"][0]["tokens_used"], "[REDACTED]");
+        let text = encoded.value.to_string();
+        for sentinel in [
+            "credential-fixture-2fd7",
+            "credential-fixture-54d3",
+            "credential-fixture-cb41",
+        ] {
+            assert!(!text.contains(sentinel));
+        }
+    }
 }

@@ -634,7 +634,24 @@ fn secret_field_key(key: &str, value: &Value) -> bool {
     if key == "secret_ref" || key == "credential_ref" {
         return false;
     }
-    let token_metric = matches!(
+    !is_token_metric(key, value)
+        && (key.contains("token")
+            || key.contains("password")
+            || key.contains("api_key")
+            || key.contains("access_key")
+            || key.contains("private_key")
+            || key == "authorization"
+            || key == "proxy_authorization"
+            || key == "x_api_key"
+            || key == "secret"
+            || key == "credential"
+            || (key.contains("credential") && !key.ends_with("_generation")))
+}
+
+/// Numeric usage metadata shares one allowlist across redaction and residual-secret checks.
+/// Strings and non-allowlisted token fields remain sensitive.
+fn is_token_metric(key: &str, value: &Value) -> bool {
+    matches!(
         key,
         "reserved_tokens"
             | "tokens"
@@ -656,19 +673,7 @@ fn secret_field_key(key: &str, value: &Value) -> bool {
             | "token_budget"
             | "estimated_tokens"
             | "token_overlap"
-    ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null);
-    !token_metric
-        && (key.contains("token")
-            || key.contains("password")
-            || key.contains("api_key")
-            || key.contains("access_key")
-            || key.contains("private_key")
-            || key == "authorization"
-            || key == "proxy_authorization"
-            || key == "x_api_key"
-            || key == "secret"
-            || key == "credential"
-            || (key.contains("credential") && !key.ends_with("_generation")))
+    ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null)
 }
 
 fn contains_url_userinfo(text: &str) -> bool {
@@ -735,7 +740,7 @@ fn contains_unredacted_secret(value: &Value) -> bool {
             let normalized = key.to_ascii_lowercase();
             let sensitive = normalized != "secret_ref"
                 && normalized != "credential_ref"
-                && (normalized.contains("token")
+                && ((normalized.contains("token") && !is_token_metric(&normalized, value))
                     || normalized.contains("password")
                     || normalized.contains("api_key")
                     || normalized.contains("access_key")
@@ -1026,30 +1031,7 @@ pub fn redact_value(value: &Value) -> Value {
                 .iter()
                 .map(|(key, value)| {
                     let normalized = key.to_ascii_lowercase();
-                    let token_metric =
-                        matches!(
-                            normalized.as_str(),
-                            "reserved_tokens"
-                                | "tokens"
-                                | "charged_tokens"
-                                | "reported_tokens"
-                                | "charged_and_reserved_tokens"
-                                | "tokens_before"
-                                | "tokens_after"
-                                | "input_tokens"
-                                | "output_tokens"
-                                | "max_output_tokens"
-                                | "total_tokens"
-                                | "tokens_used"
-                                | "cached_tokens"
-                                | "reasoning_tokens"
-                                | "max_tokens"
-                                | "min_tokens"
-                                | "token_count"
-                                | "token_budget"
-                                | "estimated_tokens"
-                                | "token_overlap"
-                        ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null);
+                    let token_metric = is_token_metric(&normalized, value);
                     let sensitive = normalized != "secret_ref"
                         && normalized != "credential_ref"
                         && ((normalized.contains("token") && !token_metric)
