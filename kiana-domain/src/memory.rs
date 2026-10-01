@@ -115,6 +115,7 @@ fn first_revision() -> u64 {
     1
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MemoryRecord {
     #[serde(default)]
     pub project_root: String,

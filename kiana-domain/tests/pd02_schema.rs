@@ -46,6 +46,9 @@ fn storage_upcaster_requires_named_migration_and_rejects_unknown_major_or_field(
     assert_eq!(upgraded["schema"], MEMORY_RECORD_SCHEMA_V2);
     assert_eq!(upgraded["import_mode"], "legacy_import");
     assert_eq!(upgraded["admission_state"], "candidate");
+    let mut current_unknown = upgraded.clone();
+    current_unknown["unexpected"] = json!(true);
+    assert!(serde_json::from_value::<MemoryRecord>(current_unknown).is_err());
     assert_eq!(
         upcast_storage_value(
             json!({"schema":"kiana.memory-record.v9"}),

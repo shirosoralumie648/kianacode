@@ -16,6 +16,7 @@ fn storage_schema_registry_is_canonical_and_upcast_is_explicit() {
     ] {
         assert!(schema.contains(marker), "schema marker missing: {marker}");
     }
+    assert!(include_str!("../../kiana-domain/src/memory.rs").contains("deny_unknown_fields"));
     assert!(contracts.contains("kiana.storage-schema-registry.v1"));
     assert!(!schema.contains("tokio::spawn"));
     assert!(!schema.contains("CapabilityBroker"));
