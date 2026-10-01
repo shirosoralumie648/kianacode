@@ -8,6 +8,8 @@ fn security_contracts_stay_domain_only_and_do_not_create_an_execution_path() {
         "SecurityObjectEnvelope",
         "upcast_security_object",
         "security_schema_unknown_major",
+        "security_schema_registry_identity_drift",
+        "security_schema_entry_id_drift",
         "security_object_secret_field",
         "validate_successor",
         "SCHEMA_CONTRACTS",

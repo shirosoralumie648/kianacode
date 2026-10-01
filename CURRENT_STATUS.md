@@ -4833,6 +4833,23 @@ limitations: the contracts remain domain values rather than durable authority or
 reviewer: Codex integration review of branch `step/sc02-security-ids-20261001`; verified exact prior failure, compatibility-first ordering and unchanged deny-first behavior
 ```
 
+### SC-02 deterministic registry identity drift correction (2026-10-02)
+
+```text
+source_snapshot: `a0258e84` plus isolated SC-02 stable-ID drift slice; `kiana-domain/src/security_contracts.rs`; `kiana-domain/tests/sc02_security_contract.rs`; `kiana-core/tests/sc02_security_contract_guard.rs`; `docs/roadmap/security-contract-baseline.md`
+worktree_status: SecuritySchemaRegistry now re-derives its canonical registry ID and each SecuritySchemaEntry ID from the fixed stable UUID namespace/name before accepting a digest; replacing either ID and recomputing the digest is rejected with a typed drift reason. No schema source, execution path, authority or migration behavior changed.
+command_argv:
+  `git diff --check`
+  no local test, build, check, clippy, format or smoke command was run
+cwd·environment: `/tmp/kiana-sc02-audit-20261002`; Linux; GitHub Actions remains the only test executor
+fixture·cassette: `security_registry_rejects_stable_identity_and_entry_drift` mutates and re-digests registry/entry IDs; `sc02_security_contract_guard` pins both drift reason markers; GitHub Actions only
+exit_code: `git diff --check` exit 0; CI result not awaited
+status_change: SC-02 remains 🔄 pending remote evidence; canonical stable registry and entry ID drift now fails closed before digest/secret acceptance
+proof-level change: `feature_status=partial`; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: the registry remains a process-generated projection without cross-process persistence or caller authentication; envelope payloads remain generic until SC-03/04 bind reason/context, and SecretStore, redaction-at-every-output, audit projection, TOCTOU and external effects remain unproven
+reviewer: Codex isolated SC-02 source audit; no runtime test reviewer
+```
+
 ### SC-03 stable security reason codes evidence (2026-09-17)
 
 ```text

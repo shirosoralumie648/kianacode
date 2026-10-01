@@ -1,6 +1,7 @@
 use kiana_domain::{
     parse_security_object, schema_contract, upcast_security_object, upcast_security_registry,
-    SecurityEventId, SecurityObjectEnvelope, SecurityObjectKind, SecuritySchemaRegistry,
+    SecurityEventId, SecurityObjectEnvelope, SecurityObjectKind, SecurityRegistryId,
+    SecuritySchemaRegistry,
     SECURITY_OBJECT_SCHEMA, SECURITY_SCHEMA_REGISTRY_SCHEMA,
 };
 use serde_json::json;
@@ -68,6 +69,27 @@ fn security_registry_rejects_unknown_major_duplicate_ids_and_rollback() {
     assert_eq!(
         successor.validate_successor(&unrelated).unwrap_err(),
         "security_schema_registry_digest_rollback"
+    );
+}
+
+#[test]
+fn security_registry_rejects_stable_identity_and_entry_drift() {
+    let registry = SecuritySchemaRegistry::current().expect("genesis registry");
+
+    let mut identity_drift = registry.clone();
+    identity_drift.registry_id = SecurityRegistryId::new();
+    identity_drift.registry_digest = identity_drift.digest();
+    assert_eq!(
+        identity_drift.validate().unwrap_err(),
+        "security_schema_registry_identity_drift"
+    );
+
+    let mut entry_drift = registry.clone();
+    entry_drift.entries[0].registry_id = SecurityRegistryId::new();
+    entry_drift.registry_digest = entry_drift.digest();
+    assert_eq!(
+        entry_drift.validate().unwrap_err(),
+        "security_schema_entry_id_drift"
     );
 }
 
