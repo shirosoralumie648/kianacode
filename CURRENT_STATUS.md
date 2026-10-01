@@ -4266,6 +4266,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-03 eval object/provenance/cursor/digest and no-execution-path source-boundary review; no runtime test reviewer
 ```
 
+### EQ-03 declared case identity fixture correction (2026-10-02)
+
+```text
+source_snapshot: `58539912` plus `851ab89e`; `kiana-domain/tests/eq03_eval_objects.rs`; `docs/roadmap/evaluation-objects-baseline.md`; prior CI `36677090825`, domain-s2 job `109764373648`
+worktree_status: isolated branch `feat/eq03-evaluation-guards` integrated into master; dataset/suite referenced an ID allocated before EvalCase::new allocated another; fixture now binds the declared ID and recalculates its digest before validation, preserving every existing identity assertion
+command_argv: `gh run view 36677090825 --job 109764373648 --log-failed`; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: `eval_dataset_suite_case_and_golden_trace_bind_schema_and_provenance`
+exit_code: old EQ-03 target 2 passed / 1 failed comparing distinct generated case UUIDs; local diff checks 0; new CI pending/unobserved
+status_change: EQ-03 remains 🔄; corrected fixture identity binding, production contract unchanged
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: no EvalStore/fixture-loader persistence, judge or replay proof; full CI has unrelated failures; new CI not awaited
+reviewer: Codex integration review of declared dataset/suite references, digest rebinding and retained assertions
+```
+
+
 ### EQ-04 evaluation admission metadata evidence (2026-09-17)
 
 ```text
