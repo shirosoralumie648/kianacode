@@ -4358,6 +4358,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-01 threat/asset/evidence catalog and non-inflation source review; no runtime test reviewer
 ```
 
+### SC-01 external/physical proof-boundary source guard correction (2026-10-01)
+
+```text
+source_snapshot: `78f0399a` plus the SC-01 proof-boundary wording correction; `docs/roadmap/security-threat-register.md`; prior GitHub run `36677090825`
+worktree_status: branch `step/sc01-proof-boundary-20261001`; the existing register and fixture catalog cover T01-T12, but the source guard requires an explicit `external/physical` limitation marker; the register now states that it provides no evidence of such an outcome
+command_argv:
+  `gh run view 36677090825 --log` confirmed `threat register marker missing: external/physical`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; tests are delegated to GitHub Actions by user instruction
+fixture·cassette: `kiana-core/tests/sc01_threat_register.rs::threat_register_is_explicit_and_deny_first_without_claiming_enforcement`; prior CI failed on the absent proof-boundary marker; GitHub Actions only
+exit_code: prior source guard failed in run `36677090825`; local `git diff --check` exit 0; post-push CI rerun pending/unobserved
+status_change: SC-01 remains 🔄 pending the new CI receipt; its explicit external/physical proof limitation now matches the source guard and evidence ceiling
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime security, external-effect, physical, durability or certification claim
+limitations: wording and a source guard cannot prove runtime enforcement or real-world outcomes; the current full CI run also has unrelated failing jobs, and this correction's CI result is not observed
+reviewer: Codex source review; confirmed the exact remote failure marker, the document's source-only proof ceiling, and no test weakening or local test execution
+```
+
 ### SC-02 security IDs and schema registry evidence (2026-09-17)
 
 ```text

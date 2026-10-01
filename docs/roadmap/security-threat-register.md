@@ -9,6 +9,7 @@
 | roadmap card | [`SC-01`](security-compliance.md#step-sc-01) |
 | feature_status | `implemented`（threat register, asset/control mapping and fixture catalog） |
 | proof_level | `source`；登记、source guard 和 CI wiring 不提升为 `local_behavior`、`durable`、`live` 或 `physical` |
+| outcome boundary | This register provides no evidence of an external/physical outcome. |
 | authority | Security Constitution + current source/CURRENT_STATUS; roadmap/reference are design inputs only |
 | execution spine | `entrypoints → client/protocol → DaemonHost → ControlPlane → policy/gate/approval → Broker/Runner → handlers → EventLog → Receipt/projection` |
 | this step does | threat IDs, assets, attacker assumptions, prevent/detect/recover controls, evidence ceilings and deny-first fixture catalog |
