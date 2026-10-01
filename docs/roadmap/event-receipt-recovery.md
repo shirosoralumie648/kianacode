@@ -232,7 +232,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-02 — 统一身份、关联和顺序语义　✅
+##### ER-02 — 统一身份、关联和顺序语义　🔄
 
 当前 source slice 与 CI-only 证据见 [`event-receipt-identity-baseline.md`](event-receipt-identity-baseline.md)。
 

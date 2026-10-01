@@ -3143,6 +3143,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus ER-02 identity/correlation/causation/order/projection source-boundary review; no runtime test reviewer
 ```
 
+### ER-02 structured conflict assertion correction (2026-10-01)
+
+```text
+source_snapshot: `c221c211` baseline plus `2e23195f` assertion correction; `kiana-eventlog/tests/er02_identity.rs`; prior run `36677090825` at the baseline commit
+worktree_status: branch `step/er02-porterror-20261001`; EventStore returned the intended structured `PortError::Conflict` reasons, while the test compared `Display` text without its `port_conflict:` prefix; both deny assertions now match the error variant and stable reason code; no product behavior changed
+command_argv:
+  `gh run view 36677090825 --job 109764373667 --log-failed`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; current workflow CI runs only on GitHub Actions by user instruction
+fixture·cassette: `kiana-eventlog/tests/er02_identity.rs`; remote job executed `event_id_reuse_is_denied` and `same_request_different_command_digest_conflicts`, both failed only because the formatted errors were `port_conflict:event_id_duplicate` and `port_conflict:event_store_command_digest_mismatch`
+exit_code: prior GitHub job `109764373667` failed with 0/2 ER-02 eventlog assertions passing; local `git diff --check` exit 0; post-push CI rerun pending/unobserved
+status_change: ER-02 remains 🔄; corrected its structured-error assertions and aligned the detailed card with the global roadmap until a successful GitHub CI receipt is available
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime behavior or durable/live/physical promotion
+limitations: the correction only fixes assertion shape; the current full CI run `36677090825` has 22 failed jobs, including unrelated baseline failures, and the new ER-02 CI result has not been observed
+reviewer: Codex source review; verified the error variant/reason returned by EventStore, the exact remote assertion output, no weakening of the deny condition, and no local test execution
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text
