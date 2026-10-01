@@ -141,3 +141,33 @@ fn numeric_token_metrics_do_not_exempt_string_credentials_or_unknown_fields() {
         }
     }
 }
+
+#[test]
+fn hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected() {
+    let input = json!({
+        "Proxy-Authorization": "Basic raw-proxy-secret",
+        "X-Api-Key": "raw-header-secret",
+        "api-key": "raw-api-secret",
+        "secret-ref": "raw-secret-ref",
+        "credential-ref": "raw-credential-ref",
+        "nested": [{"proxy-authorization": "raw-nested-secret"}],
+    });
+    let profile = RedactionProfile::for_signal(RedactionSignal::Export);
+    let encoded = encode_bounded_value(&profile, &input).unwrap();
+    assert_eq!(encoded.value["Proxy-Authorization"], "[REDACTED]");
+    assert_eq!(encoded.value["X-Api-Key"], "[REDACTED]");
+    assert_eq!(encoded.value["api-key"], "[REDACTED]");
+    assert_eq!(encoded.value["secret-ref"], "[REDACTED]");
+    assert_eq!(encoded.value["credential-ref"], "[REDACTED]");
+    assert_eq!(
+        encoded.value["nested"][0]["proxy-authorization"],
+        "[REDACTED]"
+    );
+
+    let text_profile = RedactionProfile::for_signal(RedactionSignal::Log);
+    assert_eq!(
+        encode_bounded_text(&text_profile, "proxy-authorization: [REDACTED]raw-suffix")
+            .unwrap_err(),
+        "redaction_secret_sentinel_detected"
+    );
+}

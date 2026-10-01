@@ -28,6 +28,14 @@ fn event_redaction_boundary_and_artifact_reference_policy_are_source_owned() {
     assert!(domain_redaction.contains("encode_bounded_value"));
     assert!(domain_redaction.contains("redaction_secret_sentinel_detected"));
     assert!(domain_redaction.contains("StreamingRedactor"));
+    assert!(domain_redaction.contains("fn normalize_secret_key"));
+    assert!(domain_redaction.contains("replace('-', \"_\")"));
+    assert!(domain_redaction.contains("fn is_opaque_reference_key"));
+    assert!(domain_redaction.contains("eq_ignore_ascii_case(\"secret_ref\")"));
+    assert!(
+        domain_redaction.contains("fn redacted_placeholder_is_complete")
+            && domain_redaction.contains("strip_prefix(\"[redacted]\")")
+    );
     assert!(artifacts.contains("artifact"));
     assert!(receipts.contains("redact_event_value"));
     assert!(baseline.contains("secret_never_enters_event_or_receipt"));

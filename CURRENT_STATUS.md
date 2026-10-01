@@ -2347,6 +2347,21 @@ limitations: marker-based redaction cannot identify arbitrary unmarked secrets; 
 reviewer: Codex source review of the previously duplicated allowlist, every credential predicate and remote failure
 ```
 
+### OA-03 structured header key and placeholder boundary follow-up (2026-10-02)
+
+```text
+source_snapshot: `14c53456`; `kiana-domain/src/redaction.rs`; `kiana-domain/tests/oa03_redaction.rs`; `kiana-core/tests/er03_redaction_guard.rs`; `docs/roadmap/observability-audit-baseline.md`
+worktree_status: isolated branch `step/oa03-redaction-audit-20261002`; OA-03 key canonicalization and strict placeholder checks are scoped to the existing domain encoder/scanner; no producer, sink or EventStore path was added
+command_argv: `git diff --check`; source inspection with `git grep`/`sed`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root worktree; Linux; GitHub Actions only for test execution
+fixture·cassette: `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected`; structured `Proxy-Authorization`/`X-Api-Key`/`api-key` values and nested variants are redacted, hyphenated `secret-ref`/`credential-ref` values are not treated as opaque references, and `proxy-authorization: [REDACTED]raw-suffix` is rejected; existing numeric token metric and underscore `secret_ref` fixtures remain unchanged
+exit_code: `git diff --check` 0; CI result intentionally not awaited
+status_change: OA-03 remains 🔄 with `feature_status=partial`; redaction predicates now share ASCII-lowercase plus hyphen-to-underscore key normalization without changing serialized keys, and scanner placeholder validation is fail-closed
+proof-level_change: source only; no local_behavior, durable, live or physical promotion
+limitations: marker/key policy still cannot identify arbitrary unmarked secrets; runtime sink/provider/export wiring remains downstream OA work; the focused fixture awaits GitHub CI
+reviewer: Codex OA-03 static-boundary audit with root-agent review requested; no runtime test reviewer
+```
+
 
 ### OA-04 committed audit taxonomy and reducer evidence (2026-09-15)
 

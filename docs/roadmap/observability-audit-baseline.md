@@ -292,7 +292,11 @@ trace/audit/export signal 声明 `DataClass`、最大字节数和最大嵌套深
 profile digest。`encode_bounded_value`/`encode_bounded_text` 复用既有 `redact_value`/
 `redact_text`，随后检查 NUL、深度、UTF-8/JSON 编码、大小和残余 secret marker；profile、
 结构或文本任一校验失败都返回稳定错误，不提供原文 fallback。`secret_ref` 等受控引用
-可以保留，secret/token/password/api-key/header 等值必须变为 `[REDACTED]`。
+可以保留，secret/token/password/api-key/header 等值必须变为 `[REDACTED]`。结构化 key
+判定先统一 ASCII 小写并把 `-` 规范为 `_`，所以 `Proxy-Authorization`、`X-Api-Key` 和
+`api-key` 与下划线变体共享同一拒绝边界；扫描器只接受完整的 `[REDACTED]` 占位符，不把
+`[REDACTED]suffix` 当作已脱敏值。`secret_ref`/`credential_ref` 只有原始下划线 key
+保留 opaque reference，连字符变体仍按敏感值处理。
 
 本步只交付 domain/profile/encoder source contract 与远端 sentinel/边界夹具，没有改写
 EventStore、Receipt、Provider、Broker 或外部 exporter 的既有事实路径。它不证明所有输出
