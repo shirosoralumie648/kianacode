@@ -4929,6 +4929,21 @@ limitations: no full durable assignment/Cell policy, cross-process fence, approv
 reviewer: Codex integration review of first-layer validation, actual empty intersection and explicit external-risk preconditions
 ```
 
+### SC-09 fail-closed request path and full narrowing audit (2026-10-02)
+
+```text
+source_snapshot: `202e82a4` plus SC-09 fail-closed path and narrowing fixture slice; kiana-policy/src/grant_scope.rs; kiana-policy/tests/sc09_grant_scope.rs; kiana-core/tests/sc09_grant_scope_guard.rs; docs/roadmap/security-grant-scope-baseline.md; CURRENT_STATUS.md
+worktree_status: GrantScope::allows_request now rejects an explicitly supplied non-string `path` instead of silently skipping the path fence. CI-only fixtures cover cross-principal/project/authority-epoch intersections, secret/external capability-dimension mismatch, delegation and expiry narrowing, non-canonical capability ordering, singleton digest validation, and no Broker/union/second authorization path; SC-10 approval and SC-12 permit wiring remain out of scope
+command_argv: `git diff --check`; source reads and GitHub Actions receipt review only; no local cargo test/build/check/fmt/clippy/smoke
+cwd·environment: repository root; Linux; GitHub Actions is the test authority
+fixture·cassette: `kiana-policy/tests/sc09_grant_scope.rs` deny-first policy fixtures; `kiana-core/tests/sc09_grant_scope_guard.rs` source guard; unified CI `kiana-policy` shard plus `kiana-core-s1/6` guard inventory; no provider/Broker/filesystem/network effect
+exit_code: local `git diff --check` 0; latest unified CI was in progress and not awaited
+status_change: SC-09 remains 🔄 with a source-level fail-closed correction and expanded deny coverage; no feature or proof-level promotion
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: no durable Cell/Grant/Approval assignment or cross-process revocation, no permit/CAS or effect-time TOCTOU fence, and no external/live/physical proof; malformed non-string path now rejects at this policy value boundary but request schemas and handler-specific argument validation remain separate contracts; CI result intentionally unobserved
+reviewer: Codex SC-09 audit of scope intersections, dimension narrowing, canonical digests, and malformed path fail-closed boundary; no local runtime test reviewer
+```
+
 
 ### SC-10 approval binding and Human Inbox evidence (2026-09-17)
 

@@ -493,9 +493,10 @@ impl GrantScope {
     /// （比如一次写文件在某些配置下也可能触及外部），
     /// 而"访问密钥"是明确的单一能力。
     ///
-    /// 【⚠ 关于第 5 步：为什么用 `if let` 而不是要求必须有 path】
+    /// 【⚠ 关于第 5 步：为什么不要求所有请求必须有 path】
     /// 路径检查是**可选的**，因为不是所有请求都涉及文件操作。
-    /// `if let Some(path) = ...` 意味着"没传路径就跳过这项检查"。
+    /// 没有 `path` 字段时跳过这项检查；但只要显式提供了 `path`，它必须是字符串并
+    /// 落在作用域内，其他 JSON 类型不能借由类型不匹配绕过边界。
     ///
     /// ⚠ 这里有一个隐含约定：请求的 `arguments` 里如果要用文件路径，
     /// 必须以 `path` 这个键名传递。否则这项检查会被跳过。
@@ -531,7 +532,10 @@ impl GrantScope {
         {
             return Ok(false);
         }
-        if let Some(path) = request.arguments.get("path").and_then(Value::as_str) {
+        if let Some(path_value) = request.arguments.get("path") {
+            let Some(path) = path_value.as_str() else {
+                return Ok(false);
+            };
             if !self.scope.allows_path(path) {
                 return Ok(false);
             }

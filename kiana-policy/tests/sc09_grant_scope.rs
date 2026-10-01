@@ -130,6 +130,40 @@ fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimen
         parent.intersect(&foreign).unwrap_err(),
         "grant_scope_principal_mismatch"
     );
+
+    let mut foreign_project = parent_grant();
+    foreign_project.project_id = ProjectId::new();
+    foreign_project.grant_digest = foreign_project.digest();
+    assert_eq!(
+        parent.intersect(&foreign_project).unwrap_err(),
+        "grant_scope_project_mismatch"
+    );
+
+    let mut foreign_epoch = parent_grant();
+    foreign_epoch.authority_epoch = 5;
+    foreign_epoch.grant_digest = foreign_epoch.digest();
+    assert_eq!(
+        parent.intersect(&foreign_epoch).unwrap_err(),
+        "grant_scope_authority_epoch_mismatch"
+    );
+
+    assert_eq!(
+        GrantScope::new(
+            GrantId::new(),
+            None,
+            parent.principal_id,
+            parent.project_id,
+            scope(&["read"], &[], &[]),
+            vec![CapabilityKind::Filesystem],
+            false,
+            true,
+            false,
+            4,
+            500,
+        )
+        .unwrap_err(),
+        "grant_scope_external_dimension_mismatch"
+    );
 }
 
 #[test]
@@ -151,6 +185,44 @@ fn grant_scope_allows_only_explicit_capability_scope_and_expiry() {
     request.risk = RiskLevel::ExternalSideEffect;
     assert!(!parent.allows_request(&request, 500).unwrap());
     assert!(!parent.allows_request(&request, 1_000).unwrap());
+
+    request.risk = RiskLevel::ReadOnly;
+    request.arguments["path"] = json!({"nested":"src/lib.rs"});
+    assert!(!parent.allows_request(&request, 500).unwrap());
+}
+
+#[test]
+fn grant_scope_intersection_preserves_expiry_and_delegation_narrowing() {
+    let mut parent = parent_grant();
+    parent.delegation_allowed = false;
+    parent.grant_digest = parent.digest();
+    let child = GrantScope::new(
+        GrantId::new(),
+        Some(parent.grant_id),
+        parent.principal_id,
+        parent.project_id,
+        scope(&["read"], &[], &[]),
+        vec![CapabilityKind::Filesystem],
+        false,
+        false,
+        true,
+        4,
+        2_000,
+    )
+    .unwrap();
+    let derived = parent.intersect(&child).unwrap();
+    assert!(!derived.delegation_allowed);
+    assert_eq!(derived.expires_at_unix_ms, parent.expires_at_unix_ms);
+    assert!(parent.contains(&derived).unwrap());
+    assert!(!parent.contains(&child).unwrap());
+
+    let mut forged_order = parent_grant();
+    forged_order.capabilities.reverse();
+    forged_order.grant_digest = forged_order.digest();
+    assert_eq!(
+        forged_order.validate().unwrap_err(),
+        "grant_scope_capabilities_noncanonical"
+    );
 }
 
 #[test]

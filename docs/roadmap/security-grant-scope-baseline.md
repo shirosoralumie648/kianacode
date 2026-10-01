@@ -23,7 +23,7 @@ canonical capability 全部拒绝。`contains` 只能证明 child 是 parent 子
 
 `from_capability_grant` 是只读兼容 adapter，将历史 grant 映射为一层显式 scope；它不会把旧
 `CapabilityGrant` 当作新的授权事实。`allows_request` 仅检查已经存在的 scope/capability/risk/
-expiry，不调用 Broker 或 handler。
+expiry；显式但非字符串的 `path` 参数 fail-closed，不调用 Broker 或 handler。
 
 ## 2. CI-only fixture catalog
 
@@ -32,6 +32,7 @@ expiry，不调用 Broker 或 handler。
 | `grant_scope_intersects_all_layers_without_union_or_transfer` | parent/child 交集严格收窄并满足 subset |
 | `grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimensions` | 空交集、跨主体/项目和 secret/external 混用拒绝 |
 | `grant_scope_allows_only_explicit_capability_scope_and_expiry` | operation/path/risk/expiry 边界不越权 |
+| `grant_scope_intersection_preserves_expiry_and_delegation_narrowing` | cross-project/epoch、external mismatch、delegation/expiry narrowing 和非规范 capability 顺序拒绝 |
 | `historical_capability_grant_adapts_to_narrow_scope` | legacy grant 只读转成窄 scope |
 | `grant_scope_reuses_scope_set_and_cannot_create_a_broker_or_union_path` | source guard 固定复用交集算法、无 union/Broker/执行依赖 |
 
