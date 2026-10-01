@@ -4744,6 +4744,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-09 intersection/no-union/capability-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-09 singleton scope validation and fixture narrowing (2026-10-02)
+
+```text
+source_snapshot: `c10d02d7` plus `0eee5f0f`; domain/policy scope intersection sources and fixtures; prior CI `36677090825`, policy job `109764373697`
+worktree_status: isolated branch `fix/sc09-scope-ci-20261002` integrated into master; ScopeSet::intersect_all and GrantScope::intersect_all now validate their first/singleton layer before folding; fixtures add forged singleton digest denies, use a genuinely disjoint Process capability for empty intersection and set allow_external=false when asserting external-risk denial
+command_argv: old CI log; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only
+fixture·cassette: cp04_scope singleton forged digest; sc09_grant_scope singleton digest; empty capability intersection; explicit external-risk denial
+exit_code: old policy job had contradictory fixtures and singleton validation bypass; local diff checks 0; new CI pending/unobserved
+status_change: SC-09 remains 🔄; closed singleton validation bypass and narrowed tests to the intended permission-intersection conditions without changing allow_external semantics
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: no full durable assignment/Cell policy, cross-process fence, approval or effect proof; existing scope values and risk flags remain separate contracts; new CI not awaited
+reviewer: Codex integration review of first-layer validation, actual empty intersection and explicit external-risk preconditions
+```
+
+
 ### SC-10 approval binding and Human Inbox evidence (2026-09-17)
 
 ```text
