@@ -25,7 +25,12 @@ fn notification_baseline_keeps_stream_and_inbox_as_projections() {
 
 #[test]
 fn notification_baseline_records_the_missing_durable_components() {
-    let baseline = include_str!("../../docs/roadmap/notifications-baseline.md");
+    // Match prose across Markdown blockquote continuations and editorial line wraps.
+    let baseline = include_str!("../../docs/roadmap/notifications-baseline.md")
+        .lines()
+        .map(|line| line.strip_prefix("> ").unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join(" ");
     for required in [
         "durable NotificationStore",
         "read state",
