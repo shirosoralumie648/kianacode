@@ -8,6 +8,7 @@ fn notification_registry_is_server_owned_and_checked_at_event_boundary() {
         "NotificationEventClass",
         "NotificationEventSource",
         "notification_event_kind_unregistered",
+        "notification_event_source_unknown",
         "notification_event_source_untrusted",
         "notification_event_owner_required",
         "RunTerminal",
@@ -36,6 +37,7 @@ fn notification_registry_is_server_owned_and_checked_at_event_boundary() {
     }
     for marker in [
         "data.get(\"source\").is_some()",
+        "match payload.get(\"source\")",
         "notification_event_source",
         "validate_notification_event",
         "prepare_event_payload",

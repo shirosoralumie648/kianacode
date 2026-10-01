@@ -30,7 +30,9 @@
 | `runtime_event_classification_requires_a_registered_server_source` | RuntimeEvent helper 只接受登记 kind 与可信 source；future communication kind 拒绝 |
 | `notification_registry_is_server_owned_and_checked_at_event_boundary` | domain registry 与 core append boundary/source guard 互相接线，无模型/UI authority path |
 
-`.github/workflows/nm03-event-registry.yml` 在 GitHub runner 执行 domain registry fixtures、core source guard、fmt 和 domain/ports/protocol/core test-target 编译；本地只做格式、静态编译和 diff 检查。
+`.github/workflows/ci.yml` 在 GitHub runner 执行统一门禁；`scripts/ci/test-shards.json` 将 domain fixture 放在 `kiana-domain-s3/4`、core source guard 放在 `kiana-core-s4/6`，并执行 fmt、workspace check/clippy 与测试矩阵。本地只做源码审阅和 diff 检查，不运行 Cargo 测试或编译。
+
+NM-03 的 source boundary 还要求显式 `source` 字段必须是已注册的字符串；`null`、数字、对象等 malformed declarations 直接返回 `notification_event_source_unknown`，不能被当作“未声明”而进入 materialization。
 
 ## 4. 限制与交接
 

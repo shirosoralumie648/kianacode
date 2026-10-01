@@ -4472,6 +4472,23 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-03 event registry/source/owner and no-self-reported-critical-fact source-boundary review; no runtime test reviewer
 ```
 
+### NM-03 explicit source shape correction (2026-10-02)
+
+```text
+source_snapshot: b311b138 + NM-03 source-shape correction; kiana-domain/src/notification_events.rs; kiana-domain/tests/nm03_event_registry.rs; kiana-core/tests/nm03_event_registry_guard.rs; docs/roadmap/notifications-event-registry-baseline.md; scripts/ci/test-shards.json; .github/workflows/ci.yml
+worktree_status: isolated branch step/nm03-audit-20261002; notification validation now rejects explicit non-string source declarations before classification, while absent source remains the documented legacy compatibility path; no projector, delivery path or second authority was added
+command_argv:
+  rg -n 'match payload.get\("source"\)|notification_event_source_unknown' kiana-domain/src/notification_events.rs kiana-domain/tests/nm03_event_registry.rs kiana-core/tests/nm03_event_registry_guard.rs
+  git diff --check
+cwd·environment: /tmp/kiana-nm03-audit-20261002; Linux x86_64; GitHub Actions only for tests and compile gates; local Cargo test/build/check/fmt/clippy/smoke commands were not run
+fixture·cassette: malformed declared source values (`null`, number, object) are deny-first domain fixtures; core source guard requires the explicit source match and stable denial marker; unified CI shard inventory points to kiana-domain-s3/4 and kiana-core-s4/6
+exit_code: 0 for source inspection and git diff --check; GitHub Actions result intentionally not awaited
+status_change: NM-03 remains implemented for the scoped registry/source boundary; malformed explicit source values now fail closed instead of being silently treated as absent
+proof-level change: feature_status=implemented; proof_level=source; no local_behavior, durable, live or physical promotion
+limitations: legacy events without source remain compatibility facts and are not automatically materialized; committed-only projector/cursor/checkpoint, recipient/scope resolution, delivery/OCC/outbox/read state and cross-process recovery remain NM-04+ / ER / PD / SC scope; CI result is pending/unobserved
+reviewer: Codex NM-03 source-boundary audit; no local runtime test reviewer
+```
+
 ### EQ-01 legacy evaluation contract evidence (2026-09-17)
 
 ```text

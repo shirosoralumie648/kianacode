@@ -144,10 +144,14 @@ pub fn validate_notification_event(
             "notification_event_not_materializable".to_owned()
         }
     })?;
-    if let Some(declared) = payload.get("source").and_then(Value::as_str) {
-        if notification_event_source(declared)? != source {
-            return Err("notification_event_source_mismatch".to_owned());
+    match payload.get("source") {
+        None => {}
+        Some(Value::String(declared)) => {
+            if notification_event_source(declared)? != source {
+                return Err("notification_event_source_mismatch".to_owned());
+            }
         }
+        Some(_) => return Err("notification_event_source_unknown".to_owned()),
     }
     if matches!(
         source,
