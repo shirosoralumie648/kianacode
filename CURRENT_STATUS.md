@@ -4361,6 +4361,21 @@ limitations: focused contract tests do not prove NotificationStore/outbox/recipi
 reviewer: Codex integration review of unchanged contract sources, all retained markers and exact prior failure
 ```
 
+### NM-01 subscription revision fence correction (2026-10-02)
+
+```text
+source_snapshot: 18e24fe5 + isolated NM-01 revision-fence patch; kiana-domain/src/notifications.rs; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs; docs/roadmap/notifications-contracts-baseline.md
+worktree_status: branch `step/nm01-audit-20261002`; `Notification::validate_for_subscription` now rejects embedded `subscription_revision` drift before scope/recipient/channel admission; no manifest or lockfile changes; commit is pending integration
+command_argv: gh run view 36889127184 --job 110460611632 --log; gh run view 36889127184 --job 110460611756 --log; git diff --check
+cwd·environment: isolated worktree; Linux x86_64; GitHub Actions only for test execution; no local cargo test/build/check/fmt/clippy/smoke
+fixture·cassette: prior CI `nm01_contracts` 4/4, `nm01_contracts_guard` 1/1, `notifications_baseline` 2/2; new stale revision denial fixture and source marker await the next CI run
+exit_code: prior focused CI targets exit 0; local diff check exit 0; new fixture CI result not yet observed
+status_change: NM-01 remains 🔄; stale subscription revision now has typed fail-closed rejection
+proof-level_change: prior remote fixture evidence retained; new fence is source-only until CI; no local_behavior, durable, live, or physical promotion
+limitations: no local tests were run; materialization, durable subscription/read state, outbox/lease/CAS, resolver and external delivery remain later NM/ER/PD/SC work; CI is intentionally unawaited
+reviewer: Codex NM-01 isolated contract audit; no local runtime test reviewer
+```
+
 
 ### NM-02 communication lifecycle evidence (2026-09-17)
 

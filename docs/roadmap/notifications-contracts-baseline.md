@@ -38,3 +38,25 @@
 - Notification/Subscription objects 目前是 domain contracts，不代表已有 durable materializer、cursor、recipient resolver 或 external delivery。
 - Secret rejection 复用当前 bounded redaction marker set；未标记的任意高熵秘密、进程内存、provider echo 和外部 channel 仍需后续 SC/INT/PD 证据。
 - status transition helpers 不是 CAS 或 lease fence；Unknown 不能被推断为 success，NM-04/07/08/PD/ER 负责提交后投影、OCC、outbox 和恢复。
+
+## 5. Subscription revision fence correction (2026-10-02)
+
+`Notification::validate_for_subscription` now rejects a notification whose embedded
+`subscription_revision` differs from the server subscription revision before checking the
+recipient, project, scope, or channel intersection. This prevents a stale notification from
+being admitted through a later subscription with otherwise matching scope fields. The rejection
+is typed as `notification_subscription_revision_mismatch`; no delivery effect or authority is
+introduced.
+
+```text
+source_snapshot: 18e24fe5 + isolated NM-01 revision-fence patch; kiana-domain/src/notifications.rs; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs
+worktree_status: branch `step/nm01-audit-20261002`; source and CI fixture patch committed locally; no manifest or lockfile changes; push is owned by the integration agent
+command_argv: gh run view 36889127184 --job 110460611632 --log; gh run view 36889127184 --job 110460611756 --log; git diff --check
+cwd·environment: isolated worktree; Linux x86_64; GitHub Actions is the only test executor; no local cargo test/build/check/fmt/clippy/smoke command
+fixture·cassette: prior CI `nm01_contracts` 4/4, `nm01_contracts_guard` 1/1, `notifications_baseline` 2/2; new `notification_subscription_revision_mismatch` fixture is queued by the integration push
+exit_code: prior focused CI targets exit 0; local diff check exit 0; new fixture CI result not yet observed
+status change: NM-01 remains partial and fail-closed; stale subscription revisions are explicitly denied
+proof-level change: source only for the new fence; prior focused CI remains remote source/fixture evidence; no local_behavior, durable, live, or physical promotion
+limitations: no local tests were run; notification materialization, durable subscriptions/read state, outbox/lease/CAS, recipient resolution and external delivery remain later NM/ER/PD/SC work; new CI result is intentionally unawaited
+reviewer: Codex NM-01 isolated contract audit; no local runtime test reviewer
+```
