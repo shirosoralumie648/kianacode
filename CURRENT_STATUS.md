@@ -4571,6 +4571,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-07 port layering/no-provider/no-filesystem/no-execution source-boundary review; no runtime test reviewer
 ```
 
+### EQ-07 quality-port default-deny correction (2026-10-02)
+
+```text
+source_snapshot: `12fbcd21` plus EQ-07 default-deny correction; `kiana-ports/src/lib.rs`; `kiana-ports/tests/eq07_quality_ports.rs`; `kiana-core/tests/eq07_quality_ports_guard.rs`; `docs/roadmap/evaluation-ports-baseline.md`
+worktree_status: branch `step/eq07-ports-20261002`; `FixtureStore`, `TraceSource`, `ArtifactReader`, `Judge`, and `MetricsSink` now default to typed `PortError::Unavailable` errors, while the compile-only fixture implements all seven quality ports without asynchronous overrides; no adapter, provider, filesystem, network, execution loop, or manifest/lockfile change
+command_argv: local `git diff --check` only (no cargo test/build/check/fmt/clippy/smoke); GitHub Actions unified `ci.yml` remains the test authority and is not awaited
+cwd·environment: `/tmp/kiana-eq07-20261002`; Linux/bash; local test/build/check/fmt/clippy/smoke commands prohibited by task
+fixture·cassette: `kiana-ports/tests/eq07_quality_ports.rs` compile-only all-port implementation; `kiana-core/tests/eq07_quality_ports_guard.rs` default-error/no-provider source guard; prior unified CI run `36903885031`, job `110509907468` observed `quality port marker missing: fixture_store_unsupported`
+exit_code: local `git diff --check` passed; prior remote EQ-07 target failed before this correction; fresh CI receipt pending
+status_change: restored the documented default fail-closed contract for all asynchronous quality ports and strengthened the compile-only fixture/source guard; roadmap EQ-07 remains 🔄 pending fresh GitHub CI evidence
+proof-level_change: `feature_status=implemented` (source contract); `proof_level=source`, with no promotion to local_behavior/durable/live/physical
+limitations: no local runtime test was run; no production EvalStore/FixtureStore/TraceSource/ArtifactReader/Judge/MetricsSink/Clock adapter, durable CAS/recovery, scope/path isolation, authenticated source, normalizer/runner integration, or judge quality evidence is claimed; prior CI receipt is a failure diagnosis, not a passing proof
+reviewer: EQ-07 source review of default fail-closed methods, compile-only adapter boundary, and no daemon/provider/filesystem/network/execution dependency; no local runtime test reviewer
+
+```
+
 ### EQ-08 deterministic fixture loader evidence (2026-09-17)
 
 ```text

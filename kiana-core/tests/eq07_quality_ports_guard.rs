@@ -10,6 +10,12 @@ fn quality_port_traits_remain_below_core_and_have_no_provider_or_filesystem_depe
         "Judge",
         "MetricsSink",
         "Clock",
+        "eval_store_unsupported",
+        "fixture_store_unsupported",
+        "trace_source_unsupported",
+        "artifact_reader_unsupported",
+        "judge_unsupported",
+        "metrics_sink_unsupported",
     ] {
         assert!(ports.contains(marker), "port marker missing: {marker}");
     }

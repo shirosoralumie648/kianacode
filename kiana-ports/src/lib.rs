@@ -684,9 +684,13 @@ pub trait EvalStore: Send + Sync {
 pub trait FixtureStore: Send + Sync {
     async fn read_fixture(
         &self,
-        fixture_ref: &str,
-        scope_digest: &str,
-    ) -> Result<Vec<u8>, PortError>;
+        _fixture_ref: &str,
+        _scope_digest: &str,
+    ) -> Result<Vec<u8>, PortError> {
+        Err(PortError::Unavailable(
+            "fixture_store_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Read committed RuntimeEvent facts for a run after a logical cursor. Deltas are never authority
@@ -695,17 +699,25 @@ pub trait FixtureStore: Send + Sync {
 pub trait TraceSource: Send + Sync {
     async fn read_trace_events(
         &self,
-        run_id: RunId,
-        after_cursor: EventCursor,
-        limit: usize,
-    ) -> Result<Vec<RuntimeEvent>, PortError>;
+        _run_id: RunId,
+        _after_cursor: EventCursor,
+        _limit: usize,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        Err(PortError::Unavailable(
+            "trace_source_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Read immutable artifact bytes referenced by a GoldenTrace. The port does not accept a current
 /// workspace path and cannot mutate an artifact or its authorization scope.
 #[async_trait]
 pub trait ArtifactReader: Send + Sync {
-    async fn read_artifact(&self, reference: &ArtifactRef) -> Result<Vec<u8>, PortError>;
+    async fn read_artifact(&self, _reference: &ArtifactRef) -> Result<Vec<u8>, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_reader_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Semantic judge boundary. A judge returns bounded JSON findings only; it cannot promote a
@@ -714,15 +726,21 @@ pub trait ArtifactReader: Send + Sync {
 pub trait Judge: Send + Sync {
     async fn judge(
         &self,
-        case: &EvalCase,
-        trace: &GoldenTrace,
-    ) -> Result<serde_json::Value, PortError>;
+        _case: &EvalCase,
+        _trace: &GoldenTrace,
+    ) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable("judge_unsupported".to_owned()))
+    }
 }
 
 /// Quality metrics projection sink. A metrics write is not a quality verdict or policy mutation.
 #[async_trait]
 pub trait MetricsSink: Send + Sync {
-    async fn record_eval_result(&self, result: &EvalCaseResult) -> Result<(), PortError>;
+    async fn record_eval_result(&self, _result: &EvalCaseResult) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "metrics_sink_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Deterministic clock boundary for evaluation and expiry checks; it has no sleep or I/O effect.
