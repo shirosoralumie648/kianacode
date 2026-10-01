@@ -24,8 +24,9 @@ ID registry round-trip guard 覆盖；ID 本身不是 grant、permit 或认证�
 
 - `SecuritySchemaRegistry`：从唯一 `SCHEMA_CONTRACTS` 生成排序后的 entry 快照，绑定
   `contracts_digest`、registry revision、authority/data epoch、source sequence 和 parent
-  digest；重复 schema/ID、未知或漂移 contract、digest/epoch/sequence rollback、非
-  canonical 顺序均 fail-closed。
+  digest；registry 与 entry ID 必须匹配 deterministic stable UUID。重复 schema/ID、ID
+  drift、未知或漂移 contract、digest/epoch/sequence rollback、非 canonical 顺序均
+  fail-closed。
 - `SecurityObjectEnvelope`：固定 schema/version、transport event ID、object kind、epoch、
   sequence、父 digest、payload digest 和 envelope digest；payload 仅允许 bounded JSON object，
   递归拒绝 secret/token/password/bearer/private-key 等原值或字段。
@@ -43,6 +44,7 @@ ID registry round-trip guard 覆盖；ID 本身不是 grant、permit 或认证�
 |---|---|
 | `security_registry_is_generated_sorted_and_round_trips` | genesis registry 可生成、canonical 排序、serde round-trip 和 digest 稳定 |
 | `security_registry_rejects_unknown_major_duplicate_ids_and_rollback` | unknown major、重复 ID、authority/data/sequence/revision/digest 链回退全部拒绝 |
+| `security_registry_rejects_stable_identity_and_entry_drift` | registry 与 entry 的 deterministic stable ID 被替换并重算 digest 时仍拒绝 |
 | `security_registry_rejects_secret_fields_and_unknown_upcasts` | strict serde 不接受 secret 字段，未注册 major upcast 不放行 |
 | `security_object_is_canonical_chain_and_secret_safe` | object envelope 生成、父 digest successor、epoch fencing 和 secret sentinel 拒绝 |
 | `security_object_rejects_unknown_major_and_implicit_migration` | unknown major 与隐式 v0 migration fail-closed |

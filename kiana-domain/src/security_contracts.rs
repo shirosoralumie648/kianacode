@@ -88,6 +88,11 @@ impl SecuritySchemaEntry {
         {
             return Err("security_schema_entry_invalid".to_owned());
         }
+        if self.registry_id
+            != SecurityRegistryId::from_uuid(stable_uuid("security-schema-entry", &self.schema))
+        {
+            return Err("security_schema_entry_id_drift".to_owned());
+        }
         validate_digest(&self.contract_digest, "security_schema_entry_digest")?;
         let contract = schema_contract(&self.schema)
             .ok_or_else(|| "security_schema_entry_unregistered".to_owned())?;
@@ -231,6 +236,14 @@ impl SecuritySchemaRegistry {
         {
             return Err("security_schema_registry_header_invalid".to_owned());
         }
+        if self.registry_id
+            != SecurityRegistryId::from_uuid(stable_uuid(
+                "security-schema-registry",
+                SECURITY_SCHEMA_REGISTRY_SCHEMA,
+            ))
+        {
+            return Err("security_schema_registry_identity_drift".to_owned());
+        }
         if self.contracts_digest != schema_contracts_digest() {
             return Err("security_schema_registry_contracts_digest_stale".to_owned());
         }
@@ -241,13 +254,13 @@ impl SecuritySchemaRegistry {
         let mut schemas = BTreeSet::new();
         let mut ids = BTreeSet::new();
         for entry in &self.entries {
-            entry.validate()?;
             if !schemas.insert(entry.schema.as_str()) {
                 return Err("security_schema_registry_duplicate_schema".to_owned());
             }
             if !ids.insert(entry.registry_id.as_uuid()) {
                 return Err("security_schema_registry_duplicate_id".to_owned());
             }
+            entry.validate()?;
         }
         if self
             .entries
