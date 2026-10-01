@@ -4087,6 +4087,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-02 WorkGraph/packet-graph reuse and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+### SW-02 canonical data scope validation (2026-10-02)
+
+```text
+source_snapshot: `86ecfd20` plus `20af8032`; `kiana-domain/src/swarm_graph.rs`; `kiana-domain/tests/sw02_work_graph.rs`; `docs/roadmap/swarm-work-graph-baseline.md`
+worktree_status: isolated branch `step/sw02-work-graph-20261002` integrated into master; Partition::validate now rejects leading/trailing whitespace accepted by direct/wire values, preventing raw prefix comparison from missing an overlapping child scope
+command_argv: prior CI `36677090825` logs; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: new `work_graph_rejects_noncanonical_wire_data_scope` tests rebound digest/direct/serde/projection rejection, constructor normalization followed by overlap rejection and disjoint canonical success
+exit_code: prior SW-02 domain 3/3 and core guard 1/1 passed at c221c211; local diff checks 0; new CI pending/unobserved
+status_change: SW-02 remains 🔄; closed a validation bypass at source while preserving the existing constructors and graph constraints
+proof-level change: `feature_status=partial`, `proof_level=source`; no durable dispatch/effect proof promotion
+limitations: optional graph migration, durable claims, dispatch and effect-time fencing remain separate steps; old receipts do not validate the new fixture; new CI not awaited
+reviewer: Codex integration review of whitespace bypass, exact scope-conflict predicate and unchanged graph rules
+```
+
+
 ### SW-03 typed Swarm status reducer evidence (2026-09-16)
 
 ```text
