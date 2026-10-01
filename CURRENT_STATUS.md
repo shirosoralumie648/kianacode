@@ -4980,6 +4980,22 @@ limitations: CI-only fixtures have not been executed locally; power-loss, NFS/cr
 reviewer: Codex root implementation review plus ER-05 frame integrity, writer upgrade, lock/no-follow, sync/identity and corruption classification; no runtime test reviewer
 ```
 
+### ER-05 JSONL denial fixture and checksum-owner correction (2026-10-02)
+
+```text
+source_snapshot: `9c3a1c9e` plus `ad865813`; `kiana-eventlog/src/lib.rs` test module; `kiana-eventlog/tests/{er05_jsonl_v2,pd06_jsonl_recovery}.rs`; prior CI `36677090825`, job `109764373667`
+worktree_status: isolated branch `fix/er05-error-context-20261002` integrated into master; private-mode fixture writers now cover the remaining legacy/tampered files, so the permissions gate cannot hide the tested corruption path; non-Unix helper recursion fixed; symlink assertions name the existing specific PortError; checksum guard follows real journal validation before body application
+command_argv: `gh run view 36677090825 --job 109764373667 --log-failed`; source reads; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: er05_jsonl_v2; pd06_jsonl_recovery; existing symlink-open/append tests retain target-byte invariance checks
+exit_code: old CI failed before the intended malformed-file checks due to broad fixture permissions; old guard checked body_sha256 in the wrong module; local diff checks 0; new CI pending/unobserved
+status_change: ER-05 remains 🔄; corrected fixture/guard drift; production parser, permission denial, errors and Display unchanged
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: fixture source does not prove crash/power-loss safety, cross-platform locking, or durable recovery; checksum validation is not real effect reconciliation; new CI not awaited
+reviewer: Codex integration review of private fixture creation, actual symlink code, preserved target bytes and checksum validation order
+```
+
+
 ### ER-06 async writer, backpressure and shutdown acknowledgement evidence (2026-09-17)
 
 ```text
