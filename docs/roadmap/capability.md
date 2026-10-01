@@ -5,7 +5,7 @@
 ## 20. Capability 专项：调研结论与实现设计（2026-09-12 追加）
 
 > 对应 [module-map.md](../module-map.md) 的「5. Capability：工具执行与沙箱」。
-> **性质：待实施设计与任务分解；`CAP-00` 已在 2026-09-14 以 source/static 基线完成，`CAP-01` 及后续 step 仍为 ⏳，不表示源码已经通过运行时验收。**
+> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；`CAP-01` 已有实现与 CI 断言修正，当前等待新远端回执；`CAP-02` 的输入边界实现也已有源代码证据，但专项 CI 仍待修复/回执。**
 > 阅读顺序：§20.1–20.4 看依据，§20.5–20.9 看执行设计，§21 按 step 实施，§22 看验收门。
 > 本追加不重排 §2 正在执行的预算、恢复和记忆任务；另一位实现 agent 先收口当前切片，再按依赖消费这里的细化任务。
 
@@ -294,7 +294,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 | Step | 交付内容 | 对应原单元 | CAP 直接依赖 | 状态 |
 |---|---|---|---|---|
 | `CAP-00` | 快照、冲突口径、WIP 接线清单 | `P0-A-02`、`P0-B-01`、`P1-H-01` | — | ✅ |
-| `CAP-01` | 统一 descriptor / binding / catalog | `P1-H-01` | `CAP-00` | ⏳ |
+| `CAP-01` | 统一 descriptor / binding / catalog | `P1-H-01` | `CAP-00` | 🔄 |
 | `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | ⏳ |
 | `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ✅ |
 | `CAP-04` | 状态、outcome 与稳定错误映射 | `P0-A-02`、`P0-B-01` | `CAP-02` | ✅ |
@@ -362,7 +362,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源　✅
+#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源　🔄
 
 当前 source slice 与 CI-only 证据见 [`capability-authority-baseline.md`](capability-authority-baseline.md)。
 

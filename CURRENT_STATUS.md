@@ -3224,6 +3224,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CAP-01 catalog/registry/model-surface/binding source-boundary review; no runtime test reviewer
 ```
 
+### CAP-01 CI assertion and source-guard correction (2026-10-01)
+
+```text
+source_snapshot: `7a7846df` plus `f4496567` test/source-guard correction; `kiana-capability-broker/tests/cap01_registry.rs`; `kiana-core/tests/cap01_authority_guard.rs`; prior run `36677090825`
+worktree_status: CAP-01 step merged into current master; registering the `shell` alias against operation `shell` correctly fails with `capability_binding_catalog_mismatch` because the catalog canonical operation is `shell.exec`; the fixture now asserts that mapping and the contract error. The memory guard now checks its registration function, static handler registration, three operation IDs and DaemonHost assembly instead of a line-wrap-sensitive call fragment.
+command_argv:
+  `gh run view 36677090825 --job 109764373581 --log-failed`
+  `gh run view 36677090825 --job 109764373606 --log-failed`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
+fixture·cassette: `duplicate_alias_or_operation_is_rejected`; `capability_catalog_binding_is_single_source_and_sealed_at_composition_root`; prior remote output showed actual catalog mismatch vs stale `capability_operation_unknown`, and a source guard marker miss although `harness_memory::register` calls `broker.register_static`
+exit_code: prior job `109764373581` failed the CAP-01 expected error; prior job `109764373606` failed the line-wrap-sensitive memory marker; local `git diff --check` exit 0; new push CI pending/unobserved
+status_change: CAP-01 remains 🔄 pending new GitHub CI evidence; corrected the failure assertions without changing broker behavior or weakening unknown/duplicate binding rejection, and aligned the detailed status with the global queue
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: this repairs two test expectations/guards only; the full baseline CI has many unrelated failures, and the new CAP-01 result has not been observed
+reviewer: Codex integration review of branch `fix/cap01-ci-36677090825`; confirmed only the two intended fixtures changed, exact catalog alias mapping, memory handler registration source and no production implementation or authority changes
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text
