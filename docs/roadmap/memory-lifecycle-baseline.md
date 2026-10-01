@@ -69,12 +69,12 @@ requires evidence IDs/quotes and review identity/time to be meaningful; CI-only 
 cover these inputs without changing the qualified valid control or the previous fixture-error fix.
 
 ```text
-source_snapshot: ae4120924ebf28e96b3ac8b96074c89a5a9c7a2f + CM-02 lifecycle validation correction
-worktree_status: isolated /tmp/kiana-cm02-audit on audit/cm02-qualified-record-ae412092; only memory lifecycle code, CM-02 fixture, and this baseline changed
+source_snapshot: `ae412092` plus fix `5c8a0831`, local merge `eae22402`, and the integrated fixture ownership correction
+worktree_status: CM-02 lifecycle correction is merged into local master; only memory lifecycle code, CM-02 fixture, and this baseline changed; Qualified records now validate present Purpose values, evidence IDs/quotes, and nonblank reviewer/positive review time
 command_argv: gh run view 36677090825 --job 109764373568 --log-failed; gh run view 36899317942 --json jobs; git diff --check
 cwd/environment: /tmp/kiana-cm02-audit; Linux; local test/build/check/clippy/fmt/smoke commands not run
 fixture or cassette: kiana-domain/tests/cm02_memory.rs::qualified_memory_requires_review_evidence_and_purpose; common CI maps it into kiana-domain-s1/4 and also runs the daemon package tests
-exit_code: 0 for source review and git diff --check; historical CI run 36677090825 showed the pre-correction broad-error assertion; current master run 36899317942 domain-s1 job was queued when inspected
+exit_code: 0 for source review and branch/integration `git diff --check`; historical CI run 36677090825 showed the pre-correction broad-error assertion; current master run 36899317942 domain-s1 job was queued when inspected; fixtures added by this correction are not yet observed on GitHub
 status_change: none; CM-02 remains 🔄 pending current GitHub CI evidence
 proof-level_change: none; source only
 limitations: new negative fixtures are unexecuted locally and current remote domain-s1 evidence is pending; exact event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation and data epochs remain CM-06; normalization/sensitive-text handling remains CM-09; no semantic recall or durable-memory claim is made

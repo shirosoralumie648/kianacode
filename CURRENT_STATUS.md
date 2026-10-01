@@ -3574,6 +3574,21 @@ limitations: this corrects the fixture only; legacy import/search durability and
 reviewer: Codex integration review of branch `fix/cm02-qualified-memory-ci-20261001`; confirmed validator ordering, specific error semantics, no production lifecycle change and no local test execution
 ```
 
+### CM-02 qualified provenance value validation (2026-10-02)
+
+```text
+source_snapshot: `ae412092` plus fix `5c8a0831`, local merge `eae22402`, and fixture ownership correction; `kiana-domain/src/memory.rs`, `kiana-domain/tests/cm02_memory.rs`, `docs/roadmap/memory-lifecycle-baseline.md`
+worktree_status: validator correction is merged into local master; present Purpose values are validated, Qualified evidence rejects nil event/request/run IDs and blank/oversize quotes, and Qualified/Active requires a nonblank reviewer and positive review timestamp; legacy import and valid qualified control remain unchanged
+command_argv: remote CI log reads for run `36677090825` and run `36899317942`; `git diff --check`; no local test/build/check/fmt/clippy/smoke
+cwd·environment: repository root; Linux; no local Cargo execution per user instruction; GitHub Actions is the test authority
+fixture·cassette: `qualified_memory_requires_review_evidence_and_purpose` now includes malformed Purpose, nil evidence IDs, blank/oversize quotes, blank reviewer and zero-time denials, plus a valid qualified control
+exit_code: agent branch and integrated `git diff --check` 0; historical run `36677090825` showed the old fixture-error mismatch; run `36899317942` domain-s1 was queued when inspected; post-fix CI unobserved
+status_change: CM-02 remains 🔄; invalid qualification metadata now fails closed without promoting memory lifecycle source to completed
+proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: new negative fixtures have not run on GitHub; event-to-quote/source binding remains CM-14/CM-25+, dependency invalidation remains CM-06, sensitive-text normalization remains CM-09, and no durable-memory or semantic-recall claim is made
+reviewer: Codex review of qualified lifecycle branches, CI-only deny cases, valid control preservation and integrated fixture ownership; no runtime test reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text

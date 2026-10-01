@@ -184,7 +184,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         "memory_active_qualification_incomplete"
     );
 
-    let mut missing_review_time = record;
+    let mut missing_review_time = record.clone();
     missing_review_time.reviewed_at_ms = None;
     assert_eq!(
         missing_review_time.validate_lifecycle().unwrap_err(),
