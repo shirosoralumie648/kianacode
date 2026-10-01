@@ -894,6 +894,22 @@ limitations: digest equality is a source-side projection fence, not ControlPlane
 reviewer: Codex UI-15 source review; checked canonical payload digest, approval deny-first ordering and display-only boundary; no local runtime test reviewer
 ```
 
+### UI-15 artifact byte digest compatibility (2026-10-02)
+
+```text
+source_snapshot: `2c6b425c` plus `22fcb63c`; `kiana-entrypoints/src/workbench_review.rs`; `kiana-entrypoints/tests/ui15_workbench_review.rs`; prior CI `36677090825`, entrypoints job `109764373693`
+worktree_status: isolated branch `fix/ui15-artifact-digest-20261002` integrated into master; ArtifactPage previously required a sha256 prefix although ArtifactVersion generates bare hashes; the artifact-only parser now validates a complete 64-hex digest in either supported spelling, with actual page and assembled-byte hash comparisons retained
+command_argv: `gh run view 36677090825 --job 109764373693 --log-failed`; `git diff --check`; no local test/build/check/clippy/fmt/smoke
+cwd·environment: repository root; Linux; GitHub Actions only for test execution
+fixture·cassette: malformed/forged page digests, changed id/version/scope/provenance, individually valid pages with bad assembled content, fixed SHA-256 abc bare/prefix combinations and duplicate-page handling
+exit_code: prior UI-15 target 4 passed / 1 failed with artifact_page_digest_invalid; local diff checks 0; new CI pending/unobserved
+status_change: UI-15 remains 🔄; corrected artifact digest spelling mismatch without changing approval/scope digest contracts, reference equality or revision fences
+proof-level change: `feature_status=partial`, `proof_level=source`
+limitations: read-only presenter checks do not prove blob persistence, protected artifact transport, browser/TTY UAT, durable recovery or business acceptance; new CI not awaited
+reviewer: Codex integration review of exact hash comparisons, strict digest bounds, reference/revision checks and deny cases
+```
+
+
 ### UI-16 SSE token-source evidence (2026-09-26)
 
 ```text
