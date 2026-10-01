@@ -4452,6 +4452,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-02 ID/schema/digest/epoch/sequence/secret-boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-02 unknown-major classification correction (2026-10-01)
+
+```text
+source_snapshot: `004949df` plus `463b4793`; `kiana-domain/src/security_contracts.rs`; prior full CI run `36677090825` / domain shard `kiana-domain-s4/4`
+worktree_status: SC-02 validator correction merged into current master; SecuritySchemaRegistry and SecurityObjectEnvelope now classify schema compatibility before generic header checks, so unknown major versions return their stable `security_*_unknown_major` errors; known-version header validation and all fail-closed checks remain unchanged
+command_argv:
+  `gh run view 36677090825 --job 109764373644 --log-failed`
+  `git diff --check`
+  no local test, build, check, clippy or smoke command was run
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor by user instruction
+fixture·cassette: `security_registry_rejects_unknown_major_duplicate_ids_and_rollback`; `security_object_rejects_unknown_major_and_implicit_migration`; prior remote output expected `security_schema_registry_unknown_major` / `security_object_unknown_major` but got header-invalid results because compatibility was checked too late
+exit_code: prior domain shard failed the two unknown-major assertions; local `git diff --check` exit 0; post-push CI result pending/unobserved
+status_change: SC-02 remains 🔄 pending remote evidence; corrected error classification ordering without weakening schema/header validation or adding a migration path
+proof-level change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: the contracts remain domain values rather than durable authority or caller authentication; SC-03+ reason/context binding, SecretStore, redaction, audit projection and external effects remain open, and the new CI result is not observed
+reviewer: Codex integration review of branch `step/sc02-security-ids-20261001`; verified exact prior failure, compatibility-first ordering and unchanged deny-first behavior
+```
+
 ### SC-03 stable security reason codes evidence (2026-09-17)
 
 ```text
