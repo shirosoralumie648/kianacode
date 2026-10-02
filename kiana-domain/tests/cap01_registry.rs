@@ -41,21 +41,21 @@ fn tool_authority_covers_every_model_visible_tool() {
 fn tool_action_binding_rejects_controlled_metadata_drift() {
     let canonical = tool_spec("shell").unwrap();
 
-    let mut operation_mismatch = canonical.clone();
+    let mut operation_mismatch = (*canonical).clone();
     operation_mismatch.operation = "apply_patch";
     assert_eq!(
         validate_tool_action_binding(&operation_mismatch).unwrap_err(),
         "tool_action_operation_mismatch"
     );
 
-    let mut capability_mismatch = canonical.clone();
+    let mut capability_mismatch = (*canonical).clone();
     capability_mismatch.capability = CapabilityKind::Filesystem;
     assert_eq!(
         validate_tool_action_binding(&capability_mismatch).unwrap_err(),
         "tool_action_metadata_mismatch"
     );
 
-    let mut risk_mismatch = canonical.clone();
+    let mut risk_mismatch = (*canonical).clone();
     risk_mismatch.risk_policy = RiskLevel::Critical;
     assert_eq!(
         validate_tool_action_binding(&risk_mismatch).unwrap_err(),
