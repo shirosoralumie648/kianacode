@@ -4139,6 +4139,21 @@ limitations: the failed run does not establish candidate-write or evidence-denia
 reviewer: isolated source review traced the failing nullable field from permit/prepared audit serialization through storage validation; no runtime test reviewer
 ```
 
+### CI-08 Legacy route admission compatibility regression (2026-10-02)
+
+```text
+source_snapshot: base `42e241371f05b049901c2f028deabe891847f599`; follow-up edits touch `kiana-domain/src/model.rs`, `kiana-domain/tests/ci08_route_admission.rs`, `docs/roadmap/ci08-route-admission-baseline.md`, `docs/roadmap.md`, and this ledger
+worktree_status: `ModelCallPermit::validate_for_prepared` still requires route digest/configuration revision for every protocol; only non-Legacy routes require provider account and credential revision. Paired domain fixture accepts absent provider metadata for Legacy and denies the same omission for a network route; correction is not yet committed
+command_argv: `git diff --check`; `cargo fmt --all --check`; read-only CI log inspection with `gh run view 37019474036 --job 110879052235 --log`; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux checkout; tests are GitHub Actions only
+fixture·cassette: GitHub run `37019474036` / CM-02 daemon job `110879052235`, target `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable`, failed before candidate persistence with `port_failed:model_route_admission_missing`; the default offline `ModelClient::prepare_call` emits `ModelProtocol::Legacy` with no provider account/credential revision. New domain target `ci08_route_admission::legacy_route_may_omit_provider_identity_but_network_route_may_not` has no CI receipt yet
+exit_code: observed daemon target failed 1/1 before the intended evidence-denial assertion; `cargo fmt --all --check` and `git diff --check` exit 0; local runtime exit code intentionally does not exist
+status_change: CI-08 and CM-02 remain 🔄 / `feature_status=partial` / `proof_level=source`; no completion or proof-level promotion
+proof-level change: none
+limitations: no post-fix CI result; CM-02 candidate-write/evidence-denial behavior remains unproven; no change to ProviderGateway network-route admission, credential revision recheck, or effect order is claimed
+reviewer: read-only CAP-01/CI-08 audit confirmed the default Legacy adapter contract and existing ProviderGateway effect-boundary checks; no runtime reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text

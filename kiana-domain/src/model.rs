@@ -834,8 +834,8 @@ pub struct ModelCallPermit {
 
 impl ModelCallPermit {
     /// Validate the immutable route/authority/credential binding copied from a prepared call.
-    /// Legacy adapters may omit the optional fields, but a networked provider must require them
-    /// at its own effect boundary.
+    /// Legacy in-process adapters may omit provider-account and credential-revision metadata;
+    /// networked routes must carry both before crossing their effect boundary.
     pub fn validate_for_prepared(
         &self,
         prepared: &PreparedModelCall,
@@ -870,10 +870,11 @@ impl ModelCallPermit {
         if self.authority_revision.as_ref() != expected_authority {
             return Err(ModelError::invalid("model_authority_revision_drift"));
         }
+        let provider_binding_required = prepared.route.protocol != ModelProtocol::Legacy;
         if self.route_digest.is_none()
             || self.configuration_revision.is_none()
-            || self.credential_revision.is_none()
-            || self.provider_account.is_none()
+            || (provider_binding_required
+                && (self.credential_revision.is_none() || self.provider_account.is_none()))
         {
             return Err(ModelError::invalid("model_route_admission_missing"));
         }

@@ -7,13 +7,14 @@
 `PreparedModelCall` 现在冻结 `ModelRoute::digest()`、`configuration_revision`、
 `credential_revision` 和 opaque `provider_account`。`JournalModelBudget::reserve_prepared`
 把这些摘要以及 assignment 的 `authority_revision` 复制进 `ModelCallPermit`，并写入既有
-`model.prepared` EventLog fact；可选字段保持旧 cassette/legacy reader 的 JSON 兼容，但网络
-provider 在 effect 前要求完整绑定。
+`model.prepared` EventLog fact。所有 route 都必须绑定 route digest 与 configuration revision；
+`Legacy` in-process adapter 可缺省 provider account 和 credential revision，非 Legacy route
+仍必须在 effect 前携带完整 provider binding。
 
 `ProviderGateway::complete_admitted` 的顺序是：准备请求校验 → connection route identity
 核对 → permit route/config/authority/credential/account binding 核对 → 当前 SecretStore
 revision 核对 → 既有 `ModelBudgetPort::consume_prepared`（原子 dispatch admission）→ transport。
-任一 drift、过期 permit、缺绑定或当前 credential 轮换都在网络请求前拒绝。transport 在取得
+任一 drift、过期 permit、非 Legacy 缺绑定或当前 credential 轮换都在网络请求前拒绝。transport 在取得
 capacity 后重新 issue/consume CI-07 one-shot lease，并再次比较 credential revision，防止
 检查与发送之间的 env 变更穿透。
 
@@ -27,8 +28,16 @@ projection 不含 secret。
 `.github/workflows/ci08-route-admission.yml` 执行 domain permit drift fixture、provider
 loopback fake HTTP fixture 和 core source guard，并编译 workspace test targets。fake provider
 只接受一条请求，断言 opaque account header 一次、Authorization 注入一次、body 无 sentinel，
-并返回 bounded JSON reply；domain fixture 覆盖 route/config/authority/credential/account drift
-和 expiry。工作流由本提交触发，本地只做格式、静态编译和 diff 检查，不等待 CI。
+并返回 bounded JSON reply；domain fixture 覆盖 route/config/authority/credential/account drift、
+expiry，以及 Legacy 缺省 provider binding 时可继续而网络 route 仍拒绝缺省 binding。
+
+2026-10-02 follow-up: GitHub run `37019474036` / CM-02 job `110879052235` reached the intended
+daemon fixture but failed before candidate persistence with `port_failed:model_route_admission_missing`.
+The default offline `ModelClient` route is `Legacy` and omits provider account/credential revision;
+`ModelCallPermit::validate_for_prepared` contradicted its compatibility comment by requiring both
+for every protocol. The source correction narrows the requirement to non-Legacy routes and adds the
+paired domain fixture. This correction has no CI receipt yet; CI-08 remains partial/source until the
+named fixtures pass remotely.
 
 ## Limitations
 
@@ -39,3 +48,6 @@ loopback fake HTTP fixture 和 core source guard，并编译 workspace test targ
   CI-09/11、PD/ER/SC。
 - HTTP client 仍是无 redirect、无 ambient proxy 的本地配置；fake loopback 成功不提升 live/
   physical proof，也不证明外部业务结果或计费正确。
+- The Legacy exception only permits missing provider-account and credential-revision metadata for
+  in-process compatibility adapters; it does not authorize a network route or remove route/config
+  binding checks.

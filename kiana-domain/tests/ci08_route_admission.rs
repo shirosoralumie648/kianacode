@@ -149,3 +149,31 @@ fn route_admission_rejects_expired_or_missing_binding_without_effect() {
     let encoded = serde_json::to_string(&permit(&prepared)).expect("permit json");
     assert!(!encoded.contains("CI08_SECRET_SENTINEL"));
 }
+
+#[test]
+fn legacy_route_may_omit_provider_identity_but_network_route_may_not() {
+    let mut legacy = prepared();
+    legacy.route.provider_id = "legacy".to_owned();
+    legacy.route.protocol = ModelProtocol::Legacy;
+    legacy.route.connection_id = "in_process".to_owned();
+    legacy.route.profile = "legacy".to_owned();
+    legacy.provider_account = None;
+    legacy.credential_revision = None;
+    legacy.seal();
+
+    permit(&legacy)
+        .validate_for_prepared(&legacy, 1_000)
+        .expect("offline legacy adapters do not claim provider credentials");
+
+    let mut network = prepared();
+    network.provider_account = None;
+    network.credential_revision = None;
+    network.seal();
+    assert_eq!(
+        permit(&network)
+            .validate_for_prepared(&network, 1_000)
+            .unwrap_err()
+            .code,
+        "model_route_admission_missing"
+    );
+}
