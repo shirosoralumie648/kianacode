@@ -19312,8 +19312,8 @@ command_argv: first manual dispatch `gh workflow run cap02-input.yml --ref maste
 cwd·environment: isolated source worktree `/tmp/kiana-cap02-slice-20261003`, branch `step/cap02-slice-20261003`; integration repository root; Linux/bash
 fixture·cassette: first four focused runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` failed at successive test-fixture preconditions: missing trusted Runner assignment, default Safe profile (response not printed), missing authority preflight, and nonexistent `/repo` workspace. Fifth run `37049367090` / job `110978606763` passed provider duplicate-key/oversize denials, domain alias/schema/depth/duplicate-key denials and complete `cap02_input`, Core `reserved_authority_fields_cannot_change_execution_scope`, accepted provider nested-input selectors, and `cap02_input_guard`.
 exit_code: fifth focused GitHub job succeeded; `cargo fmt --all --check` and `git diff --check` passed; no local tests/build/check/clippy/smoke
-status_change: CAP-02 remains roadmap row 041 🔄 / `feature_status=partial` / `proof_level=source`; exact remote evidence now covers the selected focused targets at head `6cf0c9bf`, but does not close the full card
-proof-level change: none
+status_change: CAP-02 remains roadmap row 041 🔄 / `feature_status=partial` / `proof_level=source`; exact remote evidence covers the selected workflow targets at head `6cf0c9bf`, but does not close the full card
+proof-level change: exact GitHub target execution is evidenced for this source snapshot; no step-level or production proof promotion
 limitations: this receipt is bound to head `6cf0c9bf`; it does not prove the complete production adapter matrix, schema dialect completeness beyond the bounded subset, durable snapshots, external effects, provider live behavior, physical containment, or product UAT. The Safe-profile attribution for run `37045485280` is source-derived because that response was not printed.
 reviewer: source review matched each focused selector to existing fixture names and checked the workflow guard; no local runtime test reviewer
 ```

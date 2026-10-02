@@ -61,7 +61,7 @@
 
 CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。当前 `scripts/ci/test-shards.json` 把 `cap02_input` 分配给 domain shards、`cap02_input_guard` 分配给 `kiana-core-s1/6`；新增的 ControlPlane fixture 复用既有 `control_plane` target（`kiana-core-s2/6`），不改 shard manifest；`kiana-provider` shard 运行 provider 单元夹具。GitHub CI 负责执行，本地不运行测试，不连接 provider/connector。
 
-2026-10-03 adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw/object duplicate-key and oversize denial fixtures; domain alias/schema/depth/duplicate-key denial plus the complete digest/input target; a ControlPlane forged-authority scope fixture; valid provider nested-input selectors; and a source guard pinning the selected tests. Runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` exposed four fixture preconditions: trusted runner binding, an effectful action under default Safe profile, missing authority preflight, and nonexistent workspace root. Corrections culminated in `temp_project()` plus explicit Balanced profile/assignment/authority setup. Run `37049367090` / job `110978606763` passed all workflow steps. CAP-02 remains partial/source because the receipt is scoped to head `6cf0c9bf` and selected fixtures; the bounded schema dialect, complete production adapters, durable snapshots, external effects and product UAT remain open.
+2026-10-03 adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw/object duplicate-key and oversize denial fixtures; domain alias/schema/depth/duplicate-key denial plus the complete digest/input target; a ControlPlane forged-authority scope fixture; valid provider nested-input selectors; and a source guard pinning the selected tests. Runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` exposed fixture-only preconditions: missing trusted runner binding, default Safe profile, missing authority preflight, and nonexistent workspace. Run `37049367090` / job `110978606763` passed all workflow steps at head `6cf0c9bf`. CAP-02 remains partial/source because the receipt covers selected fixtures only; bounded-schema limitations, full production adapter coverage, durable snapshots, external effects and product UAT remain open.
 
 ## Source anchors
 
@@ -86,7 +86,7 @@ Remote CI evidence at the raw-string correction snapshot: historical CAP-02 run 
 
 这些 hash 只用于 CAP-02 输入边界漂移复核，不是执行授权、secret 或 handler effect 证明。
 
-Run `37049367090` / job `110978606763` passed all selected provider/domain/Core/source-guard targets at head `6cf0c9bf`. The manual workflow validates only its pinned fixtures for that snapshot. It does not prove full production adapter behavior, schema dialect completeness, durable snapshots, external/live effects, physical containment, or product UAT; CAP-02 remains partial/source.
+Run `37049367090` / job `110978606763` passed all pinned provider/domain/Core/source-guard targets at head `6cf0c9bf`. The receipt proves those target executions for that snapshot only. It does not prove full production adapter behavior, schema-dialect completeness, durable snapshots, external/live effects, physical containment, or product UAT; CAP-02 remains partial/source.
 
 ## 5. 限制与交接
 
