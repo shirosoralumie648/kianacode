@@ -5,8 +5,8 @@
 //! adapter concern.
 
 use kiana_domain::{
-    json_digest, AuthenticatedPrincipalRef, DepartmentSnapshot, ProjectTrustSnapshot,
-    RequestContext, ResolvedAssignment, SchemaVersion, SecurityContextId,
+    json_digest, AuthenticatedPrincipalRef, DepartmentSnapshot, ProjectIdentity,
+    ProjectTrustSnapshot, RequestContext, ResolvedAssignment, SchemaVersion, SecurityContextId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -102,13 +102,28 @@ impl SecurityAuthoritySnapshot {
         Ok(())
     }
 
-    pub fn validate_request(&self, context: &RequestContext) -> Result<(), String> {
+    pub fn validate_request(
+        &self,
+        context: &RequestContext,
+        project: &ProjectIdentity,
+    ) -> Result<(), String> {
         self.validate()?;
+        project
+            .validate()
+            .map_err(|_| "AUTH_PROJECT_MISMATCH".to_owned())?;
+        let canonical_root_digest = json_digest(&json!({
+            "canonical_root": project.canonical_root,
+        }));
+        if project.project_id != self.project_trust.project_id
+            || canonical_root_digest != self.project_trust.canonical_root_digest
+            || project.trust_revision != self.project_trust.trust_revision
+            || (context.project_root != project.root
+                && context.project_root != project.canonical_root)
+        {
+            return Err("AUTH_PROJECT_MISMATCH".to_owned());
+        }
         if context.actor_id.as_deref() != Some(self.principal.principal_id.as_str()) {
             return Err("AUTH_CALLER_UNTRUSTED".to_owned());
-        }
-        if context.project_root.trim().is_empty() {
-            return Err("AUTH_PROJECT_MISMATCH".to_owned());
         }
         if context.role_id != self.assignment.role_id
             || context.department_id != self.assignment.department_id

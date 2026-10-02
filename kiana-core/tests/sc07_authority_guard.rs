@@ -26,6 +26,17 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
         "effect gate must read the server-owned trust snapshot"
     );
     for marker in [
+        "project.project_id != self.project_trust.project_id",
+        "canonical_root: project.canonical_root",
+        "project.trust_revision != self.project_trust.trust_revision",
+        "context.project_root != project.root",
+    ] {
+        assert!(
+            authority.contains(marker),
+            "request project binding marker missing: {marker}"
+        );
+    }
+    for marker in [
         "resolve_assignment_for_project",
         "context_from_assignment",
         "project_trust_snapshot",
@@ -38,6 +49,11 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
             "daemon assignment marker missing: {marker}"
         );
     }
+    assert!(
+        daemon.contains("let project = self.project_identity(&context.project_root)?;")
+            && daemon.contains("authority\n            .validate_request(&context, &project)"),
+        "daemon assignment helper must validate the request against its resolved project identity"
+    );
     for marker in [
         "ProjectTrustSnapshot",
         "DEPARTMENT_SNAPSHOT_SCHEMA",
