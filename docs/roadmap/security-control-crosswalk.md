@@ -1,6 +1,6 @@
 # SC-34 security control crosswalk: SC01:T01–SC01:T12, SEC-01–SEC-12, NIST, OWASP and the internal controls
 
-> Snapshot date: 2026-09-28. This document is a **crosswalk and a set of claims under review**.
+> Snapshot date: 2026-10-02. This document is a **crosswalk and a set of claims under review**.
 > It is not a certification, an attestation, an audit result, or a statement that Kiana complies
 > with SOC 2, ISO 27001, NIST SP 800-53, the EU AI Act or anything else. A row in this table
 > says "this control item is claimed to address this clause, at this proof ceiling, and here is
