@@ -1183,6 +1183,21 @@ limitations: parent-component symlink and Windows ACL behavior remain unproven; 
 reviewer: Codex UI-27 source review; checked canonical workspace reference, store mode checks, metadata-only schema and no-auto-reattach path; no local runtime reviewer
 ```
 
+### Desktop contract-gate correction after remote failures (2026-10-02)
+
+```text
+source_snapshot: failure run `36999753811` at `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`; correction commit `1f8e16be` pushed to master
+worktree_status: Electron source-marker coverage now scans preload and IPC security modules where `workspace:state` is defined; UI-26's pre-switch attention expectation now matches an intentionally dirty draft; UI-27 checks nested sensitive keys before rejecting other unknown fields. Workspace-switch reset behavior and persistence contents are unchanged.
+command_argv: `gh api --allow-escape-sequences repos/shirosoralumie648/kianacode/actions/jobs/110814890394/logs`; `git diff --check`; `git commit -m 'fix(desktop): reconcile contract gate failures'`; `git push origin master`; no local Node test/Electron test/build/check command run
+cwd·environment: source correction in repository root on Linux; failure evidence from GitHub Actions Ubuntu job; all Node contract tests remain remote-only
+fixture·cassette: run `36999753811`, Rust-gates job `110814890394`: `desktop_shell_reuses_loopback_worker_and_safe_close_path` failed because the marker scan omitted preload/IPC files; `desktop state resets attention on workspace switch and deduplicates server facts` expected false before switching after setting dirty=true; `desktop store keeps bounded references and reattach never submits old cursor` received unknown-field classification before sensitive-field classification. Source/history review found no product behavior defect in the first two cases; the third exposed error-priority mismatch.
+exit_code: failure job had 43/46 desktop tests pass; `git diff --check` exited 0; commit `1f8e16be` and push exited 0; follow-up CI run `37003572738` was queued when observed and is not awaited
+status_change: CI contract failures are corrected; UI-26/UI-27 and P4-M6-01 feature status/proof levels are not promoted pending the remote rerun
+proof-level change: none; no runtime proof promotion
+limitations: the corrected desktop fixtures have no post-fix GitHub receipt yet; no local Node/Electron/OS test was run; no live tray, workspace lifecycle or persistence durability proof is claimed
+reviewer: source and commit-history review plus read-only CI log diagnosis; no local test reviewer
+```
+
 ### UI-28 Desktop asset version evidence (2026-09-26)
 
 ```text
@@ -3405,6 +3420,21 @@ status_change: ER-02 remains 🔄 and `feature_status=partial`; the confirmed re
 proof-level change: source only; `proof_level=source`, with no local_behavior, durable, live, or physical promotion
 limitations: run `36987138827` is still in progress on the prior source head and its logs were unavailable; run `36989246730` has not been awaited; run `36978883309` also contains an adjacent ER-09 source-guard failure and a failed aggregate shard, so no clean complete ER-02 shard is established; no durability, external effect, or physical outcome is claimed
 reviewer: root reviewed the isolated one-file diff and integrated commit; no local runtime test reviewer
+```
+
+### ER-02 current identity-target CI receipt (2026-10-02)
+
+```text
+source_snapshot: CI head `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`; ER-02 source/fixture slice includes receipt fix `e7c3ca4a` and its descendants; `docs/roadmap/event-receipt-identity-baseline.md` §10
+worktree_status: ER-02 source and fixtures are already merged and pushed; this evidence update changes only the baseline and CURRENT_STATUS. The CI run is bound to the clean pushed source head above.
+command_argv: `gh run view 36999753811 --repo shirosoralumie648/kianacode --json status,conclusion,jobs`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891004`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891024`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814890987`; no local test/build/check/fmt/clippy/smoke command run
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; GitHub Actions Ubuntu runner for remote fixtures; no local test execution
+fixture·cassette: run `36999753811`: domain-s2/4 job `110814891004` passed all 3 `er02_identity` fixtures; core-s3/6 job `110814891024` passed `cross_run_result_cannot_pair_by_sequence`, `event_identity_links_and_projection_use_stable_ids_not_request_sequence`, `invocation_projection_normalizes_and_validates_terminal_result_receipts`, and `invocation_projection_rejects_uncommitted_terminal_receipts`; eventlog job `110814890987` passed all 7 ER-02 identity fixtures. Core-s2/6 job `110814890945` and daemon job `110814891133` remained in progress at capture time.
+exit_code: listed exact fixture targets passed remotely; their aggregate domain/core/eventlog jobs failed on sibling targets; workflow `36999753811` was still `in_progress`; no local test exit code exists
+status_change: ER-02 remains 🔄 / `feature_status=partial`; direct ControlPlane and Harness approval-resume identity-chain receipts are still pending, and no complete green shard is claimed
+proof-level change: none; ER-02 remains `proof_level=source`
+limitations: aggregate shard failures are not attributed to ER-02 from these target receipts; direct and approval-resume targets were still running; no durable, live, physical, or external-effect outcome is established
+reviewer: source and exact target names manually matched against the CI shard map and remote job logs; no local runtime reviewer
 ```
 
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
