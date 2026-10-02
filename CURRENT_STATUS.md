@@ -19287,3 +19287,18 @@ proof-level change: none
 limitations: no post-fix CI evidence yet; the prior run ended before verifying candidate commit visibility, rejection without evidence, or continued unsearchability. Durable recovery, event-to-quote binding, retention/revocation/deletion and semantic recall are also unproven.
 reviewer: source review verified the EventStore/JSONL write precedes capability result finalization and traced the flattened `source` into notification validation; no local runtime reviewer
 ```
+
+### CAP-02 focused acceptance workflow (2026-10-03)
+
+```text
+source_snapshot: CAP-02 production/fixture source `302c6b46`; acceptance commit `446a7e55` based on `5ec79dca`; `.github/workflows/cap02-input.yml`; `kiana-core/tests/cap02_input_guard.rs`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap/capability.md`
+worktree_status: added a workflow_dispatch-only acceptance job and a source guard binding provider/domain deny-first fixtures, accepted bounded-input fixtures, canonical digest target, and ControlPlane forged-authority fixture to the workflow; no production behavior, shared manifest, or lockfile changed
+command_argv: `cargo fmt --all --check`; `git diff --check`; `git show --check 3f8f2eb3`; no local tests/build/check/clippy/smoke; after push dispatch with `gh workflow run cap02-input.yml --ref master`
+cwd·environment: isolated source worktree `/tmp/kiana-cap02-slice-20261003`, branch `step/cap02-slice-20261003`; integration repository root; Linux/bash
+fixture·cassette: `.github/workflows/cap02-input.yml` job `cap02-input` runs provider raw/object duplicate-key and oversize rejection targets, domain alias/schema/depth/duplicate-key denial and complete `cap02_input`, ControlPlane `reserved_authority_fields_cannot_change_execution_scope`, accepted provider nested-input targets, and `cap02_input_guard`; manual workflow has not yet been dispatched
+exit_code: formatting/diff checks and source commit succeeded; no test exit code exists; manual CI dispatch follows push
+status_change: CAP-02 remains roadmap row 041 🔄 / `feature_status=partial` / `proof_level=source`; the acceptance workflow adds an inspectable remote receipt path but does not close the step
+proof-level change: none
+limitations: no CI receipt for the focused workflow yet; a workflow fixture does not prove production Broker effects, schema dialect completeness, provider live behavior, durable snapshots, or physical containment
+reviewer: source review matched each focused selector to existing fixture names and checked the workflow guard; no local runtime test reviewer
+```
