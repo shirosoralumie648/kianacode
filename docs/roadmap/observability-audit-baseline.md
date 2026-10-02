@@ -305,6 +305,14 @@ EventStore、Receipt、Provider、Broker 或外部 exporter 的既有事实路�
 通道已经接线，也不提升 durable/live/physical 等级；OA-05/OA-06 已分别固定 sink 端口/fake
 adapter 与 committed fact observer，后续 OA-07+ 负责 runtime producer/projector 接线。
 
+run `36994107681` / `kiana-domain-s3/4` job `110797094493` exposed one failure in
+`hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected`: the residual scanner
+classified normalized `credential-ref` as sensitive, while the structured redactor left it intact.
+Commit `ca638df7` adds the same credential-key predicate to redaction and residual checks. Runs
+`36997679412` and `36997851657` did not provide a post-fix target receipt; the latter was queued at
+the time of observation. OA-03 remains `partial/source` until CI confirms the correction, and the
+runtime sinks/producers listed above remain unimplemented.
+
 ## 10. OA-04 叠加说明
 
 OA-04 在 `kiana-domain/src/audit.rs` 固定 RuntimeEvent taxonomy，覆盖 command、authorization、

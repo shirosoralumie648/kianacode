@@ -2322,8 +2322,8 @@ fixture·cassette: `decoded_context_rejects_nil_ids_and_parent_or_self_span_link
 exit_code: prior CI receipt `109764373726` recorded the corrected old valid-traceparent denial failure; current source diff check 0; new CI not awaited
 status_change: OA-02 remains 🔄; malformed typed IDs and parent/self span-link boundaries are now fail-closed at the domain and port validation boundary without creating a runtime ingress or sink
 proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
-limitations: no authenticated ingress/span bridge/exporter or cross-process trace proof; full baseline CI has unrelated failures; this correction has no new remote test receipt yet
-reviewer: Codex OA-02 isolated audit; root integration review pending
+limitations: run `36994107681` / domain-s3/4 job `110797094493` reported `oa02_correlation` 6/6 passing; run `36993318357` / ports job `110794713495` reported `oa02_correlation_port` 4/4 passing. Run `36994107681` was later cancelled by a subsequent push. There is still no authenticated ingress/span bridge/exporter or cross-process trace proof, and exact fixture results do not imply a green workflow.
+reviewer: root integrated source review and exact target log review; no runtime test reviewer
 ```
 
 ### OA-03 redaction profile and bounded encoder evidence (2026-09-15)
@@ -2365,16 +2365,16 @@ reviewer: Codex source review of the previously duplicated allowlist, every cred
 ### OA-03 structured header key and placeholder boundary follow-up (2026-10-02)
 
 ```text
-source_snapshot: `14c53456`; `kiana-domain/src/redaction.rs`; `kiana-domain/tests/oa03_redaction.rs`; `kiana-core/tests/er03_redaction_guard.rs`; `docs/roadmap/observability-audit-baseline.md`
-worktree_status: isolated branch `step/oa03-redaction-audit-20261002`; OA-03 key canonicalization and strict placeholder checks are scoped to the existing domain encoder/scanner; no producer, sink or EventStore path was added
-command_argv: `git diff --check`; source inspection with `git grep`/`sed`; no local test/build/check/clippy/fmt/smoke
+source_snapshot: `14c53456` plus integrated fix `ca638df7`; `kiana-domain/src/redaction.rs`; `kiana-domain/tests/oa03_redaction.rs`; `kiana-core/tests/er03_redaction_guard.rs`; `docs/roadmap/observability-audit-baseline.md`
+worktree_status: OA-03 key canonicalization and strict placeholder checks remain scoped to the existing domain encoder/scanner; normalized credential keys are now redacted consistently with residual-secret detection; no producer, sink or EventStore path was added
+command_argv: source inspection with `git grep`/`sed`; `cargo fmt --all` (formatter only); `git diff --check`; no local test/build/check/clippy/smoke
 cwd·environment: repository root worktree; Linux; GitHub Actions only for test execution
-fixture·cassette: `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected`; structured `Proxy-Authorization`/`X-Api-Key`/`api-key` values and nested variants are redacted, hyphenated `secret-ref`/`credential-ref` values are not treated as opaque references, and `proxy-authorization: [REDACTED]raw-suffix` is rejected; existing numeric token metric and underscore `secret_ref` fixtures remain unchanged
-exit_code: `git diff --check` 0; CI result intentionally not awaited
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` showed `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected` failing with `redaction_secret_sentinel_detected` for the normalized `credential-ref` field. Fix `ca638df7` applies the credential predicate in both structured redaction and residual checking; run `36997679412` was cancelled before a replacement target result, and run `36997851657` at head `e7c3ca4a` was queued with no result observed.
+exit_code: exact pre-fix fixture failed remotely; `cargo fmt --all` and `git diff --check` exited 0; no local tests
 status_change: OA-03 remains 🔄 with `feature_status=partial`; redaction predicates now share ASCII-lowercase plus hyphen-to-underscore key normalization without changing serialized keys, and scanner placeholder validation is fail-closed
 proof-level_change: source only; no local_behavior, durable, live or physical promotion
-limitations: marker/key policy still cannot identify arbitrary unmarked secrets; runtime sink/provider/export wiring remains downstream OA work; the focused fixture awaits GitHub CI
-reviewer: Codex OA-03 static-boundary audit with root-agent review requested; no runtime test reviewer
+limitations: the fix has no post-fix target receipt yet. Marker/key policy still cannot identify arbitrary unmarked secrets; runtime sink/provider/export wiring remains downstream OA work.
+reviewer: root traced the exact field through normalization, redaction and residual scanning; no runtime test reviewer
 ```
 
 
@@ -3987,11 +3987,11 @@ command_argv:
   `git cherry-pick 075b4cf17f44bde7733cc37ab39ef543fea2c007`
   no local test, build, Cargo check, fmt, clippy or smoke command was run
 cwd·environment: isolated source worktree `/tmp/kiana-cm02-visibility-validation-20261002`; integration in repository root on Linux; GitHub Actions is the only test executor
-fixture·cassette: historical run `36926015057` logged the earlier CM-02 domain fixtures 3/3 passing but predates the visibility assertions; run `36981359579` was cancelled; run `36992023615` on prior source was still in progress, with the Rust gates job reporting a `cargo fmt --all --check` failure and no readable overall result. None is a receipt for this correction.
+fixture·cassette: run `36993318357` / head `60549590` / domain-s1/4 job `110794713523` reported `qualified_memory_requires_review_evidence_and_purpose` 5/5 passing, including the new direct visibility/searchability denials; run `36926015057` logged earlier CM-02 fixtures 3/3 passing; run `36981359579` was cancelled.
 exit_code: source review and cherry-pick succeeded; no local test/runtime exit code exists
 status_change: CM-02 remains 🔄 and `feature_status=partial`; malformed lifecycle records cannot be exposed via direct `visibility()`/`searchable()` calls
 proof-level change: source only; no local_behavior, durable, live or physical promotion
-limitations: the new assertions await a subsequent GitHub run; run `36992023615`'s formatting failure is not attributed to CM-02 and the full run was not awaited; EventLog-to-quote binding, durable mutation/index visibility, retention/revocation/deletion and semantic recall remain outside this slice
+limitations: run `36993318357` was cancelled later by a subsequent push; its domain shard failed a sibling target, and workflow-reference/formatting gates were unrelated to CM-02. The exact lifecycle target passed; EventLog-to-quote binding, durable mutation/index visibility, retention/revocation/deletion and semantic recall remain outside this slice.
 reviewer: root source review confirmed validation does not recurse through `visibility`, the valid Qualified control remains searchable, and malformed metadata is denied; no local runtime test reviewer
 ```
 
@@ -4647,20 +4647,43 @@ reviewer: Codex integration review of whitespace bypass, exact scope-conflict pr
 ### SW-02 duplicate identity and projection fixtures (2026-10-02)
 
 ```text
-source_snapshot: `3859cea9` plus isolated SW-02 identity/projection fixture and evidence slice
-worktree_status: branch `step/sw02-fixture-evidence-20261002`; adds domain fixtures and reconciles CI evidence only; no production semantics, manifest or lockfile changes
+source_snapshot: source commit `68752712` based on `3859cea9`; integrated master commit `abce1f4f`; formatter correction commit `2e54693b`
+worktree_status: adds duplicate identity/projection domain fixtures and reconciles CI evidence; no production semantics, manifest or lockfile changes
 command_argv:
   `git diff --check`
+  `cargo fmt --all` (formatter only, applied in response to GitHub run `36993318357`; no local `cargo fmt --check`)
   source review of `kiana-domain/tests/sw02_work_graph.rs`, `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` and `docs/roadmap/swarm-work-graph-baseline.md`
-  no local cargo test/build/check/fmt/clippy/smoke commands
-cwd·environment: `/tmp/kiana-sw02-fixture-evidence-20261002`; Linux; GitHub Actions is the test authority
-fixture·cassette: `work_graph_rejects_duplicate_partition_keys_and_ordinals`; `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items`; both are source-only additions to the CI-sharded `sw02_work_graph` target
-exit_code: `git diff --check` 0; new fixtures not run locally and no remote receipt yet
-existing_remote_receipt: GitHub Actions run `36677090825` at `c221c211`; domain-s4/4 job `109764373608` logged the three original SW-02 domain fixtures as passed, and core-s6/6 job `109764373569` logged `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` as passed; both jobs and the overall run failed on other tests
+  no local cargo test/build/check/clippy/smoke commands
+cwd·environment: isolated `/tmp/kiana-sw02-fixture-evidence-20261002` for source review; integration/format in repository root on Linux; no tests/build/check/clippy/smoke run
+fixture·cassette: run `36993318357` / head `60549590` / domain-s4/4 job `110794713543` reported `sw02_work_graph` 6/6 passing, including the two fixtures added by source commit `68752712`; no local test was run
+exit_code: isolated source review and `git diff --check` 0; exact domain target passed 6/6 in GitHub Actions; `cargo fmt --all` exited 0 for formatting only, and GitHub's fmt gate identified additional repository files listed in this evidence update
+existing_remote_receipt: run `36994107681` / domain-s4/4 job `110797094394` reported `sw02_work_graph` 6/6 passing, including both fixtures in this section; core-s6/6 job `110797094448` reported `swarm_work_graph_is_validated_before_create_state_write` and `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` passing (2/2). Earlier run `36677090825` / jobs `109764373608` and `109764373569` covered the original fixtures.
 status_change: none; roadmap row 090 remains `🔄`
 proof-level change: none; remains `source`
-limitations: run `36677090825` predates the canonical-scope fixture, Create-order source guard and both fixtures in this follow-up; new CI results are pending the next push; optional graph migration and durable dispatch/effect fencing remain outside this fixture slice
+limitations: run `36994107681` was cancelled by a subsequent push and its domain/core shards failed on unrelated sibling targets; the exact SW-02 targets above passed. Workflow-reference and rustfmt gate corrections are recorded separately; optional graph migration and durable dispatch/effect fencing remain outside this fixture slice.
 reviewer: source-level review of rejection setup, projection expectations and unified CI shard mapping; no runtime test reviewer
+```
+
+### GitHub formatting and historical-reference gate corrections (2026-10-02)
+
+```text
+source_snapshot: runs `36993318357` at `60549590` and `36994107681` at `41b4d135`; formatter correction commit `2e54693b`; historical reference exemption is included in this documentation update
+worktree_status: `cargo fmt --all` formatted only `kiana-core/tests/cap02_input_guard.rs`, `kiana-core/tests/sc01_threat_register.rs`, `kiana-domain/src/memory.rs`, `kiana-domain/tests/cm02_memory.rs`, `kiana-domain/tests/sw02_work_graph.rs`, `kiana-ports/tests/ci03_ports.rs`, and `kiana-provider/src/response.rs`; `scripts/ci/doc-reference-exemptions.txt` now classifies `CURRENT_STATUS.md -> .github/workflows/sw02-work-graph.yml` as historical evidence deleted by workflow consolidation. No runtime semantics, tests, or manifest changed.
+command_argv:
+  `gh run view 36993318357 --job 110794712629 --log-failed`
+  `gh run view 36993318357 --job 110794712748 --log-failed`
+  `gh run view 36994107681 --job 110797093688 --log-failed`
+  `gh run view 36994107681 --job 110797094105 --log-failed`
+  `cargo fmt --all`
+  `git diff --check`
+  no local test, build, Cargo check, clippy or smoke command was run
+cwd·environment: repository root; Linux; formatter only; test and build execution remains GitHub Actions-only
+fixture·cassette: runs `36993318357` and `36994107681` failed workflow structure on the historical SW-02 workflow reference and Rust gates on `cargo fmt --all --check`; the seven formatter-reported files are listed above and formatted in `2e54693b`. The historical-reference exemption is included with this evidence update. Exact fixture outcomes are recorded in their owning entries; no full green workflow is claimed.
+exit_code: remote logs confirmed two gate causes; `cargo fmt --all` and `git diff --check` exited 0; no local tests ran
+status_change: none; no roadmap step was promoted
+proof-level change: none
+limitations: run `36997038699` for `2e54693b` and run `36997679412` for `ca638df7` were cancelled by later pushes; run `36997851657` at `e7c3ca4a` was queued when recorded. No replacement result is claimed, and unrelated shard failures remain.
+reviewer: root matched each edit to the exact remote diagnostic and verified the formatter changed only the reported files
 ```
 
 
@@ -4740,22 +4763,23 @@ reviewer: Codex NM-01 isolated contract audit; no local runtime test reviewer
 ### NM-01 Message serde, Debug, kind and schema boundary correction (2026-10-02)
 
 ```text
-source_snapshot: isolated commits `dca4265b` and `e20525f6`; integrated source commits `5cd8e219` and `9c51822c`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`; `docs/roadmap/notifications-contracts-baseline.md`
-worktree_status: `Message` no longer derives Debug/Serialize/Deserialize. Serialize validates before emitting; Deserialize uses a strict representation and validates before returning; Debug redacts text-bearing fields. CI-only fixtures directly construct a sentinel-bearing DTO and check Debug, Serialize, Deserialize, unknown `MessageKind`, unknown schema version and valid serde round-trip behavior. Source and evidence are integrated into master and will be pushed together.
+source_snapshot: isolated commits `dca4265b` and `e20525f6`; source commits `5cd8e219`, `9c51822c`, and follow-up `e7c3ca4a`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`; `docs/roadmap/notifications-contracts-baseline.md`
+worktree_status: `Message` no longer derives Debug/Serialize/Deserialize. Serialize validates before emitting; Deserialize uses a strict representation and validates before returning; Debug redacts text-bearing fields. Known v0 input now decodes through `MessageRepr`, recomputes its v1 digest, then validates; v1 still uses strict validating deserialization. Source changes are pushed; the latest fix has no remote receipt yet.
 command_argv:
   `git show --format=fuller --stat --patch dca4265b3e889737834cdbf1c194a5caff607b77`
   `git show --format=fuller --stat --patch e20525f64dfbbcf0db08cccfb28454ea84483523`
   `git show --check --oneline 5cd8e219`
   `git show --check --oneline 9c51822c`
   source review of the Message representation and focused fixtures
-  no local test, build, Cargo check, fmt, clippy or smoke command was run
+  `cargo fmt --all` (formatter only; no local `cargo fmt --check`)
+  no local test, build, Cargo check, clippy or smoke command was run
 cwd·environment: isolated source worktree `/tmp/kiana-nm01-secret-boundary-20261002`; integration in repository root on Linux; all Cargo tests remain GitHub Actions-only
-fixture·cassette: run `36920684463` at `8348e059` logged NM domain fixtures 4/4, `nm01_contracts_guard` 1/1, and `notifications_baseline` 2/2; the overall run was cancelled and its core shard had unrelated failures. These receipts predate the new serde-boundary, unknown-kind and unknown-schema fixtures; no result is inferred for them.
-exit_code: isolated `git diff --check`/`git show --check` and source review succeeded; no local test/runtime exit code exists
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` reported the new `message_secret_marker_is_rejected_at_serde_boundaries_and_redacted_from_debug` and `message_deserialization_rejects_unknown_kind_and_schema` fixtures passing. The existing `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failed with `message_upcast_invalid`; follow-up `e7c3ca4a` moves known v0 decoding before digest validation. Run `36997851657` at that head was queued without a target receipt.
+exit_code: source review and `git diff --check` 0; two new boundary fixtures passed in GitHub CI, the pre-fix v0 upcast fixture failed, and no local test/runtime exit code exists
 status_change: NM-01 remains 🔄 and `feature_status=partial`; known secret markers are rejected at Message serde boundaries, Debug omits marker payloads, and unknown kind/schema inputs have explicit deny fixtures
 proof-level change: source only; `proof_level=source`; no local_behavior, durable, live or physical promotion
-limitations: detection is bounded to the current marker set; public in-memory fields remain readable and mutable; notification materialization, resolver, durable store, outbox, delivery and external channels remain later NM/ER/PD/SC work; the new fixtures await GitHub CI
-reviewer: root source review of validation placement, safe error output, debug redaction, unknown-kind/schema denial and unchanged valid serde field order/shape; no local runtime test reviewer
+limitations: the v0 upcast fix has no post-fix target receipt; detection is bounded to the current marker set; public in-memory fields remain readable and mutable; notification materialization, resolver, durable store, outbox, delivery and external channels remain later NM/ER/PD/SC work.
+reviewer: root reviewed validation order and confirmed v1 strict deserialization remains in place; no runtime test reviewer
 ```
 
 ### NM-02 communication lifecycle evidence (2026-09-17)
@@ -7201,11 +7225,11 @@ source_snapshot: base `db8a46067c1fd33b07f8e5a515d793e729aa1779`; ConfigSnapshot
 worktree_status: test-local ConfigSnapshotStore fake covers deterministic repeated reads, explicit `Some(current.config_revision)` CAS, and stale-revision conflict without mutation. New test-local CredentialRotationPort fake covers stale rotate/revoke rejection without changing the current SecretRef and successful current-generation advances. No production adapter or shared manifest/lockfile changed.
 command_argv: manual source review; `git diff --check`; no local test/build/check/fmt/clippy/smoke command was run
 cwd·environment: isolated `/tmp/kiana-ci03-generation-cas-20261002` based on pushed master; GitHub Actions is the only test executor
-fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt because run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is routed through unified `.github/workflows/ci.yml`'s `kiana-ports` shard and has not run remotely. Run `36993318357` on head `60549590` later marked the ports/domain-s1 jobs, workflow structure and Rust gates as failed while the overall run was still in progress; logs were unavailable, so no failure is attributed to either CI-03 fixture.
-exit_code: source review and `git diff --check` only; no local tests; no receipt for either CAS fixture in this slice
+fixture·cassette: run `36994107681` / `Tests (kiana-ports)` job `110797094579` reported `ci03_ports` 4/4 passing, including `config_snapshot_store_revision_cas_is_deterministic` and `credential_rotation_port_generation_cas_rejects_stale_without_mutation`. The ports shard failed on unrelated BQ-05 and PD-34 targets; the overall run was cancelled by a subsequent push.
+exit_code: source review and `git diff --check` only; no local tests; exact CI-03 target passed 4/4
 status_change: CI-03 remains 🔄 with `feature_status=partial`, `proof_level=source`; no roadmap completion or production-store claim
 proof-level change: none; no local_behavior, durable, live, or physical promotion
-limitations: test-local in-memory fakes only; initial publish, durable persistence, multi-project storage, lease lifecycle, cancellation after side effect, production adapters and rotation/revoke durability remain unproven
+limitations: the overall run was cancelled and its ports shard failed on unrelated BQ-05/PD-34 targets despite `ci03_ports` passing. Test-local in-memory fakes only; initial publish, durable persistence, multi-project storage, lease lifecycle, cancellation after side effect, production adapters and rotation/revoke durability remain unproven.
 reviewer: manual interface/test/baseline review; no runtime test reviewer
 ```
 

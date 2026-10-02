@@ -28,8 +28,8 @@
 | `swarm_plan_rejects_partition_overlap_and_unbound_input` | 重叠 owned path、空 input refs 均在构造/图校验前拒绝 |
 | `work_graph_rejects_cycle_missing_duplicate_and_first_success` | cycle/missing dependency、重复 fingerprint 与 `first_success` fail-closed |
 | `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/budget 上限拒绝，成功依赖后的 ready 投影可读，unknown fields 拒绝 |
-| `work_graph_rejects_duplicate_partition_keys_and_ordinals` | 重绑 graph digest 后，duplicate PartitionId key 与 ordinal 分别命中稳定拒绝码 |
-| `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items` | Failed/Cancelled/ResultUnknown、失败依赖传播、运行中/未完成依赖阻塞、成功依赖放行及多项 ready/failed 的稳定排序 |
+| `work_graph_rejects_duplicate_partition_keys_and_ordinals` | 重绑 graph digest 后，duplicate PartitionId key 与 ordinal 分别命中稳定拒绝码；run `36993318357` domain-s4/4 目标 6/6 通过 |
+| `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items` | Failed/Cancelled/ResultUnknown、失败依赖传播、运行中/未完成依赖阻塞、成功依赖放行及多项 ready/failed 的稳定排序；run `36993318357` domain-s4/4 目标 6/6 通过 |
 | `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` | domain 复用 shared packet graph；Swarm 仍通过现有 ControlPlane/EventLog 唯一路径 |
 
 上述 domain fixtures 和 core source guard 现由 `.github/workflows/ci.yml` 的 `kiana-domain-s4/4` 与 `kiana-core-s6/6` 分片执行；目标清单在 `scripts/ci/test-shards.json`。格式、构建、静态检查和测试均交给 GitHub runner；本地只做 `git diff --check`。
@@ -98,17 +98,18 @@ successful dependency. It checks exact failed IDs and block reasons, then revers
 partition order and requires an identical projection with ready and failed IDs sorted by typed ID.
 
 ```text
-source_snapshot: `3859cea9` plus isolated SW-02 identity/projection fixture and evidence slice
-worktree_status: branch `step/sw02-fixture-evidence-20261002`; fixtures and evidence only, no production semantics, manifest or lockfile changes
+source_snapshot: source commit `68752712` based on `3859cea9`; integrated on master as `abce1f4f`; formatting correction applied after the remote gate report
+worktree_status: duplicate-identity and projection fixtures plus evidence only; no production semantics, manifest or lockfile changes
 command_argv:
   `git diff --check`
   source review of `kiana-domain/tests/sw02_work_graph.rs`, `CURRENT_STATUS.md` and this baseline
-cwd·environment: `/tmp/kiana-sw02-fixture-evidence-20261002`; Linux; no local cargo test/build/check/fmt/clippy/smoke commands
-fixture·cassette: `work_graph_rejects_duplicate_partition_keys_and_ordinals`; `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items`; GitHub CI only
-exit_code: `git diff --check` 0; source review complete; new fixtures not run locally and no remote receipt yet
-existing_remote_receipt: run `36677090825`, head `c221c211`; domain-s4/4 job `109764373608` logged the three original SW-02 domain fixtures as passed, and core-s6/6 job `109764373569` logged `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` as passed; both jobs and the overall run failed on other tests
+  `cargo fmt --all` (formatting only, in response to run `36993318357`)
+cwd·environment: source review in `/tmp/kiana-sw02-fixture-evidence-20261002`; formatting in repository root; no local test/build/check/clippy/smoke commands
+fixture·cassette: run `36994107681` / head `41b4d135` / domain-s4/4 job `110797094394` reported `sw02_work_graph` 6/6 passing, including both fixtures in this section
+exit_code: source review and `git diff --check` 0; formatter-only `cargo fmt --all` 0; exact domain target passed 6/6
+existing_remote_receipt: run `36994107681` / core-s6/6 job `110797094448` reported both core guard fixtures passing (2/2), including `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane`; the overall domain/core shards failed on unrelated sibling targets. Run `36677090825`, head `c221c211`, covered the original SW-02 fixtures.
 status_change: none; roadmap row 090 remains `🔄`
 proof-level change: none; remains `source`
-limitations: run `36677090825` predates the canonical-scope fixture, Create-order source guard and both fixtures in this follow-up; their GitHub CI results are pending the next push
+limitations: run `36994107681` was cancelled by a subsequent push and its shards failed on unrelated sibling tests despite the exact SW-02 domain/core targets passing. Workflow-reference and rustfmt gate corrections are recorded in `CURRENT_STATUS.md`; optional graph migration and durable dispatch/effect fencing remain outside SW-02.
 reviewer: source-level review of rejection setup, projection expectations and unified CI shard mapping; no runtime test reviewer
 ```

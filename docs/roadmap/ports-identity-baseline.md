@@ -92,20 +92,20 @@ an effect.
 The original ConfigSnapshotStore fixture commit `4455675553ece5437e7b615654f18cd2aa437c62` was
 integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`, which is an ancestor of pushed master
 `db8a46067c1fd33b07f8e5a515d793e729aa1779`. The fixture is mapped to the `kiana-ports` test
-shard in the unified `.github/workflows/ci.yml`; it has no CI receipt because run `36986316487`
-cancelled that shard at `Run shard` before fixture output. Run `36993318357` later marked the
-ports shard failed on an earlier source head, but its logs were unavailable at observation and
-no ConfigSnapshotStore fixture result is inferred. The older receipt in §6 predates this
-ConfigSnapshotStore test and does not prove it.
+shard in the unified `.github/workflows/ci.yml`. Run `36994107681` / job `110797094579` on head
+`41b4d135` reported `ci03_ports` passing 4/4, including the ConfigSnapshotStore revision CAS and
+CredentialRotationPort generation CAS fixtures. The containing ports shard failed on unrelated
+BQ-05/PD-34 targets, and the overall run was cancelled by a subsequent push. The older receipt in
+§6 predates the ConfigSnapshotStore fixture and does not prove it.
 
 ```text
 source_snapshot: base `db8a46067c1fd33b07f8e5a515d793e729aa1779` plus this isolated CI-03 slice; prior ConfigSnapshotStore source `4455675553ece5437e7b615654f18cd2aa437c62` integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`; `kiana-ports/tests/ci03_ports.rs`; `kiana-ports/src/lib.rs`; `docs/roadmap/ports-identity-baseline.md`
 worktree_status: isolated `/tmp/kiana-ci03-generation-cas-20261002` based on pushed master; test-local ConfigSnapshotStore and CredentialRotationPort fakes cover explicit revision/generation CAS; no production adapter, authority behavior, manifest or lockfile changed
-command_argv: source review; `git diff --check`; no local test/build/check/fmt/clippy/smoke command was run
+command_argv: source review; `git diff --check`; no local test/build/check/clippy/smoke command was run; a later formatter-only `cargo fmt --all` included the ports fixture file
 cwd·environment: `/tmp/kiana-ci03-generation-cas-20261002`; Linux; GitHub Actions is the only test executor
-fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt: run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is wired through the same unified `kiana-ports` shard and has not run remotely. Run `36993318357` targeted an earlier source head and its full logs were unavailable; no fixture result is inferred.
-exit_code: source review and `git diff --check` only; fixtures not run locally; no new GitHub receipt observed or awaited
+fixture·cassette: run `36994107681` / `Tests (kiana-ports)` job `110797094579` reported all four `ci03_ports` tests passing, including `config_snapshot_store_revision_cas_is_deterministic` and `credential_rotation_port_generation_cas_rejects_stale_without_mutation`.
+exit_code: source review and `git diff --check` only; no local tests; the exact CI-03 target passed 4/4
 status_change: none; CI-03 remains 🔄 with `feature_status=partial` and `proof_level=source`
-limitations: test-local in-memory fakes only; initial config publish, durable persistence, production adapters, lease lifecycle, cancellation/recovery and credential rotation/revoke durability remain unproven
+limitations: test-local in-memory fakes only; initial config publish, durable persistence, production adapters, lease lifecycle, cancellation/recovery and credential rotation/revoke durability remain unproven; the containing ports shard failed on unrelated BQ-05/PD-34 targets and the run was later cancelled
 reviewer: manual source review; no runtime test reviewer
 ```

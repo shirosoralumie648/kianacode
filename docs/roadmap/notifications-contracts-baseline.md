@@ -85,3 +85,23 @@ proof-level change: source only; `proof_level=source`, no local_behavior/durable
 limitations: bounded known-marker detection does not detect arbitrary high-entropy secrets; direct in-memory access to public fields remains possible; no clean full NM-01 CI shard is established; notification persistence, resolver, projection, outbox and delivery remain later steps
 reviewer: root source review against NM-01 acceptance and serialized DTO shape; no local runtime test reviewer
 ```
+
+## 7. Legacy upcast digest-order correction (2026-10-02)
+
+The strict `Message` deserializer now validates immediately, so the explicit v0 migration must not
+decode its intentionally stale/empty legacy digest through that boundary. `upcast_message` parses
+the already-recognized v0 shape as `MessageRepr`, computes the v1 digest, and then validates the
+result. Current v1 input still uses the strict `Message` deserializer and must carry a valid digest.
+
+```text
+source_snapshot: `e7c3ca4a`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`
+worktree_status: known v0 upcast now recomputes its v1 digest before validation; v1 parsing and unknown-field rejection remain strict
+command_argv: source review; `cargo fmt --all` (formatter only); `git diff --check`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; Linux; GitHub Actions is the only test executor
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` passed the secret serde-boundary and unknown-kind/schema fixtures, but `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failed with `message_upcast_invalid`; run `36997851657` at `e7c3ca4a` was queued without a post-fix receipt
+exit_code: source review and diff check 0; no local test/runtime exit code; no full NM-01 shard pass is claimed
+status_change: NM-01 remains `partial`; digest reconstruction is limited to the explicit known v0 upcast path
+proof-level change: source only; no local_behavior, durable, live, or physical promotion
+limitations: no post-fix remote result yet; arbitrary high-entropy secrets, mutable public in-memory fields, durable notification storage, resolver, projection, outbox and delivery remain outside this slice
+reviewer: root checked the strict v1 path remains unchanged and validation follows v0 digest reconstruction; no runtime test reviewer
+```

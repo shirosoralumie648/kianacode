@@ -87,6 +87,8 @@ CURRENT_STATUS.md :: .github/workflows/p4-j7-29-provider-contract.yml
 CURRENT_STATUS.md :: .github/workflows/p4-j7-30-provider-product-chain.yml
 CURRENT_STATUS.md :: .github/workflows/pd28-storage-security.yml
 CURRENT_STATUS.md :: .github/workflows/sc31-audit-record.yml
+# Historical source/command path in the 2026-09-16 SW-02 evidence block; current mapping is ci.yml.
+CURRENT_STATUS.md :: .github/workflows/sw02-work-graph.yml
 CURRENT_STATUS.md :: .github/workflows/ui04-action-cas.yml
 CURRENT_STATUS.md :: .github/workflows/ui05-snapshot-projector.yml
 CURRENT_STATUS.md :: .github/workflows/ui06-feed-replay.yml
