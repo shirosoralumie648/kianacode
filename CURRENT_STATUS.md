@@ -19430,11 +19430,11 @@ source_snapshot: isolated commit `cbff7700a49a03339841f5908960f34511941de2`, che
 worktree_status: `CorrelationContext` now deserializes through a private `deny_unknown_fields` wire DTO, reconstructs the same public fields, and calls the existing `validate()` before returning. All old optional-field serde defaults are preserved and derived Serialize output is unchanged. JSON fixtures cover legacy JSON without optional fields and deny nil IDs, request/correlation mismatch, invalid causation, forged Parent/self links, and attempt scope/command drift. No ingress, provider, broker, EventStore, manifest or lockfile changes.
 command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick cbff7700a49a03339841f5908960f34511941de2`; no local tests/build/check/clippy/smoke
 cwd·environment: source worktree `/tmp/kiana-oa02-deserialize-validation-20261003`, branch `fix/oa02-deserialize-validation-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
-fixture·cassette: new `wire_decode_rejects_nil_ids_and_invalid_correlation_links` and renamed in-memory-only `validate_rejects_nil_ids_and_parent_or_self_span_links`; existing `.github/workflows/ci.yml` routes `oa02_correlation` to `kiana-domain-s3/4`. No CI receipt for this source snapshot yet.
-exit_code: isolated formatting and diff checks passed; no local runtime result; remote CI pending after push
+fixture·cassette: run `37059531699`, source head `779fffed`, domain-s3 job `111013007693`: `wire_decode_rejects_nil_ids_and_invalid_correlation_links` passed and the complete `oa02_correlation` target passed 7/7; the containing domain shard failed on unrelated sibling targets. The test covers invalid wire decode and a compatible legacy JSON object omitting optional fields.
+exit_code: exact OA-02 domain target passed 7/7 remotely; containing shard failed on unrelated sibling tests; isolated formatting/diff checks passed; no local runtime result
 status_change: OA-02 remains roadmap row 093 `🔄`, `feature_status=partial`, `proof_level=source`; wire decoding now enforces domain validation while end-to-end ingress→provider→broker→EventLog propagation remains open
 proof-level change: none
-limitations: decode fixtures await GitHub CI; no authenticated ingress bridge, exporter, cross-process correlation recovery, or durable/live/physical behavior is established. Trace metadata remains non-authoritative.
+limitations: run `37059531699` is an exact target receipt, not a green workflow or product-path proof. There is still no authenticated ingress bridge, provider/broker/EventLog propagation, exporter, cross-process correlation recovery, or durable/live/physical behavior. Trace metadata remains non-authoritative.
 reviewer: source review confirmed equivalent serialized fields/defaults and that deserialization delegates to the existing validation contract; no local runtime reviewer
 ```
 

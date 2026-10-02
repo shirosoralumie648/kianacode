@@ -292,8 +292,11 @@ preserves the prior JSON field names and every optional-field default, construct
 value, and calls the existing `validate()` before returning it. The JSON fixture rejects nil IDs,
 request/correlation drift, invalid command/event causation, forged Parent/self links, and attempt
 scope/command drift; a legacy JSON object omitting optional fields remains readable. The derived
-Serialize shape is unchanged. This is still source-level evidence only: OA-02 has no authenticated
-ingress→provider→broker→EventLog propagation or recovery link proof.
+Serialize shape is unchanged. Run `37059531699`, head `779fffed`, domain-s3 job `111013007693`
+passed `wire_decode_rejects_nil_ids_and_invalid_correlation_links` and the complete
+`oa02_correlation` target 7/7; the enclosing shard failed on unrelated targets. This is still
+source-level evidence only: OA-02 has no authenticated ingress→provider→broker→EventLog propagation
+or recovery link proof.
 
 ## 9. OA-03 叠加说明
 
