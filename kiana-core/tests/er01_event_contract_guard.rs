@@ -6,6 +6,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let journal = include_str!("../../kiana-domain/src/journal.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let approvals = include_str!("../../kiana-core/src/approvals.rs");
+    let capabilities = include_str!("../../kiana-core/src/capabilities.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -24,6 +25,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "CAPABILITY_DECISION_FIELDS",
         "APPROVAL_STAGED_FIELDS",
         "APPROVAL_ACTIVATED_FIELDS",
+        "APPROVAL_REQUESTED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -44,6 +46,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("event_capability_identity_pair_incomplete"));
     assert!(baseline.contains("approval_staged_contract_matches_journal_producer"));
     assert!(baseline.contains("approval_activated_contract_matches_transition_producer"));
+    assert!(baseline.contains("approval_requested_contract_matches_capability_producer"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -68,4 +71,13 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     ));
     assert!(journal_approvals
         .contains(".with_stream_metadata(APPROVAL_STREAM, id.to_string(), record.version + 1)"));
+    assert!(capabilities.contains("\"approval.requested\""));
+    assert!(capabilities.contains(
+        "\"capability_request_id\":request.request_id,\"action_digest\":kiana_domain::capability_action_digest(request),"
+    ));
+    assert!(capabilities.contains("Some(run_id) => (\"run\", run_id.to_string())"));
+    assert!(capabilities.contains("None => (\"request\", event_request_id.to_string())"));
+    assert!(
+        capabilities.contains(".with_stream_metadata(aggregate_type, &aggregate_id, version + 1)")
+    );
 }

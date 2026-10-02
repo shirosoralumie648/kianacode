@@ -535,6 +535,28 @@ const APPROVAL_ACTIVATED_FIELDS: &[&str] = &[
     "at_unix_ms",
     "activation_command_id",
 ];
+const APPROVAL_REQUESTED_FIELDS: &[&str] = &[
+    "approval_id",
+    "request_hash",
+    "session_id",
+    "actor_id",
+    "subject_request_id",
+    "run_id",
+    "operation",
+    "expires_at_unix_ms",
+    "decision",
+    "scope",
+    "capability_request_id",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+    "resume_binding",
+    "error",
+    "action_digest",
+];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1171,7 +1193,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "approval.requested",
         "approval",
         APPROVAL_IDS,
-        APPROVAL_FIELDS,
+        APPROVAL_REQUESTED_FIELDS,
         false,
         Some("legacy_approval_event_v0_to_v1")
     ),
