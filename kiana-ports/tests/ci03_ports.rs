@@ -1,9 +1,13 @@
 use async_trait::async_trait;
-use kiana_domain::{AuthenticatedPrincipalRef, SecretRef};
+use kiana_domain::{
+    json_digest, AuthenticatedPrincipalRef, ConfigSnapshot, ProjectIdentity, SecretRef,
+};
 use kiana_ports::{
     ConfigSnapshotStore, CredentialResolution, CredentialResolver, CredentialRotationPort,
-    CredentialState, IdentityResolver,
+    CredentialState, IdentityResolver, PortError,
 };
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 struct MissingCredential;
 
@@ -74,6 +78,55 @@ impl ConfigSnapshotStore for UnsupportedConfig {
     }
 }
 
+#[derive(Clone)]
+struct MemoryConfigSnapshot {
+    project_id: String,
+    snapshot: Arc<RwLock<ConfigSnapshot>>,
+}
+
+impl MemoryConfigSnapshot {
+    fn new(project: &ProjectIdentity, snapshot: ConfigSnapshot) -> Self {
+        Self {
+            project_id: project.project_id.to_string(),
+            snapshot: Arc::new(RwLock::new(snapshot)),
+        }
+    }
+}
+
+#[async_trait]
+impl ConfigSnapshotStore for MemoryConfigSnapshot {
+    async fn read_snapshot(
+        &self,
+        project: &ProjectIdentity,
+    ) -> Result<ConfigSnapshot, PortError> {
+        if project.project_id.to_string() != self.project_id {
+            return Err(PortError::Unavailable(
+                "config_fixture_project_unavailable".to_owned(),
+            ));
+        }
+        Ok(self.snapshot.read().await.clone())
+    }
+
+    async fn publish_snapshot(
+        &self,
+        snapshot: ConfigSnapshot,
+        expected_revision: Option<&str>,
+    ) -> Result<ConfigSnapshot, PortError> {
+        snapshot.validate().map_err(PortError::Failed)?;
+        let expected_revision = expected_revision.ok_or_else(|| {
+            PortError::Unavailable("config_fixture_initial_publish_not_covered".to_owned())
+        })?;
+        let mut current = self.snapshot.write().await;
+        if current.config_revision != expected_revision {
+            return Err(PortError::Conflict(
+                "config_snapshot_revision_stale".to_owned(),
+            ));
+        }
+        *current = snapshot.clone();
+        Ok(snapshot)
+    }
+}
+
 struct UnsupportedRotation;
 
 #[async_trait]
@@ -120,6 +173,57 @@ fn credential_resolution(value: &str) -> CredentialResolution {
         expires_at_unix_ms: Some(10_000),
         resolved_digest: Some(kiana_domain::json_digest(&serde_json::json!(value))),
     }
+}
+
+fn project_identity() -> ProjectIdentity {
+    ProjectIdentity::new(
+        "/workspace/kiana",
+        "/workspace/kiana",
+        None,
+        None,
+        json_digest(&serde_json::json!("ci03-trust-revision")),
+    )
+    .unwrap()
+}
+
+fn config_snapshot(revision: &str, model: &str) -> ConfigSnapshot {
+    ConfigSnapshot::new(
+        vec!["project-settings".to_owned()],
+        serde_json::json!({"model": model}),
+        json_digest(&serde_json::json!(revision)),
+        json_digest(&serde_json::json!("ci03-trust-revision")),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn config_snapshot_store_revision_cas_is_deterministic() {
+    let project = project_identity();
+    let initial = config_snapshot("config-v1", "fixture-model-v1");
+    let store = MemoryConfigSnapshot::new(&project, initial.clone());
+
+    let first_read = store.read_snapshot(&project).await.unwrap();
+    let second_read = store.read_snapshot(&project).await.unwrap();
+    assert_eq!(first_read, initial);
+    assert_eq!(second_read, first_read);
+
+    let updated = config_snapshot("config-v2", "fixture-model-v2");
+    let published = store
+        .publish_snapshot(updated.clone(), Some(initial.config_revision.as_str()))
+        .await
+        .unwrap();
+    assert_eq!(published, updated);
+    assert_eq!(store.read_snapshot(&project).await.unwrap(), updated);
+
+    let stale_update = config_snapshot("config-v3", "fixture-model-v3");
+    assert_eq!(
+        store
+            .publish_snapshot(stale_update, Some(initial.config_revision.as_str()))
+            .await
+            .unwrap_err(),
+        PortError::Conflict("config_snapshot_revision_stale".to_owned())
+    );
+    assert_eq!(store.read_snapshot(&project).await.unwrap(), updated);
 }
 
 #[test]

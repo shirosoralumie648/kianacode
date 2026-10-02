@@ -7,7 +7,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CI-03`](../roadmap.md#step-ci-03) |
-| feature_status | `implemented`（ports contracts + secret-free resolution boundary source） |
+| feature_status | `partial`（ports contracts + secret-free resolution boundary source；adapter and recovery limits remain open） |
 | proof_level | `source`；静态编译和远程 fixtures 不提升为 `local_behavior`、`durable`、`live` 或 `physical` |
 | canonical path | protected ingress → IdentityResolver → AuthoritySnapshot; ConfigSnapshotStore → non-secret config; CredentialResolver/RotationRevoke → opaque SecretRef/metadata at effect boundary |
 | this step does | identity/authority resolution port、credential status/ref port、config snapshot CAS port、credential rotation/revoke generation port；所有端口不返回 raw secret |
@@ -27,6 +27,7 @@
 |---|---|
 | `ports_never_return_raw_secret_to_core` | CredentialResolution 只序列化 SecretRef/status/expiry/digest，不含 raw secret |
 | `credential_resolution_metadata_is_strict_and_fail_closed` | 完整 resolution metadata 可 round-trip；raw secret unknown field、过期和 digest drift 均拒绝 |
+| `config_snapshot_store_revision_cas_is_deterministic` | 测试内存 fake 返回稳定快照；当前 config revision 可 CAS 更新；旧 revision 被拒绝且已发布快照保持不变 |
 | `ports_keep_identity_config_credential_and_rotation_boundaries_separate` | 四类 port、错误/secret-free metadata 和 CI-02 domain contracts 均有 source guard |
 
 统一 `.github/workflows/ci.yml` 的 test shard 在 GitHub runner 执行 ports fixture、core source guard、fmt 和 domain/ports/core test-target 编译；旧的独立 CI-03 workflow 已合并删除。本地不运行测试。
@@ -76,4 +77,25 @@ status_change: none; CI-03 remains 🔄 with the existing production-adapter and
 proof-level_change: none; `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: this receipt proves only the two CI-03 ports fixtures on the observed runner; it does not prove production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth behavior, rotation/revoke durability, or a green workspace CI run
 reviewer: isolated CI-03 ports audit; no local runtime test reviewer
+```
+
+## 7. ConfigSnapshotStore explicit-revision fixture (2026-10-02)
+
+The CI-03 ports fixture now uses a test-local, single-project in-memory store to pin stable
+reads and explicit-revision compare-and-swap behavior. Publishing against the current
+`config_revision` replaces the snapshot; publishing against the prior revision after that
+update returns a conflict and leaves the newer snapshot intact. The fixture deliberately
+does not cover `None`/initial-create semantics, a reusable runtime store, lease lifecycle,
+cancellation after an effect, or credential rotation.
+
+```text
+source_snapshot: `e22d8f75` plus the CI-03 ConfigSnapshotStore fixture slice; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`
+worktree_status: isolated `/tmp/kiana-ci03-config-cas-20261002` on `step/ci03-config-cas-20261002`; only the ConfigSnapshotStore contract docs, CI-03 ports fixture and its baseline changed
+command_argv: source inspection and manual diff review; no local test/build/check/fmt/clippy/smoke command was run
+cwd·environment: isolated Linux worktree; GitHub Actions remains the only test executor
+fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic`; not yet executed by CI
+exit_code: not run locally; CI is not triggered until integration/push
+status_change: none; CI-03 remains 🔄 with `feature_status=partial` and `proof_level=source`
+limitations: this fixture pins only stable reads and explicit `Some(config_revision)` CAS; initial publish, multi-project persistence, runtime adapters, leases and cancellation/recovery remain unproven
+reviewer: manual source review; no runtime test reviewer
 ```

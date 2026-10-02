@@ -382,6 +382,9 @@ pub trait CredentialResolver: Send + Sync {
 }
 
 /// Read/publish the immutable, non-secret configuration snapshot for a project.
+/// When `expected_revision` is `Some`, implementations must compare it with the current
+/// snapshot's `config_revision` and leave stored state unchanged on mismatch. `None` semantics
+/// are unspecified by this contract.
 #[async_trait]
 pub trait ConfigSnapshotStore: Send + Sync {
     async fn read_snapshot(&self, project: &ProjectIdentity) -> Result<ConfigSnapshot, PortError>;
