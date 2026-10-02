@@ -244,7 +244,7 @@ sequenceDiagram
 **关联原单元**：`P0-A-02`、`P0-J7-01`、`P1-J8-01`。**依赖**：H04。
 
 1. 给模型响应补归一化 StopReason 与完整性标记，映射各 adapter 的原始 stop/finish/error；Fake 明确产生正常结束，旧 cassette 缺字段走受限兼容策略。
-2. 区分 transport retry、model format repair、tool repair、context repair、terminal failure；由 typed error 指定范围，不再通过错误字符串猜是否该重试。Provider structured-output 内容校验失败属于 FormatRepair 分类，但没有显式、预算化的 OutputRepair 命令时必须终止，不得隐式重试。
+2. 区分 transport retry、model format repair、tool repair、context repair、terminal failure；由 typed error 指定范围，不再通过错误字符串猜是否该重试。Provider structured-output 内容校验失败属于 FormatRepair；已收到响应但工具参数 JSON/shape/schema 不合格属于 ToolRepair。没有显式、预算化的 OutputRepair/ToolRepair 命令时，Runner 必须终止且不得隐式重试或移交 capability。ContextRepair 需要 Provider 提供明确的 typed context-limit 信号，不得从任意错误文本推断。
 3. 文本被 length 截断、拒答、流未完整关闭均不能进入正常完成；有工具的截断响应整批不执行，保留可诊断的响应记录。
 
 **先拒绝**：`length_stop_never_dispatches_tools_or_completes_turn`、`refusal_is_not_success`、`unknown_stop_reason_fails_closed`。**再成功**：`normal_text_stop_finishes_and_tool_stop_continues`。

@@ -11,6 +11,14 @@ fn error(code: &str) -> ModelError {
     ModelError::invalid(code)
 }
 
+fn tool_repair_error(code: &str) -> ModelError {
+    let mut error =
+        ModelError::invalid(code).with_recovery_disposition(ModelRecoveryDisposition::ToolRepair);
+    error.request_sent = true;
+    error.side_effect_state = ModelSideEffectState::None;
+    error
+}
+
 struct UniqueProviderJson(Value);
 
 impl<'de> Deserialize<'de> for UniqueProviderJson {
@@ -199,7 +207,7 @@ fn call(
 ) -> Result<ModelToolCall, ModelError> {
     let name = crate::request::internal_name(name, &prepared.request.tools)?;
     kiana_domain::validate_tool_arguments(&name, &arguments)
-        .map_err(|_| error("provider_tool_schema_invalid"))?;
+        .map_err(|_| tool_repair_error("provider_tool_schema_invalid"))?;
     Ok(ModelToolCall {
         id,
         name,
@@ -209,12 +217,12 @@ fn call(
 fn parse_arguments(value: &Value) -> Result<Value, ModelError> {
     let arguments = if let Some(raw) = value.as_str() {
         kiana_domain::parse_bounded_json(raw.as_bytes())
-            .map_err(|_| error("provider_tool_json_invalid"))?
+            .map_err(|_| tool_repair_error("provider_tool_json_invalid"))?
     } else {
         value.clone()
     };
     if !arguments.is_object() {
-        return Err(error("provider_tool_json_object_required"));
+        return Err(tool_repair_error("provider_tool_json_object_required"));
     }
     Ok(arguments)
 }
@@ -1796,6 +1804,40 @@ mod tests {
                 .code,
             "provider_tool_json_invalid"
         );
+    }
+
+    #[test]
+    fn malformed_model_tool_arguments_are_typed_tool_repair_after_request() {
+        let prepared = anthropic_prepared();
+        for (input, expected_code) in [
+            (serde_json::json!("not-json"), "provider_tool_json_invalid"),
+            (
+                serde_json::json!("[]"),
+                "provider_tool_json_object_required",
+            ),
+            (
+                serde_json::json!({"workdir":"/repo"}),
+                "provider_tool_schema_invalid",
+            ),
+        ] {
+            let error = decode(
+                serde_json::json!({
+                    "content":[{"type":"tool_use","id":"call-1","name":"shell","input":input}],
+                    "stop_reason":"tool_use"
+                }),
+                &prepared,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, expected_code);
+            assert_eq!(
+                error.recovery_disposition,
+                ModelRecoveryDisposition::ToolRepair
+            );
+            assert!(error.request_sent);
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
+        }
     }
 
     #[test]

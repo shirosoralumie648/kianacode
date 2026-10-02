@@ -1,6 +1,6 @@
 # H05 model stop, error and retry baseline
 
-> 首次快照：2026-09-16；typed recovery 分类切片：2026-10-02（基线 `e17143f7`）；structured-output producer mapping：2026-10-03。本文记录 H05 的模型 StopReason、错误阶段、retry/recovery 分类和完整性边界；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
+> 首次快照：2026-09-16；typed recovery 分类切片：2026-10-02（基线 `e17143f7`）；structured-output producer mapping：2026-10-03；tool-call producer classification：2026-10-03。本文记录 H05 的模型 StopReason、错误阶段、retry/recovery 分类和完整性边界；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
 
 ## 1. 目标与证明上限
 
@@ -66,6 +66,7 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 | `retry_policy_denies_non_transport_recovery_dispositions` | 只有 TransportRetry 能进入现有有界 retry policy |
 | `typed_recovery_disposition_bounds_runner_routing` | 两种安全 transport 分类按既有策略 retry；format/tool/context repair 明确失败且不重试；FormatRepair 保留于 `run.model_turn` outcome、只调用一次且不 handoff capability；Terminal 保持原错误 |
 | `structured_output_errors_are_typed_format_repair_without_running_a_repair` | Provider structured-output 空/非法 JSON、类型和 schema 内容错误带 `FormatRepair`，同时保留 `request_sent=true`、`side_effect_state=none`、`retry_class=Never`；无效的本地 response schema 保持 `Terminal` 且未发送请求 |
+| `malformed_model_tool_arguments_are_typed_tool_repair_after_request` | Provider 已收到响应后，工具参数非法 JSON、非对象或不符合现有工具 schema 的错误标记为 `ToolRepair`，记录 `request_sent=true`、`side_effect_state=none`、`retry_class=Never`；Runner 只做一次模型调用、记录 bounded outcome、以 unavailable 失败且不移交 capability |
 
 `.github/workflows/ci.yml` 在 GitHub runner 的 `kiana-domain-s3/4`、`kiana-runner` 和 `kiana-provider` shards 执行这些 domain outcome、Runner 行为和 Provider parser fixtures；本切片复用现有 `h05_model_outcome` / `h05_stop_guard` targets，不改 shard map。本地不运行测试。
 
@@ -74,7 +75,7 @@ Exact prior H05 receipts: run `37008943358` / head `cc303315`, Runner job `11084
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
-- Provider structured-output content failures (empty, invalid JSON, shape and schema mismatch) now identify `FormatRepair` at their producer. Invalid local response schemas remain `Terminal`; other provider errors default to `Terminal` unless a typed source explicitly marks an eligible transport rejection. Runner reports `model_format_repair_unavailable` without retrying; the existing dead-code OutputRepair helper remains inactive and no second repair loop is introduced. ToolRepair and ContextRepair still have no production error producer.
+- Provider structured-output content failures (empty, invalid JSON, shape and schema mismatch) identify `FormatRepair` at their producer. Invalid local response schemas remain `Terminal`. After a model response arrives, malformed tool-argument JSON, non-object arguments and arguments rejected by the existing tool schema identify `ToolRepair`; Runner records the bounded outcome and reports `model_tool_repair_unavailable` without retrying or handing off a capability. Other provider errors default to `Terminal` unless a typed source explicitly marks an eligible transport rejection. The existing dead-code OutputRepair helper remains inactive and no repair loop is introduced. ContextRepair still has no production error producer because current Provider contracts do not supply an unambiguous typed context-limit signal; no inference from error strings is allowed.
 - TransportRetry still requires the existing `RetryPolicy` class/status/effect checks, per-attempt budget reservation, deadline, observed-delta fence and cancellation-aware delay. Legacy ModelError without a disposition becomes Terminal; unknown values fail deserialization.
 - `side_effect_state=unknown` 只表示模型请求/传输边界不确定，不替代 capability attempt 的 effect/stop projection。
 - Provider-specific stop detail 和 response IDs 仍只作受限诊断，不能跨 route/model 复用；live provider、账单、外部业务 Outcome 和 physical effect 未证明。
