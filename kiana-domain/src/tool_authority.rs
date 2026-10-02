@@ -3,8 +3,8 @@
 //! JSON schemas remain in `tool_catalog`; this typed table owns the identity/alias/capability
 //! mapping so Runner and policy code cannot silently grow a second model tool surface.
 use crate::{
-    json_digest, tool_schemas, validate_schema_contract, CapabilityKind, RiskLevel,
-    TOOL_APPLY_PATCH, TOOL_MCP, TOOL_MEMORY_SEARCH, TOOL_MEMORY_WRITE, TOOL_SHELL,
+    json_digest, model_tool_name, tool_schemas, validate_schema_contract, CapabilityKind,
+    RiskLevel, TOOL_APPLY_PATCH, TOOL_MCP, TOOL_MEMORY_SEARCH, TOOL_MEMORY_WRITE, TOOL_SHELL,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

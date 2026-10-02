@@ -3456,6 +3456,24 @@ limitations: CI run `36966939817` has not completed, so Broker/domain fixture ou
 reviewer: source diff review confirmed only rustfmt line wrapping and import ordering
 ```
 
+### CAP-01 CI compile correction (2026-10-02)
+
+```text
+source_snapshot: `34ebc78e` plus import fix in `kiana-domain/src/tool_authority.rs`
+worktree_status: GitHub run `36966939817` Broker job `110712691160` compiled the new catalog validator and found two `E0425` errors because `model_tool_name` was not imported; the existing function is now imported from the same crate
+command_argv:
+  `gh run view 36966939817 --job 110712691160 --log`
+  `gh run view 36966939817 --job 110712691160 --log | rg -n -B5 -A7 'error\\[E[0-9]+\\]|error:'`
+  no local test/build/Cargo check/fmt/clippy/smoke command was run for this correction
+cwd·environment: read-only GitHub log query from repository root; source import fix in shared checkout; Linux x86_64
+fixture·cassette: none; run `36966939817` was canceled by a newer push before the Broker shard reached fixture execution
+exit_code: log queries succeeded and identified E0425 at `tool_authority.rs:278` and `:299`; source fix is unverified until the next GitHub run
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; no fixture or compile pass is claimed
+proof-level change: none; `proof_level=source`
+limitations: the canceled run did not execute Broker/domain fixtures past the compile failure; no local compilation or tests were run
+reviewer: CI error location traced to the missing module import; no runtime test reviewer
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text
