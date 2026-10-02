@@ -3076,6 +3076,7 @@ async fn start_run_brokers_harness_tools() {
 async fn reserved_authority_fields_cannot_change_execution_scope() {
     let mut context = RequestContext::local(RunId::new().to_string(), "/repo");
     context.project_trusted = true;
+    context.permission_profile = PermissionProfile::Balanced;
     let capability_request_id = RequestId::new();
     let base_arguments = json!({ "command": "printf ok", "call_id": "scope-call" });
     let base_request = CapabilityRequest::new(
@@ -3097,7 +3098,11 @@ async fn reserved_authority_fields_cannot_change_execution_scope() {
         .start_run(context.clone(), "capture trusted scope".to_owned(), None)
         .await
         .unwrap();
-    assert_eq!(baseline_response.status, ExecutionStatus::Completed);
+    assert_eq!(
+        baseline_response.status,
+        ExecutionStatus::Completed,
+        "{baseline_response:?}"
+    );
     let baseline_request = baseline_broker.requests.lock().await[0].clone();
     let trusted_scope = baseline_request.execution_scope.clone().unwrap();
 
@@ -3173,7 +3178,11 @@ async fn reserved_authority_fields_cannot_change_execution_scope() {
         .start_run(context.clone(), "discard forged scope".to_owned(), None)
         .await
         .unwrap();
-    assert_eq!(forged_response.status, ExecutionStatus::Completed);
+    assert_eq!(
+        forged_response.status,
+        ExecutionStatus::Completed,
+        "{forged_response:?}"
+    );
     let forged_request = forged_broker.requests.lock().await[0].clone();
 
     assert_eq!(forged_request.arguments, baseline_request.arguments);
