@@ -145,10 +145,15 @@ fn result_event_contracts_accept_only_their_result_fields() {
         execution_result.allowed_fields.len(),
         invocation.allowed_fields.len() + 3
     );
-    assert!(capability_result.allowed_fields.contains(&"result_receipt"));
+    for field in ["result_receipt", "result_source"] {
+        assert!(
+            capability_result.allowed_fields.contains(&field),
+            "capability terminal result field not allowed: {field}"
+        );
+    }
     assert_eq!(
         capability_result.allowed_fields.len(),
-        invocation.allowed_fields.len() + 1
+        invocation.allowed_fields.len() + 2
     );
 
     let mut execution_payload = json!({
@@ -173,6 +178,7 @@ fn result_event_contracts_accept_only_their_result_fields() {
         "run_id":kiana_domain::RunId::new(),
         "capability_request_id":kiana_domain::RequestId::new(),
         "result_receipt":{"receipt_digest":format!("sha256:{}", "b".repeat(64))},
+        "result_source":"model-claimed-user-source",
     });
     for kind in [
         "capability.completed",
@@ -182,4 +188,11 @@ fn result_event_contracts_accept_only_their_result_fields() {
     ] {
         validate_event_payload(kind, &capability_payload).unwrap();
     }
+
+    let mut unknown_capability_result = capability_payload;
+    unknown_capability_result["unknown_result_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("capability.completed", &unknown_capability_result).unwrap_err(),
+        "event_payload_unknown_field"
+    );
 }

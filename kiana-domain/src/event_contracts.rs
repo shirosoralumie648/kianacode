@@ -261,7 +261,7 @@ macro_rules! invocation_fields {
     };
 }
 const INVOCATION_FIELDS: &[&str] = invocation_fields!();
-const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!("result_receipt");
+const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!("result_receipt", "result_source");
 const EXECUTION_RESULT_FIELDS: &[&str] =
     invocation_fields!("outcome_state", "outcome_ready", "result_receipt");
 const MODEL_ATTEMPT_FIELDS: &[&str] = &[

@@ -9,7 +9,7 @@
 |---|---|
 | roadmap card | [`ER-01`](event-receipt-recovery.md#step-er-01) |
 | source snapshot | `b597dfe`（CP-06 atomic transition contract 后的干净基线） |
-| feature_status | `partial`（registry/validator/unknown policy/migration source；result-event field matrix 修正等待 CI 复核） |
+| feature_status | `partial`（registry/validator/unknown policy/migration source; exact result-field fixture passed on an earlier snapshot; `result_source` matrix/guard follow-up awaits CI） |
 | proof_level | `source`；静态编译不能提升为 local_behavior/durable/live/physical |
 | canonical path | RuntimeEvent envelope → EventKindSpec/version/payload interpretation → EventLog/projector/Receipt |
 | this step does | 固定 owner、aggregate、required IDs、terminal/secret policy、allowed fields、schema version 和 legacy migration；unknown opaque event 只读保留，required family unknown fail-closed |
@@ -22,7 +22,10 @@
 | Event registry/RuntimeEvent/journal | `kiana-domain/src/event_contracts.rs`, `kiana-domain/src/contracts.rs`, `kiana-domain/src/states.rs`, `kiana-domain/src/journal.rs`, `kiana-domain/src/lib.rs` | `9af3362951ac13d2faf8abde6a6ea2ba38659c94b48e7a789e51d20b28508745`, `cfd802764d31a331eddfeecdd97270af146c39f868513c75a36cdd7e59212954`, `dca28dc71ef75e5dd92a25bed399349ca286bc7c5c0e514e11de20d6d1491ae3`, `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48`, `080b20570e29fedcd062e53b6391d138b2db4e31c81fc91332638578dcd07c83` |
 | Protocol boundary | `kiana-protocol/src/lib.rs` | `8fa329b16172f81eda38f0d4ab49f03d35f2cdb524420ecf020dc872727c1254` |
 | 2026-10-03 result-event correction | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs` | `e836518c996c409aa25e41540fe09a77fcf99fdb602bc2a12336d6e4bf93b264`, `ef97d89348a559e1230e23f7a6dd0d70e7c57ac1cccf43a4d23d0c04f4092029` |
-| Fixtures/guard/workflow | `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs`, `.github/workflows/er01-event-schema.yml` | `34e924faf84ad1cc9e2ce1c928b165416775591c73d322627d549ac300f8f68c`, `3d78c2ef8538d7b8400e89b8644d5a57fcf3c8b5baee22e3d6eaa8fd837c3645`, `e4b638fb2917a0388cb3824beb0b014d60b61178115f24a23c287826cf4d7bb9` |
+| 2026-10-03 capability result source follow-up | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs` | `23e8cb4c25b482ca7160b6d40deda3a67d54214bb721fa88453b1473006d478e`, `13d7f1bcb35218dee04010ff807dd89dfc3c7d7b998f87cded9134da098b67d4`, `da0ba6a3e351d2477f0dd56be44a6dc251d9560364e83a09216d982f0cc7cb10` |
+| 2026-10-03 capability result source contract | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs` | refreshed after integration |
+| Fixtures/core source guard/historical standalone workflow | `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs`, historical `.github/workflows/er01-event-schema.yml` (removed by workflow consolidation `08552ada`) | `34e924faf84ad1cc9e2ce1c928b165416775591c73d322627d549ac300f8f68c`, `3d78c2ef8538d7b8400e89b8644d5a57fcf3c8b5baee22e3d6eaa8fd837c3645`, `e4b638fb2917a0388cb3824beb0b014d60b61178115f24a23c287826cf4d7bb9` |
+| Current CI wiring | `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` | current workflow matrix runs `er01_event_contract` in `kiana-domain-s2/4` and `er01_event_contract_guard` in `kiana-core-s1/6` |
 
 hash 仅固定本步 source snapshot 的解释层边界；不代表 legacy 全量迁移或事件事实已被重写。
 
@@ -81,10 +84,10 @@ read committed frame
 | `unknown_required_kind_and_schema_downgrade_fail_closed` | opaque unknown 可查询；required family unknown 和 major downgrade 拒绝；migration lookup 确定 |
 | `payload_unknown_field_is_not_silently_dropped` | required ID/allowed field 检查和 legacy opaque policy |
 | `execution_prepared_contract_requires_server_identity_envelope` | execution.prepare 的身份 envelope 字段、cell reservation allowlist 与 required ID |
-| `result_event_contracts_accept_only_their_result_fields` | execution.result_committed 精确增加 outcome_state/outcome_ready/result_receipt，capability terminal results 接受 result_receipt；未知字段仍拒绝 |
+| `result_event_contracts_accept_only_their_result_fields` | execution.result_committed 精确增加 outcome_state/outcome_ready/result_receipt，capability terminal results 接受 result_receipt/result_source；未知字段仍拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
-## 5.1 2026-10-03 result-event field matrix correction
+## 5.1 2026-10-03 execution result-field matrix correction
 
 GitHub run `37038152395` / job `110941809398` (`Tests (CM-02 memory review denial)`) ran
 `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` and failed at
@@ -99,25 +102,37 @@ that kind's allowed-field set omitted all three. Capability terminal events also
 three execution result fields scoped to `execution.result_committed` and proves unknown fields
 remain rejected.
 
-This contract mismatch is not established as the cause of the CM-02 failure. The observed generic
-error is produced when `finalize_capability_action` maps any `record_event` failure to
-`result_event_persistence_failed`; `append_event` does not call the EventKind payload validator, and
-the `execution.result_committed` transition is a separate later write. No underlying append error
-is present in the target log, so the CM-02 persistence root cause remains unresolved. This source
-slice aligns the registered payload matrix only and does not claim to fix that daemon failure.
+This contract mismatch was not the cause of the CM-02 failure. The observed generic error came from
+notification-source validation misreading the capability result's business `source`; that root
+cause is separately recorded in the CM-02 baseline. `append_event` does not call the EventKind
+payload validator, and the `execution.result_committed` transition is a separate later write. This
+slice aligned the execution/capability receipt field matrix but did not wire global runtime
+enforcement.
 
-The owner reports the same CM-02 target/generic error in run `37039497859` / job
-`110946336032`; job metadata shows failure, while `gh run view --job ... --log-failed` still reports
-the workflow in progress and does not yet expose that job's log. This repeat does not establish the
-EventKind allowlist as the cause.
+Exact CI receipt for the execution/capability result-matrix fixture: run `37041941851`, head
+`302c6b46`, `kiana-domain-s2/4` job `110954472895` passed all 5 tests in
+`er01_event_contract.rs`, including `result_event_contracts_accept_only_their_result_fields`.
+The workflow was later cancelled and the domain shard had unrelated failures; core guard job
+`110954473184` was cancelled before a target result. The later `result_source` allowlist and guard
+assertions therefore remain without a CI receipt.
 
-For the unresolved CM-02 append error, a diagnostic follow-up candidate is to classify the
-underlying `CoreError`/`PortError` through an explicit set of exact, static error-code matches and
-surface only that stable code. Dynamic error strings, paths, payload snippets, and unknown codes
-must remain suppressed behind one generic code. This candidate is recorded for owner review and is
-not part of this ER-01 slice.
+## 5.2 Capability result source field
 
-`.github/workflows/er01-event-schema.yml` 在 GitHub runner 执行上述 domain fixtures、core guard、`cargo fmt --all --check` 和 `cargo fetch --locked`；本地不运行测试，不把 CI 结果写成 durable/live。
+CM-02's memory writer returns its business `source` as result data. The capability event builder
+now preserves that value under `result_source` so it cannot populate the notification authority
+field. The ER-01 capability result matrix allows `result_source` alongside `result_receipt`, and the
+fixture validates both fields on all four capability terminal kinds while continuing to reject an
+unknown field. This aligns the producer and schema contract without changing notification source
+validation.
+
+The registry validator remains an explicit interpretation helper. It is not globally invoked by
+EventStore append because existing producers such as `capability.blocked` do not yet satisfy their
+registered ID/field matrix. Global enforcement requires a separate producer-by-producer contract
+reconciliation and deny-first CI coverage; do not infer enforcement from registry membership.
+
+Current CI uses `.github/workflows/ci.yml` with `scripts/ci/test-shards.json`: the domain fixture
+runs in `kiana-domain-s2/4`, and the core guard runs in `kiana-core-s1/6`. Tests remain GitHub-only;
+no local tests/build/check/clippy/smoke are run.
 
 ## 6. 限制与交接
 

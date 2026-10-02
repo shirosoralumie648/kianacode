@@ -17,6 +17,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "validate_runtime_event",
         "secret_policy",
         "required_ids",
+        "result_source",
     ] {
         assert!(
             contracts.contains(marker),
@@ -31,5 +32,6 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("unknown_required_event_kind_fails_closed"));
     assert!(baseline.contains("event_schema_version_cannot_downgrade"));
     assert!(baseline.contains("event_payload_unknown_field_is_not_silently_dropped"));
+    assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
 }
