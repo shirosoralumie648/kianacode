@@ -19482,3 +19482,18 @@ proof-level change: none
 limitations: target fixtures await GitHub CI; full NM-01 acceptance still includes existing body/scope/TTL, canonical bytes, lifecycle transition, v0 upcast and source-guard contracts. No notification store, resolver, materializer, durable read state, outbox, delivery worker or external channel is established.
 reviewer: source review matched private wire field order/defaults to the public DTOs and checked that all text-bearing fields are redacted from Debug; no local runtime reviewer
 ```
+
+### CAP-02 contradictory schema bounds (2026-10-03)
+
+```text
+source_snapshot: isolated commits `e1fa07770c1eb6190cfb9d1db7b46bebe6f03e1c` and `e6801984b6af979bebeb54b74dbf59d8375dd69d`, integrated as `15915b44` and `d74ec4b6`; `kiana-domain/src/tool_catalog.rs`; `kiana-domain/tests/cap02_input.rs`; `kiana-core/tests/cap02_input_guard.rs`; `.github/workflows/cap02-input.yml`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap.md`
+worktree_status: bounded schema validation rejects empty string-length, array-item and numeric intervals using stable structured errors; integer-only declarations also reject direct numeric intervals with no integer witness, while unions with other potentially valid types are retained; no execution or authority path changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check origin/master...HEAD`; root cherry-picks `e1fa0777` and `e6801984`; root `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-cap02-schema-bounds-20261003`, branch `fix/cap02-schema-bounds-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `contradictory_schema_bounds_are_rejected_before_dispatch` covers empty integer intervals; `nonempty_schema_bound_edges_are_accepted` covers integer witnesses and number/string type unions; `.github/workflows/cap02-input.yml` pins the existing selectors and `.github/workflows/ci.yml` routes the complete `cap02_input` domain target plus Core source guard; fresh CI receipt pending after push
+exit_code: isolated formatting/diff checks and root `cargo fmt --all --check` / `git diff --check` passed; no local runtime result; remote fixtures not yet observed
+status_change: CAP-02 remains roadmap row 041 `🔄`, `feature_status=partial`, `proof_level=source`; empty local schema bound ranges now fail closed before dispatch
+proof-level change: none
+limitations: manual-only focused workflow requires a fresh dispatch; new unified CI target has no result yet. The validator remains a bounded dialect and this slice does not prove satisfiability across allOf/enum/multipleOf combinations, complete adapter coverage, durable snapshots, external/live effects or physical containment.
+reviewer: source review checked strongest endpoint selection, exclusive endpoints, integer-only witness bounds, type-union behavior, validation order and workflow/source-guard selector wiring; no local runtime reviewer
+```

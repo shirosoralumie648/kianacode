@@ -19,7 +19,7 @@
 | 输入 | canonicalization/validation | failure boundary |
 |---|---|---|
 | JSON object | `parse_bounded_json` 拒绝重复 key、NUL/非有限数、bytes/depth/node/array/object 超限 | `json_duplicate_key` / `json_bytes_limit` / `json_complexity_limit` |
-| JSON Schema | bounded local dialect，unknown keyword、unsupported `$schema`/reference 和非法 numeric bounds 拒绝 | `schema_keyword_unsupported` / `schema_dialect_unsupported` / `schema_number_invalid` |
+| JSON Schema | bounded local dialect，unknown keyword、unsupported `$schema`/reference、非法 numeric bounds 和空 length/items/numeric/integer-only ranges 拒绝 | `schema_keyword_unsupported` / `schema_dialect_unsupported` / `schema_number_invalid` / `schema_length_bounds_invalid` / `schema_item_bounds_invalid` / `schema_number_bounds_invalid` / `schema_integer_bounds_invalid` |
 | shell/process | string 或非空 argv，首 executable 非空、无 NUL；workdir/sandbox/timeout bounded | `action_command_required` / `action_workdir_invalid` / `action_numeric_argument_invalid` |
 | apply_patch/path | patch 及 path 必须可解析；relative canonical path，角色/packet scope 后续再交集 | `action_path_invalid` / `action_arguments_invalid` |
 | MCP | `tool`/`tool_name` 同时存在必须相等；alias 归一化，arguments 必须 object | `action_tool_alias_conflict` / `action_tool_arguments_object_required` |
@@ -65,6 +65,28 @@ CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。
 
 2026-10-03 adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw/object duplicate-key and oversize denial fixtures; domain alias/schema/depth/duplicate-key denial plus the complete digest/input target; a ControlPlane forged-authority scope fixture; valid provider nested-input selectors; and a source guard pinning the selected tests. Runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` exposed fixture-only preconditions: missing trusted runner binding, default Safe profile, missing authority preflight, and nonexistent workspace. Run `37049367090` / job `110978606763` passed all workflow steps at head `6cf0c9bf`. CAP-02 remains partial/source because the receipt covers selected fixtures only; bounded-schema limitations, full production adapter coverage, durable snapshots, external effects and product UAT remain open.
 
+## 6. Contradictory schema bounds (2026-10-03)
+
+The bounded schema validator now rejects `minLength > maxLength`, `minItems > maxItems`, and
+numeric ranges whose strongest lower endpoint exceeds the strongest upper endpoint. Equal numeric
+endpoints are rejected when either side is exclusive and accepted when both are inclusive. For
+integer-only types, it also rejects a real-number interval that contains no integer witness; type
+unions that include `number` or another possible instance type are not rejected on that basis.
+The validator still supports only its existing local schema subset.
+
+```text
+source_snapshot: isolated commits `e1fa0777` and `e6801984`; integrated source commits `15915b44` and `d74ec4b6`; `kiana-domain/src/tool_catalog.rs`; `kiana-domain/tests/cap02_input.rs`; `kiana-core/tests/cap02_input_guard.rs`; `.github/workflows/cap02-input.yml`
+worktree_status: schema contract validation now returns `schema_length_bounds_invalid`, `schema_item_bounds_invalid`, `schema_number_bounds_invalid` or `schema_integer_bounds_invalid` for empty direct ranges; integer-lattice checks apply only when all declared types are integer; tests pin contradictory and nonempty edges, including number/string unions; manual workflow and Core source guard include the unchanged fixture selectors
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check origin/master...HEAD`; root cherry-picks `e1fa0777` and `e6801984`; root `cargo fmt --all --check`; root `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-cap02-schema-bounds-20261003`, branch `fix/cap02-schema-bounds-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `contradictory_schema_bounds_are_rejected_before_dispatch`; `nonempty_schema_bound_edges_are_accepted`; cases include empty integer intervals, accepted integer witnesses and fractional witnesses from type unions; `.github/workflows/cap02-input.yml` invokes both, while unified CI runs the complete `cap02_input` target and Core source guard; fresh CI receipt pending after push
+exit_code: isolated and root formatting/diff checks passed; no local runtime result; new fixtures not yet observed remotely
+status_change: CAP-02 remains roadmap row 041 `🔄`, `feature_status=partial`, `proof_level=source`; contradictory schema ranges now have explicit deny and accepted-edge fixtures
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: the focused workflow is manual-only and has not yet been dispatched for this source snapshot; unified CI receipt is pending. The validator remains a bounded dialect and this slice does not prove satisfiability across `allOf`, `enum`, `multipleOf` and other interacting keywords; production adapter coverage, durable snapshots, external effects and product UAT also remain open.
+reviewer: source review verified strongest lower/upper endpoint selection, exclusive equality rejection, integer-only witness checks, type-union behavior, retained finite-number checks, and fixture pinning; no local runtime reviewer
+```
+
 ## Source anchors
 
 | 边界 | 文件 | SHA-256 |
@@ -75,7 +97,7 @@ CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。
 | 2026-10-02 provider raw-argument correction | `kiana-provider/src/response.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs` | `518ed2fbae7da1580fadaaf7b0ac3ee88dd97eee629eaf442a051e8073f6d2b4`, `6a1ea156037fc4536bff8cd75d2ba4f1de97e943df00883c93cc5847cc0e53eb`, `c4d0c8494095dad30b396f27a0db513f1e6f19938ab3418d6f6782e91a46d98e` |
 | 2026-10-02 provider object-form duplicate-key follow-up | `kiana-provider/src/response.rs`, `kiana-provider/src/transport.rs`, `kiana-core/tests/cap02_input_guard.rs` | `0720112e594054bdccd0e9e410e53a24039c71cf60065df56ecbad0d7d2dcfde`, `79a3583f1ade40d7966bebfbd9a030372a2e7aecb1dab69caf4e3ce560d7c5dd`, `b60aada1dcded971ba3f02129e33719855f1d3ba2b85ff2513e1cf099c21a4a0` |
 | 2026-10-03 focused acceptance workflow and target guard | `.github/workflows/cap02-input.yml`, `kiana-core/tests/cap02_input_guard.rs` | `2c2de8e4441d1a40f081e474454778b5659c0ec7daabed75d58c6d5897ee3847`, `2804f39bafff46103bd229ef98d5c62db4534590073b223169eb6cf47e08899e` |
-| 2026-10-03 contradictory schema bounds | `kiana-domain/src/tool_catalog.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, `.github/workflows/cap02-input.yml` | `c2f3849d4c1eba62c8c5aa7aabcb8f7b9963bf747aa1d799d4cf50f76293cb95`, `8c69ecc8ab7bdcfab00beb331da03656b696117753767acb3806e0b46bde7ec0`, `7f4cf581f6d8a203768bb2678ac90df950f2757ab9c7f4fa6caa9bc54a000a29`, `3f7b4cacaddb4cdd1569c4529775d0d37a050941361a47680e6d1f2c26f13f74` |
+| 2026-10-03 contradictory schema bounds | `kiana-domain/src/tool_catalog.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, `.github/workflows/cap02-input.yml` | `597c49fe295018e3657afcd1069ec8a9ffc63e3545a49d23b9114cf0eb253755`, `14cb5ec4405cac37195a8fb9fc4f2e64cfad648a5419f9da2b794f55f5f3e9d0`, `7f4cf581f6d8a203768bb2678ac90df950f2757ab9c7f4fa6caa9bc54a000a29`, `3f7b4cacaddb4cdd1569c4529775d0d37a050941361a47680e6d1f2c26f13f74` |
 
 2026-10-02 provider ingress correction: string-form arguments use `parse_bounded_json`; object-form parameters are now duplicate-checked from the original provider envelope/frame bytes by `UniqueProviderJson` before they become `Value`. The envelope parser uses the existing 8 MiB transport-body ceiling and does not apply the 512 KiB tool-argument parser limit to the whole response. Tool argument schema validation retains the 512 KiB bound before `ModelToolCall` construction; the existing later `validate_model_calls` boundary still applies its stricter 256 KiB per-call limit. This deliberately fails closed on duplicate object keys anywhere in a provider envelope/frame, including metadata, while preserving the existing ProviderGateway and ControlPlane path.
 
@@ -100,4 +122,4 @@ Run `37049367090` / job `110978606763` passed all pinned provider/domain/Core/so
 - shell string/argv 与 patch parser 有局部输入校验，真实文件身份/TOCTOU、网络 endpoint、secret 注入、process stop、external effect/reconcile 仍需 CAP-07+、ER/PD/SC。
 - Digest 证明 canonical input 相等/不同，不证明 handler 已执行、结果正确、幂等或业务 Outcome；catalog drift 只在 PreparedAction/Broker boundaries fail-closed。
 - Provider object arguments are duplicate-checked before `Value` conversion; the 512 KiB schema-input ceiling remains distinct from the downstream 256 KiB per-call `ModelToolCall` ceiling, the 4 MiB streamed text limit, and the 8 MiB transport-body limit.
-- Local tests/build/check/fmt/clippy/smoke are not run; only `git diff --check` is used for whitespace validation. GitHub CI results are not awaited and do not promote local_behavior/durable/live/physical.
+- Local tests/build/check/clippy/smoke are not run; `cargo fmt --all --check` and `git diff --check` are formatting/whitespace validation only. GitHub CI results are not awaited and do not promote local_behavior/durable/live/physical.
