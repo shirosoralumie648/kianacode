@@ -217,6 +217,30 @@ fn work_graph_rejects_limits_and_preserves_stable_projection() {
         "swarm_token_budget_exceeded"
     );
 
+    let mut over_model_call_limit = graph(swarm, vec![first.clone()]).unwrap();
+    over_model_call_limit.max_model_calls = MAX_SWARM_MODEL_CALLS + 1;
+    over_model_call_limit.graph_digest = over_model_call_limit.digest();
+    assert_eq!(
+        over_model_call_limit.validate().unwrap_err(),
+        SwarmGraphError {
+            code: "swarm_model_call_budget_exceeded".to_owned(),
+            partition_id: String::new(),
+            cycle: Vec::new(),
+        }
+    );
+
+    let mut over_model_call_budget = graph(swarm, vec![first.clone(), second.clone()]).unwrap();
+    over_model_call_budget.max_model_calls = 1;
+    over_model_call_budget.graph_digest = over_model_call_budget.digest();
+    assert_eq!(
+        over_model_call_budget.validate().unwrap_err(),
+        SwarmGraphError {
+            code: "swarm_model_call_budget_exceeded".to_owned(),
+            partition_id: second.partition_id.to_string(),
+            cycle: Vec::new(),
+        }
+    );
+
     let mut chain_first = partition(swarm, 0, "input-c", "project/c", "src/c.rs");
     let chain_second = partition(swarm, 1, "input-d", "project/d", "src/d.rs");
     chain_first.dependency_partition_ids = vec![chain_second.partition_id];
