@@ -1233,9 +1233,10 @@ impl GoldenTrace {
         }
         digest(&self.input_hash, "golden_trace_input_hash")?;
         if self.artifact_hashes.len() > MAX_EVAL_ARTIFACT_HASHES
-            || self.artifact_hashes.iter().any(|value| {
-                digest(value, "golden_trace_artifact_hash").is_err()
-            })
+            || self
+                .artifact_hashes
+                .iter()
+                .any(|value| digest(value, "golden_trace_artifact_hash").is_err())
             || self
                 .artifact_hashes
                 .windows(2)

@@ -66,7 +66,10 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
             eventlog_fixtures.contains(fixture),
             "idempotent replay denial fixture missing: {fixture}"
         );
-        assert!(baseline.contains(fixture), "baseline fixture missing: {fixture}");
+        assert!(
+            baseline.contains(fixture),
+            "baseline fixture missing: {fixture}"
+        );
     }
     assert!(eventlog_fixtures.contains("event_idempotency_key_payload_mismatch"));
 }

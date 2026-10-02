@@ -121,7 +121,10 @@ async fn assert_identity_link_drift_denied(link: IdentityLink) {
             IdentityLink::CausationEventId => (
                 Some(command_id),
                 Some(correlation_id),
-                Some(distinct_event_id(&[causation_event_id, drifted_base.event_id])),
+                Some(distinct_event_id(&[
+                    causation_event_id,
+                    drifted_base.event_id,
+                ])),
                 Some(parent_event_id),
             ),
             IdentityLink::ParentEventId => (
