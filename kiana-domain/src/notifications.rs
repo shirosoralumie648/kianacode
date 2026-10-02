@@ -528,14 +528,12 @@ impl NotificationStatus {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Notification {
     pub schema: String,
     pub notification_id: NotificationId,
     pub message_id: MessageId,
     pub recipient_id: String,
-    #[serde(default)]
     pub project_id: Option<ProjectId>,
     pub scope: Vec<String>,
     pub channel: NotificationChannel,
@@ -543,7 +541,6 @@ pub struct Notification {
     pub created_at_unix_ms: u64,
     pub expires_at_unix_ms: u64,
     pub subscription_revision: u64,
-    #[serde(default)]
     pub action_ref_id: Option<ActionRefId>,
     pub notification_digest: String,
 }
@@ -684,13 +681,11 @@ pub enum SubscriptionStatus {
     Expired,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Subscription {
     pub schema: String,
     pub subscription_id: SubscriptionId,
     pub recipient_id: String,
-    #[serde(default)]
     pub project_id: Option<ProjectId>,
     pub scope: Vec<String>,
     pub channels: Vec<NotificationChannel>,
@@ -817,8 +812,7 @@ impl DeliveryAttemptStatus {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct DeliveryAttempt {
     pub schema: String,
     pub delivery_attempt_id: DeliveryAttemptId,
@@ -827,7 +821,6 @@ pub struct DeliveryAttempt {
     pub attempt_number: u32,
     pub status: DeliveryAttemptStatus,
     pub authority_epoch: u64,
-    #[serde(default)]
     pub lease_expires_at_unix_ms: Option<u64>,
     pub created_at_unix_ms: u64,
     pub updated_at_unix_ms: u64,
@@ -925,8 +918,7 @@ pub enum DeliveryReceiptStatus {
     Unknown,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct DeliveryReceipt {
     pub schema: String,
     pub delivery_receipt_id: DeliveryReceiptId,
@@ -935,7 +927,6 @@ pub struct DeliveryReceipt {
     pub recipient_id: String,
     pub status: DeliveryReceiptStatus,
     pub observed_at_unix_ms: u64,
-    #[serde(default)]
     pub response_digest: Option<String>,
     pub receipt_digest: String,
 }
@@ -1007,8 +998,7 @@ impl DeliveryReceipt {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ActionRef {
     pub schema: String,
     pub action_ref_id: ActionRefId,
@@ -1078,6 +1068,424 @@ impl ActionRef {
             "created_at_unix_ms": self.created_at_unix_ms,
             "expires_at_unix_ms": self.expires_at_unix_ms,
         }))
+    }
+}
+
+macro_rules! impl_validated_serde {
+    ($value:ty, $repr:ty) => {
+        impl Serialize for $value {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                self.validate().map_err(serde::ser::Error::custom)?;
+                <$repr>::from(self).serialize(serializer)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $value {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value: Self = <$repr>::deserialize(deserializer)?.into();
+                value.validate().map_err(serde::de::Error::custom)?;
+                Ok(value)
+            }
+        }
+    };
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NotificationRepr {
+    schema: String,
+    notification_id: NotificationId,
+    message_id: MessageId,
+    recipient_id: String,
+    #[serde(default)]
+    project_id: Option<ProjectId>,
+    scope: Vec<String>,
+    channel: NotificationChannel,
+    status: NotificationStatus,
+    created_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    subscription_revision: u64,
+    #[serde(default)]
+    action_ref_id: Option<ActionRefId>,
+    notification_digest: String,
+}
+
+impl From<&Notification> for NotificationRepr {
+    fn from(value: &Notification) -> Self {
+        Self {
+            schema: value.schema.clone(),
+            notification_id: value.notification_id,
+            message_id: value.message_id,
+            recipient_id: value.recipient_id.clone(),
+            project_id: value.project_id,
+            scope: value.scope.clone(),
+            channel: value.channel,
+            status: value.status,
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            subscription_revision: value.subscription_revision,
+            action_ref_id: value.action_ref_id,
+            notification_digest: value.notification_digest.clone(),
+        }
+    }
+}
+
+impl From<NotificationRepr> for Notification {
+    fn from(value: NotificationRepr) -> Self {
+        Self {
+            schema: value.schema,
+            notification_id: value.notification_id,
+            message_id: value.message_id,
+            recipient_id: value.recipient_id,
+            project_id: value.project_id,
+            scope: value.scope,
+            channel: value.channel,
+            status: value.status,
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            subscription_revision: value.subscription_revision,
+            action_ref_id: value.action_ref_id,
+            notification_digest: value.notification_digest,
+        }
+    }
+}
+
+impl_validated_serde!(Notification, NotificationRepr);
+
+impl fmt::Debug for Notification {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let recipient_id = redact_text(&self.recipient_id);
+        let scope = self
+            .scope
+            .iter()
+            .map(|value| redact_text(value))
+            .collect::<Vec<_>>();
+        let notification_digest = redact_text(&self.notification_digest);
+
+        formatter
+            .debug_struct("Notification")
+            .field("schema", &schema)
+            .field("notification_id", &self.notification_id)
+            .field("message_id", &self.message_id)
+            .field("recipient_id", &recipient_id)
+            .field("project_id", &self.project_id)
+            .field("scope", &scope)
+            .field("channel", &self.channel)
+            .field("status", &self.status)
+            .field("created_at_unix_ms", &self.created_at_unix_ms)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("subscription_revision", &self.subscription_revision)
+            .field("action_ref_id", &self.action_ref_id)
+            .field("notification_digest", &notification_digest)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubscriptionRepr {
+    schema: String,
+    subscription_id: SubscriptionId,
+    recipient_id: String,
+    #[serde(default)]
+    project_id: Option<ProjectId>,
+    scope: Vec<String>,
+    channels: Vec<NotificationChannel>,
+    revision: u64,
+    status: SubscriptionStatus,
+    created_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    subscription_digest: String,
+}
+
+impl From<&Subscription> for SubscriptionRepr {
+    fn from(value: &Subscription) -> Self {
+        Self {
+            schema: value.schema.clone(),
+            subscription_id: value.subscription_id,
+            recipient_id: value.recipient_id.clone(),
+            project_id: value.project_id,
+            scope: value.scope.clone(),
+            channels: value.channels.clone(),
+            revision: value.revision,
+            status: value.status,
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            subscription_digest: value.subscription_digest.clone(),
+        }
+    }
+}
+
+impl From<SubscriptionRepr> for Subscription {
+    fn from(value: SubscriptionRepr) -> Self {
+        Self {
+            schema: value.schema,
+            subscription_id: value.subscription_id,
+            recipient_id: value.recipient_id,
+            project_id: value.project_id,
+            scope: value.scope,
+            channels: value.channels,
+            revision: value.revision,
+            status: value.status,
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            subscription_digest: value.subscription_digest,
+        }
+    }
+}
+
+impl_validated_serde!(Subscription, SubscriptionRepr);
+
+impl fmt::Debug for Subscription {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let recipient_id = redact_text(&self.recipient_id);
+        let scope = self
+            .scope
+            .iter()
+            .map(|value| redact_text(value))
+            .collect::<Vec<_>>();
+        let subscription_digest = redact_text(&self.subscription_digest);
+
+        formatter
+            .debug_struct("Subscription")
+            .field("schema", &schema)
+            .field("subscription_id", &self.subscription_id)
+            .field("recipient_id", &recipient_id)
+            .field("project_id", &self.project_id)
+            .field("scope", &scope)
+            .field("channels", &self.channels)
+            .field("revision", &self.revision)
+            .field("status", &self.status)
+            .field("created_at_unix_ms", &self.created_at_unix_ms)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("subscription_digest", &subscription_digest)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeliveryAttemptRepr {
+    schema: String,
+    delivery_attempt_id: DeliveryAttemptId,
+    notification_id: NotificationId,
+    subscription_id: SubscriptionId,
+    attempt_number: u32,
+    status: DeliveryAttemptStatus,
+    authority_epoch: u64,
+    #[serde(default)]
+    lease_expires_at_unix_ms: Option<u64>,
+    created_at_unix_ms: u64,
+    updated_at_unix_ms: u64,
+    attempt_digest: String,
+}
+
+impl From<&DeliveryAttempt> for DeliveryAttemptRepr {
+    fn from(value: &DeliveryAttempt) -> Self {
+        Self {
+            schema: value.schema.clone(),
+            delivery_attempt_id: value.delivery_attempt_id,
+            notification_id: value.notification_id,
+            subscription_id: value.subscription_id,
+            attempt_number: value.attempt_number,
+            status: value.status,
+            authority_epoch: value.authority_epoch,
+            lease_expires_at_unix_ms: value.lease_expires_at_unix_ms,
+            created_at_unix_ms: value.created_at_unix_ms,
+            updated_at_unix_ms: value.updated_at_unix_ms,
+            attempt_digest: value.attempt_digest.clone(),
+        }
+    }
+}
+
+impl From<DeliveryAttemptRepr> for DeliveryAttempt {
+    fn from(value: DeliveryAttemptRepr) -> Self {
+        Self {
+            schema: value.schema,
+            delivery_attempt_id: value.delivery_attempt_id,
+            notification_id: value.notification_id,
+            subscription_id: value.subscription_id,
+            attempt_number: value.attempt_number,
+            status: value.status,
+            authority_epoch: value.authority_epoch,
+            lease_expires_at_unix_ms: value.lease_expires_at_unix_ms,
+            created_at_unix_ms: value.created_at_unix_ms,
+            updated_at_unix_ms: value.updated_at_unix_ms,
+            attempt_digest: value.attempt_digest,
+        }
+    }
+}
+
+impl_validated_serde!(DeliveryAttempt, DeliveryAttemptRepr);
+
+impl fmt::Debug for DeliveryAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let attempt_digest = redact_text(&self.attempt_digest);
+
+        formatter
+            .debug_struct("DeliveryAttempt")
+            .field("schema", &schema)
+            .field("delivery_attempt_id", &self.delivery_attempt_id)
+            .field("notification_id", &self.notification_id)
+            .field("subscription_id", &self.subscription_id)
+            .field("attempt_number", &self.attempt_number)
+            .field("status", &self.status)
+            .field("authority_epoch", &self.authority_epoch)
+            .field("lease_expires_at_unix_ms", &self.lease_expires_at_unix_ms)
+            .field("created_at_unix_ms", &self.created_at_unix_ms)
+            .field("updated_at_unix_ms", &self.updated_at_unix_ms)
+            .field("attempt_digest", &attempt_digest)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeliveryReceiptRepr {
+    schema: String,
+    delivery_receipt_id: DeliveryReceiptId,
+    notification_id: NotificationId,
+    delivery_attempt_id: DeliveryAttemptId,
+    recipient_id: String,
+    status: DeliveryReceiptStatus,
+    observed_at_unix_ms: u64,
+    #[serde(default)]
+    response_digest: Option<String>,
+    receipt_digest: String,
+}
+
+impl From<&DeliveryReceipt> for DeliveryReceiptRepr {
+    fn from(value: &DeliveryReceipt) -> Self {
+        Self {
+            schema: value.schema.clone(),
+            delivery_receipt_id: value.delivery_receipt_id,
+            notification_id: value.notification_id,
+            delivery_attempt_id: value.delivery_attempt_id,
+            recipient_id: value.recipient_id.clone(),
+            status: value.status,
+            observed_at_unix_ms: value.observed_at_unix_ms,
+            response_digest: value.response_digest.clone(),
+            receipt_digest: value.receipt_digest.clone(),
+        }
+    }
+}
+
+impl From<DeliveryReceiptRepr> for DeliveryReceipt {
+    fn from(value: DeliveryReceiptRepr) -> Self {
+        Self {
+            schema: value.schema,
+            delivery_receipt_id: value.delivery_receipt_id,
+            notification_id: value.notification_id,
+            delivery_attempt_id: value.delivery_attempt_id,
+            recipient_id: value.recipient_id,
+            status: value.status,
+            observed_at_unix_ms: value.observed_at_unix_ms,
+            response_digest: value.response_digest,
+            receipt_digest: value.receipt_digest,
+        }
+    }
+}
+
+impl_validated_serde!(DeliveryReceipt, DeliveryReceiptRepr);
+
+impl fmt::Debug for DeliveryReceipt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let recipient_id = redact_text(&self.recipient_id);
+        let response_digest = self.response_digest.as_deref().map(redact_text);
+        let receipt_digest = redact_text(&self.receipt_digest);
+
+        formatter
+            .debug_struct("DeliveryReceipt")
+            .field("schema", &schema)
+            .field("delivery_receipt_id", &self.delivery_receipt_id)
+            .field("notification_id", &self.notification_id)
+            .field("delivery_attempt_id", &self.delivery_attempt_id)
+            .field("recipient_id", &recipient_id)
+            .field("status", &self.status)
+            .field("observed_at_unix_ms", &self.observed_at_unix_ms)
+            .field("response_digest", &response_digest)
+            .field("receipt_digest", &receipt_digest)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActionRefRepr {
+    schema: String,
+    action_ref_id: ActionRefId,
+    command: String,
+    target_revision: u64,
+    scope: Vec<String>,
+    created_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    action_digest: String,
+}
+
+impl From<&ActionRef> for ActionRefRepr {
+    fn from(value: &ActionRef) -> Self {
+        Self {
+            schema: value.schema.clone(),
+            action_ref_id: value.action_ref_id,
+            command: value.command.clone(),
+            target_revision: value.target_revision,
+            scope: value.scope.clone(),
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            action_digest: value.action_digest.clone(),
+        }
+    }
+}
+
+impl From<ActionRefRepr> for ActionRef {
+    fn from(value: ActionRefRepr) -> Self {
+        Self {
+            schema: value.schema,
+            action_ref_id: value.action_ref_id,
+            command: value.command,
+            target_revision: value.target_revision,
+            scope: value.scope,
+            created_at_unix_ms: value.created_at_unix_ms,
+            expires_at_unix_ms: value.expires_at_unix_ms,
+            action_digest: value.action_digest,
+        }
+    }
+}
+
+impl_validated_serde!(ActionRef, ActionRefRepr);
+
+impl fmt::Debug for ActionRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let command = redact_text(&self.command);
+        let scope = self
+            .scope
+            .iter()
+            .map(|value| redact_text(value))
+            .collect::<Vec<_>>();
+        let action_digest = redact_text(&self.action_digest);
+
+        formatter
+            .debug_struct("ActionRef")
+            .field("schema", &schema)
+            .field("action_ref_id", &self.action_ref_id)
+            .field("command", &command)
+            .field("target_revision", &self.target_revision)
+            .field("scope", &scope)
+            .field("created_at_unix_ms", &self.created_at_unix_ms)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("action_digest", &action_digest)
+            .finish()
     }
 }
 

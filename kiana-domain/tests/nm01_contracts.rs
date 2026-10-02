@@ -1,4 +1,6 @@
 use kiana_domain::*;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::json;
 
 fn message() -> Message {
@@ -46,6 +48,333 @@ fn subscription() -> Subscription {
         200,
     )
     .unwrap()
+}
+
+fn notification() -> Notification {
+    Notification::new(
+        message().message_id,
+        "builder",
+        None,
+        vec!["project/a/file".to_owned()],
+        NotificationChannel::InApp,
+        100,
+        200,
+        1,
+        None,
+    )
+    .unwrap()
+}
+
+fn delivery_attempt() -> DeliveryAttempt {
+    DeliveryAttempt::new(
+        notification().notification_id,
+        subscription().subscription_id,
+        1,
+        100,
+    )
+    .unwrap()
+}
+
+fn delivery_receipt() -> DeliveryReceipt {
+    DeliveryReceipt::new(
+        notification().notification_id,
+        delivery_attempt().delivery_attempt_id,
+        "builder",
+        DeliveryReceiptStatus::Acknowledged,
+        101,
+        None,
+    )
+    .unwrap()
+}
+
+fn action_ref() -> ActionRef {
+    ActionRef::new("company.review", 7, vec!["project/a".to_owned()], 100, 200).unwrap()
+}
+
+fn assert_json_field_order_and_round_trip<T>(value: &T, fields: &[&str])
+where
+    T: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    let encoded = serde_json::to_string(value).unwrap();
+    let mut previous = 0;
+    for field in fields {
+        let position = encoded.find(&format!("\"{field}\":")).unwrap();
+        assert!(position >= previous, "field order changed at {field}");
+        previous = position;
+    }
+    let decoded: T = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(&decoded, value);
+}
+
+fn assert_secret_rejected_at_wire_boundaries<T>(
+    value: &T,
+    payload: serde_json::Value,
+    sentinel: &str,
+    expected_error: &str,
+) where
+    T: Serialize + DeserializeOwned + std::fmt::Debug,
+{
+    assert!(!format!("{value:?}").contains(sentinel));
+
+    let serialization_error = serde_json::to_vec(value).unwrap_err().to_string();
+    assert!(serialization_error.contains(expected_error));
+    assert!(!serialization_error.contains(sentinel));
+
+    let deserialization_error = serde_json::from_value::<T>(payload)
+        .unwrap_err()
+        .to_string();
+    assert!(deserialization_error.contains(expected_error));
+    assert!(!deserialization_error.contains(sentinel));
+}
+
+fn assert_serde_rejects<T>(value: &T, payload: serde_json::Value, expected_error: &str)
+where
+    T: Serialize + DeserializeOwned,
+{
+    let serialization_error = serde_json::to_vec(value).unwrap_err().to_string();
+    assert!(serialization_error.contains(expected_error));
+    let deserialization_error = serde_json::from_value::<T>(payload)
+        .unwrap_err()
+        .to_string();
+    assert!(deserialization_error.contains(expected_error));
+}
+
+#[test]
+fn notification_dto_serde_preserves_wire_layout_and_option_defaults() {
+    let notification = notification();
+    assert_json_field_order_and_round_trip(
+        &notification,
+        &[
+            "schema",
+            "notification_id",
+            "message_id",
+            "recipient_id",
+            "project_id",
+            "scope",
+            "channel",
+            "status",
+            "created_at_unix_ms",
+            "expires_at_unix_ms",
+            "subscription_revision",
+            "action_ref_id",
+            "notification_digest",
+        ],
+    );
+    let encoded = serde_json::to_value(&notification).unwrap();
+    assert!(encoded["project_id"].is_null());
+    assert!(encoded["action_ref_id"].is_null());
+    let mut legacy_notification = encoded;
+    legacy_notification
+        .as_object_mut()
+        .unwrap()
+        .remove("project_id");
+    legacy_notification
+        .as_object_mut()
+        .unwrap()
+        .remove("action_ref_id");
+    assert_eq!(
+        serde_json::from_value::<Notification>(legacy_notification).unwrap(),
+        notification
+    );
+
+    let subscription = subscription();
+    assert_json_field_order_and_round_trip(
+        &subscription,
+        &[
+            "schema",
+            "subscription_id",
+            "recipient_id",
+            "project_id",
+            "scope",
+            "channels",
+            "revision",
+            "status",
+            "created_at_unix_ms",
+            "expires_at_unix_ms",
+            "subscription_digest",
+        ],
+    );
+    let mut encoded = serde_json::to_value(&subscription).unwrap();
+    assert!(encoded["project_id"].is_null());
+    encoded.as_object_mut().unwrap().remove("project_id");
+    assert_eq!(
+        serde_json::from_value::<Subscription>(encoded).unwrap(),
+        subscription
+    );
+
+    let attempt = delivery_attempt();
+    assert_json_field_order_and_round_trip(
+        &attempt,
+        &[
+            "schema",
+            "delivery_attempt_id",
+            "notification_id",
+            "subscription_id",
+            "attempt_number",
+            "status",
+            "authority_epoch",
+            "lease_expires_at_unix_ms",
+            "created_at_unix_ms",
+            "updated_at_unix_ms",
+            "attempt_digest",
+        ],
+    );
+    let mut encoded = serde_json::to_value(&attempt).unwrap();
+    assert!(encoded["lease_expires_at_unix_ms"].is_null());
+    encoded
+        .as_object_mut()
+        .unwrap()
+        .remove("lease_expires_at_unix_ms");
+    assert_eq!(
+        serde_json::from_value::<DeliveryAttempt>(encoded).unwrap(),
+        attempt
+    );
+
+    let receipt = delivery_receipt();
+    assert_json_field_order_and_round_trip(
+        &receipt,
+        &[
+            "schema",
+            "delivery_receipt_id",
+            "notification_id",
+            "delivery_attempt_id",
+            "recipient_id",
+            "status",
+            "observed_at_unix_ms",
+            "response_digest",
+            "receipt_digest",
+        ],
+    );
+    let mut encoded = serde_json::to_value(&receipt).unwrap();
+    assert!(encoded["response_digest"].is_null());
+    encoded.as_object_mut().unwrap().remove("response_digest");
+    assert_eq!(
+        serde_json::from_value::<DeliveryReceipt>(encoded).unwrap(),
+        receipt
+    );
+
+    assert_json_field_order_and_round_trip(
+        &action_ref(),
+        &[
+            "schema",
+            "action_ref_id",
+            "command",
+            "target_revision",
+            "scope",
+            "created_at_unix_ms",
+            "expires_at_unix_ms",
+            "action_digest",
+        ],
+    );
+}
+
+#[test]
+fn notification_dtos_validate_and_redact_at_wire_boundaries() {
+    let sentinel = "nm01-dto-boundary-sentinel";
+
+    let mut invalid_notification = notification();
+    invalid_notification.recipient_id = format!("Authorization: Bearer {sentinel}");
+    invalid_notification.notification_digest = invalid_notification.digest();
+    let mut notification_payload = serde_json::to_value(notification()).unwrap();
+    notification_payload["recipient_id"] = json!(&invalid_notification.recipient_id);
+    notification_payload["notification_digest"] = json!(&invalid_notification.notification_digest);
+    assert_secret_rejected_at_wire_boundaries(
+        &invalid_notification,
+        notification_payload,
+        sentinel,
+        "notification_recipient_secret_detected",
+    );
+
+    let mut invalid_subscription = subscription();
+    invalid_subscription.recipient_id = format!("Authorization: Bearer {sentinel}");
+    invalid_subscription.subscription_digest = invalid_subscription.digest();
+    let mut subscription_payload = serde_json::to_value(subscription()).unwrap();
+    subscription_payload["recipient_id"] = json!(&invalid_subscription.recipient_id);
+    subscription_payload["subscription_digest"] = json!(&invalid_subscription.subscription_digest);
+    assert_secret_rejected_at_wire_boundaries(
+        &invalid_subscription,
+        subscription_payload,
+        sentinel,
+        "subscription_recipient_secret_detected",
+    );
+
+    let mut invalid_attempt = delivery_attempt();
+    invalid_attempt.attempt_digest = format!("Authorization: Bearer {sentinel}");
+    let mut attempt_payload = serde_json::to_value(delivery_attempt()).unwrap();
+    attempt_payload["attempt_digest"] = json!(&invalid_attempt.attempt_digest);
+    assert_secret_rejected_at_wire_boundaries(
+        &invalid_attempt,
+        attempt_payload,
+        sentinel,
+        "delivery_attempt_digest_invalid",
+    );
+
+    let mut invalid_receipt = delivery_receipt();
+    invalid_receipt.recipient_id = format!("Authorization: Bearer {sentinel}");
+    invalid_receipt.receipt_digest = invalid_receipt.digest();
+    let mut receipt_payload = serde_json::to_value(delivery_receipt()).unwrap();
+    receipt_payload["recipient_id"] = json!(&invalid_receipt.recipient_id);
+    receipt_payload["receipt_digest"] = json!(&invalid_receipt.receipt_digest);
+    assert_secret_rejected_at_wire_boundaries(
+        &invalid_receipt,
+        receipt_payload,
+        sentinel,
+        "delivery_receipt_recipient_secret_detected",
+    );
+
+    let mut invalid_action = action_ref();
+    invalid_action.command = format!("Authorization: Bearer {sentinel}");
+    invalid_action.action_digest = invalid_action.digest();
+    let mut action_payload = serde_json::to_value(action_ref()).unwrap();
+    action_payload["command"] = json!(&invalid_action.command);
+    action_payload["action_digest"] = json!(&invalid_action.action_digest);
+    assert_secret_rejected_at_wire_boundaries(
+        &invalid_action,
+        action_payload,
+        sentinel,
+        "action_ref_command_secret_detected",
+    );
+}
+
+#[test]
+fn notification_dtos_reject_unknown_schema_versions_at_wire_boundaries() {
+    let mut notification = notification();
+    notification.schema = "kiana.notification.v9".to_owned();
+    let mut notification_payload = serde_json::to_value(notification()).unwrap();
+    notification_payload["schema"] = json!("kiana.notification.v9");
+    assert_serde_rejects(
+        &notification,
+        notification_payload,
+        "notification_schema_invalid",
+    );
+
+    let mut subscription = subscription();
+    subscription.schema = "kiana.notification-subscription.v9".to_owned();
+    let mut subscription_payload = serde_json::to_value(subscription()).unwrap();
+    subscription_payload["schema"] = json!("kiana.notification-subscription.v9");
+    assert_serde_rejects(
+        &subscription,
+        subscription_payload,
+        "subscription_schema_invalid",
+    );
+
+    let mut attempt = delivery_attempt();
+    attempt.schema = "kiana.notification-delivery-attempt.v9".to_owned();
+    let mut attempt_payload = serde_json::to_value(delivery_attempt()).unwrap();
+    attempt_payload["schema"] = json!("kiana.notification-delivery-attempt.v9");
+    assert_serde_rejects(&attempt, attempt_payload, "delivery_attempt_header_invalid");
+
+    let mut receipt = delivery_receipt();
+    receipt.schema = "kiana.notification-delivery-receipt.v9".to_owned();
+    let mut receipt_payload = serde_json::to_value(delivery_receipt()).unwrap();
+    receipt_payload["schema"] = json!("kiana.notification-delivery-receipt.v9");
+    assert_serde_rejects(&receipt, receipt_payload, "delivery_receipt_schema_invalid");
+
+    let mut action = action_ref();
+    action.schema = "kiana.notification-action-ref.v9".to_owned();
+    let mut action_payload = serde_json::to_value(action_ref()).unwrap();
+    action_payload["schema"] = json!("kiana.notification-action-ref.v9");
+    assert_serde_rejects(&action, action_payload, "action_ref_header_invalid");
 }
 
 #[test]
