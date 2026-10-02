@@ -11,7 +11,7 @@ fn approval_binding_is_exact_and_stays_before_broker_dispatch() {
         "PolicyApprovalBindingMismatch",
         "HumanInboxItem",
         "consume",
-        "AUTH_PRINCIPAL_MISSING",
+        "SecurityReasonCode::AuthPrincipalMissing",
     ] {
         assert!(
             binding.contains(marker),

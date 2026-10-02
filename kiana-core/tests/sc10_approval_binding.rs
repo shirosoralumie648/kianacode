@@ -29,14 +29,12 @@ fn approver() -> AuthenticatedPrincipalRef {
     principal
 }
 
-fn binding() -> ApprovalBinding {
-    let request = request();
-    let context = context();
+fn binding_for(request: &CapabilityRequest, context: &RequestContext) -> ApprovalBinding {
     ApprovalBinding::for_request(
         kiana_domain::ApprovalId::new(),
-        &context,
+        context,
         ProjectId::new(),
-        &request,
+        request,
         json_digest(&json!({"target":"src/lib.rs"})),
         None,
         4,
@@ -46,18 +44,26 @@ fn binding() -> ApprovalBinding {
     .unwrap()
 }
 
+fn binding() -> ApprovalBinding {
+    let request = request();
+    let context = context();
+    binding_for(&request, &context)
+}
+
 #[test]
 fn approval_binding_is_exact_digest_scope_and_strict() {
-    let binding = binding();
+    let request = request();
+    let context = context();
+    let binding = binding_for(&request, &context);
     assert_eq!(binding.schema, APPROVAL_BINDING_SCHEMA);
     assert!(binding.validate().is_ok());
     let encoded = binding.to_json().unwrap();
     assert_eq!(ApprovalBinding::from_json(&encoded).unwrap(), binding);
     assert!(binding
         .validate_request(
-            &context(),
+            &context,
             binding.project_id,
-            &request(),
+            &request,
             &binding.target_digest,
             binding.authority_epoch,
             &binding.policy_revision,
