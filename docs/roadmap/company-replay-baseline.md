@@ -8,7 +8,7 @@
 |---|---|
 | roadmap card | [`CO-08`](companyos.md#step-co-08) |
 | source snapshot | `bfd7084`（CO-07 parent）加本步源码；最终 commit 记录在 git history |
-| feature_status | `implemented`（domain replay reducer + core load wiring + legacy schema adapter source） |
+| feature_status | `partial`（domain replay reducer + core load wiring + legacy schema adapter source；latest duplicate-key fixture failed remotely and the fix awaits a new CI receipt） |
 | proof_level | `source`；静态编译与远程 fixtures 不提升为 local_behavior/durable/live/physical |
 | authority path | EventStore company stream metadata → CompanyReplayReducer gap/identity/schema checks → pure CompanyState::transition → rebuilt state/history |
 | this step does | 新增 CompanyReplayReducer，固定 aggregate/root/owner、stream_version 连续性、event kind/idempotency、command expected revision 和 pure state transition；未知 major 拒绝；仅支持显式 `kiana.company-event.v0` 字段形状迁移到 v1，旧历史可重建 |
@@ -24,7 +24,7 @@
 
 ## 2. Reducer invariants
 
-`CompanyReplayReducer::apply` 要求 runtime event 属于唯一 company aggregate，stream_version 必须等于 `state.revision+1`，event kind 必须和 command event_name 对齐，runtime idempotency key 必须是 `company:{aggregate}:{logical_key}`，record owner/authority/root/request expected_revision 必须与 reducer snapshot 一致，logical key 不能重复。Transition 失败会返回 state transition error，reducer 保持原 state 不变。
+`CompanyReplayReducer::apply` 要求 runtime event 属于唯一 company aggregate，stream_version 必须等于 `state.revision+1`，event kind 必须和 command event_name 对齐，runtime idempotency key 必须是 `company:{aggregate}:{logical_key}`，record owner/authority/root 必须匹配 reducer snapshot。经过这些 envelope/identity 检查后，已见 logical key 返回 duplicate；非重复命令才检查 request expected revision 并执行 transition。仅在 transition 和 stream revision 都有效时记入 seen key、提交 state/history。失败不会改变 reducer state 或预先占用 logical key。
 
 `migrate_company_event` 只把已知 `kiana.company-event.v0` 的 schema 标签升级为 v1；unknown/missing/未来 major 不猜测、不丢字段、不执行。CompanyState 仍由纯 `transition` 产生，reducer 不调用任何 capability/Runner/Provider。
 
@@ -37,7 +37,7 @@
 | Fixture | 断言 |
 |---|---|
 | `company_v1_history_rebuilds_identically_after_replay` | 同一 v1 Company event 序列两次 reducer 得到相同 state/revision/history |
-| `replay_rejects_gaps_duplicates_and_unknown_schema_without_state_change` | gap、重复 logical key、unknown major 都拒绝且不推进 state |
+| `replay_rejects_gaps_duplicates_and_unknown_schema_without_state_change` | gap、重复 logical key、unknown major 都拒绝且不改变完整 CompanyState |
 | `legacy_v0_event_migrates_only_when_the_shape_is_currently_parseable` | 已知 v0 schema 显式迁移，其他 schema 不隐式升级 |
 | `company_load_path_uses_deterministic_reducer_and_explicit_migration` | core load_company 只走 reducer，CompanyState transition 仍是唯一纯应用路径 |
 
@@ -49,3 +49,32 @@
 - v0 adapter 只验证 schema 标签和现有 v1 字段 shape，不提供任意旧 payload 字段重命名；未知/缺失字段必须人工编写新迁移版本。
 - 业务 state 中 String IDs、typed Artifact/Assignment refs 和多 aggregate facts 尚未全面 upcast；CO-09+ 在 reducer 之上补业务命令状态语义与 object-level acceptance。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 6. Duplicate replay CI failure and source correction (2026-10-02)
+
+GitHub run `37008943358`, `kiana-domain-s2/4` job `110844252492`, executed the unified
+`co08_replay` shard. Three tests passed and
+`replay_rejects_gaps_duplicates_and_unknown_schema_without_state_change` failed at
+`kiana-domain/tests/co08_replay.rs:129`: actual `company_replay_conflict`, expected
+`company_replay_duplicate_command`. The duplicate event retained its original request revision;
+the reducer compared that stale revision with current state before checking its already-seen
+idempotency key.
+
+The source correction preserves aggregate/root/owner/authority/kind and runtime idempotency
+envelope checks, then returns duplicate for an already-seen logical key before comparing the
+request revision. For new commands it validates revision, transition, and stream revision before
+recording the key or mutating state. The fixture now compares the full state before/after duplicate
+rejection. This source correction has no new CI receipt; CO-08 remains partial and in progress.
+
+```text
+source_snapshot: base `e17143f78b1089c7d23f1fa49efb9f867e364e49` plus isolated CO-08 replay-order correction; `kiana-domain/src/company_replay.rs`; `kiana-domain/tests/co08_replay.rs`; `docs/roadmap/company-replay-baseline.md`; `docs/roadmap.md`; `docs/roadmap/companyos.md`; `CURRENT_STATUS.md`
+worktree_status: isolated `/tmp/kiana-co08-replay-dedupe-order-20261002`; duplicate idempotency is checked after event-envelope validation and before expected revision; seen key is recorded only after transition and stream revision pass; no production authority/effect path or shared manifest changed
+command_argv: source review; targeted `rustfmt --edition 2021 kiana-domain/src/company_replay.rs kiana-domain/tests/co08_replay.rs`; `git diff --check`; no local test/build/check/clippy/smoke command
+cwd·environment: isolated Linux worktree; GitHub Actions remains the only test executor
+fixture·cassette: old run `37008943358`, job `110844252492`, `co08_replay` exact failure above; corrected duplicate fixture is routed through existing unified `kiana-domain-s2/4` shard via `scripts/ci/test-shards.json`; no new CI receipt observed or awaited
+exit_code: source review, targeted formatting and `git diff --check` only; local fixtures not run
+status_change: CO-08 remains 🔄 and `feature_status=partial`; no completion or proof promotion
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: in-memory reducer and source fixture only; independent durable snapshot/cursor migration, full typed-reference migration, and fresh remote fixture receipt remain open
+reviewer: source review of duplicate replay order, state preservation and idempotency-key admission; no runtime test reviewer
+```

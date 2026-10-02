@@ -124,13 +124,14 @@ fn replay_rejects_gaps_duplicates_and_unknown_schema_without_state_change() {
         1,
     );
     reducer.apply(&first).unwrap();
+    let state_before_duplicate = reducer.state();
     let mut duplicate = first.clone();
     duplicate.stream_version = Some(2);
     assert_eq!(
         reducer.apply(&duplicate).unwrap_err(),
         "company_replay_duplicate_command"
     );
-    assert_eq!(reducer.state().revision, 1);
+    assert_eq!(reducer.state(), state_before_duplicate);
 
     let mut unknown = event(
         CompanyCommand::DecideObjective {

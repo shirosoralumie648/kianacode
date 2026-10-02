@@ -4499,6 +4499,21 @@ limitations: nested payload strictness follows each nested DTO's serde contract;
 reviewer: Codex CO-08 replay/migration audit; no local runtime test reviewer
 ```
 
+### CO-08 duplicate replay revision-order correction (2026-10-02)
+
+```text
+source_snapshot: base `e17143f78b1089c7d23f1fa49efb9f867e364e49` plus isolated duplicate replay ordering fix; `kiana-domain/src/company_replay.rs`; `kiana-domain/tests/co08_replay.rs`; `docs/roadmap/company-replay-baseline.md`; `docs/roadmap/companyos.md`; `docs/roadmap.md`
+worktree_status: run `37008943358`, domain shard `kiana-domain-s2/4`, job `110844252492` ran `co08_replay`: 3 passed, 1 failed. At `co08_replay.rs:129`, actual error was `company_replay_conflict`, expected `company_replay_duplicate_command`. Reducer checked the original request revision before duplicate idempotency. Isolated fix preserves envelope/idempotency metadata validation, checks seen logical key before request revision, and records keys only after transition/revision success; duplicate fixture asserts full CompanyState equality.
+command_argv: GitHub run log query for run `37008943358` job `110844252492`; source review; targeted `rustfmt --edition 2021 kiana-domain/src/company_replay.rs kiana-domain/tests/co08_replay.rs`; `git diff --check`; no local test/build/check/clippy/smoke command
+cwd·environment: isolated `/tmp/kiana-co08-replay-dedupe-order-20261002`; Linux; GitHub Actions is the only test executor
+fixture·cassette: failing `co08_replay::replay_rejects_gaps_duplicates_and_unknown_schema_without_state_change` has the exact remote receipt above; corrected test remains wired to unified `.github/workflows/ci.yml` `kiana-domain-s2/4` via `scripts/ci/test-shards.json`; no new CI receipt observed or awaited
+exit_code: old remote fixture failed as stated; source review, targeted rustfmt, and `git diff --check` only for correction; no local fixtures run
+status_change: CO-08 stays 🔄 with `feature_status=partial`, `proof_level=source`; no roadmap completion
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: reducer is not a durable snapshot/cursor projector; v0 adapter remains shape-limited; corrected duplicate fixture awaits unified GitHub CI
+reviewer: source review of reducer check ordering and no-mutation boundary; no runtime test reviewer
+```
+
 ### P0-A-01b schema registry evidence (2026-09-16)
 
 ```text

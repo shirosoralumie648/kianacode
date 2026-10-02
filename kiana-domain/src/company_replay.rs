@@ -61,7 +61,6 @@ impl CompanyReplayReducer {
             || record.project_root != self.project_root
             || record.owner_id != self.owner_id
             || record.authority.actor_id != record.owner_id
-            || record.request.expected_revision != self.state.revision
             || runtime_event.kind != format!("company.{}", record.request.command.event_name())
         {
             return Err("company_replay_conflict".to_owned());
@@ -71,8 +70,11 @@ impl CompanyReplayReducer {
         if runtime_event.idempotency_key.as_deref() != Some(expected_idempotency.as_str()) {
             return Err("company_replay_idempotency_mismatch".to_owned());
         }
-        if !self.seen_idempotency.insert(idempotency) {
+        if self.seen_idempotency.contains(&idempotency) {
             return Err("company_replay_duplicate_command".to_owned());
+        }
+        if record.request.expected_revision != self.state.revision {
+            return Err("company_replay_conflict".to_owned());
         }
         let state = self
             .state
@@ -81,6 +83,7 @@ impl CompanyReplayReducer {
         if state.revision != stream_version {
             return Err("company_replay_revision_mismatch".to_owned());
         }
+        self.seen_idempotency.insert(idempotency);
         self.state = state;
         self.history.push(record);
         Ok(())
