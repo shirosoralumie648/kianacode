@@ -79,6 +79,23 @@ async fn length_stop_never_dispatches_tools_or_completes_turn() {
         }),
         "length stop must produce a stable failure: {events:?}"
     );
+    let diagnostic = events
+        .iter()
+        .find_map(|event| match event {
+            RunnerEvent::ModelTurn {
+                run_id: turn_run,
+                metadata,
+                ..
+            } if *turn_run == run_id => Some(metadata),
+            _ => None,
+        })
+        .expect("length stop must retain its bounded model-turn diagnostic");
+    assert_eq!(diagnostic["stop_reason_normalized"], "length");
+    assert_eq!(diagnostic["outcome"]["stop_reason"], "length");
+    assert_eq!(
+        diagnostic["outcome"]["error_code"],
+        "model_output_truncated"
+    );
     assert_eq!(
         events
             .iter()
