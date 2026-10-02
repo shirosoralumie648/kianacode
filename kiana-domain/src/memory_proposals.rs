@@ -17,6 +17,7 @@ pub enum MemorySuggestion {
     Delete,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MemoryEvidence {
     pub event_id: EventId,
     pub request_id: RequestId,

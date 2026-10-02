@@ -47,6 +47,7 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 | `legacy_memory_is_unverifiable_until_reviewed` | v1 legacy import 保持 Unknown/Candidate/Draft/unsearchable/unverified |
 | `invalid_admission_state_combination_is_denied` | Candidate/Active、错误 validity 等组合 fail-closed |
 | `qualified_memory_requires_review_evidence_and_purpose` | Qualified/Active 缺 provenance/review/evidence 不可接受 |
+| `memory_record_rejects_unknown_nested_lifecycle_fields` | `Purpose`、`Retention`、`MemoryEvidence` 的嵌套未知字段以及 v1 legacy evidence 未知字段均 fail-closed |
 | `qualified_memory_requires_review_evidence_and_purpose` malformed cases | nil event/request/run IDs, blank/oversize quotes, invalid Purpose, blank reviewer and zero review time fail closed |
 | `legacy_memory_is_unverifiable_until_reviewed`（daemon） | 真实 JSONL reader 使用 explicit import，不把旧行直接暴露给检索 |
 
@@ -79,4 +80,29 @@ status_change: none; CM-02 remains 🔄 pending current GitHub CI evidence
 proof-level_change: none; source only
 limitations: new negative fixtures are unexecuted locally and current remote domain-s1 evidence is pending; exact event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation and data epochs remain CM-06; normalization/sensitive-text handling remains CM-09; no semantic recall or durable-memory claim is made
 reviewer: CM-02 implementation agent source review; no runtime test reviewer
+```
+
+## 7. Nested lifecycle payload strictness audit (2026-10-02)
+
+Source review found that `MemoryRecord` rejected unknown top-level fields while its nested
+`Purpose`, `Retention`, and `MemoryEvidence` values silently ignored unknown members. Those
+three value types now reject unknown fields during deserialization. Serialization is unchanged,
+and the daemon reader/upcaster continue to route v1 rows through explicit legacy import. The CI
+fixture accepts known nested fields in both v2 records and v1 legacy evidence, and rejects unknown
+nested keys in both versions.
+
+```text
+source_snapshot: `03b6e443` plus this isolated source/test/doc change
+worktree_status: CM-02 nested payload decode is strict in `Purpose`, `Retention`, and `MemoryEvidence`; native constructors and serialization shape are unchanged; daemon JSONL reads and named upcasts route v1 through explicit legacy import; new negative fixture awaits GitHub CI after integration
+command_argv:
+  `rg -n "deny_unknown_fields|memory_record_rejects_unknown_nested_lifecycle_fields" kiana-domain/src/governance.rs kiana-domain/src/memory_proposals.rs kiana-domain/tests/cm02_memory.rs`
+  `git diff --check`
+  `gh run view 36926015057 --job 110583767786 --log`
+cwd/environment: `/tmp/kiana-cm02-audit-20261002`; read-only GitHub CLI for receipts; local Cargo test/build/check/fmt/clippy/smoke commands not run
+fixture or cassette: `kiana-domain/tests/cm02_memory.rs::memory_record_rejects_unknown_nested_lifecycle_fields`; historical run `36926015057` logged all three existing CM-02 fixtures passing, while the domain shard failed in unrelated `aut07_workflow_queue_claim::queue_claim_rejects_cycle_duplicate_and_parallel_overflow`; run `36958156294` predates this fixture and its domain shard failed, so it is not evidence for this change
+exit_code: historical CM-02 fixture cases 3/3 passed in GitHub CI; `git diff --check` exit 0; new negative fixture has no CI result yet
+status_change: none; CM-02 remains 🔄 and this change does not claim the roadmap step complete
+proof-level_change: none; source only
+limitations: the new negative fixture is unexecuted pending integration; `validate_lifecycle` still permits a fully populated schema-v1 Native object constructed directly in memory, although the daemon JSONL reader and named upcaster explicitly route v1 payloads through legacy import; nested strictness does not bind evidence quotes to immutable EventLog facts or establish durable approval; no local tests or builds were run
+reviewer: CM-02 isolated source review; no runtime test reviewer for the new fixture
 ```
