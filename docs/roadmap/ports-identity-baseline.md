@@ -28,6 +28,7 @@
 | `ports_never_return_raw_secret_to_core` | CredentialResolution 只序列化 SecretRef/status/expiry/digest，不含 raw secret |
 | `credential_resolution_metadata_is_strict_and_fail_closed` | 完整 resolution metadata 可 round-trip；raw secret unknown field、过期和 digest drift 均拒绝 |
 | `config_snapshot_store_revision_cas_is_deterministic` | 测试内存 fake 返回稳定快照；当前 config revision 可 CAS 更新；旧 revision 被拒绝且已发布快照保持不变 |
+| `credential_rotation_port_generation_cas_rejects_stale_without_mutation` | 测试内存 fake 对 rotate/revoke 均按 observed generation CAS；旧 generation 拒绝且 SecretRef 不变，当前 generation 成功递增 |
 | `ports_keep_identity_config_credential_and_rotation_boundaries_separate` | 四类 port、错误/secret-free metadata 和 CI-02 domain contracts 均有 source guard |
 
 统一 `.github/workflows/ci.yml` 的 test shard 在 GitHub runner 执行 ports fixture、core source guard、fmt 和 domain/ports/core test-target 编译；旧的独立 CI-03 workflow 已合并删除。本地不运行测试。
@@ -53,9 +54,9 @@ command_argv: gh run view 36897771406 --job 110489410130; git diff --check
 cwd/environment: /tmp/kiana-ci03-audit; Linux; local test/build/check/clippy/fmt/smoke commands not run
 fixture or cassette: kiana-ports/tests/ci03_ports.rs::credential_resolution_metadata_is_strict_and_fail_closed; GitHub CI ports job
 exit_code: 0 for source/diff checks; GitHub run 36897771406 ports job was in progress when inspected, so the pre-fix remote result is unobserved
-status_change: none; CI-03 source status remains implemented with its existing limitations
+status_change: none; CI-03 remains in progress with `feature_status=partial` and its existing limitations
 proof-level_change: none; source only
-limitations: the corrected fixture has not run; latest master CI run is pending/unobserved for kiana-ports; no production resolver, store, rotation or revoke adapter is implemented here
+limitations: run `36897771406` was still in progress at this source capture; the later receipt in §6 records the corrected fixture passing in run `36916662965`, while unrelated fixtures kept that ports job red. No production resolver, store, rotation or revoke adapter is implemented here.
 reviewer: CI-03 implementation agent source review; no runtime test reviewer
 ```
 
@@ -81,21 +82,28 @@ reviewer: isolated CI-03 ports audit; no local runtime test reviewer
 
 ## 7. ConfigSnapshotStore explicit-revision fixture (2026-10-02)
 
-The CI-03 ports fixture now uses a test-local, single-project in-memory store to pin stable
-reads and explicit-revision compare-and-swap behavior. Publishing against the current
-`config_revision` replaces the snapshot; publishing against the prior revision after that
-update returns a conflict and leaves the newer snapshot intact. The fixture deliberately
-does not cover `None`/initial-create semantics, a reusable runtime store, lease lifecycle,
-cancellation after an effect, or credential rotation.
+The CI-03 ports fixture now uses test-local in-memory fakes to pin stable configuration reads,
+explicit-revision compare-and-swap, and credential rotation/revoke generation compare-and-swap.
+Stale configuration and credential revisions return conflicts without changing the current
+snapshot or SecretRef; matching credential generations advance the reference. The fixtures do
+not cover `None`/initial-create semantics, durable stores, lease lifecycle, or cancellation after
+an effect.
+
+The original ConfigSnapshotStore fixture commit `4455675553ece5437e7b615654f18cd2aa437c62` was
+integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`, which is an ancestor of pushed master
+`db8a46067c1fd33b07f8e5a515d793e729aa1779`. The fixture is mapped to the `kiana-ports` test
+shard in the unified `.github/workflows/ci.yml`; it has no CI receipt because run `36986316487`
+cancelled that shard at `Run shard` before fixture output. The older receipt in §6 predates this
+ConfigSnapshotStore test and does not prove it.
 
 ```text
-source_snapshot: `e22d8f75` plus the CI-03 ConfigSnapshotStore fixture slice; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`
-worktree_status: isolated `/tmp/kiana-ci03-config-cas-20261002` on `step/ci03-config-cas-20261002`; only the ConfigSnapshotStore contract docs, CI-03 ports fixture and its baseline changed
-command_argv: source inspection and manual diff review; no local test/build/check/fmt/clippy/smoke command was run
-cwd·environment: isolated Linux worktree; GitHub Actions remains the only test executor
-fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic`; not yet executed by CI
-exit_code: not run locally; CI is not triggered until integration/push
+source_snapshot: base `db8a46067c1fd33b07f8e5a515d793e729aa1779` plus this isolated CI-03 slice; prior ConfigSnapshotStore source `4455675553ece5437e7b615654f18cd2aa437c62` integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`; `kiana-ports/tests/ci03_ports.rs`; `kiana-ports/src/lib.rs`; `docs/roadmap/ports-identity-baseline.md`
+worktree_status: isolated `/tmp/kiana-ci03-generation-cas-20261002` based on pushed master; test-local ConfigSnapshotStore and CredentialRotationPort fakes cover explicit revision/generation CAS; no production adapter, authority behavior, manifest or lockfile changed
+command_argv: source review; `git diff --check`; no local test/build/check/fmt/clippy/smoke command was run
+cwd·environment: `/tmp/kiana-ci03-generation-cas-20261002`; Linux; GitHub Actions is the only test executor
+fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt: run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is wired through the same unified `kiana-ports` shard and has not run remotely.
+exit_code: source review and `git diff --check` only; fixtures not run locally; no new GitHub receipt observed or awaited
 status_change: none; CI-03 remains 🔄 with `feature_status=partial` and `proof_level=source`
-limitations: this fixture pins only stable reads and explicit `Some(config_revision)` CAS; initial publish, multi-project persistence, runtime adapters, leases and cancellation/recovery remain unproven
+limitations: test-local in-memory fakes only; initial config publish, durable persistence, production adapters, lease lifecycle, cancellation/recovery and credential rotation/revoke durability remain unproven
 reviewer: manual source review; no runtime test reviewer
 ```

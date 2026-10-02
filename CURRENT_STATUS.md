@@ -7197,15 +7197,15 @@ reviewer: isolated CI-03 ports audit; no local runtime test reviewer
 ### CI-03 ConfigSnapshotStore explicit revision CAS fixture (2026-10-02)
 
 ```text
-source_snapshot: isolated source commit `4455675553ece5437e7b615654f18cd2aa437c62` based on `e22d8f75`; local cherry-pick `dc1df0e8496966071aef6a0be001a6ab6d9430f4`; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`
-worktree_status: a test-only ConfigSnapshotStore fake now checks deterministic repeated reads, CAS publish with `Some(current.config_revision)`, and stale-revision conflict without mutation. The interface docs state this Some-revision contract; None/initial-publish semantics are explicitly left unspecified. No production adapter or shared manifest/lockfile changed.
-command_argv: manual source/diff review; `git cherry-pick 4455675553ece5437e7b615654f18cd2aa437c62`; `git push origin master` pending; no local test/build/check/fmt/clippy/smoke/diff-check
-cwd·environment: source worktree `/tmp/kiana-ci03-config-cas-20261002`; integration in repository root; GitHub Actions is the only test executor
-fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic`; unified `kiana-ports` crate shard; source slice has no CI receipt at this evidence capture
-exit_code: isolated source commit and local cherry-pick succeeded; push pending; no local validation commands were run
+source_snapshot: base `db8a46067c1fd33b07f8e5a515d793e729aa1779`; ConfigSnapshotStore fixture `4455675553ece5437e7b615654f18cd2aa437c62` was integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`, an ancestor of pushed master; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`
+worktree_status: test-local ConfigSnapshotStore fake covers deterministic repeated reads, explicit `Some(current.config_revision)` CAS, and stale-revision conflict without mutation. New test-local CredentialRotationPort fake covers stale rotate/revoke rejection without changing the current SecretRef and successful current-generation advances. No production adapter or shared manifest/lockfile changed.
+command_argv: manual source review; `git diff --check`; no local test/build/check/fmt/clippy/smoke command was run
+cwd·environment: isolated `/tmp/kiana-ci03-generation-cas-20261002` based on pushed master; GitHub Actions is the only test executor
+fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt because run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is routed through unified `.github/workflows/ci.yml`'s `kiana-ports` shard and has not run remotely. The older receipt in run `36916662965` predates ConfigSnapshotStore CAS and does not cover it.
+exit_code: source review and `git diff --check` only; no local tests; no receipt for either CAS fixture in this slice
 status_change: CI-03 remains 🔄 with `feature_status=partial`, `proof_level=source`; no roadmap completion or production-store claim
 proof-level change: none; no local_behavior, durable, live, or physical promotion
-limitations: fixture-local single-project in-memory fake only; it does not define initial publish, durable persistence, multi-project storage, lease lifecycle, cancellation after side effect, runtime adapters, or credential rotation/revoke
+limitations: test-local in-memory fakes only; initial publish, durable persistence, multi-project storage, lease lifecycle, cancellation after side effect, production adapters and rotation/revoke durability remain unproven
 reviewer: manual interface/test/baseline review; no runtime test reviewer
 ```
 

@@ -127,28 +127,68 @@ impl ConfigSnapshotStore for MemoryConfigSnapshot {
     }
 }
 
-struct UnsupportedRotation;
+#[derive(Clone)]
+struct MemoryCredentialRotation {
+    current: Arc<RwLock<SecretRef>>,
+}
+
+impl MemoryCredentialRotation {
+    fn new(secret_ref: SecretRef) -> Self {
+        Self {
+            current: Arc::new(RwLock::new(secret_ref)),
+        }
+    }
+
+    async fn current(&self) -> SecretRef {
+        self.current.read().await.clone()
+    }
+
+    async fn compare_and_swap_generation(
+        &self,
+        secret_ref: &SecretRef,
+        observed_generation: u64,
+    ) -> Result<SecretRef, PortError> {
+        let mut current = self.current.write().await;
+        if current.generation != observed_generation || &*current != secret_ref {
+            return Err(PortError::Conflict(
+                "credential_rotation_generation_stale".to_owned(),
+            ));
+        }
+
+        let next_generation = current.generation.checked_add(1).ok_or_else(|| {
+            PortError::Failed("credential_rotation_generation_overflow".to_owned())
+        })?;
+        let next = SecretRef::new(
+            current.store.clone(),
+            current.key.clone(),
+            current.purpose.clone(),
+            current.audience.clone(),
+            next_generation,
+        )
+        .map_err(PortError::Failed)?;
+        *current = next.clone();
+        Ok(next)
+    }
+}
 
 #[async_trait]
-impl CredentialRotationPort for UnsupportedRotation {
+impl CredentialRotationPort for MemoryCredentialRotation {
     async fn rotate_credential(
         &self,
-        _secret_ref: &SecretRef,
-        _observed_generation: u64,
+        secret_ref: &SecretRef,
+        observed_generation: u64,
     ) -> Result<SecretRef, kiana_ports::PortError> {
-        Err(kiana_ports::PortError::Unavailable(
-            "rotation_fixture_unavailable".to_owned(),
-        ))
+        self.compare_and_swap_generation(secret_ref, observed_generation)
+            .await
     }
 
     async fn revoke_credential(
         &self,
-        _secret_ref: &SecretRef,
-        _observed_generation: u64,
+        secret_ref: &SecretRef,
+        observed_generation: u64,
     ) -> Result<SecretRef, kiana_ports::PortError> {
-        Err(kiana_ports::PortError::Unavailable(
-            "revoke_fixture_unavailable".to_owned(),
-        ))
+        self.compare_and_swap_generation(secret_ref, observed_generation)
+            .await
     }
 }
 
@@ -165,14 +205,23 @@ fn ports_never_return_raw_secret_to_core() {
 }
 
 fn credential_resolution(value: &str) -> CredentialResolution {
-    let reference =
-        SecretRef::new("env", "OPENAI_API_KEY", "provider.request", "openai", 4).unwrap();
     CredentialResolution {
-        secret_ref: reference,
+        secret_ref: credential_secret_ref(4),
         state: CredentialState::Available,
         expires_at_unix_ms: Some(10_000),
         resolved_digest: Some(kiana_domain::json_digest(&serde_json::json!(value))),
     }
+}
+
+fn credential_secret_ref(generation: u64) -> SecretRef {
+    SecretRef::new(
+        "env",
+        "OPENAI_API_KEY",
+        "provider.request",
+        "openai",
+        generation,
+    )
+    .unwrap()
 }
 
 fn project_identity() -> ProjectIdentity {
@@ -226,6 +275,32 @@ async fn config_snapshot_store_revision_cas_is_deterministic() {
     assert_eq!(store.read_snapshot(&project).await.unwrap(), updated);
 }
 
+#[tokio::test]
+async fn credential_rotation_port_generation_cas_rejects_stale_without_mutation() {
+    let initial = credential_secret_ref(4);
+    let store = MemoryCredentialRotation::new(initial.clone());
+
+    assert_eq!(
+        store.rotate_credential(&initial, 3).await.unwrap_err(),
+        PortError::Conflict("credential_rotation_generation_stale".to_owned())
+    );
+    assert_eq!(store.current().await, initial);
+
+    let rotated = store.rotate_credential(&initial, 4).await.unwrap();
+    assert_eq!(rotated, credential_secret_ref(5));
+    assert_eq!(store.current().await, rotated);
+
+    assert_eq!(
+        store.revoke_credential(&rotated, 4).await.unwrap_err(),
+        PortError::Conflict("credential_rotation_generation_stale".to_owned())
+    );
+    assert_eq!(store.current().await, rotated);
+
+    let revoked = store.revoke_credential(&rotated, 5).await.unwrap();
+    assert_eq!(revoked, credential_secret_ref(6));
+    assert_eq!(store.current().await, revoked);
+}
+
 #[test]
 fn credential_resolution_metadata_is_strict_and_fail_closed() {
     let resolution = credential_resolution("ci03-fixture-value-unique-9d23");
@@ -265,5 +340,4 @@ fn credential_resolution_metadata_is_strict_and_fail_closed() {
     let _ = MissingCredential;
     let _ = UnsupportedIdentity;
     let _ = UnsupportedConfig;
-    let _ = UnsupportedRotation;
 }
