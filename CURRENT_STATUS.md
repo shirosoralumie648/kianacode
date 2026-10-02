@@ -19257,3 +19257,18 @@ proof-level change: none; source-level only, with no local_behavior, durable, li
 limitations: CI has not yet verified that the approval path reaches `AwaitingApproval`, resumes, and satisfies the identity projection assertions after this source correction. Generic Event/log redaction remains unchanged and continues masking numeric fencing tokens; only approval display projection omits execution scope. Existing `b87becc9` daemon job also has unrelated failures; no aggregate job success is claimed.
 reviewer: source review traced Harness request preparation through ExecutionScope serialization, unchanged generic redaction, approval-only display projection, JournalApprovalStore material binding, and ApprovalPlanPreview reuse; no local runtime reviewer
 ```
+
+### ER-02 stable authority revision across request contexts (2026-10-03)
+
+```text
+source_snapshot: base `302c6b46`; `kiana-daemon/src/lib.rs`; `kiana-daemon/tests/daemon_host.rs`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap/event-receipt-identity-baseline.md`
+worktree_status: project configuration revision no longer includes `SecurityContext.context_digest`, which embeds a fresh SecurityContextId plus request-scoped authority/policy snapshot values; stable catalogs, local role allowlist, model profile configuration, project identity, policy label, tool catalog, and action catalog remain revision inputs. The approval-resume Harness fixture now requires exactly one `authority.revised` and one `session.assigned` event across repeated requests, and prints the full rejected response on assertion failure.
+command_argv: source/CI-log inspection using `gh run view 37039497859 --job 110946337061 --log-failed`, `rg`, and `sed`; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: prior run `37039497859`, daemon job `110946337061`: `cancel_after_awaiting_approval_rejects_later_approve` returned `Blocked` / `port_conflict:session_assignment_mismatch`; the same job's `trusted_read_only_apply_patch_does_not_create_file` passed. `wire_approval_proof_retry_resumes_original_run` did not print its response detail, so its exact old error is unknown. Updated daemon Harness target and the full `kiana-daemon` test target are queued for GitHub CI after push.
+exit_code: local formatting/diff checks only; post-change daemon CI pending
+status_change: ER-02 remains `🔄`, `feature_status=partial`, `proof_level=source`; stable project revision no longer varies with request-local security context identity, with source regression assertions added
+proof-level change: none
+limitations: exact post-fix approval/cancel receipts and a complete green daemon shard are pending; direct identity parity, durable restart recovery, live/physical outcomes and external effects are not established
+reviewer: source trace across DaemonHost authority synchronization, SecurityContext digest construction, authority revision, and session assignment; no local runtime reviewer
+```

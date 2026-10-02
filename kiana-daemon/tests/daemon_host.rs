@@ -1482,11 +1482,14 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .await
         .unwrap();
     assert_eq!(rejected.status, ExecutionStatus::Blocked, "{rejected:?}");
-    assert!(rejected
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("approval_request_hash_mismatch"));
+    assert!(
+        rejected
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("approval_request_hash_mismatch"),
+        "{rejected:?}"
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
     let denied_events = host
         .persisted_events()
@@ -1524,6 +1527,22 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .await
         .unwrap()
         .expect("memory event store supports read-only scan");
+    assert_eq!(
+        persisted
+            .iter()
+            .filter(|event| event.kind == "authority.revised")
+            .count(),
+        1,
+        "request-local security context identity must not revise project authority"
+    );
+    assert_eq!(
+        persisted
+            .iter()
+            .filter(|event| event.kind == "session.assigned")
+            .count(),
+        1,
+        "same-session approval continuation must retain its original assignment"
+    );
     let run_id_text = run_id.to_string();
     let run_events = persisted
         .iter()

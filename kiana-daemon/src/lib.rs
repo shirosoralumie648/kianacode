@@ -1718,7 +1718,6 @@ impl DaemonHost {
                 "model_profiles":std::env::var("KIANA_MODEL_PROFILES_JSON").unwrap_or_default(),
                 "policy":"kiana.default-policy.content.v2","tool_catalog_digest":kiana_domain::tool_catalog_digest(),
                 "action_catalog":kiana_domain::capability_action_catalog_digest(),
-                "security_context_digest":security_context.context_digest,
             }));
             if let Err(error) = self
                 .core

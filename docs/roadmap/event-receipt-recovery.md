@@ -241,6 +241,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **动作：** 明确 `command_id`、`request_id`、`session_id`、`run_id`、`turn_id`、`invocation_id`、`execution_id`、`attempt`、`event_id` 的 owner 和生命周期；补 correlation/causation/parent 关系，禁止以 request-local sequence 代替 aggregate version。
 - **先拒绝：** `event_id_reuse_is_denied`、`same_request_different_command_digest_conflicts`、`cross_run_result_cannot_pair_by_sequence`。
 - **成功/回归：** direct、Harness、approval-resume 三入口复用同一 identity chain 和 projection ID 关联；新 RuntimeEvent 带可选 correlation/causation/parent links，legacy 无 stream metadata/links 仅走明确兼容路径，跨 run sequence 错配和 event_id 重用由远程 CI 拒绝。
+- 项目 authority revision 只绑定稳定配置输入；不得把每请求新建的 SecurityContext ID/digest 或递归 authority epoch/policy snapshot 当作项目配置版本。
 
 <a id="step-er-03"></a>
 

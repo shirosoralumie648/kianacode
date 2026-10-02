@@ -145,3 +145,24 @@ Run `37025517103`, HEAD `b87becc90fa5dd77951f2fc13f0b7899c4afff7e`, daemon job `
 Source tracing identifies the cause: Harness ControlPlane preparation adds the server-derived `ExecutionScope` to the capability request before approval staging. `ExecutionScope.fencing_token` is a required `u64`, while generic redaction intentionally treats every field containing `token` as sensitive, so strict typed preview deserialization rejected its redacted string representation. The fix adds a shared approval-display helper that clones the typed request, removes only its server-owned `execution_scope`, then applies the unchanged generic redactor and Secret preview special case. Original payload digests still bind the full request; requests carrying execution scope use `VolatileProtected` material. `ApprovalPlanPreview` and `JournalApprovalStore::stage` share the helper. Domain CI fixtures assert generic event/log redaction still masks numeric fencing tokens, approval display requests omit scope and round-trip as typed requests, argument sentinels remain redacted, and string fencing-token values remain redacted.
 
 No approval precondition or typed validation was relaxed, and generic event/log redaction semantics are unchanged. Unified CI already routes the domain `oa03_redaction` fixture and the full daemon crate; this correction has not yet been pushed or run in CI. ER-02 remains `feature_status=partial`, `proof_level=source`; the direct identity fixture receipt and successful Harness identity projection receipt remain outstanding.
+
+## 12. Stable authority revision across repeated request contexts (2026-10-03)
+
+Run `37039497859`, daemon job `110946337061`, showed that a second effectful request in the same
+project/session was rejected with `port_conflict:session_assignment_mismatch`. The daemon had added
+`SecurityContext.context_digest` to the project configuration revision. That digest includes a new
+`SecurityContextId` per request as well as the current authority epoch and a policy revision derived
+from the preceding authority revision, so it cannot identify stable project configuration.
+
+The configuration revision now uses only stable project inputs already enumerated at the daemon
+boundary: project identity, role/department catalogs, local role allowlist, model profile config,
+policy revision label, tool catalog, and capability action catalog. Trust remains a separate input
+to `synchronize_authority`; request identity and request-scoped context digests remain available for
+their own validation and evidence bindings. The existing `wire_approval_proof_retry_resumes_original_run`
+Harness fixture asserts that one initial revision remains the only `authority.revised` event across
+the initial run, rejected proof, and approved continuation, and that the session has one assignment.
+Its failed-response assertion now prints the full response for the next CI receipt.
+
+This source correction is pending GitHub CI. ER-02 stays partial/source until the exact approval,
+cancel, direct identity and full shard results are reviewed; no durable recovery or external/live
+effect is claimed.
