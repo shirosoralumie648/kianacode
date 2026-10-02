@@ -9,7 +9,7 @@
 |---|---|
 | roadmap card | [`CAP-01`](capability.md#step-cap-01) |
 | source snapshot | 首次 source snapshot `ae412092`；当前 exact remote receipts 见 §6 |
-| feature_status | `partial`（catalog/binding implementation and exact fixtures pass; the related P1-H01 source guard needs a corrected marker receipt） |
+| feature_status | `implemented`（catalog/binding source and all enumerated target fixtures have exact GitHub CI pass receipts） |
 | proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
 | canonical path | Runner model tool schema/mapping → domain action catalog → DaemonHost registrations → Broker exact binding/version → ControlPlane permit/policy |
 | this step does | 为每个 registered operation 校验 descriptor/schema/binding，拒绝 duplicate alias/operation、kind mismatch、binding version drift 和 unregistered fallback；区分五个 model-visible tools 与 operator-only operations |
@@ -108,7 +108,7 @@ Run `36999753811` tested source head `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`.
 - Broker job `110814891044`: duplicate/version/unregistered guards, exact and near-alias routing, and `sealed_broker_routes_spec_kinds_without_fallback` passed.
 - Core-s1/6 job `110814891165`: `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` passed 1/1 after the documentation marker correction.
 
-The domain and core aggregate shards were red on sibling targets; the Broker job succeeded, and the overall run was later cancelled by a subsequent push. The related `p1_h01_tool_authority_guard` in core-s5/6 job `110814891013` failed because it expected the stale literal `kiana_domain::validate_tool_authority()?`; current DaemonHost calls `kiana_domain::validate_tool_authority().map_err(PortError::Failed)?` and then `capabilities.validate_catalog_bindings()?`. The guard now checks those actual composition calls, with its corrected remote receipt pending. CAP-01 remains `feature_status=partial`, `proof_level=source`; the exact catalog/Broker/core-s1 targets above pass but the full OperationSpec guard set is not yet green. CAP-01 source/test files are otherwise unchanged from the tested source head through current master `43e1cbe8`.
+The domain and core aggregate shards were red on sibling targets; the Broker job succeeded, and run `36999753811` was later cancelled by a subsequent push. Its related `p1_h01_tool_authority_guard` in core-s5/6 job `110814891013` failed because it expected the stale literal `kiana_domain::validate_tool_authority()?`; current DaemonHost calls `kiana_domain::validate_tool_authority().map_err(PortError::Failed)?` and then `capabilities.validate_catalog_bindings()?`. The guard now checks those actual composition calls. Run `37006982461` / core-s5/6 job `110837882678` passed the corrected `p1_h01_tool_authority_guard` 1/1. That aggregate shard also failed on sibling targets, and the overall workflow was still in progress at capture. These exact receipts close CAP-01's fixture acceptance; no clean workspace CI run is claimed. CAP-01 production source is unchanged through current master `0f389416`, and the only source/test delta after run `36999753811` is the corrected P1-H01 assertion.
 
 ## 7. 限制与交接
 

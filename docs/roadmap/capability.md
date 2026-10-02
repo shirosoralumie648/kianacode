@@ -5,7 +5,7 @@
 ## 20. Capability 专项：调研结论与实现设计（2026-09-12 追加）
 
 > 对应 [module-map.md](../module-map.md) 的「5. Capability：工具执行与沙箱」。
-> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；run `36999753811` 的 CAP-01 catalog/Broker/core 专项目标通过，但相邻 `p1_h01_tool_authority_guard` 因旧 source marker 失败，实际 DaemonHost 校验调用已确认，修正 guard 后等待远端复验，详见 [authority baseline](capability-authority-baseline.md)；`CAP-02` 已补 provider 字符串参数的 bounded parser 与重复键拒绝夹具，仍等待统一 CI 回执。**
+> **性质：待实施设计与任务分解；`CAP-00` 已完成 source/static 基线；CAP-01 的 domain/Broker/core-s1 目标在 run `36999753811` 通过，相邻 `p1_h01_tool_authority_guard` 修正旧 source marker 后在 run `37006982461` 通过 1/1，详见 [authority baseline](capability-authority-baseline.md)；`CAP-02` 已补 provider 字符串参数的 bounded parser 与重复键拒绝夹具，仍等待统一 CI 回执。**
 > 阅读顺序：§20.1–20.4 看依据，§20.5–20.9 看执行设计，§21 按 step 实施，§22 看验收门。
 > 本追加不重排 §2 正在执行的预算、恢复和记忆任务；另一位实现 agent 先收口当前切片，再按依赖消费这里的细化任务。
 
@@ -362,7 +362,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源　🔄
+#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源　✅
 
 当前 source slice 与 CI-only 证据见 [`capability-authority-baseline.md`](capability-authority-baseline.md)。
 
