@@ -3361,8 +3361,8 @@ reviewer: diff inspection confirmed formatter-only line wrapping; no test review
 ### ER-02 receipt fix master reconciliation (2026-10-02)
 
 ```text
-source_snapshot: current master `4e54356b06817817f120e3a9a2d9c6c601d4f2b3`; receipt source slice commit `4ce549ba82ea08244c0f30343b992adaefc9016f`; merge `e70cf9fc`; formatting follow-up `10d24378`
-worktree_status: the receipt-aware projector, direct fixture, ER09 receipt fixtures (including `committed=false` denial), daemon Run-bound projection fixture, and ER-02 evidence were committed in 4ce549ba and are ancestors of current master via e70cf9fc. 10d24378 applies the recorded CI rustfmt correction. No production change needed porting; this isolated branch contains only the reconciliation evidence update.
+source_snapshot: receipt source slice commit `4ce549ba82ea08244c0f30343b992adaefc9016f`; merge `e70cf9fc`; formatting follow-up `10d24378`; reconciliation commit `cb99a9f5229e4ee39e5b8e503f12b90c981618be`; source CI head `4e54356b06817817f120e3a9a2d9c6c601d4f2b3`
+worktree_status: the receipt-aware projector, direct fixture, ER09 receipt fixtures (including `committed=false` denial), daemon Run-bound projection fixture, and ER-02 evidence were committed in 4ce549ba and are ancestors of the CI head via e70cf9fc. 10d24378 applies the recorded CI rustfmt correction. No production change needed porting; documentation-only reconciliation commit `cb99a9f5` is integrated into local master, with its push recorded in this entry.
 command_argv:
   `git show --stat 4ce549ba`
   `git merge-base --is-ancestor 4ce549ba 4e54356b`
@@ -3372,11 +3372,15 @@ command_argv:
   `gh run view 36978883309 --job 110748754394 --log-failed` (logs unavailable while run is in progress)
   `gh run view 36978883309 --job 110748754448 --log-failed` (logs unavailable while run is in progress)
   `gh run view 36978883309 --job 110748754494 --log-failed` (logs unavailable while run is in progress)
+  `git commit -m 'docs(er02): reconcile receipt fix integration'`
+  `git merge --ff-only cb99a9f5`
+  `git push origin master`
+  `git diff --check` (exit 0; whitespace only)
   no local test, build, Cargo check, fmt, clippy, or smoke command was run
-cwd·environment: isolated worktree `/tmp/kiana-er02-reconcile-4e54356b`; GitHub Actions read-only queries from repository checkout; Linux
+cwd·environment: source reconciliation in isolated worktree `/tmp/kiana-er02-reconcile-4e54356b`; documentation commit integrated and pushed from `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode` on Linux
 fixture·cassette: `direct_capability_events_keep_request_identity_without_run_scope`; `invocation_projection_normalizes_and_validates_terminal_result_receipts`; `invocation_projection_rejects_uncommitted_terminal_receipts`; `wire_approval_proof_retry_resumes_original_run`; existing deny-first `foreign_runner_capability_request_is_unknown_before_broker` and `cross_run_result_cannot_pair_by_sequence`
-exit_code: commit ancestry and source fixture queries succeeded. Current master CI run `36978883309` targets head `4e54356b` and was `in_progress`; aggregate jobs core-s3/6 `110748754394`, domain-s2/4 `110748754448`, and eventlog `110748754494` were marked failed, while logs were unavailable until the overall run finishes. No ER-02 fixture pass/fail is inferred from those aggregate statuses. Previous readable fixture receipts remain run `36963672912` and predate this source slice.
-status_change: ER-02 remains 🔄 and `feature_status=partial`; the receipt fix is already integrated in master, while current fixture-level CI evidence is pending/unreadable
+exit_code: commit ancestry and source fixture queries succeeded; reconciliation commit `cb99a9f5` and fast-forward merge exited 0; `git diff --check` 0 (whitespace only); `git push origin master` exited 0. Current master CI run `36978883309` targets source head `4e54356b` and remained `in_progress`; aggregate jobs core-s3/6 `110748754394`, domain-s2/4 `110748754448`, and eventlog `110748754494` were marked failed, while logs were unavailable until the overall run finishes. No ER-02 fixture pass/fail is inferred from those aggregate statuses. Previous readable fixture receipts remain run `36963672912` and predate this source slice. No local tests, builds, cargo checks, formatting, clippy, or smoke were run.
+status_change: ER-02 remains 🔄 and `feature_status=partial`; the receipt fix and reconciliation evidence are integrated and pushed, while current fixture-level CI evidence is pending/unreadable
 proof-level change: `proof_level=source`; no local_behavior, durable, live, or physical promotion
 limitations: the current run has no readable exact target results at this capture point, and no complete green ER-02 shard is established. This entry records source integration only; it does not promote proof level or close the roadmap card.
 reviewer: manual lineage/source review confirmed 4ce549ba is an ancestor of 4e54356b, the shared terminal path rejects uncommitted receipts before event-kind handling, both execution and capability terminal deny fixtures are present, and no implementation diff remains to port.
