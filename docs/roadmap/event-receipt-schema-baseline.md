@@ -198,6 +198,29 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched direct, Harness and approval producer fields, policy/gate allowlist and one-sided identity denial; no local runtime reviewer
 ```
 
+## 5.5 Staged approval producer contract
+
+Source tracing found `JournalApprovalStore::stage` committing an `approval.staged` event with
+`approval` aggregate metadata, stream version 1, and the exact payload keys `schema`,
+`approval_id`, `subject`, `state` and `at_unix_ms`. Because `approval.staged` belongs to a required
+family, the missing registry entry would fail closed as an unknown kind before any future
+interpretation layer could validate it. The registry now declares the existing approval migration,
+requires `approval_id`, and rejects missing IDs or extra fields. No approval staging, EventStore or
+ControlPlane behavior changed.
+
+```text
+source_snapshot: source commit `1274c631`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `approval.staged` is registered with approval aggregate, approval_id required, exact producer field allowlist, non-terminal state and legacy approval migration; journal producer and stream version are pinned by the Core source guard; no EventStore wiring changed
+command_argv: source trace of `JournalApprovalStore::stage`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick f20308d0`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `c76d19b2`; integration repository root; Linux/bash; GitHub Actions is the runtime test executor
+fixture·cassette: `approval_staged_contract_matches_journal_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes the domain target through `kiana-domain-s2/4` and Core guard through `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the staged approval kind is now explicitly owned by the registry
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; other approval transitions and historical producer families still need reconciliation; this source slice does not establish approval durability, replay, recovery or external effects
+reviewer: source trace matched payload keys, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

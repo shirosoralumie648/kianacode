@@ -19543,6 +19543,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched direct, Harness and approval producer fields, policy/gate allowlist and one-sided identity rejection; no local runtime reviewer
 ```
 
+### ER-01 approval.staged producer contract (2026-10-03)
+
+```text
+source_snapshot: source commit `1274c631`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `approval.staged` is registered with approval aggregate, required `approval_id`, exact producer field allowlist, non-terminal state and legacy approval migration; source guard pins JournalApprovalStore payload keys, aggregate and stream version; no EventStore or approval behavior changed
+command_argv: source trace of `JournalApprovalStore::stage`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick f20308d0`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `c76d19b2`; integration repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `approval_staged_contract_matches_journal_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes the domain target through `kiana-domain-s2/4` and Core guard through `kiana-core-s1/6`; no receipt for this source snapshot yet
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the staged approval event is now explicitly covered by the registry
+proof-level change: none
+limitations: generic EventStore append still does not call `validate_runtime_event`; other approval transitions and historical producer families still need reconciliation; no approval durable/replay/recovery or external-effect claim
+reviewer: source trace matched staged payload keys, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
