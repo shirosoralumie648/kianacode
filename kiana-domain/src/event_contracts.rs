@@ -524,6 +524,8 @@ const APPROVAL_FIELDS: &[&str] = &[
     "resume_binding",
     "error",
 ];
+const APPROVAL_STAGED_FIELDS: &[&str] =
+    &["schema", "approval_id", "subject", "state", "at_unix_ms"];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1147,6 +1149,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         CAPABILITY_RESULT_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "approval.staged",
+        "approval",
+        APPROVAL_IDS,
+        APPROVAL_STAGED_FIELDS,
+        false,
+        Some("legacy_approval_event_v0_to_v1")
     ),
     spec!(
         "approval.requested",

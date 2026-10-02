@@ -291,3 +291,41 @@ fn capability_decision_contract_accepts_policy_and_gate_and_rejects_unknown_fiel
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn approval_staged_contract_matches_journal_producer_and_rejects_unknown_fields() {
+    let spec = event_kind_spec("approval.staged").unwrap();
+    assert_eq!(spec.aggregate_type, "approval");
+    assert_eq!(spec.required_ids, &["approval_id"][..]);
+    assert_eq!(
+        spec.allowed_fields,
+        &["schema", "approval_id", "subject", "state", "at_unix_ms"][..]
+    );
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("approval.staged", 0, 1),
+        Some("legacy_approval_event_v0_to_v1")
+    );
+
+    let mut payload = json!({
+        "schema": "kiana.approval.v1",
+        "approval_id": kiana_domain::ApprovalId::new(),
+        "subject": {},
+        "state": "staged",
+        "at_unix_ms": 1,
+    });
+    validate_event_payload("approval.staged", &payload).unwrap();
+
+    let mut missing_id = payload.clone();
+    missing_id.as_object_mut().unwrap().remove("approval_id");
+    assert_eq!(
+        validate_event_payload("approval.staged", &missing_id).unwrap_err(),
+        "event_required_id_missing:approval_id"
+    );
+
+    payload["unexpected_approval_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("approval.staged", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}

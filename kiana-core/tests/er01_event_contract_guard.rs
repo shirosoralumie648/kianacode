@@ -6,6 +6,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let journal = include_str!("../../kiana-domain/src/journal.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let approvals = include_str!("../../kiana-core/src/approvals.rs");
+    let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
     for marker in [
@@ -21,6 +22,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "CAPABILITY_DECISION_IDS",
         "CAPABILITY_BLOCKED_FIELDS",
         "CAPABILITY_DECISION_FIELDS",
+        "APPROVAL_STAGED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -39,6 +41,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("capability_blocked_contract_matches_direct_deny_producers"));
     assert!(baseline.contains("capability_decision_contract_accepts_policy_and_gate"));
     assert!(baseline.contains("event_capability_identity_pair_incomplete"));
+    assert!(baseline.contains("approval_staged_contract_matches_journal_producer"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -51,4 +54,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "json!({\"run_id\":invocation.run_id,\"capability_request_id\":request.request_id,\"policy\":policy,\"gate\":gate,"
     ));
     assert!(approvals.matches("\"capability.decision\"").count() >= 2);
+    assert!(journal_approvals.contains("\"approval.staged\""));
+    assert!(journal_approvals.contains(
+        "\"schema\":APPROVAL_SCHEMA,\"approval_id\":id,\"subject\":subject,\"state\":\"staged\",\"at_unix_ms\":now"
+    ));
+    assert!(journal_approvals.contains(".with_stream_metadata(APPROVAL_STREAM, id.to_string(), 1)"));
 }
