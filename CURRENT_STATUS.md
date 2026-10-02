@@ -19528,6 +19528,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source review traced both direct producer payloads and the request aggregate fallback, then checked the exact fixture/source-guard matrix; no local runtime reviewer
 ```
 
+### ER-01 capability decision identity contract (2026-10-03)
+
+```text
+source_snapshot: source commit `f54747bc100a9b6b65d0ac4a115316b8eb8ea33a`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/approvals.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `capability.decision` accepts direct producer payloads with no identity and Run/approval payloads with paired `run_id` + `capability_request_id`; `policy` and `gate` are allowed fields; one-sided identity returns `event_capability_identity_pair_incomplete`; no EventStore wiring or execution path changed
+command_argv: source trace of direct `authorize_and_execute`, Harness and approval continuation producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 2892d555`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit source commit based on `fcd37b3f`; integration repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `capability_decision_contract_accepts_policy_and_gate_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes the domain target through `kiana-domain-s2/4` and Core source guard through `kiana-core-s1/6`; no receipt for this source snapshot yet
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; current capability.decision producer payloads now have an explicit dual-shape identity contract
+proof-level change: none
+limitations: generic EventStore append still does not call `validate_runtime_event`; static registry metadata keeps `aggregate_type=run` while direct append falls back to request aggregate; producer reconciliation remains incomplete for other families; no durable/live/physical claim
+reviewer: source trace matched direct, Harness and approval producer fields, policy/gate allowlist and one-sided identity rejection; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text

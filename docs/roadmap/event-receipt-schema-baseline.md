@@ -171,6 +171,33 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace verified both direct producer payloads and request aggregate fallback; test/source guard match the emitted field matrix; no local runtime reviewer
 ```
 
+## 5.4 Capability decision identity shapes
+
+Source tracing found two existing producers for `capability.decision`: direct
+`authorize_and_execute` emits policy/gate/effect facts without Run identity, while Run-bound and
+approval continuation paths emit both `run_id` and `capability_request_id`. The registry's prior
+required-ID pair and field set therefore described neither payload completely. The contract now
+accepts exactly two shapes: both identity fields present for a Run-bound decision, or both absent
+for a direct request decision. A one-sided identity is rejected with
+`event_capability_identity_pair_incomplete`; `policy` and `gate` are explicit allowed fields.
+The validator remains an interpretation helper and is still not wired into generic EventStore
+append. The static registry keeps `aggregate_type=run` as the canonical Run-bound metadata while
+the direct append path falls back to the request aggregate; this compatibility variant remains a
+documented limitation of the current static spec.
+
+```text
+source_snapshot: source commit `f54747bc100a9b6b65d0ac4a115316b8eb8ea33a`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/approvals.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `capability.decision` accepts direct and Run-bound identity shapes with an all-or-none identity rule; invocation fields include the actual policy/gate payload keys; no producer execution path or EventStore wiring changed
+command_argv: source trace of direct, Harness and approval continuation producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 2892d555`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the runtime test executor
+fixture·cassette: `capability_decision_contract_accepts_policy_and_gate_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; current CI routes the domain target through `kiana-domain-s2/4` and Core source guard through `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; capability decision payloads now have an explicit dual-shape identity contract
+proof-level change: none
+limitations: generic EventStore append still does not call `validate_runtime_event`; producer reconciliation remains incomplete for other event families; the direct aggregate fallback is not represented by the static `aggregate_type=run` metadata; no durable/live/physical behavior is established
+reviewer: source trace matched direct, Harness and approval producer fields, policy/gate allowlist and one-sided identity denial; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
