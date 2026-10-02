@@ -29,6 +29,9 @@
 | `message_rejects_empty_recipient_long_body_and_secret_debug_payload` | 空 recipient、超长正文和 constructor 中的 secret marker 拒绝 |
 | `message_secret_marker_is_rejected_at_serde_boundaries_and_redacted_from_debug` | 直接构造的含 secret DTO 在 Serialize/Deserialize fail-closed，Debug 不泄露 sentinel，合法 serde round-trip 保持 |
 | `message_deserialization_rejects_unknown_kind_and_schema` | 未知 MessageKind 与未知 schema 版本在反序列化边界拒绝 |
+| `notification_dto_serde_preserves_wire_layout_and_option_defaults` | 五个通知 DTO 保持 JSON 字段顺序、null 输出和旧版省略可选字段兼容 |
+| `notification_dtos_validate_and_redact_at_wire_boundaries` | Notification、Subscription、DeliveryAttempt、DeliveryReceipt、ActionRef 在 serde 边界拒绝 secret marker，错误与 Debug 不泄漏 sentinel |
+| `notification_dtos_reject_unknown_schema_versions_at_wire_boundaries` | 五个通知 DTO 在序列化和反序列化时拒绝未知 schema 版本 |
 | `delivery_attempt_receipt_status_and_ttl_transitions_are_fail_closed` | attempt/receipt 状态、epoch/TTL 和 terminal transition 拒绝 |
 | `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` | v0 显式 upcast；未知 major/field 和 canonical digest drift 拒绝 |
 | `notification_contracts_are_domain_owned_and_do_not_create_a_delivery_loop` | schema/ownership/source guard，确认没有 DeliveryWorker 或第二消息执行路径 |
@@ -104,4 +107,25 @@ status_change: NM-01 remains `partial`; digest reconstruction is limited to the 
 proof-level change: source only; no local_behavior, durable, live, or physical promotion
 limitations: exact post-fix target passed, but a complete green domain shard is not established; arbitrary high-entropy secrets, mutable public in-memory fields, durable notification storage, resolver, projection, outbox and delivery remain outside this slice
 reviewer: root checked the strict v1 path remains unchanged and validation follows v0 digest reconstruction; no runtime test reviewer
+```
+
+## 8. Notification DTO serde and Debug boundaries (2026-10-03)
+
+`Notification`, `Subscription`, `DeliveryAttempt`, `DeliveryReceipt` and `ActionRef` now validate
+before serialization and after strict deserialization. Their private wire representations retain
+the public field order, null serialization and existing defaults for omitted optional fields.
+Custom Debug implementations redact text-bearing fields. No delivery, persistence, authority or
+notification lifecycle behavior was added.
+
+```text
+source_snapshot: isolated commit `145c810b`; integrated source commit `763785f0`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`
+worktree_status: five notification DTO serde boundaries now call their existing validators; field layout and optional-field defaults remain compatible; fixtures cover sentinel rejection, schema version rejection, valid round-trip and omitted optional fields
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 145c810b`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-nm01-validated-wire-20261003`; integration repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `notification_dto_serde_preserves_wire_layout_and_option_defaults`; `notification_dtos_validate_and_redact_at_wire_boundaries`; `notification_dtos_reject_unknown_schema_versions_at_wire_boundaries`; existing `.github/workflows/ci.yml` routes `nm01_contracts` through `kiana-domain-s3/4`; remote receipt pending after push
+exit_code: isolated format and diff checks passed; no local runtime result; remote fixtures not yet observed
+status_change: NM-01 remains roadmap row 097 `🔄`, `feature_status=partial`, `proof_level=source`; five DTO wire boundaries now enforce validation and redact Debug text
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: exact target awaits GitHub CI; complete NM-01 closure also depends on the existing bounded body/scope/TTL, canonical bytes, transition, explicit upcast and source-guard acceptance; no notification store, resolver, materializer, outbox, delivery worker, durable read state or external channel is established
+reviewer: source review checked each private representation against public field order/defaults and each Debug implementation against its text-bearing fields; no local runtime reviewer
 ```

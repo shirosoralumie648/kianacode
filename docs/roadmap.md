@@ -262,7 +262,7 @@
 | 094 | W1 | 专项 | [`OA-03`](#step-oa-03) | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | `OA-01` | 🔄 | [专项卡](#step-oa-03) |
 | 095 | W1 | 专项 | [`OA-04`](#step-oa-04) | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | `OA-01`、`OA-03` | 🔄 | [专项卡](#step-oa-04) |
 | 096 | W1 | 专项 | [`OA-05`](#step-oa-05) | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | `OA-01`、`OA-04`、`OA-02`、`OA-03` | ✅ | [专项卡](#step-oa-05) |
-| 097 | W1 | 专项 | [`NM-01`](#step-nm-01) | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | `NM-00` | 🔄 | [专项卡](#step-nm-01) |
+| 097 | W1 | 专项 | [`NM-01`](#step-nm-01) | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt；五类通知 DTO 现在在 serde 边界执行验证并脱敏 Debug，保持旧 wire 字段顺序和可选字段默认值，新拒绝与兼容夹具等待 CI | `NM-00` | 🔄 | [专项卡](#step-nm-01) · [baseline](roadmap/notifications-contracts-baseline.md) |
 | 098 | W1 | 专项 | [`NM-02`](#step-nm-02) | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | `P1-E-01`、`NM-01` | 🔄 | [专项卡](#step-nm-02) |
 | 099 | W1 | 专项 | [`NM-03`](#step-nm-03) | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | `ER-01`、`NM-01` | ✅ | [专项卡](#step-nm-03) |
 | 100 | W1 | 专项 | [`EQ-01`](#step-eq-01) | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `EQ-00` | ✅ | [专项卡](#step-eq-01) |

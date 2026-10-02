@@ -19467,3 +19467,18 @@ proof-level change: none
 limitations: no crash/power-loss or cross-machine lease claim is made. Existing `remove_owned_file` checks type/link count/device/inode before unlink but the check-to-unlink operation is not atomic against a hostile same-UID replacement. Full card still lacks CLI/Web/Workbench shared-root wiring and stable StoreIdentity reuse after restart; StoreIdentity currently binds an owner scope containing instance/authority epoch, and its relation to temporary feed identity versus durable installation identity needs an architecture decision. Existing adapters continue to resolve their own paths.
 reviewer: source review verified cleanup is attempted through the pinned LocalDir and held file descriptor, with device/inode equality checked before unlink; no local runtime reviewer
 ```
+
+### NM-01 notification DTO serde and Debug boundaries (2026-10-03)
+
+```text
+source_snapshot: isolated commit `145c810b`; integrated source commit `763785f0`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`; `docs/roadmap/notifications-contracts-baseline.md`; `docs/roadmap.md`
+worktree_status: Notification, Subscription, DeliveryAttempt, DeliveryReceipt and ActionRef now validate before serialization and after strict deserialization; private representations preserve field order, null output and omitted optional-field defaults; Debug redacts every text-bearing field; no manifest or lockfile change
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 145c810b`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-nm01-validated-wire-20261003`, branch `fix/nm01-validated-wire-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `notification_dto_serde_preserves_wire_layout_and_option_defaults`; `notification_dtos_validate_and_redact_at_wire_boundaries`; `notification_dtos_reject_unknown_schema_versions_at_wire_boundaries`; `.github/workflows/ci.yml` routes `nm01_contracts` through `kiana-domain-s3/4`; no CI receipt for this source snapshot yet
+exit_code: isolated format and diff checks passed; no local runtime result; remote fixtures await push
+status_change: NM-01 remains roadmap row 097 `🔄`, `feature_status=partial`, `proof_level=source`; five additional DTO wire boundaries now enforce existing validation contracts
+proof-level change: none
+limitations: target fixtures await GitHub CI; full NM-01 acceptance still includes existing body/scope/TTL, canonical bytes, lifecycle transition, v0 upcast and source-guard contracts. No notification store, resolver, materializer, durable read state, outbox, delivery worker or external channel is established.
+reviewer: source review matched private wire field order/defaults to the public DTOs and checked that all text-bearing fields are redacted from Debug; no local runtime reviewer
+```
