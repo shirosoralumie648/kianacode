@@ -5151,6 +5151,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-10 exact approval subject/self-approval/one-shot/replay boundary reconciliation; no runtime test reviewer
 ```
 
+### SC-10 CI fixture/source-guard correction and production authority audit (2026-10-02)
+
+```text
+source_snapshot: 4557750be7badf8148a168c48cdac97f12d779b2 + SC-10 CI-only harness correction; kiana-core/tests/sc10_approval_binding.rs; kiana-core/tests/sc10_approval_guard.rs; kiana-core/src/approval_binding.rs; kiana-core/src/approvals.rs; kiana-daemon/src/journal_approvals.rs; docs/roadmap/security-approval-baseline.md; docs/roadmap/security-compliance.md; docs/roadmap.md; CURRENT_STATUS.md
+worktree_status: exact-binding positive fixture now reuses the original CapabilityRequest/RequestId and context; source guard checks the typed SecurityReasonCode::AuthPrincipalMissing variant. No product ApprovalStore/dispatch behavior changed. SC-10 remains partial/source: the public ApprovalBinding/HumanInboxItem facade has no production call site; JournalApprovalStore still binds decisions to the original requester actor, so independent approver identity/scope is not implemented. validate_request also does not recompute current context scope_digest or accept an expected GrantScope.
+command_argv:
+  gh run view 36926015057 --log --job 110583766753
+  gh run view 36959912924 --json jobs --jq '.jobs[] | select(.name == "Tests (kiana-core-s6/6)")'
+  rg -n 'ApprovalBinding|HumanInboxItem|validate_request|context_for_pending|decided_by' kiana-core/src kiana-core/tests kiana-daemon/src/journal_approvals.rs
+  git diff --check
+cwd/environment: /tmp/kiana-sc10-audit-20261002; branch step/sc10-audit-20261002 at source snapshot 4557750be7badf8148a168c48cdac97f12d779b2; no cargo test/build/check/fmt/clippy/smoke command run
+fixture or cassette: GitHub run 36926015057/job 110583766753 on head ad3e664b6d060fcb332f6933b8ca91515c3ee3ca: sc10_approval_binding failed because the positive fixture generated a different RequestId; sc10_approval_guard failed because it expected literal AUTH_PRINCIPAL_MISSING instead of the typed reason variant; all other tests in sc10_approval_binding passed. Run 36959912924/job 110691766266 reproduced both SC-10 failures on old head 4557750be7badf8148a168c48cdac97f12d779b2; corrected fixtures are not present on either CI head and have no remote result.
+exit_code: 0 for git diff --check; prior remote SC-10 targets failed as above; corrected targets not run locally and have no new remote result
+status_change: SC-10 remains partial. This commit corrects only the test harness false negative and brittle source marker; it does not change runtime behavior or resolve independent approver identity/scope, value-facade production integration, or scope/Grant revalidation.
+proof-level_change: unchanged; source only, no local_behavior/durable/live/physical promotion
+limitations: no local tests or builds were run; current ApprovalStore/ControlPlane path permits the bound requester actor to decide their own request and rejects another actor by requester binding; the HumanInbox self-approval check is not wired to that path, and HumanInbox consume is a pure value transition rather than cross-process CAS. The current CI run was not awaited and the fixture correction has not yet received a remote result.
+reviewer: SC-10 source/CI receipt audit; no runtime test reviewer
+```
+
 ### SC-11 entrypoint and adapter parity evidence (2026-09-17)
 
 ```text
