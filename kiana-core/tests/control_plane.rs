@@ -1010,6 +1010,80 @@ async fn capability_policy_and_broker_failures_preserve_event_order() {
 }
 
 #[tokio::test]
+async fn direct_capability_events_keep_request_identity_without_run_scope() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let request = CapabilityRequest::new(
+        request_id,
+        CapabilityKind::Query,
+        "memory.search",
+        json!({ "query": "ER-02 direct identity" }),
+    );
+
+    let response = core.authorize_and_execute(&context, request).await.unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(response.request_id, request_id);
+
+    let request_events = events.read_request(&request_id).await.unwrap();
+    assert!(request_events
+        .iter()
+        .any(|event| event.kind == "request.accepted"));
+    let completed = request_events
+        .iter()
+        .find(|event| event.kind == "capability.completed")
+        .expect("direct capability terminal fact");
+    for event in &request_events {
+        assert_eq!(event.request_id, request_id, "{}", event.kind);
+        assert_eq!(event.correlation_id, Some(request_id), "{}", event.kind);
+        if event.data.get("capability_request_id").is_some() {
+            assert_eq!(
+                event.data["capability_request_id"],
+                json!(request_id),
+                "{}",
+                event.kind
+            );
+        }
+    }
+    assert_eq!(completed.data["capability_request_id"], json!(request_id));
+    assert!(completed.data.get("run_id").is_none_or(Value::is_null));
+    assert!(completed.data.get("turn_id").is_none_or(Value::is_null));
+
+    for event in events.read_all().await.unwrap() {
+        let is_direct_execution_fact = (event.kind == "execution.prepared"
+            && event.data["permit"]["request_id"] == json!(request_id))
+            || (event.kind == "execution.result_committed"
+                && event.data["capability_request_id"] == json!(request_id));
+        if !is_direct_execution_fact {
+            continue;
+        }
+        if event.kind == "execution.prepared" {
+            assert_eq!(event.data["permit"]["request_id"], json!(request_id));
+        } else {
+            assert_eq!(
+                event.data["capability_request_id"],
+                json!(request_id)
+            );
+        }
+        assert!(event.data.get("run_id").is_none_or(Value::is_null));
+        assert!(event.data.get("turn_id").is_none_or(Value::is_null));
+        if event.kind == "execution.prepared" {
+            assert!(event.data["permit"]["run_id"].is_null());
+            assert!(event.data["permit"]["turn_id"].is_null());
+            assert!(event.data["invocation"].is_null());
+        }
+    }
+}
+
+#[tokio::test]
 async fn incomplete_cell_capability_scope_is_rejected_before_broker() {
     let broker = Arc::new(CountingBroker {
         calls: Mutex::new(0),

@@ -1,7 +1,7 @@
 use kiana_core::{project_capability_attempts, project_invocations};
 use kiana_domain::{
-    CapabilityEffectState, CapabilityExecutionState, CapabilityStopState, RequestId, RunId,
-    RuntimeEvent, TurnId,
+    CapabilityEffectState, CapabilityExecutionState, CapabilityResult, CapabilityResultReceipt,
+    CapabilityStopState, ExecutionId, InvocationId, RequestId, RunId, RuntimeEvent, TurnId,
 };
 use serde_json::json;
 
@@ -128,6 +128,365 @@ fn invocation_projection_rejects_attempt_digest_and_terminal_conflicts() {
 }
 
 #[test]
+fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let result = CapabilityResult::success(request_id, json!({ "answer": "one" }));
+    let execution_id = ExecutionId::new();
+    let invocation_id = InvocationId::new();
+    let dispatch_receipt = CapabilityResultReceipt::from_result(
+        &result,
+        Some(execution_id),
+        Some(invocation_id),
+        1,
+        true,
+    )
+    .unwrap();
+    let finalizer_receipt =
+        CapabilityResultReceipt::from_result(&result, None, None, 1, true).unwrap();
+    let mut matching = executing_events(run_id, request_id);
+    matching.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":dispatch_receipt.clone(),
+        }),
+    ));
+    matching.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.completed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "attempt":1,
+            "effect_started":true,
+            "effect_known":true,
+            "zero_effect":false,
+            "fenced":false,
+            "answer":"one",
+            "result_receipt":finalizer_receipt.clone(),
+        }),
+    ));
+    let projected = project_invocations(run_id, &matching).unwrap();
+    assert_eq!(projected.len(), 1);
+    assert_eq!(projected[0].request_id, request_id);
+    assert_eq!(projected[0].state, CapabilityExecutionState::Succeeded);
+    assert_eq!(projected[0].result, Some(matching[4].data["result"].clone()));
+    assert_eq!(
+        projected[0].event_ids,
+        matching
+            .iter()
+            .map(|event| event.event_id.to_string())
+            .collect::<Vec<_>>()
+    );
+
+    let conflicting_result = CapabilityResult::success(request_id, json!({ "answer": "two" }));
+    let conflicting_receipt =
+        CapabilityResultReceipt::from_result(&conflicting_result, None, None, 1, true).unwrap();
+    let mut conflicting = executing_events(run_id, request_id);
+    conflicting.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":dispatch_receipt.clone(),
+        }),
+    ));
+    conflicting.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.completed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "attempt":1,
+            "effect_started":true,
+            "effect_known":true,
+            "zero_effect":false,
+            "fenced":false,
+            "answer":"two",
+            "result_receipt":conflicting_receipt.clone(),
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &conflicting).unwrap_err(),
+        "invocation_terminal_conflict"
+    );
+
+    let mut mismatched_result_receipt = executing_events(run_id, request_id);
+    mismatched_result_receipt.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":conflicting_receipt.clone(),
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_result_receipt).unwrap_err(),
+        "invocation_result_receipt_result_conflict"
+    );
+
+    let mut mismatched_execution_identity = executing_events(run_id, request_id);
+    mismatched_execution_identity.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":ExecutionId::new(),
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":dispatch_receipt.clone(),
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_execution_identity).unwrap_err(),
+        "invocation_result_receipt_identity_conflict"
+    );
+
+    let foreign_request_id = RequestId::new();
+    let foreign_result = CapabilityResult::success(
+        foreign_request_id,
+        json!({ "answer": "one" }),
+    );
+    let foreign_receipt = CapabilityResultReceipt::from_result(
+        &foreign_result,
+        Some(execution_id),
+        Some(invocation_id),
+        1,
+        true,
+    )
+    .unwrap();
+    let mut mismatched_receipt_request_id = executing_events(run_id, request_id);
+    mismatched_receipt_request_id.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":foreign_receipt,
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_receipt_request_id).unwrap_err(),
+        "invocation_result_receipt_request_id_conflict"
+    );
+
+    let mut mismatched_execution_effect_known = executing_events(run_id, request_id);
+    mismatched_execution_effect_known.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":false,
+            "outcome_state":CapabilityExecutionState::Succeeded,
+            "result":result.clone(),
+            "result_receipt":dispatch_receipt.clone(),
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_execution_effect_known).unwrap_err(),
+        "invocation_result_receipt_effect_known_conflict"
+    );
+
+    let mut mismatched_execution_outcome_state = executing_events(run_id, request_id);
+    mismatched_execution_outcome_state.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "outcome_state":CapabilityExecutionState::Unknown,
+            "result":result.clone(),
+            "result_receipt":dispatch_receipt.clone(),
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_execution_outcome_state).unwrap_err(),
+        "invocation_result_receipt_outcome_state_conflict"
+    );
+
+    let mut mismatched_lifecycle = executing_events(run_id, request_id);
+    mismatched_lifecycle.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result,
+            "result_receipt":dispatch_receipt,
+        }),
+    ));
+    mismatched_lifecycle.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.completed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "attempt":1,
+            "effect_started":true,
+            "effect_known":false,
+            "zero_effect":false,
+            "fenced":false,
+            "answer":"one",
+            "result_receipt":finalizer_receipt,
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &mismatched_lifecycle).unwrap_err(),
+        "invocation_result_receipt_lifecycle_conflict"
+    );
+}
+
+#[test]
+fn invocation_projection_rejects_uncommitted_terminal_receipts() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let result = CapabilityResult::success(request_id, json!({ "answer": "one" }));
+    let execution_id = ExecutionId::new();
+    let invocation_id = InvocationId::new();
+    let committed_dispatch_receipt = CapabilityResultReceipt::from_result(
+        &result,
+        Some(execution_id),
+        Some(invocation_id),
+        1,
+        true,
+    )
+    .unwrap();
+    let uncommitted_dispatch_receipt = CapabilityResultReceipt::from_result(
+        &result,
+        Some(execution_id),
+        Some(invocation_id),
+        1,
+        false,
+    )
+    .unwrap();
+    let uncommitted_finalizer_receipt =
+        CapabilityResultReceipt::from_result(&result, None, None, 1, false).unwrap();
+
+    let mut uncommitted_execution = executing_events(run_id, request_id);
+    uncommitted_execution.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":uncommitted_dispatch_receipt,
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &uncommitted_execution).unwrap_err(),
+        "invocation_result_receipt_uncommitted"
+    );
+
+    let mut uncommitted_finalizer = executing_events(run_id, request_id);
+    uncommitted_finalizer.push(event(
+        run_id,
+        request_id,
+        5,
+        "execution.result_committed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "execution_id":execution_id,
+            "invocation_id":invocation_id,
+            "attempt":1,
+            "effect_known":true,
+            "result":result.clone(),
+            "result_receipt":committed_dispatch_receipt,
+        }),
+    ));
+    uncommitted_finalizer.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.completed",
+        json!({
+            "run_id":run_id,
+            "capability_request_id":request_id,
+            "attempt":1,
+            "effect_started":true,
+            "effect_known":true,
+            "zero_effect":false,
+            "fenced":false,
+            "answer":"one",
+            "result_receipt":uncommitted_finalizer_receipt,
+        }),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &uncommitted_finalizer).unwrap_err(),
+        "invocation_result_receipt_uncommitted"
+    );
+}
+
+#[test]
 fn capability_attempt_projection_preserves_unknown_stop_and_retry_attempts() {
     let run_id = RunId::new();
     let request_id = RequestId::new();
@@ -164,6 +523,16 @@ fn er09_projection_exposes_only_typed_attempt_identity() {
         "CapabilityExecutionState::Unknown",
         "execution.result_committed",
         "terminal_signature",
+        "CapabilityResultReceipt::from_json",
+        "CapabilityResultReceipt::from_result",
+        "invocation_result_receipt_uncommitted",
+        "receipt.execution_id",
+        "receipt.invocation_id",
+        "invocation_result_receipt_lifecycle_conflict",
+        "invocation_result_receipt_effect_known_conflict",
+        "invocation_result_receipt_outcome_state_conflict",
+        "result_digest",
+        "receipt_digest",
         "digest_for",
         "effect_known",
         "stop_confirmed",

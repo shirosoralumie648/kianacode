@@ -3313,6 +3313,32 @@ limitations: prior domain job 110695889284 also failed `co08_replay`, `co11_crit
 reviewer: source review confirmed each candidate replay preserves the request, payload, key, and three non-target links while changing one identity field; the comparator denial reason remains `event_idempotency_key_payload_mismatch`. No local test reviewer.
 ```
 
+### ER-02 direct/Harness approval event identity fixture (2026-10-02)
+
+```text
+source_snapshot: origin/master=78a6d79607ed77e8950b0e4509231dc6bf3e2e31; kiana-core/tests/control_plane.rs; kiana-core/tests/er09_invocation_projection.rs; kiana-daemon/tests/daemon_host.rs; kiana-core/src/invocation_projection.rs; kiana-core/src/capabilities.rs; docs/roadmap/event-receipt-identity-baseline.md
+worktree_status: isolated branch step/er02-entry-parity-20261002 fast-forwarded to 78a6d796. Added a direct canonical `memory.search` success fixture asserting request/correlation/capability-request identity and no fabricated Run/Turn IDs. Extended the real DaemonHost + KianaHarness + JournalApprovalStore proof-retry fixture to assert invalid proof causes no dispatch, successful approval keeps the original Run event root and request/correlation links, and persisted tool/request/approval/dispatch/result facts retain Run/Turn/capability-request/derived invocation/execution identity. It now asserts the full successful invocation projection and exact persisted event IDs. Added receipt-aware terminal normalization that validates request and execution identities, rejects uncommitted terminal receipts, recomputes committed result digest, checks `effect_known` and explicit `outcome_state` consumed by `terminal_state`, compares lifecycle evidence across finalizers, and retains the receipt-less legacy fallback; ER09 fixtures cover matching boundary receipts, digest drift, wrong result/request/execution identity, execution lifecycle drift, uncommitted terminals, and capability lifecycle drift. No shared manifest/workflow changed.
+command_argv:
+  git fetch origin master
+  git stash push -m 'er02 status evidence before cap01 ff' -- CURRENT_STATUS.md
+  git merge --ff-only 78a6d796
+  git stash pop
+  gh run view 36963672912 --json headSha,status,conclusion,jobs
+  gh run view 36963672912 --job 110702711128 --log-failed
+  gh run view 36963672912 --job 110702711140 --log-failed
+  gh run view 36963672912 --job 110702710970 --log-failed
+  git diff --check (accidental, before receipt-normalization edits; exit 0, no output)
+  git diff --check (accidental, during final manual review before fast-forward; exit 0, no output)
+  no local test, build, Cargo check, fmt, clippy, or smoke command was run
+cwd·environment: /tmp/kiana-er02-entry-parity-20261002; Linux; CI is the only test environment
+fixture·cassette: `direct_capability_events_keep_request_identity_without_run_scope`; `invocation_projection_normalizes_and_validates_terminal_result_receipts`; `invocation_projection_rejects_uncommitted_terminal_receipts`; `wire_approval_proof_retry_resumes_original_run`; existing deny-first `foreign_runner_capability_request_is_unknown_before_broker` and `cross_run_result_cannot_pair_by_sequence`
+exit_code: isolated worktree fast-forward to 78a6d796 succeeded; read-only CI log commands found run 36963672912 at head ff3fb2fe with domain job 110702711128 ER-02 3/3 pass, core job 110702711140 2/2 pass, and eventlog job 110702710970 7/7 pass. Both accidental `git diff --check` invocations exited 0 with no output and are not test evidence. No local test/build/Cargo check/fmt/clippy/smoke was run. All fixtures in this diff remain unexecuted.
+status_change: ER-02 remains 🔄 and `feature_status=partial`; direct/Harness identity fixtures, receipt-aware projector normalization, and full Run-bound projection assertions are source-covered, without claiming CI proof or step closeout
+proof-level change: `proof_level=source`; no local_behavior, durable, live, or physical promotion
+limitations: Run 36963672912 predates this diff and is only prior fixture evidence; its exact ER-02 target results and unrelated shard failures are recorded in the baseline. The direct, receipt parity/conflict, and full daemon projection fixtures have no CI receipt yet. Source fixtures do not prove durable recovery, live effects, physical outcomes, or a complete green ER-02 shard.
+reviewer: manual source review only. Confirmed the daemon fixture uses the real JournalApprovalStore composition, preserves distinct approval decision-command and original Run-root event IDs, matches event_ids using the projector's run/request association rules, and does not assume execution transaction RuntimeEvent.request_id/correlation matches append_event facts. Both accidental diff-checks are recorded above; no local test reviewer.
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text
