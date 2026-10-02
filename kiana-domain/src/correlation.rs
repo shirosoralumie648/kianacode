@@ -415,8 +415,7 @@ impl CorrelationScope {
 }
 
 /// Immutable context attached to a committed signal or a derived span.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct CorrelationContext {
     pub schema: String,
     pub version: SchemaVersion,
@@ -452,6 +451,80 @@ pub struct CorrelationContext {
     pub data_epoch: u64,
     #[serde(default)]
     pub source_cursor: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorrelationContextWire {
+    schema: String,
+    version: SchemaVersion,
+    trace_id: TraceId,
+    span_id: SpanId,
+    #[serde(default)]
+    parent_span_id: Option<SpanId>,
+    #[serde(default)]
+    span_links: Vec<SpanLink>,
+    correlation_id: RequestId,
+    #[serde(default)]
+    causation: Option<CausationRef>,
+    #[serde(default)]
+    command_id: Option<RequestId>,
+    request_id: RequestId,
+    #[serde(default)]
+    organization_id: Option<OrganizationId>,
+    #[serde(default)]
+    project_id: Option<ProjectId>,
+    session_id: SessionId,
+    #[serde(default)]
+    run_id: Option<RunId>,
+    #[serde(default)]
+    turn_id: Option<TurnId>,
+    #[serde(default)]
+    invocation_id: Option<InvocationId>,
+    #[serde(default)]
+    execution_id: Option<ExecutionId>,
+    #[serde(default)]
+    attempt: Option<AttemptRef>,
+    actor_ref: String,
+    authority_epoch: u64,
+    data_epoch: u64,
+    #[serde(default)]
+    source_cursor: Option<u64>,
+}
+
+impl<'de> Deserialize<'de> for CorrelationContext {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = CorrelationContextWire::deserialize(deserializer)?;
+        let context = Self {
+            schema: wire.schema,
+            version: wire.version,
+            trace_id: wire.trace_id,
+            span_id: wire.span_id,
+            parent_span_id: wire.parent_span_id,
+            span_links: wire.span_links,
+            correlation_id: wire.correlation_id,
+            causation: wire.causation,
+            command_id: wire.command_id,
+            request_id: wire.request_id,
+            organization_id: wire.organization_id,
+            project_id: wire.project_id,
+            session_id: wire.session_id,
+            run_id: wire.run_id,
+            turn_id: wire.turn_id,
+            invocation_id: wire.invocation_id,
+            execution_id: wire.execution_id,
+            attempt: wire.attempt,
+            actor_ref: wire.actor_ref,
+            authority_epoch: wire.authority_epoch,
+            data_epoch: wire.data_epoch,
+            source_cursor: wire.source_cursor,
+        };
+        context.validate().map_err(D::Error::custom)?;
+        Ok(context)
+    }
 }
 
 impl CorrelationContext {

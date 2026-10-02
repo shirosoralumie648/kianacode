@@ -177,7 +177,7 @@ fn child_and_async_links_never_reuse_a_span_or_foreign_parent_as_owner() {
 }
 
 #[test]
-fn decoded_context_rejects_nil_ids_and_parent_or_self_span_links() {
+fn validate_rejects_nil_ids_and_parent_or_self_span_links() {
     let request = request();
     let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
 
@@ -239,6 +239,125 @@ fn decoded_context_rejects_nil_ids_and_parent_or_self_span_links() {
         self_link.validate().unwrap_err(),
         "correlation_span_link_self"
     );
+}
+
+#[test]
+fn wire_decode_rejects_nil_ids_and_invalid_correlation_links() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
+    let valid = serde_json::to_value(&root).unwrap();
+
+    let mut legacy_without_optional_fields = valid.clone();
+    let legacy_object = legacy_without_optional_fields.as_object_mut().unwrap();
+    for field in [
+        "parent_span_id",
+        "span_links",
+        "causation",
+        "command_id",
+        "organization_id",
+        "project_id",
+        "run_id",
+        "turn_id",
+        "invocation_id",
+        "execution_id",
+        "attempt",
+        "source_cursor",
+    ] {
+        legacy_object.remove(field);
+    }
+    let legacy: CorrelationContext =
+        serde_json::from_value(legacy_without_optional_fields).unwrap();
+    assert_eq!(legacy.request_id, root.request_id);
+    assert!(legacy.span_links.is_empty());
+    assert!(legacy.command_id.is_none());
+
+    let mut nil_request = valid.clone();
+    nil_request["request_id"] = serde_json::to_value(RequestId::from_uuid(Uuid::nil())).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_request).is_err());
+
+    let mut request_drift = valid.clone();
+    request_drift["correlation_id"] = serde_json::to_value(RequestId::new()).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(request_drift).is_err());
+
+    let mut nil_command = valid.clone();
+    nil_command["command_id"] =
+        serde_json::to_value(Some(RequestId::from_uuid(Uuid::nil()))).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_command).is_err());
+
+    let mut nil_project = valid.clone();
+    nil_project["project_id"] =
+        serde_json::to_value(Some(ProjectId::from_uuid(Uuid::nil()))).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_project).is_err());
+
+    let mut nil_organization = valid.clone();
+    nil_organization["organization_id"] =
+        serde_json::to_value(Some(OrganizationId::from_uuid(Uuid::nil()))).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_organization).is_err());
+
+    let mut nil_event = valid.clone();
+    nil_event["causation"] =
+        serde_json::to_value(Some(CausationRef::Event(EventId::from_uuid(Uuid::nil())))).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_event).is_err());
+
+    let mut nil_command_causation = valid.clone();
+    nil_command_causation["causation"] = serde_json::to_value(Some(CausationRef::Command(
+        RequestId::from_uuid(Uuid::nil()),
+    )))
+    .unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_command_causation).is_err());
+
+    let mut command_causation_drift = valid.clone();
+    command_causation_drift["causation"] =
+        serde_json::to_value(Some(CausationRef::Command(RequestId::new()))).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(command_causation_drift).is_err());
+
+    let mut parent_link = valid.clone();
+    parent_link["span_links"] = serde_json::to_value(vec![SpanLink::new(
+        root.current_span(),
+        SpanLinkKind::Parent,
+    )])
+    .unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(parent_link).is_err());
+
+    let mut self_link = valid.clone();
+    self_link["span_links"] = serde_json::to_value(vec![SpanLink::new(
+        root.current_span(),
+        SpanLinkKind::FollowsFrom,
+    )])
+    .unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(self_link).is_err());
+
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let invocation_id = InvocationId::new();
+    let execution_id = ExecutionId::new();
+    let bound = root
+        .with_run(run_id)
+        .unwrap()
+        .with_turn(turn_id)
+        .unwrap()
+        .with_invocation(invocation_id, execution_id)
+        .unwrap();
+    let attempt = AttemptRef::new(
+        run_id,
+        turn_id,
+        invocation_id,
+        execution_id,
+        bound.command_id.unwrap(),
+        1,
+    )
+    .unwrap();
+    let attempted = bound.with_attempt(attempt).unwrap();
+
+    let mut nil_attempt_id = serde_json::to_value(&attempted).unwrap();
+    nil_attempt_id["attempt"]["run_id"] =
+        serde_json::to_value(RunId::from_uuid(Uuid::nil())).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(nil_attempt_id).is_err());
+
+    let mut attempt_command_drift = serde_json::to_value(&attempted).unwrap();
+    attempt_command_drift["attempt"]["command_id"] =
+        serde_json::to_value(RequestId::new()).unwrap();
+    assert!(serde_json::from_value::<CorrelationContext>(attempt_command_drift).is_err());
 }
 
 #[test]
