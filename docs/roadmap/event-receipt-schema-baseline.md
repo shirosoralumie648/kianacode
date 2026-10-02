@@ -137,10 +137,11 @@ runs in `kiana-domain-s2/4`, and the core guard runs in `kiana-core-s1/6`. Tests
 no local tests/build/check/clippy/smoke are run.
 
 The exact domain target receipt above proves the `result_source` field matrix for that source
-snapshot only. The core guard still has no successful target receipt, and the registry validator
-is not connected to generic EventStore append. Run `37052098563` was superseded while its domain job
-was in progress and its core guard job `110988221406` was cancelled; the later head has been pushed
-without waiting for CI.
+snapshot only. It passed 5/5 again in run `37054968622`, head `8d42319c`, domain-s2 job
+`110997881165`; that shard failed on unrelated sibling targets. Core-s1 job `110997881116` also
+failed on sibling targets, and its log contained no exact `er01_event_contract_guard` target result,
+so the guard still has no successful receipt. The registry validator is not connected to generic
+EventStore append; no global enforcement is inferred.
 
 ## 6. 限制与交接
 

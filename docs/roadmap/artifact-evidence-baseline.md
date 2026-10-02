@@ -202,8 +202,9 @@ artifact reference, a missing blob and hash drift before the successful approval
 state-changing Company fact count is unchanged for each denial; explicit command-rejection audit
 events remain allowed. It then restores the original blob and asserts `ApproveProject` completes
 through the CompanyProof path. The direct ArtifactContentPort check remains as a byte-level assertion. The
-unified `kiana-daemon` whole-crate shard already includes this target; this source fixture has not
-yet run on GitHub CI at the updated snapshot. CO-06 stays 🔄 with `feature_status=partial` and
-`proof_level=source` pending that receipt. These checks do not close the open cross-store atomicity,
-reconciliation, product UI comparison, cross-process recovery, retention/deletion or power-loss
-guarantees above.
+unified `kiana-daemon` whole-crate shard includes this target. Run `37054968622`, head `8d42319c`,
+daemon job `110997881189` compiled and started `artifact_version_remains_reviewable_after_workspace_file_changes`,
+then aborted with stack overflow / SIGABRT before any assertion output. This is a failure receipt,
+not a passing CompanyProof readback result. CO-06 stays 🔄 with `feature_status=partial` and
+`proof_level=source`. These checks do not close the open cross-store atomicity, reconciliation,
+product UI comparison, cross-process recovery, retention/deletion or power-loss guarantees above.

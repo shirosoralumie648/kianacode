@@ -266,5 +266,21 @@ JSONL projection. `ensure_memory_projection` correctly refused the inconsistent 
 
 The fixture now recreates writer, search, review, and post-review hosts against one persistent
 `JsonlEventLog` path. This keeps the cross-host workflow and production unjournaled-projection guard
-intact. The next remote run must reach the evidence-denial assertion and confirm the Candidate
-stays unsearchable before and after review. CM-02 remains partial/source.
+intact. A later CI run with value-free phase markers completed the writer and pre-review search,
+then overflowed the test thread after `memory.review` began and before the command returned. Static
+source tracing shows the handler's evidence check has not run; the remaining interval is capability
+preparation, policy/gate, and approval staging/commit, but no recursive call is identified. The
+Candidate's post-review search assertion remains unobserved. CM-02 remains partial/source.
+
+```text
+source_snapshot: persistent EventLog fixture `e855a414`; marker fixture `937e04ed`; run `37054968622`, head `8d42319c`, CM-02 job `110997880560`; `kiana-daemon/tests/daemon_host.rs`; `kiana-core/src/{commands,approvals,memory_proposals}.rs`; `kiana-daemon/src/harness_memory.rs`
+worktree_status: diagnostic target logs fixed phases without values, payloads, paths, or identifiers. Writer and pre-review search completed; `memory.review` command overflowed before returning AwaitingApproval. No production behavior changed.
+command_argv: GitHub job log via `gh api repos/shirosoralumie648/kianacode/actions/jobs/110997880560/logs`; read-only source trace; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner; runtime tests remain remote-only
+fixture·cassette: exact target `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable`; logs show `review command begins`, then stack overflow/SIGABRT before `review command completes`
+exit_code: Cargo exit 101 / SIGABRT; no assertion receipt after review command
+status_change: CM-02 remains `partial/source`; failure boundary narrowed to review command preparation/authorization/approval staging, with root cause still unknown
+proof-level change: none
+limitations: no stack trace or source-level recursive call identified; MemoryReviewHandler, evidence rejection, unchanged memory JSONL and post-review unsearchability were not reached
+reviewer: source trace through command dispatch, authorize/gate and approval staging; no local runtime reviewer
+```

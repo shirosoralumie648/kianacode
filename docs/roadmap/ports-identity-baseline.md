@@ -118,7 +118,8 @@ unavailable fakes, asserting their exact `PortError::Unavailable` values. It als
 `MissingCredential` and verifies the result retains the requested `SecretRef`, reports
 `CredentialState::Missing`, carries no expiry or resolved digest, and passes metadata validation.
 The test does not define `expected_revision=None` behavior: config publication uses an explicit
-expected revision. The existing `kiana-ports` whole-crate shard already includes the target, so no
-workflow or shard-map change is needed. CI-03 remains `partial/source`; this fixture has no remote
-receipt yet and does not prove production adapters, SecretStore/lease behavior, durable identity,
-or a green ports shard.
+expected revision. Run `37054968622`, head `8d42319c`, ports job `110997881209` passed the complete
+`ci03_ports` target 5/5, including this new case. The enclosing ports shard failed on unrelated
+BQ/PD targets; no workflow or shard-map change is needed. CI-03 remains `partial/source`, and this
+fixture does not prove production adapters, SecretStore/lease behavior, durable identity, or a green
+ports shard.

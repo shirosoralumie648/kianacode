@@ -64,13 +64,15 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 | `legacy_model_error_and_retry_observation_fail_closed_without_disposition` | 旧错误缺 recovery 字段时采用 Terminal，旧 RetryObservation 缺 phase/disposition 时策略校验失败 |
 | `unknown_recovery_disposition_is_rejected` | 未知未来 disposition serde 解码失败 |
 | `retry_policy_denies_non_transport_recovery_dispositions` | 只有 TransportRetry 能进入现有有界 retry policy |
-| `typed_recovery_disposition_bounds_runner_routing` | 两种安全 transport 分类按既有策略 retry；format/tool/context repair 明确失败且不重试；FormatRepair 保留于 `run.model_turn` outcome、只调用一次且不 handoff capability；Terminal 保持原错误 |
+| `typed_recovery_disposition_bounds_runner_routing` | 两种安全 transport 分类按既有策略 retry；format/tool/context repair 明确失败且不重试；FormatRepair/ToolRepair 保留于 `run.model_turn` outcome、只调用一次且不 handoff capability；Terminal 保持原错误 |
 | `structured_output_errors_are_typed_format_repair_without_running_a_repair` | Provider structured-output 空/非法 JSON、类型和 schema 内容错误带 `FormatRepair`，同时保留 `request_sent=true`、`side_effect_state=none`、`retry_class=Never`；无效的本地 response schema 保持 `Terminal` 且未发送请求 |
 | `malformed_model_tool_arguments_are_typed_tool_repair_after_request` | Provider 已收到响应后，工具参数非法 JSON、非对象或不符合现有工具 schema 的错误标记为 `ToolRepair`，记录 `request_sent=true`、`side_effect_state=none`、`retry_class=Never`；Runner 只做一次模型调用、记录 bounded outcome、以 unavailable 失败且不移交 capability |
 
 `.github/workflows/ci.yml` 在 GitHub runner 的 `kiana-domain-s3/4`、`kiana-runner` 和 `kiana-provider` shards 执行这些 domain outcome、Runner 行为和 Provider parser fixtures；本切片复用现有 `h05_model_outcome` / `h05_stop_guard` targets，不改 shard map。本地不运行测试。
 
-Exact prior H05 receipts: run `37008943358` / head `cc303315`, Runner job `110844252604` passed all 3 `h05_stop_guard` tests, Domain job `110844252435` passed all 5 `h05_model_outcome` tests, and Provider job `110844252490` passed both `explicit_incomplete_*` fixtures. The overall run was later cancelled; each relevant shard was red on sibling targets. H05 production/source/test/shard files were byte-identical from `cc303315` through base `e17143f7`. The typed-recovery and structured-output disposition fixtures in this slice have no CI receipt.
+Exact prior H05 receipts: run `37008943358` / head `cc303315`, Runner job `110844252604` passed all 3 `h05_stop_guard` tests, Domain job `110844252435` passed all 5 `h05_model_outcome` tests, and Provider job `110844252490` passed both `explicit_incomplete_*` fixtures. The overall run was later cancelled; each relevant shard was red on sibling targets. H05 production/source/test/shard files were byte-identical from `cc303315` through base `e17143f7`.
+
+Run `37054968622`, head `8d42319c`, executed the new H05 checks: Provider job `110997881483` logged both `structured_output_errors_are_typed_format_repair_without_running_a_repair ... ok` and `malformed_model_tool_arguments_are_typed_tool_repair_after_request ... ok`; Runner job `110997880876` passed all 4 tests in `h05_stop_guard`, including `typed_recovery_disposition_bounds_runner_routing`. Both enclosing crate shards failed on unrelated sibling tests; no full-shard or workflow success is claimed. H05 remains `partial/source`.
 
 ## 5. 限制与交接
 
