@@ -16,6 +16,7 @@ use kiana_ports::{ApprovalStorePort, ArtifactContentPort, EventStorePort, PortEr
 use kiana_runner::{KianaHarness, ScriptedModel};
 use serde_json::json;
 use std::fs;
+use std::io::Write as _;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -99,11 +100,21 @@ impl Fixture {
         let configuration_revision = kiana_domain::json_digest(&json!({
             "fixture": "co06-company-artifact-history.v1"
         }));
+        trace_ci_phase(&format!(
+            "{idempotency_key}: authority synchronization begin"
+        ));
         core.synchronize_authority(&context, &configuration_revision)
             .await
             .expect("server authority snapshot");
-        core.handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
-            .await
+        trace_ci_phase(&format!(
+            "{idempotency_key}: authority synchronization complete"
+        ));
+        trace_ci_phase(&format!("{idempotency_key}: Company command begin"));
+        let response = core
+            .handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
+            .await;
+        trace_ci_phase(&format!("{idempotency_key}: Company command complete"));
+        response
     }
 
     async fn register_artifact(
@@ -146,6 +157,12 @@ impl Fixture {
             .find(|path| path.extension().is_some_and(|value| value == "blob"))
             .expect("artifact blob")
     }
+}
+
+fn trace_ci_phase(phase: &str) {
+    let mut stderr = std::io::stderr().lock();
+    let _ = writeln!(stderr, "co06_company_artifact_history phase: {phase}");
+    let _ = stderr.flush();
 }
 
 impl Drop for Fixture {
