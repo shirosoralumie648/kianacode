@@ -308,7 +308,8 @@ impl MemoryRecord {
     }
 
     pub fn visibility(&self) -> MemoryVisibility {
-        if self.schema != MEMORY_RECORD_SCHEMA_V2
+        if self.validate_lifecycle().is_err()
+            || self.schema != MEMORY_RECORD_SCHEMA_V2
             || self.import_mode == MemoryImportMode::LegacyImport
             || self.state == MemoryState::Rejected
             || self.admission_state == MemoryAdmission::Rejected

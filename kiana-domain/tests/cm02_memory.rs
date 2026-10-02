@@ -213,6 +213,18 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
     };
 
     record.validate_lifecycle().unwrap();
+    assert_eq!(
+        record.visibility(),
+        kiana_domain::MemoryVisibility::Searchable
+    );
+    assert!(record.searchable());
+    let assert_denied = |invalid: &MemoryRecord| {
+        assert_eq!(
+            invalid.visibility(),
+            kiana_domain::MemoryVisibility::Denied
+        );
+        assert!(!invalid.searchable());
+    };
 
     let mut missing_origin = record.clone();
     missing_origin.origin = MemoryOrigin::Unknown;
@@ -220,6 +232,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_origin.validate_lifecycle().unwrap_err(),
         "memory_qualified_provenance_invalid"
     );
+    assert_denied(&missing_origin);
 
     let mut missing_evidence = record.clone();
     missing_evidence.evidence.clear();
@@ -227,6 +240,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_evidence.validate_lifecycle().unwrap_err(),
         "memory_qualified_provenance_invalid"
     );
+    assert_denied(&missing_evidence);
 
     let mut blank_evidence = record.clone();
     blank_evidence.evidence[0].quote = "  \n".to_owned();
@@ -272,6 +286,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_purpose.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
+    assert_denied(&missing_purpose);
 
     let mut malformed_purpose = record.clone();
     malformed_purpose.purpose.as_mut().unwrap().id = "  ".to_owned();
@@ -286,6 +301,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_sensitivity.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
+    assert_denied(&missing_sensitivity);
 
     let mut missing_reviewer = record.clone();
     missing_reviewer.reviewed_by = None;
@@ -293,6 +309,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_reviewer.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
+    assert_denied(&missing_reviewer);
 
     let mut blank_reviewer = record.clone();
     blank_reviewer.reviewed_by = Some(" \t".to_owned());
@@ -307,6 +324,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
         missing_review_time.validate_lifecycle().unwrap_err(),
         "memory_active_qualification_incomplete"
     );
+    assert_denied(&missing_review_time);
 
     let mut zero_review_time = record;
     zero_review_time.reviewed_at_ms = Some(0);
