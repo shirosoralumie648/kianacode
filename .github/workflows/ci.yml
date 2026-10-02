@@ -64,6 +64,34 @@ jobs:
       - name: Run desktop contract tests
         run: node --test contrib/desktop/tests/*.js
 
+  cm02-memory-review:
+    name: Tests (CM-02 memory review denial)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/node_modules/npm
+          df -h / | tail -1
+      - name: Install bubblewrap for daemon integration tests
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run memory promotion denial test
+        run: >-
+          cargo test -p kiana-daemon --test daemon_host
+          model_written_memory_without_evidence_is_rejected_and_stays_unsearchable
+          --locked -- --exact --nocapture --test-threads=1
+
   rust-tests:
     name: Tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
