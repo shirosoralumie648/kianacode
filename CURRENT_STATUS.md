@@ -19332,3 +19332,18 @@ proof-level change: none
 limitations: Provider/Runner new fixtures await GitHub CI; no auto-repair or retry occurs, and no live provider/usage/effect proof is claimed; streaming accumulator/billing, legacy wire display, external effects and physical/live behavior remain outside this slice
 reviewer: source diff review traced Provider received-response validation versus local-schema preflight, runner ModelTurn projection, one-call bound, and zero capability handoff; no local runtime reviewer
 ```
+
+### CO-06 CompanyProof historical-reference source slice (2026-10-03)
+
+```text
+source_snapshot: implementation commit `dda0e526` integrated and pushed in `d258b80f`; `kiana-core/src/company.rs`; `kiana-daemon/tests/co06_company_artifact_history.rs`; `docs/roadmap/artifact-evidence-baseline.md`; `docs/roadmap/companyos.md`; `docs/roadmap.md`
+worktree_status: `company_proof` now verifies a typed historical reference against the Company snapshot and reads the committed bytes through the injected ArtifactStore for any Company command that references a registered typed artifact. The extended history fixture drives objective/project/charter/budget/approval commands through the existing ControlPlane, reopens EventLog and LocalArtifactStore, changes the workspace file, rejects foreign/missing/hash-drifted references without a state-changing Company fact, then restores and approves from the original artifact. No second execution path or manifest change was introduced.
+command_argv: isolated and integrated `cargo fmt --all --check`; `git diff --check`; source/diff review; push of implementation in commit `d258b80f`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-co06-business-readback-20261003`; integration in `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `artifact_version_remains_reviewable_after_workspace_file_changes`; unified run `37052098563`, head `d258b80f`, daemon job `110988220950` was in progress when inspected and had not emitted a test result
+exit_code: source and integrated formatting/diff checks passed; exact updated target CI result pending; no local runtime result
+status_change: CO-06 remains roadmap row 065 `🔄`, `feature_status=partial`, `proof_level=source`; this slice adds CompanyProof historical-byte readback and failure-first command coverage but does not complete the card
+proof-level change: none
+limitations: updated CompanyProof target has no CI receipt yet; cross-store atomicity/reconciliation, crash recovery, product original-versus-current presentation, retention/deletion and power-loss durability remain unproven
+reviewer: source review of typed reference/snapshot/hash checks, injected ArtifactStore read path, command ordering and state-fact assertions; no runtime test reviewer
+```
