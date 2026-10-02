@@ -53,7 +53,7 @@
 
 use crate::{
     config::Connection,
-    response::{decode, Accumulator},
+    response::{decode_json, Accumulator},
 };
 use futures::StreamExt;
 use kiana_domain::*;
@@ -691,9 +691,7 @@ async fn send_inner_attempt(
             }
             bytes.extend_from_slice(&chunk);
         }
-        let value = serde_json::from_slice(&bytes)
-            .map_err(|_| ModelError::invalid("provider_response_json_invalid"))?;
-        let mut reply = decode(value, &prepared)?;
+        let mut reply = decode_json(&bytes, &prepared)?;
         reply.provider_request_id = provider_request_id;
         if !reply.output.text.is_empty() {
             sink(ModelDelta::Text {

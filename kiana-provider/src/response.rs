@@ -1,10 +1,127 @@
 use crate::transport::Framer;
 use kiana_domain::*;
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
+const PROVIDER_ENVELOPE_MAX_BYTES: usize = 8 * 1024 * 1024;
+
 fn error(code: &str) -> ModelError {
     ModelError::invalid(code)
+}
+
+struct UniqueProviderJson(Value);
+
+impl<'de> Deserialize<'de> for UniqueProviderJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ProviderJsonVisitor;
+
+        impl<'de> Visitor<'de> for ProviderJsonVisitor {
+            type Value = UniqueProviderJson;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("provider JSON without duplicate object keys")
+            }
+
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(Value::Bool(value)))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(value.into()))
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(value.into()))
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                serde_json::Number::from_f64(value)
+                    .map(|value| UniqueProviderJson(Value::Number(value)))
+                    .ok_or_else(|| E::custom("provider_json_number_invalid"))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(Value::String(value.to_owned())))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(Value::String(value)))
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(Value::Null))
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UniqueProviderJson(Value::Null))
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut values = Vec::new();
+                while let Some(value) = sequence.next_element::<UniqueProviderJson>()? {
+                    values.push(value.0);
+                }
+                Ok(UniqueProviderJson(Value::Array(values)))
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut values = serde_json::Map::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    if values.contains_key(&key) {
+                        return Err(serde::de::Error::custom("provider_json_duplicate_key"));
+                    }
+                    values.insert(key, map.next_value::<UniqueProviderJson>()?.0);
+                }
+                Ok(UniqueProviderJson(Value::Object(values)))
+            }
+        }
+
+        deserializer.deserialize_any(ProviderJsonVisitor)
+    }
+}
+
+fn parse_provider_json(raw: &[u8], invalid_code: &str) -> Result<Value, ModelError> {
+    if raw.len() > PROVIDER_ENVELOPE_MAX_BYTES {
+        return Err(error("provider_body_limit"));
+    }
+    serde_json::from_slice::<UniqueProviderJson>(raw)
+        .map(|value| value.0)
+        .map_err(|_| error(invalid_code))
 }
 fn required<'a>(value: &'a Value, key: &str) -> Result<&'a str, ModelError> {
     value[key]
@@ -101,6 +218,17 @@ fn parse_arguments(value: &Value) -> Result<Value, ModelError> {
     }
     Ok(arguments)
 }
+
+pub(crate) fn decode_json(
+    raw: &[u8],
+    prepared: &PreparedModelCall,
+) -> Result<ModelReply, ModelError> {
+    decode(
+        parse_provider_json(raw, "provider_response_json_invalid")?,
+        prepared,
+    )
+}
+
 pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<ModelReply, ModelError> {
     let mut text = String::new();
     let mut calls = Vec::new();
@@ -429,8 +557,7 @@ impl Accumulator {
             self.finished = true;
             return Ok(true);
         }
-        let value: Value =
-            serde_json::from_str(data).map_err(|_| error("provider_frame_json_invalid"))?;
+        let value = parse_provider_json(data.as_bytes(), "provider_frame_json_invalid")?;
         match self.protocol {
             ModelProtocol::AnthropicMessages => self.anthropic(value, on_delta)?,
             ModelProtocol::OpenAiChat => self.chat(value, on_delta)?,
@@ -1698,6 +1825,131 @@ mod tests {
         prepared.route.model_id = "gemini-2.5-flash".to_owned();
         prepared.seal();
         prepared
+    }
+
+    #[test]
+    fn object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call() {
+        let anthropic = br#"{"content":[{"type":"tool_use","id":"call-1","name":"shell","input":{"command":"pwd","command":"rm -rf /"}}],"stop_reason":"tool_use"}"#;
+        let error = decode_json(anthropic, &anthropic_prepared()).unwrap_err();
+        assert_eq!(error.code, "provider_response_json_invalid");
+
+        let ollama = br#"{"message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"shell","arguments":{"command":"pwd","command":"rm -rf /"}}}]},"done":true,"done_reason":"stop"}"#;
+        let error = decode_json(ollama, &ollama_prepared()).unwrap_err();
+        assert_eq!(error.code, "provider_response_json_invalid");
+    }
+
+    #[test]
+    fn streamed_object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call() {
+        let frames = [
+            (
+                ModelProtocol::AnthropicMessages,
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call-1","name":"shell","input":{"command":"pwd","command":"rm -rf /"}}}"#,
+            ),
+            (
+                ModelProtocol::GeminiInteractions,
+                r#"{"event_type":"step.start","index":0,"step":{"type":"function_call","id":"call-1","name":"shell","arguments":{"command":"pwd","command":"rm -rf /"}}}"#,
+            ),
+        ];
+
+        for (protocol, frame) in frames {
+            let mut accumulator = Accumulator::new(protocol);
+            let mut deltas = Vec::new();
+            let error = accumulator
+                .push(frame, &mut sink(&mut deltas))
+                .unwrap_err();
+            assert_eq!(error.code, "provider_frame_json_invalid");
+            assert!(deltas.is_empty());
+        }
+    }
+
+    #[test]
+    fn object_form_tool_arguments_accept_nested_values_and_keep_envelope_limit_separate() {
+        let text = "x".repeat(TOOL_JSON_MAX_BYTES + 1);
+        let raw = serde_json::json!({
+            "content": [
+                {"type":"text", "text":text},
+                {
+                    "type":"tool_use",
+                    "id":"call-1",
+                    "name":"mcp",
+                    "input":{
+                        "tool":"echo",
+                        "arguments":{"nested":{"message":"ok"}}
+                    }
+                }
+            ],
+            "stop_reason":"tool_use"
+        })
+        .to_string();
+        assert!(raw.len() > TOOL_JSON_MAX_BYTES);
+
+        let reply = decode_json(raw.as_bytes(), &anthropic_prepared()).unwrap();
+
+        assert_eq!(reply.output.text.len(), TOOL_JSON_MAX_BYTES + 1);
+        assert_eq!(
+            reply.output.tool_calls[0].arguments["arguments"]["nested"]["message"],
+            "ok"
+        );
+    }
+
+    #[test]
+    fn object_form_tool_arguments_over_the_bounded_input_limit_are_rejected() {
+        let payload = "x".repeat(TOOL_JSON_MAX_BYTES + 1);
+        let raw = serde_json::json!({
+            "content": [{
+                "type":"tool_use",
+                "id":"call-1",
+                "name":"mcp",
+                "input":{
+                    "tool":"echo",
+                    "arguments":{"payload":payload}
+                }
+            }],
+            "stop_reason":"tool_use"
+        })
+        .to_string();
+
+        let error = decode_json(raw.as_bytes(), &anthropic_prepared()).unwrap_err();
+
+        assert_eq!(error.code, "provider_tool_schema_invalid");
+    }
+
+    #[test]
+    fn streamed_object_form_tool_arguments_accept_valid_nested_values() {
+        let mut anthropic = Accumulator::new(ModelProtocol::AnthropicMessages);
+        let mut deltas = Vec::new();
+        for frame in [
+            r#"{"type":"message_start","message":{"id":"message-1","model":"fixture","usage":{"input_tokens":1,"output_tokens":0}}}"#,
+            r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call-1","name":"mcp","input":{"tool":"echo","arguments":{"nested":{"message":"ok"}}}}}"#,
+            r#"{"type":"content_block_stop","index":0}"#,
+            r#"{"type":"message_delta","delta":{"stop_reason":"tool_use"}}"#,
+            r#"{"type":"message_stop"}"#,
+        ] {
+            anthropic
+                .push(frame, &mut sink(&mut deltas))
+                .unwrap();
+        }
+        let reply = anthropic.finish(&anthropic_prepared()).unwrap();
+        assert_eq!(
+            reply.output.tool_calls[0].arguments["arguments"]["nested"]["message"],
+            "ok"
+        );
+
+        let mut gemini = Accumulator::new(ModelProtocol::GeminiInteractions);
+        for frame in [
+            r#"{"event_type":"interaction.created","interaction":{"id":"interaction-1","status":"in_progress"}}"#,
+            r#"{"event_type":"step.start","index":0,"step":{"type":"function_call","id":"call-2","name":"mcp","arguments":{"tool":"echo","arguments":{"nested":{"message":"ok"}}}}}"#,
+            r#"{"event_type":"step.stop","index":0}"#,
+            r#"{"event_type":"interaction.status_update","interaction_id":"interaction-1","status":"requires_action"}"#,
+            r#"{"event_type":"interaction.completed","interaction":{"id":"interaction-1","status":"requires_action"}}"#,
+        ] {
+            gemini.push(frame, &mut sink(&mut deltas)).unwrap();
+        }
+        let reply = gemini.finish(&gemini_prepared()).unwrap();
+        assert_eq!(
+            reply.output.tool_calls[0].arguments["arguments"]["nested"]["message"],
+            "ok"
+        );
     }
 
     #[test]

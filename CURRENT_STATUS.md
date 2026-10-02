@@ -3613,6 +3613,29 @@ limitations: provider object-form arguments arrive as an already decoded `serde_
 reviewer: Codex source review of provider parsing, domain parser, runner/core/Broker/daemon handoff and CI shard wiring; no runtime test reviewer
 ```
 
+### CAP-02 provider object-form argument duplicate-key boundary (2026-10-02)
+
+```text
+source_snapshot: base `53e970ee`; `kiana-provider/src/response.rs`; `kiana-provider/src/transport.rs`; `kiana-core/tests/cap02_input_guard.rs`; `docs/roadmap/capability-input-baseline.md`
+worktree_status: isolated branch `fix/cap02-object-args-20261002`; provider non-stream envelopes and stream frames now reject duplicate JSON object keys before Value conversion; ProviderGateway, ControlPlane, Broker, manifests, and lockfiles are unchanged; no merge or push
+command_argv:
+  git worktree add -b fix/cap02-object-args-20261002 /tmp/kiana-cap02-object-args-20261002 feef5422
+  git stash push -m cap02-object-args-rebase
+  git rebase 53e970ee
+  git stash pop
+  rg -n 'parse_provider_json|UniqueProviderJson|decode_json|object_form_tool_arguments' kiana-provider/src/response.rs kiana-provider/src/transport.rs kiana-core/tests/cap02_input_guard.rs docs/roadmap/capability-input-baseline.md
+  sha256sum kiana-provider/src/response.rs kiana-provider/src/transport.rs kiana-core/tests/cap02_input_guard.rs docs/roadmap/capability-input-baseline.md
+  git diff --stat
+  git diff -- kiana-provider/src/response.rs kiana-provider/src/transport.rs kiana-core/tests/cap02_input_guard.rs docs/roadmap/capability-input-baseline.md CURRENT_STATUS.md
+cwd·environment: isolated `/tmp/kiana-cap02-object-args-20261002` worktree on Linux x86_64; manual source/diff review only; no local test/build/check/fmt/clippy/smoke command run
+fixture·cassette: provider unit fixtures cover direct Anthropic/Ollama and streamed Anthropic/Gemini duplicate object fields, valid nested MCP arguments, a response envelope above 512 KiB, and object tool arguments above 512 KiB; source guard pins raw provider parsing and fixture names; GitHub CI only (`kiana-provider`, `kiana-core-s1/6`)
+exit_code: source search, SHA-256, and git diff inspection completed; no local tests or static verification were run; CI has not run for this branch
+status_change: provider object-form duplicate keys now fail before ModelToolCall creation; object input still passes the existing schema validator and 512 KiB argument limit; CAP-02 remains `feature_status=partial`, `proof_level=source`, roadmap row 🔄
+proof-level change: remains `source`; no local_behavior, durable, live, or physical promotion
+limitations: duplicate-key rejection applies to all objects in provider envelopes/frames, including metadata; outer parsing is capped at 8 MiB and does not reuse the 512 KiB argument parser; the later existing `validate_model_calls` boundary has a stricter 256 KiB per-call ModelToolCall ceiling, while streaming text retains its 4 MiB per-block ceiling; no CI/runtime result is available
+reviewer: manual source review of provider parser and transport integration, protocol fixtures, size boundaries, and unchanged execution path; no runtime test reviewer
+```
+
 ### CAP-03 immutable ExecutionScope evidence (2026-09-16)
 
 ```text
