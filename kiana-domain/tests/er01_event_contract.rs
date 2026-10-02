@@ -428,3 +428,57 @@ fn approval_requested_contract_matches_capability_producer_and_rejects_unknown_f
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn approval_approved_contract_matches_decision_producer_and_rejects_unknown_fields() {
+    let spec = event_kind_spec("approval.approved").unwrap();
+    assert_eq!(spec.aggregate_type, "approval");
+    assert_eq!(spec.required_ids, &["approval_id"][..]);
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "schema",
+            "approval_id",
+            "previous_state",
+            "state",
+            "request_hash",
+            "at_unix_ms",
+            "decision",
+            "decision_command_id",
+            "decided_by",
+            "decision_fact",
+        ][..]
+    );
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("approval.approved", 0, 1),
+        Some("legacy_approval_event_v0_to_v1")
+    );
+
+    let mut payload = json!({
+        "schema": "kiana.approval.v1",
+        "approval_id": kiana_domain::ApprovalId::new(),
+        "previous_state": "active",
+        "state": "approved",
+        "request_hash": format!("sha256:{}", "a".repeat(64)),
+        "at_unix_ms": 1,
+        "decision": "approve",
+        "decision_command_id": kiana_domain::RequestId::new(),
+        "decided_by": "operator",
+        "decision_fact": {},
+    });
+    validate_event_payload("approval.approved", &payload).unwrap();
+
+    let mut missing_id = payload.clone();
+    missing_id.as_object_mut().unwrap().remove("approval_id");
+    assert_eq!(
+        validate_event_payload("approval.approved", &missing_id).unwrap_err(),
+        "event_required_id_missing:approval_id"
+    );
+
+    payload["unexpected_approval_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("approval.approved", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}

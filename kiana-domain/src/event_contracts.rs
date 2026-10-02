@@ -557,6 +557,18 @@ const APPROVAL_REQUESTED_FIELDS: &[&str] = &[
     "error",
     "action_digest",
 ];
+const APPROVAL_APPROVED_FIELDS: &[&str] = &[
+    "schema",
+    "approval_id",
+    "previous_state",
+    "state",
+    "request_hash",
+    "at_unix_ms",
+    "decision",
+    "decision_command_id",
+    "decided_by",
+    "decision_fact",
+];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1209,7 +1221,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "approval.approved",
         "approval",
         APPROVAL_IDS,
-        APPROVAL_FIELDS,
+        APPROVAL_APPROVED_FIELDS,
         false,
         Some("legacy_approval_event_v0_to_v1")
     ),
