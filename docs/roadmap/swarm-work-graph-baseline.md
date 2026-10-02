@@ -27,7 +27,9 @@
 |---|---|
 | `swarm_plan_rejects_partition_overlap_and_unbound_input` | 重叠 owned path、空 input refs 均在构造/图校验前拒绝 |
 | `work_graph_rejects_cycle_missing_duplicate_and_first_success` | cycle/missing dependency、重复 fingerprint 与 `first_success` fail-closed |
-| `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/budget 上限拒绝，投影稳定排序且 unknown fields 拒绝 |
+| `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/budget 上限拒绝，成功依赖后的 ready 投影可读，unknown fields 拒绝 |
+| `work_graph_rejects_duplicate_partition_keys_and_ordinals` | 重绑 graph digest 后，duplicate PartitionId key 与 ordinal 分别命中稳定拒绝码 |
+| `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items` | Failed/Cancelled/ResultUnknown、失败依赖传播、运行中/未完成依赖阻塞、成功依赖放行及多项 ready/failed 的稳定排序 |
 | `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` | domain 复用 shared packet graph；Swarm 仍通过现有 ControlPlane/EventLog 唯一路径 |
 
 上述 domain fixtures 和 core source guard 现由 `.github/workflows/ci.yml` 的 `kiana-domain-s4/4` 与 `kiana-core-s6/6` 分片执行；目标清单在 `scripts/ci/test-shards.json`。格式、构建、静态检查和测试均交给 GitHub runner；本地只做 `git diff --check`。
@@ -81,4 +83,32 @@ status_change: SW-02 remains 🔄; added a source-order fence for pre-write Work
 proof-level_change: remains source
 limitations: source ordering does not prove runtime or durable behavior; optional graph migration, typed dispatch/queue/claim, child lifecycle, replay/recovery and effect-time fencing remain outside SW-02
 reviewer: Codex SW-02 isolated source audit; no local runtime test reviewer
+```
+
+## 7. Identity and projection fixture follow-up (2026-10-02)
+
+The duplicate-key fixture mutates a valid graph's second `PartitionId`, then recomputes the graph
+digest so validation reaches the duplicate-key check. A separate graph mutation duplicates only
+the ordinal and likewise recomputes the digest, pinning both structured rejection codes without
+changing production behavior.
+
+The projection fixture includes direct Failed, Cancelled and ResultUnknown partitions, a pending
+partition whose dependency failed, a Running partition, a pending dependency chain, and a
+successful dependency. It checks exact failed IDs and block reasons, then reverses the graph's
+partition order and requires an identical projection with ready and failed IDs sorted by typed ID.
+
+```text
+source_snapshot: `3859cea9` plus isolated SW-02 identity/projection fixture and evidence slice
+worktree_status: branch `step/sw02-fixture-evidence-20261002`; fixtures and evidence only, no production semantics, manifest or lockfile changes
+command_argv:
+  `git diff --check`
+  source review of `kiana-domain/tests/sw02_work_graph.rs`, `CURRENT_STATUS.md` and this baseline
+cwd·environment: `/tmp/kiana-sw02-fixture-evidence-20261002`; Linux; no local cargo test/build/check/fmt/clippy/smoke commands
+fixture·cassette: `work_graph_rejects_duplicate_partition_keys_and_ordinals`; `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items`; GitHub CI only
+exit_code: `git diff --check` 0; source review complete; new fixtures not run locally and no remote receipt yet
+existing_remote_receipt: run `36677090825`, head `c221c211`; domain-s4/4 job `109764373608` logged the three original SW-02 domain fixtures as passed, and core-s6/6 job `109764373569` logged `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` as passed; both jobs and the overall run failed on other tests
+status_change: none; roadmap row 090 remains `🔄`
+proof-level change: none; remains `source`
+limitations: run `36677090825` predates the canonical-scope fixture, Create-order source guard and both fixtures in this follow-up; their GitHub CI results are pending the next push
+reviewer: source-level review of rejection setup, projection expectations and unified CI shard mapping; no runtime test reviewer
 ```

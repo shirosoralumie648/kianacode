@@ -4591,6 +4591,8 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-02 WorkGraph/packet-graph reuse and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+> CI mapping update (2026-10-02): the dedicated `.github/workflows/sw02-work-graph.yml` path above was accurate for the 2026-09-16 source snapshot, then consolidated by `08552ada`. Current SW-02 fixtures run in `.github/workflows/ci.yml`: `sw02_work_graph` is in `kiana-domain-s4/4` and `sw02_work_graph_guard` is in `kiana-core-s6/6`, as listed in `scripts/ci/test-shards.json`.
+
 ### SW-02 Create-order source guard (2026-10-02)
 
 ```text
@@ -4621,6 +4623,25 @@ status_change: SW-02 remains 🔄; closed a validation bypass at source while pr
 proof-level change: `feature_status=partial`, `proof_level=source`; no durable dispatch/effect proof promotion
 limitations: optional graph migration, durable claims, dispatch and effect-time fencing remain separate steps; old receipts do not validate the new fixture; new CI not awaited
 reviewer: Codex integration review of whitespace bypass, exact scope-conflict predicate and unchanged graph rules
+```
+
+### SW-02 duplicate identity and projection fixtures (2026-10-02)
+
+```text
+source_snapshot: `3859cea9` plus isolated SW-02 identity/projection fixture and evidence slice
+worktree_status: branch `step/sw02-fixture-evidence-20261002`; adds domain fixtures and reconciles CI evidence only; no production semantics, manifest or lockfile changes
+command_argv:
+  `git diff --check`
+  source review of `kiana-domain/tests/sw02_work_graph.rs`, `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` and `docs/roadmap/swarm-work-graph-baseline.md`
+  no local cargo test/build/check/fmt/clippy/smoke commands
+cwd·environment: `/tmp/kiana-sw02-fixture-evidence-20261002`; Linux; GitHub Actions is the test authority
+fixture·cassette: `work_graph_rejects_duplicate_partition_keys_and_ordinals`; `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items`; both are source-only additions to the CI-sharded `sw02_work_graph` target
+exit_code: `git diff --check` 0; new fixtures not run locally and no remote receipt yet
+existing_remote_receipt: GitHub Actions run `36677090825` at `c221c211`; domain-s4/4 job `109764373608` logged the three original SW-02 domain fixtures as passed, and core-s6/6 job `109764373569` logged `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` as passed; both jobs and the overall run failed on other tests
+status_change: none; roadmap row 090 remains `🔄`
+proof-level change: none; remains `source`
+limitations: run `36677090825` predates the canonical-scope fixture, Create-order source guard and both fixtures in this follow-up; new CI results are pending the next push; optional graph migration and durable dispatch/effect fencing remain outside this fixture slice
+reviewer: source-level review of rejection setup, projection expectations and unified CI shard mapping; no runtime test reviewer
 ```
 
 

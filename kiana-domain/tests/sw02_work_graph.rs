@@ -147,6 +147,32 @@ fn work_graph_rejects_cycle_missing_duplicate_and_first_success() {
 }
 
 #[test]
+fn work_graph_rejects_duplicate_partition_keys_and_ordinals() {
+    let swarm = SwarmPlanId::new();
+    let first = partition(swarm, 0, "input-a", "project/a", "src/a.rs");
+    let second = partition(swarm, 1, "input-b", "project/b", "src/b.rs");
+    let valid = graph(swarm, vec![first, second]).unwrap();
+
+    let mut duplicate_key = valid.clone();
+    let duplicate_partition_id = duplicate_key.partitions[0].partition_id;
+    duplicate_key.partitions[1].partition_id = duplicate_partition_id;
+    duplicate_key.graph_digest = duplicate_key.digest();
+    assert_eq!(
+        duplicate_key.validate().unwrap_err().code,
+        "swarm_partition_key_duplicate"
+    );
+
+    let mut duplicate_ordinal = valid;
+    let duplicate_ordinal_value = duplicate_ordinal.partitions[0].ordinal;
+    duplicate_ordinal.partitions[1].ordinal = duplicate_ordinal_value;
+    duplicate_ordinal.graph_digest = duplicate_ordinal.digest();
+    assert_eq!(
+        duplicate_ordinal.validate().unwrap_err().code,
+        "swarm_partition_ordinal_duplicate"
+    );
+}
+
+#[test]
 fn work_graph_rejects_limits_and_preserves_stable_projection() {
     let swarm = SwarmPlanId::new();
     let first = partition(swarm, 0, "input-a", "project/a", "src/a.rs");
@@ -217,4 +243,150 @@ fn work_graph_rejects_limits_and_preserves_stable_projection() {
     let mut unknown = encoded;
     unknown["unexpected"] = json!(true);
     assert!(serde_json::from_value::<SwarmWorkGraph>(unknown).is_err());
+}
+
+#[test]
+fn work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items() {
+    let swarm = SwarmPlanId::new();
+    let mut failed = partition(
+        swarm,
+        0,
+        "input-failed",
+        "project/failed",
+        "src/failed.rs",
+    );
+    failed.status = PartitionStatus::Failed;
+    let failed_id = failed.partition_id;
+
+    let mut failed_dependent = partition(
+        swarm,
+        1,
+        "input-failed-dependent",
+        "project/failed-dependent",
+        "src/failed-dependent.rs",
+    );
+    failed_dependent.dependency_partition_ids = vec![failed_id];
+    let failed_dependent_id = failed_dependent.partition_id;
+
+    let mut unknown = partition(
+        swarm,
+        2,
+        "input-unknown",
+        "project/unknown",
+        "src/unknown.rs",
+    );
+    unknown.status = PartitionStatus::ResultUnknown;
+    let unknown_id = unknown.partition_id;
+
+    let mut cancelled = partition(
+        swarm,
+        3,
+        "input-cancelled",
+        "project/cancelled",
+        "src/cancelled.rs",
+    );
+    cancelled.status = PartitionStatus::Cancelled;
+    let cancelled_id = cancelled.partition_id;
+
+    let pending_dependency = partition(
+        swarm,
+        4,
+        "input-pending-dependency",
+        "project/pending-dependency",
+        "src/pending-dependency.rs",
+    );
+    let pending_dependency_id = pending_dependency.partition_id;
+    let mut waiting = partition(swarm, 5, "input-waiting", "project/waiting", "src/waiting.rs");
+    waiting.dependency_partition_ids = vec![pending_dependency_id];
+    let waiting_id = waiting.partition_id;
+
+    let mut running = partition(swarm, 6, "input-running", "project/running", "src/running.rs");
+    running.status = PartitionStatus::Running;
+    let running_id = running.partition_id;
+
+    let mut succeeded = partition(
+        swarm,
+        7,
+        "input-succeeded",
+        "project/succeeded",
+        "src/succeeded.rs",
+    );
+    succeeded.status = PartitionStatus::Succeeded;
+    let mut after_succeeded = partition(
+        swarm,
+        8,
+        "input-after-succeeded",
+        "project/after-succeeded",
+        "src/after-succeeded.rs",
+    );
+    after_succeeded.dependency_partition_ids = vec![succeeded.partition_id];
+    let after_succeeded_id = after_succeeded.partition_id;
+
+    let mut ready_items = vec![
+        partition(swarm, 9, "input-ready-a", "project/ready-a", "src/ready-a.rs"),
+        partition(swarm, 10, "input-ready-b", "project/ready-b", "src/ready-b.rs"),
+        partition(swarm, 11, "input-ready-c", "project/ready-c", "src/ready-c.rs"),
+    ];
+    let mut expected_ready = vec![pending_dependency_id, after_succeeded_id];
+    expected_ready.extend(ready_items.iter().map(|item| item.partition_id));
+    expected_ready.sort_by_key(ToString::to_string);
+    ready_items.sort_by_key(|item| item.partition_id.to_string());
+    ready_items.reverse();
+
+    let mut partitions = vec![
+        failed,
+        failed_dependent,
+        unknown,
+        cancelled,
+        pending_dependency,
+        waiting,
+        running,
+        succeeded,
+        after_succeeded,
+    ];
+    partitions.extend(ready_items);
+
+    let make_graph = |partitions| {
+        SwarmWorkGraph::new(
+            swarm,
+            partitions,
+            16,
+            4,
+            4,
+            8,
+            1_000,
+            300_000,
+            1_000,
+            100,
+            "all_success",
+        )
+    };
+    let projection = make_graph(partitions.clone())
+        .unwrap()
+        .projection(1_001)
+        .unwrap();
+    partitions.reverse();
+    let reordered_projection = make_graph(partitions)
+        .unwrap()
+        .projection(1_001)
+        .unwrap();
+
+    assert_eq!(projection, reordered_projection);
+    assert_eq!(projection.ready, expected_ready);
+
+    let mut expected_failed = vec![failed_id, failed_dependent_id, unknown_id, cancelled_id];
+    expected_failed.sort_by_key(ToString::to_string);
+    assert_eq!(projection.failed, expected_failed);
+
+    assert_eq!(
+        projection.blocked,
+        BTreeMap::from([
+            (
+                failed_dependent_id.to_string(),
+                format!("dependency_failed:{failed_id}"),
+            ),
+            (running_id.to_string(), "partition_running".to_owned()),
+            (waiting_id.to_string(), "dependency_incomplete".to_owned()),
+        ])
+    );
 }
