@@ -244,6 +244,28 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched transition kind, exact fields, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+## 5.7 Requested approval producer contract
+
+The capability approval producer emits `approval.requested` with the shared approval fields plus
+the action digest used to bind the requested capability. Its stream metadata is derived from the
+Run when present and otherwise from the request event, while the static registry retains approval
+as the canonical aggregate owner. The registry now adds `action_digest` to this kind's exact
+allowlist and keeps the approval ID/migration contract. Missing IDs and unknown fields remain
+deny-first; no approval or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `750cef22ee9dbe14d6d5c949ec4e8b134f32a66e`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `approval.requested` now admits the capability producer's action_digest in an exact requested allowlist, keeps approval_id required and legacy migration, and source-pins run/request aggregate branch metadata; no EventStore or approval behavior changed
+command_argv: source trace of capability approval request producer; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 55aaf5ed`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `ca031859`; integration repository root; Linux/bash; GitHub Actions is the runtime executor
+fixture·cassette: `approval_requested_contract_matches_capability_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; requested approval producer fields are now explicitly covered
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: static registry aggregate metadata remains approval while the producer's stream may be run/request; generic EventStore validation is unwired; other approval transitions still need reconciliation; no approval durability/recovery or external-effect claim
+reviewer: source trace matched action_digest, required ID, migration, run/request stream branch and version increment; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
