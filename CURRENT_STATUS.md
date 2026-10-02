@@ -19498,6 +19498,21 @@ limitations: manual-only focused workflow requires a fresh dispatch; new unified
 reviewer: source review checked strongest endpoint selection, exclusive endpoints, integer-only witness bounds, type-union behavior, validation order and workflow/source-guard selector wiring; no local runtime reviewer
 ```
 
+### CAP-02 focused schema-bound acceptance receipt (2026-10-03)
+
+```text
+source_snapshot: integrated source/documentation head `a3320d93`; `.github/workflows/cap02-input.yml`; `kiana-domain/tests/cap02_input.rs`; `kiana-core/tests/cap02_input_guard.rs`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap.md`
+worktree_status: no source change in this receipt; manual focused workflow executed provider duplicate/oversize selectors, domain deny/accept selectors including integer-only bounds, complete `cap02_input`, ControlPlane forged-authority selector and Core source guard
+command_argv: `gh workflow run cap02-input.yml --ref master`; `gh run view 37063877285 --job 111026769632 --log`; no local tests/build/check/clippy/smoke
+cwd·environment: GitHub Actions Ubuntu runner; repository head `a3320d93`; local repository root not used for runtime execution
+fixture·cassette: run `37063877285` / job `111026769632`: `contradictory_schema_bounds_are_rejected_before_dispatch` passed; `nonempty_schema_bound_edges_are_accepted` passed; complete domain `cap02_input` target passed 8/8; provider duplicate/oversize selectors and `cap02_input_guard` passed; job conclusion success
+exit_code: focused GitHub job succeeded; no local runtime exit code; the unified push workflow for the same head was not used as a green-workflow claim
+status_change: CAP-02 remains roadmap row 041 `🔄`, `feature_status=partial`, `proof_level=source`; the schema-bound source slice now has a target-scoped remote acceptance receipt
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: this receipt covers the manually selected targets only; it does not prove a green workspace workflow, full production adapter/Broker matrix, complete JSON Schema compatibility, durable snapshots, external effects or product UAT
+reviewer: remote focused job log and source/baseline alignment; no local runtime reviewer
+```
+
 ### ER-01 direct capability-blocked producer contract (2026-10-03)
 
 ```text
