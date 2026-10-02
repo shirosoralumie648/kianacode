@@ -19437,3 +19437,18 @@ proof-level change: none
 limitations: decode fixtures await GitHub CI; no authenticated ingress bridge, exporter, cross-process correlation recovery, or durable/live/physical behavior is established. Trace metadata remains non-authoritative.
 reviewer: source review confirmed equivalent serialized fields/defaults and that deserialization delegates to the existing validation contract; no local runtime reviewer
 ```
+
+### PD-01 failed lock initialization cleanup (2026-10-03)
+
+```text
+source_snapshot: isolated commit `83fb50efa13254c1f8b18abf00aa32e81e753fbf`, cherry-picked to current master as `ab2e0a38`; `kiana-daemon/src/storage.rs`; `kiana-daemon/tests/pd01_storage.rs`; `docs/roadmap/persistence-storage-root-baseline.md`; `docs/roadmap.md`
+worktree_status: after `locks/storage.lock` is created, lock-record construction/serialization/write/sync now share an initialization error path. On failure it calls existing `LocalDir::remove_owned_file` with the held descriptor; that helper compares current leaf type/link count and device/inode before unlinking, preserving a pre-existing replacement. If cleanup also fails, the returned error retains both setup and cleanup diagnostics. A Linux child-process fixture uses `RLIMIT_FSIZE=0` to force write failure, asserts the lock path is removed, restores the limit, and reacquires successfully. No manifest/lockfile or authority semantics changed.
+command_argv: isolated `cargo fmt -p kiana-daemon -- --check`; isolated `git diff --check`; root `git cherry-pick 83fb50efa13254c1f8b18abf00aa32e81e753fbf`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-pd01-lock-init-cleanup-20261003`, branch `fix/pd01-lock-init-cleanup-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `daemon_storage_lock_initialization_failure_releases_owned_file` in the existing `kiana-daemon` whole-crate shard; the fixture is Linux-gated and has no GitHub receipt for this source snapshot yet
+exit_code: isolated format and diff checks passed; no local runtime result; remote CI pending after push
+status_change: PD-01 remains roadmap row 108 `🔄`, `feature_status=partial`, `proof_level=source`; failed initialization no longer intentionally strands a lock file on its handled setup-error path
+proof-level change: none
+limitations: no crash/power-loss or cross-machine lease claim is made. Existing `remove_owned_file` checks type/link count/device/inode before unlink but the check-to-unlink operation is not atomic against a hostile same-UID replacement. Full card still lacks CLI/Web/Workbench shared-root wiring and stable StoreIdentity reuse after restart; StoreIdentity currently binds an owner scope containing instance/authority epoch, and its relation to temporary feed identity versus durable installation identity needs an architecture decision. Existing adapters continue to resolve their own paths.
+reviewer: source review verified cleanup is attempted through the pinned LocalDir and held file descriptor, with device/inode equality checked before unlink; no local runtime reviewer
+```
