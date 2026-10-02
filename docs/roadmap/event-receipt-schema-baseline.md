@@ -8,8 +8,8 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`ER-01`](event-receipt-recovery.md#step-er-01) |
-| source snapshot | `b597dfe`（CP-06 atomic transition contract 后的干净基线） |
-| feature_status | `partial`（registry/validator/unknown policy/migration source; exact result-field fixture passed on an earlier snapshot; `result_source` matrix/guard follow-up awaits CI） |
+| source snapshot | initial baseline `b597dfe`（CP-06 atomic transition contract 后的干净基线）；后续 source slice 按本页各证据节分别绑定 |
+| feature_status | `partial`（registry/validator/unknown policy/migration source; result-field target passed on earlier snapshots; direct `capability.blocked` contract and producer guard are source-only pending fresh CI） |
 | proof_level | `source`；静态编译不能提升为 local_behavior/durable/live/physical |
 | canonical path | RuntimeEvent envelope → EventKindSpec/version/payload interpretation → EventLog/projector/Receipt |
 | this step does | 固定 owner、aggregate、required IDs、terminal/secret policy、allowed fields、schema version 和 legacy migration；unknown opaque event 只读保留，required family unknown fail-closed |
@@ -24,6 +24,7 @@
 | 2026-10-03 result-event correction | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs` | `e836518c996c409aa25e41540fe09a77fcf99fdb602bc2a12336d6e4bf93b264`, `ef97d89348a559e1230e23f7a6dd0d70e7c57ac1cccf43a4d23d0c04f4092029` |
 | 2026-10-03 capability result source follow-up | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs` | `23e8cb4c25b482ca7160b6d40deda3a67d54214bb721fa88453b1473006d478e`, `13d7f1bcb35218dee04010ff807dd89dfc3c7d7b998f87cded9134da098b67d4`, `da0ba6a3e351d2477f0dd56be44a6dc251d9560364e83a09216d982f0cc7cb10` |
 | 2026-10-03 capability result source contract | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs` | refreshed after integration |
+| 2026-10-03 direct capability-blocked producer contract | `kiana-domain/src/event_contracts.rs`, `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs` | `8bc31b1eff749d4da63b83f62e9af66f09b3219d6b7e64bf628f5e9090d841a6`, `d00effa1e07010ab5570cda089c1857ad6fe2588a854338b2304319a22dfcca6`, `f26ba453efe0c78d6773d46873e8c567a7f9867acb77d66e86ce71755405b30d` |
 | Fixtures/core source guard/historical standalone workflow | `kiana-domain/tests/er01_event_contract.rs`, `kiana-core/tests/er01_event_contract_guard.rs`, historical `.github/workflows/er01-event-schema.yml` (removed by workflow consolidation `08552ada`) | `34e924faf84ad1cc9e2ce1c928b165416775591c73d322627d549ac300f8f68c`, `3d78c2ef8538d7b8400e89b8644d5a57fcf3c8b5baee22e3d6eaa8fd837c3645`, `e4b638fb2917a0388cb3824beb0b014d60b61178115f24a23c287826cf4d7bb9` |
 | Current CI wiring | `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` | current workflow matrix runs `er01_event_contract` in `kiana-domain-s2/4` and `er01_event_contract_guard` in `kiana-core-s1/6` |
 
@@ -85,6 +86,7 @@ read committed frame
 | `payload_unknown_field_is_not_silently_dropped` | required ID/allowed field 检查和 legacy opaque policy |
 | `execution_prepared_contract_requires_server_identity_envelope` | execution.prepare 的身份 envelope 字段、cell reservation allowlist 与 required ID |
 | `result_event_contracts_accept_only_their_result_fields` | execution.result_committed 精确增加 outcome_state/outcome_ready/result_receipt，capability terminal results 接受 result_receipt/result_source；未知字段仍拒绝 |
+| `capability_blocked_contract_matches_direct_deny_producers` | direct `capability.blocked` 以 request 为 aggregate，不要求 Run ID，精确接受当前错误/attempt/effect payload，并拒绝混入 run_id；Run-bound denial 使用独立 `run.capability_blocked` |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -128,9 +130,10 @@ unknown field. This aligns the producer and schema contract without changing not
 validation.
 
 The registry validator remains an explicit interpretation helper. It is not globally invoked by
-EventStore append because existing producers such as `capability.blocked` do not yet satisfy their
-registered ID/field matrix. Global enforcement requires a separate producer-by-producer contract
-reconciliation and deny-first CI coverage; do not infer enforcement from registry membership.
+EventStore append because the producer/registry matrix is not yet reconciled across all event
+families. The direct `capability.blocked` row is corrected in §5.3; global enforcement still
+requires separate producer-by-producer contract reconciliation and deny-first CI coverage. Do not
+infer enforcement from registry membership.
 
 Current CI uses `.github/workflows/ci.yml` with `scripts/ci/test-shards.json`: the domain fixture
 runs in `kiana-domain-s2/4`, and the core guard runs in `kiana-core-s1/6`. Tests remain GitHub-only;
@@ -143,13 +146,38 @@ failed on sibling targets, and its log contained no exact `er01_event_contract_g
 so the guard still has no successful receipt. The registry validator is not connected to generic
 EventStore append; no global enforcement is inferred.
 
+## 5.3 Direct capability-blocked producer contract
+
+Source review found that `capability.blocked` is emitted by direct ControlPlane denial paths. One
+producer writes only a redacted `error`; the post-approval guard writes `error`, `attempt`, and
+effect/stop/fence facts. Neither payload has a `run_id` or `capability_request_id`, and
+`aggregate_for_event` therefore assigns the request aggregate. Run-bound denials use the separate
+`run.capability_blocked` kind. The registry now records that distinction, accepts exactly the two
+current direct payload shapes, and no longer advertises a v0-to-v1 migration that
+`event_migration` cannot resolve for this kind. A deny fixture rejects adding `run_id` to the
+direct payload. The Core source guard pins both current producers. This remains source-only until
+the exact domain and Core targets run in GitHub CI; it does not connect the validator to EventStore.
+
+```text
+source_snapshot: source commit `77061e0cc9cc1d48892b77a277e9540a416a1609`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `capability.blocked` now describes direct request-level denial with no required Run IDs, an exact direct payload allowlist and no unresolved migration declaration; Run-bound denials remain `run.capability_blocked`; no EventStore enforcement or migration path changed
+command_argv: source review of `ControlPlane::authorize_and_execute`, approval-time `guard_company_capability`, and `aggregate_for_event`; `cargo fmt --all`; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `capability_blocked_contract_matches_direct_deny_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; `.github/workflows/ci.yml` runs the domain target in `kiana-domain-s2/4` and Core guard in `kiana-core-s1/6`; fresh CI receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; one existing direct-denial producer contract now matches its emitted request-level payloads
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; registry reconciliation remains incomplete for other event producers/families; old RuntimeEvent envelopes do not embed a schema version; complete historical migration, durable projection and external-effect evidence remain open
+reviewer: source trace verified both direct producer payloads and request aggregate fallback; test/source guard match the emitted field matrix; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
 - `allowed_fields` 是关键 kind 的 bounded contract，不宣称覆盖所有 177+ 历史 event literals；未覆盖 kind 仍按 opaque/required-family policy 处理。
 - legacy migration map 只声明确定的 v0→v1 family 名称，不会猜测缺失 TurnId、aggregate、owner 或 secret provenance；歧义只能查询。
 - payload validator 不替代 redaction、Artifact 引用、CAS、receipt correctness、external effect/reconcile、backup/retention/delete 或 cross-process recovery。
-- 本地只做格式、workspace test-target 静态编译和 diff 检查；GitHub CI 结果按用户要求不等待，后续 ER-02/03 应在新快照刷新 hash。
+- 本仓库任务不在本地运行测试、build、check、clippy 或 smoke；仅使用 `cargo fmt --all --check` 和 `git diff --check` 做格式/空白检查。GitHub CI 负责运行时验证；后续 ER-02/03 应在新快照刷新 hash。
 
 ## Named rejection scenarios
 

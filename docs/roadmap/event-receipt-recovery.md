@@ -227,7 +227,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **动作：** 建立 machine-readable `EventKindSpec`（schema/version、aggregate、required IDs、terminal/secret policy、migration）；为现有 RuntimeEvent 保留 legacy decode，新增 required/optional 字段规则和 unknown kind policy。
 - **先拒绝：** `unknown_required_event_kind_fails_closed`、`event_schema_version_cannot_downgrade`、`event_payload_unknown_field_is_not_silently_dropped`。
 - **成功/回归：** 关键公开 kind 有 owner、serde round trip、migration fixture 和 payload validator；旧 RuntimeEvent/JSONL 只读兼容继续保留，新增 registry/version/unknown guard 由 GitHub CI 执行。
-- **当前证据：** run `37041941851` / `kiana-domain-s2/4` job `110954472895` 对前一版 `result_event_contracts_accept_only_their_result_fields` 精确通过（5/5），core guard job `110954473184` 被取消。后续 producer trace 确认 CM-02 generic error 根因是 notification-source 与 capability result `source` 字段冲突，非原 result receipt matrix；CM-02 已隔离为 `result_source`。ER-01 当前 matrix/guard 将该字段纳入但未获 CI 回执。通用 EventStore validator 尚未接线，不能宣称 schema 被全局强制；状态仍为 `partial` / `source`。
+- **当前证据：** run `37041941851` / `kiana-domain-s2/4` job `110954472895` 对前一版 `result_event_contracts_accept_only_their_result_fields` 精确通过（5/5），后续 `result_source` matrix 在 run `37054968622` / domain-s2 job `110997881165` 也通过（5/5）；两者都不是全绿 workflow，Core guard 尚无可确认的 exact target receipt。source commit `77061e0c` 修正 direct `capability.blocked` 的 request aggregate、字段 allowlist 与无 migration 声明，并新增 direct producer acceptance/deny fixture 和 Core source guard；新夹具等待 GitHub CI。通用 EventStore validator 尚未接线，不能宣称 schema 被全局强制；状态仍为 `partial` / `source`。
 
 <a id="step-er-02"></a>
 

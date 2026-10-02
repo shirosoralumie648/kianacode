@@ -19497,3 +19497,18 @@ proof-level change: none
 limitations: manual-only focused workflow requires a fresh dispatch; new unified CI target has no result yet. The validator remains a bounded dialect and this slice does not prove satisfiability across allOf/enum/multipleOf combinations, complete adapter coverage, durable snapshots, external/live effects or physical containment.
 reviewer: source review checked strongest endpoint selection, exclusive endpoints, integer-only witness bounds, type-union behavior, validation order and workflow/source-guard selector wiring; no local runtime reviewer
 ```
+
+### ER-01 direct capability-blocked producer contract (2026-10-03)
+
+```text
+source_snapshot: source commit `77061e0cc9cc1d48892b77a277e9540a416a1609`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `capability.blocked` now describes request-level direct denial, has no required Run IDs, and admits exactly the current direct producer error-only and error/attempt/effect payload shapes; it rejects run identity fields and no longer advertises an unavailable legacy migration; Run-bound denials remain `run.capability_blocked`; no EventStore enforcement changed
+command_argv: source trace of `ControlPlane::authorize_and_execute`, approval-time `guard_company_capability`, and `aggregate_for_event`; `cargo fmt --all`; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `capability_blocked_contract_matches_direct_deny_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; `.github/workflows/ci.yml` routes the domain target through `kiana-domain-s2/4` and Core source guard through `kiana-core-s1/6`; no receipt for this source snapshot yet
+exit_code: format and diff checks passed; no local runtime result; remote fixtures pending after push
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the direct denial registry entry now matches the emitted request aggregate and producer payloads
+proof-level change: none
+limitations: generic EventStore append still does not call `validate_runtime_event`; producer/registry reconciliation remains incomplete for other event families; RuntimeEvent has no mandatory embedded schema version; legacy full migration, durable projection, and external effect claims remain open
+reviewer: source review traced both direct producer payloads and the request aggregate fallback, then checked the exact fixture/source-guard matrix; no local runtime reviewer
+```
