@@ -5,8 +5,8 @@
 //! protected material and re-runs ControlPlane admission.
 
 use crate::{
-    json_digest, redact_value, validate_json_limits, ApprovalId, CapabilityKind, PendingApproval,
-    RequestContext, RequestId, RiskLevel, SchemaVersion,
+    json_digest, redact_value, validate_json_limits, ApprovalId, CapabilityKind, CapabilityRequest,
+    PendingApproval, RequestContext, RequestId, RiskLevel, SchemaVersion,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -14,6 +14,21 @@ use serde_json::{json, Value};
 pub const APPROVAL_PLAN_PREVIEW_SCHEMA: &str = "kiana.approval-plan-preview.v1";
 pub const APPROVAL_PLAN_PREVIEW_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 const MAX_PREVIEW_BYTES: usize = 128 * 1024;
+
+/// Build the display-only approval request preview shared by approval staging and plan projection.
+/// Server-owned execution scope is never copied into the display request; execution must reload
+/// the protected original material and re-run ControlPlane admission.
+pub fn approval_request_preview(request: &CapabilityRequest) -> Result<CapabilityRequest, String> {
+    let mut display = request.clone();
+    display.execution_scope = None;
+    let raw =
+        serde_json::to_value(&display).map_err(|_| "approval_preview_encode_failed".to_owned())?;
+    let mut safe = redact_value(&raw);
+    if display.capability == CapabilityKind::Secret {
+        safe["arguments"] = json!({"preview":"[REDACTED]"});
+    }
+    serde_json::from_value(safe).map_err(|_| "approval_preview_invalid".to_owned())
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,7 +58,9 @@ impl ApprovalPlanPreview {
     ) -> Result<Self, String> {
         let request_value = serde_json::to_value(&pending.request)
             .map_err(|_| "approval_plan_preview_encode_failed".to_owned())?;
-        let preview = redact_value(&request_value);
+        let preview_request = approval_request_preview(&pending.request)?;
+        let preview = serde_json::to_value(preview_request)
+            .map_err(|_| "approval_plan_preview_encode_failed".to_owned())?;
         let payload_digest = json_digest(&request_value);
         let preview_digest = json_digest(&preview);
         let scope_digest = json_digest(&json!({

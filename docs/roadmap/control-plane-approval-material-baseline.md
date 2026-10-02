@@ -39,3 +39,21 @@ CP-09 proof ceiling 为 `source`：subject/material 边界和失败原因已固�
 仍是进程内，旧 approval records 缺 material 会进入显式 corrupt/reauthorization；Human Inbox、
 external human identity、durable pending/decision/consume CAS 和 Broker effect 仍由 CP-10/13、
 SC-10/12 继续完成。Preview 只用于展示，任何恢复都必须重新验证 request/action/policy/epoch。
+
+## 4. Approval preview redaction correction (2026-10-03)
+
+GitHub run `37025517103` / daemon job `110899633464` showed that approval staging rejected requests
+before writing an `AwaitingApproval` response. Three fixtures failed with the same stable
+`approval_preview_invalid` reason. Harness preparation adds a typed `ExecutionScope`; the generic
+redactor correctly masks its numeric `fencing_token`, which made that full server-owned field
+incompatible with strict display-preview decoding.
+
+The shared `approval_request_preview` helper now clones a `CapabilityRequest`, removes its server-owned
+`execution_scope`, and then applies the existing generic redactor and Secret preview special case. Both
+`JournalApprovalStore::stage` and `ApprovalPlanPreview::from_pending` use this display-only projection.
+Payload digesting continues to bind the full original request, while requests with a scope are stored as
+`VolatileProtected`; execution reloads the original request and still re-runs ControlPlane admission.
+Generic Event/log/export redaction semantics are unchanged. The OA-03 domain fixture verifies that generic
+redaction still masks numeric `fencing_token`, the approval projection omits scope and round-trips as a
+typed request, request argument sentinels are masked, and string fencing-token values remain redacted.
+The correction remains source-only until unified domain and daemon CI targets produce exact receipts.

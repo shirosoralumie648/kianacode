@@ -19206,3 +19206,24 @@ proof-level change: none; local behavior/durable/live/physical proof not establi
 limitations: source shape comparison and fixtures do not substitute for the remote CAP-05/domain shard; no daemon handler-count or CM-02 end-to-end receipt is available
 reviewer: Codex source review comparing production payload keys against verifier and EventKindSpec, including action-digest tamper rejection; no runtime test reviewer
 ```
+
+### ER-02 approval preview redaction root-cause fix (2026-10-03)
+
+```text
+source_snapshot: base `b87becc90fa5dd77951f2fc13f0b7899c4afff7e`; failing GitHub run `37025517103`, daemon job `110899633464`; `kiana-domain/src/approval_preview.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-domain/tests/oa03_redaction.rs`; ER-02 identity baseline §11; CP-09 approval-material baseline §4
+worktree_status: isolated branch `fix/er02-approval-preview-fixture-20261002` at `/tmp/kiana-er02-approval-preview-20261002`; shared `approval_request_preview` clones the typed request, removes its server-owned `execution_scope`, applies existing generic redaction and Secret preview masking, and returns a strictly decodable display-only CapabilityRequest. JournalApprovalStore staging and ApprovalPlanPreview both use this helper. Stage payload digest remains bound to the raw full request; a request with execution scope always uses `VolatileProtected` material so execution reloads the original request. Generic redaction behavior is unchanged. OA-03 fixture asserts generic redaction still masks numeric `fencing_token`, approval preview omits scope, typed PendingApproval and ApprovalPlanPreview projections round-trip/validate, and argument/string-fence sentinels remain masked. No approval validation or fixture precondition changed. No manifest, lockfile, or workflow changed.
+command_argv:
+  read-only `gh api --allow-escape-sequences repos/shirosoralumie648/kianacode/actions/jobs/110899633464/logs` filtered to exact target failures
+  source tracing via `rg` of `fencing_token`, `is_token_metric`, `secret_field_key`, ControlPlane Harness preparation, and `JournalApprovalStore::stage`
+  `rustfmt --edition 2021 kiana-domain/src/approval_preview.rs kiana-domain/tests/oa03_redaction.rs kiana-daemon/src/journal_approvals.rs`
+  `cargo fmt --all --check` (exit 0)
+  `git diff --check` (exit 0)
+  no Cargo test, build, check, clippy, or smoke command
+cwd·environment: isolated worktree `/tmp/kiana-er02-approval-preview-20261002`; Linux; runtime verification is GitHub Actions-only
+fixture·cassette: run `37025517103` / daemon job `110899633464`: `cancel_after_awaiting_approval_rejects_later_approve` failed at `daemon_host.rs:1388`, `trusted_read_only_apply_patch_does_not_create_file` at `daemon_host.rs:1366`, and `wire_approval_proof_retry_resumes_original_run` at `daemon_host.rs:1453`; all three returned `port_failed:approval_preview_invalid` before approval continuation. New `kiana-domain/tests/oa03_redaction.rs` fixture checks exact numeric fencing metadata preservation, redacted request arguments, `VolatileProtected` material, typed PendingApproval round-trip, and rejection of string/case/hyphen token sentinels. Existing CI maps `oa03_redaction` and `kiana-daemon` crate without shard changes.
+exit_code: exact named target failures observed in GitHub job logs; rustfmt, `cargo fmt --all --check`, and `git diff --check` exited 0; no local tests/build/check/clippy/smoke run; no CI receipt for the correction yet
+status_change: ER-02 remains 🔄 / `feature_status=partial` / `proof_level=source`; source-confirmed preview type mismatch is corrected through an approval-only display projection with deny-first coverage; direct fixture and successful Harness identity projection receipts remain unresolved
+proof-level change: none; source-level only, with no local_behavior, durable, live, or physical claim
+limitations: CI has not yet verified that the approval path reaches `AwaitingApproval`, resumes, and satisfies the identity projection assertions after this source correction. Generic Event/log redaction remains unchanged and continues masking numeric fencing tokens; only approval display projection omits execution scope. Existing `b87becc9` daemon job also has unrelated failures; no aggregate job success is claimed.
+reviewer: source review traced Harness request preparation through ExecutionScope serialization, unchanged generic redaction, approval-only display projection, JournalApprovalStore material binding, and ApprovalPlanPreview reuse; no local runtime reviewer
+```

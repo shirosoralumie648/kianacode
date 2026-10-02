@@ -369,14 +369,12 @@ impl ApprovalStorePort for JournalApprovalStore {
         };
         challenge.request_hash = subject_hash(&request, &binding, &challenge, now)?;
         let raw = serde_json::to_value(&request).map_err(|_| failed("approval_payload_invalid"))?;
-        let mut safe = redact_value(&raw);
-        if request.capability == CapabilityKind::Secret {
-            safe["arguments"] = json!({"preview":"[REDACTED]"});
-        }
-        let recoverable = safe == raw;
+        let preview =
+            kiana_domain::approval_request_preview(&request).map_err(|error| failed(&error))?;
+        let safe =
+            serde_json::to_value(&preview).map_err(|_| failed("approval_preview_encode_failed"))?;
+        let recoverable = request.execution_scope.is_none() && safe == raw;
         let preview_value = safe.clone();
-        let preview: CapabilityRequest =
-            serde_json::from_value(safe).map_err(|_| failed("approval_preview_invalid"))?;
         let material = ApprovalExecutionMaterial::from_payloads(
             &raw,
             &preview_value,

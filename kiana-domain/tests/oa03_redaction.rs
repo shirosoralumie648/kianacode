@@ -1,6 +1,10 @@
 use kiana_domain::{
     encode_bounded_text, encode_bounded_value, redact_text_with_profile, redact_with_profile,
-    DataClass, RedactionProfile, RedactionSignal, REDACTION_PROFILE_SCHEMA,
+    ApprovalChallenge, ApprovalExecutionMaterial, ApprovalId, ApprovalMaterialState,
+    ApprovalPlanPreview, AuthenticatedPrincipalRef, CapabilityKind, CapabilityRequest, DataClass,
+    ExecutionScope, PendingApproval, ProjectIdentity, RedactionProfile, RedactionSignal,
+    RequestContext, RequestId, RiskLevel, RunId, ScopeSet, SessionId, TurnId,
+    REDACTION_PROFILE_SCHEMA,
 };
 use serde_json::json;
 
@@ -140,6 +144,132 @@ fn numeric_token_metrics_do_not_exempt_string_credentials_or_unknown_fields() {
             assert!(!text.contains(sentinel));
         }
     }
+}
+
+#[test]
+fn numeric_fencing_token_preserves_typed_pending_approval_with_protected_material() {
+    let request_id = RequestId::new();
+    let mut request = CapabilityRequest::new(
+        request_id,
+        CapabilityKind::Filesystem,
+        "apply_patch",
+        json!({
+            "patch":"write token=approval-preview-sentinel",
+            "fencing_token":"credential-fencing-sentinel"
+        }),
+    )
+    .with_risk(RiskLevel::LocalWrite);
+    let permission_scope = ScopeSet::unrestricted();
+    let principal = AuthenticatedPrincipalRef::local();
+    let project = ProjectIdentity::new(
+        "/repo",
+        "/repo",
+        None,
+        None,
+        kiana_domain::json_digest(&json!("trusted")),
+    )
+    .unwrap();
+    let mut scope = ExecutionScope {
+        schema: kiana_domain::EXECUTION_SCOPE_SCHEMA.to_owned(),
+        version: kiana_domain::EXECUTION_SCOPE_SCHEMA_VERSION,
+        principal,
+        project,
+        session_id: SessionId::new("session-oa03-fencing"),
+        run_id: Some(RunId::new()),
+        turn_id: Some(TurnId::new()),
+        cell_id: None,
+        grant_refs: Vec::new(),
+        budget_lease_id: None,
+        work_packet_id: None,
+        environment_id: "kiana-local".to_owned(),
+        workspace_revision: None,
+        permission_scope: permission_scope.clone(),
+        read_roots: vec!["/repo".to_owned()],
+        write_roots: vec![".".to_owned()],
+        read_denies: Vec::new(),
+        write_denies: Vec::new(),
+        memory_scopes: Vec::new(),
+        server_scopes: Vec::new(),
+        network_policy: Vec::new(),
+        authority_epoch: 1,
+        trust_revision: kiana_domain::json_digest(&json!("trusted")),
+        data_epoch: 1,
+        cancellation_epoch: 1,
+        deadline_unix_ms: u64::MAX,
+        fencing_token: 73,
+        catalog_digest: kiana_domain::capability_action_catalog_digest(),
+        action_digest: kiana_domain::capability_action_digest(&request),
+        permission_scope_digest: permission_scope.digest(),
+        scope_digest: String::new(),
+    };
+    scope.scope_digest = scope.digest();
+    request.execution_scope = Some(scope.clone());
+
+    let raw = serde_json::to_value(&request).unwrap();
+    let generic_redacted = kiana_domain::redact_value(&raw);
+    assert_eq!(raw["execution_scope"]["fencing_token"], 73);
+    assert_eq!(
+        generic_redacted["execution_scope"]["fencing_token"],
+        "[REDACTED]"
+    );
+    let preview_request = kiana_domain::approval_request_preview(&request).unwrap();
+    assert!(preview_request.execution_scope.is_none());
+    assert_eq!(preview_request.arguments["fencing_token"], "[REDACTED]");
+    let preview = serde_json::to_value(&preview_request).unwrap();
+    assert!(preview.get("execution_scope").is_none());
+    assert_ne!(raw["arguments"], preview["arguments"]);
+    assert!(!preview.to_string().contains("approval-preview-sentinel"));
+    assert!(!preview.to_string().contains("credential-fencing-sentinel"));
+    let preview_round_trip: CapabilityRequest = serde_json::from_value(preview.clone()).unwrap();
+    assert_eq!(preview_round_trip, preview_request);
+
+    let expires_at_unix_ms = 100;
+    let material = ApprovalExecutionMaterial::from_payloads(
+        &raw,
+        &preview,
+        ApprovalMaterialState::VolatileProtected,
+        expires_at_unix_ms,
+    )
+    .unwrap();
+    assert!(material.matches_payloads(&raw, &preview).unwrap());
+
+    let pending = PendingApproval {
+        challenge: ApprovalChallenge {
+            schema: kiana_domain::APPROVAL_CHALLENGE_SCHEMA.to_owned(),
+            approval_id: ApprovalId::from_uuid(request_id.as_uuid()),
+            request_id,
+            request_hash: "sha256:approval-preview-fixture".to_owned(),
+            risk: RiskLevel::LocalWrite,
+            expires_at_unix_ms,
+            reason: "approval required".to_owned(),
+            nonce: "fixture-nonce".to_owned(),
+            policy_version: "kiana.policy.v1".to_owned(),
+        },
+        request: preview_request,
+    };
+    let reopened: PendingApproval =
+        serde_json::from_value(serde_json::to_value(&pending).unwrap()).unwrap();
+    assert_eq!(reopened, pending);
+    assert!(reopened.request.execution_scope.is_none());
+    assert_eq!(request.execution_scope, Some(scope));
+    assert_eq!(material.state, ApprovalMaterialState::VolatileProtected);
+
+    let scoped_pending = PendingApproval {
+        challenge: pending.challenge,
+        request: request.clone(),
+    };
+    let context = RequestContext::local("session-oa03-fencing", "/repo");
+    let plan_preview = ApprovalPlanPreview::from_pending(&scoped_pending, &context, true).unwrap();
+    assert!(plan_preview.preview.get("execution_scope").is_none());
+    assert_eq!(plan_preview.payload_digest, kiana_domain::json_digest(&raw));
+    assert!(!plan_preview
+        .preview
+        .to_string()
+        .contains("approval-preview-sentinel"));
+    assert!(!plan_preview
+        .preview
+        .to_string()
+        .contains("credential-fencing-sentinel"));
 }
 
 #[test]
