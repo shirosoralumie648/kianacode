@@ -3438,6 +3438,24 @@ limitations: the new controlled-mismatch fixture and source guard are unexecuted
 reviewer: source-only comparison of `ToolSpec`, `ToolCatalogSnapshot`, `ACTION_OPERATIONS`, action descriptors, Broker seal and DaemonHost startup; no runtime test reviewer
 ```
 
+### CAP-01 fmt correction after CI failure (2026-10-02)
+
+```text
+source_snapshot: `c6029d0d` CAP-01 join integration; formatting-only changes in `kiana-domain/src/tool_authority.rs` and `kiana-domain/tests/cap01_registry.rs`
+worktree_status: the preceding CI run `36966939817` reported the Rust gates failure at `cargo fmt --all --check`; formatting only was applied to the two CAP-01 files, changing no behavior or assertions
+command_argv:
+  `cargo fmt --all`
+  `git diff --stat`
+  `git diff --`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux x86_64
+fixture·cassette: none; formatter changed 5 line-wrap/import-order locations in two files
+exit_code: 0 for `cargo fmt --all`; no tests, build, check, clippy or smoke command was run
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; formatting-only correction awaits GitHub CI rerun
+proof-level change: none; CAP-01 remains `proof_level=source`
+limitations: CI run `36966939817` has not completed, so Broker/domain fixture outcomes and a new Rust-gate receipt are not yet available; this record makes no test or behavior claim
+reviewer: source diff review confirmed only rustfmt line wrapping and import ordering
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text

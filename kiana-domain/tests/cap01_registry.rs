@@ -1,8 +1,8 @@
 use kiana_domain::{
-    capability_action_descriptor, canonical_action_operation, model_tool_name,
+    canonical_action_operation, capability_action_descriptor, model_tool_name,
     operator_only_action, tool_schemas, tool_spec, validate_tool_action_binding,
-    validate_tool_authority, ACTION_HANDLER_BINDING_VERSION, ACTION_OPERATIONS, TOOL_SPECS,
-    CapabilityKind, RiskLevel,
+    validate_tool_authority, CapabilityKind, RiskLevel, ACTION_HANDLER_BINDING_VERSION,
+    ACTION_OPERATIONS, TOOL_SPECS,
 };
 
 #[test]

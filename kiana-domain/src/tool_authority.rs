@@ -275,8 +275,8 @@ pub fn tool_spec(name: &str) -> Option<&'static ToolSpec> {
 }
 
 pub fn validate_tool_action_binding(spec: &ToolSpec) -> Result<(), String> {
-    let model_name = model_tool_name(spec.name)
-        .ok_or_else(|| "tool_action_tool_unknown".to_owned())?;
+    let model_name =
+        model_tool_name(spec.name).ok_or_else(|| "tool_action_tool_unknown".to_owned())?;
     if model_name != spec.name {
         return Err("tool_action_model_name_mismatch".to_owned());
     }
