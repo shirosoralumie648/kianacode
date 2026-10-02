@@ -7,6 +7,7 @@ fn capability_catalog_binding_is_single_source_and_sealed_at_composition_root() 
     let mcp = include_str!("../../kiana-daemon/src/harness_mcp.rs");
     let runner = include_str!("../../kiana-runner/src/tools.rs");
     let actions = include_str!("../../kiana-domain/src/actions.rs");
+    let tool_authority = include_str!("../../kiana-domain/src/tool_authority.rs");
     let baseline = include_str!("../../docs/roadmap/capability-authority-baseline.md");
 
     assert!(broker.contains("validate_catalog_bindings"));
@@ -28,8 +29,16 @@ fn capability_catalog_binding_is_single_source_and_sealed_at_composition_root() 
     assert!(runner.contains("tool_unsupported"));
     assert!(actions.contains("ACTION_OPERATIONS"));
     assert!(actions.contains("ACTION_HANDLER_BINDING_VERSION"));
+    assert!(actions.contains("crate::validate_tool_action_bindings()?;"));
+    assert!(tool_authority.contains("pub fn validate_tool_action_bindings()"));
+    assert!(tool_authority.contains("pub fn validate_tool_action_binding("));
+    assert!(tool_authority.contains("ACTION_OPERATIONS.contains(&spec.operation)"));
+    assert!(tool_authority.contains("descriptor.capability != spec.capability"));
+    assert!(tool_authority.contains("descriptor.minimum_risk != spec.risk_policy"));
+    assert!(tool_authority.contains("tool_action_schema_mismatch"));
     assert!(baseline.contains("duplicate_alias_or_operation_is_rejected"));
     assert!(baseline.contains("descriptor_binding_version_mismatch_never_dispatches"));
     assert!(baseline.contains("tool_authority_covers_every_model_visible_tool"));
+    assert!(baseline.contains("tool_action_binding_rejects_controlled_metadata_drift"));
     assert!(baseline.contains("Operator-only"));
 }
