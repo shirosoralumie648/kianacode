@@ -225,6 +225,24 @@ fn message_secret_marker_is_rejected_at_serde_boundaries_and_redacted_from_debug
 }
 
 #[test]
+fn message_deserialization_rejects_unknown_kind_and_schema() {
+    let valid = serde_json::to_value(message()).unwrap();
+
+    let mut unknown_kind = valid.clone();
+    unknown_kind["kind"] = json!("unrecognized_kind");
+    assert!(serde_json::from_value::<Message>(unknown_kind).is_err());
+
+    let mut unknown_schema = valid;
+    unknown_schema["schema"] = json!("kiana.message.v9");
+    assert_eq!(
+        serde_json::from_value::<Message>(unknown_schema)
+            .unwrap_err()
+            .to_string(),
+        "message_schema_invalid"
+    );
+}
+
+#[test]
 fn delivery_attempt_receipt_status_and_ttl_transitions_are_fail_closed() {
     let message = message();
     let subscription = subscription();
