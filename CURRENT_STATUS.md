@@ -3386,6 +3386,27 @@ limitations: the current run has no readable exact target results at this captur
 reviewer: manual lineage/source review confirmed 4ce549ba is an ancestor of 4e54356b, the shared terminal path rejects uncommitted receipts before event-kind handling, both execution and capability terminal deny fixtures are present, and no implementation diff remains to port.
 ```
 
+### ER-02 result receipt fixture identity correction (2026-10-02)
+
+```text
+source_snapshot: prior ER-02 receipt reconciliation head `4e54356b`; isolated fixture correction `131b92b3`; integrated master commit `26816383`; `kiana-core/tests/er09_invocation_projection.rs`; GitHub runs `36978883309` and `36989246730`
+worktree_status: only the result-drift fixture input changed. Its receipt now carries the same execution ID, invocation ID, attempt 1, and committed=true as the event while changing only the result; production validation and the expected result-conflict assertion are unchanged. Commit `26816383` is pushed to `origin/master`.
+command_argv:
+  `git show --format=fuller --stat --patch 131b92b354fb9c545c20c83de645ef73af96e0a7`
+  `git cherry-pick 131b92b354fb9c545c20c83de645ef73af96e0a7`
+  `git push origin master`
+  `gh run list --limit 8`
+  isolated `git diff --check` and `git show --check`
+  no local test, build, Cargo check, fmt, clippy or smoke command was run
+cwd·environment: source fixture review in `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode-er02-result-fixture-20261002`; integration/push from repository root on Linux; all test execution remains GitHub Actions-only
+fixture·cassette: `invocation_projection_normalizes_and_validates_terminal_result_receipts` failed in run `36978883309`, core-s3 job `110748754394`: expected `invocation_result_receipt_result_conflict`, received `invocation_result_receipt_identity_conflict`, because the conflicting receipt omitted the event's execution/invocation identity; fix is in `26816383`. In the same run, ER-02 domain targets passed 3/3, eventlog targets passed 7/7, and core `cross_run_result_cannot_pair_by_sequence`, `event_identity_links_and_projection_use_stable_ids_not_request_sequence`, and `invocation_projection_rejects_uncommitted_terminal_receipts` passed; the direct core-s2 and Harness daemon jobs were cancelled before an exact receipt. New run `36989246730` was queued after the fix push and was not awaited.
+exit_code: isolated `git diff --check`/`git show --check`, cherry-pick, and push exited 0; no local test or runtime exit code exists
+status_change: ER-02 remains 🔄 and `feature_status=partial`; the confirmed result-drift fixture defect is corrected, but the corrected fixture and direct/Harness parity targets have no new GitHub receipt
+proof-level change: source only; `proof_level=source`, with no local_behavior, durable, live, or physical promotion
+limitations: run `36987138827` is still in progress on the prior source head and its logs were unavailable; run `36989246730` has not been awaited; run `36978883309` also contains an adjacent ER-09 source-guard failure and a failed aggregate shard, so no clean complete ER-02 shard is established; no durability, external effect, or physical outcome is claimed
+reviewer: root reviewed the isolated one-file diff and integrated commit; no local runtime test reviewer
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text
