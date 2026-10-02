@@ -50,6 +50,8 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 | `memory_record_rejects_unknown_nested_lifecycle_fields` | `Purpose`、`Retention`、`MemoryEvidence` 的嵌套未知字段以及 v1 legacy evidence 未知字段均 fail-closed |
 | `qualified_memory_requires_review_evidence_and_purpose` malformed cases | nil event/request/run IDs, blank/oversize quotes, invalid Purpose, blank reviewer and zero review time fail closed |
 | `legacy_memory_is_unverifiable_until_reviewed`（daemon） | 真实 JSONL reader 使用 explicit import，不把旧行直接暴露给检索 |
+| `schema_v1_native_qualified_record_requires_explicit_legacy_import` | v1 Native Qualified/Active 不能绕过 importer；命名 upcaster 仍生成 v2 LegacyImport |
+| `memory_event_projection_rejects_schema_v1_native_qualified_record` | committed memory fact 中嵌入的 v1 Native Qualified/Active 记录不能通过 lifecycle/projection |
 
 以前的独立 `.github/workflows/cm02-memory-lifecycle.yml` 已删除并合并进 `.github/workflows/ci.yml`：`cm02_memory` 由 `kiana-domain-s1/4` shard 执行，daemon legacy reader fixture 随 `kiana-daemon` 包测试执行，fmt 由 Rust gates 执行。本地不运行测试或格式检查。
 
@@ -105,4 +107,27 @@ status_change: none; CM-02 remains 🔄 and this change does not claim the roadm
 proof-level_change: none; source only
 limitations: the new negative fixture is unexecuted pending integration; `validate_lifecycle` still permits a fully populated schema-v1 Native object constructed directly in memory, although the daemon JSONL reader and named upcaster explicitly route v1 payloads through legacy import; nested strictness does not bind evidence quotes to immutable EventLog facts or establish durable approval; no local tests or builds were run
 reviewer: CM-02 isolated source review; no runtime test reviewer for the new fixture
+```
+
+## 8. Schema-v1 lifecycle bypass correction (2026-10-02)
+
+Source review found that a fully populated schema-v1 Native Qualified/Active `MemoryRecord` could
+pass lifecycle validation and the EventLog memory projection, bypassing the explicit legacy import
+contract. Lifecycle validation now accepts only v2 records; v1 records return
+`memory_record_legacy_import_required`, and visibility denies every non-v2 record even when called
+without validation. `legacy_import` now accepts only v1 payloads. The named storage upcaster leaves
+the source schema intact while validating its field boundary, then delegates the conversion to that
+explicit importer.
+
+```text
+source_snapshot: f28f1b5b plus isolated branch commit recorded in CURRENT_STATUS.md
+worktree_status: schema-v1 Native records fail lifecycle validation and visibility; EventLog projection inherits the same denial; explicit JSONL import and named storage upcast still produce v2 LegacyImport records; roadmap remains partial/source pending GitHub CI
+command_argv: source review of MemoryRecord lifecycle/import/visibility, storage upcast, and CM-02/CM-05 fixtures; `git diff` manual review; no Cargo tests/build/check/fmt/clippy/smoke
+cwd/environment: `/tmp/kiana-cm02-v1-lifecycle-20261002`; GitHub Actions is the only test executor
+fixture or cassette: `schema_v1_native_qualified_record_requires_explicit_legacy_import`; `memory_event_projection_rejects_schema_v1_native_qualified_record`; `legacy_memory_is_unverifiable_until_reviewed` includes explicit upcaster control
+exit_code: no local tests, build, check, format, clippy, smoke, or diff-check command run; GitHub CI pending after integration
+status_change: CM-02 remains 🔄; v1 Native Qualified/Active records can no longer become searchable through direct lifecycle or EventLog projection paths, while explicit v1 import/upcast remains available
+proof-level_change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
+limitations: fixtures await GitHub CI; event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation remains CM-06; purpose/sensitivity derivation and retention policy remain later scope; no semantic recall or durable-memory claim is made
+reviewer: isolated source review of schema gates, import compatibility, lifecycle visibility, and EventLog projection; no runtime test reviewer
 ```

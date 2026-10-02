@@ -187,10 +187,6 @@ fn upcast_memory_record(value: Value) -> Result<Value, String> {
     {
         return Err("storage_migration_non_migratable_field".to_owned());
     }
-    object.insert(
-        "schema".to_owned(),
-        Value::String(MEMORY_RECORD_SCHEMA_V2.to_owned()),
-    );
     object
         .entry("kind".to_owned())
         .or_insert_with(|| Value::String("legacy".to_owned()));

@@ -173,8 +173,12 @@ pub struct MemoryRecord {
 impl MemoryRecord {
     /// Validate lifecycle/provenance combinations before a record is exposed to search or review.
     pub fn validate_lifecycle(&self) -> Result<(), String> {
-        if self.schema != MEMORY_RECORD_SCHEMA && self.schema != MEMORY_RECORD_SCHEMA_V2 {
-            return Err("memory_record_schema_unsupported".to_owned());
+        match self.schema.as_str() {
+            MEMORY_RECORD_SCHEMA_V2 => {}
+            MEMORY_RECORD_SCHEMA => {
+                return Err("memory_record_legacy_import_required".to_owned())
+            }
+            _ => return Err("memory_record_schema_unsupported".to_owned()),
         }
         if self.id.trim().is_empty()
             || self.collection.trim().is_empty()
@@ -273,6 +277,9 @@ impl MemoryRecord {
     pub fn legacy_import(raw: Value) -> Result<Self, String> {
         let mut record: Self =
             serde_json::from_value(raw).map_err(|_| "memory_legacy_import_invalid".to_owned())?;
+        if record.schema != MEMORY_RECORD_SCHEMA {
+            return Err("memory_legacy_import_schema_unsupported".to_owned());
+        }
         record.schema = MEMORY_RECORD_SCHEMA_V2.to_owned();
         record.origin = MemoryOrigin::Unknown;
         record.admission_state = MemoryAdmission::Candidate;
@@ -301,7 +308,8 @@ impl MemoryRecord {
     }
 
     pub fn visibility(&self) -> MemoryVisibility {
-        if self.import_mode == MemoryImportMode::LegacyImport
+        if self.schema != MEMORY_RECORD_SCHEMA_V2
+            || self.import_mode == MemoryImportMode::LegacyImport
             || self.state == MemoryState::Rejected
             || self.admission_state == MemoryAdmission::Rejected
         {

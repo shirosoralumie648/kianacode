@@ -135,3 +135,42 @@ fn projection_rebuild_matches_committed_memory() {
         "memory_stream_version_invalid"
     );
 }
+
+#[test]
+fn memory_event_projection_rejects_schema_v1_native_qualified_record() {
+    let stream = "sha256:cm02-v1-native";
+    let mut record = record("memory-v1-native", "qualified legacy", 1);
+    record.schema = kiana_domain::MEMORY_RECORD_SCHEMA.to_owned();
+    record.evidence = vec![kiana_domain::MemoryEvidence {
+        event_id: kiana_domain::EventId::new(),
+        request_id: kiana_domain::RequestId::new(),
+        run_id: None,
+        quote: "qualified legacy".to_owned(),
+    }];
+    record.origin = kiana_domain::MemoryOrigin::User;
+    record.admission_state = MemoryAdmission::Qualified;
+    record.state = MemoryState::Active;
+    record.reviewed_by = Some("operator".to_owned());
+    record.reviewed_at_ms = Some(1);
+
+    let fact = MemoryJournalFact::new(
+        "write",
+        "memory.fact:cm02-v1-native",
+        record.clone(),
+        MemoryBodyRef::new(stream, record.content_hash.clone()),
+    );
+    let event = RuntimeEvent::new(
+        kiana_domain::RequestId::new(),
+        1,
+        MEMORY_FACT_EVENT_KIND,
+        serde_json::to_value(fact).unwrap(),
+    )
+    .unwrap()
+    .with_stream_metadata(MEMORY_STREAM, stream, 1)
+    .with_idempotency_key("memory.fact:cm02-v1-native");
+
+    assert_eq!(
+        project_memory_facts(&[event]).unwrap_err(),
+        "memory_record_legacy_import_required"
+    );
+}

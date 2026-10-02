@@ -1,6 +1,8 @@
 use kiana_domain::{
-    EventId, MemoryAdmission, MemoryClassification, MemoryEvidence, MemoryImportMode, MemoryOrigin,
-    MemoryRecord, MemorySensitivity, MemoryState, MemoryValidity, Purpose, RequestId, RunId,
+    project_memory_facts, EventId, MemoryAdmission, MemoryBodyRef, MemoryClassification,
+    MemoryEvidence, MemoryImportMode, MemoryJournalFact, MemoryOrigin, MemoryRecord,
+    MemorySensitivity, MemoryState, MemoryValidity, Purpose, RequestId, RunId, RuntimeEvent,
+    MEMORY_FACT_EVENT_KIND, MEMORY_RECORD_SCHEMA_V2, MEMORY_STREAM,
 };
 use serde_json::json;
 
@@ -19,9 +21,34 @@ fn legacy_row() -> serde_json::Value {
     })
 }
 
+fn qualified_v1_native_record() -> MemoryRecord {
+    let mut raw = legacy_row();
+    raw["kind"] = json!("fact");
+    raw["evidence"] = json!([{
+        "event_id": "00000000-0000-4000-8000-000000000001",
+        "request_id": "00000000-0000-4000-8000-000000000002",
+        "run_id": null,
+        "quote": "qualified legacy evidence"
+    }]);
+    raw["origin"] = json!("user");
+    raw["admission_state"] = json!("qualified");
+    raw["state"] = json!("active");
+    raw["purpose"] = json!({
+        "id": "context.read",
+        "description": "CM-02 v1 native denial fixture"
+    });
+    raw["sensitivity"] = json!("internal");
+    raw["import_mode"] = json!("native");
+    raw["reviewed_by"] = json!("operator");
+    raw["reviewed_at_ms"] = json!(11);
+    raw["content_hash"] = json!("a".repeat(64));
+    serde_json::from_value(raw).unwrap()
+}
+
 #[test]
 fn legacy_memory_is_unverifiable_until_reviewed() {
     let record = MemoryRecord::legacy_import(legacy_row()).unwrap();
+    assert_eq!(record.schema, MEMORY_RECORD_SCHEMA_V2);
     assert_eq!(record.import_mode, MemoryImportMode::LegacyImport);
     assert_eq!(record.origin, MemoryOrigin::Unknown);
     assert_eq!(record.admission_state, MemoryAdmission::Candidate);
@@ -31,6 +58,27 @@ fn legacy_memory_is_unverifiable_until_reviewed() {
     assert_eq!(record.hit()["verified"], false);
     assert_eq!(record.hit()["provenance"], "unverifiable");
     record.validate_lifecycle().unwrap();
+
+    let upcast = kiana_domain::upcast_storage_value(legacy_row(), MEMORY_RECORD_SCHEMA_V2).unwrap();
+    let upcast: MemoryRecord = serde_json::from_value(upcast).unwrap();
+    assert_eq!(upcast.schema, MEMORY_RECORD_SCHEMA_V2);
+    assert_eq!(upcast.import_mode, MemoryImportMode::LegacyImport);
+    assert_eq!(upcast.origin, MemoryOrigin::Unknown);
+    assert_eq!(upcast.admission_state, MemoryAdmission::Candidate);
+    assert_eq!(upcast.state, MemoryState::Draft);
+    assert!(!upcast.searchable());
+    upcast.validate_lifecycle().unwrap();
+}
+
+#[test]
+fn schema_v1_native_qualified_record_requires_explicit_legacy_import() {
+    let record = qualified_v1_native_record();
+    assert_eq!(record.import_mode, MemoryImportMode::Native);
+    assert_eq!(
+        record.validate_lifecycle().unwrap_err(),
+        "memory_record_legacy_import_required"
+    );
+    assert!(!record.searchable());
 }
 
 #[test]
