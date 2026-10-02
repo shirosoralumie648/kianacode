@@ -127,8 +127,9 @@ reopened artifact adapter, and checks that its bytes remain the original while t
 contains the newer bytes.
 
 The unified CI mapping keeps `kiana-daemon` as a whole-crate shard (`targets: null`), so the new
-integration target is included without changing `scripts/ci/test-shards.json`. The isolated branch
-has no CI receipt yet. CO-06 remains 🔄 with `feature_status=partial` and `proof_level=source`;
+integration target is included without changing `scripts/ci/test-shards.json`. Initial source
+recording preceded its exact target receipts, now recorded in §10. CO-06 remains 🔄 with
+`feature_status=partial` and `proof_level=source`;
 this fixture reads the blob port directly from the typed version recovered from EventLog and does
 not execute the later Company business-command read-back branch. It does not establish cross-store
 atomicity, product UI difference presentation, crash recovery, retention/deletion, or power-loss
@@ -140,8 +141,8 @@ helper now returns the public `kiana_domain::CoreResponse` so failure diagnostic
 status and reason. A later CI run, `37019474036`, compiled the target but showed the successful
 registration was still Blocked; source review found the fixture used Sponsor, while the current
 RegisterArtifact policy allows Builder, Reviewer, Architect, PM and Closer. The fixture now uses
-Builder and explicitly checks the missing-source failure reason before its success path. Neither
-follow-up has a post-fix CI receipt yet.
+Builder and explicitly checks the missing-source failure reason before its success path. Subsequent
+target outcomes are recorded in §10.
 
 Run `37025517103` daemon job `110899633464` then reached both requested CO-06 targets. The
 duplicate-version store target passed. The Company history target failed before its deny/success
@@ -150,8 +151,8 @@ assertions with `Port(Failed("authority_snapshot_missing"))` at
 the authority stream required by `commit_protected_event`. The fixture now calls the public
 `ControlPlane::synchronize_authority` with its trusted test context and a stable hashed fixture
 configuration revision before the Company command; it does not synthesize an authority event.
-It retains the exact missing-source denial and store/EventLog no-publication assertions. This
-precondition correction has no post-fix CI receipt yet.
+It retains the exact missing-source denial and store/EventLog no-publication assertions. The
+follow-up target passed in the later receipt recorded in §10.
 
 Run `37010476076` daemon job `110849027662` exposed two stale expectations in
 `local_artifact_duplicate_version_cannot_replace_content_or_manifest`. The fixture now aligns
@@ -160,5 +161,20 @@ with the adapter contract: the legacy `stage_artifact` entry returns
 `stage_artifact_version` is the retry-aware API. The fixture now asserts that changed bytes and
 manifest metadata are denied without changing the committed original; legacy exact duplicates also
 remain rejected. Separately, the retry-aware API returns the first manifest including its original
-timestamp. No production conflict classification changed and the corrected fixture has not yet
-run on GitHub CI.
+timestamp. No production conflict classification changed. The corrected fixture passed in the
+later receipt recorded in §10.
+
+## 10. 2026-10-03 exact GitHub CI target receipts
+
+GitHub run [37032367707](https://github.com/shirosoralumie648/kianacode/actions/runs/37032367707),
+head `c9c17dac1cba2650e850778709d2ee6b53e28659`, contains the integrated Company authority
+initialization fixture change `3d9c4adc`. Daemon job `110922628751` reports:
+
+- `co06_company_artifact_history::artifact_version_remains_reviewable_after_workspace_file_changes`: 1 passed, 0 failed.
+- `co06_local_artifact_store::local_artifact_duplicate_version_cannot_replace_content_or_manifest`: passed; its complete target reports 13 passed, 0 failed.
+
+The daemon shard still failed because 25 other targets failed. The overall run was later cancelled
+by a superseding run; neither result changes the two exact fixture receipts above. CO-06 remains 🔄
+with `feature_status=partial` and `proof_level=source`: the receipt does not establish a green
+whole-crate shard, Company business-command read-back, product UI comparison, cross-store
+atomicity, crash recovery, retention/deletion, or power-loss durability.

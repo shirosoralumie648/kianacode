@@ -856,8 +856,8 @@ cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Car
 fixture·cassette: GitHub-only kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes and kiana-daemon/tests/co06_local_artifact_store.rs::local_artifact_duplicate_version_cannot_replace_content_or_manifest; kiana-daemon is a whole-crate shard (targets=null), so both targets are automatically included
 exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; CI was not triggered on this isolated branch; no runtime test was run locally
 status_change: CO-06 remains 🔄; feature_status=partial; the integration fixture composes ControlPlane::with_artifact_store with LocalArtifactStore and JSONL EventLog, denies a missing source without publishing a blob, then checks the original version remains readable from its EventLog reference after the workspace file changes and both adapters reopen. The local-store fixture now distinguishes legacy stage rejection from retry-aware stage_artifact_version idempotency, checks replacement attempts preserve committed bytes, and checks retry returns the first created_at timestamp
-proof-level change: source only; no promotion to local_behavior, durable, live or physical before remote fixture evidence
-limitations: the integration fixture reads historical bytes through ArtifactContentPort using the version from the reopened Company fact; it does not invoke the later Company business-command read projection or provide a UI original/current comparison. ArtifactStore and EventStore still lack a cross-store transaction; no crash recovery, retention/deletion or power-loss guarantee is established. CI has not yet observed these updated targets
+proof-level change: source only; later focused remote fixture receipts are recorded below and do not establish full-step local_behavior, durable, live or physical proof
+limitations: at initial recording the targets had not yet run on GitHub CI; their later exact receipts are in “CO-06 exact GitHub CI target receipts” below. The integration fixture reads historical bytes through ArtifactContentPort using the version from the reopened Company fact; it does not invoke the later Company business-command read projection or provide a UI original/current comparison. ArtifactStore and EventStore still lack a cross-store transaction; no crash recovery, retention/deletion or power-loss guarantee is established
 reviewer: isolated CO-06 source review; no runtime test reviewer
 ```
 
@@ -869,10 +869,10 @@ worktree_status: isolated branch step/co06-company-history-20261002; helper now 
 command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
 cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
 fixture·cassette: GitHub run 37016768593 daemon job 110870088862 found the private helper return type at compile time; corrected target remains kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes
-exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no post-fix CI receipt yet
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; post-fix CI was pending when this record was written; later exact target receipts are recorded below
 status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; only the helper's exposed test result type changed and fixture behavior is unchanged
 proof-level change: source only; no runtime or CI proof promotion
-limitations: the post-fix target has not yet run on GitHub CI; all CO-06 integration and storage limitations above remain
+limitations: the post-fix target was not yet observed when this record was written; its later exact receipt is recorded below. All CO-06 integration and storage limitations above remain
 reviewer: isolated CO-06 source review; no runtime test reviewer
 ```
 
@@ -884,10 +884,10 @@ worktree_status: isolated branch step/co06-company-history-20261002; fixture now
 command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
 cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
 fixture·cassette: GitHub run 37019474036 daemon job reported the valid registration as Blocked; `CompanyCommandPolicy` source shows RegisterArtifact allows builder/reviewer/architect/pm/closer and rejects other roles with `company_role_denied`; fixture now uses `RoleSpec::builder()` and explicitly asserts the missing source returns `company_artifact_read_failed`
-exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no CI receipt for this follow-up
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; CI receipt was pending when this record was written; later exact target outcomes are recorded below
 status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; the integration now reaches the intended missing-source denial and registered-artifact success assertions without changing production policy
 proof-level change: source only; no runtime or CI proof promotion
-limitations: the follow-up has not run on GitHub CI; business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
+limitations: the follow-up had not run on GitHub CI when this record was written; its later exact target receipt is recorded below. Business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
 reviewer: isolated CO-06 source review of command role policy and fixture context; no runtime test reviewer
 ```
 
@@ -899,11 +899,26 @@ worktree_status: isolated branch step/co06-company-history-20261002; fixture exp
 command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
 cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
 fixture·cassette: run 37025517103 / daemon job 110899633464 showed `artifact_version_remains_reviewable_after_workspace_file_changes` failed at its first ControlPlane call with `Port(Failed("authority_snapshot_missing"))` before fixture assertions. Cause: direct ControlPlane invocation bypassed the required `synchronize_authority` initialization, leaving the protected EventLog append with an empty authority stream. In the same job, `local_artifact_duplicate_version_cannot_replace_content_or_manifest` passed.
-exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no CI receipt for this follow-up
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; CI receipt was pending when this record was written; later exact target outcome is recorded below
 status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; fixture calls the public `ControlPlane::synchronize_authority` before Company commands, so the protected EventLog append sees the required authority stream; it retains the Builder role and missing-source `company_artifact_read_failed`/zero-blob/no-Company-fact denial assertions
 proof-level change: source only; no runtime or CI proof promotion
-limitations: this follow-up has not run on GitHub CI; business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
+limitations: this follow-up had not run on GitHub CI when this record was written; its later exact target outcome is recorded below. Business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
 reviewer: isolated CO-06 source review of the authority-stream append precondition and explicit fixture initialization; no runtime test reviewer
+```
+
+### CO-06 exact GitHub CI target receipts (2026-10-03)
+
+```text
+source_snapshot: CI run `37032367707` HEAD `c9c17dac1cba2650e850778709d2ee6b53e28659`; includes integrated authority initialization fix `3d9c4adc8347870e02c17ed89c018e3d8d8c9d39`; CO-06 source fixtures from the isolated source commits
+worktree_status: documentation-only receipt update on isolated branch step/co06-company-history-20261002; no source changes
+command_argv: `gh api repos/shirosoralumie648/kianacode/actions/jobs/110922628751/logs` and focused `rg` of CO-06 target lines; `cargo fmt --all --check`; `git diff --check`; no local test/build/check/clippy/smoke
+cwd·environment: /tmp/kiana-co06-company-history-20261002; GitHub Actions Linux runner for target execution; local workspace used only for documentation and static formatting checks
+fixture·cassette: job `110922628751` (`Tests (kiana-daemon)`) reports `artifact_version_remains_reviewable_after_workspace_file_changes` passed 1/1 and `local_artifact_duplicate_version_cannot_replace_content_or_manifest` passed within `co06_local_artifact_store` 13/13
+exit_code: both requested GitHub targets passed; the daemon shard still failed with 25 other failed targets and the overall workflow was later cancelled by a superseding run; `cargo fmt --all --check=0`; `git diff --check=0`
+status_change: none; CO-06 remains 🔄 / `feature_status=partial` / `proof_level=source`; exact target receipts are recorded, but aggregate daemon CI is not green and other acceptance gaps remain
+proof-level change: source remains; no promotion to local_behavior, durable, live or physical
+limitations: these receipts prove the two named fixtures on the run's c9c17dac snapshot only; business-command read-back integration, product UI original/current comparison, cross-store atomicity, crash recovery, retention/deletion and power-loss guarantees remain open
+reviewer: GitHub Actions target-log inspection and source/status reconciliation; no local runtime reviewer
 ```
 
 ### UI-13 Authorization header redaction evidence (2026-09-26)
