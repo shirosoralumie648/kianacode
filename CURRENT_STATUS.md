@@ -19618,6 +19618,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched decision fields, decision_fact, terminal flag, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+### ER-01 approval.expired transition contract (2026-10-03)
+
+```text
+source_snapshot: source commit `10c8ac85`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `approval.expired` now uses the exact expiry transition allowlist with terminal semantics, approval aggregate metadata, required approval_id and legacy approval migration; source guard pins the expiry reason producer; no EventStore or approval behavior changed
+command_argv: source trace of `require_unexpired` expiry transition; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 87ddd93e`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `78766317`; integration repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `approval_expired_contract_matches_expiry_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; no receipt for this source snapshot yet
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; expired approval transition is now explicitly covered with terminal semantics
+proof-level change: none
+limitations: generic EventStore append still does not call `validate_runtime_event`; cancelled/consumed transitions and other approval producers still require reconciliation; no approval durability, replay/recovery or external-effect claim
+reviewer: source trace matched expiry reason, transition fields, terminal flag, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
