@@ -19288,6 +19288,21 @@ limitations: no post-fix CI evidence yet; the prior run ended before verifying c
 reviewer: source review verified the EventStore/JSONL write precedes capability result finalization and traced the flattened `source` into notification validation; no local runtime reviewer
 ```
 
+### CM-02 persistent EventStore across recreated daemon hosts (2026-10-03)
+
+```text
+source_snapshot: CM-02 source fix `ad05e4f3`; failing unified CI head `8407e1f1` / run `37048582415`; `kiana-daemon/tests/daemon_host.rs`; `kiana-daemon/src/harness_memory.rs`; `kiana-eventlog/src/jsonl.rs`; `docs/roadmap/memory-lifecycle-baseline.md`
+worktree_status: CM-02 test now recreates writer, search, review, and post-review hosts sequentially against the same on-disk `.kiana/events.jsonl`; this retains real host recreation while preserving committed memory.fact authority alongside the JSONL projection. The test still asserts the candidate is unsearchable before/after evidence-less review and the review leaves JSONL unchanged. No production behavior changed.
+command_argv: remote log `gh run view 37048582415 --job 110976529590 --log-failed`; source trace of `MemoryWriteHandler`, `ensure_memory_projection`, and test host construction; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; remote runner executes the targeted daemon test
+fixture·cassette: run `37048582415` / CM-02 job `110976529590`, target `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable`: writer returned Completed and persisted the Candidate, then pre-review search returned `ResultUnknown / result_unknown:port_failed:memory_projection_unjournaled` at `daemon_host.rs:3829`. Source review traced this to a new in-memory EventStore paired with the existing JSONL projection. The modified fixture shares one persistent EventLog path; its remote result is pending.
+exit_code: prior remote target failed at the projection guard due fixture store mismatch; current `cargo fmt --all --check` and `git diff --check` passed; no local runtime test
+status_change: CM-02 remains `🔄`, `feature_status=partial`, `proof_level=source`; the event source collision is corrected, and cross-host candidate visibility now exercises one persistent EventStore before the evidence denial path
+proof-level change: none
+limitations: no post-fix receipt yet; the prior run did not reach evidence-less review or post-review search assertions. EventStore-backed successful proposal promotion, event-to-quote binding, durable recovery, retention/revocation/deletion and semantic recall remain open.
+reviewer: source review confirmed the guard rejects file-only projection and the test had switched to an unrelated empty EventStore; the fixture now reopens the same persistent event log without weakening projection checks; no local runtime reviewer
+```
+
 ### CAP-02 focused acceptance workflow (2026-10-03)
 
 ```text
@@ -19295,11 +19310,11 @@ source_snapshot: CAP-02 production/fixture source `302c6b46`; acceptance commit 
 worktree_status: added a workflow_dispatch-only acceptance job and a source guard binding provider/domain deny-first fixtures, accepted bounded-input fixtures, canonical digest target, and ControlPlane forged-authority fixture to the workflow; test-only `ScopeRequestRunner` explicitly supports trusted model assignment, the scope-capture context uses `Balanced` and an existing temporary workspace directory, and both isolated ControlPlane fixtures pre-seed authority through `synchronize_authority` before effectful dispatch. Failure assertions include the response envelope. No production behavior, shared manifest, or lockfile changed.
 command_argv: first manual dispatch `gh workflow run cap02-input.yml --ref master`; remote log `gh run view 37044371789 --job 110962037240 --log`; after source correction `cargo fmt --all --check` and `git diff --check`; no local tests/build/check/clippy/smoke; rerun with `gh workflow run cap02-input.yml --ref master` after push
 cwd·environment: isolated source worktree `/tmp/kiana-cap02-slice-20261003`, branch `step/cap02-slice-20261003`; integration repository root; Linux/bash
-fixture·cassette: first run `37044371789` / job `110962037240` failed with `runner_model_assignment_unsupported`; second run `37045485280` / job `110965758993` failed Completed status without printing response detail. Third run `37046539511` / job `110969271276` failed with `port_failed:action_authority_missing`; both isolated event stores lacked the daemon authority preflight. Fourth run `37047427515` / job `110972206727` passed authority pin but returned `result_unknown:port_failed:project_root_unavailable`, as the fixture still used a nonexistent `/repo`. The current fixture uses `temp_project()` to supply an existing workspace; a fifth manual run is pending after push.
-exit_code: runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` failed at fixture preconditions; current `cargo fmt --all --check` and `git diff --check` passed; no local tests/build/check/clippy/smoke
-status_change: CAP-02 remains roadmap row 041 🔄 / `feature_status=partial` / `proof_level=source`; the acceptance workflow adds an inspectable remote receipt path but does not close the step
+fixture·cassette: first four focused runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` failed at successive test-fixture preconditions: missing trusted Runner assignment, default Safe profile (response not printed), missing authority preflight, and nonexistent `/repo` workspace. Fifth run `37049367090` / job `110978606763` passed provider duplicate-key/oversize denials, domain alias/schema/depth/duplicate-key denials and complete `cap02_input`, Core `reserved_authority_fields_cannot_change_execution_scope`, accepted provider nested-input selectors, and `cap02_input_guard`.
+exit_code: fifth focused GitHub job succeeded; `cargo fmt --all --check` and `git diff --check` passed; no local tests/build/check/clippy/smoke
+status_change: CAP-02 remains roadmap row 041 🔄 / `feature_status=partial` / `proof_level=source`; exact remote evidence now covers the selected focused targets at head `6cf0c9bf`, but does not close the full card
 proof-level change: none
-limitations: the existing-workspace correction has no remote receipt yet; later workflow success/digest/provider-acceptance/source-guard targets were not reached in the failed runs. The Balanced-profile explanation for run `37045485280` is source-derived because that snapshot omitted response detail. A workflow fixture does not prove production Broker effects, schema dialect completeness, provider live behavior, durable snapshots, or physical containment
+limitations: this receipt is bound to head `6cf0c9bf`; it does not prove the complete production adapter matrix, schema dialect completeness beyond the bounded subset, durable snapshots, external effects, provider live behavior, physical containment, or product UAT. The Safe-profile attribution for run `37045485280` is source-derived because that response was not printed.
 reviewer: source review matched each focused selector to existing fixture names and checked the workflow guard; no local runtime test reviewer
 ```
 

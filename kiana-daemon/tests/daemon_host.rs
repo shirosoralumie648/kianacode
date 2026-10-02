@@ -123,6 +123,17 @@ fn scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
     Arc::new(trusted_harness_host(harness).expect("daemon with kiana harness"))
 }
 
+fn scripted_host_on_disk(
+    outputs: serde_json::Value,
+    events_path: impl AsRef<Path>,
+) -> Arc<DaemonHost> {
+    let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()));
+    Arc::new(
+        trusted_harness_host_on_disk(harness, events_path)
+            .expect("daemon with persistent event log"),
+    )
+}
+
 fn untrusted_scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
     let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()));
     Arc::new(untrusted_harness_host(harness).expect("untrusted fixture daemon"))
@@ -3784,8 +3795,9 @@ async fn builder_project_search_hits_land_on_receipt() {
 async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchable() {
     let _environment_lock = environment_lock();
     let root = temp_project();
+    let event_log_path = root.join(".kiana").join("events.jsonl");
 
-    let writer_host = scripted_host(spoofed_memory_write_cassette());
+    let writer_host = scripted_host_on_disk(spoofed_memory_write_cassette(), &event_log_path);
     let writer = KianaClient::new(InProcessTransport { host: writer_host });
     let mut writer_metadata = trusted_write_metadata_in(&root);
     writer_metadata.assign_role(&RoleSpec::pm());
@@ -3798,6 +3810,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         .await
         .unwrap();
     assert_eq!(written.status, ExecutionStatus::Completed, "{written:?}");
+    drop(writer);
 
     let raw_record = fs::read_to_string(planning_memory_path(&root))
         .unwrap()
@@ -3811,10 +3824,10 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
     assert_eq!(record["admission_state"], "candidate");
     assert_eq!(record["state"], "draft");
 
-    let search_host = scripted_host(memory_search_cassette(
-        "department:planning",
-        "candidate memory",
-    ));
+    let search_host = scripted_host_on_disk(
+        memory_search_cassette("department:planning", "candidate memory"),
+        &event_log_path,
+    );
     let search = KianaClient::new(InProcessTransport { host: search_host });
     let mut search_metadata = trusted_write_metadata_in(&root);
     search_metadata.assign_role(&RoleSpec::pm());
@@ -3837,8 +3850,9 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
             .is_some_and(Vec::is_empty),
         "{before_review:?}"
     );
+    drop(search);
 
-    let review_host = scripted_host(json!([{"text": "unused"}]));
+    let review_host = scripted_host_on_disk(json!([{"text": "unused"}]), &event_log_path);
     let review = KianaClient::new(InProcessTransport { host: review_host });
     let mut review_metadata = trusted_write_metadata_in(&root);
     review_metadata.assign_role(&RoleSpec::pm());
@@ -3887,11 +3901,12 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         fs::read_to_string(planning_memory_path(&root)).unwrap(),
         format!("{raw_record}\n")
     );
+    drop(review);
 
-    let search_host = scripted_host(memory_search_cassette(
-        "department:planning",
-        "candidate memory",
-    ));
+    let search_host = scripted_host_on_disk(
+        memory_search_cassette("department:planning", "candidate memory"),
+        &event_log_path,
+    );
     let search = KianaClient::new(InProcessTransport { host: search_host });
     let mut search_metadata = trusted_write_metadata_in(&root);
     search_metadata.assign_role(&RoleSpec::pm());

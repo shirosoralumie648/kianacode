@@ -7,8 +7,8 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CAP-02`](capability.md#step-cap-02) |
-| source snapshot | CAP-02 production and fixture snapshot `302c6b46` includes ControlPlane fixture commit `c609482b`; this acceptance slice is based on `5ec79dca` and adds only a GitHub workflow, its workflow-target source guard, and evidence documentation |
-| feature_status | `partial`（bounded input/schema/normalization/digest source exists; the focused acceptance workflow has no CI receipt yet） |
+| source snapshot | CAP-02 production/fixture source `302c6b46`; focused workflow/source guard `446a7e55`; test fixture corrections `446818b2`, `6fae824b`, `3510d4f5`, `6cf0c9bf` |
+| feature_status | `partial`（selected denial/success and ControlPlane authority fixtures passed in focused GitHub run `37049367090`） |
 | proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
 | canonical path | raw model/direct input → bounded parser/schema validator → canonical CapabilityRequest → PreparedAction input/action/catalog digest → policy/approval/Broker |
 | this step does | JSON bytes/depth/items/duplicate key 限制，schema dialect subset，shell string/argv、patch、MCP、Memory 归一化，reserved authority field 清理、alias/NUL/path/numeric 校验及 canonical input digest |
@@ -61,7 +61,7 @@
 
 CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。当前 `scripts/ci/test-shards.json` 把 `cap02_input` 分配给 domain shards、`cap02_input_guard` 分配给 `kiana-core-s1/6`；新增的 ControlPlane fixture 复用既有 `control_plane` target（`kiana-core-s2/6`），不改 shard manifest；`kiana-provider` shard 运行 provider 单元夹具。GitHub CI 负责执行，本地不运行测试，不连接 provider/connector。
 
-2026-10-03 acceptance follow-up adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw-string/object duplicate-key and oversized-input rejection fixtures, domain alias/schema/depth/duplicate-key denial fixtures, the ControlPlane forged-authority fixture, the complete domain digest/input target, accepted provider nested-input fixtures, and the existing cross-layer source guard. That source guard pins the selected denial and success target names in the workflow so the documented acceptance surface cannot drift silently. The `workflow_dispatch`-only trigger preserves the repository's automatic-workflow fan-out rule; the unified `ci.yml` remains the push gate and retains ownership of the same test targets. Runs `37044371789`, `37045485280`, and `37046539511` found missing runner binding, a Safe-profile fixture, and a missing authority preflight, respectively. Run `37047427515` / job `110972206727` then returned `result_unknown:port_failed:project_root_unavailable`: the test used a nonexistent `/repo` root while taking the real shell path. The fixture now uses a real `temp_project()` root in addition to trusted assignment, Balanced profile, and synchronized authority. A fifth CI receipt is pending; CAP-02 remains `partial` / `source`.
+2026-10-03 adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw/object duplicate-key and oversize denial fixtures; domain alias/schema/depth/duplicate-key denial plus the complete digest/input target; a ControlPlane forged-authority scope fixture; valid provider nested-input selectors; and a source guard pinning the selected tests. Runs `37044371789`, `37045485280`, `37046539511`, and `37047427515` exposed four fixture preconditions: trusted runner binding, an effectful action under default Safe profile, missing authority preflight, and nonexistent workspace root. Corrections culminated in `temp_project()` plus explicit Balanced profile/assignment/authority setup. Run `37049367090` / job `110978606763` passed all workflow steps. CAP-02 remains partial/source because the receipt is scoped to head `6cf0c9bf` and selected fixtures; the bounded schema dialect, complete production adapters, durable snapshots, external effects and product UAT remain open.
 
 ## Source anchors
 
@@ -86,7 +86,7 @@ Remote CI evidence at the raw-string correction snapshot: historical CAP-02 run 
 
 这些 hash 只用于 CAP-02 输入边界漂移复核，不是执行授权、secret 或 handler effect 证明。
 
-2026-10-03 acceptance follow-up adds .github/workflows/cap02-input.yml as a manual-only workflow. Its first test step runs provider raw-string/object duplicate-key and oversized-input rejection fixtures; the next step runs domain alias/schema/depth/duplicate-key denial fixtures and the ControlPlane forged-authority fixture; later steps run the complete domain digest/input target, provider accepted nested-input fixtures, and the existing cross-layer source guard. The workflow_dispatch-only trigger preserves the repository's automatic-workflow fan-out rule. The unified ci.yml remains the push gate and continues to own the same test targets; the focused workflow provides an independently inspectable receipt after dispatch. Runs 37044371789, 37045485280, 37046539511, and 37047427515 exposed runner-binding, Safe-profile, authority-preseed, and nonexistent-workspace fixture issues, respectively. The fixture now uses `temp_project()` and retains the trusted hooks/preflight; a fifth CI receipt is pending. CAP-02 remains partial / source. A successful focused run can establish fixture execution for that snapshot only and does not by itself prove durable authorization, correct external effects, live provider behavior, or physical containment.
+Run `37049367090` / job `110978606763` passed all selected provider/domain/Core/source-guard targets at head `6cf0c9bf`. The manual workflow validates only its pinned fixtures for that snapshot. It does not prove full production adapter behavior, schema dialect completeness, durable snapshots, external/live effects, physical containment, or product UAT; CAP-02 remains partial/source.
 
 ## 5. 限制与交接
 

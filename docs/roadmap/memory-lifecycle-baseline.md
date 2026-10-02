@@ -255,3 +255,16 @@ proof-level change: none; proof_level=source
 limitations: candidate JSONL and evidence-denial checks were not reached in the observed run; EventStore-backed proposal acceptance and event/quote binding, durable recovery, retention/revocation/deletion, and semantic recall remain unproven
 reviewer: isolated source review traced `credential_revision: null` through model-event serialization, EventStore validation and redaction; no runtime test reviewer
 ```
+
+### Shared EventStore across recreated daemon hosts (2026-10-03)
+
+Unified run `37048582415` / CM-02 job `110976529590` reached the pre-review search after the
+memory write had returned Completed and the Candidate record was present in JSONL. That search
+failed with `result_unknown:port_failed:memory_projection_unjournaled`: the test had created a
+second `scripted_host`, which owns a new empty in-memory EventStore, while reusing the first host's
+JSONL projection. `ensure_memory_projection` correctly refused the inconsistent journal/file pair.
+
+The fixture now recreates writer, search, review, and post-review hosts against one persistent
+`JsonlEventLog` path. This keeps the cross-host workflow and production unjournaled-projection guard
+intact. The next remote run must reach the evidence-denial assertion and confirm the Candidate
+stays unsearchable before and after review. CM-02 remains partial/source.
