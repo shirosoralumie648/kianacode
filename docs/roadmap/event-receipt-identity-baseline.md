@@ -121,3 +121,9 @@ The latest readable pre-fixture receipt is run `36963672912`, head `ff3fb2fe0b9f
 - Eventlog: `oa06_commit_observer`, `pd08_integrity_scan`, `pd27_writer_queue`, `pd27_writer_queue_guard`, `pd30_storage_fault_matrix`, `pd31_adapter_conformance`.
 
 These sibling failures are outside the ER-02 fixtures. The new direct, receipt-normalization and full daemon projection fixtures have no CI receipt yet. ER-02 remains `feature_status=partial`, `proof_level=source`; no updated code has a GitHub CI receipt and no complete green ER-02 shard is claimed.
+
+## 9. Receipt fix integration reconciliation (2026-10-02)
+
+The source/fixture slice in §8 was committed as `4ce549ba82ea08244c0f30343b992adaefc9016f` and merged into master by `e70cf9fc`; `10d24378` records its CI rustfmt correction. Current master `4e54356b06817817f120e3a9a2d9c6c601d4f2b3` contains the `committed=false` terminal receipt denial and `invocation_projection_rejects_uncommitted_terminal_receipts`, covering both `execution.result_committed` and `capability.completed`. The worktree previously reported as containing six uncommitted files was already clean at 4ce549ba; no implementation port or duplicate production commit is needed.
+
+Current master CI run `36978883309` targets `4e54356b` and was still in progress when this note was recorded. Core-s3/6 job `110748754394`, domain-s2/4 job `110748754448`, and eventlog job `110748754494` were marked failed at aggregate level; GitHub did not expose their logs until the overall run finishes, so this note does not infer any fixture outcome from those statuses. The last readable per-fixture receipt remains run `36963672912`, which predates §8. ER-02 remains `feature_status=partial`, `proof_level=source`; no complete green shard or new fixture receipt is claimed.
