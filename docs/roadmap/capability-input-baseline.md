@@ -47,6 +47,8 @@
 | `reserved_authority_fields_are_not_a_server_grant` | caller actor/project/role 等保留字段只会改变待重准备输入，不能成为服务端权限来源 |
 | `reserved_authority_fields_cannot_change_execution_scope` | `kiana-core/tests/control_plane.rs` uses a RunnerPort request with actor/project/role/path/sandbox spoofing and a self-valid, action-bound forged scope; the existing ControlPlane preparation and authorization path must deliver the same server-stamped arguments and ExecutionScope to the Broker as an unspoofed request |
 | `schema_depth_and_reference_limits_fail_before_dispatch` | depth/bytes/schema reference/keyword 限制先于 Broker |
+| `contradictory_schema_bounds_are_rejected_before_dispatch` | 空的 length/items/numeric ranges fail closed with `schema_length_bounds_invalid`, `schema_item_bounds_invalid`, or `schema_number_bounds_invalid`; numeric strict endpoints are included in the emptiness check |
+| `nonempty_schema_bound_edges_are_accepted` | equal inclusive endpoints and nonempty mixed inclusive/exclusive numeric ranges remain accepted |
 | `conflicting_mcp_tool_aliases_are_rejected` | MCP alias 冲突 fail-closed |
 | `equivalent_json_inputs_have_the_same_digest` | key order/null normalization 后 digest 一致 |
 | `execution_affecting_input_changes_change_digest` | 执行影响字段变化导致新摘要 |
@@ -73,6 +75,7 @@ CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。
 | 2026-10-02 provider raw-argument correction | `kiana-provider/src/response.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs` | `518ed2fbae7da1580fadaaf7b0ac3ee88dd97eee629eaf442a051e8073f6d2b4`, `6a1ea156037fc4536bff8cd75d2ba4f1de97e943df00883c93cc5847cc0e53eb`, `c4d0c8494095dad30b396f27a0db513f1e6f19938ab3418d6f6782e91a46d98e` |
 | 2026-10-02 provider object-form duplicate-key follow-up | `kiana-provider/src/response.rs`, `kiana-provider/src/transport.rs`, `kiana-core/tests/cap02_input_guard.rs` | `0720112e594054bdccd0e9e410e53a24039c71cf60065df56ecbad0d7d2dcfde`, `79a3583f1ade40d7966bebfbd9a030372a2e7aecb1dab69caf4e3ce560d7c5dd`, `b60aada1dcded971ba3f02129e33719855f1d3ba2b85ff2513e1cf099c21a4a0` |
 | 2026-10-03 focused acceptance workflow and target guard | `.github/workflows/cap02-input.yml`, `kiana-core/tests/cap02_input_guard.rs` | `2c2de8e4441d1a40f081e474454778b5659c0ec7daabed75d58c6d5897ee3847`, `2804f39bafff46103bd229ef98d5c62db4534590073b223169eb6cf47e08899e` |
+| 2026-10-03 contradictory schema bounds | `kiana-domain/src/tool_catalog.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, `.github/workflows/cap02-input.yml` | `c2f3849d4c1eba62c8c5aa7aabcb8f7b9963bf747aa1d799d4cf50f76293cb95`, `8c69ecc8ab7bdcfab00beb331da03656b696117753767acb3806e0b46bde7ec0`, `7f4cf581f6d8a203768bb2678ac90df950f2757ab9c7f4fa6caa9bc54a000a29`, `3f7b4cacaddb4cdd1569c4529775d0d37a050941361a47680e6d1f2c26f13f74` |
 
 2026-10-02 provider ingress correction: string-form arguments use `parse_bounded_json`; object-form parameters are now duplicate-checked from the original provider envelope/frame bytes by `UniqueProviderJson` before they become `Value`. The envelope parser uses the existing 8 MiB transport-body ceiling and does not apply the 512 KiB tool-argument parser limit to the whole response. Tool argument schema validation retains the 512 KiB bound before `ModelToolCall` construction; the existing later `validate_model_calls` boundary still applies its stricter 256 KiB per-call limit. This deliberately fails closed on duplicate object keys anywhere in a provider envelope/frame, including metadata, while preserving the existing ProviderGateway and ControlPlane path.
 
@@ -90,7 +93,7 @@ Run `37049367090` / job `110978606763` passed all pinned provider/domain/Core/so
 
 ## 5. 限制与交接
 
-- The focused CAP-02 workflow is manual-only. Its first dispatch found a fixture admission mismatch; the corrected fixture has no CI result yet, so no proof promotion is made here.
+- The focused CAP-02 workflow is manual-only. Run `37049367090` passed its pinned targets at `6cf0c9bf`, but predates this bounds slice and the later provider error-classification change; the new bounds fixtures need a fresh GitHub receipt.
 
 - 当前 schema validator 是有界子集，未支持任意 JSON Schema `$ref`、所有组合关键字、MCP outputSchema 或外部 schema fetch；不因 parser 通过宣称完整兼容。
 - authority fields 在 ControlPlane prepare 清理并覆写，但 `CapabilityRequest` compatibility JSON 仍可被调用者构造；Grant/Approval/ExecutionContext/epoch 的最终交集由 CP-04+/CAP-03+/SC-04+ 完成。

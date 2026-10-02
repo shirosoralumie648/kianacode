@@ -324,6 +324,25 @@ pub fn validate_schema_contract(schema: &Value) -> Result<(), String> {
     validate_json_limits(schema)?;
     validate_schema_node(schema, 0)
 }
+
+fn strongest_numeric_bound(
+    bounds: [Option<(f64, bool)>; 2],
+    lower_bound: bool,
+) -> Option<(f64, bool)> {
+    bounds.into_iter().flatten().reduce(|current, bound| {
+        let more_restrictive = if lower_bound {
+            bound.0 > current.0
+        } else {
+            bound.0 < current.0
+        };
+        if more_restrictive || (bound.0 == current.0 && bound.1 && !current.1) {
+            bound
+        } else {
+            current
+        }
+    })
+}
+
 fn validate_schema_node(schema: &Value, depth: usize) -> Result<(), String> {
     if depth > TOOL_JSON_MAX_DEPTH {
         return Err("schema_depth_limit".to_owned());
@@ -433,6 +452,22 @@ fn validate_schema_node(schema: &Value, depth: usize) -> Result<(), String> {
             return Err("schema_limit_invalid".to_owned());
         }
     }
+    if object
+        .get("minLength")
+        .and_then(Value::as_u64)
+        .zip(object.get("maxLength").and_then(Value::as_u64))
+        .is_some_and(|(minimum, maximum)| minimum > maximum)
+    {
+        return Err("schema_length_bounds_invalid".to_owned());
+    }
+    if object
+        .get("minItems")
+        .and_then(Value::as_u64)
+        .zip(object.get("maxItems").and_then(Value::as_u64))
+        .is_some_and(|(minimum, maximum)| minimum > maximum)
+    {
+        return Err("schema_item_bounds_invalid".to_owned());
+    }
     for key in ["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"] {
         if object
             .get(key)
@@ -440,6 +475,39 @@ fn validate_schema_node(schema: &Value, depth: usize) -> Result<(), String> {
         {
             return Err("schema_number_invalid".to_owned());
         }
+    }
+    let strongest_lower = strongest_numeric_bound(
+        [
+            object
+                .get("minimum")
+                .and_then(Value::as_f64)
+                .map(|value| (value, false)),
+            object
+                .get("exclusiveMinimum")
+                .and_then(Value::as_f64)
+                .map(|value| (value, true)),
+        ],
+        true,
+    );
+    let strongest_upper = strongest_numeric_bound(
+        [
+            object
+                .get("maximum")
+                .and_then(Value::as_f64)
+                .map(|value| (value, false)),
+            object
+                .get("exclusiveMaximum")
+                .and_then(Value::as_f64)
+                .map(|value| (value, true)),
+        ],
+        false,
+    );
+    if strongest_lower.zip(strongest_upper).is_some_and(
+        |((lower, lower_exclusive), (upper, upper_exclusive))| {
+            lower > upper || (lower == upper && (lower_exclusive || upper_exclusive))
+        },
+    ) {
+        return Err("schema_number_bounds_invalid".to_owned());
     }
     if object
         .get("enum")

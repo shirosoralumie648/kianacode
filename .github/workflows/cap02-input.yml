@@ -30,6 +30,8 @@ jobs:
         run: |
           cargo test -p kiana-domain --test cap02_input --locked conflicting_mcp_tool_aliases_are_rejected -- --test-threads=1
           cargo test -p kiana-domain --test cap02_input --locked schema_depth_and_reference_limits_fail_before_dispatch -- --test-threads=1
+          cargo test -p kiana-domain --test cap02_input --locked contradictory_schema_bounds_are_rejected_before_dispatch -- --test-threads=1
+          cargo test -p kiana-domain --test cap02_input --locked nonempty_schema_bound_edges_are_accepted -- --test-threads=1
           cargo test -p kiana-domain --test cap02_input --locked duplicate_json_object_fields_are_rejected_before_value_collapse -- --test-threads=1
           cargo test -p kiana-core --test control_plane --locked reserved_authority_fields_cannot_change_execution_scope -- --exact --test-threads=1
       - name: Verify canonical digest and accepted bounded inputs

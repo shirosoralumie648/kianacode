@@ -66,6 +66,8 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     }
     assert!(baseline.contains("reserved_authority_fields_cannot_change_execution_scope"));
     assert!(baseline.contains("schema_depth_and_reference_limits_fail_before_dispatch"));
+    assert!(baseline.contains("contradictory_schema_bounds_are_rejected_before_dispatch"));
+    assert!(baseline.contains("nonempty_schema_bound_edges_are_accepted"));
     assert!(baseline.contains("conflicting_mcp_tool_aliases_are_rejected"));
     assert!(baseline.contains("equivalent_json_inputs_have_the_same_digest"));
     assert!(baseline.contains("execution_affecting_input_changes_change_digest"));
@@ -76,6 +78,8 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
         "object_form_tool_arguments_over_the_bounded_input_limit_are_rejected",
         "conflicting_mcp_tool_aliases_are_rejected",
         "schema_depth_and_reference_limits_fail_before_dispatch",
+        "contradictory_schema_bounds_are_rejected_before_dispatch",
+        "nonempty_schema_bound_edges_are_accepted",
         "duplicate_json_object_fields_are_rejected_before_value_collapse",
         "reserved_authority_fields_cannot_change_execution_scope",
         "object_form_tool_arguments",

@@ -79,6 +79,93 @@ fn schema_depth_and_reference_limits_fail_before_dispatch() {
 }
 
 #[test]
+fn contradictory_schema_bounds_are_rejected_before_dispatch() {
+    let cases = [
+        (
+            serde_json::json!({"type":"string","minLength":3,"maxLength":2}),
+            "schema_length_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"array","items":true,"minItems":3,"maxItems":2}),
+            "schema_item_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":3,"maximum":2}),
+            "schema_number_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","exclusiveMinimum":2,"maximum":2}),
+            "schema_number_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":2,"exclusiveMaximum":2}),
+            "schema_number_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","exclusiveMinimum":2,"exclusiveMaximum":2}),
+            "schema_number_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":1,"exclusiveMinimum":3,"maximum":3}),
+            "schema_number_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":3,"maximum":5,"exclusiveMaximum":3}),
+            "schema_number_bounds_invalid",
+        ),
+    ];
+
+    for (schema, expected_error) in cases {
+        assert_eq!(
+            kiana_domain::validate_schema_contract(&schema).unwrap_err(),
+            expected_error
+        );
+        assert_eq!(
+            kiana_domain::validate_schema_value(&serde_json::json!(2), &schema).unwrap_err(),
+            expected_error
+        );
+    }
+}
+
+#[test]
+fn nonempty_schema_bound_edges_are_accepted() {
+    let cases = [
+        (
+            serde_json::json!({"type":"string","minLength":2,"maxLength":2}),
+            serde_json::json!("ok"),
+        ),
+        (
+            serde_json::json!({"type":"array","items":true,"minItems":2,"maxItems":2}),
+            serde_json::json!([1, 2]),
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":2,"maximum":2}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"number","exclusiveMinimum":1,"maximum":2}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":2,"exclusiveMaximum":3}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"number","exclusiveMinimum":1,"exclusiveMaximum":3}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"number","minimum":1,"exclusiveMinimum":2,"maximum":4,"exclusiveMaximum":3}),
+            serde_json::json!(2.5),
+        ),
+    ];
+    for (schema, value) in cases {
+        kiana_domain::validate_schema_contract(&schema).unwrap();
+        kiana_domain::validate_schema_value(&value, &schema).unwrap();
+    }
+}
+
+#[test]
 fn duplicate_json_object_fields_are_rejected_before_value_collapse() {
     let duplicate = br#"{"command":"printf ok","command":"rm -rf /"}"#;
 
