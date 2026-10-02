@@ -329,6 +329,27 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched expiry reason, transition fields, terminal flag, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+## 5.11 Cancelled approval producer variants
+
+Approval cancellation has two existing producers. User invalidation writes a transition payload
+with `reason` and `revoked_by`; project invalidation writes `reason` and `source`. The registry now
+uses one bounded union allowlist covering both variants, retains terminal semantics, approval
+aggregate metadata, required approval ID and legacy approval migration. The fixture exercises both
+valid forms plus missing IDs and unknown fields; no cancellation or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `6f0b06a1`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `approval.cancelled` now admits exact common transition fields plus `reason` and either producer-specific `revoked_by`/`source`; terminal semantics, approval aggregate, approval_id and migration remain explicit; no EventStore or approval behavior changed
+command_argv: source trace of `invalidate` and `invalidate_project`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 37cd8ab2`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `a579359b`; integration repository root; Linux/bash; GitHub Actions is the runtime executor
+fixture·cassette: `approval_cancelled_contract_matches_both_cancellation_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; both cancellation producer payloads are now explicitly covered
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; consumed/continuation transitions and other approval producers remain open; no approval durability/replay/recovery or external-effect claim
+reviewer: source trace matched both cancellation producer variants, terminal flag, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
