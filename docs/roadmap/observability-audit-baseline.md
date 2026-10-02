@@ -287,6 +287,14 @@ link 的伪造关系；合法的 parent 仍只由服务端 child-span 产生。�
 span sink、授权路径或 durable/live/physical 证明。OA-03 继续处理跨 signal 的统一
 redaction/classification 和 bounded encoder。
 
+2026-10-03 adds validation to `CorrelationContext` wire deserialization. A private strict wire DTO
+preserves the prior JSON field names and every optional-field default, constructs the same public
+value, and calls the existing `validate()` before returning it. The JSON fixture rejects nil IDs,
+request/correlation drift, invalid command/event causation, forged Parent/self links, and attempt
+scope/command drift; a legacy JSON object omitting optional fields remains readable. The derived
+Serialize shape is unchanged. This is still source-level evidence only: OA-02 has no authenticated
+ingress→provider→broker→EventLog propagation or recovery link proof.
+
 ## 9. OA-03 叠加说明
 
 OA-03 在 `kiana-domain/src/redaction.rs` 增加 versioned `RedactionProfile`，按 log/metric/

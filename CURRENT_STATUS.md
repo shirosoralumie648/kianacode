@@ -19422,3 +19422,18 @@ proof-level change: none
 limitations: new cases await GitHub CI. The exact packet-set binding ambiguity remains unresolved because `Partition` has no typed packet identity; optional legacy graph migration, queue/claim/scheduler, durable dispatch, replay/recovery, and effect-time fencing remain outside this slice.
 reviewer: source comparison against `SwarmWorkGraph::validate` error ordering and complete structured error values; no local runtime reviewer
 ```
+
+### OA-02 CorrelationContext wire decode validation (2026-10-03)
+
+```text
+source_snapshot: isolated commit `cbff7700a49a03339841f5908960f34511941de2`, cherry-picked to current master as `dbb67afb`; `kiana-domain/src/correlation.rs`; `kiana-domain/tests/oa02_correlation.rs`; `docs/roadmap/observability-audit-baseline.md`; `docs/roadmap.md`
+worktree_status: `CorrelationContext` now deserializes through a private `deny_unknown_fields` wire DTO, reconstructs the same public fields, and calls the existing `validate()` before returning. All old optional-field serde defaults are preserved and derived Serialize output is unchanged. JSON fixtures cover legacy JSON without optional fields and deny nil IDs, request/correlation mismatch, invalid causation, forged Parent/self links, and attempt scope/command drift. No ingress, provider, broker, EventStore, manifest or lockfile changes.
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick cbff7700a49a03339841f5908960f34511941de2`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-oa02-deserialize-validation-20261003`, branch `fix/oa02-deserialize-validation-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: new `wire_decode_rejects_nil_ids_and_invalid_correlation_links` and renamed in-memory-only `validate_rejects_nil_ids_and_parent_or_self_span_links`; existing `.github/workflows/ci.yml` routes `oa02_correlation` to `kiana-domain-s3/4`. No CI receipt for this source snapshot yet.
+exit_code: isolated formatting and diff checks passed; no local runtime result; remote CI pending after push
+status_change: OA-02 remains roadmap row 093 `🔄`, `feature_status=partial`, `proof_level=source`; wire decoding now enforces domain validation while end-to-end ingress→provider→broker→EventLog propagation remains open
+proof-level change: none
+limitations: decode fixtures await GitHub CI; no authenticated ingress bridge, exporter, cross-process correlation recovery, or durable/live/physical behavior is established. Trace metadata remains non-authoritative.
+reviewer: source review confirmed equivalent serialized fields/defaults and that deserialization delegates to the existing validation contract; no local runtime reviewer
+```
