@@ -711,10 +711,7 @@ impl CorrelationContext {
         {
             return Err("correlation_command_id_invalid".to_owned());
         }
-        if self
-            .run_id
-            .is_some_and(|run_id| run_id.as_uuid().is_nil())
-        {
+        if self.run_id.is_some_and(|run_id| run_id.as_uuid().is_nil()) {
             return Err("correlation_run_id_invalid".to_owned());
         }
         if self

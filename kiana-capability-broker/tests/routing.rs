@@ -204,12 +204,7 @@ async fn near_aliases_are_rejected_without_invoking_a_handler() {
             "action_capability_mismatch",
         ),
     ] {
-        let request = CapabilityRequest::new(
-            RequestId::new(),
-            capability,
-            operation,
-            arguments,
-        );
+        let request = CapabilityRequest::new(RequestId::new(), capability, operation, arguments);
         let error = broker
             .execute(AuthorizedCapabilityRequest::new("policy:test", request).unwrap())
             .await

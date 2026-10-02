@@ -236,7 +236,9 @@ impl MemoryRecord {
             && self.evidence.iter().any(|evidence| {
                 evidence.event_id.as_uuid().is_nil()
                     || evidence.request_id.as_uuid().is_nil()
-                    || evidence.run_id.is_some_and(|run_id| run_id.as_uuid().is_nil())
+                    || evidence
+                        .run_id
+                        .is_some_and(|run_id| run_id.as_uuid().is_nil())
                     || evidence.quote.trim().is_empty()
                     || evidence.quote.len() > MEMORY_EXTRACTION_MAX_QUOTE_BYTES
             })
@@ -253,7 +255,9 @@ impl MemoryRecord {
                     .reviewed_by
                     .as_deref()
                     .is_none_or(|reviewer| reviewer.trim().is_empty())
-                || self.reviewed_at_ms.is_none_or(|reviewed_at| reviewed_at == 0))
+                || self
+                    .reviewed_at_ms
+                    .is_none_or(|reviewed_at| reviewed_at == 0))
         {
             return Err("memory_active_qualification_incomplete".to_owned());
         }

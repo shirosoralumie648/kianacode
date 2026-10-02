@@ -258,7 +258,10 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
         "policy_decision_trace_reason_invalid"
     );
 
-    let mut deny_trace = bundle.evaluate(&context, &request("unknown")).unwrap().trace;
+    let mut deny_trace = bundle
+        .evaluate(&context, &request("unknown"))
+        .unwrap()
+        .trace;
     deny_trace.reason = None;
     deny_trace.trace_digest = deny_trace.digest();
     assert_eq!(
@@ -266,7 +269,10 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
         "policy_decision_trace_reason_invalid"
     );
 
-    let mut oversized = bundle.evaluate(&context, &request("unknown")).unwrap().trace;
+    let mut oversized = bundle
+        .evaluate(&context, &request("unknown"))
+        .unwrap()
+        .trace;
     oversized.matched_rule_ids = vec!["rule".to_owned(); MAX_POLICY_RULES + 1];
     oversized.trace_digest = oversized.digest();
     assert_eq!(

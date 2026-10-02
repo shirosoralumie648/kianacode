@@ -16,8 +16,14 @@ fn artifact_publication_is_after_transition_and_before_company_fact_commit() {
     let commit = source
         .find("self.commit_company(&context, event).await")
         .expect("Company EventLog commit boundary");
-    assert!(transition < persist, "denied transitions must not publish blobs");
-    assert!(persist < commit, "Company facts must reference staged bytes");
+    assert!(
+        transition < persist,
+        "denied transitions must not publish blobs"
+    );
+    assert!(
+        persist < commit,
+        "Company facts must reference staged bytes"
+    );
 }
 
 #[test]

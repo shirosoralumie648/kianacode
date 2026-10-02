@@ -987,16 +987,14 @@ impl ControlPlane {
                             == kiana_domain::journal_sha256(artifact.text.as_bytes())
                     });
                 let current = if immutable {
-                    if let (Some(store), Some(version)) =
-                        (self.artifact_store.as_ref(), artifact.typed_version.as_ref())
-                    {
+                    if let (Some(store), Some(version)) = (
+                        self.artifact_store.as_ref(),
+                        artifact.typed_version.as_ref(),
+                    ) {
                         let reference = version.as_ref();
                         let bytes = store.read_artifact(&reference).await?;
-                        crate::artifacts::validate_artifact_reference_content(
-                            &reference,
-                            &bytes,
-                        )
-                        .map_err(company_conflict)?;
+                        crate::artifacts::validate_artifact_reference_content(&reference, &bytes)
+                            .map_err(company_conflict)?;
                         String::from_utf8(bytes)
                             .map_err(|_| company_conflict("company_artifact_content_invalid"))?
                     } else {

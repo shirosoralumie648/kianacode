@@ -218,10 +218,13 @@ fn reducer_rejects_malformed_decision_gate_and_retention_fields() {
         "audit_retention_class_invalid"
     );
 
-    let mut malformed_gate = event("capability.decision", json!({
-        "capability_request_id": "cap-malformed",
-        "gate": "allowed"
-    }));
+    let mut malformed_gate = event(
+        "capability.decision",
+        json!({
+            "capability_request_id": "cap-malformed",
+            "gate": "allowed"
+        }),
+    );
     assert_eq!(
         reduce_audit_records(&[malformed_gate.clone()], 1).unwrap_err(),
         "audit_capability_gate_invalid"
@@ -233,11 +236,14 @@ fn reducer_rejects_malformed_decision_gate_and_retention_fields() {
         "audit_capability_decision_invalid"
     );
 
-    let drift = event("capability.decision", json!({
-        "capability_request_id": "cap-drift",
-        "decision": "allowed",
-        "outcome": "denied"
-    }));
+    let drift = event(
+        "capability.decision",
+        json!({
+            "capability_request_id": "cap-drift",
+            "decision": "allowed",
+            "outcome": "denied"
+        }),
+    );
     assert_eq!(
         reduce_audit_records(&[drift], 1).unwrap_err(),
         "audit_decision_conflict"
