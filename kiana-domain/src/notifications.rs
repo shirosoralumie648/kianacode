@@ -1128,8 +1128,14 @@ pub fn upcast_message(value: Value) -> Result<Message, String> {
             .entry("message_digest".to_owned())
             .or_insert_with(|| Value::String(String::new()));
     }
-    let mut message: Message = serde_json::from_value(Value::Object(object))
-        .map_err(|_| "message_upcast_invalid".to_owned())?;
+    let value = Value::Object(object);
+    let mut message = if is_v0 {
+        serde_json::from_value::<MessageRepr>(value)
+            .map(MessageRepr::into_message)
+            .map_err(|_| "message_upcast_invalid".to_owned())?
+    } else {
+        serde_json::from_value::<Message>(value).map_err(|_| "message_upcast_invalid".to_owned())?
+    };
     if is_v0 {
         message.message_digest = message.digest();
     }
