@@ -28,6 +28,21 @@ impl CredentialResolver for MissingCredential {
     }
 }
 
+struct StaleGenerationCredential;
+
+#[async_trait]
+impl CredentialResolver for StaleGenerationCredential {
+    async fn resolve_credential(
+        &self,
+        _secret_ref: &SecretRef,
+        _now_unix_ms: u64,
+    ) -> Result<CredentialResolution, kiana_ports::PortError> {
+        let mut resolution = credential_resolution("ci03-fixture-value-unique-9d23");
+        resolution.secret_ref = credential_secret_ref(3);
+        Ok(resolution)
+    }
+}
+
 struct UnsupportedIdentity;
 
 #[async_trait]
@@ -383,7 +398,7 @@ async fn unavailable_identity_and_config_ports_fail_closed_and_missing_stays_exp
 
     let requested = credential_secret_ref(4);
     let missing = MissingCredential
-        .resolve_credential(&requested, 1_000)
+        .resolve_credential_checked(&requested, 1_000)
         .await
         .unwrap();
     assert_eq!(missing.secret_ref, requested);
@@ -391,4 +406,16 @@ async fn unavailable_identity_and_config_ports_fail_closed_and_missing_stays_exp
     assert_eq!(missing.expires_at_unix_ms, None);
     assert_eq!(missing.resolved_digest, None);
     missing.validate(1_000).unwrap();
+}
+
+#[tokio::test]
+async fn credential_resolution_rejects_a_stale_requested_generation() {
+    let requested = credential_secret_ref(4);
+    assert_eq!(
+        StaleGenerationCredential
+            .resolve_credential_checked(&requested, 1_000)
+            .await
+            .unwrap_err(),
+        PortError::Conflict("credential_resolution_ref_mismatch".to_owned())
+    );
 }

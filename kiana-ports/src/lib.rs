@@ -369,6 +369,17 @@ impl CredentialResolution {
         }
         Ok(())
     }
+
+    /// Validate resolver output against the exact reference requested by the caller.
+    pub fn validate_for(&self, requested: &SecretRef, now_unix_ms: u64) -> Result<(), PortError> {
+        self.validate(now_unix_ms)?;
+        if &self.secret_ref != requested {
+            return Err(PortError::Conflict(
+                "credential_resolution_ref_mismatch".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Resolve an opaque SecretRef without exposing the secret value to core, runner or EventLog.
@@ -379,6 +390,17 @@ pub trait CredentialResolver: Send + Sync {
         secret_ref: &SecretRef,
         now_unix_ms: u64,
     ) -> Result<CredentialResolution, PortError>;
+
+    /// Resolve metadata and reject output bound to a different reference or generation.
+    async fn resolve_credential_checked(
+        &self,
+        secret_ref: &SecretRef,
+        now_unix_ms: u64,
+    ) -> Result<CredentialResolution, PortError> {
+        let resolution = self.resolve_credential(secret_ref, now_unix_ms).await?;
+        resolution.validate_for(secret_ref, now_unix_ms)?;
+        Ok(resolution)
+    }
 }
 
 /// Read/publish the immutable, non-secret configuration snapshot for a project.
