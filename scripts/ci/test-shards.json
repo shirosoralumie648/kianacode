@@ -197,6 +197,7 @@
    "co04_role_catalog_guard",
    "co05_policy_guard",
    "co06_artifact_guard",
+   "co06_company_artifact_wiring_guard",
    "co07_receipt_guard",
    "co08_replay_guard",
    "co09_company_intake_guard",

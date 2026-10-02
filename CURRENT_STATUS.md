@@ -18393,3 +18393,18 @@ strength of a green run. Clearing it means upgrading the five vulnerable depende
 and reconciling `deny.toml` — a real dependency change with real risk, not a test edit.
 It is not started here, and it is recorded so the red run is not mistaken for
 regression introduced by the guard fixes in this block.
+
+### Unified CI shard coverage correction (2026-10-02)
+
+```text
+source_snapshot: `03b6e443` plus CI target coverage correction; `scripts/ci/test-shards.json`; `kiana-core/tests/co06_company_artifact_wiring_guard.rs`
+worktree_status: the CO-06 company artifact wiring guard was present in the crate but absent from the exact test-shard partition; added it beside the existing CO-06 core guard in `kiana-core-s2/6`; no production code or test assertion changed
+command_argv: `gh run view 36926015057 --job 110583766376 --log-failed`; `git diff --check`
+cwd·environment: repository root; GitHub Actions Ubuntu runner for the observed failure; no local Cargo tests/build/check/fmt/clippy/smoke or CI validator was run
+fixture·cassette: `kiana-core/tests/co06_company_artifact_wiring_guard.rs`; the failing validator reported `kiana-core: 1 test target(s) not covered by any shard: ['co06_company_artifact_wiring_guard']`
+exit_code: prior workflow structure job 110583766376 exited 1 for the missing target mapping; local `git diff --check` 0; the updated partition awaits the next GitHub CI run
+status_change: CI coverage map now includes the CO-06 wiring guard; no roadmap feature status or proof level was promoted
+proof-level change: none; this is CI target routing, not runtime evidence
+limitations: no test was run locally; this change only corrects shard coverage and does not establish that the CO-06 target passes
+reviewer: Codex matched the exact remote validator diagnostic to the absent test target and added only that target to the existing core shard
+```
