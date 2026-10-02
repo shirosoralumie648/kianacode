@@ -891,6 +891,21 @@ limitations: the follow-up has not run on GitHub CI; business-command historical
 reviewer: isolated CO-06 source review of command role policy and fixture context; no runtime test reviewer
 ```
 
+### CO-06 Company fixture authority stream initialization (2026-10-02)
+
+```text
+source_snapshot: 3cd8c9e7 plus this isolated follow-up; kiana-daemon/tests/co06_company_artifact_history.rs, kiana-core/src/authority.rs
+worktree_status: isolated branch step/co06-company-history-20261002; fixture explicitly initializes the ControlPlane authority stream with a stable test configuration revision before sending Company commands; shared master untouched
+command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
+cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
+fixture·cassette: run 37025517103 / daemon job 110899633464 showed `artifact_version_remains_reviewable_after_workspace_file_changes` failed at its first ControlPlane call with `Port(Failed("authority_snapshot_missing"))` before fixture assertions. Cause: direct ControlPlane invocation bypassed the required `synchronize_authority` initialization, leaving the protected EventLog append with an empty authority stream. In the same job, `local_artifact_duplicate_version_cannot_replace_content_or_manifest` passed.
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no CI receipt for this follow-up
+status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; fixture calls the public `ControlPlane::synchronize_authority` before Company commands, so the protected EventLog append sees the required authority stream; it retains the Builder role and missing-source `company_artifact_read_failed`/zero-blob/no-Company-fact denial assertions
+proof-level change: source only; no runtime or CI proof promotion
+limitations: this follow-up has not run on GitHub CI; business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
+reviewer: isolated CO-06 source review of the authority-stream append precondition and explicit fixture initialization; no runtime test reviewer
+```
+
 ### UI-13 Authorization header redaction evidence (2026-09-26)
 
 ```text

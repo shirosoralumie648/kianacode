@@ -143,6 +143,16 @@ RegisterArtifact policy allows Builder, Reviewer, Architect, PM and Closer. The 
 Builder and explicitly checks the missing-source failure reason before its success path. Neither
 follow-up has a post-fix CI receipt yet.
 
+Run `37025517103` daemon job `110899633464` then reached both requested CO-06 targets. The
+duplicate-version store target passed. The Company history target failed before its deny/success
+assertions with `Port(Failed("authority_snapshot_missing"))` at
+`co06_company_artifact_history.rs:105`: it invoked ControlPlane directly without first creating
+the authority stream required by `commit_protected_event`. The fixture now calls the public
+`ControlPlane::synchronize_authority` with its trusted test context and a stable hashed fixture
+configuration revision before the Company command; it does not synthesize an authority event.
+It retains the exact missing-source denial and store/EventLog no-publication assertions. This
+precondition correction has no post-fix CI receipt yet.
+
 Run `37010476076` daemon job `110849027662` exposed two stale expectations in
 `local_artifact_duplicate_version_cannot_replace_content_or_manifest`. The fixture now aligns
 with the adapter contract: the legacy `stage_artifact` entry returns

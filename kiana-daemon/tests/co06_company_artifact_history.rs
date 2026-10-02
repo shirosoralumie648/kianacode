@@ -97,12 +97,16 @@ impl Fixture {
                 relative_path: relative_path.to_owned(),
             },
         };
-        core.handle_command(
-            self.context(),
-            CommandIntent::new(COMPANY_COMMAND, json!(request)),
-        )
-        .await
-        .expect("ControlPlane command")
+        let context = self.context();
+        let configuration_revision = kiana_domain::json_digest(&json!({
+            "fixture": "co06-company-artifact-history.v1"
+        }));
+        core.synchronize_authority(&context, &configuration_revision)
+            .await
+            .expect("server authority snapshot");
+        core.handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
+            .await
+            .expect("ControlPlane command")
     }
 }
 
