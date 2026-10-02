@@ -846,6 +846,21 @@ limitations: ArtifactStore and EventStore still have no cross-store transaction;
 reviewer: CO-06 wiring agent; deny-first ordering, replay timestamp preservation, and hash/provenance drift reviewed from source; no local runtime reviewer
 ```
 
+### CO-06 Company historical-byte integration fixture (2026-10-02)
+
+```text
+source_snapshot: e17143f7 plus this isolated commit; kiana-daemon/tests/co06_company_artifact_history.rs, kiana-daemon/tests/co06_local_artifact_store.rs, docs/roadmap/artifact-evidence-baseline.md, docs/roadmap/companyos.md, docs/roadmap.md
+worktree_status: isolated branch step/co06-company-history-20261002; adds one daemon integration target, aligns legacy duplicate-stage expectations with the port contract, and records CO-06 evidence; shared master untouched
+command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs kiana-daemon/tests/co06_local_artifact_store.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
+cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
+fixture·cassette: GitHub-only kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes and kiana-daemon/tests/co06_local_artifact_store.rs::local_artifact_duplicate_version_cannot_replace_content_or_manifest; kiana-daemon is a whole-crate shard (targets=null), so both targets are automatically included
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; CI was not triggered on this isolated branch; no runtime test was run locally
+status_change: CO-06 remains 🔄; feature_status=partial; the integration fixture composes ControlPlane::with_artifact_store with LocalArtifactStore and JSONL EventLog, denies a missing source without publishing a blob, then checks the original version remains readable from its EventLog reference after the workspace file changes and both adapters reopen. The local-store fixture now distinguishes legacy stage rejection from retry-aware stage_artifact_version idempotency, checks replacement attempts preserve committed bytes, and checks retry returns the first created_at timestamp
+proof-level change: source only; no promotion to local_behavior, durable, live or physical before remote fixture evidence
+limitations: the integration fixture reads historical bytes through ArtifactContentPort using the version from the reopened Company fact; it does not invoke the later Company business-command read projection or provide a UI original/current comparison. ArtifactStore and EventStore still lack a cross-store transaction; no crash recovery, retention/deletion or power-loss guarantee is established. CI has not yet observed these updated targets
+reviewer: isolated CO-06 source review; no runtime test reviewer
+```
+
 ### UI-13 Authorization header redaction evidence (2026-09-26)
 
 ```text

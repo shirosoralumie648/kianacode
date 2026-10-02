@@ -258,15 +258,40 @@ async fn local_artifact_duplicate_version_cannot_replace_content_or_manifest() {
     ] {
         assert_eq!(
             ArtifactStorePort::stage_artifact(&store, version, content).await,
-            Err(PortError::Conflict("artifact_version_conflict".to_owned()))
+            Err(PortError::Conflict(
+                "artifact_version_already_staged".to_owned()
+            ))
+        );
+        assert_eq!(
+            ArtifactContentPort::read_artifact(&store, &reference)
+                .await
+                .unwrap(),
+            b"original",
+            "duplicate stage must preserve the committed bytes"
         );
     }
     assert_eq!(
-        ArtifactStorePort::stage_artifact(&store, original, b"original".to_vec())
+        ArtifactStorePort::stage_artifact(&store, original.clone(), b"original".to_vec()).await,
+        Err(PortError::Conflict(
+            "artifact_version_already_staged".to_owned()
+        ))
+    );
+    assert_eq!(
+        ArtifactContentPort::read_artifact(&store, &reference)
             .await
             .unwrap(),
-        reference
+        b"original",
+        "legacy duplicate stage must preserve the committed bytes"
     );
+
+    let mut retry = original.clone();
+    retry.created_at_unix_ms += 1;
+    let first_manifest =
+        ArtifactStorePort::stage_artifact_version(&store, retry, b"original".to_vec())
+            .await
+            .unwrap();
+    assert_eq!(first_manifest, original);
+    assert_eq!(first_manifest.as_ref(), reference);
     ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1))
         .await
         .unwrap();

@@ -114,3 +114,32 @@ port and rechecks the reference hash before comparing the recorded snapshot.
 The CI-only guards cover deny ordering, explicit injection, historical port reads, first-timestamp
 retry, and hash/provenance drift. They are source/contract evidence only; they do not prove a
 cross-store atomic commit, crash recovery, orphan cleanup, or a live/durable deployment.
+
+## 9. 2026-10-02 Company historical-byte integration fixture
+
+`kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes`
+constructs a `ControlPlane` with `with_artifact_store`, `LocalArtifactStore`, and the canonical
+JSONL `EventStorePort`. It first sends a registration command for a missing source and asserts the
+request is blocked without publishing a blob. It then registers a real file, reads the committed
+Company fact from EventLog, changes the workspace file, closes both adapters, and reopens them. The
+fixture takes the typed version from the reopened Company fact, reads that exact version from the
+reopened artifact adapter, and checks that its bytes remain the original while the workspace file
+contains the newer bytes.
+
+The unified CI mapping keeps `kiana-daemon` as a whole-crate shard (`targets: null`), so the new
+integration target is included without changing `scripts/ci/test-shards.json`. The isolated branch
+has no CI receipt yet. CO-06 remains 🔄 with `feature_status=partial` and `proof_level=source`;
+this fixture reads the blob port directly from the typed version recovered from EventLog and does
+not execute the later Company business-command read-back branch. It does not establish cross-store
+atomicity, product UI difference presentation, crash recovery, retention/deletion, or power-loss
+durability.
+
+Run `37010476076` daemon job `110849027662` exposed two stale expectations in
+`local_artifact_duplicate_version_cannot_replace_content_or_manifest`. The fixture now aligns
+with the adapter contract: the legacy `stage_artifact` entry returns
+`artifact_version_already_staged` whenever that version's manifest already exists, while
+`stage_artifact_version` is the retry-aware API. The fixture now asserts that changed bytes and
+manifest metadata are denied without changing the committed original; legacy exact duplicates also
+remain rejected. Separately, the retry-aware API returns the first manifest including its original
+timestamp. No production conflict classification changed and the corrected fixture has not yet
+run on GitHub CI.
