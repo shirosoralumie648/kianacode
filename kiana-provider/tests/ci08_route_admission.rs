@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use kiana_domain::{
-    json_digest, ModelCallPermit, ModelCallSpec, ModelPurpose, ModelRequest, ModelResponseFormat,
-    RequestId, RunId,
+    json_digest, ModelAssignment, ModelCallPermit, ModelCallSpec, ModelPurpose, ModelRequest,
+    ModelResponseFormat, RequestId, RoleSpec, RunId, SchemaVersion, TurnId,
 };
 use kiana_ports::{ModelBudgetPort, ModelClient, PortError};
 use kiana_provider::{ProviderConfig, ProviderGateway};
@@ -142,6 +142,26 @@ async fn fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock")
         .as_millis() as u64;
+    let role = RoleSpec::pm();
+    let run_id = RunId::new();
+    let assignment = ModelAssignment {
+        schema: "kiana.model-assignment.v1".to_owned(),
+        run_id,
+        turn_id: TurnId::new(),
+        role_id: role.role_id.clone(),
+        role_version: Some(role.version),
+        catalog_version: Some(SchemaVersion::new(1, 0)),
+        prompt_hash: Some(role.prompt_hash.clone()),
+        input_schema: Some(role.input_schema.clone()),
+        output_schema: Some(role.output_schema.clone()),
+        profile: role.model_profile.clone(),
+        project_root: "/repo".to_owned(),
+        project_trusted: true,
+        authority_revision: None,
+        max_wall_time_ms: 10_000,
+        runtime_budget: None,
+    };
+    assignment.validate().expect("server model assignment");
     let prepared = gateway
         .prepare_call(
             request,
@@ -152,7 +172,7 @@ async fn fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body
                 step_id: None,
                 step: 1,
                 purpose: ModelPurpose::Task,
-                assignment: None,
+                assignment: Some(assignment),
                 response_format: ModelResponseFormat::Text,
                 replay: Vec::new(),
                 deadline_unix_ms: now + 10_000,
@@ -162,7 +182,7 @@ async fn fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body
     let permit = ModelCallPermit {
         schema: "kiana.model-call-permit.v1".to_owned(),
         permit_id: RequestId::new(),
-        run_id: RunId::new(),
+        run_id,
         attempt_id: prepared.spec.attempt_id,
         request_hash: prepared.request_hash.clone(),
         expires_at_unix_ms: now + 10_000,

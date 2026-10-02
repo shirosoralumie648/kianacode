@@ -4184,6 +4184,21 @@ limitations: no post-fix CI result; CM-02 candidate-write/evidence-denial behavi
 reviewer: read-only CAP-01/CI-08 audit confirmed the default Legacy adapter contract and existing ProviderGateway effect-boundary checks; no runtime reviewer
 ```
 
+### CI-08 ProviderGateway fixture assignment precondition follow-up (2026-10-02)
+
+```text
+source_snapshot: base `b87becc90fa5dd77951f2fc13f0b7899c4afff7e`; isolated branch `fix/ci08-provider-fixture-20261002`; `kiana-provider/tests/ci08_route_admission.rs`; `docs/roadmap/ci08-route-admission-baseline.md`; `docs/roadmap.md`; `CURRENT_STATUS.md`
+worktree_status: only the loopback provider fixture precondition changes: it now supplies a validated server-owned PM `ModelAssignment` with matching role/profile, run/turn, trusted project context, and deadline; ProviderGateway checks are unchanged and all original opaque account/header/auth/body assertions remain
+command_argv: `git worktree add -b fix/ci08-provider-fixture-20261002 /tmp/kiana-ci08-provider-fixture-20261002 origin/master`; read-only source and CI log inspection; `cargo fmt --all --check`; `git diff --check`; `git add kiana-provider/tests/ci08_route_admission.rs docs/roadmap/ci08-route-admission-baseline.md docs/roadmap.md CURRENT_STATUS.md`; `git commit -m 'test(ci08): supply provider route assignment fixture'`; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: isolated worktree `/tmp/kiana-ci08-provider-fixture-20261002`, Linux x86_64; base `b87becc9`; provider CI test remains GitHub-only
+fixture·cassette: run `37025517103` / provider job `110899633944` failed `fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body` at `kiana-provider/tests/ci08_route_admission.rs:161` with `model_server_assignment_required`; test supplied `assignment: None`, rejected by `ProviderGateway::connection` before permit construction or network effect. Domain-s1/4 job `110899633747` passed `legacy_route_may_omit_provider_identity_but_network_route_may_not`. In the same run CM-02 job `110899632784` advanced past route admission but the target still failed later with `result_unknown:port_failed:execution_permit_already_consumed`; this separate behavior was not changed. This follow-up supplies the valid ProviderGateway fixture assignment; post-fix provider CI has not run
+exit_code: `cargo fmt --all --check` and `git diff --check` exit 0; no local runtime result
+status_change: CI-08 remains `feature_status=partial`, `proof_level=source`; only a fixture setup defect is corrected, with no production behavior or proof-level change
+proof-level change: none; no local_behavior, durable, live, or physical promotion
+limitations: no post-fix provider CI receipt yet; the fake loopback test does not prove external provider behavior, live account identity, DNS/host pinning, or physical effects; the CM-02 execution-permit failure remains open
+reviewer: source review confirmed the assignment values match the server-owned PM role descriptor and ProviderGateway profile requirement; no runtime test reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text

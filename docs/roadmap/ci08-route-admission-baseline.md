@@ -31,13 +31,28 @@ loopback fake HTTP fixture 和 core source guard，并编译 workspace test targ
 并返回 bounded JSON reply；domain fixture 覆盖 route/config/authority/credential/account drift、
 expiry，以及 Legacy 缺省 provider binding 时可继续而网络 route 仍拒绝缺省 binding。
 
-2026-10-02 follow-up: GitHub run `37019474036` / CM-02 job `110879052235` reached the intended
-daemon fixture but failed before candidate persistence with `port_failed:model_route_admission_missing`.
-The default offline `ModelClient` route is `Legacy` and omits provider account/credential revision;
-`ModelCallPermit::validate_for_prepared` contradicted its compatibility comment by requiring both
-for every protocol. The source correction narrows the requirement to non-Legacy routes and adds the
-paired domain fixture. This correction has no CI receipt yet; CI-08 remains partial/source until the
-named fixtures pass remotely.
+2026-10-02 Legacy compatibility follow-up: GitHub run `37019474036` / CM-02 job `110879052235`
+reached the intended daemon fixture but failed before candidate persistence with
+`port_failed:model_route_admission_missing`. The default offline `ModelClient` route is `Legacy`
+and omits provider account/credential revision; `ModelCallPermit::validate_for_prepared` had
+required both for every protocol. The source correction narrows that requirement to non-Legacy
+routes and adds the paired domain fixture.
+
+Run `37025517103` provides an exact receipt for
+`ci08_route_admission::legacy_route_may_omit_provider_identity_but_network_route_may_not`: domain
+job `110899633747` passed it. The same run's provider job `110899633944` exposed a stale precondition
+in `fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body`: at
+`kiana-provider/tests/ci08_route_admission.rs:161`, `ProviderGateway::prepare_call` returned
+`model_server_assignment_required` because the fixture supplied `assignment: None`. The gateway
+requires a server-owned assignment/profile before it can compile a network route
+(`kiana-provider/src/lib.rs:106-111`). The fixture follow-up now supplies a validated PM assignment
+with its role profile and trusted project context; it leaves production validation and the existing
+opaque account, single Authorization, and secret-free body assertions intact. The post-fix provider
+receipt is pending. CI-08 remains `partial` / `source`.
+
+The same run's CM-02 daemon job `110899632784` passed the earlier Legacy route admission point but
+then failed the target with `result_unknown:port_failed:execution_permit_already_consumed`. That
+later permit lifecycle failure is outside the provider fixture correction and remains open.
 
 ## Limitations
 
