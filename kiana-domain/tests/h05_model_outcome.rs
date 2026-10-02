@@ -4,7 +4,7 @@ use kiana_domain::{
 };
 
 #[test]
-fn length_stop_never_dispatches_tools_or_completes_turn() {
+fn length_stop_is_rejected_by_legacy_reply_conversion() {
     let output = ModelOutput {
         text: "partial".to_owned(),
         tool_calls: vec![kiana_domain::ModelToolCall {

@@ -20,7 +20,9 @@
 |---|---|---|
 | Domain stop/error contract | `kiana-domain/src/model.rs`, `kiana-domain/src/contracts.rs` | `6243275aa959281071e4ecfe6820d6feeda63170f5e41b0ffdc105519bf16510`, `94f8430b9139fc22003197a757d14b3d2ffb47b6a5cb493145078c6be0d124ff` |
 | Harness/provider enforcement | `kiana-runner/src/harness.rs`, `kiana-provider/src/response.rs` | `06075ed0c651ba946dd65c9ae9989e7c1915dfb2f578ea5324d2c3bde4fe2c82`, `06b416a096671fee2637b5c3c782a7e9042f21a23c7f27fd80b85db6a3dbbe66` |
-| Fixtures/workflow | `kiana-domain/tests/h05_model_outcome.rs`, `kiana-runner/tests/h05_stop_guard.rs`, `.github/workflows/h05-stop-retry.yml` | `147266cd44c4824f4a4d754ad43137daefa3831b2f0ca233acc16219bb40bda9`, `de3696988a730e33e764d839b9c23a66636e5126fde91326394c7dad69afa440`, `e458eee8925eb353b6a288c8e47571b16b0906ff540720c3132c6aaa67bb7bab` |
+| Current fixtures | `kiana-domain/tests/h05_model_outcome.rs`, `kiana-runner/tests/h05_stop_guard.rs` | `c570a3cc4fe1f9c7c9ca2a6cd6c50ac1f67d441d0dd74fd02b42718f214e5b34`, `402ed08a46d6222da228635e51cd60d8a507a614fd74caf1c36b7279fc8a7331` |
+| Current CI wiring | `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` | `038675197ece4752f335d4265f229aaa422a46df287c9fb94dd6387b3a9d0ef2`, `8a06ea60bca5f55747b34e5e9b332f4a544c57727810469c977bec5c376b7ac4` |
+| Historical standalone workflow | `.github/workflows/h05-stop-retry.yml` | `e458eee8925eb353b6a288c8e47571b16b0906ff540720c3132c6aaa67bb7bab` |
 
 hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外部效果证明。
 
@@ -40,13 +42,14 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 
 | Fixture | 断言 |
 |---|---|
-| `length_stop_never_dispatches_tools_or_completes_turn` | length 响应即使携带工具也不能完成或派发 |
+| `length_stop_never_dispatches_tools_or_completes_turn` | Runner 收到带 shell tool call 的 length 响应后发出 `model_output_truncated`，且没有发出 `CapabilityRequested` 移交给 ControlPlane/Broker 或 `Completed` |
+| `length_stop_is_rejected_by_legacy_reply_conversion` | Domain legacy reply conversion 将 length 响应拒绝为 `model_output_truncated`；不单独证明 Runner 派发边界 |
 | `refusal_is_not_success` | refusal 归一化为失败，side-effect/retry 语义不伪造成功 |
 | `unknown_stop_reason_fails_closed` | 未知 stop 进入稳定 ModelError/Unknown，不猜测 end_turn |
 | `normal_text_stop_finishes_and_tool_stop_continues` | end_turn 完成文本，tool_use 继续工具路径 |
 | `harness_stop_and_retry_paths_are_typed_and_fail_closed` | Harness/provider 使用 typed stop/retry markers，禁止文本 contains 控制状态 |
 
-`.github/workflows/h05-stop-retry.yml` 在 GitHub runner 执行 domain outcome fixtures、runner source guard 和 fmt；本地只做格式、workspace test-target 静态编译和 diff 检查。
+`.github/workflows/ci.yml` 在 GitHub runner 的 `kiana-domain-s*` 与 `kiana-runner` shards 执行这些 domain outcome、Runner 行为和 source guard fixtures；本地不运行测试。
 
 ## 5. 限制与交接
 

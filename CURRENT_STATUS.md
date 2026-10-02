@@ -3594,6 +3594,26 @@ limitations: current unified CI run `36900134949` for `c5159bed` was queued when
 reviewer: Codex root-cause review of the post-fix CI failure and source ownership; no runtime test reviewer
 ```
 
+### H05 Runner truncation handoff fixture (2026-10-02)
+
+```text
+source_snapshot: base `03b6e443`; `kiana-domain/tests/h05_model_outcome.rs` sha256 `c570a3cc4fe1f9c7c9ca2a6cd6c50ac1f67d441d0dd74fd02b42718f214e5b34`; `kiana-runner/tests/h05_stop_guard.rs` sha256 `402ed08a46d6222da228635e51cd60d8a507a614fd74caf1c36b7279fc8a7331`; current CI wiring `.github/workflows/ci.yml` and `scripts/ci/test-shards.json`
+worktree_status: isolated branch `step/h05-audit-20261002`; added a Runner-level length-stop fixture carrying a shell tool call and narrowed the older Domain fixture name to its actual legacy-reply-conversion assertion; the fixture observes the canonical Runner-to-ControlPlane handoff event boundary; no provider retry policy, manifest or lockfile change
+command_argv:
+  `gh run view 36926015057 --job 110583766694 --log`
+  `gh run view 36899317942 --job 110494819731 --log`
+  `sha256sum kiana-domain/tests/h05_model_outcome.rs kiana-runner/tests/h05_stop_guard.rs .github/workflows/ci.yml scripts/ci/test-shards.json`
+  `git diff --check`
+  no local test, build, check, fmt, clippy or smoke command was run
+cwd/environment: `/tmp/kiana-h05-audit-20261002`; Linux; no local Cargo execution; GitHub run logs queried read-only
+fixture·cassette: new Runner fixture `length_stop_never_dispatches_tools_or_completes_turn` constructs a length response containing a shell call and requires `Failed(model_output_truncated)`, zero `CapabilityRequested` events and zero `Completed` events; historical `h05_stop_guard` source guard passed in runner shard of run `36926015057`, while Domain outcome fixtures passed 4/4 in run `36899317942`
+exit_code: historical H05 source guard 1/1 passed in job `110583766694`; historical Domain outcome fixtures 4/4 passed in job `110494819731`; current `git diff --check` exit 0; the new Runner behavior fixture has not run in GitHub CI because this branch is not pushed
+status_change: H05 remains `feature_status=partial`, `proof_level=source`; the prior Domain fixture no longer claims Runner dispatch behavior, and a CI-only Runner fixture now asserts no handoff or false completion for a truncated tool response
+proof-level change: `source`; no local_behavior, durable, live or physical promotion
+limitations: no runtime receipt exists yet for the new Runner fixture; absence of `CapabilityRequested` proves no ControlPlane/Broker handoff, not Broker handler execution; run `36926015057` as a whole failed and its separate 503 retry fixture remains pending policy decision; no local tests were run
+reviewer: Codex source review with parent scope confirmation; no runtime test reviewer
+```
+
 ### P4-J7-05 strict non-streaming provider response evidence (2026-09-16)
 
 ```text
