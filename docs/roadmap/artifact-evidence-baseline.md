@@ -208,3 +208,27 @@ then aborted with stack overflow / SIGABRT before any assertion output. This is 
 not a passing CompanyProof readback result. CO-06 stays 🔄 with `feature_status=partial` and
 `proof_level=source`. These checks do not close the open cross-store atomicity, reconciliation,
 product UI comparison, cross-process recovery, retention/deletion or power-loss guarantees above.
+
+## 12. 2026-10-03 CI phase-marker follow-up
+
+The current-source CI run `37063859744` / daemon job `111027078486` again aborted with stack
+overflow, this time across several daemon integration targets including the CO-06 historical
+CompanyProof readback. Static source tracing did not identify a proven recursive call or invalid
+state transition. The fixture now emits fixed stderr markers immediately before and after
+`synchronize_authority` and `handle_command`; markers contain no idempotency key, payload or path.
+This separates an authority synchronization failure from a Company command failure on the next
+GitHub execution. It is diagnostic fixture instrumentation only and does not change production
+behavior. The failure remains unresolved until CI reports the last emitted phase.
+
+```text
+source_snapshot: isolated commit `29b51afd3ff67d04b5ca7f40bc01ffea308c2bb6`; value-free follow-up commit `b4b84e0cf09d6c3bcfa161dc1a8118182c94f00d`; `kiana-daemon/tests/co06_company_artifact_history.rs`
+worktree_status: fixed phase labels bracket authority synchronization and Company command handling; values from the request, idempotency key, filesystem and business payload are not logged; no production behavior, manifest or lockfile changed
+command_argv: `gh run view 37063859744 --job 111027078486 --log`; source tracing of the CompanyProof/artifact read path; isolated `cargo fmt --all --check`; isolated `git diff --check`; root cherry-picks `29b51afd` and `b4b84e0c`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-co06-history-followup-20261003`; integration repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `artifact_version_remains_reviewable_after_workspace_file_changes`; current run `37063859744` / daemon job `111027078486` failed with stack overflow before any phase markers existed; new static phase output awaits a fresh daemon CI execution after push
+exit_code: current exact target failed with SIGABRT/Cargo 101; static source trace found no proven production root cause; formatting/diff checks passed; no local runtime result
+status_change: CO-06 remains roadmap row 065 `🔄`, `feature_status=partial`, `proof_level=source`; fixture can now distinguish authority initialization from command execution when CI reruns
+proof-level change: none
+limitations: no phase-marker receipt yet, so the stack overflow's producing layer is unresolved; markers do not prove a successful CompanyProof readback. Cross-store atomicity/reconciliation, product UI comparison, cross-process recovery, retention/deletion and power-loss durability remain open.
+reviewer: remote daemon log plus source trace through `company_proof`, artifact lookup and the Company command boundary; no local runtime reviewer
+```

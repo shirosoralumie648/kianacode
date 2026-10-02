@@ -19527,3 +19527,18 @@ proof-level change: none
 limitations: target awaits GitHub CI; no automatic repair/retry, ContextRepair producer, provider live behavior, billing, external effect or physical behavior is established
 reviewer: source review confirmed that the new metadata assertions preserve the existing failure/zero-handoff/zero-completion contract; no local runtime reviewer
 ```
+
+### CO-06 Company history stack-overflow phase markers (2026-10-03)
+
+```text
+source_snapshot: isolated commit `29b51afd3ff67d04b5ca7f40bc01ffea308c2bb6`; value-free marker follow-up `b4b84e0cf09d6c3bcfa161dc1a8118182c94f00d`; `kiana-daemon/tests/co06_company_artifact_history.rs`; `docs/roadmap/artifact-evidence-baseline.md`; `docs/roadmap/companyos.md`; `docs/roadmap.md`
+worktree_status: the GitHub-only historical CompanyProof fixture now writes fixed stderr markers immediately around authority synchronization and `handle_command`; marker values contain no request/idempotency data, paths or payloads; production code and shared manifests are unchanged
+command_argv: `gh run view 37063859744 --job 111027078486 --log`; source tracing of CompanyProof and artifact readback; isolated `cargo fmt --all --check`; isolated `git diff --check`; root cherry-picks `29b51afd` and `b4b84e0c`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-co06-history-followup-20261003`, branch `codex/co06-history-followup`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `artifact_version_remains_reviewable_after_workspace_file_changes`; run `37063859744` / daemon job `111027078486` failed with stack overflow/SIGABRT before any phase markers were present; fresh execution with markers awaits push
+exit_code: observed target exit was SIGABRT/Cargo 101 before assertions; source tracing found no proven recursion/root cause; isolated format/diff checks passed; no local runtime result
+status_change: CO-06 remains roadmap row 065 `🔄`, `feature_status=partial`, `proof_level=source`; test-only diagnostic markers added to locate the next failure boundary
+proof-level change: none
+limitations: new CI phase output is pending and no CompanyProof target pass is established; stack-overflow root cause remains unknown. Cross-store atomicity/reconciliation, product UI original/current comparison, cross-process recovery, retention/deletion and power-loss durability remain open.
+reviewer: remote daemon log and static trace through CompanyProof, ArtifactStore reads, authority initialization and command handling; no local runtime reviewer
+```
