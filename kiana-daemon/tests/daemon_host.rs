@@ -3794,13 +3794,23 @@ async fn builder_project_search_hits_land_on_receipt() {
 #[tokio::test]
 async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchable() {
     let _environment_lock = environment_lock();
+    struct TeardownMarker;
+    impl Drop for TeardownMarker {
+        fn drop(&mut self) {
+            eprintln!("CM-02 phase: test scope teardown reached");
+        }
+    }
+    let _teardown_marker = TeardownMarker;
     let root = temp_project();
     let event_log_path = root.join(".kiana").join("events.jsonl");
 
+    eprintln!("CM-02 phase: writer host creation begins");
     let writer_host = scripted_host_on_disk(spoofed_memory_write_cassette(), &event_log_path);
+    eprintln!("CM-02 phase: writer host creation completes");
     let writer = KianaClient::new(InProcessTransport { host: writer_host });
     let mut writer_metadata = trusted_write_metadata_in(&root);
     writer_metadata.assign_role(&RoleSpec::pm());
+    eprintln!("CM-02 phase: writer operation begins");
     let written = writer
         .run(
             writer_metadata,
@@ -3809,6 +3819,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         )
         .await
         .unwrap();
+    eprintln!("CM-02 phase: writer operation completes");
     assert_eq!(written.status, ExecutionStatus::Completed, "{written:?}");
     drop(writer);
 
@@ -3824,6 +3835,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
     assert_eq!(record["admission_state"], "candidate");
     assert_eq!(record["state"], "draft");
 
+    eprintln!("CM-02 phase: pre-review search begins");
     let search_host = scripted_host_on_disk(
         memory_search_cassette("department:planning", "candidate memory"),
         &event_log_path,
@@ -3839,6 +3851,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         )
         .await
         .unwrap();
+    eprintln!("CM-02 phase: pre-review search completes");
     assert_eq!(
         before_review.status,
         ExecutionStatus::Completed,
@@ -3856,6 +3869,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
     let review = KianaClient::new(InProcessTransport { host: review_host });
     let mut review_metadata = trusted_write_metadata_in(&root);
     review_metadata.assign_role(&RoleSpec::pm());
+    eprintln!("CM-02 phase: review command begins");
     let awaiting = review
         .command(
             review_metadata,
@@ -3870,6 +3884,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         )
         .await
         .unwrap();
+    eprintln!("CM-02 phase: review command completes");
     assert_eq!(
         awaiting.status,
         ExecutionStatus::AwaitingApproval,
@@ -3879,6 +3894,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
     let mut approval_metadata = trusted_write_metadata_in(&root);
     approval_metadata.assign_role(&RoleSpec::pm());
+    eprintln!("CM-02 phase: review approval decision begins");
     let approved = review
         .approval_decision_with_proof(
             approval_metadata,
@@ -3889,6 +3905,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         )
         .await
         .unwrap();
+    eprintln!("CM-02 phase: review approval decision completes");
     assert_ne!(approved.status, ExecutionStatus::Completed, "{approved:?}");
     assert!(
         approved
@@ -3897,12 +3914,15 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
             .is_some_and(|error| error.contains("memory_review_evidence_required")),
         "{approved:?}"
     );
+    eprintln!("CM-02 phase: memory JSONL unchanged read begins");
     assert_eq!(
         fs::read_to_string(planning_memory_path(&root)).unwrap(),
         format!("{raw_record}\n")
     );
+    eprintln!("CM-02 phase: memory JSONL unchanged read completes");
     drop(review);
 
+    eprintln!("CM-02 phase: post-review search begins");
     let search_host = scripted_host_on_disk(
         memory_search_cassette("department:planning", "candidate memory"),
         &event_log_path,
@@ -3918,6 +3938,7 @@ async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchabl
         )
         .await
         .unwrap();
+    eprintln!("CM-02 phase: post-review search completes");
     assert_eq!(
         after_review.status,
         ExecutionStatus::Completed,
