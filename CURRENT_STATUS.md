@@ -5134,6 +5134,30 @@ limitations: catalog and source guard are documentation coverage, not runtime en
 reviewer: SC-01 audit review against roadmap card `SC-01`, unified CI shard mapping and the available GitHub job log; parent integration review pending
 ```
 
+### SC-01 threat taxonomy and fixture coverage reconciliation (2026-10-02)
+
+```text
+source_snapshot: `e22d8f75` plus isolated SC-01 reconciliation branch; `docs/roadmap/security-threat-register.md`; `docs/roadmap/security-control-crosswalk.md`; `docs/roadmap/security-compliance-baseline.md`; `kiana-core/tests/sc01_threat_register.rs`; `docs/roadmap.md`; `security-compliance.md` §3.4 remains unchanged
+worktree_status: branch `step/sc01-threat-taxonomy-reconcile-20261002` in `/tmp/kiana-sc01-taxonomy-reconcile-20261002`; namespace conflict is explicit (`SC01:T01–SC01:T12` vs `COMPLIANCE-3.4:T01–COMPLIANCE-3.4:T12`) with a many-to-many thematic crosswalk; every SC-01 threat row has impact and accountable owner area/steps; catalog links only exact existing SC-37/39 targets and marks gaps planned; no runtime/policy/permission/execution-spine change; not merged or pushed
+command_argv:
+  `git status --short --branch`
+  `git diff --stat`
+  `git diff -- docs/roadmap/security-threat-register.md`
+  `git diff -- kiana-core/tests/sc01_threat_register.rs`
+  `git diff -- docs/roadmap/security-control-crosswalk.md docs/roadmap/security-compliance-baseline.md docs/roadmap.md CURRENT_STATUS.md`
+  `git diff -- docs/roadmap/security-compliance.md`
+  `rg -n '^fn sc37_privilege_escalation_forged_role_is_denied_with_zero_dispatch|^fn sc37_replay_unbound_permit_is_denied_with_zero_dispatch|^fn sc37_leakage_secret_sentinel_in_receipt_text_is_denied_with_zero_dispatch|^fn sc37_toctou_fence_scope_drift_is_denied_with_zero_dispatch|^fn sc37_deletion_legal_hold_is_denied_with_zero_dispatch|^fn sc37_deletion_unknown_retention_is_denied_with_zero_dispatch' kiana-core/tests/sc37_deny_matrix.rs`
+  `rg -n '^fn sc39_prompt_injection_cannot_become_product_authority|^fn sc39_indirect_injection_from_repository_text_cannot_widen_a_grant|^fn sc39_secret_exfiltration_cannot_leave_the_broker|^fn sc39_malicious_plugin_manifest_cannot_self_authorize' kiana-core/tests/sc39_red_team_corpus.rs`
+  no local test, build, check, format, clippy or smoke command was run
+cwd·environment: isolated worktree `/tmp/kiana-sc01-taxonomy-reconcile-20261002`; Linux; base `e22d8f75`; all product verification remains GitHub Actions-only
+fixture·cassette: `kiana-core/tests/sc01_threat_register.rs::threat_register_is_explicit_and_deny_first_without_claiming_enforcement`; pins namespaces, 12 impacts/owners, 12 crosswalk rows, 14 fixture status rows, selected linked target names, and the preserved §3.4 definitions; existing exact targets live in `kiana-core/tests/sc37_deny_matrix.rs` and `kiana-core/tests/sc39_red_team_corpus.rs`; CI not run for this branch
+exit_code: 0 for read-only `git status`, `git diff`, and `rg` source inspection; no local test or validation command run
+status_change: SC-01 remains `partial`; this documentation/guard slice only clarifies two existing taxonomies and distinguishes existing related fixtures from planned assertions; roadmap row 112 remains 🔄
+proof-level change: none; `proof_level=source`; no `local_behavior`, `durable`, `live`, `physical`, or certification claim
+limitations: taxonomy crosswalk records thematic, sometimes partial relationships and does not assert semantic equivalence; fixture links prove only named source targets exist, not production control enforcement; CO-06 artifact transaction/storage semantics remain outside this slice; CI result is pending because this branch has not been pushed
+reviewer: isolated source review against SC-01 card, §3.4 threat definitions, SC-34 rows, and exact SC-37/39 test names; no runtime reviewer
+```
+
 ### SC-02 security IDs and schema registry evidence (2026-09-17)
 
 ```text

@@ -91,7 +91,7 @@
 
 | 波次 | 步骤 | SC-00 固定的前置 | 完成条件（后续步骤负责） |
 |---|---|---|---|
-| A 合同/决定 | SC-01..05 | T01-T12 威胁、稳定 reason/schema、server context、policy revision | threat register、错误码、SecurityContext、可重放 PolicyBundle |
+| A 合同/决定 | SC-01..05 | SC01:T01–SC01:T12 威胁、稳定 reason/schema、server context、policy revision | threat register、错误码、SecurityContext、可重放 PolicyBundle |
 | B 身份/审批 | SC-06..11 | local principal/ProjectIdentity/assignment 和四入口路径已盘点 | authn/revoke/epoch、交集 Grant、精确 Approval、入口 parity |
 | C effect/隔离 | SC-12..17 | permit/CAS/Unknown、sandbox/path、MCP/connector 边界已盘点 | effect-time fencing、egress、stop/Unknown、bounded quotas |
 | D Secret/数据 | SC-18..24 | redaction、DataGovernance、Memory/Index/Artifact/Receipt 事实边界已盘点 | SecretRef/lease/rotation、purpose/retention/delete 传播 |
@@ -105,7 +105,7 @@ SC-00 的安全拒绝条件：缺少 source snapshot、事实 owner、proof ceil
 
 | Fixture | 目的 | 运行位置 |
 |---|---|---|
-| `security_baseline_covers_constitution_assets_and_spine` | 校验 SEC-01..12、T01..T12、SC-00..43、唯一执行脊柱和 feature/proof 双维度 | `kiana-core/tests/security_baseline.rs`，GitHub Actions |
+| `security_baseline_covers_constitution_assets_and_spine` | 校验 SEC-01..12、SC01:T01–SC01:T12、SC-00..43、唯一执行脊柱和 feature/proof 双维度 | `kiana-core/tests/security_baseline.rs`，GitHub Actions |
 | `security_baseline_preserves_partial_and_unsupported_boundaries` | 防止把 SecretStore、tenant、external/physical、durable recovery 写成已完成 | 同上 |
 
 `.github/workflows/sc00-baseline.yml` 只执行 source guard、`cargo fmt --all --check`、`cargo fetch --locked` 和该测试；本地不执行测试，不连接 provider/connector，不读取生产密钥。

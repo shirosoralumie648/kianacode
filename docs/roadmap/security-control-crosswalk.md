@@ -1,4 +1,4 @@
-# SC-34 security control crosswalk: T01–T12, SEC-01–SEC-12, NIST, OWASP and the internal controls
+# SC-34 security control crosswalk: SC01:T01–SC01:T12, SEC-01–SEC-12, NIST, OWASP and the internal controls
 
 > Snapshot date: 2026-09-28. This document is a **crosswalk and a set of claims under review**.
 > It is not a certification, an attestation, an audit result, or a statement that Kiana complies
@@ -11,7 +11,7 @@
 | Item | Record |
 |---|---|
 | roadmap card | [`SC-34`](security-compliance.md#step-sc-34) |
-| threat input | [`security-threat-register.md`](security-threat-register.md) (SC-01, T01–T12) |
+| threat input | [`security-threat-register.md`](security-threat-register.md) (SC-01, SC01:T01–SC01:T12) |
 | clause input | [`company-os-security-constitution.md`](../company-os-security-constitution.md) (SEC-01–SEC-12), [`security-compliance.md`](security-compliance.md) §1.3 (INV-S01–INV-S12) |
 | code landing | `kiana-policy/src/security_control_registry.rs`, registered by `kiana-policy/src/lib.rs` |
 | fixtures | `kiana-policy/tests/sc34_control_registry.rs` (40 CI-only tests, deny-first), `kiana-policy/tests/sc34_control_registry_guard.rs` (source guard) |
@@ -50,22 +50,26 @@ cannot be registered with a `durable` ceiling
 (`security_control_proof_ceiling_exceeds_evidence`). That single rejection is the difference
 between a crosswalk and a piece of marketing.
 
-## 3. Threat to control crosswalk (T01–T12)
+This table uses the `SC01:Tnn` identifiers from the SC-01 threat register. It does not reuse or
+rename the separate `Tnn` definitions in `security-compliance.md` section 3.4; these IDs are not
+aliases. See section 2.1 of the register for their many-to-many thematic crosswalk.
 
-| Threat | Control | SEC | NIST | OWASP | Internal | Backing slices | Ceiling | Status |
+## 3. Threat to control crosswalk (SC01:T01–SC01:T12)
+
+| SC-01 threat | Control | SEC | NIST | OWASP | Internal | Backing slices | Ceiling | Status |
 |---|---|---|---|---|---|---|---|---|
-| T01 wire actor/role impersonation | C-01 | SEC-01 | GOVERN | LLM06 | INV-S01 | SC-04, SC-06, SC-07 | source | partial |
-| T02 project trust bypass / untrusted resource injection | C-12 | SEC-11 | MAP | LLM03 | INV-S11 | SC-25, SC-26, SC-27 | source | partial |
-| T03 authority/policy/approval scope widening | C-02 | SEC-02 | GOVERN | LLM06 | INV-S02 | SC-05, SC-09, SC-10 | source | partial |
-| T04 child delegation superset | C-02 | SEC-02 | GOVERN | LLM06 | INV-S02 | SC-09, SW-04, SW-05 | source | partial |
-| T05 path traversal / symlink / TOCTOU | C-07 | SEC-07 | MEASURE | — | INV-S07 | SC-13, SC-14, PD | source | partial |
-| T06 secret exfiltration through prompt/event/receipt/log/provider | C-05 | SEC-05 | GOVERN | LLM02 | INV-S05 | SC-18, SC-19, SC-20 | source | partial |
-| T07 model/UI self-report approval or completion | C-10 | SEC-10 | MEASURE | — | INV-S10 | SC-31, SC-32 | source | partial |
-| T08 duplicate / unknown / ambiguous side effect | C-09 | SEC-09 | MANAGE | LLM09 | INV-S09 | SC-12, SC-15, SC-33 | source | partial |
-| T09 cancellation race / stale worker | C-08 | SEC-08 | MANAGE | — | INV-S08 | SC-15, SC-16, SW-10 | source | partial |
-| T10 corrupt / torn / replayed storage | C-11 | SEC-10 | MEASURE | — | INV-S10 | SC-31, SC-32, ER, PD | source | partial |
-| T11 resource exhaustion / retry storm | C-13 | SEC-12 | MEASURE | LLM10 | INV-S12 | SC-16, SC-22, SC-40, BQ, AUT | source | partial |
-| T12 external connector / physical action misuse | C-04 | SEC-04 | MANAGE | LLM06 | INV-S04 | SC-12, SC-17, SC-30, INT | source | partial |
+| SC01:T01 wire actor/role impersonation | C-01 | SEC-01 | GOVERN | LLM06 | INV-S01 | SC-04, SC-06, SC-07 | source | partial |
+| SC01:T02 project trust bypass / untrusted resource injection | C-12 | SEC-11 | MAP | LLM03 | INV-S11 | SC-25, SC-26, SC-27 | source | partial |
+| SC01:T03 authority/policy/approval scope widening | C-02 | SEC-02 | GOVERN | LLM06 | INV-S02 | SC-05, SC-09, SC-10 | source | partial |
+| SC01:T04 child delegation superset | C-02 | SEC-02 | GOVERN | LLM06 | INV-S02 | SC-09, SW-04, SW-05 | source | partial |
+| SC01:T05 path traversal / symlink / TOCTOU | C-07 | SEC-07 | MEASURE | — | INV-S07 | SC-13, SC-14, PD | source | partial |
+| SC01:T06 secret exfiltration through prompt/event/receipt/log/provider | C-05 | SEC-05 | GOVERN | LLM02 | INV-S05 | SC-18, SC-19, SC-20 | source | partial |
+| SC01:T07 model/UI self-report approval or completion | C-10 | SEC-10 | MEASURE | — | INV-S10 | SC-31, SC-32 | source | partial |
+| SC01:T08 duplicate / unknown / ambiguous side effect | C-09 | SEC-09 | MANAGE | LLM09 | INV-S09 | SC-12, SC-15, SC-33 | source | partial |
+| SC01:T09 cancellation race / stale worker | C-08 | SEC-08 | MANAGE | — | INV-S08 | SC-15, SC-16, SW-10 | source | partial |
+| SC01:T10 corrupt / torn / replayed storage | C-11 | SEC-10 | MEASURE | — | INV-S10 | SC-31, SC-32, ER, PD | source | partial |
+| SC01:T11 resource exhaustion / retry storm | C-13 | SEC-12 | MEASURE | LLM10 | INV-S12 | SC-16, SC-22, SC-40, BQ, AUT | source | partial |
+| SC01:T12 external connector / physical action misuse | C-04 | SEC-04 | MANAGE | LLM06 | INV-S04 | SC-12, SC-17, SC-30, INT | source | partial |
 
 SEC-03, SEC-06 and SEC-12 are covered by controls that no single threat owns; they appear in
 §4 as C-03, C-06 and C-13.
