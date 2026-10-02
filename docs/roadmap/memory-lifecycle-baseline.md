@@ -1,6 +1,6 @@
 # CM-02 MemoryRecord lifecycle and legacy import baseline
 
-> 快照日期：2026-09-16。本文记录 CM-02 的 MemoryRecord 生命周期/provenance 字段和 v1 legacy import；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
+> 快照日期：2026-10-02。本文记录 CM-02 的 MemoryRecord 生命周期/provenance 字段和 v1 legacy import；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
 
 ## 1. 目标与证明上限
 
@@ -8,7 +8,7 @@
 |---|---|
 | roadmap card | [`CM-02`](context-memory.md#step-cm-02) |
 | source snapshot | `817277a`（CM-01 来源/scope 提交后的干净基线） |
-| feature_status | `implemented`（domain lifecycle + daemon reader/import source） |
+| feature_status | `partial`（domain lifecycle + daemon reader/import source；visibility also validates lifecycle; remote verification and broader provenance limits remain open） |
 | proof_level | `source`；静态编译与远程夹具不提升为 local_behavior/durable/live/physical |
 | canonical path | JSONL row → bounded decode → explicit `MemoryRecord::legacy_import`/lifecycle validation → searchable/review projection |
 | this step does | 为 MemoryRecord 增加 purpose/sensitivity/validity/retention/dependencies/import mode，校验 admission/review/state/provenance 组合；v1 行显式导入为 origin Unknown/Candidate/Draft/unverifiable，不默认 approved/verified |
@@ -46,7 +46,7 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 |---|---|
 | `legacy_memory_is_unverifiable_until_reviewed` | v1 legacy import 保持 Unknown/Candidate/Draft/unsearchable/unverified |
 | `invalid_admission_state_combination_is_denied` | Candidate/Active、错误 validity 等组合 fail-closed |
-| `qualified_memory_requires_review_evidence_and_purpose` | Qualified/Active 缺 provenance/review/evidence 不可接受 |
+| `qualified_memory_requires_review_evidence_and_purpose` | Qualified/Active 缺 provenance/review/evidence 时 lifecycle validation、visibility 和 searchable 均拒绝；完整对照仍 Searchable |
 | `memory_record_rejects_unknown_nested_lifecycle_fields` | `Purpose`、`Retention`、`MemoryEvidence` 的嵌套未知字段以及 v1 legacy evidence 未知字段均 fail-closed |
 | `qualified_memory_requires_review_evidence_and_purpose` malformed cases | nil event/request/run IDs, blank/oversize quotes, invalid Purpose, blank reviewer and zero review time fail closed |
 | `legacy_memory_is_unverifiable_until_reviewed`（daemon） | 真实 JSONL reader 使用 explicit import，不把旧行直接暴露给检索 |
@@ -105,7 +105,7 @@ fixture or cassette: `kiana-domain/tests/cm02_memory.rs::memory_record_rejects_u
 exit_code: historical CM-02 fixture cases 3/3 passed in GitHub CI; `git diff --check` exit 0; new negative fixture has no CI result yet
 status_change: none; CM-02 remains 🔄 and this change does not claim the roadmap step complete
 proof-level_change: none; source only
-limitations: the new negative fixture is unexecuted pending integration; `validate_lifecycle` still permits a fully populated schema-v1 Native object constructed directly in memory, although the daemon JSONL reader and named upcaster explicitly route v1 payloads through legacy import; nested strictness does not bind evidence quotes to immutable EventLog facts or establish durable approval; no local tests or builds were run
+limitations: at this historical evidence snapshot, `validate_lifecycle` still permitted a fully populated schema-v1 Native object constructed directly in memory; the later schema-v1 correction is recorded in §8. Nested strictness does not bind evidence quotes to immutable EventLog facts or establish durable approval; no local tests or builds were run
 reviewer: CM-02 isolated source review; no runtime test reviewer for the new fixture
 ```
 
@@ -130,4 +130,24 @@ status_change: CM-02 remains 🔄; v1 Native Qualified/Active records can no lon
 proof-level_change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
 limitations: fixtures await GitHub CI; event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation remains CM-06; purpose/sensitivity derivation and retention policy remain later scope; no semantic recall or durable-memory claim is made
 reviewer: isolated source review of schema gates, import compatibility, lifecycle visibility, and EventLog projection; no runtime test reviewer
+```
+
+## 9. Lifecycle-validated visibility (2026-10-02)
+
+`MemoryRecord::visibility()` now requires a valid lifecycle before exposing a record as
+Searchable, SessionOnly or ReviewOnly. The existing Qualified fixture retains a complete valid
+control and additionally asserts that missing origin/evidence, purpose, sensitivity, reviewer or
+review time returns Denied and `searchable() == false`.
+
+```text
+source_snapshot: master `db8a4606` plus isolated source commit `075b4cf1`; integrated source `8979ed29`
+worktree_status: only the lifecycle-to-visibility gate and its existing domain fixture changed; no reader, projection, store, manifest or lockfile behavior was otherwise altered
+command_argv: source/diff review; `git cherry-pick 075b4cf17f44bde7733cc37ab39ef543fea2c007`; no local cargo test/build/check/fmt/clippy/smoke
+cwd·environment: isolated source worktree `/tmp/kiana-cm02-visibility-validation-20261002`; integration in repository root on Linux; GitHub Actions is the only test executor
+fixture·cassette: `qualified_memory_requires_review_evidence_and_purpose`; run `36926015057` on older source logged three pre-existing CM-02 fixtures passing, but it predates this direct visibility assertion. Run `36981359579` was cancelled and run `36992023615` was in progress when inspected; no result is inferred for the new assertions.
+exit_code: source review and cherry-pick succeeded; no local test/runtime exit code exists
+status_change: CM-02 remains 🔄 / `feature_status=partial`; lifecycle-invalid v2 records cannot be surfaced through `visibility()` or `searchable()` even if callers bypass `validate_lifecycle()`
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: unified run `36992023615` had a Rust gates failure at `cargo fmt --all --check`, but its full result/log was unavailable and this failure is not attributed to CM-02; run `36981359579` was cancelled; event-to-quote binding, durable mutation/index visibility, retention/revocation/deletion and semantic recall remain outside this source slice
+reviewer: root source review confirmed lifecycle validation has no visibility recursion, valid Qualified control remains searchable, and invalid metadata is denied; no local runtime test reviewer
 ```

@@ -3976,6 +3976,25 @@ limitations: the new fixtures await GitHub CI; event-to-quote/source binding rem
 reviewer: isolated source review of lifecycle schema gates, explicit importer/upcaster conversion and EventLog projection fixture; no runtime test reviewer
 ```
 
+### CM-02 lifecycle-validated visibility correction (2026-10-02)
+
+```text
+source_snapshot: current master `db8a4606` plus isolated source commit `075b4cf1`; integrated source `8979ed29`; `kiana-domain/src/memory.rs`; `kiana-domain/tests/cm02_memory.rs`; `docs/roadmap/memory-lifecycle-baseline.md`
+worktree_status: `MemoryRecord::visibility()` now calls `validate_lifecycle()` before returning Searchable, SessionOnly or ReviewOnly; invalid lifecycle returns Denied. The existing Qualified fixture asserts the valid record remains searchable and missing provenance/evidence/purpose/sensitivity/reviewer/review time returns Denied and unsearchable. No other lifecycle, reader, projection, manifest or store behavior changed.
+command_argv:
+  `git show --format=fuller --stat --patch 075b4cf17f44bde7733cc37ab39ef543fea2c007`
+  source review of `MemoryRecord::validate_lifecycle`, `visibility`, `searchable`, and `qualified_memory_requires_review_evidence_and_purpose`
+  `git cherry-pick 075b4cf17f44bde7733cc37ab39ef543fea2c007`
+  no local test, build, Cargo check, fmt, clippy or smoke command was run
+cwd·environment: isolated source worktree `/tmp/kiana-cm02-visibility-validation-20261002`; integration in repository root on Linux; GitHub Actions is the only test executor
+fixture·cassette: historical run `36926015057` logged the earlier CM-02 domain fixtures 3/3 passing but predates the visibility assertions; run `36981359579` was cancelled; run `36992023615` on prior source was still in progress, with the Rust gates job reporting a `cargo fmt --all --check` failure and no readable overall result. None is a receipt for this correction.
+exit_code: source review and cherry-pick succeeded; no local test/runtime exit code exists
+status_change: CM-02 remains 🔄 and `feature_status=partial`; malformed lifecycle records cannot be exposed via direct `visibility()`/`searchable()` calls
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: the new assertions await a subsequent GitHub run; run `36992023615`'s formatting failure is not attributed to CM-02 and the full run was not awaited; EventLog-to-quote binding, durable mutation/index visibility, retention/revocation/deletion and semantic recall remain outside this slice
+reviewer: root source review confirmed validation does not recurse through `visibility`, the valid Qualified control remains searchable, and malformed metadata is denied; no local runtime test reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text
