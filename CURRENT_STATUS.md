@@ -3647,6 +3647,21 @@ limitations: the run's broader domain shards were red for sibling targets, the o
 reviewer: root reviewed the one-line baseline correction against the exact CI assertion and preserved the existing guard
 ```
 
+### CAP-01 focused receipts and P1-H01 source-guard correction (2026-10-02)
+
+```text
+source_snapshot: tested source head `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`; CAP-01 source/test files unchanged through current master `43e1cbe8`; `docs/roadmap/capability-authority-baseline.md` §6
+worktree_status: CAP-01 catalog/Broker/core-s1 targets have exact GitHub CI pass output. The adjacent P1-H01 source guard failed on a stale literal; DaemonHost currently invokes both `validate_tool_authority()` and `validate_catalog_bindings()` with error propagation, and the guard now checks those exact calls. CAP-01 remains partial pending that corrected target's remote receipt.
+command_argv: `gh run view 36999753811 --repo shirosoralumie648/kianacode --json jobs`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891062`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891004`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891044`; `gh api repos/shirosoralumie648/kianacode/actions/jobs/110814891165`; `cargo fmt --all --check`; `git diff --check`; no local test/build/Cargo check/clippy/smoke command run
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; exact fixture execution on GitHub Actions Ubuntu
+fixture·cassette: run `36999753811`: domain-s1/4 job `110814891062` passed all 4 `cap01_registry` tests; domain-s2/4 job `110814891004` passed the forged-ReadOnly, spec-kind and risk-floor fixtures; Broker job `110814891044` passed exact/near-alias route and duplicate/version/unregistered guards; core-s1/6 job `110814891165` passed `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` 1/1.
+exit_code: listed catalog/Broker/core-s1 targets passed; core-s5 `p1_h01_tool_authority_guard` failed on the stale literal; aggregate domain/core shards failed on sibling tests, Broker job succeeded, and the workflow was later cancelled by a subsequent push
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; the corrected source guard is committed with this evidence update and awaits GitHub CI
+proof-level change: none; CAP-01 remains `proof_level=source`, without local_behavior, durable, live or physical promotion
+limitations: no complete green workspace run is established; static catalog/binding fixtures do not prove runtime authorization, durable ToolSnapshot, live provider effects, or physical behavior; the corrected guard result is pending; CAP-02+ remains open
+reviewer: root matched exact test outputs to the CAP-01 fixture catalog and reviewed the stale guard marker against current DaemonHost source
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text

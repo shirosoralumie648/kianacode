@@ -8,8 +8,8 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CAP-01`](capability.md#step-cap-01) |
-| source snapshot | `ae412092`（当前 `origin/master`；旧 routing fixture 修正基线） |
-| feature_status | `partial`（catalog/binding source exists; corrected remote fixture evidence pending） |
+| source snapshot | 首次 source snapshot `ae412092`；当前 exact remote receipts 见 §6 |
+| feature_status | `partial`（catalog/binding implementation and exact fixtures pass; the related P1-H01 source guard needs a corrected marker receipt） |
 | proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
 | canonical path | Runner model tool schema/mapping → domain action catalog → DaemonHost registrations → Broker exact binding/version → ControlPlane permit/policy |
 | this step does | 为每个 registered operation 校验 descriptor/schema/binding，拒绝 duplicate alias/operation、kind mismatch、binding version drift 和 unregistered fallback；区分五个 model-visible tools 与 operator-only operations |
@@ -85,7 +85,7 @@ CAP-01 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`；
 
 The CAP-01 join slice based on `origin/master` `ff3fb2fe` adds `validate_tool_action_binding(s)` in `kiana-domain/src/tool_authority.rs`. For each model-visible `ToolSpec`, it checks canonical model name and aliases, `canonical_action_operation` against `ToolSpec.operation`, exact membership in `ACTION_OPERATIONS`, descriptor operation/capability/static minimum risk, and the defined argument-schema compatibility: the action descriptor is the model parameter schema with `additionalProperties: true`. It does not compare the distinct result schemas or require byte-for-byte equality before that compatibility field is applied. `validate_action_catalog()` now enforces this join, so the existing Broker seal and DaemonHost startup path reject drift before service use. The `process.start` descriptor remains unchanged: `ReadOnly` is its static minimum; `capability_action_contract` still derives `LocalWrite` for `workspace-write` and rejects a lower request risk.
 
-This source slice remains `feature_status=partial`, `proof_level=source`; it has not run in CI. Latest readable baseline receipts before the slice: run `36963672912` (`ff3fb2fe`) reports Broker shard job `110702710881` success while the workflow remains in progress; its domain/core shard results are not evidence for this branch. Run `36921545592` (`ace6ff9e`) job `110569092386` shows both `cap01_registry` tests passed inside a domain shard that failed on other targets, and Broker job `110569092389` succeeded. No local test/build/check/fmt/clippy/smoke command was run.
+At the time this OperationSpec slice was recorded, it had no CI receipt; the later exact current receipts are recorded in §6. The source/test baseline remains `proof_level=source` and has no local runtime, durable, live or physical claim.
 
 ### OperationSpec and admission-kind correction (2026-10-02)
 
@@ -99,7 +99,18 @@ CI-only fixtures added or extended in this slice: `operation_specs_preserve_mode
 
 Exact prior receipt: run `36970698983` on `78a6d796` reports core-s1 job `110723944047` with `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` 1/1 passing, and domain-s1 job `110723944163` with its then-current `cap01_registry` 3/3 passing. Both shards failed overall because sibling targets failed; the workflow was cancelled by a newer push. These receipts precede this OperationSpec/kind-correction slice and do not validate it. This slice has no new CI receipt. Local `git diff --check --cached` exited 0; `cargo fmt --all` exited 0 for formatting only. No local test, build, cargo check, clippy, or smoke command was run.
 
-## 6. 限制与交接
+## 6. Current focused CI receipts (2026-10-02)
+
+Run `36999753811` tested source head `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`. Every CAP-01 target in the fixture catalog passed:
+
+- Domain-s1/4 job `110814891062`: all 4 `cap01_registry` fixtures passed, including the single-table projection and controlled-metadata drift cases.
+- Domain-s2/4 job `110814891004`: `forged_readonly_risk_cannot_downgrade_registered_effect`, `spec_kind_drives_policy_for_preview_and_mcp_handshake`, and `spec_risk_rules_preserve_sandbox_and_operator_action_floors` passed.
+- Broker job `110814891044`: duplicate/version/unregistered guards, exact and near-alias routing, and `sealed_broker_routes_spec_kinds_without_fallback` passed.
+- Core-s1/6 job `110814891165`: `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` passed 1/1 after the documentation marker correction.
+
+The domain and core aggregate shards were red on sibling targets; the Broker job succeeded, and the overall run was later cancelled by a subsequent push. The related `p1_h01_tool_authority_guard` in core-s5/6 job `110814891013` failed because it expected the stale literal `kiana_domain::validate_tool_authority()?`; current DaemonHost calls `kiana_domain::validate_tool_authority().map_err(PortError::Failed)?` and then `capabilities.validate_catalog_bindings()?`. The guard now checks those actual composition calls, with its corrected remote receipt pending. CAP-01 remains `feature_status=partial`, `proof_level=source`; the exact catalog/Broker/core-s1 targets above pass but the full OperationSpec guard set is not yet green. CAP-01 source/test files are otherwise unchanged from the tested source head through current master `43e1cbe8`.
+
+## 7. 限制与交接
 
 - Catalog/descriptor/binding 仍是进程内静态 source；未实现持久 ToolSnapshot、签名 manifest、动态扩展 revoke 或跨进程 binding provenance。
 - `additionalProperties` 兼容字段和 bounded JSON Schema 仍允许后续收紧；收紧必须升级 catalog/binding 版本并重新审批，不能静默改变旧 action digest。

@@ -35,6 +35,7 @@ fn runner_and_daemon_consume_the_single_tool_authority_registry() {
             "runner registry marker missing: {marker}"
         );
     }
-    assert!(daemon.contains("kiana_domain::validate_tool_authority()?"));
+    assert!(daemon.contains("kiana_domain::validate_tool_authority().map_err(PortError::Failed)?;"));
+    assert!(daemon.contains("capabilities.validate_catalog_bindings()?;"));
     assert!(contracts.contains("kiana.tool-authority.v1"));
 }
