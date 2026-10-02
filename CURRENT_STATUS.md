@@ -5049,12 +5049,33 @@ command_argv:
   git diff --check
   rg -n 'ProjectTrustSnapshot|DepartmentSnapshot|SecurityAuthoritySnapshot|context_from_assignment|project_trust_snapshot|validate_request|require_trusted_for_effect|AUTH_PROJECT_MISMATCH|AUTH_ROLE_MISMATCH|authority_epoch|department_snapshot_roles_noncanonical' kiana-domain/src kiana-domain/tests kiana-core/src kiana-core/tests kiana-daemon/src docs/roadmap/security-authority-baseline.md
 cwd/environment: isolated Linux worktree; local cargo test/build/check/fmt/clippy/smoke commands deliberately not run per user instruction; GitHub Actions is the test authority
-fixture or cassette: run 36903885031 / job 110509907632 previously failed because the fixture mutated only RequestContext.project_trusted; kiana-domain/tests/sc07_trust_snapshots.rs trust/department/assignment fixtures; kiana-core/tests/sc07_authority_snapshot.rs now has trusted/untrusted server snapshots and wire-escalation denial; kiana-core/tests/sc07_authority_guard.rs server-owned trust source guard; GitHub Actions only
-exit_code: remote log read and git diff --check exited 0; the prior CI fixture assertion failed with `called Result::unwrap_err() on an Ok value`, and this repair has not been run in CI yet
+fixture or cassette: run 36903885031 / job 110509907632 previously failed because the fixture mutated only RequestContext.project_trusted; kiana-domain/tests/sc07_trust_snapshots.rs trust/department/assignment fixtures; kiana-core/tests/sc07_authority_snapshot.rs trusted/untrusted server snapshots and wire-escalation denial; kiana-core/tests/sc07_authority_guard.rs server-owned trust source guard; run 36959912924 later executed both SC-07 core targets on base 4557750b and they passed; GitHub Actions only
+exit_code: remote log read and git diff --check exited 0; run 36959912924 is completed with conclusion cancelled after subsequent pushes; the SC-07 core targets passed, while the generic kiana-daemon shard was cancelled before its Run step completed; the project-identity follow-up below is not included in that base run
 status_change: SC-07 fixture evidence is corrected. The effect denial now exercises a false server-owned ProjectTrustSnapshot, while a caller-supplied trusted bit against that snapshot is rejected as AUTH_CALLER_UNTRUSTED; production authority and execution paths are unchanged.
 proof-level_change: source only; no local_behavior, durable, live or physical promotion
-limitations: CI rerun is pending and intentionally not awaited; no local test or smoke command was run; AssignmentDirectory and trust authority remain in-memory/local compatibility adapters, role/project revocation and department refresh lack durable CAS/replay, local-user is not external authentication, SecurityContext does not yet carry the full authority snapshot on every request, and Grant/Policy/Approval/Secret/redaction/TOCTOU/external/live/physical enforcement remains SC-08+
+limitations: the completed base run is not a green workflow and does not test the project-identity follow-up below; no local test or smoke command was run; AssignmentDirectory and trust authority remain in-memory/local compatibility adapters, role/project revocation and department refresh lack durable CAS/replay, local-user is not external authentication, SecurityContext does not yet carry the full authority snapshot on every request, and Grant/Policy/Approval/Secret/redaction/TOCTOU/external/live/physical enforcement remains SC-08+
 reviewer: Codex SC-07 authority audit; no runtime test reviewer
+```
+
+### SC-07 exact project binding follow-up evidence (2026-10-02)
+
+```text
+source_snapshot: 4557750b + isolated SC-07 project-binding follow-up; kiana-core/src/security_authority.rs; kiana-core/tests/sc07_authority_snapshot.rs; kiana-core/tests/sc07_authority_guard.rs; kiana-daemon/src/lib.rs; docs/roadmap/security-authority-baseline.md; CURRENT_STATUS.md
+worktree_status: validator now binds request root and the supplied daemon-resolved ProjectIdentity to the authority snapshot's project ID, canonical-root digest, and trust revision; daemon assignment helper supplies the resolved identity; the general DaemonHost::handle assignment gap is recorded as a limitation, with no mandatory AssignmentDirectory wiring or unrelated files changed
+command_argv:
+  rg -n 'validate_request\(|project_id != self.project_trust.project_id|canonical_root: project.canonical_root|context_from_assignment\(' kiana-core/src kiana-core/tests kiana-daemon/src
+  git diff --check
+  gh run view 36959912924 --json status,conclusion,headSha,updatedAt,jobs
+  gh run view 36959912924 --job 110691766266 --log
+  gh run list --workflow ci.yml --branch master --limit 5 --json databaseId,headSha,status,conclusion,createdAt
+  git ls-remote origin refs/heads/master
+cwd/environment: isolated Linux worktree `/tmp/kiana-sc07-deep-20261002`, branch `step/sc07-deep-20261002`; local cargo test/build/check/fmt/clippy/smoke commands deliberately not run per user instruction; GitHub Actions is the test authority
+fixture or cassette: CI-only `sc07_authority_snapshot` changes reject a foreign request root and a foreign ProjectIdentity; `sc07_authority_guard` checks exact project/root/trust-revision binding and the assignment helper call; run 36959912924 for base 4557750b is completed/cancelled after subsequent master pushes: both SC-07 core targets completed successfully in `kiana-core-s6/6`, but the generic `kiana-daemon` shard Run step was cancelled; current project-binding changes are not in that run
+exit_code: `gh run view` exited 0 and reported `status=completed`, `conclusion=cancelled`; targeted core-shard log read exited 0 with both SC-07 targets passing on the base commit; latest observed master was c4f631543481ff529d70ed5a9151585a24c550e4 with unrelated run 36961061128 queued; isolated change remains unpushed and has no CI result
+status_change: `feature_status=partial`; validator project binding is present at source level, while the typed assignment helper remains disconnected from `DaemonHost::handle`; no claim that SC-07 assignment enforcement is complete
+proof-level_change: remains `source`; no local_behavior, durable, live or physical promotion
+limitations: `DaemonHost::with_run_stream` initializes an empty in-memory AssignmentDirectory; `handle` continues its local `allowed_roles`/SecurityContext compatibility path; no server-owned OrganizationId or assignment provisioning/recovery source exists, so making explicit assignment mandatory requires a product decision and would deny current unassigned default requests; ProjectTrustAuthority exposes only a bool/local trust source; no external authentication, durable assignment/revocation or cross-process recovery is proven
+reviewer: Codex SC-07 authority audit; CI result intentionally not awaited; no runtime test reviewer
 ```
 
 ### SC-08 authority epoch and session fence evidence (2026-09-17)

@@ -6,14 +6,14 @@ use kiana_domain::{
 };
 use serde_json::json;
 
-fn fixture(trusted: bool) -> (SecurityAuthoritySnapshot, RequestContext) {
+fn fixture(trusted: bool) -> (SecurityAuthoritySnapshot, RequestContext, ProjectIdentity) {
     let principal = AuthenticatedPrincipalRef::local();
     let project = ProjectIdentity::new(
         "/repo",
         "/repo",
         None,
         None,
-        json_digest(&json!({"trusted":true})),
+        json_digest(&json!({"trusted":trusted})),
     )
     .unwrap();
     let organization_id = OrganizationId::new();
@@ -70,15 +70,15 @@ fn fixture(trusted: bool) -> (SecurityAuthoritySnapshot, RequestContext) {
     .unwrap();
     let mut context = RequestContext::local("sc07", "/repo");
     context.project_trusted = trusted;
-    (snapshot, context)
+    (snapshot, context, project)
 }
 
 #[test]
 fn authority_snapshot_round_trips_and_validates_scope() {
-    let (snapshot, context) = fixture(true);
+    let (snapshot, context, project) = fixture(true);
     assert_eq!(snapshot.schema, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA);
     assert!(snapshot.validate().is_ok());
-    assert!(snapshot.validate_request(&context).is_ok());
+    assert!(snapshot.validate_request(&context, &project).is_ok());
     assert!(snapshot.require_trusted_for_effect().is_ok());
     assert_eq!(
         SecurityAuthoritySnapshot::from_json(&snapshot.to_json().unwrap()).unwrap(),
@@ -88,24 +88,52 @@ fn authority_snapshot_round_trips_and_validates_scope() {
 
 #[test]
 fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
-    let (snapshot, mut context) = fixture(true);
+    let (snapshot, mut context, project) = fixture(true);
     context.role_id = "reviewer".to_owned();
     assert_eq!(
-        snapshot.validate_request(&context).unwrap_err(),
+        snapshot.validate_request(&context, &project).unwrap_err(),
         "AUTH_ROLE_MISMATCH"
     );
-    let (untrusted_snapshot, mut untrusted_context) = fixture(false);
-    assert!(untrusted_snapshot.validate_request(&untrusted_context).is_ok());
+    let (untrusted_snapshot, mut untrusted_context, untrusted_project) = fixture(false);
+    assert!(untrusted_snapshot
+        .validate_request(&untrusted_context, &untrusted_project)
+        .is_ok());
     untrusted_context.project_trusted = true;
     assert_eq!(
         untrusted_snapshot
-            .validate_request(&untrusted_context)
+            .validate_request(&untrusted_context, &untrusted_project)
             .unwrap_err(),
         "AUTH_CALLER_UNTRUSTED"
     );
     assert_eq!(
         untrusted_snapshot.require_trusted_for_effect().unwrap_err(),
         "AUTH_PROJECT_UNTRUSTED"
+    );
+
+    let mut foreign_context = context.clone();
+    foreign_context.role_id = "builder".to_owned();
+    foreign_context.project_root = "/foreign".to_owned();
+    assert_eq!(
+        snapshot
+            .validate_request(&foreign_context, &project)
+            .unwrap_err(),
+        "AUTH_PROJECT_MISMATCH"
+    );
+    let foreign_project = ProjectIdentity::new(
+        "/foreign",
+        "/foreign",
+        None,
+        None,
+        json_digest(&json!({"trusted":true})),
+    )
+    .unwrap();
+    let mut matching_foreign_context = context;
+    matching_foreign_context.project_root = "/foreign".to_owned();
+    assert_eq!(
+        snapshot
+            .validate_request(&matching_foreign_context, &foreign_project)
+            .unwrap_err(),
+        "AUTH_PROJECT_MISMATCH"
     );
 
     let mut tampered = snapshot.to_json().unwrap();

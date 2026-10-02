@@ -681,6 +681,7 @@ impl DaemonHost {
         context.actor_id = Some(assignment.principal.principal_id.clone());
         context.role_id = assignment.role_id.clone();
         context.department_id = assignment.department_id.clone();
+        let project = self.project_identity(&context.project_root)?;
         let project_trust = self.project_trust_snapshot(&context.project_root, 1)?;
         let department = DepartmentSpec::lookup(&assignment.department_id)
             .ok_or_else(|| PortError::Failed("department_unknown".to_owned()))?;
@@ -700,7 +701,7 @@ impl DaemonHost {
         )
         .map_err(PortError::Failed)?;
         authority
-            .validate_request(&context)
+            .validate_request(&context, &project)
             .map_err(PortError::Failed)?;
         kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
