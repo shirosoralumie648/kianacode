@@ -121,6 +121,7 @@ pub fn validate_action_catalog() -> Result<(), String> {
             return Err(format!("action_schema_boundary_unspecified:{operation}"));
         }
     }
+    crate::validate_tool_action_bindings()?;
     Ok(())
 }
 

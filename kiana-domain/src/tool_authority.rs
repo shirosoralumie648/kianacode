@@ -274,6 +274,56 @@ pub fn tool_spec(name: &str) -> Option<&'static ToolSpec> {
         .find(|spec| spec.name == name || spec.aliases.iter().any(|alias| *alias == name))
 }
 
+pub fn validate_tool_action_binding(spec: &ToolSpec) -> Result<(), String> {
+    let model_name = model_tool_name(spec.name)
+        .ok_or_else(|| "tool_action_tool_unknown".to_owned())?;
+    if model_name != spec.name {
+        return Err("tool_action_model_name_mismatch".to_owned());
+    }
+
+    let operation = crate::canonical_action_operation(model_name)
+        .ok_or_else(|| "tool_action_operation_unknown".to_owned())?;
+    if operation != spec.operation || !crate::ACTION_OPERATIONS.contains(&spec.operation) {
+        return Err("tool_action_operation_mismatch".to_owned());
+    }
+    let descriptor = crate::capability_action_descriptor(operation)
+        .ok_or_else(|| "tool_action_descriptor_missing".to_owned())?;
+    if descriptor.operation != spec.operation {
+        return Err("tool_action_operation_mismatch".to_owned());
+    }
+    if descriptor.capability != spec.capability || descriptor.minimum_risk != spec.risk_policy {
+        return Err("tool_action_metadata_mismatch".to_owned());
+    }
+
+    for alias in spec.aliases {
+        if model_tool_name(alias) != Some(spec.name)
+            || crate::canonical_action_operation(alias) != Some(spec.operation)
+        {
+            return Err("tool_action_alias_mismatch".to_owned());
+        }
+    }
+
+    let model_schema = tool_schemas()
+        .into_iter()
+        .find(|schema| schema["name"] == spec.name)
+        .and_then(|schema| schema.get("parameters").cloned())
+        .ok_or_else(|| "tool_action_model_schema_missing".to_owned())?;
+    let mut compatible_action_schema = model_schema;
+    compatible_action_schema["additionalProperties"] = json!(true);
+    if descriptor.argument_schema != compatible_action_schema {
+        return Err("tool_action_schema_mismatch".to_owned());
+    }
+
+    Ok(())
+}
+
+pub fn validate_tool_action_bindings() -> Result<(), String> {
+    for spec in TOOL_SPECS {
+        validate_tool_action_binding(spec)?;
+    }
+    Ok(())
+}
+
 pub fn validate_tool_authority() -> Result<(), String> {
     if TOOL_SPECS.is_empty() {
         return Err("tool_authority_surface_invalid".to_owned());
@@ -309,5 +359,6 @@ pub fn validate_tool_authority() -> Result<(), String> {
     {
         return Err("tool_authority_schema_drift".to_owned());
     }
+    validate_tool_action_bindings()?;
     Ok(())
 }

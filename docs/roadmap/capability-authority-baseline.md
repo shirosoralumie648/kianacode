@@ -76,11 +76,16 @@ Operator-only 不等于无需授权；它只表示模型不能直接提出该 op
 | `registered_handler_is_selected_by_exact_capability_and_operation` | 使用已登记 `memory.search` descriptor/kind，seal 后验证精确路由和 handler 调用 |
 | `near_aliases_are_rejected_without_invoking_a_handler` | `memory.search `、`memory.search.extra` 和错误 kind 的 `shell.exec` 均 fail-closed |
 | `asynchronous_registration_rejects_duplicate_keys` / `static_registration_rejects_duplicate_handler_keys` | 使用已登记 `memory.write`/`memory.search` descriptor 验证动态/静态 duplicate semantics |
+| `tool_action_binding_rejects_controlled_metadata_drift` | 用克隆并篡改的 `ToolSpec` 验证 operation、capability、risk 与 action descriptor 错配会被拒绝 |
 | `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` | Broker/Daemon/Runner/handler source guard |
 
 CAP-01 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`；当前 `kiana-capability-broker` shard 执行 Broker 单测与 `routing` target，其他 catalog/core fixtures 位于对应 domain/core shards。历史 run `36895251170` 的 Broker job `110481002417` 显示 routing fixtures 先以非法 `search`/`read` operation 调用注册 API，触发 `capability_operation_unknown`；这不是 catalog 缺 operation。GitHub runner 执行夹具，本地不运行测试，不连接 provider/connector。
 
 2026-10-02 correction keeps the production closed catalog and `insert_handler` fail-closed behavior unchanged. The fixtures now derive capability/kind/operation/binding version from `capability_action_descriptor`, seal a complete no-op catalog for the successful exact-routing case, and retain explicit unknown/near-alias and wrong-kind denials.
+
+The CAP-01 join slice based on `origin/master` `ff3fb2fe` adds `validate_tool_action_binding(s)` in `kiana-domain/src/tool_authority.rs`. For each model-visible `ToolSpec`, it checks canonical model name and aliases, `canonical_action_operation` against `ToolSpec.operation`, exact membership in `ACTION_OPERATIONS`, descriptor operation/capability/static minimum risk, and the defined argument-schema compatibility: the action descriptor is the model parameter schema with `additionalProperties: true`. It does not compare the distinct result schemas or require byte-for-byte equality before that compatibility field is applied. `validate_action_catalog()` now enforces this join, so the existing Broker seal and DaemonHost startup path reject drift before service use. The `process.start` descriptor remains unchanged: `ReadOnly` is its static minimum; `capability_action_contract` still derives `LocalWrite` for `workspace-write` and rejects a lower request risk.
+
+This source slice remains `feature_status=partial`, `proof_level=source`; it has not run in CI. Latest readable baseline receipts before the slice: run `36963672912` (`ff3fb2fe`) reports Broker shard job `110702710881` success while the workflow remains in progress; its domain/core shard results are not evidence for this branch. Run `36921545592` (`ace6ff9e`) job `110569092386` shows both `cap01_registry` tests passed inside a domain shard that failed on other targets, and Broker job `110569092389` succeeded. No local test/build/check/fmt/clippy/smoke command was run.
 
 ## 6. 限制与交接
 

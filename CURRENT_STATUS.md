@@ -3414,6 +3414,30 @@ limitations: no corrected GitHub execution has been observed; complete catalog h
 reviewer: Codex source review against `ACTION_OPERATIONS`, `capability_action_descriptor`, `insert_handler`, Broker seal and CI shard mapping; no runtime test reviewer
 ```
 
+### CAP-01 model/tool action catalog join source slice (2026-10-02)
+
+```text
+source_snapshot: `origin/master ff3fb2fe` plus implementation commit `7251414c`; `kiana-domain/src/tool_authority.rs`; `kiana-domain/src/actions.rs`; `kiana-domain/tests/cap01_registry.rs`; `kiana-core/tests/cap01_authority_guard.rs`; `docs/roadmap/capability-authority-baseline.md`
+worktree_status: join validator committed locally on `step/cap01-join-20261002` in isolated `/tmp/kiana-cap01-join-20261002`; not pushed or merged. `validate_tool_action_binding(s)` joins all five model-visible ToolSpecs through `model_tool_name` and `canonical_action_operation` to exact `ACTION_OPERATIONS` entries and CapabilityActionDescriptors; it checks operation, capability, static minimum risk, aliases, and the existing parameter-schema compatibility (`additionalProperties: true`). `validate_action_catalog()` invokes the join, and the existing Broker/DaemonHost seal reaches it before service use.
+command_argv:
+  git fetch origin master
+  git rev-parse origin/master
+  git worktree add -b step/cap01-join-20261002 /tmp/kiana-cap01-join-20261002 origin/master
+  rg -n 'capability_action_descriptor|ACTION_OPERATIONS|validate_tool_authority|validate_catalog_bindings' kiana-domain/src kiana-capability-broker/src kiana-daemon/src
+  gh run view 36963672912 --json databaseId,headSha,status,conclusion,jobs
+  gh run view 36921545592 --json databaseId,headSha,status,conclusion,jobs
+  gh run view 36921545592 --job 110569092386 --log
+  git commit -m 'fix(cap01): enforce model action catalog join'
+  no local test/build/check/fmt/clippy/smoke command run
+cwd/environment: isolated Linux x86_64 worktree; `origin/master` was `ff3fb2fe`; local implementation commit `7251414c`; no local tests, builds, Cargo check, formatting, clippy or smoke commands executed
+fixture·cassette: new controlled-mismatch fixture `tool_action_binding_rejects_controlled_metadata_drift` mutates a cloned ToolSpec operation, capability, and risk; positive `tool_authority_covers_every_model_visible_tool` checks the canonical joins and aliases; core source guard asserts that `validate_action_catalog()` calls the validator. These new fixtures have no CI receipt yet. Previous run `36921545592`, domain job `110569092386`, logged both existing `cap01_registry` tests passing, although other targets made the shard fail; Broker job `110569092389` succeeded. Latest baseline run `36963672912` on `ff3fb2fe` had Broker job `110702710881` success, domain job `110702710947` failure, and core job `110702711075` failure while the workflow remained in progress; those results predate this slice.
+exit_code: 0 for fetch, worktree creation, metadata reads, local commits, `git diff --check` and `git show --check`; a log request against run `36963672912` returned unavailable while that workflow was in progress. The two local whitespace checks were run inadvertently; no test/build/Cargo check/fmt/clippy/smoke command was run.
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; the model-visible ToolSpec/action catalog drift now fails the existing catalog validation and composition seal when the branch is integrated
+proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: the new controlled-mismatch fixture and source guard are unexecuted pending GitHub CI after integration. This validates the five model-visible ToolSpecs and their parameter schemas under the existing `additionalProperties: true` compatibility rule; it does not unify schema generation, compare distinct result schemas, or assign model ToolSpecs to operator-only actions. `process.start` metadata is unchanged; its dynamic contract still requires `LocalWrite` for `workspace-write`. No runtime, durable, live, or physical claim is made.
+reviewer: source-only comparison of `ToolSpec`, `ToolCatalogSnapshot`, `ACTION_OPERATIONS`, action descriptors, Broker seal and DaemonHost startup; no runtime test reviewer
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text
