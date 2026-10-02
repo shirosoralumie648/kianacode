@@ -3590,8 +3590,31 @@ fixture·cassette: CI-only additions/updates: `operation_specs_preserve_model_sc
 exit_code: source commit `d6b4dc12`, fast-forward merge, status commit `4e54356b`, and push to `origin/master` exited 0; `cargo fmt --all` 0; intermediate-draft `git diff --check --cached` 0 (before final formatter/helper edits); no local tests/build/check/clippy/smoke were run; source and documentation were manually reviewed
 status_change: CAP-01 remains 🔄 / `feature_status=partial`; source and status evidence are integrated and pushed; no roadmap completion is claimed
 proof-level change: remains `proof_level=source`; no local_behavior, durable, live, or physical promotion
-limitations: this source slice has no CI compile or fixture receipt. Snapshot/schema compatibility is asserted by source fixtures but unobserved until GitHub CI runs. `TOOL_SPECS` changes from a const slice type to a facade, retaining `Deref<[ToolSpec]>`, `AsRef<[ToolSpec]>`, indexing, iteration and the original `tool_spec -> Option<&'static ToolSpec>` reference API; consumers requiring the exact const type can use `.as_ref()`. Operation specs and handler bindings remain process-local; handler registration still explicitly selects existing handlers in DaemonHost. No authorization/permit, effect, durable, external or live claim is made.
+limitations: at this initial snapshot, the OperationSpec slice had no CI compile or fixture receipt; later exact results and the source-guard marker correction are recorded below. Snapshot/schema compatibility remains unverified until the corrected guard runs in GitHub CI. `TOOL_SPECS` changes from a const slice type to a facade, retaining `Deref<[ToolSpec]>`, `AsRef<[ToolSpec]>`, indexing, iteration and the original `tool_spec -> Option<&'static ToolSpec>` reference API; consumers requiring the exact const type can use `.as_ref()`. Operation specs and handler bindings remain process-local; handler registration still explicitly selects existing handlers in DaemonHost. No authorization/permit, effect, durable, external or live claim is made.
 reviewer: manual source review only; no local runtime or CI reviewer for this slice
+```
+
+### CAP-01 OperationSpec source-guard marker correction (2026-10-02)
+
+```text
+source_snapshot: OperationSpec source/status integration `4e54356b`; marker correction `9d6f7d5d`; integrated and pushed master commit `3859cea9`; `docs/roadmap/capability-authority-baseline.md`; `kiana-core/tests/cap01_authority_guard.rs`
+worktree_status: the baseline's 38-operation table now names the exact `OPERATION_SPECS` constant expected by the existing source guard. No guard/test assertion or runtime behavior changed; commit `3859cea9` is pushed to `origin/master`.
+command_argv:
+  `gh run view 36978883309 --job 110748754423 --log`
+  `git show --format=fuller --stat --patch 9d6f7d5dc5131245f218f27838b56906dbacc7aa`
+  `rg -n 'OPERATION_SPECS' docs/roadmap/capability-authority-baseline.md kiana-core/tests/cap01_authority_guard.rs`
+  `git cherry-pick 9d6f7d5dc5131245f218f27838b56906dbacc7aa`
+  `git push origin master`
+  `gh run list --limit 8`
+  isolated `git diff --check`
+  no local test, build, Cargo check, fmt, clippy or smoke command was run
+cwd·environment: isolated source review in `/tmp/kiana-cap01-operationspec-marker-20261002`; integration and push from repository root on Linux; no local product tests or Cargo gates
+fixture·cassette: run `36978883309` / head `4e54356b`: core-s1 job `110748754423` failed `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` because the baseline omitted the literal marker; domain-s1 job `110748754517` passed the four CAP-01 registry targets, domain-s2 job `110748754448` passed the two spec-kind/risk targets, and Broker job `110748754471` passed `sealed_broker_routes_spec_kinds_without_fallback`. The core guard marker is added in `3859cea9`; its verification run `36989560299` was queued at observation and not awaited.
+exit_code: prior source-guard assertion failed in GitHub CI; isolated `git diff --check`, cherry-pick, and push exited 0; no local test or runtime exit code exists
+status_change: CAP-01 remains 🔄 and `feature_status=partial`; the known documentation marker mismatch is corrected, but there is no GitHub receipt for the corrected source guard
+proof-level change: source only; `proof_level=source`, with no local_behavior, durable, live, or physical promotion
+limitations: the run's broader domain shards were red for sibling targets, the overall workflow was later cancelled, and the corrected guard has not run; this docs-only correction does not change the closed operation catalog, Broker behavior, or proof ceiling
+reviewer: root reviewed the one-line baseline correction against the exact CI assertion and preserved the existing guard
 ```
 
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
