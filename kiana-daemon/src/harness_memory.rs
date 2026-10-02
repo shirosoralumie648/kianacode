@@ -1501,6 +1501,7 @@ mod tests {
                 description: "review evidence fixture".to_owned(),
             }),
             sensitivity: MemorySensitivity::Internal,
+            revision: 1,
             ..MemoryRecord::default()
         };
         let legacy_import = json!({

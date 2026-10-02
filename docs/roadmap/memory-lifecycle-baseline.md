@@ -177,3 +177,26 @@ proof-level change: source only; no local_behavior, durable, live or physical pr
 limitations: the success-side `accept_proposal` helper is not reachable with the production EventStore-backed MemoryReviewHandler, which returns `memory_proposal_event_journal_required`; event-to-quote verification and a journaled Native successor path remain open; retention, revocation, durable recovery and semantic recall remain later scope; post-integration CI is pending
 reviewer: isolated source review confirmed denial precedes MemoryMutation/EventStore/JSONL side effects and accepted records are lifecycle-validated; no runtime test reviewer
 ```
+
+## 11. Review fixture revision precondition correction (2026-10-02)
+
+Run 37005322134 / daemon job 110832244670 marked the new negative review fixture failed.
+The model Candidate was built with MemoryRecord::default(), whose revision is zero; JSON
+serialization kept that value, so review returned memory_revision_conflict before it reached
+the intended evidence check. The fixture now sets revision 1 to match its review command. This
+changes no production behavior.
+
+The same cancelled daemon job marked model_written_memory_without_evidence_is_rejected_and_stays_unsearchable failed, but its test binary did not emit assertion details before cancellation. Its cause is unconfirmed and remains open for the next run.
+
+```text
+source_snapshot: CM-02 fail-closed source commit 43e1cbe8 plus the fixture precondition correction in kiana-daemon/src/harness_memory.rs; run 37005322134 / daemon job 110832244670
+worktree_status: only the model Candidate fixture now sets revision 1, allowing the stale-revision gate to pass before the test asserts missing-evidence denial; production code is unchanged
+command_argv: read-only GitHub log inspection; source review; cargo fmt --all --check; git diff --check; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: repository root; GitHub Actions Ubuntu runner for the observed failure; all tests remain remote-only
+fixture·cassette: memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled failed because its serialized Candidate had revision 0 while expected_revision was 1; the separate daemon-host integration test was marked failed without an emitted assertion detail before cancellation
+exit_code: run 37005322134 / job 110832244670 cancelled before target summaries; the corrected fixture has no new CI result; local formatting/whitespace checks only
+status_change: CM-02 remains 🔄 / feature_status=partial; fixture correction awaits GitHub CI
+proof-level change: none; proof_level=source
+limitations: no cause is confirmed for the daemon-host integration failure; EventStore-backed proposal acceptance remains unavailable and quote/evidence binding, durable recovery, retention/revocation/deletion and semantic recall remain open
+reviewer: root source and log review; no local runtime test reviewer
+```

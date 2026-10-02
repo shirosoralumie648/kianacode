@@ -4055,6 +4055,21 @@ limitations: no successful EventStore-backed proposal acceptance path is current
 reviewer: isolated source review verified rejection precedes MemoryMutation/EventStore/JSONL writes and that any accepted record is lifecycle-validated; no runtime test reviewer
 ```
 
+### CM-02 review fixture revision correction (2026-10-02)
+
+```text
+source_snapshot: CM-02 fail-closed source commit 43e1cbe8; kiana-daemon/src/harness_memory.rs; CI run 37005322134 / daemon job 110832244670
+worktree_status: the model Candidate fixture now explicitly uses revision 1 so it reaches the evidence-denial branch instead of the earlier stale-revision guard; production review ordering and behavior are unchanged
+command_argv: GitHub daemon job log inspection; source/diff review; cargo fmt --all --check; git diff --check; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: source review and fixture edit in repository root; failure output from GitHub Actions Ubuntu; tests remain remote-only
+fixture·cassette: run 37005322134 / daemon job 110832244670 marked memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled failed; source review found MemoryRecord::default() serialized revision 0 while the request expected revision 1, so review returned memory_revision_conflict before reaching the expected evidence guard. The separate model_written_memory_without_evidence_is_rejected_and_stays_unsearchable daemon-host test was also marked failed, but the run was cancelled before its assertion detail was emitted; its cause is unconfirmed.
+exit_code: the daemon job was cancelled by a subsequent push before target summaries; this local change is whitespace/format checked only, with no local test result or post-correction CI receipt
+status_change: CM-02 remains 🔄 / feature_status=partial; only the negative fixture revision precondition changed, and remote re-verification is pending
+proof-level change: none; CM-02 remains proof_level=source
+limitations: the daemon-host failure remains unattributed; no evidence-to-event/quote binding or journaled Native successor path is available, and no durable, live or physical behavior is claimed
+reviewer: read-only CI diagnosis plus source review traced the unit fixture stale revision to the default value; no local runtime reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text
