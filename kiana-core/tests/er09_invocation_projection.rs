@@ -236,6 +236,14 @@ fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
         "invocation_terminal_conflict"
     );
 
+    let conflicting_result_receipt = CapabilityResultReceipt::from_result(
+        &conflicting_result,
+        Some(execution_id),
+        Some(invocation_id),
+        1,
+        true,
+    )
+    .unwrap();
     let mut mismatched_result_receipt = executing_events(run_id, request_id);
     mismatched_result_receipt.push(event(
         run_id,
@@ -250,7 +258,7 @@ fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
             "attempt":1,
             "effect_known":true,
             "result":result.clone(),
-            "result_receipt":conflicting_receipt.clone(),
+            "result_receipt":conflicting_result_receipt,
         }),
     ));
     assert_eq!(
