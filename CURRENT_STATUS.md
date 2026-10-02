@@ -3727,6 +3727,30 @@ limitations: duplicate-key rejection applies to all objects in provider envelope
 reviewer: manual source review of provider parser and transport integration, protocol fixtures, size boundaries, and unchanged execution path; no runtime test reviewer
 ```
 
+### CAP-02 ControlPlane authority/scope fixture and shell guard correction (2026-10-02)
+
+```text
+source_snapshot: isolated source commit `c609482b52b97daff30be981081bcc199c1b4cd1` based on `43e1cbe8`, integrated on current master; `kiana-core/tests/cap02_input_guard.rs`; `kiana-core/tests/control_plane.rs`; `kiana-daemon/src/harness_capabilities.rs`; `kiana-daemon/src/shell_plan.rs`; `docs/roadmap/capability-input-baseline.md`; `docs/roadmap.md`; `CURRENT_STATUS.md`
+worktree_status: CAP-02 test/evidence slice is integrated on master; replaced the stale daemon-local NUL marker assertion with checks for `ShellCommandPlan::from_value` at its real caller and string/argv byte-and-NUL plus empty-executable validation in `shell_plan.rs`. Added `reserved_authority_fields_cannot_change_execution_scope` to existing `control_plane` integration target; a RunnerPort submits identity/scope spoofing plus a self-valid, action-bound caller scope, and a test Broker captures final requests after ControlPlane preparation/authorization. No production behavior, shard manifest, or execution path changed.
+command_argv:
+  `git worktree add -b step/cap02-ci-acceptance-20261002 /tmp/kiana-cap02-ci-acceptance-20261002 origin/master`
+  read-only `rg`, `sed`, `nl`, `git show`, and `jq` inspection of the existing ControlPlane and target wiring
+  `git diff --check`
+  `git add kiana-core/tests/cap02_input_guard.rs kiana-core/tests/control_plane.rs docs/roadmap/capability-input-baseline.md docs/roadmap.md CURRENT_STATUS.md`
+  `git commit -m 'test(cap02): cover trusted execution scope'`
+  `git cherry-pick c609482b52b97daff30be981081bcc199c1b4cd1`
+  `cargo fmt --all --check`
+  `git push origin master`
+  no local test, build, Cargo check, fmt, clippy, or smoke command run
+cwd·environment: source review in isolated worktree `/tmp/kiana-cap02-ci-acceptance-20261002`; integration in repository root; Linux x86_64; formatter/whitespace checks only, no local runtime validation
+fixture·cassette: new `reserved_authority_fields_cannot_change_execution_scope` runs through `ControlPlane::start_run` → `prepare_capability_action` → policy/gate → captured `CapabilityBrokerPort`; existing `control_plane` target is assigned to `kiana-core-s2/6`; corrected `capability_input_boundary_is_shared_by_runner_core_broker_and_daemon` remains on `kiana-core-s1/6`; no manifest change. Prior exact receipts on unchanged CAP-02 source: run `37003572738` / `1f8e16be`, provider job `110826678310` passed CAP-02 provider fixtures while unrelated Gemini coverage failed, and core-s1 job `110826678351` failed the stale source marker; run `36999753811` / `491e6bd7`, domain-s1 job `110814891062` passed six `cap02_input` tests while the shard failed on unrelated AUT-07. New ControlPlane fixture and corrected guard have no CI receipt yet.
+exit_code: `cargo fmt --all --check`, `git diff --check`, cherry-pick and push exited 0; no test/build exit code exists; push triggered GitHub CI without waiting
+status_change: CAP-02 remains roadmap row 041 🔄, `feature_status=partial`, `proof_level=source`; the guard source location and missing ControlPlane fixture are now represented, but no completion or runtime behavior is claimed
+proof-level change: remains `source`; no local_behavior, durable, live, or physical promotion
+limitations: the added tests have not run remotely; the captured Broker is a test port, so this fixture asserts the final ControlPlane request/scope boundary but not production Broker handler effects; provider/external/live/physical effect limits remain unchanged
+reviewer: source review of the actual daemon shell parser call chain, ControlPlane request preparation and scope derivation, and same-source CI receipts; no local runtime test reviewer
+```
+
 ### CAP-03 immutable ExecutionScope evidence (2026-09-16)
 
 ```text

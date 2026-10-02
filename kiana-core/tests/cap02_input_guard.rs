@@ -6,6 +6,7 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     let capabilities = include_str!("../src/capabilities.rs");
     let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
     let daemon = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+    let shell_plan = include_str!("../../kiana-daemon/src/shell_plan.rs");
     let provider = include_str!("../../kiana-provider/src/response.rs");
     let provider_transport = include_str!("../../kiana-provider/src/transport.rs");
     let baseline = include_str!("../../docs/roadmap/capability-input-baseline.md");
@@ -35,7 +36,10 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     assert!(capabilities.contains("PreparedAction::new"));
     assert!(broker.contains("capability_action_not_prepared"));
     assert!(daemon.contains("command_argv"));
-    assert!(daemon.contains("NUL") || daemon.contains("\\0"));
+    assert!(daemon.contains("ShellCommandPlan::from_value"));
+    assert!(shell_plan.contains("value.len() > MAX_COMMAND_BYTES || value.contains('\\0')"));
+    assert!(shell_plan.contains("value.len() > MAX_ARG_BYTES || value.contains('\\0')"));
+    assert!(shell_plan.contains("argv[0].trim().is_empty()"));
     assert!(provider.contains("kiana_domain::parse_bounded_json(raw.as_bytes())"));
     assert!(provider.contains("struct UniqueProviderJson(Value)"));
     assert!(provider.contains("fn parse_provider_json(raw: &[u8], invalid_code: &str)"));
