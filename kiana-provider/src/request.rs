@@ -879,13 +879,13 @@ pub(crate) fn check_schema(schema: &Value, depth: usize) -> Result<(), ModelErro
 pub(crate) fn validate_output(schema: &Value, value: &Value) -> Result<(), ModelError> {
     check_schema(schema, 0)?;
     kiana_domain::validate_schema_value(value, schema)
-        .map_err(|_| ModelError::invalid("model_structured_output_invalid"))?;
+        .map_err(|_| format_repair_error("model_structured_output_invalid"))?;
     if let (Some(object), Some(properties)) = (value.as_object(), schema["properties"].as_object())
     {
         if schema["additionalProperties"] == false
             && object.keys().any(|key| !properties.contains_key(key))
         {
-            return Err(ModelError::invalid(
+            return Err(format_repair_error(
                 "model_structured_output_extra_property",
             ));
         }
@@ -903,7 +903,7 @@ pub(crate) fn validate_output(schema: &Value, value: &Value) -> Result<(), Model
                 .as_u64()
                 .is_some_and(|n| array.len() > (n as usize))
         {
-            return Err(ModelError::invalid("model_structured_output_array_length"));
+            return Err(format_repair_error("model_structured_output_array_length"));
         }
         if let Some(items) = schema.get("items") {
             for item in array {
@@ -916,15 +916,22 @@ pub(crate) fn validate_output(schema: &Value, value: &Value) -> Result<(), Model
         if schema["minLength"].as_u64().is_some_and(|min| n < min)
             || schema["maxLength"].as_u64().is_some_and(|max| n > max)
         {
-            return Err(ModelError::invalid("model_structured_output_text_length"));
+            return Err(format_repair_error("model_structured_output_text_length"));
         }
     }
     if let Some(n) = value.as_f64() {
         if schema["maximum"].as_f64().is_some_and(|max| n > max) {
-            return Err(ModelError::invalid("model_structured_output_number_range"));
+            return Err(format_repair_error("model_structured_output_number_range"));
         }
     }
     Ok(())
+}
+
+fn format_repair_error(code: &str) -> ModelError {
+    let mut error =
+        ModelError::invalid(code).with_recovery_disposition(ModelRecoveryDisposition::FormatRepair);
+    error.request_sent = true;
+    error
 }
 
 /// Parse and validate one complete structured response. This helper deliberately has no repair
@@ -937,16 +944,16 @@ pub(crate) fn parse_structured_output(
     let value = match format {
         ModelResponseFormat::Text => return Ok(None),
         _ if text.trim().is_empty() => {
-            return Err(ModelError::invalid("model_structured_output_empty"))
+            return Err(format_repair_error("model_structured_output_empty"))
         }
         _ => serde_json::from_str::<Value>(text)
-            .map_err(|_| ModelError::invalid("model_structured_output_invalid_json"))?,
+            .map_err(|_| format_repair_error("model_structured_output_invalid_json"))?,
     };
     match format {
         ModelResponseFormat::Text => unreachable!(),
         ModelResponseFormat::JsonObject => {
             if !value.is_object() {
-                return Err(ModelError::invalid(
+                return Err(format_repair_error(
                     "model_structured_output_object_required",
                 ));
             }
@@ -973,7 +980,7 @@ mod p4_j7_21_structured_output_tests {
     }
 
     #[test]
-    fn structured_parser_has_no_implicit_repair_path() {
+    fn structured_output_errors_are_typed_format_repair_without_running_a_repair() {
         let format = ModelResponseFormat::JsonSchema {
             name: "answer".to_owned(),
             schema: json!({
@@ -982,22 +989,50 @@ mod p4_j7_21_structured_output_tests {
                 "required":["answer"]
             }),
         };
+        for (text, expected_code) in [
+            ("", "model_structured_output_empty"),
+            ("{\"answer\":", "model_structured_output_invalid_json"),
+            ("{\"answer\":7}", "model_structured_output_invalid"),
+        ] {
+            let error = parse_structured_output(&format, text).unwrap_err();
+            assert_eq!(error.code, expected_code);
+            assert_eq!(
+                error.recovery_disposition,
+                ModelRecoveryDisposition::FormatRepair
+            );
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
+            assert!(error.request_sent);
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+        }
+
+        let object_error =
+            parse_structured_output(&ModelResponseFormat::JsonObject, "[]").unwrap_err();
+        assert_eq!(object_error.code, "model_structured_output_object_required");
         assert_eq!(
-            parse_structured_output(&format, "").unwrap_err().code,
-            "model_structured_output_empty"
+            object_error.recovery_disposition,
+            ModelRecoveryDisposition::FormatRepair
         );
-        assert_eq!(
-            parse_structured_output(&format, "{\"answer\":")
-                .unwrap_err()
-                .code,
-            "model_structured_output_invalid_json"
-        );
+        assert!(object_error.request_sent);
+        assert_eq!(object_error.retry_class, ModelRetryClass::Never);
+
         assert_eq!(
             parse_structured_output(&format, "{\"answer\":\"ok\"}")
                 .unwrap()
                 .unwrap()["answer"],
             "ok"
         );
+    }
+
+    #[test]
+    fn invalid_response_schema_remains_terminal() {
+        let error = check_schema(&json!({"type":"unsupported"}), 0).unwrap_err();
+
+        assert_eq!(error.code, "model_schema_type_unsupported");
+        assert_eq!(
+            error.recovery_disposition,
+            ModelRecoveryDisposition::Terminal
+        );
+        assert!(!error.request_sent);
     }
 }
 

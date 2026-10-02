@@ -147,6 +147,9 @@ async fn incomplete_stop_never_dispatches_tools_or_completes_turn() {
 async fn typed_recovery_disposition_bounds_runner_routing() {
     let mut rejected = ModelError::transport("provider_http_429", ModelRetryClass::Rejected, true);
     rejected.side_effect_state = ModelSideEffectState::None;
+    let mut format_repair = ModelError::invalid("format_rejected")
+        .with_recovery_disposition(ModelRecoveryDisposition::FormatRepair);
+    format_repair.request_sent = true;
     let cases = [
         (
             "transport_before_send",
@@ -157,8 +160,7 @@ async fn typed_recovery_disposition_bounds_runner_routing() {
         ("transport_rejected", rejected, 2, None),
         (
             "format_repair",
-            ModelError::invalid("format_rejected")
-                .with_recovery_disposition(ModelRecoveryDisposition::FormatRepair),
+            format_repair,
             1,
             Some("model_format_repair_unavailable"),
         ),
@@ -193,6 +195,24 @@ async fn typed_recovery_disposition_bounds_runner_routing() {
             .expect("model errors are returned as RunnerEvents");
 
         assert_eq!(calls.load(Ordering::SeqCst), expected_calls, "{case}");
+        if case == "format_repair" {
+            assert!(
+                events.iter().any(|event| {
+                    matches!(event, RunnerEvent::ModelTurn { run_id: turn_run, metadata, .. }
+                        if *turn_run == run_id
+                            && metadata["outcome"]["recovery_disposition"] == "format_repair")
+                }),
+                "format repair disposition must reach the bounded model-turn outcome: {events:?}"
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|event| matches!(event, RunnerEvent::CapabilityRequested { .. }))
+                    .count(),
+                0,
+                "format failure must not hand off a capability: {events:?}"
+            );
+        }
         if let Some(expected_failure) = expected_failure {
             assert!(
                 events.iter().any(|event| {
