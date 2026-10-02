@@ -100,20 +100,16 @@ impl Fixture {
         let configuration_revision = kiana_domain::json_digest(&json!({
             "fixture": "co06-company-artifact-history.v1"
         }));
-        trace_ci_phase(&format!(
-            "{idempotency_key}: authority synchronization begin"
-        ));
+        trace_ci_phase("authority synchronization begin");
         core.synchronize_authority(&context, &configuration_revision)
             .await
             .expect("server authority snapshot");
-        trace_ci_phase(&format!(
-            "{idempotency_key}: authority synchronization complete"
-        ));
-        trace_ci_phase(&format!("{idempotency_key}: Company command begin"));
+        trace_ci_phase("authority synchronization complete");
+        trace_ci_phase("Company command begin");
         let response = core
             .handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
             .await;
-        trace_ci_phase(&format!("{idempotency_key}: Company command complete"));
+        trace_ci_phase("Company command complete");
         response
     }
 
