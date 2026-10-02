@@ -19237,6 +19237,21 @@ limitations: the EventKind runtime validator is not wired into generic EventStor
 reviewer: Codex source comparison of producer field sets to kind-specific allowlists, generic failure mapping and EventStore validator call graph; no runtime test reviewer
 ```
 
+### ER-01 result_source fixture exact CI receipt (2026-10-03)
+
+```text
+source_snapshot: `8407e1f138ad28460d9c5053e80ed45c9ccc2c50`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; current unified workflow `.github/workflows/ci.yml` and `scripts/ci/test-shards.json`
+worktree_status: no ER-01 source changed; this entry corrects the earlier pending-receipt record with the exact domain target result and preserves the missing core-guard receipt
+command_argv: `gh run view 37048582415 --json jobs`; `gh run view 37048582415 --job 110976530070 --log`; `gh run view 37048582415 --job 110976530203 --log-failed`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; remote GitHub Actions Ubuntu runner; no local Cargo execution
+fixture·cassette: run `37048582415`, head `8407e1f1`: `result_event_contracts_accept_only_their_result_fields` and the complete `er01_event_contract.rs` target passed 5/5 in domain-s2 job `110976530070`; that shard later failed on unrelated targets, and the workflow run was superseded. Core-s1 guard job `110976530203` was cancelled before a target result. Later run `37052098563` was superseded while domain job `110988220802` was in progress, and core guard job `110988221406` was cancelled.
+exit_code: exact domain target passed 5/5; core source guard result unavailable; no local runtime exit code
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the current result_source matrix target now has an exact CI receipt, but the core guard and full step remain open
+proof-level change: none
+limitations: run `37048582415` is a focused target receipt, not a green workflow or proof of generic EventStore enforcement. `validate_runtime_event` remains unwired at generic EventStore append; current legal direct-capability and `capability.blocked` producers are not reconciled to the full registry. No legacy completeness, durable recovery, live or physical proof is claimed.
+reviewer: remote job/target summary and source-to-allowlist review; no local runtime reviewer
+```
+
 ### ER-02 approval preview redaction root-cause fix (2026-10-03)
 
 ```text

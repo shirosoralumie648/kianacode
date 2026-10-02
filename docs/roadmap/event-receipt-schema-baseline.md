@@ -113,8 +113,10 @@ Exact CI receipt for the execution/capability result-matrix fixture: run `370419
 `302c6b46`, `kiana-domain-s2/4` job `110954472895` passed all 5 tests in
 `er01_event_contract.rs`, including `result_event_contracts_accept_only_their_result_fields`.
 The workflow was later cancelled and the domain shard had unrelated failures; core guard job
-`110954473184` was cancelled before a target result. The later `result_source` allowlist and guard
-assertions therefore remain without a CI receipt.
+`110954473184` was cancelled before a target result. The later `result_source` matrix then passed
+all 5 tests in run `37048582415`, head `8407e1f1`, domain-s2 job `110976530070`; that workflow was
+later failed on unrelated domain targets and was superseded; its core guard job `110976530203` was
+cancelled before a target result.
 
 ## 5.2 Capability result source field
 
@@ -133,6 +135,12 @@ reconciliation and deny-first CI coverage; do not infer enforcement from registr
 Current CI uses `.github/workflows/ci.yml` with `scripts/ci/test-shards.json`: the domain fixture
 runs in `kiana-domain-s2/4`, and the core guard runs in `kiana-core-s1/6`. Tests remain GitHub-only;
 no local tests/build/check/clippy/smoke are run.
+
+The exact domain target receipt above proves the `result_source` field matrix for that source
+snapshot only. The core guard still has no successful target receipt, and the registry validator
+is not connected to generic EventStore append. Run `37052098563` was superseded while its domain job
+was in progress and its core guard job `110988221406` was cancelled; the later head has been pushed
+without waiting for CI.
 
 ## 6. 限制与交接
 
