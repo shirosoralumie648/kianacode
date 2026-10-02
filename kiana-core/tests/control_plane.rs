@@ -3093,6 +3093,13 @@ async fn reserved_authority_fields_cannot_change_execution_scope() {
         }),
         baseline_broker.clone(),
     );
+    let authority_revision =
+        kiana_domain::json_digest(&json!({"fixture": "cap02-scope-capture.v1"}));
+    baseline_harness
+        .core
+        .synchronize_authority(&context, &authority_revision)
+        .await
+        .unwrap();
     let baseline_response = baseline_harness
         .core
         .start_run(context.clone(), "capture trusted scope".to_owned(), None)
@@ -3173,6 +3180,11 @@ async fn reserved_authority_fields_cannot_change_execution_scope() {
         }),
         forged_broker.clone(),
     );
+    forged_harness
+        .core
+        .synchronize_authority(&context, &authority_revision)
+        .await
+        .unwrap();
     let forged_response = forged_harness
         .core
         .start_run(context.clone(), "discard forged scope".to_owned(), None)
