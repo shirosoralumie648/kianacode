@@ -30,6 +30,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "APPROVAL_DENIED_FIELDS",
         "APPROVAL_EXPIRED_FIELDS",
         "APPROVAL_CANCELLED_FIELDS",
+        "APPROVAL_CONSUMED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -55,6 +56,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("approval_denied_contract_matches_decision_producer"));
     assert!(baseline.contains("approval_expired_contract_matches_expiry_producer"));
     assert!(baseline.contains("approval_cancelled_contract_matches_both_cancellation_producers"));
+    assert!(baseline.contains("approval_consumed_contract_matches_consumption_producer"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -101,4 +103,10 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         .contains("json!({\"reason\":redact_text(reason),\"revoked_by\":context.actor_id})"));
     assert!(journal_approvals
         .contains("json!({\"reason\":redact_text(reason),\"source\":\"project_invalidation\"})"));
+    assert!(journal_approvals.contains("ApprovalState::Consumed => \"approval.consumed\""));
+    assert!(journal_approvals.contains(
+        "json!({\"dispatch_command_id\":dispatch_command_id,\n            \"decision_command_id\":record.decision_command_id,\"decided_by\":record.decided_by})"
+    ));
+    assert!(journal_approvals.contains("with_fact(event, \"consumption_fact\", &consumption_fact)"));
+    assert!(states.contains("Self::Denied | Self::Expired | Self::Cancelled | Self::Consumed"));
 }

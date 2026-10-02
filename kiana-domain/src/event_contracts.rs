@@ -601,6 +601,18 @@ const APPROVAL_CANCELLED_FIELDS: &[&str] = &[
     "revoked_by",
     "source",
 ];
+const APPROVAL_CONSUMED_FIELDS: &[&str] = &[
+    "schema",
+    "approval_id",
+    "previous_state",
+    "state",
+    "request_hash",
+    "at_unix_ms",
+    "dispatch_command_id",
+    "decision_command_id",
+    "decided_by",
+    "consumption_fact",
+];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1285,8 +1297,8 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "approval.consumed",
         "approval",
         APPROVAL_IDS,
-        APPROVAL_FIELDS,
-        false,
+        APPROVAL_CONSUMED_FIELDS,
+        true,
         Some("legacy_approval_event_v0_to_v1")
     ),
     spec!(
