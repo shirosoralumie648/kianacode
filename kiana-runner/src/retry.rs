@@ -1,13 +1,14 @@
 use kiana_domain::{
-    ModelError, ModelRetryClass, ModelSideEffectState, RequestId, RetryDecision, RetryObservation,
-    RetryPolicy,
+    ModelError, ModelRecoveryDisposition, ModelRetryClass, ModelSideEffectState, RequestId,
+    RetryDecision, RetryObservation, RetryPolicy,
 };
 use std::time::Duration;
 
 pub(crate) const MAX_PROVIDER_ATTEMPTS: u32 = 3;
 
 pub(crate) fn is_safe_to_retry(error: &ModelError, observed_delta: bool) -> bool {
-    error.phase == "transport"
+    error.recovery_disposition == ModelRecoveryDisposition::TransportRetry
+        && error.phase == "transport"
         && RetryPolicy::new(
             MAX_PROVIDER_ATTEMPTS,
             MAX_PROVIDER_ATTEMPTS,
@@ -26,6 +27,15 @@ pub(crate) fn is_safe_to_retry(error: &ModelError, observed_delta: bool) -> bool
                 .ok()
         })
         .is_some_and(|decision| decision.retry)
+}
+
+pub(crate) fn unsupported_recovery_reason(error: &ModelError) -> Option<&'static str> {
+    match error.recovery_disposition {
+        ModelRecoveryDisposition::FormatRepair => Some("model_format_repair_unavailable"),
+        ModelRecoveryDisposition::ToolRepair => Some("model_tool_repair_unavailable"),
+        ModelRecoveryDisposition::ContextRepair => Some("model_context_repair_unavailable"),
+        ModelRecoveryDisposition::TransportRetry | ModelRecoveryDisposition::Terminal => None,
+    }
 }
 
 /// Apply the shared domain classifier with the same absolute deadline used by admission and
@@ -98,5 +108,38 @@ mod tests {
 
         let delay = retry_delay(&error, 0, RequestId::new());
         assert!((Duration::from_millis(8_000)..=Duration::from_millis(8_100)).contains(&delay));
+    }
+
+    #[test]
+    fn recovery_dispositions_only_retry_transport_and_refuse_unwired_repairs() {
+        let mut transport =
+            ModelError::transport("provider_http_429", ModelRetryClass::Rejected, true);
+        transport.side_effect_state = ModelSideEffectState::None;
+        assert!(is_safe_to_retry(&transport, false));
+        assert_eq!(unsupported_recovery_reason(&transport), None);
+
+        for (disposition, reason) in [
+            (
+                ModelRecoveryDisposition::FormatRepair,
+                "model_format_repair_unavailable",
+            ),
+            (
+                ModelRecoveryDisposition::ToolRepair,
+                "model_tool_repair_unavailable",
+            ),
+            (
+                ModelRecoveryDisposition::ContextRepair,
+                "model_context_repair_unavailable",
+            ),
+        ] {
+            let error =
+                ModelError::invalid("repair_requested").with_recovery_disposition(disposition);
+            assert!(!is_safe_to_retry(&error, false));
+            assert_eq!(unsupported_recovery_reason(&error), Some(reason));
+        }
+
+        let terminal = ModelError::invalid("terminal_failure");
+        assert!(!is_safe_to_retry(&terminal, false));
+        assert_eq!(unsupported_recovery_reason(&terminal), None);
     }
 }

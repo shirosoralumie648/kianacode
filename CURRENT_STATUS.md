@@ -19089,3 +19089,27 @@ proof-level change: none; no runtime, durable, live, or physical proof promotion
 limitations: CI fixtures are not yet observed remotely; Provider statuses outside explicit `incomplete` retain their existing classifications; no network Provider behavior is claimed
 reviewer: Codex source review; no runtime test reviewer
 ```
+
+### H05 typed recovery disposition slice (2026-10-02)
+
+```text
+source_snapshot: base `e17143f78b1089c7d23f1fa49efb9f867e364e49`; `kiana-domain/src/model.rs` sha256 `050ca8aae19f62ef4f6adf18583e7d0bccae3304c8c69800fc58b1c0bbea416e`; `kiana-domain/src/retry_policy.rs` sha256 `c8a123777f93443d30a6838bdf256dffbd8d4c70ca86767f955e7bad5c9093be`; `kiana-runner/src/retry.rs` sha256 `6d864b9101eb28d544d4af2871e924cb40f93ae6849d8926e1d9042b01c203fe`; `kiana-runner/src/harness.rs` sha256 `24cf1673137fc7e5be3f136750a1b6e3b8107e58a7449f511e2fe18208465ef2`; `kiana-domain/tests/h05_model_outcome.rs` sha256 `7d6ef0b5ad7acfffb4b69856daeb78c23f1ba86c27840e4d8fe70ee4c2a241b4`; `kiana-runner/tests/h05_stop_guard.rs` sha256 `5faf66f8339a2d889550eca995467d203e05f89bd334c9cb090b12be20c385ef`
+worktree_status: isolated branch `step/h05-typed-recovery-20261002` at `/tmp/kiana-h05-typed-recovery-20261002`; added closed `ModelRecoveryDisposition` values for TransportRetry, FormatRepair, ToolRepair, ContextRepair and Terminal. Missing serialized disposition defaults to Terminal, unknown values fail decoding. RetryPolicy and Runner admit only TransportRetry through the existing retry path; unwired repair dispositions produce stable unavailable errors. No automatic repair path, second loop, provider mapping, manifest or lockfile change was added.
+command_argv:
+  `git worktree add -b step/h05-typed-recovery-20261002 /tmp/kiana-h05-typed-recovery-20261002 e17143f78b1089c7d23f1fa49efb9f867e364e49`
+  read-only `rg`, `sed`, `nl`, and `git diff` inspection of H05 acceptance, ModelError producers, RetryPolicy and Runner call paths
+  initial `rustfmt --edition 2021 --check kiana-domain/src/model.rs kiana-domain/src/retry_policy.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/src/retry.rs kiana-runner/src/harness.rs kiana-runner/tests/h05_stop_guard.rs` (reported formatting deltas)
+  `rustfmt --edition 2021 kiana-domain/src/model.rs kiana-domain/src/retry_policy.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/src/retry.rs kiana-runner/src/harness.rs kiana-runner/tests/h05_stop_guard.rs`
+  `rustfmt --edition 2021 --check kiana-domain/src/model.rs kiana-domain/src/retry_policy.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/src/retry.rs kiana-runner/src/harness.rs kiana-runner/tests/h05_stop_guard.rs`
+  `git diff --check`
+  `git add kiana-domain/src/model.rs kiana-domain/src/retry_policy.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/src/retry.rs kiana-runner/src/harness.rs kiana-runner/tests/h05_stop_guard.rs docs/roadmap/harness-stop-retry-baseline.md docs/roadmap.md CURRENT_STATUS.md`
+  `git commit -m 'feat(h05): type model recovery disposition'`
+  no local test, build, Cargo check, clippy, or smoke command run
+cwd·environment: isolated worktree `/tmp/kiana-h05-typed-recovery-20261002`; Linux x86_64; source base `e17143f7`; no local runtime validation
+fixture·cassette: Domain `recovery_dispositions_are_typed_and_survive_error_round_trips`, `legacy_model_error_and_retry_observation_fail_closed_without_disposition`, `unknown_recovery_disposition_is_rejected`, `retry_policy_denies_non_transport_recovery_dispositions`; Runner `typed_recovery_disposition_bounds_runner_routing` covers BeforeSend and no-effect 429 retry (2 attempts) plus one-attempt fail-closed FormatRepair/ToolRepair/ContextRepair/Terminal. Existing `h05_model_outcome` and `h05_stop_guard` targets remain on `kiana-domain-s3/4` and `kiana-runner`; no shard map change. Prior receipts: run `37008943358` / head `cc303315`, Runner job `110844252604` H05 guard 3/3, Domain job `110844252435` H05 outcome 5/5, Provider job `110844252490` two explicit-incomplete fixtures passed; each overall shard had sibling failures, and this new slice has no CI receipt.
+exit_code: initial rustfmt check reported formatting deltas; formatter, final rustfmt check and `git diff --check` exited 0; local commit exit 0; no tests/build/Cargo check/clippy/smoke run; no CI triggered because the isolated branch was not pushed
+status_change: H05 remains roadmap row 047 🔄, `feature_status=partial`, `proof_level=source`; five recovery categories now have a typed contract and retry policy gate, but no production error source classifies format/tool/context repair and Runner refuses those dispositions as unavailable
+proof-level change: remains `source`; no local_behavior, durable, live or physical promotion
+limitations: this slice does not activate `invoke_output_repair`, add tool/context repair loops, map provider/parser error codes to repair dispositions, or claim end-to-end repair behavior. Those routes need their owner/eligibility, budget, cancellation and event semantics specified first. New fixtures are awaiting GitHub CI.
+reviewer: source review of typed error serialization, Domain retry admission and existing Runner retry/terminal path; no runtime test reviewer
+```

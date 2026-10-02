@@ -43,6 +43,7 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RetryDenyReason {
+    RecoveryDispositionNotRetryable,
     RetryClassNotAllowed,
     RequestAlreadySent,
     SideEffectUnknown,
@@ -58,6 +59,7 @@ pub enum RetryDenyReason {
 impl RetryDenyReason {
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::RecoveryDispositionNotRetryable => "recovery_disposition_not_retryable",
             Self::RetryClassNotAllowed => "retry_class_not_allowed",
             Self::RequestAlreadySent => "request_already_sent",
             Self::SideEffectUnknown => "side_effect_unknown",
@@ -78,6 +80,10 @@ impl RetryDenyReason {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetryObservation {
+    #[serde(default)]
+    pub recovery_disposition: crate::ModelRecoveryDisposition,
+    #[serde(default)]
+    pub phase: String,
     pub class: ModelRetryClass,
     pub code: String,
     pub request_sent: bool,
@@ -90,6 +96,8 @@ pub struct RetryObservation {
 impl RetryObservation {
     pub fn from_model_error(error: &ModelError, observed_delta: bool, idempotent: bool) -> Self {
         Self {
+            recovery_disposition: error.recovery_disposition,
+            phase: error.phase.clone(),
             class: error.retry_class,
             code: error.code.clone(),
             request_sent: error.request_sent,
@@ -101,6 +109,7 @@ impl RetryObservation {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        required(&self.phase, "retry_observation_phase", 128)?;
         required(&self.code, "retry_observation_code", 128)?;
         Ok(())
     }
@@ -187,6 +196,13 @@ impl RetryPolicy {
     ) -> Result<RetryDecision, String> {
         self.validate()?;
         observation.validate()?;
+        if observation.recovery_disposition != crate::ModelRecoveryDisposition::TransportRetry
+            || observation.phase != "transport"
+        {
+            return Ok(RetryDecision::deny(
+                RetryDenyReason::RecoveryDispositionNotRetryable,
+            ));
+        }
         if now_unix_ms >= self.deadline_unix_ms {
             return Ok(RetryDecision::deny(RetryDenyReason::Deadline));
         }

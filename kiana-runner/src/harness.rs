@@ -1742,7 +1742,10 @@ impl KianaHarness {
         format: kiana_domain::ModelResponseFormat,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<ModelOutput, String> {
-        use crate::retry::{classify_retry, is_safe_to_retry, retry_delay, MAX_PROVIDER_ATTEMPTS};
+        use crate::retry::{
+            classify_retry, is_safe_to_retry, retry_delay, unsupported_recovery_reason,
+            MAX_PROVIDER_ATTEMPTS,
+        };
         use kiana_domain::{ModelCallSpec, ModelRetryClass, RequestId};
         let admission = self
             .model_budget
@@ -2035,7 +2038,12 @@ impl KianaHarness {
                     }
                     tokio::select! {_=tokio::time::sleep(delay)=>{},error=cancellation.cancelled()=>return Err(error)}
                 }
-                Err(error) => return Err(error.to_string()),
+                Err(error) => {
+                    if let Some(reason) = unsupported_recovery_reason(&error) {
+                        return Err(reason.to_owned());
+                    }
+                    return Err(error.to_string());
+                }
             }
         }
         Err("model_attempt_limit".to_owned())

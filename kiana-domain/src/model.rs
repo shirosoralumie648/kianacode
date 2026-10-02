@@ -958,12 +958,26 @@ pub enum ModelRetryClass {
     BeforeSend,
     Rejected,
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelRecoveryDisposition {
+    TransportRetry,
+    FormatRepair,
+    ToolRepair,
+    ContextRepair,
+    #[default]
+    Terminal,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelError {
     pub code: String,
     pub phase: String,
     pub retry_class: ModelRetryClass,
+    #[serde(default)]
+    pub recovery_disposition: ModelRecoveryDisposition,
     pub request_sent: bool,
     pub retry_after_ms: Option<u64>,
     pub safe_message: String,
@@ -1021,16 +1035,24 @@ impl ModelError {
             code,
             phase: "validation".to_owned(),
             retry_class: ModelRetryClass::Never,
+            recovery_disposition: ModelRecoveryDisposition::Terminal,
             request_sent: false,
             retry_after_ms: None,
             side_effect_state: ModelSideEffectState::None,
         }
     }
     pub fn transport(code: &str, retry_class: ModelRetryClass, request_sent: bool) -> Self {
+        let recovery_disposition = match retry_class {
+            ModelRetryClass::BeforeSend | ModelRetryClass::Rejected => {
+                ModelRecoveryDisposition::TransportRetry
+            }
+            ModelRetryClass::Never => ModelRecoveryDisposition::Terminal,
+        };
         Self {
             code: code.to_owned(),
             phase: "transport".to_owned(),
             retry_class,
+            recovery_disposition,
             request_sent,
             retry_after_ms: None,
             safe_message: code.to_owned(),
@@ -1040,6 +1062,11 @@ impl ModelError {
                 ModelSideEffectState::None
             },
         }
+    }
+
+    pub fn with_recovery_disposition(mut self, disposition: ModelRecoveryDisposition) -> Self {
+        self.recovery_disposition = disposition;
+        self
     }
 
     pub fn outcome(&self) -> ModelOutcome {
