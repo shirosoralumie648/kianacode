@@ -23,6 +23,7 @@
 | Current stop and typed-recovery source/fixtures | `kiana-domain/src/model.rs`, `kiana-provider/src/response.rs`, `kiana-domain/tests/h05_model_outcome.rs`, `kiana-runner/tests/h05_stop_guard.rs` | `18d585d9815dcc37992767809dac1dec868fbec1f5f3a4bba355d30878799a82`, `51b4ec0c38382c0d7695ad1070c4f6dcd6d8dc4ac498bbbd1bb1366abb7060679a`, `1bd3810cbbfd2b623cf00f1c5e0971593c848f47fbb2403a4ceb56259c23023f`, `09a167fcd24be51c7316d52709c87d2170eee8a5f8aaf98c44865fc3c5c39559` |
 | Typed recovery classification slice | `kiana-domain/src/model.rs`, `kiana-domain/src/retry_policy.rs`, `kiana-domain/src/event_contracts.rs`, `kiana-runner/src/retry.rs`, `kiana-runner/src/harness.rs`, `kiana-domain/tests/h05_model_outcome.rs`, `kiana-runner/tests/h05_stop_guard.rs` | `18d585d9815dcc37992767809dac1dec868fbec1f5f3a4bba355d30878799a82`, `c8a123777f93443d30a6838bdf256dffbd8d4c70ca86767f955e7bad5c9093be`, `eeecb9f23a576722031c1608b6140c61b7586cba5c160e3ae5eca4bef05067b4`, `6d864b9101eb28d544d4af2871e924cb40f93ae6849d8926e1d9042b01c203fe`, `24cf1673137fc7e5be3f136750a1b6e3b8107e58a7449f511e2fe18208465ef2`, `1bd3810cbbfd2b623cf00f1c5e0971593c848f47fbb2403a4ceb56259c23023f`, `09a167fcd24be51c7316d52709c87d2170eee8a5f8aaf98c44865fc3c5c39559` |
 | Structured-output FormatRepair source and fail-closed fixture | `kiana-provider/src/request.rs`, `kiana-runner/tests/h05_stop_guard.rs` | `10c739e32709937b75625dcad5bdb27cc74e328173813ea7b492514fdd80699b`, `f7b63466280190894837160e5eca74a7383237091ccf160e1bd4e351b62943a7` |
+| 2026-10-03 length-stop diagnostic fixture | `kiana-runner/tests/h05_stop_guard.rs` | `4a5cf74bad53313286a47072c4e4790625598795e502f902b96809dd636080dd` |
 | Original H05 fixtures | `kiana-domain/tests/h05_model_outcome.rs`, `kiana-runner/tests/h05_stop_guard.rs` | `c570a3cc4fe1f9c7c9ca2a6cd6c50ac1f67d441d0dd74fd02b42718f214e5b34`, `402ed08a46d6222da228635e51cd60d8a507a614fd74caf1c36b7279fc8a7331` |
 | Current CI wiring | `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` | `038675197ece4752f335d4265f229aaa422a46df287c9fb94dd6387b3a9d0ef2`, `73fe32c73194833a25a120ea459f57c7c72f283fc77cac1e5a28d91cc4f323b6` |
 | Historical standalone workflow | `.github/workflows/h05-stop-retry.yml` | `e458eee8925eb353b6a288c8e47571b16b0906ff540720c3132c6aaa67bb7bab` |
@@ -47,7 +48,7 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 
 | Fixture | 断言 |
 |---|---|
-| `length_stop_never_dispatches_tools_or_completes_turn` | Runner 收到带 shell tool call 的 length 响应后发出 `model_output_truncated`，且没有发出 `CapabilityRequested` 移交给 ControlPlane/Broker 或 `Completed` |
+| `length_stop_never_dispatches_tools_or_completes_turn` | Runner 收到带 shell tool call 的 length 响应后发出 `model_output_truncated`，`ModelTurn` 诊断保留 normalized stop 和错误码，且没有发出 `CapabilityRequested` 移交给 ControlPlane/Broker 或 `Completed` |
 | `incomplete_stop_never_dispatches_tools_or_completes_turn` | Runner 收到带 shell tool call 的 incomplete 响应后发出 `model_transport_incomplete`，且没有发出 capability handoff 或 `Completed` |
 | `length_stop_is_rejected_by_legacy_reply_conversion` | Domain legacy reply conversion 将 length 响应拒绝为 `model_output_truncated`；不单独证明 Runner 派发边界 |
 | `explicit_incomplete_stop_is_not_success_even_with_tool_calls` | Domain 将 incomplete 分类为 `ModelStopReason::Incomplete` 并拒绝带工具调用的响应 |
@@ -73,6 +74,27 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 Exact prior H05 receipts: run `37008943358` / head `cc303315`, Runner job `110844252604` passed all 3 `h05_stop_guard` tests, Domain job `110844252435` passed all 5 `h05_model_outcome` tests, and Provider job `110844252490` passed both `explicit_incomplete_*` fixtures. The overall run was later cancelled; each relevant shard was red on sibling targets. H05 production/source/test/shard files were byte-identical from `cc303315` through base `e17143f7`.
 
 Run `37054968622`, head `8d42319c`, executed the new H05 checks: Provider job `110997881483` logged both `structured_output_errors_are_typed_format_repair_without_running_a_repair ... ok` and `malformed_model_tool_arguments_are_typed_tool_repair_after_request ... ok`; Runner job `110997880876` passed all 4 tests in `h05_stop_guard`, including `typed_recovery_disposition_bounds_runner_routing`. Both enclosing crate shards failed on unrelated sibling tests; no full-shard or workflow success is claimed. H05 remains `partial/source`.
+
+## 4.1 Length-stop diagnostic preservation (2026-10-03)
+
+The existing `length_stop_never_dispatches_tools_or_completes_turn` fixture now also requires the
+length failure's `RunnerEvent::ModelTurn` metadata to retain normalized stop reason `length` and
+bounded error code `model_output_truncated`. Its existing zero-capability-handoff and
+zero-completion assertions remain. This pins the card's diagnostic record without changing
+runtime behavior, repair disposition, retry or dispatch policy.
+
+```text
+source_snapshot: isolated commit `21635be0`; integrated source commit `bf7114b631e51b71360785bda1461689df952682`; `kiana-runner/tests/h05_stop_guard.rs`
+worktree_status: CI-only length-stop fixture now checks both failure outcome and retained ModelTurn diagnostics; no production behavior, manifest, lockfile or shard mapping changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 21635be0`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-h05-stop-diagnostic-20261003`, branch `step/h05-stop-diagnostic-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: existing `length_stop_never_dispatches_tools_or_completes_turn` in the `kiana-runner` crate shard; the updated diagnostic assertions await a fresh GitHub receipt after push
+exit_code: isolated formatting and diff checks passed; no local runtime result; CI receipt pending
+status_change: H05 remains roadmap row 047 `🔄`, `feature_status=partial`, `proof_level=source`; the pre-dispatch denial fixture now pins diagnostic retention
+proof-level change: none
+limitations: this is fixture-only evidence once CI runs; it does not establish automatic repair/retry, a ContextRepair producer, provider live behavior, billing, external effects or physical behavior
+reviewer: source review confirmed the assertions inspect only bounded ModelTurn metadata and preserve the existing zero-handoff/zero-completion checks; no local runtime reviewer
+```
 
 ## 5. 限制与交接
 

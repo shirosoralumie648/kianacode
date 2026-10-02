@@ -19512,3 +19512,18 @@ proof-level change: none
 limitations: generic EventStore append still does not call `validate_runtime_event`; producer/registry reconciliation remains incomplete for other event families; RuntimeEvent has no mandatory embedded schema version; legacy full migration, durable projection, and external effect claims remain open
 reviewer: source review traced both direct producer payloads and the request aggregate fallback, then checked the exact fixture/source-guard matrix; no local runtime reviewer
 ```
+
+### H05 length-stop diagnostic retention fixture (2026-10-03)
+
+```text
+source_snapshot: isolated commit `21635be0`; integrated source commit `bf7114b631e51b71360785bda1461689df952682`; `kiana-runner/tests/h05_stop_guard.rs`; `docs/roadmap/harness-stop-retry-baseline.md`; `docs/roadmap/harness.md`; `docs/roadmap.md`
+worktree_status: existing length-stop denial fixture now requires a `RunnerEvent::ModelTurn` diagnostic with normalized stop reason `length` and bounded error code `model_output_truncated`; original zero CapabilityRequested and zero Completed assertions remain; no production/runtime, manifest, lockfile or shard mapping changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 21635be0`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-h05-stop-diagnostic-20261003`, branch `step/h05-stop-diagnostic-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `length_stop_never_dispatches_tools_or_completes_turn` in the existing `kiana-runner` shard; exact updated target receipt pending after push
+exit_code: isolated formatting/diff checks passed; no local runtime result; CI target pending
+status_change: H05 remains roadmap row 047 `🔄`, `feature_status=partial`, `proof_level=source`; the length-stop fixture now pins retained diagnostics as well as fail-closed routing
+proof-level change: none
+limitations: target awaits GitHub CI; no automatic repair/retry, ContextRepair producer, provider live behavior, billing, external effect or physical behavior is established
+reviewer: source review confirmed that the new metadata assertions preserve the existing failure/zero-handoff/zero-completion contract; no local runtime reviewer
+```
