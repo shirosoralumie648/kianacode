@@ -68,7 +68,7 @@ not promote the CI-03 roadmap row or claim a green workspace run.
 ```text
 source_snapshot: `12fbcd21aaa677ed07f28106b02ab1be89b2d927`; `kiana-ports/src/lib.rs`; `kiana-domain/src/identity_contracts.rs`; `kiana-ports/tests/ci03_ports.rs`; `kiana-core/tests/ci03_ports_guard.rs`; `docs/roadmap/ports-identity-baseline.md`
 worktree_status: isolated `/tmp/kiana-ci03-audit-20261002` on `step/ci03-audit-20261002`; docs-only receipt; no port, domain, test, manifest or lockfile implementation changed
-command_argv: `gh run view 36916662965 --job 110509907468 --log`; filtered the CI log for `tests/ci03_ports.rs`; `git diff --check`; `git show --check HEAD`
+command_argv: `gh run view 36916662965 --job 110509907468 --log`; filtered the CI log for the text tests/ci03_ports.rs; `git diff --check`; `git show --check HEAD`
 cwd/environment: `/tmp/kiana-ci03-audit-20261002`; Linux; GitHub Actions is the only test executor; no local cargo test/build/check/fmt/clippy/smoke command was run
 fixture or cassette: `kiana-ports/tests/ci03_ports.rs::credential_resolution_metadata_is_strict_and_fail_closed` passed; `kiana-ports/tests/ci03_ports.rs::ports_never_return_raw_secret_to_core` passed; job `110509907468` also reported unrelated BQ-05/EQ-07/PD-30/32/34 failures
 exit_code: CI-03 fixture assertions exited 0 in the GitHub log; the containing `kiana-ports` job concluded failure for unrelated targets; no full-workflow green result was observed or awaited
