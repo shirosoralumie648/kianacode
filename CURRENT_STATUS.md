@@ -19348,6 +19348,21 @@ limitations: Provider/Runner new fixtures await GitHub CI; no auto-repair or ret
 reviewer: source diff review traced Provider received-response validation versus local-schema preflight, runner ModelTurn projection, one-call bound, and zero capability handoff; no local runtime reviewer
 ```
 
+### H05 ToolRepair producer classification (2026-10-03)
+
+```text
+source_snapshot: isolated commit `c6172578e6c307c006f8e5340b9d22f487c96450`, cherry-picked to current master as `69895363`; `kiana-provider/src/response.rs`; `kiana-runner/tests/h05_stop_guard.rs`; `docs/roadmap/harness-stop-retry-baseline.md`; `docs/roadmap/harness.md`; `docs/roadmap.md`
+worktree_status: after a model response, malformed tool-argument JSON, non-object arguments and existing tool-schema rejection now produce `ToolRepair` with `request_sent=true`, `side_effect_state=none`, and `retry_class=Never`; Runner records the bounded outcome, calls the model once and fails unavailable without capability handoff. No automatic repair/retry loop, manifest, or lockfile changed. ContextRepair remains unmapped because there is no unambiguous typed Provider context-limit signal.
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff HEAD^ HEAD --check`; root `git cherry-pick c6172578e6c307c006f8e5340b9d22f487c96450`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-h05-tool-repair-producer-20261003`, branch `fix/h05-tool-repair-producer-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: Provider target `malformed_model_tool_arguments_are_typed_tool_repair_after_request`; Runner target `h05_stop_guard::typed_recovery_disposition_bounds_runner_routing`; unified CI routes the existing `kiana-provider` and `kiana-runner` shards. No remote receipt for this source snapshot was available when recorded.
+exit_code: isolated formatting and diff checks passed; no local runtime result; push CI pending
+status_change: H05 remains roadmap row 047 `🔄`, `feature_status=partial`, `proof_level=source`; FormatRepair and ToolRepair producer mappings exist, while ContextRepair producer and all explicit repair loops remain open
+proof-level change: none
+limitations: new Provider/Runner fixtures await GitHub CI; no auto-repair, retry, live provider, usage, external effect, or physical behavior is proven; streaming accumulator and billing behavior remain outside this slice
+reviewer: source review traced response decoding to typed disposition, bounded ModelOutcome projection, single model call and zero capability handoff; no local runtime reviewer
+```
+
 ### CO-06 CompanyProof historical-reference source slice (2026-10-03)
 
 ```text
