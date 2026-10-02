@@ -182,7 +182,10 @@ fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
     assert_eq!(projected.len(), 1);
     assert_eq!(projected[0].request_id, request_id);
     assert_eq!(projected[0].state, CapabilityExecutionState::Succeeded);
-    assert_eq!(projected[0].result, Some(matching[4].data["result"].clone()));
+    assert_eq!(
+        projected[0].result,
+        Some(matching[4].data["result"].clone())
+    );
     assert_eq!(
         projected[0].event_ids,
         matching
@@ -278,10 +281,7 @@ fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
     );
 
     let foreign_request_id = RequestId::new();
-    let foreign_result = CapabilityResult::success(
-        foreign_request_id,
-        json!({ "answer": "one" }),
-    );
+    let foreign_result = CapabilityResult::success(foreign_request_id, json!({ "answer": "one" }));
     let foreign_receipt = CapabilityResultReceipt::from_result(
         &foreign_result,
         Some(execution_id),

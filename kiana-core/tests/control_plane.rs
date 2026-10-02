@@ -1068,10 +1068,7 @@ async fn direct_capability_events_keep_request_identity_without_run_scope() {
         if event.kind == "execution.prepared" {
             assert_eq!(event.data["permit"]["request_id"], json!(request_id));
         } else {
-            assert_eq!(
-                event.data["capability_request_id"],
-                json!(request_id)
-            );
+            assert_eq!(event.data["capability_request_id"], json!(request_id));
         }
         assert!(event.data.get("run_id").is_none_or(Value::is_null));
         assert!(event.data.get("turn_id").is_none_or(Value::is_null));

@@ -3339,6 +3339,25 @@ limitations: Run 36963672912 predates this diff and is only prior fixture eviden
 reviewer: manual source review only. Confirmed the daemon fixture uses the real JournalApprovalStore composition, preserves distinct approval decision-command and original Run-root event IDs, matches event_ids using the projector's run/request association rules, and does not assume execution transaction RuntimeEvent.request_id/correlation matches append_event facts. Both accidental diff-checks are recorded above; no local test reviewer.
 ```
 
+### ER-02 formatting correction (2026-10-02)
+
+```text
+source_snapshot: `e70cf9fc` ER-02 merge; formatting-only changes in `kiana-core/src/invocation_projection.rs`, `kiana-core/tests/control_plane.rs`, `kiana-core/tests/er09_invocation_projection.rs`, and `kiana-daemon/tests/daemon_host.rs`
+worktree_status: `cargo fmt --all` formatted the ER-02 source/test changes and corrected the recorded grep regex escaping in the prior CAP-01 CI evidence; no behavior or test expectations changed
+command_argv:
+  `cargo fmt --all`
+  `git status --short --branch`
+  `git diff --stat`
+  `git diff --`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux x86_64
+fixture·cassette: none; formatting touched four Rust files and corrected one status command string
+exit_code: 0 for `cargo fmt --all`; no tests, build, Cargo check, clippy, or smoke command was run
+status_change: ER-02 remains 🔄 / `feature_status=partial`; formatting-only correction awaits GitHub CI
+proof-level change: none; ER-02 remains `proof_level=source`
+limitations: no behavior, test, compile, durable, live, or physical claim is made; ER-02 fixtures still await GitHub CI
+reviewer: diff inspection confirmed formatter-only line wrapping; no test reviewer
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text
@@ -3489,7 +3508,7 @@ source_snapshot: `34ebc78e` plus import fix in `kiana-domain/src/tool_authority.
 worktree_status: GitHub run `36966939817` Broker job `110712691160` compiled the new catalog validator and found two `E0425` errors because `model_tool_name` was not imported; the existing function is now imported from the same crate
 command_argv:
   `gh run view 36966939817 --job 110712691160 --log`
-  `gh run view 36966939817 --job 110712691160 --log | rg -n -B5 -A7 'error\\[E[0-9]+\\]|error:'`
+  `gh run view 36966939817 --job 110712691160 --log | rg -n -B5 -A7 'error\[E[0-9]+\]|error:'`
   no local test/build/Cargo check/fmt/clippy/smoke command was run for this correction
 cwd·environment: read-only GitHub log query from repository root; source import fix in shared checkout; Linux x86_64
 fixture·cassette: none; run `36966939817` was canceled by a newer push before the Broker shard reached fixture execution

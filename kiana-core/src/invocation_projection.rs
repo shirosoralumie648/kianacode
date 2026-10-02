@@ -224,10 +224,9 @@ fn terminal_signature(event: &RuntimeEvent, request_id: RequestId) -> Result<Str
                 }
                 if let Some(value) = event.data.get("outcome_state") {
                     let outcome_state: CapabilityExecutionState =
-                        serde_json::from_value(value.clone())
-                            .map_err(|_| {
-                                "invocation_result_receipt_outcome_state_invalid".to_owned()
-                            })?;
+                        serde_json::from_value(value.clone()).map_err(|_| {
+                            "invocation_result_receipt_outcome_state_invalid".to_owned()
+                        })?;
                     if outcome_state != receipt.dimensions.execution_state() {
                         return Err("invocation_result_receipt_outcome_state_conflict".to_owned());
                     }
@@ -239,20 +238,24 @@ fn terminal_signature(event: &RuntimeEvent, request_id: RequestId) -> Result<Str
             | "capability.result_unknown" => {
                 let expected_state = match event.kind.as_str() {
                     "capability.completed" => {
-                        receipt.success && receipt.dimensions.execution_state()
-                            == CapabilityExecutionState::Succeeded
+                        receipt.success
+                            && receipt.dimensions.execution_state()
+                                == CapabilityExecutionState::Succeeded
                     }
                     "capability.failed" => {
-                        !receipt.success && receipt.dimensions.execution_state()
-                            == CapabilityExecutionState::Failed
+                        !receipt.success
+                            && receipt.dimensions.execution_state()
+                                == CapabilityExecutionState::Failed
                     }
                     "capability.cancelled" => {
-                        !receipt.success && receipt.dimensions.execution_state()
-                            == CapabilityExecutionState::Cancelled
+                        !receipt.success
+                            && receipt.dimensions.execution_state()
+                                == CapabilityExecutionState::Cancelled
                     }
                     "capability.result_unknown" => {
-                        !receipt.success && receipt.dimensions.execution_state()
-                            == CapabilityExecutionState::Unknown
+                        !receipt.success
+                            && receipt.dimensions.execution_state()
+                                == CapabilityExecutionState::Unknown
                     }
                     _ => unreachable!(),
                 };
@@ -279,7 +282,7 @@ fn terminal_signature(event: &RuntimeEvent, request_id: RequestId) -> Result<Str
                             Value::Bool(value) => Some(*value),
                             _ => {
                                 return Err(
-                                    "invocation_result_receipt_lifecycle_conflict".to_owned(),
+                                    "invocation_result_receipt_lifecycle_conflict".to_owned()
                                 );
                             }
                         };

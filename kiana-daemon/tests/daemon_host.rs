@@ -1494,8 +1494,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .unwrap()
         .expect("memory event store supports read-only scan");
     assert!(!denied_events.iter().any(|event| {
-        event.kind == "execution.prepared"
-            && event.data["permit"]["run_id"] == json!(run_id)
+        event.kind == "execution.prepared" && event.data["permit"]["run_id"] == json!(run_id)
     }));
     assert!(!denied_events.iter().any(|event| {
         event.kind == "capability.completed" && event.data["run_id"] == json!(run_id)
@@ -1544,8 +1543,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
     let capability_request_id: kiana_domain::RequestId =
         serde_json::from_value(capability_requested.data["request_id"].clone())
             .expect("capability request identity");
-    let invocation_id =
-        kiana_domain::InvocationId::from_uuid(capability_request_id.as_uuid());
+    let invocation_id = kiana_domain::InvocationId::from_uuid(capability_request_id.as_uuid());
     assert_eq!(capability_request_id, challenge.request_id);
     assert_eq!(tool_call.request_id, event_request_id);
     assert_eq!(tool_call.correlation_id, Some(event_request_id));
@@ -1637,10 +1635,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
     );
     assert_eq!(execution_result.data["run_id"], json!(run_id));
     assert_eq!(execution_result.data["turn_id"], turn_id);
-    assert_eq!(
-        execution_result.data["invocation_id"],
-        json!(invocation_id)
-    );
+    assert_eq!(execution_result.data["invocation_id"], json!(invocation_id));
     assert_eq!(execution_result.data["execution_id"], execution_id);
     assert_eq!(
         execution_result.data["capability_request_id"],
@@ -1700,7 +1695,10 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         Some(&execution_result.data["result"])
     );
     assert_eq!(invocation.approval_id, Some(challenge.approval_id));
-    let request = invocation.request.as_ref().expect("projected capability request");
+    let request = invocation
+        .request
+        .as_ref()
+        .expect("projected capability request");
     let request_value = serde_json::to_value(request).unwrap();
     for field in [
         "request_id",
@@ -1714,7 +1712,10 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         "budget_lease_id",
     ] {
         assert_eq!(
-            request_value.get(field).cloned().unwrap_or(serde_json::Value::Null),
+            request_value
+                .get(field)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
             capability_requested
                 .data
                 .get(field)
@@ -1750,7 +1751,13 @@ async fn wire_approval_proof_retry_resumes_original_run() {
                         .flatten()
                         .cloned()
                 })
-                .or_else(|| event.data.get("permit").and_then(|permit| permit.get("request_id")).cloned())
+                .or_else(|| {
+                    event
+                        .data
+                        .get("permit")
+                        .and_then(|permit| permit.get("request_id"))
+                        .cloned()
+                })
                 .and_then(|value| serde_json::from_value::<kiana_domain::RequestId>(value).ok());
             matches!(
                 event.kind.as_str(),
