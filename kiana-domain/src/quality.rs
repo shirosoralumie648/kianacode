@@ -26,7 +26,10 @@ pub const MAX_QUALITY_REASON: usize = 2_048;
 pub const MAX_EVAL_PROVENANCE: usize = 32;
 pub const MAX_EVAL_REFERENCES: usize = 256;
 pub const MAX_EVAL_EVENTS: usize = 4_096;
+pub const MAX_EVAL_TARGET_VERSIONS: usize = 64;
+pub const MAX_EVAL_ARTIFACT_HASHES: usize = MAX_EVAL_REFERENCES;
 pub const MAX_EVAL_CONFIG_BYTES: usize = 256 * 1024;
+pub const MAX_EVAL_TRACE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_EVAL_WORKLOAD_TAGS: usize = 32;
 pub const MAX_EVAL_MINIMUM_SAMPLE: u32 = 1_000_000;
 
@@ -343,11 +346,28 @@ fn optional_digest(value: Option<&str>, field: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn value_is_safe(value: &Value, field: &str) -> Result<(), String> {
+fn value_is_safe(value: &Value, field: &str) -> Result<usize, String> {
     let encoded = serde_json::to_vec(value).map_err(|_| format!("{field}_encode_invalid"))?;
     let text = String::from_utf8_lossy(&encoded);
     if encoded.len() > MAX_EVAL_CONFIG_BYTES || redact_text(&text) != text {
         return Err(format!("{field}_invalid"));
+    }
+    Ok(encoded.len())
+}
+
+fn validate_normalized_events(events: &[Value]) -> Result<(), String> {
+    if events.is_empty() || events.len() > MAX_EVAL_EVENTS {
+        return Err("golden_trace_header_invalid".to_owned());
+    }
+    let mut encoded_bytes = events.len() + 1;
+    for event in events {
+        let event_bytes = value_is_safe(event, "golden_trace_event")?;
+        encoded_bytes = encoded_bytes
+            .checked_add(event_bytes)
+            .ok_or_else(|| "golden_trace_events_too_large".to_owned())?;
+        if encoded_bytes > MAX_EVAL_TRACE_BYTES {
+            return Err("golden_trace_events_too_large".to_owned());
+        }
     }
     Ok(())
 }
@@ -1146,6 +1166,13 @@ impl GoldenTrace {
         expires_at_unix_ms: Option<u64>,
         provenance_ref: impl Into<String>,
     ) -> Result<Self, String> {
+        if target_versions.len() > MAX_EVAL_TARGET_VERSIONS {
+            return Err("golden_trace_target_versions_invalid".to_owned());
+        }
+        if artifact_hashes.len() > MAX_EVAL_ARTIFACT_HASHES {
+            return Err("golden_trace_artifacts_invalid".to_owned());
+        }
+        validate_normalized_events(&normalized_events)?;
         artifact_hashes.sort();
         let mut trace = Self {
             schema: GOLDEN_TRACE_SCHEMA.to_owned(),
@@ -1205,10 +1232,10 @@ impl GoldenTrace {
             required(value, field, MAX_QUALITY_REASON)?;
         }
         digest(&self.input_hash, "golden_trace_input_hash")?;
-        if self
-            .artifact_hashes
-            .iter()
-            .any(|value| digest(value, "golden_trace_artifact_hash").is_err())
+        if self.artifact_hashes.len() > MAX_EVAL_ARTIFACT_HASHES
+            || self.artifact_hashes.iter().any(|value| {
+                digest(value, "golden_trace_artifact_hash").is_err()
+            })
             || self
                 .artifact_hashes
                 .windows(2)
@@ -1218,20 +1245,21 @@ impl GoldenTrace {
         }
         optional_digest(self.receipt_hash.as_deref(), "golden_trace_receipt_hash")?;
         if self.target_versions.is_empty()
+            || self.target_versions.len() > MAX_EVAL_TARGET_VERSIONS
             || self.target_versions.iter().any(|(key, value)| {
                 key.trim().is_empty()
                     || value.trim().is_empty()
                     || key.len() > MAX_QUALITY_OBJECT_TYPE
                     || value.len() > MAX_QUALITY_REASON
+                    || key.contains('\0')
+                    || value.contains('\0')
                     || redact_text(key) != key.as_str()
                     || redact_text(value) != value.as_str()
             })
         {
             return Err("golden_trace_target_versions_invalid".to_owned());
         }
-        for event in &self.normalized_events {
-            value_is_safe(event, "golden_trace_event")?;
-        }
+        validate_normalized_events(&self.normalized_events)?;
         if self.quality_score.is_some_and(|score| !score.is_finite()) {
             return Err("golden_trace_quality_score_invalid".to_owned());
         }

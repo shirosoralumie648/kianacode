@@ -80,3 +80,26 @@ proof-level change: unchanged at feature_status=implemented, proof_level=source
 limitations: CI result was not awaited; full run was not green because unrelated targets failed; no EvalStore/fixture-loader persistence, normalization/diff, evaluator, or durable/live replay proof exists
 reviewer: EQ-03 contract audit against latest unified CI receipt; no local runtime test reviewer
 ```
+
+## 7. GoldenTrace encoded-size and reference bounds (2026-10-02)
+
+审计发现 `normalized_events` 虽限制条数和每条编码大小，但此前没有限制总编码字节；`target_versions`
+与 `artifact_hashes` 也缺条目上限，而 target-version 键值的手工安全校验漏拒绝了嵌入 NUL。EQ-03
+现在把 normalized event 总编码上限设为 4 MiB、target version 条目上限设为 64、artifact hash
+上限设为 256，并在 target-version key/value 上拒绝 NUL。构造器先执行这些规模检查，再计算 trace digest。
+新增 domain denial fixture 覆盖超限 map/hash/event payload 和 key/value NUL；已有 CI shard 已包含该
+fixture 目标，新增 core source guard 固定这些上限及拒绝边界。本地未执行测试，修改后的回执须由
+GitHub CI 提供。
+
+```text
+source_snapshot: 4557750be7badf8148a168c48cdac97f12d779b2 plus this EQ-03 slice
+worktree_status: isolated branch step/eq03-deep-20261002; changed only quality DTO validation, EQ-03 domain/core fixtures and EQ-03 evidence docs
+command_argv: git diff --check; rg -n 'eq03_eval_objects|eq03_eval_objects_guard' scripts/ci/test-shards.json
+cwd/environment: /tmp/kiana-eq03-deep-20261002; Linux; no local cargo test/build/check/fmt/clippy/smoke
+fixture or cassette: kiana-domain/tests/eq03_eval_objects.rs oversized target_versions/artifact_hashes/aggregate normalized_events and NUL denial fixture; kiana-core/tests/eq03_eval_objects_guard.rs bounded-contract source markers; existing unified CI domain-s2/4 and core-s3/6 shards
+exit_code: 0 for diff check and shard mapping inspection; new fixture unexecuted locally; next GitHub CI receipt pending integration
+status_change: EQ-03 remains source-level; GoldenTrace now rejects unbounded reference collections, aggregate encoded events above 4 MiB and NUL in target-version text
+proof-level change: unchanged at feature_status=implemented, proof_level=source
+limitations: GitHub CI has not yet executed the new fixture; deserializing an oversized JSON document can allocate input before domain validation; fixture refs still are not loaded through an isolated store and freshness/authenticated ownership remain outside this DTO contract
+reviewer: EQ-03 DTO source-boundary review; no runtime test reviewer
+```
