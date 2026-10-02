@@ -120,10 +120,16 @@ cross-store atomic commit, crash recovery, orphan cleanup, or a live/durable dep
 `kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes`
 constructs a `ControlPlane` with `with_artifact_store`, `LocalArtifactStore`, and the canonical
 JSONL `EventStorePort`. It first sends a registration command for a missing source and asserts the
-request is blocked without publishing a blob. It then registers a real file, reads the committed
-Company fact from EventLog, changes the workspace file, closes both adapters, and reopens them. The
-fixture takes the typed version from the reopened Company fact, reads that exact version from the
-reopened artifact adapter, and checks that its bytes remain the original while the workspace file
+request is blocked without publishing a blob. It then registers a real file, proposes and charters
+a project that references that artifact, and configures the project through Company commands. After
+changing the workspace file, the fixture closes both adapters and reopens them before issuing the
+actual `ApproveProject` command. That command passes through `company_proof`, which resolves the
+project's charter reference from the reopened Company facts and reads the historical bytes through
+the injected artifact store. The fixture first rejects an unregistered foreign artifact reference,
+a missing committed blob, and a hash-drifted blob without appending a state-changing Company fact;
+explicit `company.command_rejected` audit events remain allowed. After restoring the original blob
+it accepts the approval. The fixture also reads the historical version
+directly from the reopened artifact adapter and checks that it remains original while the workspace
 contains the newer bytes.
 
 The unified CI mapping keeps `kiana-daemon` as a whole-crate shard (`targets: null`), so the new
@@ -178,3 +184,26 @@ by a superseding run; neither result changes the two exact fixture receipts abov
 with `feature_status=partial` and `proof_level=source`: the receipt does not establish a green
 whole-crate shard, Company business-command read-back, product UI comparison, cross-store
 atomicity, crash recovery, retention/deletion, or power-loss durability.
+
+## 11. 2026-10-03 CompanyProof historical-reference source slice
+
+`company_proof` now uses an injected `ArtifactStorePort` for any Company command that references a
+registered artifact with a typed `ArtifactVersion`, after checking that the typed artifact ID
+matches the Company reference and that the version hash matches the immutable text snapshot in the
+Company fact. Business commands without typed artifact metadata keep their existing guarded path;
+commands without the optional store retain the compatibility fallback. The artifact reference is
+still resolved from the current Company's EventLog-backed state, so a caller cannot read an
+artifact by supplying a path or raw blob key.
+
+The extended Company history fixture drives objective proposal/activation, project proposal,
+chartering, budget configuration and approval through the existing ControlPlane. After reopening
+EventLog and LocalArtifactStore and changing the workspace source, it denies a foreign/unregistered
+artifact reference, a missing blob and hash drift before the successful approval, and checks the
+state-changing Company fact count is unchanged for each denial; explicit command-rejection audit
+events remain allowed. It then restores the original blob and asserts `ApproveProject` completes
+through the CompanyProof path. The direct ArtifactContentPort check remains as a byte-level assertion. The
+unified `kiana-daemon` whole-crate shard already includes this target; this source fixture has not
+yet run on GitHub CI at the updated snapshot. CO-06 stays 🔄 with `feature_status=partial` and
+`proof_level=source` pending that receipt. These checks do not close the open cross-store atomicity,
+reconciliation, product UI comparison, cross-process recovery, retention/deletion or power-loss
+guarantees above.

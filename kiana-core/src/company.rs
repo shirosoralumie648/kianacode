@@ -981,17 +981,32 @@ impl ControlPlane {
                 if revoked.contains(".") || revoked.contains(&artifact.relative_path) {
                     return Err(company_conflict("company_artifact_source_revoked"));
                 }
-                let immutable = matches!(command, CompanyCommand::Business { .. })
-                    && state.business.artifacts.get(id).is_some_and(|metadata| {
-                        metadata.content_hash
-                            == kiana_domain::journal_sha256(artifact.text.as_bytes())
-                    });
+                let typed_reference = if let Some(version) = artifact.typed_version.as_ref() {
+                    let typed_id = serde_json::from_value::<kiana_domain::ArtifactId>(json!(id))
+                        .map_err(|_| company_conflict("company_artifact_reference_invalid"))?;
+                    if version.artifact_id != typed_id {
+                        return Err(company_conflict("company_artifact_reference_mismatch"));
+                    }
+                    let reference = version.as_ref();
+                    crate::artifacts::validate_artifact_reference_content(
+                        &reference,
+                        artifact.text.as_bytes(),
+                    )
+                    .map_err(company_conflict)?;
+                    Some(reference)
+                } else {
+                    None
+                };
+                let immutable = (typed_reference.is_some() && self.artifact_store.is_some())
+                    || (matches!(command, CompanyCommand::Business { .. })
+                        && state.business.artifacts.get(id).is_some_and(|metadata| {
+                            metadata.content_hash
+                                == kiana_domain::journal_sha256(artifact.text.as_bytes())
+                        }));
                 let current = if immutable {
-                    if let (Some(store), Some(version)) = (
-                        self.artifact_store.as_ref(),
-                        artifact.typed_version.as_ref(),
-                    ) {
-                        let reference = version.as_ref();
+                    if let (Some(store), Some(reference)) =
+                        (self.artifact_store.as_ref(), typed_reference.as_ref())
+                    {
                         let bytes = store.read_artifact(&reference).await?;
                         crate::artifacts::validate_artifact_reference_content(&reference, &bytes)
                             .map_err(company_conflict)?;

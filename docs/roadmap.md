@@ -230,7 +230,7 @@
 | 062 | W1 | 专项 | [`CO-03`](roadmap/companyos.md#step-co-03) | CompanyOS · 角色任命、有效期与撤销接入服务端身份 | `CO-02` | ✅ | [专项卡](roadmap/companyos.md#step-co-03) |
 | 063 | W1 | 专项 | [`CO-04`](roadmap/companyos.md#step-co-04) | CompanyOS · 五部门与专业岗位成为版本化目录 | `CO-03` | ✅ | [专项卡](roadmap/companyos.md#step-co-04) |
 | 064 | W1 | 专项 | [`CO-05`](roadmap/companyos.md#step-co-05) | CompanyOS · 业务命令权限、责任和人工决定合同 | `CO-03`、`CO-04` | ✅ | [专项卡](roadmap/companyos.md#step-co-05) |
-| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同 | `CO-02`、`CO-05` | 🔄 | [专项卡](roadmap/companyos.md#step-co-06) · [baseline](roadmap/artifact-evidence-baseline.md) |
+| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同（含 CompanyProof 历史引用命令夹具） | `CO-02`、`CO-05` | 🔄 | [专项卡](roadmap/companyos.md#step-co-06) · [baseline](roadmap/artifact-evidence-baseline.md) |
 | 066 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ✅ | [专项卡](roadmap/companyos.md#step-co-07) |
 | 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | 🔄 | [专项卡](roadmap/companyos.md#step-co-08) |
 | 068 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-01b) |
