@@ -124,3 +124,62 @@ fn execution_prepared_contract_requires_server_identity_envelope() {
         "event_required_id_missing:execution_id"
     );
 }
+
+#[test]
+fn result_event_contracts_accept_only_their_result_fields() {
+    let invocation = event_kind_spec("invocation.executing").unwrap();
+    let execution_result = event_kind_spec("execution.result_committed").unwrap();
+    let capability_result = event_kind_spec("capability.completed").unwrap();
+
+    for field in invocation.allowed_fields {
+        assert!(execution_result.allowed_fields.contains(field));
+        assert!(capability_result.allowed_fields.contains(field));
+    }
+    for field in ["outcome_state", "outcome_ready", "result_receipt"] {
+        assert!(
+            execution_result.allowed_fields.contains(&field),
+            "execution.result_committed field not allowed: {field}"
+        );
+    }
+    assert_eq!(
+        execution_result.allowed_fields.len(),
+        invocation.allowed_fields.len() + 3
+    );
+    assert!(capability_result.allowed_fields.contains(&"result_receipt"));
+    assert_eq!(
+        capability_result.allowed_fields.len(),
+        invocation.allowed_fields.len() + 1
+    );
+
+    let mut execution_payload = json!({
+        "run_id":kiana_domain::RunId::new(),
+        "capability_request_id":kiana_domain::RequestId::new(),
+        "outcome_state":"succeeded",
+        "outcome_ready":true,
+        "result_receipt":{"receipt_digest":format!("sha256:{}", "a".repeat(64))},
+        "unknown_result_field":true,
+    });
+    assert_eq!(
+        validate_event_payload("execution.result_committed", &execution_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+    execution_payload
+        .as_object_mut()
+        .unwrap()
+        .remove("unknown_result_field");
+    validate_event_payload("execution.result_committed", &execution_payload).unwrap();
+
+    let capability_payload = json!({
+        "run_id":kiana_domain::RunId::new(),
+        "capability_request_id":kiana_domain::RequestId::new(),
+        "result_receipt":{"receipt_digest":format!("sha256:{}", "b".repeat(64))},
+    });
+    for kind in [
+        "capability.completed",
+        "capability.failed",
+        "capability.cancelled",
+        "capability.result_unknown",
+    ] {
+        validate_event_payload(kind, &capability_payload).unwrap();
+    }
+}

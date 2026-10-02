@@ -223,38 +223,47 @@ const QUALITY_FIELDS: &[&str] = &[
     "operation",
 ];
 const RECOVERY_FIELDS: &[&str] = &["run_id", "recovery"];
-const INVOCATION_FIELDS: &[&str] = &[
-    "run_id",
-    "turn_id",
-    "invocation_id",
-    "execution_id",
-    "capability_request_id",
-    "call_id",
-    "operation",
-    "capability",
-    "attempt",
-    "action_digest",
-    "args_fingerprint",
-    "result",
-    "effect_started",
-    "effect_known",
-    "zero_effect",
-    "stop_state",
-    "stop_requested",
-    "stop_confirmed",
-    "fenced",
-    "started",
-    "boundary",
-    "decision_id",
-    "permit",
-    "permit_digest",
-    "invocation",
-    "cell_reservation",
-    "effect_usage",
-    "owner_digest",
-    "lease_digest",
-    "resource_digest",
-];
+macro_rules! invocation_fields {
+    ($($extra:literal),* $(,)?) => {
+        &[
+            "run_id",
+            "turn_id",
+            "invocation_id",
+            "execution_id",
+            "capability_request_id",
+            "call_id",
+            "operation",
+            "capability",
+            "attempt",
+            "action_digest",
+            "args_fingerprint",
+            "result",
+            "effect_started",
+            "effect_known",
+            "zero_effect",
+            "stop_state",
+            "stop_requested",
+            "stop_confirmed",
+            "fenced",
+            "started",
+            "boundary",
+            "decision_id",
+            "permit",
+            "permit_digest",
+            "invocation",
+            "cell_reservation",
+            "effect_usage",
+            "owner_digest",
+            "lease_digest",
+            "resource_digest",
+            $($extra,)*
+        ]
+    };
+}
+const INVOCATION_FIELDS: &[&str] = invocation_fields!();
+const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!("result_receipt");
+const EXECUTION_RESULT_FIELDS: &[&str] =
+    invocation_fields!("outcome_state", "outcome_ready", "result_receipt");
 const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "run_id",
     "session_id",
@@ -1100,7 +1109,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "capability.completed",
         "run",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        CAPABILITY_RESULT_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1108,7 +1117,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "capability.failed",
         "run",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        CAPABILITY_RESULT_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1116,7 +1125,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "capability.cancelled",
         "run",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        CAPABILITY_RESULT_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1124,7 +1133,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "capability.result_unknown",
         "run",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        CAPABILITY_RESULT_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1220,7 +1229,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "execution.result_committed",
         "execution_permit",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        EXECUTION_RESULT_FIELDS,
         true,
         Some("legacy_invocation_event_v0_to_v1")
     ),

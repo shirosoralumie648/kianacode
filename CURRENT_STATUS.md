@@ -19222,6 +19222,21 @@ limitations: source shape comparison and fixtures do not substitute for the remo
 reviewer: Codex source review comparing production payload keys against verifier and EventKindSpec, including action-digest tamper rejection; no runtime test reviewer
 ```
 
+### ER-01 result-event field contract correction (2026-10-03)
+
+```text
+source_snapshot: latest integration parent `52bb1467b7a6dc9293bb91c4f7629e3ee438a288`; isolated branch `fix/er01-result-envelope-20261003`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/dispatch.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/src/events.rs`; `kiana-eventlog/src/{event_store_core.rs,journal_core.rs}`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `execution.result_committed` production payload includes `outcome_state`, `outcome_ready`, and `result_receipt`; its EventKind allowed fields now add only those three. Capability terminal result kinds separately allow their production `result_receipt`. Domain fixture compares those event-specific allowlist deltas, accepts the result payloads, and keeps unknown-field rejection. No EventKind validator wiring or EventLog behavior was changed.
+command_argv: `gh run view 37038152395 --job 110941809398 --log-failed`; `rg`/`sed` source comparison of result payload, `finalize_capability_action`, `record_event`, `append_event`, and EventStore validators; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: `/tmp/kiana-er01-result-envelope-20261003`; Linux/bash; isolated branch `fix/er01-result-envelope-20261003`; no push
+fixture·cassette: run `37038152395` / job `110941809398`, target `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable`, failed at `kiana-daemon/tests/daemon_host.rs:3781` with response `result_unknown:result_event_persistence_failed`; job status `failure`, full run status `cancelled`. Follow-up run `37039497859` / job `110946336032` also concluded failure according to job metadata; owner reports the same target/generic error, but its exact log was not yet readable while the workflow remained in progress. Added `kiana-domain/tests/er01_event_contract.rs::result_event_contracts_accept_only_their_result_fields`; CI receipt pending.
+exit_code: local formatting/diff checks only; post-change CI pending/unobserved
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; contract fields now match the two result event producers but need remote verification
+proof-level change: none; source fixture is not runtime behavior evidence
+limitations: the CM-02 error's causal append failure remains unknown, including after the owner-reported same-code repeat in run `37039497859`. `finalize_capability_action` maps any failed terminal `record_event` to generic `result_event_persistence_failed`; the exact first CI log does not include the underlying append error. `append_event` performs payload redaction/bounds and EventStore append, and current EventStore validation does not invoke `validate_runtime_event`/EventKind allowlists. The later `execution.result_committed` transition failure has a separate `result_unknown:result_commit_failed` path. Thus this ER-01 allowlist correction is independent and is not claimed to fix the CM-02 failure. Diagnostic candidate for owner review: classify with exact static error-code matches only, use one generic fallback for unknown codes, and never expose dynamic error text/path/payload.
+reviewer: Codex source comparison of producer field sets to kind-specific allowlists, generic failure mapping and EventStore validator call graph; no runtime test reviewer
+```
+
 ### ER-02 approval preview redaction root-cause fix (2026-10-03)
 
 ```text

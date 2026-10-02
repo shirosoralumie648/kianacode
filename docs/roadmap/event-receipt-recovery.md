@@ -219,7 +219,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-01 — 事件 schema、kind registry 与迁移规则　✅
+##### ER-01 — 事件 schema、kind registry 与迁移规则　🔄
 
 当前 source slice 与 CI-only 证据见 [`event-receipt-schema-baseline.md`](event-receipt-schema-baseline.md)。
 
@@ -227,6 +227,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **动作：** 建立 machine-readable `EventKindSpec`（schema/version、aggregate、required IDs、terminal/secret policy、migration）；为现有 RuntimeEvent 保留 legacy decode，新增 required/optional 字段规则和 unknown kind policy。
 - **先拒绝：** `unknown_required_event_kind_fails_closed`、`event_schema_version_cannot_downgrade`、`event_payload_unknown_field_is_not_silently_dropped`。
 - **成功/回归：** 关键公开 kind 有 owner、serde round trip、migration fixture 和 payload validator；旧 RuntimeEvent/JSONL 只读兼容继续保留，新增 registry/version/unknown guard 由 GitHub CI 执行。
+- **当前证据：** run `37038152395` / job `110941809398` 的 CM-02 target 在 `daemon_host.rs:3781` 失败并只暴露 generic `result_event_persistence_failed`；源码另确认 result-event allowlist 与生产 payload 有独立漂移，CI target 尚未复核修正。该漂移不被记录为该 CM-02 错误的已证实根因；状态保持 `partial` / `source`。
 
 <a id="step-er-02"></a>
 
