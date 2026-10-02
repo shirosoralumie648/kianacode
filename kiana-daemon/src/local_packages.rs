@@ -440,12 +440,7 @@ impl LocalDir {
     pub(crate) fn publish(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
-    pub(crate) fn publish_immutable(
-        &self,
-        _: &str,
-        _: &[u8],
-        _: &str,
-    ) -> Result<(), PortError> {
+    pub(crate) fn publish_immutable(&self, _: &str, _: &[u8], _: &str) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
 }

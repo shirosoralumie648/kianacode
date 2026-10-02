@@ -100,10 +100,7 @@ impl LocalArtifactStore {
         serde_json::to_vec(value).map_err(|error| failed(format!("{reason}:{error}")))
     }
 
-    fn decode<T: for<'de> Deserialize<'de>>(
-        bytes: &[u8],
-        reason: &str,
-    ) -> Result<T, PortError> {
+    fn decode<T: for<'de> Deserialize<'de>>(bytes: &[u8], reason: &str) -> Result<T, PortError> {
         serde_json::from_slice(bytes).map_err(|error| failed(format!("{reason}:{error}")))
     }
 
@@ -211,23 +208,19 @@ impl LocalArtifactStore {
         let reference = version.as_ref();
         let directory = self.create_key_directory(&reference)?;
         let [blob_name, manifest_name, stage_name, _] = Self::filenames(&reference);
-        let (manifest, manifest_bytes) = match directory.read_optional(
-            &manifest_name,
-            MAX_MANIFEST_BYTES,
-        )? {
+        let (manifest, manifest_bytes) = match directory
+            .read_optional(&manifest_name, MAX_MANIFEST_BYTES)?
+        {
             Some(bytes) => {
                 let manifest: ArtifactManifest = Self::decode(&bytes, "artifact_manifest_invalid")?;
                 if manifest.schema != MANIFEST_SCHEMA {
                     return Err(failed("artifact_manifest_schema_invalid"));
                 }
-                manifest
-                    .version
-                    .validate()
-                    .map_err(|error| failed(format!("artifact_manifest_version_invalid:{error}")))?;
+                manifest.version.validate().map_err(|error| {
+                    failed(format!("artifact_manifest_version_invalid:{error}"))
+                })?;
                 if manifest.version.as_ref() != reference {
-                    return Err(PortError::Conflict(
-                        "artifact_version_conflict".to_owned(),
-                    ));
+                    return Err(PortError::Conflict("artifact_version_conflict".to_owned()));
                 }
                 (manifest, bytes)
             }
@@ -270,11 +263,7 @@ impl LocalArtifactStore {
             },
             "artifact_stage_marker_encode_failed",
         )?;
-        directory.publish_immutable(
-            &stage_name,
-            &marker,
-            "artifact_version_conflict",
-        )?;
+        directory.publish_immutable(&stage_name, &marker, "artifact_version_conflict")?;
         Ok(manifest.version)
     }
 
@@ -345,11 +334,7 @@ impl LocalArtifactStore {
             },
             "artifact_commit_marker_encode_failed",
         )?;
-        directory.publish_immutable(
-            &commit_name,
-            &marker,
-            "artifact_commit_conflict",
-        )
+        directory.publish_immutable(&commit_name, &marker, "artifact_commit_conflict")
     }
 }
 
@@ -363,14 +348,13 @@ impl ArtifactStorePort for LocalArtifactStore {
         Self::validate_content(&version, &content)?;
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
-            Self { root: Arc::new(root) }.stage_sync(version, content)
+            Self {
+                root: Arc::new(root),
+            }
+            .stage_sync(version, content)
         })
         .await
-        .map_err(|error| {
-            failed(format!(
-                "result_unknown:artifact_stage_join_failed:{error}"
-            ))
-        })?
+        .map_err(|error| failed(format!("result_unknown:artifact_stage_join_failed:{error}")))?
     }
 
     async fn stage_artifact_version(
@@ -381,14 +365,13 @@ impl ArtifactStorePort for LocalArtifactStore {
         Self::validate_content(&version, &content)?;
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
-            Self { root: Arc::new(root) }.stage_version_sync(version, content)
+            Self {
+                root: Arc::new(root),
+            }
+            .stage_version_sync(version, content)
         })
         .await
-        .map_err(|error| {
-            failed(format!(
-                "result_unknown:artifact_stage_join_failed:{error}"
-            ))
-        })?
+        .map_err(|error| failed(format!("result_unknown:artifact_stage_join_failed:{error}")))?
     }
 
     async fn commit_artifact(
@@ -398,7 +381,10 @@ impl ArtifactStorePort for LocalArtifactStore {
     ) -> Result<(), PortError> {
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
-            Self { root: Arc::new(root) }.commit_sync(reference, expected_revision)
+            Self {
+                root: Arc::new(root),
+            }
+            .commit_sync(reference, expected_revision)
         })
         .await
         .map_err(|error| {
@@ -412,9 +398,11 @@ impl ArtifactStorePort for LocalArtifactStore {
         let reference = reference.clone();
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
-            Self { root: Arc::new(root) }
-                .read_committed_bytes(&reference)
-                .map(|(_, content)| content)
+            Self {
+                root: Arc::new(root),
+            }
+            .read_committed_bytes(&reference)
+            .map(|(_, content)| content)
         })
         .await
         .map_err(|error| failed(format!("artifact_read_join_failed:{error}")))?
@@ -424,9 +412,11 @@ impl ArtifactStorePort for LocalArtifactStore {
         let reference = reference.clone();
         let root = self.root.try_clone()?;
         tokio::task::spawn_blocking(move || {
-            Self { root: Arc::new(root) }
-                .read_committed_bytes(&reference)
-                .map(|_| ())
+            Self {
+                root: Arc::new(root),
+            }
+            .read_committed_bytes(&reference)
+            .map(|_| ())
         })
         .await
         .map_err(|error| failed(format!("artifact_verify_join_failed:{error}")))?

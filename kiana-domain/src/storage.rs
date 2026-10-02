@@ -285,7 +285,10 @@ impl StoreIdentity {
         if self.created_at_unix_ms == 0 {
             return Err("store_identity_time_invalid".to_owned());
         }
-        validate_digest(&self.owner_scope_digest, "store_identity_owner_scope_digest")?;
+        validate_digest(
+            &self.owner_scope_digest,
+            "store_identity_owner_scope_digest",
+        )?;
         validate_digest(&self.identity_digest, "store_identity_digest")?;
         if self.identity_digest != self.digest() {
             return Err("store_identity_digest_mismatch".to_owned());

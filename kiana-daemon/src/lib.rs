@@ -78,8 +78,8 @@ mod harness_skills;
 mod health_aggregation;
 mod instance;
 mod journal_approvals;
-mod local_packages;
 mod local_artifacts;
+mod local_packages;
 mod mcp_connector;
 mod mcp_http;
 mod mcp_stdio;
@@ -133,7 +133,6 @@ pub use connector_ingress::ConnectorIngressVerifier;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
 };
-pub use local_artifacts::LocalArtifactStore;
 use journal_approvals::JournalApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
@@ -162,6 +161,7 @@ use kiana_protocol::{
     UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
 };
 use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
+pub use local_artifacts::LocalArtifactStore;
 pub use notification_stream::{
     NotificationStreamBridge, NotificationStreamCursor, NotificationStreamDisposition,
     NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,

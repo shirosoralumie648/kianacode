@@ -88,7 +88,11 @@ fn model_ui_self_report_and_ownerless_critical_events_are_rejected() {
 
 #[test]
 fn malformed_declared_source_is_rejected_before_materialization() {
-    for value in [serde_json::Value::Null, json!(42), json!({"source": "eventlog"})] {
+    for value in [
+        serde_json::Value::Null,
+        json!(42),
+        json!({"source": "eventlog"}),
+    ] {
         let payload = json!({"actor_id":"server", "source": value});
         assert_eq!(
             validate_notification_event(

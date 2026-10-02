@@ -1066,8 +1066,7 @@ impl DecisionTrace {
             return Err("policy_decision_trace_rules_invalid".to_owned());
         }
         match (self.outcome, self.reason) {
-            (PolicyOutcome::Allow, Some(_))
-            | (PolicyOutcome::Ask | PolicyOutcome::Deny, None) => {
+            (PolicyOutcome::Allow, Some(_)) | (PolicyOutcome::Ask | PolicyOutcome::Deny, None) => {
                 return Err("policy_decision_trace_reason_invalid".to_owned());
             }
             _ => {}

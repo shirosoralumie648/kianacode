@@ -79,8 +79,7 @@ fn harness_stop_and_retry_paths_are_typed_and_fail_closed() {
         );
     }
     assert!(
-        retry_runtime.contains("RetryPolicy::new(")
-            && retry_runtime.contains("policy.classify("),
+        retry_runtime.contains("RetryPolicy::new(") && retry_runtime.contains("policy.classify("),
         "runner retry path must delegate to the bounded domain classifier"
     );
     for marker in [

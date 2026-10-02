@@ -69,7 +69,12 @@ async fn idempotent_replay_rejects_identity_link_drift() {
 
     let drifted = RuntimeEvent::new(request_id, 1, "run.accepted", json!({}))
         .unwrap()
-        .with_identity_links(Some(request_id), Some(request_id), None, Some(EventId::new()))
+        .with_identity_links(
+            Some(request_id),
+            Some(request_id),
+            None,
+            Some(EventId::new()),
+        )
         .with_idempotency_key("er02-identity-key");
     assert!(matches!(
         store.append_idempotent(drifted).await,
