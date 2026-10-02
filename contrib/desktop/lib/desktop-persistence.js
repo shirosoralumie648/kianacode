@@ -188,11 +188,11 @@ function validateServerReference(reference, workspaceBindingDigest) {
 
 function mergeDesktopStore(current, patch = {}) {
   const base = validateDesktopStore(current || emptyDesktopStore());
+  assertNoSensitiveKeys(patch);
   assertKeys(patch, new Set([
     "layout", "draft_policy", "workspace_path", "instance_ref", "session_ref", "last_cursor",
     "detached", "server_reference",
   ]), "desktop_store_patch_unknown_field");
-  assertNoSensitiveKeys(patch);
   const next = { ...base };
   if (Object.hasOwn(patch, "layout")) next.layout = validateLayout(patch.layout);
   if (Object.hasOwn(patch, "draft_policy")) {

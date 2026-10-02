@@ -45,6 +45,8 @@ test("desktop_shell_reuses_loopback_worker_and_safe_close_path", () => {
   const main = fs.readFileSync(path.join(__dirname, "..", "main.js"), "utf8");
   const worker = fs.readFileSync(path.join(__dirname, "..", "lib", "worker.js"), "utf8");
   const readiness = fs.readFileSync(path.join(__dirname, "..", "lib", "readiness.js"), "utf8");
+  const preload = fs.readFileSync(path.join(__dirname, "..", "preload.js"), "utf8");
+  const ipc = fs.readFileSync(path.join(__dirname, "..", "lib", "ipc-security.js"), "utf8");
   const welcome = fs.readFileSync(path.join(__dirname, "..", "welcome.html"), "utf8");
   for (const marker of [
     "workspace:state",
@@ -66,7 +68,8 @@ test("desktop_shell_reuses_loopback_worker_and_safe_close_path", () => {
     "desktop_safe_close_leaves_no_orphan_process",
   ]) {
     assert.ok(
-      main.includes(marker) || worker.includes(marker) || readiness.includes(marker) || welcome.includes(marker),
+      main.includes(marker) || worker.includes(marker) || readiness.includes(marker) ||
+        preload.includes(marker) || ipc.includes(marker) || welcome.includes(marker),
       `desktop marker missing: ${marker}`
     );
   }

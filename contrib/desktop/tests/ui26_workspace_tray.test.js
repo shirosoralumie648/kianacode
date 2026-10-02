@@ -58,7 +58,7 @@ test("desktop state resets attention on workspace switch and deduplicates server
   assert.deepEqual(closeAttention(state), {
     pending_count: 1,
     unknown_count: 0,
-    draft_dirty: false,
+    draft_dirty: true,
     requires_attention: true,
   });
   state = reduceDesktopState(state, { type: "workspace_requested", workspace: "/workspace/two" });
