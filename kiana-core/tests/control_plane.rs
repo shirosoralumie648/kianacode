@@ -320,6 +320,14 @@ struct ScopeRequestRunner {
 
 #[async_trait]
 impl RunnerPort for ScopeRequestRunner {
+    fn bind_model_assignment(
+        &self,
+        _run_id: RunId,
+        _assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         match command {
             RunnerCommand::Start { run_id, .. } => Ok(vec![
