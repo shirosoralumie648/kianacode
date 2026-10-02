@@ -581,6 +581,15 @@ const APPROVAL_DENIED_FIELDS: &[&str] = &[
     "decided_by",
     "decision_fact",
 ];
+const APPROVAL_EXPIRED_FIELDS: &[&str] = &[
+    "schema",
+    "approval_id",
+    "previous_state",
+    "state",
+    "request_hash",
+    "at_unix_ms",
+    "reason",
+];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1249,7 +1258,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "approval.expired",
         "approval",
         APPROVAL_IDS,
-        APPROVAL_FIELDS,
+        APPROVAL_EXPIRED_FIELDS,
         true,
         Some("legacy_approval_event_v0_to_v1")
     ),

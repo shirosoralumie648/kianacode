@@ -28,6 +28,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "APPROVAL_REQUESTED_FIELDS",
         "APPROVAL_APPROVED_FIELDS",
         "APPROVAL_DENIED_FIELDS",
+        "APPROVAL_EXPIRED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -51,6 +52,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("approval_requested_contract_matches_capability_producer"));
     assert!(baseline.contains("approval_approved_contract_matches_decision_producer"));
     assert!(baseline.contains("approval_denied_contract_matches_decision_producer"));
+    assert!(baseline.contains("approval_expired_contract_matches_expiry_producer"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -90,4 +92,6 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     ));
     assert!(journal_approvals.contains("with_fact(event, \"decision_fact\", &decision_fact)"));
     assert!(journal_approvals.contains("ApprovalState::Denied => \"approval.denied\""));
+    assert!(journal_approvals.contains("ApprovalState::Expired => \"approval.expired\""));
+    assert!(journal_approvals.contains("json!({\"reason\":reason})"));
 }
