@@ -19347,3 +19347,18 @@ proof-level change: none
 limitations: updated CompanyProof target has no CI receipt yet; cross-store atomicity/reconciliation, crash recovery, product original-versus-current presentation, retention/deletion and power-loss durability remain unproven
 reviewer: source review of typed reference/snapshot/hash checks, injected ArtifactStore read path, command ordering and state-fact assertions; no runtime test reviewer
 ```
+
+### CO-06 historical-reference fixture compile failure correction (2026-10-03)
+
+```text
+source_snapshot: CompanyProof source commit `dda0e526`; failing unified run `37052098563`, head `d258b80f`, daemon job `110988220950`; `kiana-daemon/tests/co06_company_artifact_history.rs`
+worktree_status: CI reported Rust E0618 at line 478 because the local `let core: ControlPlane` binding shadowed the fixture factory `fn core(...)`; the reopened fixture then attempted to call the ControlPlane value as a function. The factory is now named `company_control_plane`, preserving test behavior and all command assertions.
+command_argv: `gh run view 37052098563 --job 110988220950 --log`; source inspection with `rg`/`sed`; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner; tests remain remote-only
+fixture·cassette: run `37052098563` / daemon job `110988220950` failed while compiling `co06_company_artifact_history`; compiler identified the shadowed helper at line 478 and did not execute the CO-06 target
+exit_code: remote daemon shard failed compilation with E0618/Cargo exit 101; local formatting/diff checks pass after renaming the helper; no local runtime result
+status_change: CO-06 remains roadmap row 065 `🔄`, `feature_status=partial`, `proof_level=source`; this corrects a test-fixture compile blocker only
+proof-level change: none
+limitations: the historical CompanyProof assertions have not run on GitHub after this correction; cross-store atomicity/reconciliation, crash recovery, product original-versus-current presentation, retention/deletion and power-loss durability remain unproven
+reviewer: exact CI compiler output plus source name-resolution trace; no runtime test reviewer
+```

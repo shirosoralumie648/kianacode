@@ -154,7 +154,10 @@ impl Drop for Fixture {
     }
 }
 
-fn core(events: Arc<JsonlEventLog>, store: Arc<LocalArtifactStore>) -> ControlPlane {
+fn company_control_plane(
+    events: Arc<JsonlEventLog>,
+    store: Arc<LocalArtifactStore>,
+) -> ControlPlane {
     let runner = KianaHarness::new(Arc::new(
         ScriptedModel::from_json(&json!([{"text":"unused fixture response"}]))
             .expect("scripted model"),
@@ -277,7 +280,7 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
             .await
             .expect("artifact store"),
     );
-    let core = core(event_log.clone(), artifact_store.clone());
+    let core = company_control_plane(event_log.clone(), artifact_store.clone());
 
     let missing = fixture
         .register_artifact(
@@ -475,7 +478,7 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
             .await
             .expect("reopened artifact store"),
     );
-    let core = core(event_log.clone(), artifact_store.clone());
+    let core = company_control_plane(event_log.clone(), artifact_store.clone());
     let reopened_fact = registered_company_event(event_log.as_ref()).await;
     assert_eq!(
         reopened_fact.proof.artifact_version,
