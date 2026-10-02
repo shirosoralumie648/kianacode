@@ -113,6 +113,18 @@ fn contradictory_schema_bounds_are_rejected_before_dispatch() {
             serde_json::json!({"type":"number","minimum":3,"maximum":5,"exclusiveMaximum":3}),
             "schema_number_bounds_invalid",
         ),
+        (
+            serde_json::json!({"type":"integer","minimum":1.1,"maximum":1.9}),
+            "schema_integer_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":"integer","exclusiveMinimum":1,"exclusiveMaximum":2}),
+            "schema_integer_bounds_invalid",
+        ),
+        (
+            serde_json::json!({"type":["integer"],"minimum":1.1,"maximum":1.9}),
+            "schema_integer_bounds_invalid",
+        ),
     ];
 
     for (schema, expected_error) in cases {
@@ -157,6 +169,26 @@ fn nonempty_schema_bound_edges_are_accepted() {
         (
             serde_json::json!({"type":"number","minimum":1,"exclusiveMinimum":2,"maximum":4,"exclusiveMaximum":3}),
             serde_json::json!(2.5),
+        ),
+        (
+            serde_json::json!({"type":"integer","minimum":2,"maximum":2}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"integer","exclusiveMinimum":1,"exclusiveMaximum":3}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":"integer","minimum":1.1,"maximum":2}),
+            serde_json::json!(2),
+        ),
+        (
+            serde_json::json!({"type":["integer","number"],"minimum":1.1,"maximum":1.9}),
+            serde_json::json!(1.5),
+        ),
+        (
+            serde_json::json!({"type":["integer","string"],"minimum":1.1,"maximum":1.9}),
+            serde_json::json!("integer alternative"),
         ),
     ];
     for (schema, value) in cases {

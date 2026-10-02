@@ -343,6 +343,29 @@ fn strongest_numeric_bound(
     })
 }
 
+fn integer_bounds_have_witness(lower: Option<(f64, bool)>, upper: Option<(f64, bool)>) -> bool {
+    let first_integer = lower.map(|(value, exclusive)| {
+        let candidate = value.ceil();
+        if exclusive && candidate == value {
+            candidate + 1.0
+        } else {
+            candidate
+        }
+    });
+    let last_integer = upper.map(|(value, exclusive)| {
+        let candidate = value.floor();
+        if exclusive && candidate == value {
+            candidate - 1.0
+        } else {
+            candidate
+        }
+    });
+    match (first_integer, last_integer) {
+        (Some(first), Some(last)) => first <= last,
+        _ => true,
+    }
+}
+
 fn validate_schema_node(schema: &Value, depth: usize) -> Result<(), String> {
     if depth > TOOL_JSON_MAX_DEPTH {
         return Err("schema_depth_limit".to_owned());
@@ -508,6 +531,16 @@ fn validate_schema_node(schema: &Value, depth: usize) -> Result<(), String> {
         },
     ) {
         return Err("schema_number_bounds_invalid".to_owned());
+    }
+    let integer_only = match object.get("type") {
+        Some(Value::String(kind)) => kind == "integer",
+        Some(Value::Array(kinds)) => {
+            !kinds.is_empty() && kinds.iter().all(|kind| kind.as_str() == Some("integer"))
+        }
+        _ => false,
+    };
+    if integer_only && !integer_bounds_have_witness(strongest_lower, strongest_upper) {
+        return Err("schema_integer_bounds_invalid".to_owned());
     }
     if object
         .get("enum")
