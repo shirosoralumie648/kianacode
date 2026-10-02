@@ -1439,10 +1439,12 @@ async fn wire_approval_proof_retry_resumes_original_run() {
     let _environment_lock = environment_lock();
     let root = temp_project();
     let host = scripted_host(apply_patch_cassette());
-    let client = KianaClient::new(InProcessTransport { host });
+    let client = KianaClient::new(InProcessTransport { host: host.clone() });
+    let start_metadata = trusted_metadata_in(&root);
+    let event_request_id = start_metadata.request_id;
     let awaiting = client
         .run(
-            trusted_metadata_in(&root),
+            start_metadata,
             "create a file named GOLDEN_PATH.txt containing hello",
             None,
         )
@@ -1455,6 +1457,19 @@ async fn wire_approval_proof_retry_resumes_original_run() {
     );
     let challenge: ApprovalChallenge =
         serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+    let run_id: RunId = serde_json::from_value(awaiting.output["run_id"].clone()).unwrap();
+    let awaiting_events = host
+        .persisted_events()
+        .await
+        .unwrap()
+        .expect("memory event store supports read-only scan");
+    let run_prompt = awaiting_events
+        .iter()
+        .find(|event| event.kind == "run.prompt" && event.data["run_id"] == json!(run_id))
+        .expect("run prompt identity root");
+    let turn_id = run_prompt.data["turn_id"].clone();
+    assert_eq!(run_prompt.request_id, event_request_id);
+    assert_eq!(run_prompt.correlation_id, Some(event_request_id));
 
     let rejected = client
         .approval_decision_with_proof(
@@ -1473,10 +1488,24 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .unwrap_or_default()
         .contains("approval_request_hash_mismatch"));
     assert!(!root.join("GOLDEN_PATH.txt").exists());
+    let denied_events = host
+        .persisted_events()
+        .await
+        .unwrap()
+        .expect("memory event store supports read-only scan");
+    assert!(!denied_events.iter().any(|event| {
+        event.kind == "execution.prepared"
+            && event.data["permit"]["run_id"] == json!(run_id)
+    }));
+    assert!(!denied_events.iter().any(|event| {
+        event.kind == "capability.completed" && event.data["run_id"] == json!(run_id)
+    }));
 
+    let decision_metadata = trusted_metadata_in(&root);
+    let decision_command_id = decision_metadata.request_id;
     let resumed = client
         .approval_decision_with_proof(
-            trusted_metadata_in(&root),
+            decision_metadata,
             challenge.approval_id,
             ApprovalDecision::Approve,
             Some(challenge.request_hash.clone()),
@@ -1490,6 +1519,275 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         !root.join("GOLDEN_PATH.txt").exists(),
         "read-only approval continuation must not write: {resumed:?}"
     );
+
+    let persisted = host
+        .persisted_events()
+        .await
+        .unwrap()
+        .expect("memory event store supports read-only scan");
+    let run_id_text = run_id.to_string();
+    let run_events = persisted
+        .iter()
+        .filter(|event| {
+            event.aggregate_type.as_deref() == Some("run")
+                && event.aggregate_id.as_deref() == Some(run_id_text.as_str())
+        })
+        .collect::<Vec<_>>();
+    let tool_call = run_events
+        .iter()
+        .find(|event| event.kind == "run.tool_call")
+        .expect("persisted Harness tool call");
+    let capability_requested = run_events
+        .iter()
+        .find(|event| event.kind == "run.capability_requested")
+        .expect("persisted Harness capability request");
+    let capability_request_id: kiana_domain::RequestId =
+        serde_json::from_value(capability_requested.data["request_id"].clone())
+            .expect("capability request identity");
+    let invocation_id =
+        kiana_domain::InvocationId::from_uuid(capability_request_id.as_uuid());
+    assert_eq!(capability_request_id, challenge.request_id);
+    assert_eq!(tool_call.request_id, event_request_id);
+    assert_eq!(tool_call.correlation_id, Some(event_request_id));
+    assert_eq!(tool_call.data["run_id"], json!(run_id));
+    assert_eq!(
+        tool_call.data["capability_request_id"],
+        json!(capability_request_id)
+    );
+    assert_eq!(tool_call.data["invocation_id"], json!(invocation_id));
+    assert_eq!(capability_requested.request_id, event_request_id);
+    assert_eq!(capability_requested.correlation_id, Some(event_request_id));
+    assert_eq!(capability_requested.data["run_id"], json!(run_id));
+    assert_eq!(capability_requested.data["turn_id"], turn_id);
+    assert_eq!(
+        capability_requested.data["invocation_id"],
+        json!(invocation_id)
+    );
+
+    let approval_requested = persisted
+        .iter()
+        .find(|event| {
+            event.kind == "approval.requested"
+                && event.data["approval_id"] == json!(challenge.approval_id)
+        })
+        .expect("persisted approval request");
+    let approval_approved = persisted
+        .iter()
+        .find(|event| {
+            event.kind == "approval.approved"
+                && event.data["approval_id"] == json!(challenge.approval_id)
+        })
+        .expect("persisted approval decision");
+    for event in [approval_requested, approval_approved] {
+        assert_eq!(event.request_id, event_request_id, "{}", event.kind);
+        assert_eq!(
+            event.correlation_id,
+            Some(event_request_id),
+            "{}",
+            event.kind
+        );
+        assert_eq!(event.data["run_id"], json!(run_id));
+    }
+    assert_eq!(
+        approval_requested.data["capability_request_id"],
+        json!(capability_request_id)
+    );
+    assert_eq!(
+        approval_requested.data["resume_binding"]["event_request_id"],
+        json!(event_request_id)
+    );
+    assert_eq!(
+        approval_requested.data["resume_binding"]["run_id"],
+        json!(run_id)
+    );
+    assert_eq!(
+        approval_requested.data["resume_binding"]["request_id"],
+        json!(capability_request_id)
+    );
+    assert_eq!(
+        approval_requested.data["resume_binding"]["invocation_id"],
+        json!(invocation_id)
+    );
+    assert_eq!(
+        approval_approved.data["subject_request_id"],
+        json!(capability_request_id)
+    );
+    assert_ne!(decision_command_id, event_request_id);
+
+    let prepared = persisted
+        .iter()
+        .find(|event| {
+            event.kind == "execution.prepared"
+                && event.data["permit"]["request_id"] == json!(capability_request_id)
+        })
+        .expect("prepared dispatch fact");
+    let execution_result = persisted
+        .iter()
+        .find(|event| {
+            event.kind == "execution.result_committed"
+                && event.data["capability_request_id"] == json!(capability_request_id)
+        })
+        .expect("committed execution result fact");
+    let execution_id = prepared.data["permit"]["execution_id"].clone();
+    assert_eq!(prepared.data["permit"]["run_id"], json!(run_id));
+    assert_eq!(prepared.data["permit"]["turn_id"], turn_id);
+    assert_eq!(
+        prepared.data["permit"]["invocation_id"],
+        json!(invocation_id)
+    );
+    assert_eq!(execution_result.data["run_id"], json!(run_id));
+    assert_eq!(execution_result.data["turn_id"], turn_id);
+    assert_eq!(
+        execution_result.data["invocation_id"],
+        json!(invocation_id)
+    );
+    assert_eq!(execution_result.data["execution_id"], execution_id);
+    assert_eq!(
+        execution_result.data["capability_request_id"],
+        json!(capability_request_id)
+    );
+
+    let completed = persisted
+        .iter()
+        .find(|event| {
+            event.kind == "capability.completed"
+                && event.data["capability_request_id"] == json!(capability_request_id)
+        })
+        .expect("persisted capability completion");
+    assert_eq!(completed.request_id, event_request_id);
+    assert_eq!(completed.correlation_id, Some(event_request_id));
+    assert_eq!(completed.data["run_id"], json!(run_id));
+
+    let persisted_ids = persisted
+        .iter()
+        .map(|event| event.event_id.to_string())
+        .collect::<std::collections::HashSet<_>>();
+    let identity_events = [
+        *tool_call,
+        *capability_requested,
+        approval_requested,
+        approval_approved,
+        completed,
+    ];
+    let identity_event_ids = identity_events
+        .iter()
+        .map(|event| event.event_id.to_string())
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(identity_event_ids.len(), identity_events.len());
+    assert!(identity_event_ids
+        .iter()
+        .all(|event_id| persisted_ids.contains(event_id)));
+
+    let invocations = kiana_core::project_invocations(run_id, &persisted).unwrap();
+    assert_eq!(invocations.len(), 1);
+    let invocation = &invocations[0];
+    assert_eq!(invocation.request_id, capability_request_id);
+    assert_eq!(
+        invocation.call_id,
+        tool_call.data["call_id"].as_str().map(str::to_owned)
+    );
+    assert_eq!(invocation.operation.as_deref(), Some("apply_patch"));
+    assert_eq!(
+        invocation.state,
+        kiana_domain::CapabilityExecutionState::Succeeded
+    );
+    assert_eq!(
+        invocation.args_fingerprint.as_deref(),
+        capability_requested.data["action_digest"].as_str()
+    );
+    assert_eq!(
+        invocation.result.as_ref(),
+        Some(&execution_result.data["result"])
+    );
+    assert_eq!(invocation.approval_id, Some(challenge.approval_id));
+    let request = invocation.request.as_ref().expect("projected capability request");
+    let request_value = serde_json::to_value(request).unwrap();
+    for field in [
+        "request_id",
+        "capability",
+        "operation",
+        "arguments",
+        "risk",
+        "execution_scope",
+        "cell_id",
+        "capability_grant_id",
+        "budget_lease_id",
+    ] {
+        assert_eq!(
+            request_value.get(field).cloned().unwrap_or(serde_json::Value::Null),
+            capability_requested
+                .data
+                .get(field)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            "projected request field {field}"
+        );
+    }
+    let projected_event_ids = persisted
+        .iter()
+        .filter(|event| {
+            let payload_run_id = event.data.get("run_id").and_then(|value| value.as_str());
+            let aggregate_run_id = match (
+                event.aggregate_type.as_deref(),
+                event.aggregate_id.as_deref(),
+            ) {
+                (Some("run"), Some(value)) => Some(value),
+                _ => None,
+            };
+            let linked_request_id = event
+                .data
+                .get("capability_request_id")
+                .cloned()
+                .or_else(|| {
+                    (event.kind == "run.capability_requested")
+                        .then(|| event.data.get("request_id"))
+                        .flatten()
+                        .cloned()
+                })
+                .or_else(|| {
+                    matches!(event.kind.as_str(), "approval.approved" | "approval.denied")
+                        .then(|| event.data.get("subject_request_id"))
+                        .flatten()
+                        .cloned()
+                })
+                .or_else(|| event.data.get("permit").and_then(|permit| permit.get("request_id")).cloned())
+                .and_then(|value| serde_json::from_value::<kiana_domain::RequestId>(value).ok());
+            matches!(
+                event.kind.as_str(),
+                "run.tool_call"
+                    | "run.capability_requested"
+                    | "capability.decision"
+                    | "approval.requested"
+                    | "run.awaiting_approval"
+                    | "approval.approved"
+                    | "approval.denied"
+                    | "run.capability_blocked"
+                    | "execution.prepared"
+                    | "invocation.dispatching"
+                    | "invocation.executing"
+                    | "execution.result_committed"
+                    | "capability.completed"
+                    | "capability.failed"
+                    | "capability.cancelled"
+                    | "capability.result_unknown"
+                    | "run.tool_result"
+            ) && payload_run_id
+                .or(aggregate_run_id)
+                .is_some_and(|value| value == run_id_text.as_str())
+                && linked_request_id == Some(capability_request_id)
+        })
+        .map(|event| event.event_id.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(invocation.event_ids, projected_event_ids);
+    for event in [
+        *tool_call,
+        *capability_requested,
+        approval_approved,
+        execution_result,
+        completed,
+    ] {
+        assert!(invocation.event_ids.contains(&event.event_id.to_string()));
+    }
 }
 
 #[tokio::test]

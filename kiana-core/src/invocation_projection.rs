@@ -1,6 +1,7 @@
 use kiana_domain::{
     ApprovalId, CapabilityErrorCode, CapabilityExecutionState, CapabilityKind, CapabilityRequest,
-    CapabilityResult, RequestId, RiskLevel, RunId, RuntimeEvent,
+    CapabilityResult, CapabilityResultReceipt, ExecutionId, InvocationId, RequestId, RiskLevel,
+    RunId, RuntimeEvent,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -162,10 +163,154 @@ fn intermediate_state(event: &RuntimeEvent) -> Option<CapabilityExecutionState> 
     }
 }
 
-fn terminal_signature(event: &RuntimeEvent) -> String {
+fn terminal_signature(event: &RuntimeEvent, request_id: RequestId) -> Result<String, String> {
+    if let Some(value) = event.data.get("result_receipt") {
+        // This validates the receipt digest before its business fields are compared.
+        let receipt = CapabilityResultReceipt::from_json(value)
+            .map_err(|_| "invocation_result_receipt_invalid".to_owned())?;
+        if receipt.request_id != request_id {
+            return Err("invocation_result_receipt_request_id_conflict".to_owned());
+        }
+        if !receipt.committed {
+            return Err("invocation_result_receipt_uncommitted".to_owned());
+        }
+
+        match event.kind.as_str() {
+            "execution.result_committed" => {
+                let execution_id = event
+                    .data
+                    .get("execution_id")
+                    .and_then(|value| serde_json::from_value::<ExecutionId>(value.clone()).ok())
+                    .ok_or_else(|| "invocation_result_receipt_execution_id_conflict".to_owned())?;
+                let invocation_id = event
+                    .data
+                    .get("invocation_id")
+                    .and_then(|value| serde_json::from_value::<InvocationId>(value.clone()).ok())
+                    .ok_or_else(|| "invocation_result_receipt_invocation_id_conflict".to_owned())?;
+                let attempt = event.data.get("attempt").and_then(Value::as_u64);
+                if receipt.execution_id != Some(execution_id)
+                    || receipt.invocation_id != Some(invocation_id)
+                    || attempt != Some(u64::from(receipt.attempt))
+                {
+                    return Err("invocation_result_receipt_identity_conflict".to_owned());
+                }
+                let value = event
+                    .data
+                    .get("result")
+                    .ok_or_else(|| "invocation_result_malformed".to_owned())?;
+                let result: CapabilityResult = serde_json::from_value(value.clone())
+                    .map_err(|_| "invocation_result_malformed".to_owned())?;
+                if result.request_id != request_id {
+                    return Err("invocation_result_request_id_conflict".to_owned());
+                }
+                let expected = CapabilityResultReceipt::from_result(
+                    &result,
+                    receipt.execution_id,
+                    receipt.invocation_id,
+                    receipt.attempt,
+                    receipt.committed,
+                )
+                .map_err(|_| "invocation_result_receipt_invalid".to_owned())?;
+                if expected != receipt {
+                    return Err("invocation_result_receipt_result_conflict".to_owned());
+                }
+                let effect_known = event
+                    .data
+                    .get("effect_known")
+                    .and_then(Value::as_bool)
+                    .ok_or_else(|| "invocation_result_malformed".to_owned())?;
+                if effect_known != receipt.effect_known {
+                    return Err("invocation_result_receipt_effect_known_conflict".to_owned());
+                }
+                if let Some(value) = event.data.get("outcome_state") {
+                    let outcome_state: CapabilityExecutionState =
+                        serde_json::from_value(value.clone())
+                            .map_err(|_| {
+                                "invocation_result_receipt_outcome_state_invalid".to_owned()
+                            })?;
+                    if outcome_state != receipt.dimensions.execution_state() {
+                        return Err("invocation_result_receipt_outcome_state_conflict".to_owned());
+                    }
+                }
+            }
+            "capability.completed"
+            | "capability.failed"
+            | "capability.cancelled"
+            | "capability.result_unknown" => {
+                let expected_state = match event.kind.as_str() {
+                    "capability.completed" => {
+                        receipt.success && receipt.dimensions.execution_state()
+                            == CapabilityExecutionState::Succeeded
+                    }
+                    "capability.failed" => {
+                        !receipt.success && receipt.dimensions.execution_state()
+                            == CapabilityExecutionState::Failed
+                    }
+                    "capability.cancelled" => {
+                        !receipt.success && receipt.dimensions.execution_state()
+                            == CapabilityExecutionState::Cancelled
+                    }
+                    "capability.result_unknown" => {
+                        !receipt.success && receipt.dimensions.execution_state()
+                            == CapabilityExecutionState::Unknown
+                    }
+                    _ => unreachable!(),
+                };
+                if !expected_state {
+                    return Err("invocation_result_receipt_state_conflict".to_owned());
+                }
+                if event
+                    .data
+                    .get("attempt")
+                    .is_some_and(|value| value.as_u64() != Some(u64::from(receipt.attempt)))
+                {
+                    return Err("invocation_result_receipt_attempt_conflict".to_owned());
+                }
+                for (field, expected) in [
+                    ("effect_started", Some(receipt.effect_started)),
+                    ("effect_known", Some(receipt.effect_known)),
+                    ("zero_effect", Some(receipt.zero_effect)),
+                    ("fenced", Some(receipt.fenced)),
+                    ("stop_confirmed", receipt.stop_confirmed),
+                ] {
+                    if let Some(value) = event.data.get(field) {
+                        let actual = match value {
+                            Value::Null if expected.is_none() => None,
+                            Value::Bool(value) => Some(*value),
+                            _ => {
+                                return Err(
+                                    "invocation_result_receipt_lifecycle_conflict".to_owned(),
+                                );
+                            }
+                        };
+                        if actual != expected {
+                            return Err("invocation_result_receipt_lifecycle_conflict".to_owned());
+                        }
+                    }
+                }
+            }
+            _ => return Err("invocation_result_receipt_kind_invalid".to_owned()),
+        }
+
+        return Ok(kiana_domain::json_digest(&serde_json::json!({
+            "request_id": receipt.request_id,
+            "attempt": receipt.attempt,
+            "success": receipt.success,
+            "dimensions": receipt.dimensions,
+            "result_digest": receipt.result_digest,
+            "effect_started": receipt.effect_started,
+            "effect_known": receipt.effect_known,
+            "zero_effect": receipt.zero_effect,
+            "fenced": receipt.fenced,
+            "stop_confirmed": receipt.stop_confirmed,
+            "committed": receipt.committed,
+        })));
+    }
+
     // Execution evidence and runner delivery facts use different envelopes. Their durable
     // result payload is still the same capability output, so compare that normalized value
-    // instead of letting metadata differences hide a conflicting terminal result.
+    // instead of letting metadata differences hide a conflicting terminal result. Events from
+    // before result receipts remain readable through this legacy signature.
     let mut result = match event.kind.as_str() {
         "execution.result_committed" => event
             .data
@@ -199,7 +344,7 @@ fn terminal_signature(event: &RuntimeEvent) -> String {
             object.remove(key);
         }
     }
-    kiana_domain::json_digest(&result)
+    Ok(kiana_domain::json_digest(&result))
 }
 
 fn is_invocation_event(kind: &str) -> bool {
@@ -415,14 +560,17 @@ pub fn project_invocations(
             if !next.is_terminal() || *previous != next {
                 return Err("invocation_state_transition_invalid".to_owned());
             }
-            if previous_signature != &terminal_signature(event) {
+            if previous_signature != &terminal_signature(event, id)? {
                 return Err("invocation_terminal_conflict".to_owned());
             }
             let _ = previous_kind;
             continue;
         }
         if next.is_terminal() {
-            terminals.insert(key, (next, event.kind.clone(), terminal_signature(event)));
+            terminals.insert(
+                key,
+                (next, event.kind.clone(), terminal_signature(event, id)?),
+            );
             entry.result = Some(event.data.get("result").unwrap_or(&event.data).clone());
         }
         if entry.request.is_none() && event.kind != "run.tool_call" {
