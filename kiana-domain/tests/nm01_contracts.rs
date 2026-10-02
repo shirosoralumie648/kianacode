@@ -16,6 +16,25 @@ fn message() -> Message {
     .unwrap()
 }
 
+fn message_with_body_directly(body: &str) -> Message {
+    let mut message = Message {
+        schema: MESSAGE_SCHEMA.to_owned(),
+        message_id: MessageId::new(),
+        kind: MessageKind::Chat,
+        sender_id: "planner".to_owned(),
+        recipient_id: "builder".to_owned(),
+        project_id: None,
+        scope: vec!["project/a".to_owned()],
+        body: body.to_owned(),
+        action_ref_id: None,
+        created_at_unix_ms: 100,
+        expires_at_unix_ms: Some(200),
+        message_digest: String::new(),
+    };
+    message.message_digest = message.digest();
+    message
+}
+
 fn subscription() -> Subscription {
     Subscription::new(
         "builder",
@@ -163,6 +182,46 @@ fn message_rejects_empty_recipient_long_body_and_secret_debug_payload() {
         .unwrap_err(),
         "message_body_secret_detected"
     );
+}
+
+#[test]
+fn message_secret_marker_is_rejected_at_serde_boundaries_and_redacted_from_debug() {
+    let sentinel = "nm01-serialization-sentinel";
+    let secret_body = format!("Authorization: Bearer {sentinel}");
+    let secret_message = message_with_body_directly(&secret_body);
+    let debug = format!("{secret_message:?}");
+    assert!(!debug.contains(sentinel));
+
+    let valid = message();
+    let valid_bytes = serde_json::to_vec(&valid).unwrap();
+    let decoded: Message = serde_json::from_slice(&valid_bytes).unwrap();
+    assert_eq!(decoded, valid);
+
+    let serialization_error = serde_json::to_string(&secret_message).unwrap_err();
+    assert!(serialization_error
+        .to_string()
+        .contains("message_body_secret_detected"));
+    assert!(!serialization_error.to_string().contains(sentinel));
+
+    let payload = json!({
+        "schema": MESSAGE_SCHEMA,
+        "message_id": secret_message.message_id,
+        "kind": "chat",
+        "sender_id": "planner",
+        "recipient_id": "builder",
+        "project_id": null,
+        "scope": ["project/a"],
+        "body": &secret_message.body,
+        "action_ref_id": null,
+        "created_at_unix_ms": 100,
+        "expires_at_unix_ms": 200,
+        "message_digest": &secret_message.message_digest,
+    });
+    let deserialization_error = serde_json::from_value::<Message>(payload).unwrap_err();
+    assert!(deserialization_error
+        .to_string()
+        .contains("message_body_secret_detected"));
+    assert!(!deserialization_error.to_string().contains(sentinel));
 }
 
 #[test]

@@ -9,6 +9,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::fmt;
 
 pub const MESSAGE_SCHEMA: &str = "kiana.message.v1";
 pub const NOTIFICATION_SCHEMA: &str = "kiana.notification.v1";
@@ -106,25 +107,129 @@ pub enum MessageKind {
     Reminder,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Message {
     pub schema: String,
     pub message_id: MessageId,
     pub kind: MessageKind,
     pub sender_id: String,
     pub recipient_id: String,
-    #[serde(default)]
     pub project_id: Option<ProjectId>,
-    #[serde(default)]
     pub scope: Vec<String>,
     pub body: String,
-    #[serde(default)]
     pub action_ref_id: Option<ActionRefId>,
     pub created_at_unix_ms: u64,
-    #[serde(default)]
     pub expires_at_unix_ms: Option<u64>,
     pub message_digest: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MessageRepr {
+    schema: String,
+    message_id: MessageId,
+    kind: MessageKind,
+    sender_id: String,
+    recipient_id: String,
+    #[serde(default)]
+    project_id: Option<ProjectId>,
+    #[serde(default)]
+    scope: Vec<String>,
+    body: String,
+    #[serde(default)]
+    action_ref_id: Option<ActionRefId>,
+    created_at_unix_ms: u64,
+    #[serde(default)]
+    expires_at_unix_ms: Option<u64>,
+    message_digest: String,
+}
+
+impl MessageRepr {
+    fn from_message(message: &Message) -> Self {
+        Self {
+            schema: message.schema.clone(),
+            message_id: message.message_id,
+            kind: message.kind,
+            sender_id: message.sender_id.clone(),
+            recipient_id: message.recipient_id.clone(),
+            project_id: message.project_id,
+            scope: message.scope.clone(),
+            body: message.body.clone(),
+            action_ref_id: message.action_ref_id,
+            created_at_unix_ms: message.created_at_unix_ms,
+            expires_at_unix_ms: message.expires_at_unix_ms,
+            message_digest: message.message_digest.clone(),
+        }
+    }
+
+    fn into_message(self) -> Message {
+        Message {
+            schema: self.schema,
+            message_id: self.message_id,
+            kind: self.kind,
+            sender_id: self.sender_id,
+            recipient_id: self.recipient_id,
+            project_id: self.project_id,
+            scope: self.scope,
+            body: self.body,
+            action_ref_id: self.action_ref_id,
+            created_at_unix_ms: self.created_at_unix_ms,
+            expires_at_unix_ms: self.expires_at_unix_ms,
+            message_digest: self.message_digest,
+        }
+    }
+}
+
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.validate().map_err(serde::ser::Error::custom)?;
+        MessageRepr::from_message(self).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let message = MessageRepr::deserialize(deserializer)?.into_message();
+        message.validate().map_err(serde::de::Error::custom)?;
+        Ok(message)
+    }
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let schema = redact_text(&self.schema);
+        let sender_id = redact_text(&self.sender_id);
+        let recipient_id = redact_text(&self.recipient_id);
+        let scope = self
+            .scope
+            .iter()
+            .map(|value| redact_text(value))
+            .collect::<Vec<_>>();
+        let body = redact_text(&self.body);
+        let message_digest = redact_text(&self.message_digest);
+
+        formatter
+            .debug_struct("Message")
+            .field("schema", &schema)
+            .field("message_id", &self.message_id)
+            .field("kind", &self.kind)
+            .field("sender_id", &sender_id)
+            .field("recipient_id", &recipient_id)
+            .field("project_id", &self.project_id)
+            .field("scope", &scope)
+            .field("body", &body)
+            .field("action_ref_id", &self.action_ref_id)
+            .field("created_at_unix_ms", &self.created_at_unix_ms)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("message_digest", &message_digest)
+            .finish()
+    }
 }
 
 impl Message {
