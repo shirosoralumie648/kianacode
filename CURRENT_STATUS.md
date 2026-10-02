@@ -2369,11 +2369,11 @@ source_snapshot: `14c53456` plus integrated fix `ca638df7`; `kiana-domain/src/re
 worktree_status: OA-03 key canonicalization and strict placeholder checks remain scoped to the existing domain encoder/scanner; normalized credential keys are now redacted consistently with residual-secret detection; no producer, sink or EventStore path was added
 command_argv: source inspection with `git grep`/`sed`; `cargo fmt --all` (formatter only); `git diff --check`; no local test/build/check/clippy/smoke
 cwd·environment: repository root worktree; Linux; GitHub Actions only for test execution
-fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` showed `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected` failing with `redaction_secret_sentinel_detected` for the normalized `credential-ref` field. Fix `ca638df7` applies the credential predicate in both structured redaction and residual checking; run `36997679412` was cancelled before a replacement target result, and run `36997851657` at head `e7c3ca4a` was queued with no result observed.
-exit_code: exact pre-fix fixture failed remotely; `cargo fmt --all` and `git diff --check` exited 0; no local tests
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` showed `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected` failing with `redaction_secret_sentinel_detected` for normalized `credential-ref`. Fix `ca638df7` applies the credential predicate in both structured redaction and residual checking. Run `36997851657` / domain-s3/4 job `110808817232` then reported `oa03_redaction` 5/5 passing, including the corrected fixture; the shard had unrelated sibling failures and the run was cancelled by a subsequent push.
+exit_code: pre-fix fixture failed and post-fix target passed 5/5 remotely; `cargo fmt --all` and `git diff --check` exited 0; no local tests
 status_change: OA-03 remains 🔄 with `feature_status=partial`; redaction predicates now share ASCII-lowercase plus hyphen-to-underscore key normalization without changing serialized keys, and scanner placeholder validation is fail-closed
 proof-level_change: source only; no local_behavior, durable, live or physical promotion
-limitations: the fix has no post-fix target receipt yet. Marker/key policy still cannot identify arbitrary unmarked secrets; runtime sink/provider/export wiring remains downstream OA work.
+limitations: the exact post-fix target passed, but no complete green domain shard is established. Marker/key policy still cannot identify arbitrary unmarked secrets; runtime sink/provider/export wiring remains downstream OA work.
 reviewer: root traced the exact field through normalization, redaction and residual scanning; no runtime test reviewer
 ```
 
@@ -4682,7 +4682,7 @@ fixture·cassette: runs `36993318357` and `36994107681` failed workflow structur
 exit_code: remote logs confirmed two gate causes; `cargo fmt --all` and `git diff --check` exited 0; no local tests ran
 status_change: none; no roadmap step was promoted
 proof-level change: none
-limitations: run `36997038699` for `2e54693b` and run `36997679412` for `ca638df7` were cancelled by later pushes; run `36997851657` at `e7c3ca4a` was queued when recorded. No replacement result is claimed, and unrelated shard failures remain.
+limitations: run `36997038699` for `2e54693b` and run `36997679412` for `ca638df7` were cancelled by later pushes. Run `36997851657` at `e7c3ca4a` passed the exact OA-03 and NM-01 targets recorded in their entries, then was cancelled by the subsequent documentation push; run `36999016716` at `9ba19b87` was queued. No full green workflow is claimed; unrelated shard failures remain.
 reviewer: root matched each edit to the exact remote diagnostic and verified the formatter changed only the reported files
 ```
 
@@ -4774,11 +4774,11 @@ command_argv:
   `cargo fmt --all` (formatter only; no local `cargo fmt --check`)
   no local test, build, Cargo check, clippy or smoke command was run
 cwd·environment: isolated source worktree `/tmp/kiana-nm01-secret-boundary-20261002`; integration in repository root on Linux; all Cargo tests remain GitHub Actions-only
-fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` reported the new `message_secret_marker_is_rejected_at_serde_boundaries_and_redacted_from_debug` and `message_deserialization_rejects_unknown_kind_and_schema` fixtures passing. The existing `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failed with `message_upcast_invalid`; follow-up `e7c3ca4a` moves known v0 decoding before digest validation. Run `36997851657` at that head was queued without a target receipt.
-exit_code: source review and `git diff --check` 0; two new boundary fixtures passed in GitHub CI, the pre-fix v0 upcast fixture failed, and no local test/runtime exit code exists
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` reported the secret serde-boundary and unknown-kind/schema fixtures passing but `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failing with `message_upcast_invalid`. Follow-up `e7c3ca4a` moves known v0 decoding before digest validation. Run `36997851657` / domain-s3/4 job `110808817232` then reported `nm01_contracts` 6/6 passing; the shard had unrelated sibling failures and the run was cancelled by a subsequent push.
+exit_code: source review and `git diff --check` 0; post-fix `nm01_contracts` passed 6/6 in GitHub CI; no local test/runtime exit code exists
 status_change: NM-01 remains 🔄 and `feature_status=partial`; known secret markers are rejected at Message serde boundaries, Debug omits marker payloads, and unknown kind/schema inputs have explicit deny fixtures
 proof-level change: source only; `proof_level=source`; no local_behavior, durable, live or physical promotion
-limitations: the v0 upcast fix has no post-fix target receipt; detection is bounded to the current marker set; public in-memory fields remain readable and mutable; notification materialization, resolver, durable store, outbox, delivery and external channels remain later NM/ER/PD/SC work.
+limitations: exact post-fix target passed, but no complete green domain shard is established; detection is bounded to the current marker set; public in-memory fields remain readable and mutable; notification materialization, resolver, durable store, outbox, delivery and external channels remain later NM/ER/PD/SC work.
 reviewer: root reviewed validation order and confirmed v1 strict deserialization remains in place; no runtime test reviewer
 ```
 

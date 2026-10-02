@@ -308,10 +308,10 @@ adapter 与 committed fact observer，后续 OA-07+ 负责 runtime producer/proj
 run `36994107681` / `kiana-domain-s3/4` job `110797094493` exposed one failure in
 `hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected`: the residual scanner
 classified normalized `credential-ref` as sensitive, while the structured redactor left it intact.
-Commit `ca638df7` adds the same credential-key predicate to redaction and residual checks. Runs
-`36997679412` and `36997851657` did not provide a post-fix target receipt; the latter was queued at
-the time of observation. OA-03 remains `partial/source` until CI confirms the correction, and the
-runtime sinks/producers listed above remain unimplemented.
+Commit `ca638df7` adds the same credential-key predicate to redaction and residual checks. Run
+`36997851657` / domain-s3/4 job `110808817232` then reported `oa03_redaction` 5/5 passing. The
+domain shard had unrelated sibling failures and the run was cancelled by a later push. OA-03
+remains `partial/source` because the runtime sinks/producers listed above remain unimplemented.
 
 ## 10. OA-04 叠加说明
 

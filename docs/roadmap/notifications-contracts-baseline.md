@@ -98,10 +98,10 @@ source_snapshot: `e7c3ca4a`; `kiana-domain/src/notifications.rs`; `kiana-domain/
 worktree_status: known v0 upcast now recomputes its v1 digest before validation; v1 parsing and unknown-field rejection remain strict
 command_argv: source review; `cargo fmt --all` (formatter only); `git diff --check`; no local test/build/check/clippy/smoke
 cwd·environment: repository root; Linux; GitHub Actions is the only test executor
-fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` passed the secret serde-boundary and unknown-kind/schema fixtures, but `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failed with `message_upcast_invalid`; run `36997851657` at `e7c3ca4a` was queued without a post-fix receipt
-exit_code: source review and diff check 0; no local test/runtime exit code; no full NM-01 shard pass is claimed
+fixture·cassette: run `36994107681` / domain-s3/4 job `110797094493` passed the secret serde-boundary and unknown-kind/schema fixtures, but `message_v0_upcast_is_explicit_and_unknown_major_or_field_is_rejected` failed with `message_upcast_invalid`; after fix `e7c3ca4a`, run `36997851657` / job `110808817232` reported `nm01_contracts` 6/6 passing. The domain shard had unrelated failures and the run was cancelled by a later push.
+exit_code: source review and diff check 0; post-fix NM-01 target passed 6/6 remotely; no local test/runtime exit code; no full workflow pass is claimed
 status_change: NM-01 remains `partial`; digest reconstruction is limited to the explicit known v0 upcast path
 proof-level change: source only; no local_behavior, durable, live, or physical promotion
-limitations: no post-fix remote result yet; arbitrary high-entropy secrets, mutable public in-memory fields, durable notification storage, resolver, projection, outbox and delivery remain outside this slice
+limitations: exact post-fix target passed, but a complete green domain shard is not established; arbitrary high-entropy secrets, mutable public in-memory fields, durable notification storage, resolver, projection, outbox and delivery remain outside this slice
 reviewer: root checked the strict v1 path remains unchanged and validation follows v0 digest reconstruction; no runtime test reviewer
 ```
