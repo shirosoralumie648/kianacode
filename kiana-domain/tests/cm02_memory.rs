@@ -34,6 +34,75 @@ fn legacy_memory_is_unverifiable_until_reviewed() {
 }
 
 #[test]
+fn memory_record_rejects_unknown_nested_lifecycle_fields() {
+    let base = || {
+        json!({
+            "schema": kiana_domain::MEMORY_RECORD_SCHEMA_V2,
+            "id": "memory-unknown-nested",
+            "layer": "project",
+            "collection": "project",
+            "text": "candidate",
+            "source": "event:3",
+            "role_id": "builder",
+            "department_id": "executing",
+            "session_id": "session-cm02",
+            "created_at_ms": 1,
+            "kind": "fact",
+            "purpose": {
+                "id": "context.read",
+                "description": "CM-02 strict fixture"
+            },
+            "retention": {
+                "expires_at_ms": 100,
+                "retain_audit_metadata": true
+            },
+            "evidence": [{
+                "event_id": "00000000-0000-4000-8000-000000000001",
+                "request_id": "00000000-0000-4000-8000-000000000002",
+                "run_id": null,
+                "quote": "evidence quote"
+            }]
+        })
+    };
+
+    assert!(serde_json::from_value::<MemoryRecord>(base()).is_ok());
+
+    let mut purpose = base();
+    purpose["purpose"]["future"] = json!(true);
+    assert!(serde_json::from_value::<MemoryRecord>(purpose).is_err());
+
+    let mut retention = base();
+    retention["retention"]["future"] = json!(true);
+    assert!(serde_json::from_value::<MemoryRecord>(retention).is_err());
+
+    let mut evidence = base();
+    evidence["evidence"][0]["future"] = json!(true);
+    assert!(serde_json::from_value::<MemoryRecord>(evidence).is_err());
+
+    let mut known_legacy_evidence = legacy_row();
+    known_legacy_evidence["evidence"] = json!([{
+        "event_id": "00000000-0000-4000-8000-000000000001",
+        "request_id": "00000000-0000-4000-8000-000000000002",
+        "run_id": null,
+        "quote": "legacy evidence quote"
+    }]);
+    assert!(MemoryRecord::legacy_import(known_legacy_evidence).is_ok());
+
+    let mut legacy_evidence = legacy_row();
+    legacy_evidence["evidence"] = json!([{
+        "event_id": "00000000-0000-4000-8000-000000000001",
+        "request_id": "00000000-0000-4000-8000-000000000002",
+        "run_id": null,
+        "quote": "legacy evidence quote",
+        "future": true
+    }]);
+    assert_eq!(
+        MemoryRecord::legacy_import(legacy_evidence).unwrap_err(),
+        "memory_legacy_import_invalid"
+    );
+}
+
+#[test]
 fn invalid_admission_state_combination_is_denied() {
     let record = MemoryRecord {
         schema: kiana_domain::MEMORY_RECORD_SCHEMA_V2.to_owned(),

@@ -35,6 +35,7 @@ pub enum DataClass {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Purpose {
     pub id: String,
     pub description: String,
@@ -48,6 +49,7 @@ impl Purpose {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Retention {
     pub expires_at_ms: Option<u64>,
     pub retain_audit_metadata: bool,
