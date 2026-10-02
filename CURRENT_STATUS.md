@@ -19272,3 +19272,18 @@ proof-level change: none
 limitations: exact post-fix approval/cancel receipts and a complete green daemon shard are pending; direct identity parity, durable restart recovery, live/physical outcomes and external effects are not established
 reviewer: source trace across DaemonHost authority synchronization, SecurityContext digest construction, authority revision, and session assignment; no local runtime reviewer
 ```
+
+### CM-02 capability result source field collision (2026-10-03)
+
+```text
+source_snapshot: base `5ec79dca`; `kiana-core/src/events.rs`; `kiana-core/src/redaction.rs`; `kiana-core/tests/nm03_event_registry_guard.rs`; `kiana-daemon/src/harness_memory.rs`; `kiana-daemon/tests/daemon_host.rs`; `docs/roadmap/memory-lifecycle-baseline.md`
+worktree_status: capability event result payloads preserve business `source` as `result_source` for Run and direct event builders; server notification metadata validation is unchanged. Core helper fixture covers both builders, and the existing CM-02 daemon target covers candidate commit, evidence-denial and continued unsearchability.
+command_argv: remote log inspection `gh run view 37041941851 --job 110954471639 --log-failed`; source tracing via `rg`/`sed` of memory write, capability finalization, and append validation; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: run `37041941851` / job `110954471639` exact target `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` returned `ResultUnknown / result_unknown:result_event_persistence_failed` at its first `Completed` assertion. Source trace confirms the capability append received the model-declared business `source` and the notification validator rejected it as `notification_event_source_unknown`; memory journal and JSONL projection occur before this append, so the previous run does not prove whether later visibility assertions would pass. New Core helper fixture and daemon target are pending GitHub CI after push.
+exit_code: remote failure exactly observed; post-change `cargo fmt --all --check` and `git diff --check` passed; no local runtime test
+status_change: CM-02 remains `🔄`, `feature_status=partial`, `proof_level=source`; the source collision fix is recorded without claiming lifecycle acceptance until the remote daemon target reaches the search-denial assertions
+proof-level change: none
+limitations: no post-fix CI evidence yet; the prior run ended before verifying candidate commit visibility, rejection without evidence, or continued unsearchability. Durable recovery, event-to-quote binding, retention/revocation/deletion and semantic recall are also unproven.
+reviewer: source review verified the EventStore/JSONL write precedes capability result finalization and traced the flattened `source` into notification validation; no local runtime reviewer
+```

@@ -98,6 +98,25 @@ mod event_redaction_tests {
     }
 
     #[test]
+    fn capability_business_source_is_not_notification_source() {
+        let request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            "memory.write",
+            json!({}),
+        );
+        let output = json!({"source": "model-claimed-user-source", "effect_committed": true});
+        let context = RequestContext::local("session-1", "/repo");
+        let run_payload = capability_event_payload(&output, &request, &context, RunId::new());
+        let direct_payload = direct_capability_event_payload(&output, &request);
+
+        for payload in [run_payload, direct_payload] {
+            assert_eq!(payload["result_source"], "model-claimed-user-source");
+            assert!(payload.get("source").is_none(), "{payload}");
+        }
+    }
+
+    #[test]
     fn event_error_redaction_preserves_codes_and_masks_secret_parameters() {
         let redacted = redact_event_text("provider_failed token=abc123, retryable=true");
         assert_eq!(redacted, "provider_failed token=[REDACTED], retryable=true");

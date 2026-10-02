@@ -620,10 +620,7 @@ pub(crate) fn capability_event_payload(
     context: &RequestContext,
     run_id: RunId,
 ) -> Value {
-    let mut payload = redact_event_value(output);
-    if !payload.is_object() {
-        payload = json!({ "output": payload });
-    }
+    let mut payload = capability_result_payload(output);
     let result_unknown = result_unknown_value(&payload);
     let object = payload
         .as_object_mut()
@@ -677,10 +674,7 @@ pub(crate) fn direct_capability_event_payload(
     output: &Value,
     request: &CapabilityRequest,
 ) -> Value {
-    let mut payload = redact_event_value(output);
-    if !payload.is_object() {
-        payload = json!({ "output": payload });
-    }
+    let mut payload = capability_result_payload(output);
     let result_unknown = result_unknown_value(&payload);
     let object = payload
         .as_object_mut()
@@ -714,6 +708,20 @@ pub(crate) fn direct_capability_event_payload(
         "capability_request_id".to_owned(),
         json!(request.request_id),
     );
+    payload
+}
+
+fn capability_result_payload(output: &Value) -> Value {
+    let mut payload = redact_event_value(output);
+    if !payload.is_object() {
+        payload = json!({ "output": payload });
+    }
+    // Capability result data cannot populate the notification authority envelope.
+    if let Some(object) = payload.as_object_mut() {
+        if let Some(source) = object.remove("source") {
+            object.insert("result_source".to_owned(), source);
+        }
+    }
     payload
 }
 /// 把服务端解析出的身份盖到一个能力请求上。

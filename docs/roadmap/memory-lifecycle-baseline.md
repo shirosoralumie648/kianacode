@@ -201,6 +201,37 @@ limitations: no cause is confirmed for the daemon-host integration failure; Even
 reviewer: root source and log review; no local runtime test reviewer
 ```
 
+### Capability result source field collision (2026-10-03)
+
+GitHub run `37041941851`, CM-02 job `110954471639`, ran
+`model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` and failed at the
+initial `Completed` assertion with `ResultUnknown / result_unknown:result_event_persistence_failed`.
+Source tracing confirmed the memory handler first commits its `memory.fact` and JSONL record, then
+returns the business `source` field as part of its result. The capability-event builder flattened
+that result into the event payload, where `ControlPlane::append_event` interpreted every top-level
+`source` as a trusted notification source. The fixture's model-declared source is not a registered
+notification source, so appending `capability.completed` failed and the finalizer conservatively
+reported Unknown after the memory write had already committed.
+
+The narrow correction keeps notification validation unchanged and moves a capability result's
+business `source` field to `result_source` for both Run and direct capability events. A Core unit
+fixture checks the field boundary for both payload builders; the existing daemon target remains the
+end-to-end check that a candidate is committed, review without evidence is denied, and the candidate
+remains unsearchable. CM-02 stays partial/source pending those GitHub receipts.
+
+```text
+source_snapshot: master `5ec79dca`; `kiana-core/src/events.rs`; `kiana-core/src/redaction.rs`; `kiana-core/tests/nm03_event_registry_guard.rs`; `kiana-daemon/src/harness_memory.rs`; `kiana-daemon/tests/daemon_host.rs`; `CURRENT_STATUS.md`
+worktree_status: capability event result payloads preserve business `source` as `result_source`; server notification metadata validation remains unchanged. A unit fixture covers both run and direct event builders; existing CM-02 daemon target covers committed candidate, missing-evidence denial and unsearchability.
+command_argv: GitHub logs `gh run view 37041941851 --job 110954471639 --log-failed`; source tracing with `rg`/`sed` of memory write ordering, capability result construction, and EventStore append validation; `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; tests run only in GitHub Actions
+fixture·cassette: prior run `37041941851` / job `110954471639` exact target returned `result_unknown:result_event_persistence_failed` before later search assertions; source trace identifies fixed rejection `notification_event_source_unknown`. New Core helper fixture and daemon target are queued for CI after push.
+exit_code: source tracing complete; local formatting/diff checks only; post-change Core and daemon CI pending
+status_change: CM-02 remains 🔄 / `feature_status=partial` / `proof_level=source`; result source metadata is now isolated from notification source metadata, while the intended end-to-end evidence-denial path awaits remote verification
+proof-level change: none
+limitations: the prior CI run did not reach its post-write visibility assertions; the new run must confirm the record committed and stays unsearchable. EventStore-backed proposal acceptance, event-to-quote binding, durable recovery, retention/revocation/deletion and semantic recall remain unproven.
+reviewer: source review traced memory journal/JSONL commit before result emission and capability payload flattening into notification source validation; no local runtime test reviewer
+```
+
 ### Daemon-host storage-redaction diagnostic (2026-10-02)
 
 The later targeted run `37016271351` / daemon job `110868200314` resolved the earlier
