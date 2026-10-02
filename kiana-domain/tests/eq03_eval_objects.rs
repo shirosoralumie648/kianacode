@@ -264,10 +264,7 @@ fn golden_trace_bounds_references_and_total_event_bytes_and_rejects_nul_versions
     }
 
     let single_event = serde_json::Value::String("x".repeat(MAX_EVAL_CONFIG_BYTES - 2));
-    let oversized_events = vec![
-        single_event;
-        MAX_EVAL_TRACE_BYTES / MAX_EVAL_CONFIG_BYTES + 1
-    ];
+    let oversized_events = vec![single_event; MAX_EVAL_TRACE_BYTES / MAX_EVAL_CONFIG_BYTES + 1];
     assert_eq!(
         golden_trace_with(
             BTreeMap::from([("runtime".to_owned(), "v1".to_owned())]),

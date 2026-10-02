@@ -103,3 +103,22 @@ proof-level change: unchanged at feature_status=implemented, proof_level=source
 limitations: GitHub CI has not yet executed the new fixture; deserializing an oversized JSON document can allocate input before domain validation; fixture refs still are not loaded through an isolated store and freshness/authenticated ownership remain outside this DTO contract
 reviewer: EQ-03 DTO source-boundary review; no runtime test reviewer
 ```
+
+## 8. Rustfmt gate correction (2026-10-02)
+
+The GitHub Rust gate on run `36962026026` reported only rustfmt layout diffs in
+`kiana-domain/src/quality.rs` and `kiana-domain/tests/eq03_eval_objects.rs`. Those two files were
+formatted with `cargo fmt --all`; no test, build or check command was run locally.
+
+```text
+source_snapshot: 956e6269 plus formatting-only correction to the EQ-03 source and domain fixture
+worktree_status: only two rustfmt layout changes; product and fixture semantics unchanged
+command_argv: cargo fmt --all; git diff --check
+cwd/environment: repository root; Linux; no local test/build/check/clippy/smoke command was run
+fixture or cassette: prior GitHub run 36962026026/Rust gates job 110697641705 identified both formatting diffs; run 36962728629 predates this correction, which will be queued by the next push
+exit_code: cargo fmt --all and git diff --check exited 0; no local test or build result exists
+status_change: none; EQ-03 remains feature_status=implemented, proof_level=source
+proof-level change: unchanged; no local_behavior, durable, live or physical promotion
+limitations: post-format GitHub receipt remains pending; this correction changes formatting only
+reviewer: Codex review of the exact two-file formatter diff; no runtime test reviewer
+```
