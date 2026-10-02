@@ -3895,12 +3895,12 @@ reviewer: Codex review of qualified lifecycle branches, CI-only deny cases, vali
 ### CM-02 schema-v1 lifecycle bypass correction (2026-10-02)
 
 ```text
-source_snapshot: `f28f1b5b` plus isolated source commit recorded in the branch history; `kiana-domain/src/memory.rs`, `kiana-domain/src/storage_schema.rs`, `kiana-domain/tests/cm02_memory.rs`, `kiana-domain/tests/cm05_memory_eventstore.rs`, `docs/roadmap/memory-lifecycle-baseline.md`
-worktree_status: schema-v1 Native records are rejected by lifecycle validation and visibility; `MemoryJournalFact` projection reaches the same fail-closed gate; the explicit v1 legacy importer and named storage upcaster continue producing v2 LegacyImport records
-command_argv: read-only source searches and exact diff review; no local test/build/check/format/clippy/smoke command
-cwd·environment: isolated Git worktree `/tmp/kiana-cm02-v1-lifecycle-20261002`; GitHub Actions is the only test executor
+source_snapshot: isolated source commit `84c1c95ea2e791d927a4244185a88114db537574` based on `f28f1b5b`; cherry-picked to local master as `9ac1918f`; `kiana-domain/src/memory.rs`, `kiana-domain/src/storage_schema.rs`, `kiana-domain/tests/cm02_memory.rs`, `kiana-domain/tests/cm05_memory_eventstore.rs`, `docs/roadmap/memory-lifecycle-baseline.md`
+worktree_status: source commit `84c1c95e` was manually reviewed and cherry-picked to local master as `9ac1918f`; push of the code and evidence update is pending. Schema-v1 Native records are rejected by lifecycle validation and visibility; `MemoryJournalFact` projection reaches the same fail-closed gate; the explicit v1 legacy importer and named storage upcaster continue producing v2 LegacyImport records
+command_argv: read-only source searches and exact diff review; `git cherry-pick 84c1c95ea2e791d927a4244185a88114db537574`; `git push origin master` pending; no local test/build/check/format/clippy/smoke command
+cwd·environment: source review in `/tmp/kiana-cm02-v1-lifecycle-20261002`; cherry-pick and integration in `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; GitHub Actions is the only test executor
 fixture·cassette: `schema_v1_native_qualified_record_requires_explicit_legacy_import`, `memory_event_projection_rejects_schema_v1_native_qualified_record`, and `legacy_memory_is_unverifiable_until_reviewed` upcaster control
-exit_code: no local tests/build/check/format/clippy/smoke or `git diff --check` run; GitHub CI has not run for this commit
+exit_code: isolated source commit `84c1c95e` and local cherry-pick `9ac1918f` succeeded; no local tests/build/check/format/clippy/smoke or `git diff --check` run; push pending; GitHub CI has not run for this commit
 status_change: CM-02 remains 🔄; direct v1 Native Qualified/Active lifecycle and EventLog projection paths deny, while explicit legacy import/upcast remains supported
 proof-level change: `feature_status=partial`, `proof_level=source`; no local_behavior, durable, live or physical promotion
 limitations: the new fixtures await GitHub CI; event-to-quote/source binding remains CM-14/CM-25+, dependency invalidation remains CM-06, and this source slice establishes no semantic recall or durable-memory outcome

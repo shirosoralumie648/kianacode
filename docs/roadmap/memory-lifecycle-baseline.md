@@ -120,12 +120,12 @@ the source schema intact while validating its field boundary, then delegates the
 explicit importer.
 
 ```text
-source_snapshot: f28f1b5b plus isolated branch commit recorded in CURRENT_STATUS.md
+source_snapshot: source commit `84c1c95ea2e791d927a4244185a88114db537574` based on `f28f1b5b`, integrated locally as `9ac1918f`
 worktree_status: schema-v1 Native records fail lifecycle validation and visibility; EventLog projection inherits the same denial; explicit JSONL import and named storage upcast still produce v2 LegacyImport records; roadmap remains partial/source pending GitHub CI
-command_argv: source review of MemoryRecord lifecycle/import/visibility, storage upcast, and CM-02/CM-05 fixtures; `git diff` manual review; no Cargo tests/build/check/fmt/clippy/smoke
-cwd/environment: `/tmp/kiana-cm02-v1-lifecycle-20261002`; GitHub Actions is the only test executor
+command_argv: source review of MemoryRecord lifecycle/import/visibility, storage upcast, and CM-02/CM-05 fixtures; `git diff` manual review; cherry-pick `84c1c95e`; push pending; no Cargo tests/build/check/fmt/clippy/smoke
+cwd/environment: source review in `/tmp/kiana-cm02-v1-lifecycle-20261002`; integration in repository root; GitHub Actions is the only test executor
 fixture or cassette: `schema_v1_native_qualified_record_requires_explicit_legacy_import`; `memory_event_projection_rejects_schema_v1_native_qualified_record`; `legacy_memory_is_unverifiable_until_reviewed` includes explicit upcaster control
-exit_code: no local tests, build, check, format, clippy, smoke, or diff-check command run; GitHub CI pending after integration
+exit_code: source commit and cherry-pick succeeded; no local tests, build, check, format, clippy, smoke, or diff-check command run; push and GitHub CI pending
 status_change: CM-02 remains 🔄; v1 Native Qualified/Active records can no longer become searchable through direct lifecycle or EventLog projection paths, while explicit v1 import/upcast remains available
 proof-level_change: `feature_status=partial`; `proof_level=source`; no runtime/durable/live/physical promotion
 limitations: fixtures await GitHub CI; event-to-quote/source binding remains CM-14/CM-25+; dependency invalidation remains CM-06; purpose/sensitivity derivation and retention policy remain later scope; no semantic recall or durable-memory claim is made
