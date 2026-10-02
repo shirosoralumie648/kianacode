@@ -178,6 +178,9 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             measured = usage(&value["usage"], "prompt_tokens", "completion_tokens")?;
         }
         ModelProtocol::OpenAiResponses => {
+            if value["status"] == "incomplete" {
+                return Err(error("model_transport_incomplete"));
+            }
             if value["status"] != "completed" {
                 return Err(error("provider_response_incomplete"));
             }
@@ -272,6 +275,9 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
         }
         ModelProtocol::GeminiInteractions => {
             let status = required(&value, "status")?;
+            if status == "incomplete" {
+                return Err(error("model_transport_incomplete"));
+            }
             if !matches!(status, "completed" | "requires_action") {
                 return Err(error("provider_response_incomplete"));
             }
@@ -749,7 +755,8 @@ impl Accumulator {
                 self.final_value = Some(value["response"].clone());
                 self.finished = true;
             }
-            Some("response.failed" | "response.incomplete" | "error") => {
+            Some("response.incomplete") => return Err(error("model_transport_incomplete")),
+            Some("response.failed" | "error") => {
                 return Err(error("provider_response_incomplete"))
             }
             Some("response.refusal.delta" | "response.refusal.done") => {
@@ -868,7 +875,8 @@ impl Accumulator {
                         }
                         self.gemini_terminal_status = Some(status.to_owned());
                     }
-                    "failed" | "cancelled" | "incomplete" | "queued" | "budget_exceeded" => {
+                    "incomplete" => return Err(error("model_transport_incomplete")),
+                    "failed" | "cancelled" | "queued" | "budget_exceeded" => {
                         return Err(error("provider_response_incomplete"));
                     }
                     _ => return Err(error("provider_unexpected_status_update")),
@@ -1913,15 +1921,17 @@ mod tests {
     #[test]
     fn responses_incomplete_and_hosted_items_fail_closed() {
         let prepared = responses_prepared();
-        assert_eq!(
-            decode(
-                serde_json::json!({"id":"response-1","status":"incomplete","output":[]}),
-                &prepared,
-            )
-            .unwrap_err()
-            .code,
-            "provider_response_incomplete"
-        );
+        let error = decode(
+            serde_json::json!({
+                "id":"response-1",
+                "status":"incomplete",
+                "output":[{"type":"function_call","call_id":"call-1","name":"shell","arguments":"{\"command\":\"echo blocked\"}"}]
+            }),
+            &prepared,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "model_transport_incomplete");
+        assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
         assert_eq!(
             decode(
                 serde_json::json!({"id":"response-1","status":"completed","output":[{"type":"computer_call"}]}),
@@ -1931,6 +1941,79 @@ mod tests {
             .code,
             "provider_hosted_tool_denied"
         );
+    }
+
+    #[test]
+    fn explicit_incomplete_statuses_share_one_fail_closed_outcome() {
+        let mut openai_chat = anthropic_prepared();
+        openai_chat.route.provider_id = "openai".to_owned();
+        openai_chat.route.protocol = ModelProtocol::OpenAiChat;
+        openai_chat.seal();
+
+        let cases = [
+            (
+                anthropic_prepared(),
+                json!({
+                    "content":[{"type":"tool_use","id":"call-1","name":"shell","input":{"command":"echo blocked"}}],
+                    "stop_reason":"incomplete",
+                    "usage":{"input_tokens":1,"output_tokens":1}
+                }),
+            ),
+            (
+                openai_chat,
+                json!({"choices":[{"index":0,"message":{"content":"partial","tool_calls":[{"id":"call-1","type":"function","function":{"name":"shell","arguments":"{\"command\":\"echo blocked\"}"}}]},"finish_reason":"incomplete"}]}),
+            ),
+            (
+                responses_prepared(),
+                json!({"id":"response-1","status":"incomplete","output":[{"type":"function_call","call_id":"call-1","name":"shell","arguments":"{\"command\":\"echo blocked\"}"}]}),
+            ),
+            (
+                ollama_prepared(),
+                json!({"model":"fixture","message":{"role":"assistant","content":"partial","tool_calls":[{"function":{"name":"shell","arguments":{"command":"echo blocked"}}}]},"done":true,"done_reason":"incomplete"}),
+            ),
+            (
+                gemini_prepared(),
+                json!({"id":"interaction-1","status":"incomplete","steps":[{"type":"function_call","id":"call-1","name":"shell","arguments":{"command":"echo blocked"}}]}),
+            ),
+        ];
+
+        for (prepared, response) in cases {
+            let error = decode(response, &prepared).unwrap_err();
+            assert_eq!(error.code, "model_transport_incomplete");
+            assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
+        }
+    }
+
+    #[test]
+    fn explicit_incomplete_stream_events_share_one_fail_closed_outcome() {
+        let cases = [
+            (
+                ModelProtocol::OpenAiResponses,
+                vec![r#"{"type":"response.incomplete","response":{"id":"response-1","status":"incomplete"}}"#],
+            ),
+            (
+                ModelProtocol::GeminiInteractions,
+                vec![
+                    r#"{"event_type":"interaction.created","interaction":{"id":"interaction-1","status":"in_progress"}}"#,
+                    r#"{"event_type":"interaction.status_update","interaction_id":"interaction-1","status":"incomplete"}"#,
+                ],
+            ),
+        ];
+
+        for (protocol, frames) in cases {
+            let mut accumulator = Accumulator::new(protocol);
+            let mut deltas = Vec::new();
+            let mut observed = None;
+            for frame in frames {
+                if let Err(error) = accumulator.push(frame, &mut sink(&mut deltas)) {
+                    observed = Some(error);
+                    break;
+                }
+            }
+            let error = observed.expect("explicit incomplete stream status must fail");
+            assert_eq!(error.code, "model_transport_incomplete");
+            assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
+        }
     }
 
     #[test]

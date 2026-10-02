@@ -55,6 +55,52 @@ async fn length_stop_never_dispatches_tools_or_completes_turn() {
     );
 }
 
+#[tokio::test]
+async fn incomplete_stop_never_dispatches_tools_or_completes_turn() {
+    let mut output = ModelOutput::with_tool(
+        "partial response",
+        "shell",
+        json!({"command": "echo must-not-run"}),
+    );
+    output.stop_reason = Some("incomplete".to_owned());
+    let harness = KianaHarness::new(Arc::new(ScriptedModel::new(vec![output])));
+    let run_id = RunId::new();
+
+    let events = harness
+        .send(RunnerCommand::start_in(
+            run_id,
+            "return an incomplete tool call",
+            "/repo",
+            "read-only",
+        ))
+        .await
+        .expect("an incomplete model stop is represented as a RunnerEvent");
+
+    assert!(events.iter().any(|event| {
+        matches!(
+            event,
+            RunnerEvent::Failed { run_id: failed_run, error }
+                if *failed_run == run_id && error == "model_transport_incomplete"
+        )
+    }));
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| matches!(event, RunnerEvent::CapabilityRequested { .. }))
+            .count(),
+        0,
+        "incomplete output must not hand tool calls to ControlPlane/Broker: {events:?}"
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| matches!(event, RunnerEvent::Completed { .. }))
+            .count(),
+        0,
+        "incomplete output must not complete the turn: {events:?}"
+    );
+}
+
 #[test]
 fn harness_stop_and_retry_paths_are_typed_and_fail_closed() {
     let harness = include_str!("../src/harness.rs");

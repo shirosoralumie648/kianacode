@@ -55,6 +55,21 @@ fn unknown_stop_reason_fails_closed() {
 }
 
 #[test]
+fn explicit_incomplete_stop_is_not_success_even_with_tool_calls() {
+    let mut output = ModelOutput::with_tool(
+        "partial response",
+        "shell",
+        serde_json::json!({"command": "echo blocked"}),
+    );
+    output.stop_reason = Some("incomplete".to_owned());
+
+    assert_eq!(output.normalized_stop_reason(), ModelStopReason::Incomplete);
+    let error = ModelReply::legacy(output).unwrap_err();
+    assert_eq!(error.code, "model_transport_incomplete");
+    assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
+}
+
+#[test]
 fn normal_text_stop_finishes_and_tool_stop_continues() {
     let text = ModelOutput {
         text: "done".to_owned(),

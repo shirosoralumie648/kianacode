@@ -921,7 +921,8 @@ impl ModelFinish {
         let finish = match reason {
             Some("stop" | "end_turn" | "completed") => Self::EndTurn,
             Some("tool_use" | "tool_calls" | "requires_action") => Self::ToolUse,
-            Some("length" | "max_tokens" | "MAX_TOKENS" | "incomplete") => Self::Length,
+            Some("length" | "max_tokens" | "MAX_TOKENS") => Self::Length,
+            Some("incomplete") => Self::Incomplete,
             Some("refusal" | "content_filter" | "SAFETY") => Self::Refusal,
             Some("pause_turn") => Self::Pause,
             None if legacy => {

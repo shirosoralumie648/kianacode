@@ -18702,3 +18702,18 @@ proof-level change: none; this is CI target routing, not runtime evidence
 limitations: no test was run locally; this change only corrects shard coverage and does not establish that the CO-06 target passes
 reviewer: Codex matched the exact remote validator diagnostic to the absent test target and added only that target to the existing core shard
 ```
+
+### H05 explicit incomplete classification slice (2026-10-02)
+
+```text
+source_snapshot: base `4e54356b`; `kiana-domain/src/model.rs` sha256 `30724bcc1dc42b2129712f92c67cd709597b39c4e17e09c36a00ad37d8a4b702`; `kiana-provider/src/response.rs` sha256 `95590f54331f8b86f5ab7651134a932caf5606fddc1eaaaba3daead26d12b301`; `kiana-domain/tests/h05_model_outcome.rs` sha256 `91264fcc6c82a91587db80d4afde52c12611c615abe1def1059824eceaa1cf6f`; `kiana-runner/tests/h05_stop_guard.rs` sha256 `5eb206a2e2241db713fe2c86452e428efb103364548c60d7f480573a50dc2051`
+worktree_status: isolated branch `fix/h05-incomplete-normalization-20261002`; explicit `incomplete` now maps to the existing Incomplete finish/stop reason and stable `model_transport_incomplete` across recognized Provider response and stream status surfaces; Domain, Provider, and Runner deny-first fixtures cover tool-bearing partial output; retry/repair policy, 503 behavior, cassette compatibility, and manifests are untouched
+command_argv: `git rev-parse origin/master`; `rg -n ...`; `sha256sum kiana-domain/src/model.rs kiana-provider/src/response.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/tests/h05_stop_guard.rs`; `git diff`
+cwd·environment: `/tmp/kiana-h05-incomplete-normalization-20261002`; Linux; source-only inspection; no local test/build/check/fmt/clippy/smoke command was run
+fixture·cassette: `explicit_incomplete_stop_is_not_success_even_with_tool_calls`; `explicit_incomplete_statuses_share_one_fail_closed_outcome`; `explicit_incomplete_stream_events_share_one_fail_closed_outcome`; `incomplete_stop_never_dispatches_tools_or_completes_turn`; wired through existing `kiana-domain-s3/4`, `kiana-provider`, and `kiana-runner` CI shards
+exit_code: no local test command run; this isolated branch has not been pushed, so no GitHub CI result exists for this slice
+status_change: H05 remains `feature_status=partial`, `proof_level=source`; explicit incomplete classification is now consistent and tool-bearing incomplete output is rejected before Harness handoff
+proof-level change: none; no runtime, durable, live, or physical proof promotion
+limitations: CI fixtures are not yet observed remotely; Provider statuses outside explicit `incomplete` retain their existing classifications; no network Provider behavior is claimed
+reviewer: Codex source review; no runtime test reviewer
+```
