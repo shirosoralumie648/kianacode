@@ -110,13 +110,30 @@ impl StorageLease {
                 return Err(PortError::Failed(format!("storage_lock_open:{error}")));
             }
         };
-        let record =
-            StorageLockRecord::new(&identity, &root.owner_scope, now).map_err(PortError::Failed)?;
-        let bytes = canonical_journal_bytes(&record).map_err(PortError::Failed)?;
-        lock_file
-            .write_all(&bytes)
-            .and_then(|_| lock_file.sync_all())
-            .map_err(|error| PortError::Failed(format!("storage_lock_sync:{error}")))?;
+        let record = (|| {
+            let record = StorageLockRecord::new(&identity, &root.owner_scope, now)
+                .map_err(PortError::Failed)?;
+            let bytes = canonical_journal_bytes(&record).map_err(PortError::Failed)?;
+            lock_file
+                .write_all(&bytes)
+                .and_then(|_| lock_file.sync_all())
+                .map_err(|error| PortError::Failed(format!("storage_lock_sync:{error}")))?;
+            Ok::<_, PortError>(record)
+        })();
+        let record = match record {
+            Ok(record) => record,
+            Err(initialization_error) => {
+                if let Err(cleanup_error) = lock_directory
+                    .remove_owned_file(STORAGE_LOCK_FILE, &lock_file)
+                    .map_err(storage_io_error)
+                {
+                    return Err(PortError::Failed(format!(
+                        "storage_lock_initialization_cleanup_failed:setup={initialization_error};cleanup={cleanup_error}"
+                    )));
+                }
+                return Err(initialization_error);
+            }
+        };
         Ok(Self {
             root,
             identity,

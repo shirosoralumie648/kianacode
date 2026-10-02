@@ -165,6 +165,64 @@ fn daemon_storage_lock_conflict_rejects_a_fifo_without_reading_it() {
     fs::remove_dir_all(path).unwrap();
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn daemon_storage_lock_initialization_failure_releases_owned_file() {
+    const CHILD_ENV: &str = "KIANA_PD01_LOCK_INIT_FAILURE_CHILD";
+    if std::env::var_os(CHILD_ENV).is_some() {
+        let (path, root) = fixture_root("lock-init-failure");
+        StorageLease::acquire(root.clone())
+            .unwrap()
+            .release()
+            .unwrap();
+
+        assert_ne!(
+            unsafe { libc::signal(libc::SIGXFSZ, libc::SIG_IGN) },
+            libc::SIG_ERR
+        );
+        let mut original_limit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        assert_eq!(
+            unsafe { libc::getrlimit(libc::RLIMIT_FSIZE, &mut original_limit) },
+            0
+        );
+        let mut failure_limit = original_limit;
+        failure_limit.rlim_cur = 0;
+        assert_eq!(
+            unsafe { libc::setrlimit(libc::RLIMIT_FSIZE, &failure_limit) },
+            0
+        );
+
+        assert!(matches!(
+            StorageLease::acquire(root.clone()),
+            Err(PortError::Failed(reason)) if reason.starts_with("storage_lock_sync:")
+        ));
+        let lock_path = path.join("locks/storage.lock");
+        assert_eq!(
+            fs::symlink_metadata(&lock_path).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+
+        assert_eq!(
+            unsafe { libc::setrlimit(libc::RLIMIT_FSIZE, &original_limit) },
+            0
+        );
+        StorageLease::acquire(root).unwrap().release().unwrap();
+        fs::remove_dir_all(path).unwrap();
+        return;
+    }
+
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .arg("--exact")
+        .arg("daemon_storage_lock_initialization_failure_releases_owned_file")
+        .env(CHILD_ENV, "1")
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
 #[cfg(unix)]
 #[test]
 fn daemon_storage_release_keeps_a_replacement_lock() {
