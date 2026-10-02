@@ -19542,3 +19542,18 @@ proof-level change: none
 limitations: new CI phase output is pending and no CompanyProof target pass is established; stack-overflow root cause remains unknown. Cross-store atomicity/reconciliation, product UI original/current comparison, cross-process recovery, retention/deletion and power-loss durability remain open.
 reviewer: remote daemon log and static trace through CompanyProof, ArtifactStore reads, authority initialization and command handling; no local runtime reviewer
 ```
+
+### CI-03 checked credential resolution reference binding (2026-10-03)
+
+```text
+source_snapshot: isolated commit `05cd1830f34c416b05ccac281e80f0c0df9f50ea`; integrated source commit `a7f65fb22a6b42984fb15526457c9cca3ba04bc6`; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`; `docs/roadmap.md`
+worktree_status: `CredentialResolution::validate_for` validates metadata and exact requested SecretRef/generation; default `resolve_credential_checked` invokes the check; stale generation returns typed `credential_resolution_ref_mismatch`; raw compatibility resolver remains available; no production adapter, manifest or lockfile changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; isolated staged diff/show checks; root `git cherry-pick 05cd1830`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-ci03-next-20261003`, branch `fix/ci03-next-slice-20261003`; integration in repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `credential_resolution_rejects_a_stale_requested_generation`; existing `unavailable_identity_and_config_ports_fail_closed_and_missing_stays_explicit` now uses `resolve_credential_checked`; unified CI routes `ci03_ports` through the kiana-ports shard; no receipt for this source snapshot yet
+exit_code: isolated format/diff/show checks passed; no local runtime result; remote mismatch fixture pending after push
+status_change: CI-03 remains roadmap row 086 `🔄`, `feature_status=partial`, `proof_level=source`; checked resolver path now binds returned metadata to the requested SecretRef/generation
+proof-level change: none
+limitations: raw compatibility `resolve_credential` remains callable and no production caller migration is included; no production identity/config/credential adapter, SecretStore/lease/OAuth, durable rotation/revoke, cancellation-after-effect or provider live effect is established
+reviewer: source review checked validation ordering, exact reference/generation equality and typed stale conflict; no local runtime reviewer
+```

@@ -123,3 +123,26 @@ expected revision. Run `37054968622`, head `8d42319c`, ports job `110997881209` 
 BQ/PD targets; no workflow or shard-map change is needed. CI-03 remains `partial/source`, and this
 fixture does not prove production adapters, SecretStore/lease behavior, durable identity, or a green
 ports shard.
+
+## 11. Credential resolution reference binding (2026-10-03)
+
+`CredentialResolution::validate_for` now validates the returned non-secret metadata and requires
+the exact `SecretRef` requested by the caller, including its generation. The default
+`CredentialResolver::resolve_credential_checked` adapter method invokes that binding check after
+the compatibility `resolve_credential` method. A stale-generation fake returns a typed
+`credential_resolution_ref_mismatch` conflict; the existing Missing fixture uses the checked path.
+The raw compatibility method remains available, so consumers must opt into the checked wrapper to
+obtain this binding guarantee. No production resolver or raw-secret path was added.
+
+```text
+source_snapshot: isolated commit `05cd1830f34c416b05ccac281e80f0c0df9f50ea`; integrated source commit `a7f65fb22a6b42984fb15526457c9cca3ba04bc6`; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`
+worktree_status: checked credential resolution validates metadata and exact requested SecretRef; stale generation returns `PortError::Conflict("credential_resolution_ref_mismatch")`; no production adapter, manifest or lockfile changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; isolated staged diff/show checks; root `git cherry-pick 05cd1830`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-ci03-next-20261003`, branch `fix/ci03-next-slice-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `credential_resolution_rejects_a_stale_requested_generation`; existing `unavailable_identity_and_config_ports_fail_closed_and_missing_stays_explicit` now exercises `resolve_credential_checked`; unified `.github/workflows/ci.yml` routes `ci03_ports` through the ports shard; fresh CI receipt pending after push
+exit_code: isolated formatting/diff/show checks passed; no local runtime result; new mismatch target awaits GitHub CI
+status_change: CI-03 remains roadmap row 086 `🔄`, `feature_status=partial`, `proof_level=source`; the port layer now offers an explicit reference-bound resolution path
+proof-level change: none
+limitations: the raw compatibility resolver remains callable and no production caller has been migrated in this slice; no production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapter, SecretStore/lease/OAuth, durable rotation/revoke, cancellation-after-effect or provider live effect is established
+reviewer: source review checked metadata validation ordering, exact SecretRef/generation comparison and stale conflict typing; no local runtime reviewer
+```
