@@ -1,7 +1,7 @@
 use kiana_domain::{
     ModelError, ModelFinish, ModelMessage, ModelOutput, ModelRecoveryDisposition, ModelReply,
     ModelRetryClass, ModelSideEffectState, ModelStopReason, RetryDenyReason, RetryObservation,
-    RetryPolicy,
+    RetryPolicy, RunId,
 };
 
 #[test]
@@ -108,8 +108,45 @@ fn recovery_dispositions_are_typed_and_survive_error_round_trips() {
         let decoded: ModelError = serde_json::from_value(encoded).unwrap();
         assert_eq!(decoded.recovery_disposition, disposition);
 
-        decoded.outcome().validate().unwrap();
+        let outcome = decoded.outcome();
+        assert_eq!(outcome.recovery_disposition, disposition);
+        outcome.validate().unwrap();
+        let encoded = serde_json::to_value(&outcome).unwrap();
+        let decoded: kiana_domain::ModelOutcome = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded.recovery_disposition, disposition);
     }
+}
+
+#[test]
+fn successful_model_outcome_records_terminal_no_recovery() {
+    let mut output = ModelOutput::text("done");
+    output.stop_reason = Some("end_turn".to_owned());
+    let reply = ModelReply::legacy(output).unwrap();
+    let outcome = reply.outcome();
+    assert_eq!(
+        outcome.recovery_disposition,
+        ModelRecoveryDisposition::Terminal
+    );
+    outcome.validate().unwrap();
+    let encoded = serde_json::to_value(&outcome).unwrap();
+    let decoded: kiana_domain::ModelOutcome = serde_json::from_value(encoded).unwrap();
+    assert_eq!(
+        decoded.recovery_disposition,
+        ModelRecoveryDisposition::Terminal
+    );
+}
+
+#[test]
+fn model_turn_event_contract_accepts_typed_recovery_outcome() {
+    let outcome = ModelError::invalid("format_rejected")
+        .with_recovery_disposition(ModelRecoveryDisposition::FormatRepair)
+        .outcome();
+    let payload = serde_json::json!({
+        "run_id": RunId::new(),
+        "outcome": outcome
+    });
+    assert_eq!(payload["outcome"]["recovery_disposition"], "format_repair");
+    kiana_domain::validate_event_payload("run.model_turn", &payload).unwrap();
 }
 
 #[test]
@@ -126,6 +163,10 @@ fn legacy_model_error_and_retry_observation_fail_closed_without_disposition() {
     let error: ModelError = serde_json::from_value(legacy).unwrap();
     assert_eq!(
         error.recovery_disposition,
+        ModelRecoveryDisposition::Terminal
+    );
+    assert_eq!(
+        error.outcome().recovery_disposition,
         ModelRecoveryDisposition::Terminal
     );
     let observation = RetryObservation::from_model_error(&error, false, true);
@@ -160,6 +201,31 @@ fn unknown_recovery_disposition_is_rejected() {
     let mut encoded = serde_json::to_value(ModelError::invalid("future_failure")).unwrap();
     encoded["recovery_disposition"] = serde_json::json!("future_repair");
     assert!(serde_json::from_value::<ModelError>(encoded).is_err());
+
+    let outcome = ModelError::invalid("future_failure").outcome();
+    let mut encoded = serde_json::to_value(&outcome).unwrap();
+    encoded["recovery_disposition"] = serde_json::json!("future_repair");
+    assert!(serde_json::from_value::<kiana_domain::ModelOutcome>(encoded).is_err());
+}
+
+#[test]
+fn legacy_model_outcome_without_recovery_disposition_defaults_terminal() {
+    let legacy = serde_json::json!({
+        "schema": kiana_domain::MODEL_OUTCOME_SCHEMA,
+        "stop_reason": "unknown",
+        "phase": "validation",
+        "retry_class": "never",
+        "request_sent": false,
+        "side_effect_state": "none",
+        "error_code": "future_failure",
+        "safe_message": "future_failure"
+    });
+    let outcome: kiana_domain::ModelOutcome = serde_json::from_value(legacy).unwrap();
+    assert_eq!(
+        outcome.recovery_disposition,
+        ModelRecoveryDisposition::Terminal
+    );
+    outcome.validate().unwrap();
 }
 
 #[test]

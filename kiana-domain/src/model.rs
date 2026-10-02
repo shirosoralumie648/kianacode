@@ -1006,6 +1006,8 @@ pub struct ModelOutcome {
     pub stop_reason: ModelStopReason,
     pub phase: String,
     pub retry_class: ModelRetryClass,
+    #[serde(default)]
+    pub recovery_disposition: ModelRecoveryDisposition,
     pub request_sent: bool,
     pub side_effect_state: ModelSideEffectState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1020,6 +1022,8 @@ impl ModelOutcome {
             || self.phase.len() > 128
             || self.safe_message.len() > 4_096
             || (self.side_effect_state == ModelSideEffectState::Unknown && !self.request_sent)
+            || (self.recovery_disposition == ModelRecoveryDisposition::TransportRetry
+                && (self.phase != "transport" || self.retry_class == ModelRetryClass::Never))
         {
             return Err(ModelError::invalid("model_outcome_invalid"));
         }
@@ -1082,6 +1086,7 @@ impl ModelError {
             stop_reason,
             phase: self.phase.clone(),
             retry_class: self.retry_class,
+            recovery_disposition: self.recovery_disposition,
             request_sent: self.request_sent,
             side_effect_state: self.side_effect_state,
             error_code: Some(self.code.clone()),
@@ -1165,6 +1170,7 @@ impl ModelReply {
             stop_reason: self.finish.into(),
             phase: "completed".to_owned(),
             retry_class: ModelRetryClass::Never,
+            recovery_disposition: ModelRecoveryDisposition::Terminal,
             request_sent: true,
             side_effect_state: ModelSideEffectState::None,
             error_code: None,

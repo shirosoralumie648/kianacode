@@ -274,6 +274,9 @@ fn harness_stop_and_retry_paths_are_typed_and_fail_closed() {
             "missing typed recovery disposition {marker}"
         );
     }
+    assert!(model.contains("pub struct ModelOutcome"));
+    assert!(model.contains("recovery_disposition: self.recovery_disposition"));
+    assert!(model.contains("recovery_disposition: ModelRecoveryDisposition::Terminal"));
     assert!(retry_runtime
         .contains("error.recovery_disposition == ModelRecoveryDisposition::TransportRetry"));
     assert!(retry_runtime.contains("unsupported_recovery_reason"));

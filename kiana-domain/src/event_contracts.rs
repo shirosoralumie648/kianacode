@@ -280,6 +280,7 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "elapsed_ms",
     "finish",
     "retry_class",
+    "outcome",
     "assistant",
     "error",
     "cache_usage",
