@@ -694,3 +694,36 @@ fn approval_consumed_contract_matches_consumption_producer_and_is_terminal() {
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn approval_continuation_unavailable_contract_matches_recovery_producer() {
+    let spec = event_kind_spec("approval.continuation_unavailable").unwrap();
+    assert_eq!(spec.aggregate_type, "approval");
+    assert_eq!(spec.required_ids, &["approval_id", "run_id"][..]);
+    assert_eq!(spec.allowed_fields, &["approval_id", "run_id", "error"][..]);
+    assert!(spec.terminal);
+    assert_eq!(
+        event_migration("approval.continuation_unavailable", 0, 1),
+        Some("legacy_approval_event_v0_to_v1")
+    );
+
+    let mut payload = json!({
+        "approval_id": kiana_domain::ApprovalId::new(),
+        "run_id": kiana_domain::RunId::new(),
+        "error": "approval_continuation_unavailable",
+    });
+    validate_event_payload("approval.continuation_unavailable", &payload).unwrap();
+
+    let mut missing_run = payload.clone();
+    missing_run.as_object_mut().unwrap().remove("run_id");
+    assert_eq!(
+        validate_event_payload("approval.continuation_unavailable", &missing_run).unwrap_err(),
+        "event_required_id_missing:run_id"
+    );
+
+    payload["unexpected_approval_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("approval.continuation_unavailable", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}

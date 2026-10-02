@@ -613,6 +613,8 @@ const APPROVAL_CONSUMED_FIELDS: &[&str] = &[
     "decided_by",
     "consumption_fact",
 ];
+const APPROVAL_CONTINUATION_UNAVAILABLE_IDS: &[&str] = &["approval_id", "run_id"];
+const APPROVAL_CONTINUATION_UNAVAILABLE_FIELDS: &[&str] = &["approval_id", "run_id", "error"];
 const ACTION_FIELDS: &[&str] = &[
     "request_id",
     "action_digest",
@@ -1304,8 +1306,8 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "approval.continuation_unavailable",
         "approval",
-        APPROVAL_IDS,
-        APPROVAL_FIELDS,
+        APPROVAL_CONTINUATION_UNAVAILABLE_IDS,
+        APPROVAL_CONTINUATION_UNAVAILABLE_FIELDS,
         true,
         Some("legacy_approval_event_v0_to_v1")
     ),

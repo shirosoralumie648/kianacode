@@ -31,6 +31,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "APPROVAL_EXPIRED_FIELDS",
         "APPROVAL_CANCELLED_FIELDS",
         "APPROVAL_CONSUMED_FIELDS",
+        "APPROVAL_CONTINUATION_UNAVAILABLE_IDS",
+        "APPROVAL_CONTINUATION_UNAVAILABLE_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -57,6 +59,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("approval_expired_contract_matches_expiry_producer"));
     assert!(baseline.contains("approval_cancelled_contract_matches_both_cancellation_producers"));
     assert!(baseline.contains("approval_consumed_contract_matches_consumption_producer"));
+    assert!(
+        baseline.contains("approval_continuation_unavailable_contract_matches_recovery_producer")
+    );
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -109,4 +114,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     ));
     assert!(journal_approvals.contains("with_fact(event, \"consumption_fact\", &consumption_fact)"));
     assert!(states.contains("Self::Denied | Self::Expired | Self::Cancelled | Self::Consumed"));
+    assert!(approvals.contains("\"approval.continuation_unavailable\""));
+    assert!(approvals.contains(
+        "\"approval_id\": approval_id,\n                        \"run_id\": persisted_approval.run_id,\n                        \"error\": \"approval_continuation_unavailable\","
+    ));
 }
