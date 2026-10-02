@@ -3074,7 +3074,11 @@ async fn start_run_brokers_harness_tools() {
 
 #[tokio::test]
 async fn reserved_authority_fields_cannot_change_execution_scope() {
-    let mut context = RequestContext::local(RunId::new().to_string(), "/repo");
+    let project_root = temp_project();
+    let mut context = RequestContext::local(
+        RunId::new().to_string(),
+        project_root.to_string_lossy().into_owned(),
+    );
     context.project_trusted = true;
     context.permission_profile = PermissionProfile::Balanced;
     let capability_request_id = RequestId::new();
