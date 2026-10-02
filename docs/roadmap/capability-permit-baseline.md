@@ -36,8 +36,10 @@ handler 路径。没有新事件存储、第二执行循环或权限并集。
 | `concurrent_dispatch_consumes_one_permit` | 两个并发 verifier 只有一个可消费同一 permit |
 | `preexisting_executing_fact_is_rejected_without_dispatching_or_effect` | 只有 `execution.prepared` 后出现伪造 executing 事实时，consume fail-closed，不补写 dispatching |
 | `request_drift_does_not_consume_execution_permit` | 不匹配 prepared request 在读取/校验阶段失败，不推进 stream |
+| `prepared_identity_header_drift_does_not_consume_execution_permit` | prepared 顶层 action digest 与 permit 不一致时拒绝消费，stream 保持 prepared-only |
 | `opaque_or_empty_authorization_never_reaches_dispatch` | 任意非 permit/空 permit 标识 fail-closed |
 | `cap05_dispatch_has_no_authorization_or_epoch_bypass` | authority epoch recheck、commit-before-handler 和 no HashSet/source guard |
+| `execution_prepared_contract_requires_server_identity_envelope` | EventKindSpec 接受 run/turn/invocation/execution/request/action/attempt envelope 与可选 cell reservation，并要求非空执行身份字段 |
 
 ## 3. 2026-10-02 atomic start correction
 

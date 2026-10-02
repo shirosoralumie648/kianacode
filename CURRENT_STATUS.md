@@ -19191,3 +19191,18 @@ proof-level change: none; source fixtures encode the expected behavior but were 
 limitations: no handler-count runtime assertion on the actual daemon flow has been observed after this change; no CM-02 candidate/evidence-denial completion, durable JSONL recovery, cross-process contention, OS/external effect exactly-once, live or physical claim is made. The original CI failure is fixed only at the source/contract level until the exact target reruns successfully.
 reviewer: Codex source review of permit identity/scope/read-set checks, atomic TransitionBatch versions, Broker verify-before-handler ordering, forged preexisting executing denial, and H13/H14/H16/H17/CP24 guard consistency; no runtime test reviewer
 ```
+
+### CP-13 prepared envelope alignment follow-up (2026-10-03)
+
+```text
+source_snapshot: parent `591f70f5b382d1d12e7a00093051b6fac5aeaf7b`; `kiana-core/src/dispatch.rs`; `kiana-core/tests/cap05_permit.rs`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `docs/roadmap/capability-permit-baseline.md`; `CURRENT_STATUS.md`
+worktree_status: production `execution.prepared` now writes top-level run_id, turn_id, invocation_id, execution_id, capability_request_id, action_digest and attempt alongside permit/cell_reservation/invocation. The event contract requires the non-null execution identity/action/attempt fields and allows the full envelope plus existing cell_reservation. CAP-05 fixture uses the same top-level shape and checks action-digest tampering is rejected before consume.
+command_argv: `cargo fmt --all --check`; `git diff --check`; source/payload/contract comparison; no local test, build, Cargo check, clippy or smoke run
+cwd·environment: `/tmp/kiana-cm02-execution-permit-cas-20261002`; Linux/bash; isolated branch `fix/cm02-execution-permit-cas-20261002`; no push
+fixture·cassette: new GitHub-only fixtures `kiana-core/tests/cap05_permit.rs::prepared_identity_header_drift_does_not_consume_execution_permit` and `kiana-domain/tests/er01_event_contract.rs::execution_prepared_contract_requires_server_identity_envelope`; CI receipt pending
+exit_code: formatting and `git diff --check` only; post-fix test exit code pending/unobserved
+status_change: CP-13 and CAP-05 remain `partial` / `source`; this follow-up aligns producer payload, verifier checks and event registry, without claiming a runtime pass
+proof-level change: none; local behavior/durable/live/physical proof not established
+limitations: source shape comparison and fixtures do not substitute for the remote CAP-05/domain shard; no daemon handler-count or CM-02 end-to-end receipt is available
+reviewer: Codex source review comparing production payload keys against verifier and EventKindSpec, including action-digest tamper rejection; no runtime test reviewer
+```

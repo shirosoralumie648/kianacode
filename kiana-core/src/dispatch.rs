@@ -610,9 +610,39 @@ impl ControlPlane {
         });
         let invocation =
             typed_invocation_identity(run_id, turn_id, invocation_id, execution_id, request, 1)?;
-        let event=RuntimeEvent::new(dispatch_command_id,1,"execution.prepared",json!({"permit":permit,"cell_reservation":
-            if let Some(id)=request.cell_id {self.cell_registry.reservation_for_cell(id).await?.map(|r|json!({"budget":r.budget,"grant":r.grant,"cell":r.cell}))}else{None}
-        ,"invocation":invocation})).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),1);
+        let cell_reservation = if let Some(cell_id) = request.cell_id {
+            self.cell_registry
+                .reservation_for_cell(cell_id)
+                .await?
+                .map(|reservation| {
+                    json!({
+                        "budget":reservation.budget,
+                        "grant":reservation.grant,
+                        "cell":reservation.cell,
+                    })
+                })
+        } else {
+            None
+        };
+        let event = RuntimeEvent::new(
+            dispatch_command_id,
+            1,
+            "execution.prepared",
+            json!({
+                "run_id":run_id,
+                "turn_id":turn_id,
+                "invocation_id":invocation_id,
+                "execution_id":execution_id,
+                "capability_request_id":request.request_id,
+                "action_digest":permit.action_digest,
+                "attempt":1,
+                "permit":permit,
+                "cell_reservation":cell_reservation,
+                "invocation":invocation,
+            }),
+        )
+        .map_err(|error| dispatch_error(&error.to_string()))?
+        .with_stream_metadata("execution_permit", execution_id.to_string(), 1);
         let mut event = event;
         event.data = super::redaction::redact_event_value(&event.data);
         events.push(event);

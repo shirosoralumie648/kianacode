@@ -66,3 +66,61 @@ fn payload_unknown_field_is_not_silently_dropped() {
         "unknown_required_event_kind"
     );
 }
+
+#[test]
+fn execution_prepared_contract_requires_server_identity_envelope() {
+    let spec = event_kind_spec("execution.prepared").unwrap();
+    for field in [
+        "run_id",
+        "turn_id",
+        "invocation_id",
+        "execution_id",
+        "capability_request_id",
+        "action_digest",
+        "attempt",
+        "permit",
+        "cell_reservation",
+        "invocation",
+    ] {
+        assert!(
+            spec.allowed_fields.contains(&field),
+            "execution.prepared field not allowed: {field}"
+        );
+    }
+    for field in [
+        "execution_id",
+        "invocation_id",
+        "capability_request_id",
+        "action_digest",
+        "attempt",
+    ] {
+        assert!(
+            spec.required_ids.contains(&field),
+            "execution.prepared identity field not required: {field}"
+        );
+    }
+
+    let payload = json!({
+        "run_id":null,
+        "turn_id":null,
+        "invocation_id":kiana_domain::InvocationId::new(),
+        "execution_id":kiana_domain::ExecutionId::new(),
+        "capability_request_id":kiana_domain::RequestId::new(),
+        "action_digest":format!("sha256:{}", "a".repeat(64)),
+        "attempt":1,
+        "permit":{},
+        "cell_reservation":null,
+        "invocation":null,
+    });
+    validate_event_payload("execution.prepared", &payload).unwrap();
+
+    let mut missing_execution = payload;
+    missing_execution
+        .as_object_mut()
+        .unwrap()
+        .remove("execution_id");
+    assert_eq!(
+        validate_event_payload("execution.prepared", &missing_execution).unwrap_err(),
+        "event_required_id_missing:execution_id"
+    );
+}

@@ -18,7 +18,37 @@ fn request(context: &RequestContext) -> CapabilityRequest {
     )
 }
 
+fn prepared_event_payload(
+    permit: &DispatchPermit,
+    invocation: &InvocationIdentity,
+    cell_reservation: Option<serde_json::Value>,
+) -> serde_json::Value {
+    json!({
+        "run_id":permit.run_id,
+        "turn_id":permit.turn_id,
+        "invocation_id":permit.invocation_id,
+        "execution_id":permit.execution_id,
+        "capability_request_id":permit.request_id,
+        "action_digest":permit.action_digest,
+        "attempt":1,
+        "permit":permit,
+        "cell_reservation":cell_reservation,
+        "invocation":invocation,
+    })
+}
+
 async fn prepared_verifier() -> (
+    Arc<JournalPermitVerifier>,
+    Arc<dyn EventStorePort>,
+    AuthorizedCapabilityRequest,
+    DispatchPermit,
+) {
+    prepared_verifier_with_payload_change(|_| {}).await
+}
+
+async fn prepared_verifier_with_payload_change(
+    change: impl FnOnce(&mut serde_json::Value),
+) -> (
     Arc<JournalPermitVerifier>,
     Arc<dyn EventStorePort>,
     AuthorizedCapabilityRequest,
@@ -77,32 +107,14 @@ async fn prepared_verifier() -> (
     .unwrap();
     let prepared_command =
         kiana_domain::derived_request_id("execution.prepare", &request.request_id.to_string());
+    let mut prepared_payload = prepared_event_payload(&permit, &invocation, None);
+    change(&mut prepared_payload);
     events
         .append(
-            RuntimeEvent::new(
-                prepared_command,
-                1,
-                "execution.prepared",
-                json!({
-                    "run_id":run_id,
-                    "turn_id":turn_id,
-                    "invocation_id":invocation_id,
-                    "execution_id":execution_id,
-                    "capability_request_id":request.request_id,
-                    "attempt":1,
-                    "action_digest":permit.action_digest,
-                    "permit":permit,
-                    "invocation":invocation,
-                }),
-            )
-            .unwrap()
-            .with_stream_metadata("execution_permit", execution_id.to_string(), 1)
-            .with_identity_links(
-                Some(prepared_command),
-                Some(request.request_id),
-                None,
-                None,
-            ),
+            RuntimeEvent::new(prepared_command, 1, "execution.prepared", prepared_payload)
+                .unwrap()
+                .with_stream_metadata("execution_permit", execution_id.to_string(), 1)
+                .with_identity_links(Some(prepared_command), Some(request.request_id), None, None),
         )
         .await
         .unwrap();
@@ -259,6 +271,25 @@ async fn request_drift_does_not_consume_execution_permit() {
 }
 
 #[tokio::test]
+async fn prepared_identity_header_drift_does_not_consume_execution_permit() {
+    let (verifier, events, authorized, permit) = prepared_verifier_with_payload_change(|payload| {
+        payload["action_digest"] = json!(format!("sha256:{}", "0".repeat(64)));
+    })
+    .await;
+
+    assert!(matches!(
+        verifier.verify_and_consume(&authorized).await,
+        Err(PortError::Failed(reason)) if reason == "execution_permit_invalid"
+    ));
+    let records = events
+        .read_stream("execution_permit", &permit.execution_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].kind, "execution.prepared");
+}
+
+#[tokio::test]
 async fn opaque_or_empty_authorization_never_reaches_dispatch() {
     let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
     let verifier = JournalPermitVerifier::new(events);
@@ -288,6 +319,9 @@ fn cap05_dispatch_has_no_authorization_or_epoch_bypass() {
         "execution_permit_required",
         "execution_permit_already_consumed",
         "execution_permit_invocation_mismatch",
+        "action_digest",
+        "cell_reservation",
+        "attempt",
         "validate_for_request",
         "old_epoch_permit_rejected",
         "authority_versions",

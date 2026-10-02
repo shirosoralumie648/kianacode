@@ -14,6 +14,13 @@ pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 const REQUEST_IDS: &[&str] = &["request_id"];
 const RUN_IDS: &[&str] = &["run_id"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
+const EXECUTION_PREPARED_IDS: &[&str] = &[
+    "execution_id",
+    "invocation_id",
+    "capability_request_id",
+    "action_digest",
+    "attempt",
+];
 const INPUT_IDS: &[&str] = &["run_id", "input_id"];
 const CLARIFICATION_IDS: &[&str] = &["run_id", "interaction_id", "turn_id"];
 const APPROVAL_IDS: &[&str] = &["approval_id"];
@@ -242,6 +249,7 @@ const INVOCATION_FIELDS: &[&str] = &[
     "permit",
     "permit_digest",
     "invocation",
+    "cell_reservation",
     "effect_usage",
     "owner_digest",
     "lease_digest",
@@ -1203,7 +1211,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "execution.prepared",
         "execution_permit",
-        INVOCATION_IDS,
+        EXECUTION_PREPARED_IDS,
         INVOCATION_FIELDS,
         false,
         Some("legacy_invocation_event_v0_to_v1")
