@@ -95,10 +95,7 @@ impl MemoryConfigSnapshot {
 
 #[async_trait]
 impl ConfigSnapshotStore for MemoryConfigSnapshot {
-    async fn read_snapshot(
-        &self,
-        project: &ProjectIdentity,
-    ) -> Result<ConfigSnapshot, PortError> {
+    async fn read_snapshot(&self, project: &ProjectIdentity) -> Result<ConfigSnapshot, PortError> {
         if project.project_id.to_string() != self.project_id {
             return Err(PortError::Unavailable(
                 "config_fixture_project_unavailable".to_owned(),

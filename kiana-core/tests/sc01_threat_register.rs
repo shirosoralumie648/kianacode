@@ -63,7 +63,10 @@ fn threat_register_is_explicit_and_deny_first_without_claiming_enforcement() {
     for number in 1..=12 {
         let id = format!("| SC01:T{number:02} | ");
         assert_eq!(
-            threat_rows.iter().filter(|row| row.starts_with(&id)).count(),
+            threat_rows
+                .iter()
+                .filter(|row| row.starts_with(&id))
+                .count(),
             1,
             "SC-01 threat ID must occur exactly once: {id}"
         );
@@ -94,11 +97,14 @@ fn threat_register_is_explicit_and_deny_first_without_claiming_enforcement() {
             "section 3.4 ID must have exactly one crosswalk row: {id}"
         );
     }
-    assert!(register.contains(
-        "COMPLIANCE-3.4:T02 | confused deputy | SC01:T01, SC01:T03, SC01:T12"
-    ));
+    assert!(
+        register.contains("COMPLIANCE-3.4:T02 | confused deputy | SC01:T01, SC01:T03, SC01:T12")
+    );
     for marker in ["SC01:T01", "SC01:T02", "SC01:T10", "not aliases"] {
-        assert!(crosswalk.contains(marker), "SC-34 namespace marker missing: {marker}");
+        assert!(
+            crosswalk.contains(marker),
+            "SC-34 namespace marker missing: {marker}"
+        );
     }
     for marker in ["T02 confused deputy", "T07 SSRF"] {
         assert!(
@@ -110,7 +116,11 @@ fn threat_register_is_explicit_and_deny_first_without_claiming_enforcement() {
         .lines()
         .filter(|line| line.starts_with("| `"))
         .collect();
-    assert_eq!(fixture_rows.len(), 14, "fixture catalog rows must be complete");
+    assert_eq!(
+        fixture_rows.len(),
+        14,
+        "fixture catalog rows must be complete"
+    );
     for row in fixture_rows {
         let columns: Vec<_> = row.split('|').map(str::trim).collect();
         assert_eq!(columns.len(), 8, "fixture catalog row has an invalid shape");

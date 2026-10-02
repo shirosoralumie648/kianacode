@@ -248,13 +248,7 @@ fn work_graph_rejects_limits_and_preserves_stable_projection() {
 #[test]
 fn work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items() {
     let swarm = SwarmPlanId::new();
-    let mut failed = partition(
-        swarm,
-        0,
-        "input-failed",
-        "project/failed",
-        "src/failed.rs",
-    );
+    let mut failed = partition(swarm, 0, "input-failed", "project/failed", "src/failed.rs");
     failed.status = PartitionStatus::Failed;
     let failed_id = failed.partition_id;
 
@@ -296,11 +290,23 @@ fn work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items() {
         "src/pending-dependency.rs",
     );
     let pending_dependency_id = pending_dependency.partition_id;
-    let mut waiting = partition(swarm, 5, "input-waiting", "project/waiting", "src/waiting.rs");
+    let mut waiting = partition(
+        swarm,
+        5,
+        "input-waiting",
+        "project/waiting",
+        "src/waiting.rs",
+    );
     waiting.dependency_partition_ids = vec![pending_dependency_id];
     let waiting_id = waiting.partition_id;
 
-    let mut running = partition(swarm, 6, "input-running", "project/running", "src/running.rs");
+    let mut running = partition(
+        swarm,
+        6,
+        "input-running",
+        "project/running",
+        "src/running.rs",
+    );
     running.status = PartitionStatus::Running;
     let running_id = running.partition_id;
 
@@ -323,9 +329,27 @@ fn work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items() {
     let after_succeeded_id = after_succeeded.partition_id;
 
     let mut ready_items = vec![
-        partition(swarm, 9, "input-ready-a", "project/ready-a", "src/ready-a.rs"),
-        partition(swarm, 10, "input-ready-b", "project/ready-b", "src/ready-b.rs"),
-        partition(swarm, 11, "input-ready-c", "project/ready-c", "src/ready-c.rs"),
+        partition(
+            swarm,
+            9,
+            "input-ready-a",
+            "project/ready-a",
+            "src/ready-a.rs",
+        ),
+        partition(
+            swarm,
+            10,
+            "input-ready-b",
+            "project/ready-b",
+            "src/ready-b.rs",
+        ),
+        partition(
+            swarm,
+            11,
+            "input-ready-c",
+            "project/ready-c",
+            "src/ready-c.rs",
+        ),
     ];
     let mut expected_ready = vec![pending_dependency_id, after_succeeded_id];
     expected_ready.extend(ready_items.iter().map(|item| item.partition_id));
@@ -366,10 +390,7 @@ fn work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items() {
         .projection(1_001)
         .unwrap();
     partitions.reverse();
-    let reordered_projection = make_graph(partitions)
-        .unwrap()
-        .projection(1_001)
-        .unwrap();
+    let reordered_projection = make_graph(partitions).unwrap().projection(1_001).unwrap();
 
     assert_eq!(projection, reordered_projection);
     assert_eq!(projection.ready, expected_ready);

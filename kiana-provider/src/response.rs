@@ -883,9 +883,7 @@ impl Accumulator {
                 self.finished = true;
             }
             Some("response.incomplete") => return Err(error("model_transport_incomplete")),
-            Some("response.failed" | "error") => {
-                return Err(error("provider_response_incomplete"))
-            }
+            Some("response.failed" | "error") => return Err(error("provider_response_incomplete")),
             Some("response.refusal.delta" | "response.refusal.done") => {
                 return Err(error("model_refused"))
             }
@@ -1854,9 +1852,7 @@ mod tests {
         for (protocol, frame) in frames {
             let mut accumulator = Accumulator::new(protocol);
             let mut deltas = Vec::new();
-            let error = accumulator
-                .push(frame, &mut sink(&mut deltas))
-                .unwrap_err();
+            let error = accumulator.push(frame, &mut sink(&mut deltas)).unwrap_err();
             assert_eq!(error.code, "provider_frame_json_invalid");
             assert!(deltas.is_empty());
         }
@@ -1925,9 +1921,7 @@ mod tests {
             r#"{"type":"message_delta","delta":{"stop_reason":"tool_use"}}"#,
             r#"{"type":"message_stop"}"#,
         ] {
-            anthropic
-                .push(frame, &mut sink(&mut deltas))
-                .unwrap();
+            anthropic.push(frame, &mut sink(&mut deltas)).unwrap();
         }
         let reply = anthropic.finish(&anthropic_prepared()).unwrap();
         assert_eq!(
@@ -2241,7 +2235,9 @@ mod tests {
         let cases = [
             (
                 ModelProtocol::OpenAiResponses,
-                vec![r#"{"type":"response.incomplete","response":{"id":"response-1","status":"incomplete"}}"#],
+                vec![
+                    r#"{"type":"response.incomplete","response":{"id":"response-1","status":"incomplete"}}"#,
+                ],
             ),
             (
                 ModelProtocol::GeminiInteractions,

@@ -219,10 +219,7 @@ fn qualified_memory_requires_review_evidence_and_purpose() {
     );
     assert!(record.searchable());
     let assert_denied = |invalid: &MemoryRecord| {
-        assert_eq!(
-            invalid.visibility(),
-            kiana_domain::MemoryVisibility::Denied
-        );
+        assert_eq!(invalid.visibility(), kiana_domain::MemoryVisibility::Denied);
         assert!(!invalid.searchable());
     };
 

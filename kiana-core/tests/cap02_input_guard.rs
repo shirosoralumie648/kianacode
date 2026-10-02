@@ -50,8 +50,14 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
         "object_form_tool_arguments_over_the_bounded_input_limit_are_rejected",
         "streamed_object_form_tool_arguments_accept_valid_nested_values",
     ] {
-        assert!(provider.contains(fixture), "missing provider fixture {fixture}");
-        assert!(baseline.contains(fixture), "missing baseline fixture {fixture}");
+        assert!(
+            provider.contains(fixture),
+            "missing provider fixture {fixture}"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "missing baseline fixture {fixture}"
+        );
     }
     assert!(baseline.contains("reserved_authority_fields_cannot_change_execution_scope"));
     assert!(baseline.contains("schema_depth_and_reference_limits_fail_before_dispatch"));

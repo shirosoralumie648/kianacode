@@ -175,9 +175,7 @@ impl MemoryRecord {
     pub fn validate_lifecycle(&self) -> Result<(), String> {
         match self.schema.as_str() {
             MEMORY_RECORD_SCHEMA_V2 => {}
-            MEMORY_RECORD_SCHEMA => {
-                return Err("memory_record_legacy_import_required".to_owned())
-            }
+            MEMORY_RECORD_SCHEMA => return Err("memory_record_legacy_import_required".to_owned()),
             _ => return Err("memory_record_schema_unsupported".to_owned()),
         }
         if self.id.trim().is_empty()
