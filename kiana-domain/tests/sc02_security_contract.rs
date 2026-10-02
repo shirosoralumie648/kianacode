@@ -1,8 +1,7 @@
 use kiana_domain::{
     parse_security_object, schema_contract, upcast_security_object, upcast_security_registry,
     SecurityEventId, SecurityObjectEnvelope, SecurityObjectKind, SecurityRegistryId,
-    SecuritySchemaRegistry,
-    SECURITY_OBJECT_SCHEMA, SECURITY_SCHEMA_REGISTRY_SCHEMA,
+    SecuritySchemaRegistry, SECURITY_OBJECT_SCHEMA, SECURITY_SCHEMA_REGISTRY_SCHEMA,
 };
 use serde_json::json;
 

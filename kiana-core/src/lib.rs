@@ -497,8 +497,8 @@ use kiana_domain::{
 use kiana_gates::GateEngine;
 use kiana_policy::{capability_risk_violation, PolicyEngine};
 use kiana_ports::{
-    AllowAllPreToolHooks, ApprovalStorePort, CapabilityBrokerPort, CapabilityLease,
-    ArtifactStorePort, CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision,
+    AllowAllPreToolHooks, ApprovalStorePort, ArtifactStorePort, CapabilityBrokerPort,
+    CapabilityLease, CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision,
     PreToolHookPort, RunnerPort, SpawnReservationRequest,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};

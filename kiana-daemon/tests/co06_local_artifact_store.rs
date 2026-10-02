@@ -91,13 +91,20 @@ async fn local_artifact_store_requires_absolute_root_and_rejects_symlink_compone
     let fixture = Fixture::new();
     fs::create_dir_all(fixture.root.join("outside")).unwrap();
     symlink(fixture.root.join("outside"), fixture.root.join("link")).unwrap();
-    assert!(LocalArtifactStore::open(fixture.root.join("link/artifacts"))
-        .await
-        .is_err());
-    assert_eq!(fs::read_dir(fixture.root.join("outside")).unwrap().count(), 0);
-    assert!(LocalArtifactStore::open(fixture.root.join("outside/../escape"))
-        .await
-        .is_err());
+    assert!(
+        LocalArtifactStore::open(fixture.root.join("link/artifacts"))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_dir(fixture.root.join("outside")).unwrap().count(),
+        0
+    );
+    assert!(
+        LocalArtifactStore::open(fixture.root.join("outside/../escape"))
+            .await
+            .is_err()
+    );
     assert!(!fixture.root.join("escape").exists());
 }
 
@@ -115,14 +122,23 @@ async fn local_artifact_stage_rejects_invalid_hash_size_schema_and_provenance_be
     let mut bad_provenance = good.clone();
     bad_provenance.provenance.recorded_by.clear();
     for rejected in [bad_size, bad_hash, bad_schema, bad_provenance] {
-        assert!(ArtifactStorePort::stage_artifact(&store, rejected, b"immutable".to_vec())
-            .await
-            .is_err());
+        assert!(
+            ArtifactStorePort::stage_artifact(&store, rejected, b"immutable".to_vec())
+                .await
+                .is_err()
+        );
     }
-    assert!(ArtifactStorePort::stage_artifact(&store, good, b"different".to_vec())
-        .await
-        .is_err());
-    assert_eq!(fs::read_dir(fixture.root.join("artifacts")).unwrap().count(), 0);
+    assert!(
+        ArtifactStorePort::stage_artifact(&store, good, b"different".to_vec())
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_dir(fixture.root.join("artifacts"))
+            .unwrap()
+            .count(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -133,32 +149,44 @@ async fn local_artifact_read_requires_commit_and_commit_requires_exact_reference
     let reference = version.as_ref();
     assert_eq!(
         ArtifactContentPort::read_artifact(&store, &reference).await,
-        Err(PortError::Unavailable("artifact_version_not_committed".to_owned()))
+        Err(PortError::Unavailable(
+            "artifact_version_not_committed".to_owned()
+        ))
     );
     assert_eq!(
         ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1)).await,
-        Err(PortError::Unavailable("artifact_version_not_staged".to_owned()))
+        Err(PortError::Unavailable(
+            "artifact_version_not_staged".to_owned()
+        ))
     );
     ArtifactStorePort::stage_artifact(&store, version, b"immutable".to_vec())
         .await
         .unwrap();
     assert_eq!(
         ArtifactStorePort::read_artifact(&store, &reference).await,
-        Err(PortError::Unavailable("artifact_version_not_committed".to_owned()))
+        Err(PortError::Unavailable(
+            "artifact_version_not_committed".to_owned()
+        ))
     );
     assert_eq!(
         ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(0)).await,
-        Err(PortError::Conflict("artifact_manifest_revision_conflict".to_owned()))
+        Err(PortError::Conflict(
+            "artifact_manifest_revision_conflict".to_owned()
+        ))
     );
     let mut forged = reference.clone();
     forged.provenance.producer_id = "foreign-producer".to_owned();
     assert_eq!(
         ArtifactStorePort::commit_artifact(&store, forged, Some(1)).await,
-        Err(PortError::Conflict("artifact_reference_manifest_mismatch".to_owned()))
+        Err(PortError::Conflict(
+            "artifact_reference_manifest_mismatch".to_owned()
+        ))
     );
     assert_eq!(
         ArtifactContentPort::read_artifact(&store, &reference).await,
-        Err(PortError::Unavailable("artifact_version_not_committed".to_owned()))
+        Err(PortError::Unavailable(
+            "artifact_version_not_committed".to_owned()
+        ))
     );
 }
 
@@ -190,11 +218,22 @@ async fn local_artifact_store_rejects_scope_hash_schema_identity_and_provenance_
         changed_provenance,
         invalid_ref_schema,
     ] {
-        assert!(ArtifactContentPort::read_artifact(&store, &forged).await.is_err());
-        assert!(ArtifactStorePort::verify_artifact(&store, &forged).await.is_err());
-        assert!(ArtifactStorePort::commit_artifact(&store, forged, None).await.is_err());
+        assert!(ArtifactContentPort::read_artifact(&store, &forged)
+            .await
+            .is_err());
+        assert!(ArtifactStorePort::verify_artifact(&store, &forged)
+            .await
+            .is_err());
+        assert!(ArtifactStorePort::commit_artifact(&store, forged, None)
+            .await
+            .is_err());
     }
-    assert_eq!(ArtifactContentPort::read_artifact(&store, &reference).await.unwrap(), b"immutable");
+    assert_eq!(
+        ArtifactContentPort::read_artifact(&store, &reference)
+            .await
+            .unwrap(),
+        b"immutable"
+    );
 }
 
 #[tokio::test]
@@ -202,10 +241,13 @@ async fn local_artifact_duplicate_version_cannot_replace_content_or_manifest() {
     let fixture = Fixture::new();
     let store = fixture.open().await;
     let original = version(b"original");
-    let reference = ArtifactStorePort::stage_artifact(&store, original.clone(), b"original".to_vec())
+    let reference =
+        ArtifactStorePort::stage_artifact(&store, original.clone(), b"original".to_vec())
+            .await
+            .unwrap();
+    ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1))
         .await
         .unwrap();
-    ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1)).await.unwrap();
     let mut replacement = original.clone();
     replacement.content_hash = kiana_domain::journal_sha256(b"replaced");
     let mut changed_manifest = original.clone();
@@ -220,11 +262,20 @@ async fn local_artifact_duplicate_version_cannot_replace_content_or_manifest() {
         );
     }
     assert_eq!(
-        ArtifactStorePort::stage_artifact(&store, original, b"original".to_vec()).await.unwrap(),
+        ArtifactStorePort::stage_artifact(&store, original, b"original".to_vec())
+            .await
+            .unwrap(),
         reference
     );
-    ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1)).await.unwrap();
-    assert_eq!(ArtifactStorePort::read_artifact(&store, &reference).await.unwrap(), b"original");
+    ArtifactStorePort::commit_artifact(&store, reference.clone(), Some(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        ArtifactStorePort::read_artifact(&store, &reference)
+            .await
+            .unwrap(),
+        b"original"
+    );
 }
 
 #[tokio::test]
@@ -242,14 +293,24 @@ async fn local_artifact_commit_rejects_missing_or_changed_staged_blob_without_pu
         } else {
             fs::write(blob, b"corrupted").unwrap();
         }
-        assert!(ArtifactStorePort::commit_artifact(&store, reference.clone(), None).await.is_err());
+        assert!(
+            ArtifactStorePort::commit_artifact(&store, reference.clone(), None)
+                .await
+                .is_err()
+        );
         assert_eq!(
             ArtifactContentPort::read_artifact(&store, &reference).await,
-            Err(PortError::Unavailable("artifact_version_not_committed".to_owned()))
+            Err(PortError::Unavailable(
+                "artifact_version_not_committed".to_owned()
+            ))
         );
         assert!(!fs::read_dir(fixture.root.join("artifacts"))
             .unwrap()
-            .any(|entry| entry.unwrap().path().extension().is_some_and(|value| value == "commit")));
+            .any(|entry| entry
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|value| value == "commit")));
     }
 }
 
@@ -260,8 +321,12 @@ async fn local_artifact_reads_recheck_missing_files_and_blob_corruption_after_co
         let store = fixture.open().await;
         let reference = committed(&store, b"immutable").await;
         fs::remove_file(fixture.object_file(extension)).unwrap();
-        assert!(ArtifactContentPort::read_artifact(&store, &reference).await.is_err());
-        assert!(ArtifactStorePort::verify_artifact(&store, &reference).await.is_err());
+        assert!(ArtifactContentPort::read_artifact(&store, &reference)
+            .await
+            .is_err());
+        assert!(ArtifactStorePort::verify_artifact(&store, &reference)
+            .await
+            .is_err());
     }
     let fixture = Fixture::new();
     let store = fixture.open().await;
@@ -269,7 +334,9 @@ async fn local_artifact_reads_recheck_missing_files_and_blob_corruption_after_co
     fs::write(fixture.object_file("blob"), b"corrupted").unwrap();
     assert_eq!(
         ArtifactContentPort::read_artifact(&store, &reference).await,
-        Err(PortError::Conflict("artifact_content_hash_mismatch".to_owned()))
+        Err(PortError::Conflict(
+            "artifact_content_hash_mismatch".to_owned()
+        ))
     );
 }
 
@@ -281,19 +348,28 @@ async fn local_artifact_manifest_and_commit_corruption_never_become_readable() {
             let store = fixture.open().await;
             let reference = committed(&store, b"immutable").await;
             fs::write(fixture.object_file(extension), corruption).unwrap();
-            assert!(ArtifactContentPort::read_artifact(&store, &reference).await.is_err());
-            assert!(ArtifactStorePort::commit_artifact(&store, reference, None).await.is_err());
+            assert!(ArtifactContentPort::read_artifact(&store, &reference)
+                .await
+                .is_err());
+            assert!(ArtifactStorePort::commit_artifact(&store, reference, None)
+                .await
+                .is_err());
         }
     }
     let fixture = Fixture::new();
     let store = fixture.open().await;
     let reference = committed(&store, b"immutable").await;
     let path = fixture.object_file("manifest");
-    let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     manifest["version"]["created_at_unix_ms"] = serde_json::json!(101);
     fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-    assert!(ArtifactContentPort::read_artifact(&store, &reference).await.is_err());
-    assert!(ArtifactStorePort::commit_artifact(&store, reference, None).await.is_err());
+    assert!(ArtifactContentPort::read_artifact(&store, &reference)
+        .await
+        .is_err());
+    assert!(ArtifactStorePort::commit_artifact(&store, reference, None)
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -320,8 +396,12 @@ async fn local_artifact_files_reject_symlinks_directories_fifos_and_hardlinks() 
                 "hardlink" => fs::hard_link(&outside, &target).unwrap(),
                 _ => unreachable!(),
             }
-            assert!(ArtifactContentPort::read_artifact(&store, &reference).await.is_err());
-            assert!(ArtifactStorePort::commit_artifact(&store, reference, None).await.is_err());
+            assert!(ArtifactContentPort::read_artifact(&store, &reference)
+                .await
+                .is_err());
+            assert!(ArtifactStorePort::commit_artifact(&store, reference, None)
+                .await
+                .is_err());
             assert!(fs::symlink_metadata(&target).is_ok());
         }
     }
@@ -338,28 +418,42 @@ async fn local_artifact_version_remains_reviewable_after_reopen_and_workspace_ch
     drop(store);
     let reopened = fixture.open().await;
     assert_eq!(
-        ArtifactContentPort::read_artifact(&reopened, &reference).await.unwrap(),
+        ArtifactContentPort::read_artifact(&reopened, &reference)
+            .await
+            .unwrap(),
         b"approved original"
     );
     assert_eq!(fs::read(workspace_file).unwrap(), b"later workspace edit");
-    ArtifactStorePort::verify_artifact(&reopened, &reference).await.unwrap();
+    ArtifactStorePort::verify_artifact(&reopened, &reference)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn local_artifact_staging_can_be_reopened_but_stays_unreadable_until_commit() {
     let fixture = Fixture::new();
     let store = fixture.open().await;
-    let reference = ArtifactStorePort::stage_artifact(&store, version(b"immutable"), b"immutable".to_vec())
-        .await
-        .unwrap();
+    let reference =
+        ArtifactStorePort::stage_artifact(&store, version(b"immutable"), b"immutable".to_vec())
+            .await
+            .unwrap();
     drop(store);
     let reopened = fixture.open().await;
     assert_eq!(
         ArtifactContentPort::read_artifact(&reopened, &reference).await,
-        Err(PortError::Unavailable("artifact_version_not_committed".to_owned()))
+        Err(PortError::Unavailable(
+            "artifact_version_not_committed".to_owned()
+        ))
     );
-    ArtifactStorePort::commit_artifact(&reopened, reference.clone(), Some(1)).await.unwrap();
-    assert_eq!(ArtifactContentPort::read_artifact(&reopened, &reference).await.unwrap(), b"immutable");
+    ArtifactStorePort::commit_artifact(&reopened, reference.clone(), Some(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        ArtifactContentPort::read_artifact(&reopened, &reference)
+            .await
+            .unwrap(),
+        b"immutable"
+    );
 }
 
 #[tokio::test]
@@ -375,9 +469,16 @@ async fn local_artifact_store_keeps_the_opened_root_when_its_path_is_replaced() 
     symlink(&outside, fixture.root.join("artifacts")).unwrap();
     let reference = committed(&store, b"immutable").await;
     assert_eq!(fs::read_dir(&outside).unwrap().count(), 0);
-    assert!(LocalArtifactStore::open(fixture.root.join("artifacts")).await.is_err());
+    assert!(LocalArtifactStore::open(fixture.root.join("artifacts"))
+        .await
+        .is_err());
     let reopened = LocalArtifactStore::open(moved).await.unwrap();
-    assert_eq!(ArtifactContentPort::read_artifact(&reopened, &reference).await.unwrap(), b"immutable");
+    assert_eq!(
+        ArtifactContentPort::read_artifact(&reopened, &reference)
+            .await
+            .unwrap(),
+        b"immutable"
+    );
 }
 
 #[tokio::test]
@@ -397,6 +498,13 @@ async fn local_artifact_conflicting_writers_cannot_replace_the_winning_version()
         (Err(_), Ok(reference)) => (reference, b"other"),
         outcomes => panic!("expected one immutable winner: {outcomes:?}"),
     };
-    ArtifactStorePort::commit_artifact(&first, reference.clone(), Some(1)).await.unwrap();
-    assert_eq!(ArtifactContentPort::read_artifact(&second, &reference).await.unwrap(), expected);
+    ArtifactStorePort::commit_artifact(&first, reference.clone(), Some(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        ArtifactContentPort::read_artifact(&second, &reference)
+            .await
+            .unwrap(),
+        expected
+    );
 }

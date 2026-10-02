@@ -1,7 +1,7 @@
 use kiana_domain::{
     AttemptRef, CausationRef, CorrelationContext, CorrelationScope, EventId, ExecutionId,
-    InvocationId, OrganizationId, ProjectId, RequestContext, RequestId, RunId, SessionId,
-    SpanLink, SpanLinkKind, TraceParent, TurnId,
+    InvocationId, OrganizationId, ProjectId, RequestContext, RequestId, RunId, SessionId, SpanLink,
+    SpanLinkKind, TraceParent, TurnId,
 };
 use uuid::Uuid;
 

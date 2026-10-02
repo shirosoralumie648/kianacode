@@ -95,7 +95,9 @@ fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
         "AUTH_ROLE_MISMATCH"
     );
     let (untrusted_snapshot, mut untrusted_context) = fixture(false);
-    assert!(untrusted_snapshot.validate_request(&untrusted_context).is_ok());
+    assert!(untrusted_snapshot
+        .validate_request(&untrusted_context)
+        .is_ok());
     untrusted_context.project_trusted = true;
     assert_eq!(
         untrusted_snapshot

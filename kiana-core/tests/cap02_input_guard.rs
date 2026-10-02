@@ -36,9 +36,8 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     assert!(daemon.contains("command_argv"));
     assert!(daemon.contains("NUL") || daemon.contains("\\0"));
     assert!(provider.contains("kiana_domain::parse_bounded_json(raw.as_bytes())"));
-    assert!(provider.contains(
-        "duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse"
-    ));
+    assert!(provider
+        .contains("duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse"));
     assert!(baseline.contains("reserved_authority_fields_cannot_change_execution_scope"));
     assert!(baseline.contains("schema_depth_and_reference_limits_fail_before_dispatch"));
     assert!(baseline.contains("conflicting_mcp_tool_aliases_are_rejected"));

@@ -385,10 +385,8 @@ impl ControlPlane {
                         "communication_lifecycle_evidence_invalid",
                     ));
                 };
-                let Some(evidence_refs) = values
-                    .iter()
-                    .map(Value::as_str)
-                    .collect::<Option<Vec<_>>>()
+                let Some(evidence_refs) =
+                    values.iter().map(Value::as_str).collect::<Option<Vec<_>>>()
                 else {
                     return Ok(CoreResponse::blocked(
                         context.request_id,
