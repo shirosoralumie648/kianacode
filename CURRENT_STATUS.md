@@ -4718,6 +4718,27 @@ reviewer: Codex NM-01 isolated contract audit; no local runtime test reviewer
 ```
 
 
+### NM-01 Message serde, Debug, kind and schema boundary correction (2026-10-02)
+
+```text
+source_snapshot: isolated commits `dca4265b` and `e20525f6`; integrated source commits `5cd8e219` and `9c51822c`; `kiana-domain/src/notifications.rs`; `kiana-domain/tests/nm01_contracts.rs`; `docs/roadmap/notifications-contracts-baseline.md`
+worktree_status: `Message` no longer derives Debug/Serialize/Deserialize. Serialize validates before emitting; Deserialize uses a strict representation and validates before returning; Debug redacts text-bearing fields. CI-only fixtures directly construct a sentinel-bearing DTO and check Debug, Serialize, Deserialize, unknown `MessageKind`, unknown schema version and valid serde round-trip behavior. Source and evidence are integrated into master and will be pushed together.
+command_argv:
+  `git show --format=fuller --stat --patch dca4265b3e889737834cdbf1c194a5caff607b77`
+  `git show --format=fuller --stat --patch e20525f64dfbbcf0db08cccfb28454ea84483523`
+  `git show --check --oneline 5cd8e219`
+  `git show --check --oneline 9c51822c`
+  source review of the Message representation and focused fixtures
+  no local test, build, Cargo check, fmt, clippy or smoke command was run
+cwd·environment: isolated source worktree `/tmp/kiana-nm01-secret-boundary-20261002`; integration in repository root on Linux; all Cargo tests remain GitHub Actions-only
+fixture·cassette: run `36920684463` at `8348e059` logged NM domain fixtures 4/4, `nm01_contracts_guard` 1/1, and `notifications_baseline` 2/2; the overall run was cancelled and its core shard had unrelated failures. These receipts predate the new serde-boundary, unknown-kind and unknown-schema fixtures; no result is inferred for them.
+exit_code: isolated `git diff --check`/`git show --check` and source review succeeded; no local test/runtime exit code exists
+status_change: NM-01 remains 🔄 and `feature_status=partial`; known secret markers are rejected at Message serde boundaries, Debug omits marker payloads, and unknown kind/schema inputs have explicit deny fixtures
+proof-level change: source only; `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: detection is bounded to the current marker set; public in-memory fields remain readable and mutable; notification materialization, resolver, durable store, outbox, delivery and external channels remain later NM/ER/PD/SC work; the new fixtures await GitHub CI
+reviewer: root source review of validation placement, safe error output, debug redaction, unknown-kind/schema denial and unchanged valid serde field order/shape; no local runtime test reviewer
+```
+
 ### NM-02 communication lifecycle evidence (2026-09-17)
 
 ```text
