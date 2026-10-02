@@ -1,6 +1,6 @@
 # CI-03 identity, credential and configuration ports baseline
 
-> 快照日期：2026-09-16。本页记录 `kiana-ports` 的 IdentityResolver、CredentialResolver、ConfigSnapshotStore 与 Rotation/Revoke 分层；本地不运行测试，运行时/guard 夹具只由 GitHub Actions 执行。
+> 快照日期：2026-10-02。本页记录 `kiana-ports` 的 IdentityResolver、CredentialResolver、ConfigSnapshotStore 与 Rotation/Revoke 分层；本地不运行测试，运行时/guard 夹具只由 GitHub Actions 执行。
 
 ## 1. 目标与证明上限
 
@@ -60,7 +60,7 @@ limitations: run `36897771406` was still in progress at this source capture; the
 reviewer: CI-03 implementation agent source review; no runtime test reviewer
 ```
 
-## 6. Latest unified CI receipt (2026-10-02)
+## 6. Last exact unified CI receipt (2026-10-02)
 
 The current unified workflow reached the CI-03 ports fixture on run `36916662965`.
 Both CI-03 tests passed. The `kiana-ports` shard was still red because unrelated
@@ -93,7 +93,9 @@ The original ConfigSnapshotStore fixture commit `4455675553ece5437e7b615654f18cd
 integrated by `dc1df0e8496966071aef6a0be001a6ab6d9430f4`, which is an ancestor of pushed master
 `db8a46067c1fd33b07f8e5a515d793e729aa1779`. The fixture is mapped to the `kiana-ports` test
 shard in the unified `.github/workflows/ci.yml`; it has no CI receipt because run `36986316487`
-cancelled that shard at `Run shard` before fixture output. The older receipt in §6 predates this
+cancelled that shard at `Run shard` before fixture output. Run `36993318357` later marked the
+ports shard failed on an earlier source head, but its logs were unavailable at observation and
+no ConfigSnapshotStore fixture result is inferred. The older receipt in §6 predates this
 ConfigSnapshotStore test and does not prove it.
 
 ```text
@@ -101,7 +103,7 @@ source_snapshot: base `db8a46067c1fd33b07f8e5a515d793e729aa1779` plus this isola
 worktree_status: isolated `/tmp/kiana-ci03-generation-cas-20261002` based on pushed master; test-local ConfigSnapshotStore and CredentialRotationPort fakes cover explicit revision/generation CAS; no production adapter, authority behavior, manifest or lockfile changed
 command_argv: source review; `git diff --check`; no local test/build/check/fmt/clippy/smoke command was run
 cwd·environment: `/tmp/kiana-ci03-generation-cas-20261002`; Linux; GitHub Actions is the only test executor
-fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt: run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is wired through the same unified `kiana-ports` shard and has not run remotely.
+fixture·cassette: `config_snapshot_store_revision_cas_is_deterministic` has no receipt: run `36986316487` cancelled `Tests (kiana-ports)` at `Run shard` before fixture output. New `credential_rotation_port_generation_cas_rejects_stale_without_mutation` is wired through the same unified `kiana-ports` shard and has not run remotely. Run `36993318357` targeted an earlier source head and its full logs were unavailable; no fixture result is inferred.
 exit_code: source review and `git diff --check` only; fixtures not run locally; no new GitHub receipt observed or awaited
 status_change: none; CI-03 remains 🔄 with `feature_status=partial` and `proof_level=source`
 limitations: test-local in-memory fakes only; initial config publish, durable persistence, production adapters, lease lifecycle, cancellation/recovery and credential rotation/revoke durability remain unproven
