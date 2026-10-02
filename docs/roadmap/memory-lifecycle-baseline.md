@@ -200,3 +200,27 @@ proof-level change: none; proof_level=source
 limitations: no cause is confirmed for the daemon-host integration failure; EventStore-backed proposal acceptance remains unavailable and quote/evidence binding, durable recovery, retention/revocation/deletion and semantic recall remain open
 reviewer: root source and log review; no local runtime test reviewer
 ```
+
+### Daemon-host storage-redaction diagnostic (2026-10-02)
+
+The later targeted run `37016271351` / daemon job `110868200314` resolved the earlier
+daemon-host failure attribution: `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable`
+failed at `daemon_host.rs:3781` because EventLog returned
+`model_admission_denied:port_failed:eventlog_storage_secret_sentinel_detected` for the initial
+model event. Its serialized optional `credential_revision` was null. The value scanner already
+skipped null, but structured redaction changed any sensitive-key value to `[REDACTED]`, so
+`validate_secret_free` rejected the absent metadata before a candidate write or the intended
+evidence-denial branch.
+
+```text
+source_snapshot: failing pushed head bcd7bb42cb7d7b91d89c12c92c6e179d01ec7881 based on 75226ee625aaf56fc6afa8e88f8c9066bc83f8cd; isolated correction preserves null sensitive fields; run 37016271351 / daemon job 110868200314
+worktree_status: source correction keeps null unchanged in recursive redaction and excludes it from residual unredacted-secret detection; non-null values under sensitive keys are still redacted and fail storage validation; PD-28 regression fixture reuses existing domain target
+command_argv: read-only GitHub log inspection; static source trace and diff review; `rustfmt --edition 2021` on changed Rust files; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated source worktree; failing result from GitHub Actions Ubuntu; tests remain remote-only
+fixture·cassette: `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` failed before candidate persistence at the first Completed-status assertion with `model_admission_denied:port_failed:eventlog_storage_secret_sentinel_detected`; it does not establish the later CM-02 evidence-denial assertion. The new domain null/non-null fixture has no CI receipt yet.
+exit_code: observed remote case failed; source formatting and whitespace checks passed; no local runtime result
+status_change: CM-02 remains 🔄 / feature_status=partial; attribution is now known, but the intended daemon evidence-denial path still awaits a fresh CI receipt
+proof-level change: none; proof_level=source
+limitations: candidate JSONL and evidence-denial checks were not reached in the observed run; EventStore-backed proposal acceptance and event/quote binding, durable recovery, retention/revocation/deletion, and semantic recall remain unproven
+reviewer: isolated source review traced `credential_revision: null` through model-event serialization, EventStore validation and redaction; no runtime test reviewer
+```

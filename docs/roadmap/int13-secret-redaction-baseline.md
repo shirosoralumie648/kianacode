@@ -45,3 +45,12 @@ already emitted bytes outside Kiana-owned projections, arbitrary high-entropy va
 known shape or external provider logs; it does not claim durable cross-process cache deletion,
 live connector success, or physical outcome proof. Redaction failure remains fail-closed and
 returns only a stable code/digest.
+
+### Optional null fields at storage boundaries
+
+Sensitive-key classification treats JSON `null` as an absent optional value: the value scanner
+already skips null fields, and recursive redaction now preserves them so `validate_secret_free`
+does not report a false positive. Non-null values under sensitive keys are still replaced with
+`[REDACTED]` and rejected at the storage boundary. The focused regression fixture reuses
+`kiana-domain/tests/pd28_storage_security.rs`; its CI receipt is pending. This correction does not
+broaden the allowlist for credential digests or other non-null values.

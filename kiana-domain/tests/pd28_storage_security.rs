@@ -1,5 +1,5 @@
 use kiana_domain::{
-    validate_secret_free, validate_secret_free_text, SecretRef, StorageCipher,
+    redact_value, validate_secret_free, validate_secret_free_text, SecretRef, StorageCipher,
     StorageEncryptionBinding, StorageFileIdentity, StorageSecurityCapabilities,
 };
 use serde_json::json;
@@ -32,6 +32,28 @@ fn secret_sentinels_are_rejected_but_opaque_references_are_allowed() {
         "purpose": "storage"
     }))
     .is_ok());
+}
+
+#[test]
+fn null_credential_metadata_is_absent_but_non_null_credentials_are_rejected() {
+    let absent_credentials = json!({
+        "permit": {"credential_revision": null},
+        "prepared": {"credential_revision": null}
+    });
+    assert_eq!(redact_value(&absent_credentials), absent_credentials);
+    assert_eq!(validate_secret_free(&absent_credentials), Ok(()));
+
+    let present_credential = json!({
+        "permit": {"credential_revision": "raw-credential-secret"}
+    });
+    assert_eq!(
+        redact_value(&present_credential),
+        json!({"permit": {"credential_revision": "[REDACTED]"}})
+    );
+    assert_eq!(
+        validate_secret_free(&present_credential).unwrap_err(),
+        "storage_secret_sentinel_detected"
+    );
 }
 
 #[test]

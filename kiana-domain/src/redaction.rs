@@ -768,7 +768,9 @@ fn contains_unredacted_secret(value: &Value) -> bool {
                     || normalized == "x_api_key"
                     || (normalized.contains("credential") && !normalized.ends_with("_generation"))
                     || normalized.contains("secret"));
-            (sensitive && !matches!(value, Value::String(text) if text == REDACTED))
+            (sensitive
+                && !value.is_null()
+                && !matches!(value, Value::String(text) if text == REDACTED))
                 || contains_unredacted_secret(value)
         }),
         Value::String(text) => contains_text_secret_marker(text),
@@ -1063,7 +1065,7 @@ pub fn redact_value(value: &Value) -> Value {
                             || (normalized.contains("credential")
                                 && !normalized.ends_with("_generation"))
                             || normalized.contains("secret"));
-                    let value = if sensitive {
+                    let value = if sensitive && !value.is_null() {
                         Value::String(REDACTED.to_owned())
                     } else {
                         redact_value(value)

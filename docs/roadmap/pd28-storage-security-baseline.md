@@ -40,3 +40,19 @@ local development step:
 The workflow also runs formatting and workspace test-target compilation. CI output is evidence for
 the source slice only; it does not establish power-loss, cross-host filesystem, encryption-provider
 or physical deletion guarantees.
+
+## Null optional credential metadata diagnostic
+
+Run `37016271351`, daemon job `110868200314`, failed
+`model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` at its first completed-
+response assertion. The returned error was
+`model_admission_denied:port_failed:eventlog_storage_secret_sentinel_detected`: EventLog rejected
+the initial model event before the candidate write or CM-02 evidence-denial branch. Source tracing
+showed the serialized optional `credential_revision: null` was skipped by the secret scanner but
+changed to `[REDACTED]` by `redact_value`, causing storage validation to reject an absent value.
+
+The source correction keeps null sensitive fields null in recursive redaction and excludes them
+from the unredacted-secret check, consistent with the scanner. Non-null sensitive values remain
+redacted and are rejected by storage validation. The regression fixture is in the existing
+`kiana-domain/tests/pd28_storage_security.rs` target, already included in the unified domain shard;
+this correction has no GitHub receipt yet. PD-28 and CM-02 remain partial/source-only.

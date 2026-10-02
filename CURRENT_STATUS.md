@@ -4124,6 +4124,21 @@ limitations: the daemon-host failure remains unattributed; no evidence-to-event/
 reviewer: read-only CI diagnosis plus source review traced the unit fixture stale revision to the default value; no local runtime reviewer
 ```
 
+### CM-02 daemon fixture EventLog redaction false positive (2026-10-02)
+
+```text
+source_snapshot: pushed source at `75226ee625aaf56fc6afa8e88f8c9066bc83f8cd`; failing CI head `bcd7bb42cb7d7b91d89c12c92c6e179d01ec7881`; run `37016271351` / daemon job `110868200314`; correction is isolated and not yet integrated
+worktree_status: `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` failed before candidate persistence because EventLog rejected a model event containing optional `credential_revision: null`; recursive redaction now preserves null sensitive fields and the unredacted-secret check treats null as absent; non-null sensitive values still redact and fail storage validation
+command_argv: exact GitHub job log inspection; source tracing through `PreparedModelCall` audit serialization, `EventStore` append validation, `validate_secret_free`, and domain redaction; source/diff review; `rustfmt --edition 2021` on changed Rust files; `git diff --check`; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: source and fixture edits in isolated worktree `/tmp/kiana-redaction-null-storage-20261002`; failure observed on GitHub Actions Ubuntu; runtime tests remain remote-only
+fixture·cassette: run `37016271351` / job `110868200314` showed response `Failed`, error `model_admission_denied:port_failed:eventlog_storage_secret_sentinel_detected`, at `daemon_host.rs:3781` before candidate JSONL write and before the CM-02 evidence-denial assertion. The serialized optional credential revision was null: `scan_secret_value_inner` skips null, while `redact_value` previously replaced every sensitive-key value with `[REDACTED]`; `validate_secret_free` therefore falsely rejected the initial model event. A new null/non-null regression fixture reuses `kiana-domain/tests/pd28_storage_security.rs`, already listed in unified domain shard `kiana-domain-s4/4`.
+exit_code: the observed targeted GitHub test failed 0/1 at the first response assertion; new fixture has no CI receipt. `rustfmt --edition 2021` and `git diff --check` exit 0; no local test result
+status_change: CM-02 remains 🔄 / `feature_status=partial`; fix addresses the pre-write EventLog false positive only and does not yet prove the intended no-evidence denial path
+proof-level change: none; CM-02 remains `proof_level=source`
+limitations: the failed run does not establish candidate-write or evidence-denial behavior because rejection preceded those operations; no successful EventStore-backed proposal acceptance, evidence-to-event/quote binding, durable recovery, retention/revocation/delete, or semantic recall is claimed; fresh GitHub CI is pending
+reviewer: isolated source review traced the failing nullable field from permit/prepared audit serialization through storage validation; no runtime test reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text
