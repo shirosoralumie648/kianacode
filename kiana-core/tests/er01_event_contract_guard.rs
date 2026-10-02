@@ -23,6 +23,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "CAPABILITY_BLOCKED_FIELDS",
         "CAPABILITY_DECISION_FIELDS",
         "APPROVAL_STAGED_FIELDS",
+        "APPROVAL_ACTIVATED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -42,6 +43,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("capability_decision_contract_accepts_policy_and_gate"));
     assert!(baseline.contains("event_capability_identity_pair_incomplete"));
     assert!(baseline.contains("approval_staged_contract_matches_journal_producer"));
+    assert!(baseline.contains("approval_activated_contract_matches_transition_producer"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
@@ -59,4 +61,11 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "\"schema\":APPROVAL_SCHEMA,\"approval_id\":id,\"subject\":subject,\"state\":\"staged\",\"at_unix_ms\":now"
     ));
     assert!(journal_approvals.contains(".with_stream_metadata(APPROVAL_STREAM, id.to_string(), 1)"));
+    assert!(journal_approvals.contains("ApprovalState::Active => \"approval.activated\""));
+    assert!(journal_approvals.contains("json!({\"activation_command_id\":command_id})"));
+    assert!(journal_approvals.contains(
+        "\"schema\":APPROVAL_SCHEMA,\"approval_id\":id,\"previous_state\":record.state,\"state\":next,\n        \"request_hash\":record.subject.preview.challenge.request_hash,\"at_unix_ms\":now"
+    ));
+    assert!(journal_approvals
+        .contains(".with_stream_metadata(APPROVAL_STREAM, id.to_string(), record.version + 1)"));
 }
