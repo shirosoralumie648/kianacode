@@ -4840,6 +4840,28 @@ limitations: wording and a source guard cannot prove runtime enforcement or real
 reviewer: Codex source review; confirmed the exact remote failure marker, the document's source-only proof ceiling, and no test weakening or local test execution
 ```
 
+### SC-01 explicit prompt-injection, supply-chain, and retention catalog coverage (2026-10-02)
+
+```text
+source_snapshot: `03b6e443` plus this isolated SC-01 source slice; `docs/roadmap/security-threat-register.md`; `kiana-core/tests/sc01_threat_register.rs`; `.github/workflows/ci.yml`; `scripts/ci/test-shards.json`; prior evidence in `CURRENT_STATUS.md`
+worktree_status: branch `step/sc01-audit-20261002`; T02 now names indirect prompt injection and unverified extension/dependency substitution, T10 names retention/deletion boundary violations, and the CI-only catalog records three corresponding required deny-first fixture assertions; no runtime control or second execution path was added
+command_argv:
+  `rg -n 'T02|T10|prompt_injection|unverified_extension|retention_and_tombstone' docs/roadmap/security-threat-register.md kiana-core/tests/sc01_threat_register.rs`
+  `rg -n 'sc01_threat_register|kiana-core-s6/6' scripts/ci/test-shards.json .github/workflows/ci.yml`
+  `gh run view 36926015057 --job 110583766753 --log | rg -ni 'sc01|threat|external/physical'`
+  `gh run view 36926015057 --job 110583766376 --log`
+  `gh run list --branch master --limit 12 --json databaseId,headSha,status,conclusion,workflowName,createdAt,url`
+  `git diff --check`
+  no local Cargo test, build, check, fmt, clippy or smoke command was run
+cwd·environment: isolated worktree `/tmp/kiana-sc01-audit-20261002`; GitHub CLI read-only queries; source snapshot `03b6e443`; local Cargo validation prohibited by user instruction
+fixture·cassette: `kiana-core/tests/sc01_threat_register.rs::threat_register_is_explicit_and_deny_first_without_claiming_enforcement`; unified workflow routes this target through `kiana-core-s6/6` using `scripts/ci/test-shards.json`; run `36926015057` on `ad3e664b` reports this SC-01 test `ok`; the same shard had unrelated failures, and workflow-structure failed because `co06_company_artifact_wiring_guard` was not yet mapped; run `36958156294` for `03b6e443` was queued at observation time
+exit_code: `git diff --check` 0; recorded SC-01 test target passed in run `36926015057`; that run's core s6 shard and Workflow structure job failed for other targets; latest run `36958156294` remains queued/unobserved
+status_change: threat and fixture catalog now explicitly registers the SC-01 card's prompt-injection, supply-chain, and retention/deletion threat classes; SC-01 remains `partial` with `proof_level=source`
+proof-level change: none; one CI source-guard test passed at `ad3e664b`, but no runtime security behavior was exercised and no `local_behavior`, `durable`, `live` or `physical` claim is made
+limitations: catalog and source guard are documentation coverage, not runtime enforcement; the named follow-up fixtures do not prove owner controls exist; prior and current unified CI runs are not globally green; retention, deletion, supply-chain verification, model-level injection resistance, external/physical outcomes, and cross-process recovery remain under their respective SC steps
+reviewer: SC-01 audit review against roadmap card `SC-01`, unified CI shard mapping and the available GitHub job log; parent integration review pending
+```
+
 ### SC-02 security IDs and schema registry evidence (2026-09-17)
 
 ```text

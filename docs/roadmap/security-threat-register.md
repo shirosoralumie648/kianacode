@@ -1,6 +1,6 @@
 # SC-01 security threat register and fixture catalog
 
-> 快照日期：2026-09-17。本页是 SC-01 的威胁与验证登记，不是安全认证或实现完成声明；运行时 fixture 只由 GitHub Actions 执行。
+> 快照日期：2026-10-02。本页是 SC-01 的威胁与验证登记，不是安全认证或实现完成声明；运行时 fixture 只由 GitHub Actions 执行。
 
 ## 1. Authority and proof ceiling
 
@@ -20,7 +20,7 @@
 | ID | Threat / abuse case | Asset / boundary | Current control anchor | Evidence ceiling | Follow-up |
 |---|---|---|---|---|---|
 | T01 | wire actor/role impersonation | Principal/Session/Assignment | Daemon server principal, ProjectIdentity, SessionAssignment | source/CI local fixture | SC-04/06/07/08 |
-| T02 | project trust bypass / untrusted resource injection | ProjectTrust, skills/plugins/MCP | trust checks and source resolver guards | source/local slices | SC-04/06/24/25 |
+| T02 | project trust bypass, indirect prompt injection, or supply-chain substitution of project resources/extensions | ProjectTrust, skills/plugins/MCP and extension inputs | trust/source resolver guards; SC-28/29 digest and provenance gates remain separately tracked | source/local slices | SC-04/06/24/25/26/28/29/39 |
 | T03 | authority/policy/approval scope widening | Grant/Approval/Policy/epoch | domain intersections, authority ledger, approval binding | source/CI | SC-05/08/09/10 |
 | T04 | child delegation superset | Cell/WorkPacket/Swarm | parent subset checks, typed graph/lineage | source/CI | SC-09, SW-04/05 |
 | T05 | path traversal/symlink/TOCTOU | workspace/artifact writes | lexical containment, no-follow helpers and path locks | local slices/source | SC-14/20/22, PD |
@@ -28,7 +28,7 @@
 | T07 | model/UI self-report approval/completion | EventLog/Notification/Quality | server-owned event/source registry and ControlPlane facts | source/CI | NM-03, EQ |
 | T08 | duplicate/unknown/ambiguous side effect | Event/Receipt/Invocation | CAS/idempotency/ResultUnknown/fence | source/local slices | CP/ER/PD/SW |
 | T09 | cancellation race / stale worker | Run/Cell/Lease | cancel token, terminal scope, authority/lease epoch | local slices/source | SC-15/16, SW-09/10 |
-| T10 | corrupt/torn/replayed storage | facts/projections/artifacts | JSONL frame/CAS/health/schema contracts; recovery partial | source/local historical | PD/ER/DEP |
+| T10 | corrupt/torn/replayed storage or retention/deletion boundary violation | facts/projections/artifacts/retention evidence | JSONL frame/CAS/health/schema contracts; SC-22/23 retention and tombstone propagation remain partial | source/local historical | SC-22/23/32/42, PD/ER/DEP |
 | T11 | resource exhaustion / retry storm | budget/queue/provider/storage | bounded sizes, budgets, queue and retry ceilings | source/CI | SC-30, BQ/AUT/SW |
 | T12 | external connector/physical action misuse | provider/MCP/webhook/payment/IoT | unsupported/local_fixture/stdio gates, no external authority | source only; no live/physical | SC-12/17/26/30, INT |
 
@@ -47,16 +47,22 @@ Threat assumptions: caller text, model output, UI state, transcript, cache, fixt
 
 ## 4. CI-only security fixture catalog
 
+Fixture names below record required follow-up assertions; their presence in this catalog does not
+mean the runtime control or a corresponding executable fixture is already implemented.
+
 | Fixture | Threats | Required assertion | Owner steps |
 |---|---|---|---|
 | `security_baseline_covers_constitution_assets_and_spine` | all | constitution/assets/spine/feature-proof map remains explicit | SC-00 |
 | `wire_actor_role_impersonation_is_denied` | T01/T03 | server actor/role overrides caller and no Broker effect | SC-04/06 |
 | `project_local_resource_is_untrusted` | T02 | project skills/plugins/MCP source cannot load before trust | SC-06/24/25 |
+| `project_prompt_injection_is_untrusted_data` | T02 | instruction-like project/network content cannot alter trust, authority or cause Broker dispatch | SC-24/25/39 |
+| `unverified_extension_dependency_is_quarantined` | T02 | changed/missing digest, signature or provenance fails closed before extension load or effect | SC-28/29/33/41 |
 | `grant_scope_intersection_never_widens` | T03/T04 | child scope is strict intersection across path/data/budget/epoch | SC-09/SW-04 |
 | `path_symlink_and_toctou_escape_is_denied` | T05 | lexical + effect-time no-follow checks block outside writes | SC-14/20 |
 | `secret_never_reaches_event_receipt_provider` | T06 | raw token/bearer/sentinel absent at every output boundary | SC-18/19/23 |
 | `model_or_ui_self_report_never_becomes_critical_fact` | T07 | source registry rejects model/UI approval/completion | NM-03/SC-31 |
 | `unknown_or_duplicate_effect_is_quarantined` | T08/T10 | gap/digest/idempotency/Unknown never dispatches twice | ER/PD/SC-31 |
+| `retention_and_tombstone_scope_violation_is_denied` | T10 | mis-scoped retention/hold/delete is denied; incomplete tombstone propagation is not reported complete | SC-22/23/32/42 |
 | `cancel_race_fences_stale_worker` | T09 | late worker cannot commit/release after cancel/epoch change | SC-15/16/SW-10 |
 | `resource_budget_and_retry_bounds_hold` | T11 | size/turn/token/effect/retry/queue caps reject safely | SC-30/BQ/AUT |
 | `external_and_physical_capabilities_stay_denied` | T12 | network/payment/IoT/publish/physical adapters have zero effect | SC-12/17/26/30 |
