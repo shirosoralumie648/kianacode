@@ -106,6 +106,60 @@ fn threat_register_is_explicit_and_deny_first_without_claiming_enforcement() {
             "SC-34 namespace marker missing: {marker}"
         );
     }
+    let control_rows: Vec<_> = crosswalk
+        .lines()
+        .filter(|line| line.starts_with("| SC01:T"))
+        .collect();
+    assert_eq!(
+        control_rows.len(),
+        12,
+        "SC-34 crosswalk must contain exactly twelve SC-01 threat rows"
+    );
+    for number in 1..=12 {
+        let id = format!("SC01:T{number:02}");
+        let row_prefix = format!("| {id} ");
+        assert_eq!(
+            control_rows
+                .iter()
+                .filter(|row| row.starts_with(&row_prefix))
+                .count(),
+            1,
+            "SC-34 threat must have exactly one control row: {id}"
+        );
+    }
+    for row in control_rows {
+        let columns: Vec<_> = row.split('|').map(str::trim).collect();
+        assert_eq!(columns.len(), 11, "SC-34 control row has an invalid shape");
+        let (threat_id, threat_name) = columns[1]
+            .split_once(' ')
+            .expect("SC-34 threat row must include an ID and name");
+        assert!(threat_id.starts_with("SC01:T"));
+        assert!(!threat_name.trim().is_empty(), "threat name is required");
+        for (index, field) in [
+            (2, "control"),
+            (3, "SEC mapping"),
+            (4, "NIST mapping"),
+            (5, "OWASP mapping"),
+            (6, "internal mapping"),
+            (7, "backing slices"),
+        ] {
+            assert!(!columns[index].is_empty(), "{field} is required: {row}");
+        }
+        assert_eq!(columns[8], "source", "control ceiling must remain source");
+        assert_eq!(columns[9], "partial", "control status must remain partial");
+    }
+    for marker in [
+        "not a certification",
+        "Nothing here upgrades a control above the ceiling",
+        "| feature_status | `partial`",
+        "| proof_level | `source`",
+        "No runtime evidence at all",
+    ] {
+        assert!(
+            crosswalk.contains(marker),
+            "SC-34 proof boundary marker missing: {marker}"
+        );
+    }
     for marker in ["T02 confused deputy", "T07 SSRF"] {
         assert!(
             roadmap.contains(marker),
