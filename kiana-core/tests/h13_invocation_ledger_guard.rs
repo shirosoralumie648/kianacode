@@ -5,6 +5,7 @@ fn h13_invocation_ledger_commits_every_boundary_before_side_effects() {
     let lifecycle = include_str!("../src/lifecycle.rs");
     let projection = include_str!("../src/invocation_projection.rs");
     let recovery = include_str!("../src/recovery.rs");
+    let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
     let fixtures = include_str!("h13_invocation_ledger.rs");
     for marker in [
         "run.tool_call",
@@ -13,6 +14,8 @@ fn h13_invocation_ledger_commits_every_boundary_before_side_effects() {
         "execution.prepared",
         "invocation.dispatching",
         "invocation.executing",
+        "events: vec![dispatching, executing]",
+        "permit_digest",
         "execution.result_committed",
         "outcome_ready",
         "result.delivery_claimed",
@@ -31,17 +34,19 @@ fn h13_invocation_ledger_commits_every_boundary_before_side_effects() {
                 || lifecycle.contains(marker)
                 || projection.contains(marker)
                 || recovery.contains(marker)
+                || broker.contains(marker)
                 || fixtures.contains(marker),
             "H13 marker missing: {marker}"
         );
     }
-    let commit = dispatch
-        .find("commit_invocation_executing")
-        .expect("execution boundary commit");
-    let broker = dispatch
-        .find("execute_cancellable")
-        .expect("broker execution");
-    assert!(commit < broker);
+    assert!(!dispatch.contains("commit_invocation_executing"));
+    let verifier = broker
+        .find("verify_and_consume(&request)")
+        .expect("broker must commit dispatch boundary during permit consume");
+    let handler = broker
+        .find(".execute_cancellable(request.clone(), cancellation)")
+        .expect("handler execution stays after the atomic permit transition");
+    assert!(verifier < handler);
     assert!(dispatch.contains("result.delivery_claimed"));
     assert!(dispatch.contains("AggregateVersion::new(\"result_delivery\""));
     assert!(projection.contains("dispatch without a terminal result"));

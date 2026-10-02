@@ -49,7 +49,8 @@ fn long_command_has_one_job_and_distinct_operation_invocations() {
         "process.stdin",
         "process.resize",
         "process.stop",
-        "commit_invocation_executing",
+        "events: vec![dispatching, executing]",
+        "invocation.executing",
         "InvocationId::from_uuid",
     ] {
         assert!(

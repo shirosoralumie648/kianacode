@@ -240,6 +240,7 @@ const INVOCATION_FIELDS: &[&str] = &[
     "boundary",
     "decision_id",
     "permit",
+    "permit_digest",
     "invocation",
     "effect_usage",
     "owner_digest",

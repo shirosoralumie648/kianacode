@@ -54,6 +54,16 @@ The same run's CM-02 daemon job `110899632784` passed the earlier Legacy route a
 then failed the target with `result_unknown:port_failed:execution_permit_already_consumed`. That
 later permit lifecycle failure is outside the provider fixture correction and remains open.
 
+Run `37025517103` / CM-02 job `110899632784` then advanced beyond Legacy model route admission but
+failed the same daemon target at `kiana-daemon/tests/daemon_host.rs:3781` with
+`result_unknown:port_failed:execution_permit_already_consumed`. This was not a second model permit
+consume: the ControlPlane had written `invocation.executing` v2 before its first Broker call, while
+`JournalPermitVerifier` only accepts the single `execution.prepared` record as pre-consume state.
+The related CAP-05/CP-13 correction moves `invocation.dispatching` v2 and the effect-starting
+`invocation.executing` v3 into the verifier's one atomic permit-consume CAS. CI-08 and CM-02 remain
+partial/source; post-fix CI is pending and no complete memory candidate/evidence-denial flow is
+claimed.
+
 ## Limitations
 
 - provider account 目前是 provider+connection 派生 digest，不是外部账户认证或租户身份；真实

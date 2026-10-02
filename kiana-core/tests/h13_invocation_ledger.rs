@@ -58,6 +58,13 @@ fn invocation_events(
             run_id,
             request_id,
             4,
+            "invocation.dispatching",
+            json!({"run_id":run_id,"capability_request_id":request_id,"execution_id":execution_id,"invocation_id":invocation_id,"turn_id":turn_id,"attempt":1,"action_digest":digest('a'),"started":false,"effect_started":false,"effect_known":true,"zero_effect":true,"fenced":true}),
+        ),
+        event(
+            run_id,
+            request_id,
+            5,
             "invocation.executing",
             json!({"run_id":run_id,"capability_request_id":request_id,"execution_id":execution_id,"invocation_id":invocation_id,"turn_id":turn_id,"attempt":1,"action_digest":digest('a')}),
         ),
@@ -66,7 +73,7 @@ fn invocation_events(
         events.push(event(
             run_id,
             request_id,
-            5,
+            6,
             "execution.result_committed",
             json!({"run_id":run_id,"capability_request_id":request_id,"execution_id":execution_id,"invocation_id":invocation_id,"attempt":1,"effect_known":true,"outcome_ready":true,"result":{"request_id":request_id,"success":true,"output":{"answer":"persisted"}}}),
         ));
@@ -77,11 +84,22 @@ fn invocation_events(
 #[test]
 fn event_append_failure_prevents_dispatch() {
     let dispatch = include_str!("../src/dispatch.rs");
-    assert!(dispatch.contains("commit_invocation_executing"));
+    assert!(dispatch.contains("events: vec![dispatching, executing]"));
+    assert!(dispatch.contains("\"invocation.executing\""));
+    assert!(!dispatch.contains("commit_invocation_executing"));
     assert!(dispatch.contains("result_unknown:result_commit_failed"));
     assert!(
-        dispatch.find("commit_invocation_executing").unwrap()
-            < dispatch.find("execute_cancellable").unwrap()
+        dispatch.find("let executing = RuntimeEvent::new").unwrap()
+            < dispatch
+                .find("commit_confirmed(self.events.as_ref(), batch).await")
+                .unwrap()
+    );
+    let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
+    assert!(
+        broker.find("verify_and_consume(&request)").unwrap()
+            < broker
+                .find(".execute_cancellable(request.clone(), cancellation)")
+                .unwrap()
     );
 }
 

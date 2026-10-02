@@ -85,7 +85,10 @@ fn invocation_state_is_rebuilt_from_facts_and_stays_fail_closed() {
     );
     require(
         h13,
-        &["commit_invocation_executing", "execute_cancellable"],
+        &[
+            "events: vec![dispatching, executing]",
+            "execute_cancellable",
+        ],
         "H13 regression",
     );
     require(

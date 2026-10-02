@@ -31,7 +31,8 @@ fn revocation_blocks_not_started_parallel_call() {
     for marker in [
         "dispatch_authority_versions",
         "authorize_capability_action",
-        "commit_invocation_executing",
+        "events: vec![dispatching, executing]",
+        "invocation.executing",
         "prepare_capability_action",
         "cancel_pending_tools",
         "CapabilityResult::failure",

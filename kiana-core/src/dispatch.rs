@@ -146,10 +146,26 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
         }
         let permit = DispatchPermit::from_json(&records[0].data["permit"])
             .map_err(|_| dispatch_error("execution_permit_invalid"))?;
+        if permit.execution_id.to_string() != id
+            || records[0].aggregate_type.as_deref() != Some("execution_permit")
+            || records[0].aggregate_id.as_deref() != Some(id)
+            || records[0].stream_version != Some(1)
+            || records[0].data.get("execution_id") != Some(&json!(permit.execution_id))
+            || records[0].data.get("invocation_id") != Some(&json!(permit.invocation_id))
+            || records[0].data.get("capability_request_id") != Some(&json!(permit.request_id))
+            || records[0].data.get("run_id") != Some(&json!(permit.run_id))
+            || records[0].data.get("turn_id") != Some(&json!(permit.turn_id))
+            || records[0].data.get("action_digest") != Some(&json!(permit.action_digest))
+            || records[0].data.get("attempt") != Some(&json!(1))
+            || permit.to_json().map_or(true, |stored| {
+                records[0].data.get("permit") != Some(&stored)
+            })
+        {
+            return Err(dispatch_error("execution_permit_invalid"));
+        }
         let now = now_ms()?;
         let project_identity = project_root_identity(&permit.context.project_root)?;
-        if permit.execution_id.to_string() != id
-            || permit.version != DISPATCH_PERMIT_VERSION
+        if permit.version != DISPATCH_PERMIT_VERSION
             || permit
                 .validate_for_request(&request.request, &project_identity, now)
                 .is_err()
@@ -169,13 +185,6 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
                 return Err(dispatch_error("old_epoch_permit_rejected"));
             }
         }
-        let mut expected = permit.authority_versions.clone();
-        expected.push(AggregateVersion {
-            aggregate_type: "execution_permit".to_owned(),
-            aggregate_id: id.to_owned(),
-            version: 1,
-        });
-        let command_id = derived_request_id("permit.consume", id);
         let invocation = typed_invocation_identity(
             permit.run_id,
             permit.turn_id,
@@ -184,20 +193,52 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             &request.request,
             1,
         )?;
-        let event=RuntimeEvent::new(command_id,1,"invocation.dispatching",json!({
+        if records[0].data.get("invocation") != Some(&json!(invocation)) {
+            return Err(dispatch_error("execution_permit_invocation_mismatch"));
+        }
+        let prepared_invocation = records[0].data["invocation"].clone();
+        let mut expected = permit.authority_versions.clone();
+        expected.push(AggregateVersion {
+            aggregate_type: "execution_permit".to_owned(),
+            aggregate_id: id.to_owned(),
+            version: 1,
+        });
+        let command_id = derived_request_id("permit.consume", id);
+        let dispatching = RuntimeEvent::new(command_id,1,"invocation.dispatching",json!({
             "run_id":permit.run_id,"turn_id":permit.turn_id,"invocation_id":permit.invocation_id,
             "execution_id":permit.execution_id,"capability_request_id":permit.request_id,
             "call_id":request.request.arguments["call_id"],"operation":request.request.operation,
-            "args_fingerprint":permit.action_digest,"decision_id":permit.decision_id,
+            "capability":request.request.capability,"permit_digest":permit.permit_digest,
+            "args_fingerprint":permit.action_digest,"action_digest":permit.action_digest,
+            "decision_id":permit.decision_id,
             "attempt":1,"started":false,"effect_started":false,"effect_known":true,
             "zero_effect":true,"stop_state":"not_requested","fenced":true,
-            "boundary":"broker_admission","invocation":invocation,
-        })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",id,2);
+            "boundary":"broker_admission","invocation":prepared_invocation,
+        })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",id,2)
+            .with_identity_links(Some(command_id), Some(permit.request_id), Some(records[0].event_id), None);
+        let dispatching_event_id = dispatching.event_id;
+        let executing = RuntimeEvent::new(command_id,2,"invocation.executing",json!({
+            "run_id":permit.run_id,"turn_id":permit.turn_id,"invocation_id":permit.invocation_id,
+            "execution_id":permit.execution_id,"capability_request_id":permit.request_id,
+            "call_id":request.request.arguments["call_id"],"operation":request.request.operation,
+            "capability":request.request.capability,"action_digest":permit.action_digest,
+            "args_fingerprint":permit.action_digest,"decision_id":permit.decision_id,
+            "permit_digest":permit.permit_digest,
+            "attempt":1,"started":true,"effect_started":true,"effect_known":true,
+            "zero_effect":false,"stop_state":"not_requested","fenced":true,
+            "boundary":"handler_execution","invocation":prepared_invocation,
+        })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",id,3)
+            .with_identity_links(Some(command_id), Some(permit.request_id), Some(dispatching_event_id), Some(records[0].event_id));
         let batch = TransitionBatch {
             command_id,
-            command_digest: json_digest(&json!({"consume":permit})),
+            command_digest: json_digest(&json!({
+                "permit":&permit,
+                "request":&request.request,
+                "dispatching":&dispatching.data,
+                "executing":&executing.data,
+            })),
             expected_versions: expected,
-            events: vec![event],
+            events: vec![dispatching, executing],
         };
         let committed = commit_confirmed(self.events.as_ref(), batch).await;
         if committed? {
@@ -601,8 +642,6 @@ impl ControlPlane {
         }
         authorized.authorization_id = format!("permit:{execution_id}");
         let executed_request = authorized.request.clone();
-        self.commit_invocation_executing(&permit, &executed_request)
-            .await?;
         let (stop_tx, _rx) = watch::channel(None);
         if let Some(id) = run_id {
             self.capability_stops
@@ -730,76 +769,5 @@ impl ControlPlane {
             .await
             .map_err(|e| dispatch_error(&format!("result_unknown:result_commit_failed:{e}")))?;
         Ok(result)
-    }
-
-    /// Record the handler boundary before invoking a capability.  If this CAS cannot be
-    /// committed, the handler is never called and the prepared permit remains fenced for
-    /// reconciliation.  This keeps execution evidence causally after admission/permit facts.
-    async fn commit_invocation_executing(
-        &self,
-        permit: &DispatchPermit,
-        request: &CapabilityRequest,
-    ) -> Result<(), PortError> {
-        let id = permit.execution_id.to_string();
-        let stream = self.events.read_stream("execution_permit", &id).await?;
-        let version = stream
-            .iter()
-            .filter_map(|event| event.stream_version)
-            .max()
-            .unwrap_or(0);
-        let command_id = derived_request_id("execution.start", &id);
-        if self.events.read_command(&command_id).await?.is_some() {
-            return Err(dispatch_error(
-                "result_unknown:execution_start_already_recorded",
-            ));
-        }
-        let invocation = typed_invocation_identity(
-            permit.run_id,
-            permit.turn_id,
-            permit.invocation_id,
-            permit.execution_id,
-            request,
-            1,
-        )?;
-        let event = RuntimeEvent::new(
-            command_id,
-            1,
-            "invocation.executing",
-            json!({
-                "run_id": permit.run_id,
-                "turn_id": permit.turn_id,
-                "invocation_id": permit.invocation_id,
-                "execution_id": permit.execution_id,
-                "capability_request_id": permit.request_id,
-                "operation": request.operation,
-                "attempt": 1,
-                "started": true,
-                "effect_started": true,
-                "effect_known": true,
-                "zero_effect": false,
-                "stop_state": "not_requested",
-                "fenced": true,
-                "boundary": "handler_execution",
-                "invocation": invocation,
-            }),
-        )
-        .map_err(|error| dispatch_error(&error.to_string()))?
-        .with_stream_metadata("execution_permit", id.clone(), version.saturating_add(1));
-        let batch = TransitionBatch {
-            command_id,
-            command_digest: json_digest(&json!({
-                "execution_id": permit.execution_id,
-                "request_id": permit.request_id,
-                "action_digest": permit.action_digest,
-            })),
-            expected_versions: vec![AggregateVersion::new("execution_permit", id, version)],
-            events: vec![event],
-        };
-        if commit_confirmed(self.events.as_ref(), batch).await? {
-            return Err(dispatch_error(
-                "result_unknown:execution_start_already_recorded",
-            ));
-        }
-        Ok(())
     }
 }

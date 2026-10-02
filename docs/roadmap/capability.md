@@ -418,9 +418,15 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-05 — 核验授权事实，原子领取一次执行　✅
+#### CAP-05 — 核验授权事实，原子领取一次执行　🔄
 
 当前 source slice 与 CI-only 证据见 [`capability-permit-baseline.md`](capability-permit-baseline.md)。
+
+2026-10-02 follow-up：run `37025517103` / CM-02 job `110899632784` 发现首个 Broker permit verifier
+调用前，ControlPlane 已向 execution-permit stream 写入 `invocation.executing`，与 verifier
+只接受唯一 `execution.prepared` 的消费合同冲突。修复将 permit 校验与 authority read-set recheck
+后产生的 `invocation.dispatching` v2、`invocation.executing` v3 放入同一个 consume CAS；post-fix
+GitHub fixtures 尚未返回，不能据 source 改动宣称 CAP-05 或 CM-02 行为已通过。
 
 - **落点：** core/capabilities、recovery、approvals，broker/dispatch，ports，EventStore CAS。
 - **步骤：** 复用 CP-13 对 `claim_invocation` 的扩展及 `DispatchPermit`，按 §20.5 区分签发与一次 start 消费；不新增独立事件存储或 HashSet。permit 绑定 principal、输入、scope、catalog/binding、environment plan、epoch 和 expiry。正常调用、审批续跑、operator/extension 入口共用同一派发函数。

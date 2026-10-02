@@ -6,20 +6,24 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CAP-05`](capability.md#step-cap-05) |
-| feature_status | `implemented`（permit verifier read-set recheck + single-consume fence） |
+| feature_status | `partial`（permit verifier read-set recheck + single-consume fence；pre-handler execution facts 已并入 consume CAS，等待远端复核） |
 | proof_level | `source`；本地不运行测试，GitHub Actions 负责 fixtures |
-| authority | `JournalPermitVerifier` + EventStore `execution.prepared`/`invocation.dispatching` CAS |
+| authority | `JournalPermitVerifier` + EventStore `execution.prepared`/`invocation.dispatching`/`invocation.executing` CAS |
 | this step does | non-empty opaque `permit:` identity、strict permit/request/project/expiry validation、authority dependency epoch recheck、single consumption and handler-after-commit ordering |
 | this step does not | 不把任意 authorization string 当 permit，不使用进程内 HashSet 记消费状态，不在 permit 未确认时调用 handler，不声明外部 exactly-once |
 
 ## 1. Contract
 
 Broker 只接受 `permit:<ExecutionId>`；空或无前缀授权立即返回 `execution_permit_required`。
-`execution.prepared` 必须是唯一记录且 `DispatchPermit::validate_for_request` 通过；每个
+`execution.prepared` 必须是 stream version 1 的唯一记录；permit body/id、prepared
+`InvocationIdentity` 与 authorized request 必须完全匹配，且 `DispatchPermit::validate_for_request` 通过；每个
 `authority_versions` dependency 在消费前重新读取并要求当前 stream version 精确相等，漂移返回
 `old_epoch_permit_rejected`。然后以 expected execution-permit/authority versions 的原子
-`commit_confirmed` 写 `invocation.dispatching`；重放/并发消费只会返回
-`execution_permit_already_consumed` 或结构化 conflict，绝不进入 handler 两次。
+`commit_confirmed` 同批写连续的 `invocation.dispatching` 和 `invocation.executing` 事件；只有
+CAS 确认首次提交，Broker 才进入 handler。`invocation.executing` 是 handler-boundary/effect
+事实，不得在 permit verifier 前写入，也不能由 verifier 当成 prepared permit 接受。之后 stream
+再有 dispatching/executing/result 记录的重放只会返回 `execution_permit_already_consumed` 或结构化
+conflict；unknown commit 不进入 handler，不声称其事实已提交。
 
 若 dispatch fact CAS 返回 Unknown/失败，Broker 不调用 handler，调用方保留
 `result_unknown`/fence；只有 committed permit consumption 后才进入现有 ControlPlane→Broker
@@ -30,10 +34,28 @@ handler 路径。没有新事件存储、第二执行循环或权限并集。
 | Fixture | Assertion |
 |---|---|
 | `concurrent_dispatch_consumes_one_permit` | 两个并发 verifier 只有一个可消费同一 permit |
+| `preexisting_executing_fact_is_rejected_without_dispatching_or_effect` | 只有 `execution.prepared` 后出现伪造 executing 事实时，consume fail-closed，不补写 dispatching |
+| `request_drift_does_not_consume_execution_permit` | 不匹配 prepared request 在读取/校验阶段失败，不推进 stream |
 | `opaque_or_empty_authorization_never_reaches_dispatch` | 任意非 permit/空 permit 标识 fail-closed |
 | `cap05_dispatch_has_no_authorization_or_epoch_bypass` | authority epoch recheck、commit-before-handler 和 no HashSet/source guard |
 
-## 3. Proof ceiling and handoff
+## 3. 2026-10-02 atomic start correction
+
+Run `37025517103` / CM-02 job `110899632784` failed
+`model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` at
+`kiana-daemon/tests/daemon_host.rs:3781` with
+`result_unknown:port_failed:execution_permit_already_consumed`. `dispatch_authorized` had committed
+`invocation.executing` version 2 before entering Broker, then the first
+`JournalPermitVerifier::verify_and_consume` required the stream to contain only
+`execution.prepared` and rejected its own valid pre-handler event. The verifier now validates the
+single prepared record, exact permit/id/request/project/expiry, prepared invocation identity and
+authority read set, then atomically CAS-writes `invocation.dispatching` v2 plus
+`invocation.executing` v3. A duplicate/replayed/unknown CAS cannot reach the handler; no standalone
+pre-Broker effect-start event remains. The CAP-05 fixture and H13 projection cassette encode this
+order. Post-fix GitHub receipt is pending; CAP-05 remains `partial` / `source` and no complete CM-02
+behavior is claimed.
+
+## 4. Proof ceiling and handoff
 
 CAP-05 proof ceiling 为 `source`：MemoryEventLog CI fixture 固化 permit identity、read-set/CAS
 和单次消费边界，未运行本地测试。真实 JSONL power-loss、跨进程 contention、OS effect spawn、

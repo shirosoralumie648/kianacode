@@ -18,7 +18,7 @@ fn expired_or_changed_approval_never_dispatches() {
         "prepare_capability_action",
         "authorize_capability_action",
         "DispatchPermit",
-        "commit_invocation_executing",
+        "events: vec![dispatching, executing]",
         "dispatch_capability_action",
     ] {
         assert!(
@@ -48,7 +48,6 @@ fn duplicate_approval_reply_executes_at_most_once() {
         "replay_approval_decision",
         "approval_already_consumed",
         "prepare_consumption",
-        "commit_invocation_executing",
         "pending_invocations",
         "dispatch_command_id",
     ] {

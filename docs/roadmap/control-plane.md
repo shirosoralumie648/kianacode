@@ -310,7 +310,7 @@ sequenceDiagram
 | CP-10 | 持久审批决定与消费 | 05、07、09 | ✅ |
 | CP-11 | 模型/工具与层级预算账本 | 02、07、08 | ✅ |
 | CP-12 | 路径租约、内核锁与 fencing | 07、08 | ✅ |
-| CP-13 | 派发许可与唯一开始屏障 | 05、10、11、12 | ✅ |
+| CP-13 | 派发许可与唯一开始屏障 | 05、10、11、12 | 🔄 |
 | CP-14 | 结果确认、核销与回灌 | 13 | ✅ |
 | CP-15 | 统一取消状态与控制命令 | 02、07、13、14 | ✅ |
 | CP-16 | Shell/Patch/MCP 的停止证据 | 12、13、15 | ⏳ |
@@ -527,15 +527,16 @@ sequenceDiagram
 
 
 
-#### CP-13 — 执行许可与派发线性化点
+#### CP-13 — 执行许可与派发线性化点　🔄
 
 - **承接 / 前置**：`P1-H-01`、`P0-F-02`、`P0-G-04`；CP-05、10、11、12。
 - **位置**：core 公共 dispatch helper/recovery，Broker，ExecutionPermitVerifierPort。
 - **Step 1**：以一个事务写 Prepared、预算与资源预留；尚未满足预算/锁时不写 Dispatching。准备失败记录拒绝/等待，不能提前污染为“曾派发”。
 - **Step 2**：实际开始前 CAS 核验 cancel、authority、lease、approval、action/precondition 版本；原子消费 once approval、mint permit、写 Dispatching。
-- **Step 3**：Broker 消费 opaque permit，核对 action digest、execution_id、attempt 与 fence；同 permit 只能有一个 handler 调用。未注册/错误版本 handler 不回退 shell。
+- **Step 3**：Broker verifier 在一次 permit-consume CAS 内核验 prepared permit/read-set 并连续写 `invocation.dispatching` 与 effect-starting `invocation.executing`；提交确认后才调用 handler。同 permit 只能有一个 handler 调用。未注册/错误版本 handler 不回退 shell。
 - **验收**：`cp_forged_authorization_string_is_not_a_permit`、`cp_cancel_before_dispatch_commit_starts_no_handler`、`cp_replayed_permit_never_dispatches_twice`；涵盖 direct/Harness/approval-resume。
 - **交付**：每一步的线性化点、dispatch 前/后崩溃分类与 Broker 调用计数；不声称跨外部服务 exactly-once。
+- **当前证据：** run `37025517103` / CM-02 job `110899632784` 暴露首次 Broker consume 前已写 `invocation.executing` 的顺序缺陷；源码与 fixture 已修正，post-fix CI pending，状态保持 `partial` / `source`。
 
 <a id="step-cp-14"></a>
 

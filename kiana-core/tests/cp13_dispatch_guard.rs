@@ -12,6 +12,8 @@ fn cp13_dispatch_requires_committed_opaque_permit_before_broker() {
         "commit_confirmed",
         "execution.prepared",
         "invocation.dispatching",
+        "invocation.executing",
+        "events: vec![dispatching, executing]",
         "execution_permit_required",
         "execution_permit_already_consumed",
         "cancelled:before_dispatch",
@@ -28,6 +30,10 @@ fn cp13_dispatch_requires_committed_opaque_permit_before_broker() {
     }
     assert!(dispatch.contains("read_stream(\"execution_permit\""));
     assert!(dispatch.contains("commit_confirmed(self.events.as_ref(), batch)"));
+    assert!(!dispatch.contains("commit_invocation_executing"));
+    assert!(dispatch.contains("records[0].stream_version != Some(1)"));
+    assert!(dispatch.contains("execution_permit_invocation_mismatch"));
+    assert!(dispatch.contains("events: vec![dispatching, executing]"));
     assert!(capabilities.contains("dispatch_authorized"));
     for forbidden in [
         "authorize_and_execute_from_permit",
