@@ -5,6 +5,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let states = include_str!("../../kiana-domain/src/states.rs");
     let journal = include_str!("../../kiana-domain/src/journal.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
+    let approvals = include_str!("../../kiana-core/src/approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
     for marker in [
@@ -17,6 +18,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "validate_runtime_event",
         "secret_policy",
         "required_ids",
+        "CAPABILITY_BLOCKED_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -32,6 +34,10 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("unknown_required_event_kind_fails_closed"));
     assert!(baseline.contains("event_schema_version_cannot_downgrade"));
     assert!(baseline.contains("event_payload_unknown_field_is_not_silently_dropped"));
+    assert!(baseline.contains("capability_blocked_contract_matches_direct_deny_producers"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
+    assert!(approvals.contains("json!({\"error\":reason})"));
+    assert!(approvals.contains("\"attempt\":1,\"effect_started\":false"));
+    assert!(approvals.contains("\"capability.blocked\""));
 }

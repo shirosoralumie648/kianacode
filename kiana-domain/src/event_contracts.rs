@@ -261,6 +261,15 @@ macro_rules! invocation_fields {
     };
 }
 const INVOCATION_FIELDS: &[&str] = invocation_fields!();
+const CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
+    "error",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+];
 const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!("result_receipt", "result_source");
 const EXECUTION_RESULT_FIELDS: &[&str] =
     invocation_fields!("outcome_state", "outcome_ready", "result_receipt");
@@ -1099,11 +1108,11 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     ),
     spec!(
         "capability.blocked",
-        "run",
-        INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        "request",
+        &[],
+        CAPABILITY_BLOCKED_FIELDS,
         true,
-        Some("legacy_run_event_v0_to_v1")
+        None
     ),
     spec!(
         "capability.completed",

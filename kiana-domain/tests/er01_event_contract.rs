@@ -196,3 +196,47 @@ fn result_event_contracts_accept_only_their_result_fields() {
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn capability_blocked_contract_matches_direct_deny_producers() {
+    let blocked = event_kind_spec("capability.blocked").unwrap();
+    assert_eq!(blocked.aggregate_type, "request");
+    assert!(blocked.required_ids.is_empty());
+    assert_eq!(
+        blocked.allowed_fields,
+        &[
+            "error",
+            "attempt",
+            "effect_started",
+            "effect_known",
+            "zero_effect",
+            "stop_state",
+            "fenced",
+        ][..]
+    );
+    assert!(event_migration("capability.blocked", 0, 1).is_none());
+
+    validate_event_payload("capability.blocked", &json!({"error":"action_invalid"})).unwrap();
+    validate_event_payload(
+        "capability.blocked",
+        &json!({
+            "error":"approval_scope_mismatch",
+            "attempt":1,
+            "effect_started":false,
+            "effect_known":true,
+            "zero_effect":true,
+            "stop_state":"not_requested",
+            "fenced":false,
+        }),
+    )
+    .unwrap();
+
+    assert_eq!(
+        validate_event_payload(
+            "capability.blocked",
+            &json!({"error":"denied","run_id":"run"})
+        )
+        .unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
