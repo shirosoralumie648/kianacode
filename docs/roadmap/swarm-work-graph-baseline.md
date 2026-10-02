@@ -123,6 +123,8 @@ graph limit is also re-digested and must return the same error bound to the part
 the limit. No validator behavior or shared packet binding contract changed.
 
 The additions run in the existing `sw02_work_graph` target on `kiana-domain-s4/4`; the core source
-guard remains on `kiana-core-s6/6`, and no shard/workflow change is needed. This source commit has no
-GitHub receipt yet. SW-02 remains `partial/source`: exact packet-set binding, optional legacy graph
-migration, durable dispatch and effect-time fencing remain open.
+guard remains on `kiana-core-s6/6`, and no shard/workflow change is needed. Run `37056167237`, head
+`8affa112`, domain-s4 job `111001574290` passed the complete `sw02_work_graph` target 6/6,
+including both new model-call budget branches; the enclosing domain shard failed on sibling targets.
+SW-02 remains `partial/source`: exact packet-set binding, optional legacy graph migration, durable
+dispatch and effect-time fencing remain open.
