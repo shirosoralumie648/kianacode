@@ -4025,6 +4025,21 @@ limitations: run `36993318357` was cancelled later by a subsequent push; its dom
 reviewer: root source review confirmed validation does not recurse through `visibility`, the valid Qualified control remains searchable, and malformed metadata is denied; no local runtime test reviewer
 ```
 
+### CM-02 evidence-required review promotion (2026-10-02)
+
+```text
+source_snapshot: isolated source commit `4633379eee34dbfcf6cc77f6f9e05b0e831dd976` based on `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`, cherry-picked onto current master; `kiana-daemon/src/harness_memory.rs`; `kiana-daemon/tests/daemon_host.rs`; `docs/roadmap/memory-lifecycle-baseline.md`; `docs/roadmap.md`
+worktree_status: CM-02 fail-closed source and fixture slice is integrated on master; normal model Candidate promotion requires evidence; LegacyImport review mutation is denied pending a Native successor; final record lifecycle is checked before journal/file append
+command_argv: source/diff review; `cargo fmt --all --check`; `git diff --check`; `git cherry-pick 4633379eee34dbfcf6cc77f6f9e05b0e831dd976`; `git show --check HEAD`; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: source review in `/home/shirosora/kiana-wt/cm02-review-evidence-20261002`; integration in `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux; GitHub Actions only for tests
+fixture·cassette: prior run `36994107681` / daemon job `110797094435` logged `harness_memory::tests::legacy_memory_is_unverifiable_until_reviewed ... ok` and the earlier `model_written_memory_stays_unsearchable_until_approved ... FAILED`; domain job `110797094451` ran `cm02_memory.rs` 5/5 and `cm05_memory_eventstore.rs` 3/3; new `memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled` checks unchanged JSONL and no EventStore append for model/legacy review; renamed daemon-host fixture checks the candidate remains unsearchable
+exit_code: formatter, diff checks, cherry-pick and `git show --check` exited 0; new source fixtures have no GitHub result and no local runtime result
+status_change: CM-02 remains 🔄 / `feature_status=partial`; no-evidence promotion fails closed
+proof-level change: `proof_level=source`; no local_behavior, durable, live or physical promotion
+limitations: no successful EventStore-backed proposal acceptance path is currently reachable through MemoryReviewHandler (`memory_proposal_event_journal_required`); evidence-to-event/quote binding and a journaled Native successor remain open; post-integration CI result is pending
+reviewer: isolated source review verified rejection precedes MemoryMutation/EventStore/JSONL writes and that any accepted record is lifecycle-validated; no runtime test reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text

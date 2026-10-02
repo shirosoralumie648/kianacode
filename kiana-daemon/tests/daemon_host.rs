@@ -3762,7 +3762,7 @@ async fn builder_project_search_hits_land_on_receipt() {
 }
 
 #[tokio::test]
-async fn model_written_memory_stays_unsearchable_until_approved() {
+async fn model_written_memory_without_evidence_is_rejected_and_stays_unsearchable() {
     let _environment_lock = environment_lock();
     let root = temp_project();
 
@@ -3856,7 +3856,18 @@ async fn model_written_memory_stays_unsearchable_until_approved() {
         )
         .await
         .unwrap();
-    assert_eq!(approved.status, ExecutionStatus::Completed, "{approved:?}");
+    assert_ne!(approved.status, ExecutionStatus::Completed, "{approved:?}");
+    assert!(
+        approved
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("memory_review_evidence_required")),
+        "{approved:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(planning_memory_path(&root)).unwrap(),
+        format!("{raw_record}\n")
+    );
 
     let search_host = scripted_host(memory_search_cassette(
         "department:planning",
@@ -3878,12 +3889,12 @@ async fn model_written_memory_stays_unsearchable_until_approved() {
         ExecutionStatus::Completed,
         "{after_review:?}"
     );
-    let hits = after_review.output["memory_hits"].as_array().unwrap();
-    assert_eq!(hits.len(), 1, "{after_review:?}");
-    assert_eq!(hits[0]["id"], record_id);
-    assert_eq!(hits[0]["origin"], "model");
-    assert_eq!(hits[0]["admission_state"], "qualified");
-    assert_eq!(hits[0]["state"], "active");
+    assert!(
+        after_review.output["memory_hits"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "{after_review:?}"
+    );
 }
 
 fn spoofed_pm_memory_search_cassette() -> serde_json::Value {

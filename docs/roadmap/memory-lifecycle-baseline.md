@@ -38,7 +38,7 @@ hash 只用于 CM-02 源码漂移复核，不构成 Memory durable、审批或�
 
 ## 3. Legacy import
 
-Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_import`，不再把缺失 admission/state/classification 的旧行升级为 Qualified/Active。Legacy row 转成 v2-compatible in-memory projection，保留原 text/source 诊断，但 provenance 为 unverifiable、搜索不可见，必须经过新的 server review/approval 才能产生 Native Qualified successor。v2 native candidate/scratch/review writer 显式填充 purpose/sensitivity/import mode；旧文件仍只读兼容。
+Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_import`，不再把缺失 admission/state/classification 的旧行升级为 Qualified/Active。Legacy row 转成 v2-compatible in-memory projection，保留原 text/source 诊断，但 provenance 为 unverifiable、搜索不可见。CM-02 的 `memory.review promote` 不能把它原位晋升；需要带新 evidence 的 Native successor。当前 EventStore-backed daemon adapter 仍拒绝 `accept_proposal`，因此这里不声称生产 successor 路径已打通。v2 native candidate/scratch/review writer 显式填充 purpose/sensitivity/import mode；旧文件仍只读兼容。
 
 ## 4. Failure-first fixture matrix
 
@@ -52,6 +52,8 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 | `legacy_memory_is_unverifiable_until_reviewed`（daemon） | 真实 JSONL reader 使用 explicit import，不把旧行直接暴露给检索 |
 | `schema_v1_native_qualified_record_requires_explicit_legacy_import` | v1 Native Qualified/Active 不能绕过 importer；命名 upcaster 仍生成 v2 LegacyImport |
 | `memory_event_projection_rejects_schema_v1_native_qualified_record` | committed memory fact 中嵌入的 v1 Native Qualified/Active 记录不能通过 lifecycle/projection |
+| `memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled` | 普通 model Candidate 缺 evidence 时拒绝晋升；LegacyImport 原位 review 也拒绝；两者 JSONL 字节不变且 EventStore 未追加 memory fact |
+| `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` | 缺 source evidence 的批准不能把模型候选变成 Qualified/Active 或 searchable |
 
 以前的独立 `.github/workflows/cm02-memory-lifecycle.yml` 已删除并合并进 `.github/workflows/ci.yml`：`cm02_memory` 由 `kiana-domain-s1/4` shard 执行，daemon legacy reader fixture 随 `kiana-daemon` 包测试执行，fmt 由 Rust gates 执行。本地不运行测试或格式检查。
 
@@ -150,4 +152,28 @@ status_change: CM-02 remains 🔄 / `feature_status=partial`; lifecycle-invalid 
 proof-level change: source only; no local_behavior, durable, live or physical promotion
 limitations: unified run `36992023615` had a Rust gates failure at `cargo fmt --all --check`, but its full result/log was unavailable and this failure is not attributed to CM-02; run `36981359579` was cancelled; event-to-quote binding, durable mutation/index visibility, retention/revocation/deletion and semantic recall remain outside this source slice
 reviewer: root source review confirmed lifecycle validation has no visibility recursion, valid Qualified control remains searchable, and invalid metadata is denied; no local runtime test reviewer
+```
+
+## 10. Evidence-required review promotion (2026-10-02)
+
+The existing model-memory integration test exposed that the daemon review command could change a
+Candidate with empty evidence to Qualified/Active. LegacyImport rows had the same in-place path,
+which contradicts the import contract and then fails lifecycle validation. Promotion now fails
+before mutation construction when evidence is absent, all review mutation of LegacyImport is
+rejected, and the final record is lifecycle-validated before EventStore append or JSONL projection.
+The positive `MemoryRecord` contract control remains in
+`qualified_memory_requires_review_evidence_and_purpose`; there is no currently reachable
+EventStore-backed daemon proposal-acceptance path to claim as a successful runtime promotion flow.
+
+```text
+source_snapshot: isolated source commit `4633379eee34dbfcf6cc77f6f9e05b0e831dd976` based on `491e6bd78b9527b0cc840f8f3aa615d73eb7c6a0`, cherry-picked onto current master; `kiana-daemon/src/harness_memory.rs`; `kiana-daemon/tests/daemon_host.rs`; this baseline; `CURRENT_STATUS.md`; `docs/roadmap.md`
+worktree_status: CM-02 fail-closed source and fixture slice is integrated on master; ordinary model Candidate promotion requires evidence; LegacyImport review mutation is denied pending a Native successor; final lifecycle validation runs before journal/file append
+command_argv: source/diff review; `cargo fmt --all --check`; `git diff --check`; `git cherry-pick 4633379eee34dbfcf6cc77f6f9e05b0e831dd976`; `git show --check HEAD`; no local test/build/Cargo check/clippy/smoke command
+cwd·environment: source review in `/home/shirosora/kiana-wt/cm02-review-evidence-20261002`; integration in repository root; Linux; GitHub Actions remains the test executor
+fixture·cassette: prior run `36994107681` / daemon job `110797094435` logged `harness_memory::tests::legacy_memory_is_unverifiable_until_reviewed ... ok` and the earlier `model_written_memory_stays_unsearchable_until_approved ... FAILED`; domain job `110797094451` ran `cm02_memory.rs` 5/5 and `cm05_memory_eventstore.rs` 3/3; new `memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled` checks model/legacy denial, byte-identical JSONL and an empty EventStore; renamed daemon-host test checks post-review state
+exit_code: formatter, diff checks, cherry-pick and `git show --check` exited 0; new source fixtures have no post-integration GitHub result; no local test result exists
+status_change: CM-02 remains 🔄 / `feature_status=partial`; unsupported promotion now fails closed at the adapter boundary
+proof-level change: source only; no local_behavior, durable, live or physical promotion
+limitations: the success-side `accept_proposal` helper is not reachable with the production EventStore-backed MemoryReviewHandler, which returns `memory_proposal_event_journal_required`; event-to-quote verification and a journaled Native successor path remain open; retention, revocation, durable recovery and semantic recall remain later scope; post-integration CI is pending
+reviewer: isolated source review confirmed denial precedes MemoryMutation/EventStore/JSONL side effects and accepted records are lifecycle-validated; no runtime test reviewer
 ```

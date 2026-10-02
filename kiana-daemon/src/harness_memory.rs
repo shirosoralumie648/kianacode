@@ -783,6 +783,12 @@ fn review_records_with_mutation(
     if record.admission_state != MemoryAdmission::Candidate || record.state != MemoryState::Draft {
         return Err(PortError::Conflict("memory_candidate_required".to_owned()));
     }
+    if record.import_mode == kiana_domain::MemoryImportMode::LegacyImport {
+        return Err(failed("memory_legacy_import_requires_native_successor"));
+    }
+    if action == "promote" && record.evidence.is_empty() {
+        return Err(failed("memory_review_evidence_required"));
+    }
     let operation = if action == "promote" {
         MemoryMutationOperation::Approve
     } else {
@@ -851,6 +857,7 @@ fn review_records_with_mutation(
     record.reviewed_by = Some(actor);
     record.review_reason = Some(reason);
     record.reviewed_at_ms = Some(now_ms());
+    record.validate_lifecycle().map_err(failed)?;
     let (journal_cursor, journal_replayed) = if mutation_scope.is_some() {
         journal_memory_fact(
             scope,
@@ -1016,6 +1023,7 @@ fn accept_proposal(
                 reviewed_at_ms: Some(now_ms()),
             }
         };
+        record.validate_lifecycle().map_err(failed)?;
         results.push(record.hit());
         records.retain(|existing| existing.id != record.id);
         records.push(record.clone());
@@ -1471,6 +1479,104 @@ mod tests {
         assert_eq!(records[0].state, MemoryState::Draft);
         assert!(!records[0].searchable());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled() {
+        let collection = MemoryCollection::parse("department:planning").unwrap();
+        let model_candidate = MemoryRecord {
+            schema: MEMORY_RECORD_SCHEMA_V2.to_owned(),
+            id: "model-candidate".to_owned(),
+            layer: collection.layer.clone(),
+            collection: collection.collection.clone(),
+            text: "model supplied candidate".to_owned(),
+            source: "model-write".to_owned(),
+            kind: "fact".to_owned(),
+            origin: MemoryOrigin::Model,
+            admission_state: MemoryAdmission::Candidate,
+            state: MemoryState::Draft,
+            purpose: Some(Purpose {
+                id: "memory.candidate".to_owned(),
+                description: "review evidence fixture".to_owned(),
+            }),
+            sensitivity: MemorySensitivity::Internal,
+            ..MemoryRecord::default()
+        };
+        let legacy_import = json!({
+            "schema": MEMORY_RECORD_SCHEMA,
+            "id": "legacy-candidate",
+            "layer": collection.layer,
+            "collection": collection.collection,
+            "text": "imported legacy candidate",
+            "source": "legacy-source",
+            "role_id": "pm",
+            "department_id": "planning",
+            "session_id": "session-review",
+            "created_at_ms": 1
+        });
+        let cases = [
+            (
+                "model-review-evidence",
+                serde_json::to_value(model_candidate).unwrap(),
+                "model-candidate",
+                "memory_review_evidence_required",
+            ),
+            (
+                "legacy-review-evidence",
+                legacy_import,
+                "legacy-candidate",
+                "memory_legacy_import_requires_native_successor",
+            ),
+        ];
+
+        for (label, row, record_id, expected_error) in cases {
+            let root = temp_memory_path(label);
+            let project_root = root.to_string_lossy().into_owned();
+            let path =
+                collection_path_scoped(&collection, &project_root, "session-review", None).unwrap();
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, format!("{}\n", row)).unwrap();
+            let before = fs::read_to_string(&path).unwrap();
+            let events: std::sync::Arc<dyn EventStorePort> =
+                std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+            let scope = MemoryScope {
+                home: None,
+                events: Some(events.clone()),
+            };
+            let arguments = json!({
+                "action": "promote",
+                "collection": collection.collection,
+                "project_root": project_root,
+                "session_id": "session-review",
+                "role_id": "pm",
+                "actor_id": "operator",
+                "operator_authorized": true,
+                "record_id": record_id,
+                "reason": "review without source evidence",
+                "expected_revision": 1
+            });
+            let result = tokio::task::spawn_blocking(move || {
+                review_records_with_mutation(
+                    &arguments,
+                    &scope,
+                    Some(kiana_domain::RequestId::new()),
+                    None,
+                    1,
+                    1,
+                )
+            })
+            .await
+            .unwrap();
+
+            assert!(matches!(
+                result,
+                Err(PortError::Failed(ref code)) if code == expected_error
+            ));
+            assert_eq!(fs::read_to_string(&path).unwrap(), before);
+            assert!(events.read_all().await.unwrap().is_empty());
+            fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[cfg(unix)]
