@@ -4602,6 +4602,21 @@ limitations: no CI receipt exists for this change yet; raw JSON deserialization 
 reviewer: EQ-03 strict DTO resource, provenance, digest and no-execution-path source review; no runtime test reviewer
 ```
 
+### EQ-03 rustfmt CI correction (2026-10-02)
+
+```text
+source_snapshot: 956e6269 plus formatting-only correction to kiana-domain/src/quality.rs and kiana-domain/tests/eq03_eval_objects.rs
+worktree_status: applied rustfmt's two reported layout changes; no product or fixture behavior changed
+command_argv: cargo fmt --all; git diff --check
+cwd/environment: repository root; Linux; formatting only; no local test/build/check/clippy/smoke command was run
+fixture or cassette: Rust gates job 110697641705 on run 36962026026 reported formatting diffs in the two EQ-03 files; run 36962728629 was triggered before this correction, so the corrected source will be queued by the next push
+exit_code: cargo fmt --all and git diff --check exited 0; no local tests were run
+status_change: none; EQ-03 remains feature_status=implemented, proof_level=source
+proof-level change: unchanged; no local_behavior, durable, live or physical promotion
+limitations: corrected formatting has no post-change GitHub CI receipt yet; this entry records formatting only and no test or compile result
+reviewer: Codex review of the two-file rustfmt diff; no runtime test reviewer
+```
+
 
 ### EQ-04 evaluation admission metadata evidence (2026-09-17)
 
