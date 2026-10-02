@@ -134,6 +134,11 @@ not execute the later Company business-command read-back branch. It does not est
 atomicity, product UI difference presentation, crash recovery, retention/deletion, or power-loss
 durability.
 
+The first CI compile of the Company integration fixture, run `37016768593` daemon job
+`110870088862`, rejected its helper's named private `kiana_core::CoreResponse` return type. The
+helper now returns the public `ExecutionStatus` projection while preserving all fixture commands
+and assertions. This follow-up has no post-fix CI receipt yet.
+
 Run `37010476076` daemon job `110849027662` exposed two stale expectations in
 `local_artifact_duplicate_version_cannot_replace_content_or_manifest`. The fixture now aligns
 with the adapter contract: the legacy `stage_artifact` entry returns

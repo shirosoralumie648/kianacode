@@ -861,6 +861,21 @@ limitations: the integration fixture reads historical bytes through ArtifactCont
 reviewer: isolated CO-06 source review; no runtime test reviewer
 ```
 
+### CO-06 public fixture result type correction (2026-10-02)
+
+```text
+source_snapshot: ddf146fd plus this isolated follow-up; kiana-daemon/tests/co06_company_artifact_history.rs
+worktree_status: isolated branch step/co06-company-history-20261002; helper now returns public ExecutionStatus instead of naming kiana_core::CoreResponse
+command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
+cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
+fixture·cassette: GitHub run 37016768593 daemon job 110870088862 found the private helper return type at compile time; corrected target remains kiana-daemon/tests/co06_company_artifact_history.rs::artifact_version_remains_reviewable_after_workspace_file_changes
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no post-fix CI receipt yet
+status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; only the helper's exposed test result type changed and fixture behavior is unchanged
+proof-level change: source only; no runtime or CI proof promotion
+limitations: the post-fix target has not yet run on GitHub CI; all CO-06 integration and storage limitations above remain
+reviewer: isolated CO-06 source review; no runtime test reviewer
+```
+
 ### UI-13 Authorization header redaction evidence (2026-09-26)
 
 ```text
