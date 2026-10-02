@@ -8,7 +8,7 @@
 |---|---|
 | roadmap card | [`ER-02`](event-receipt-recovery.md#step-er-02) |
 | source snapshot | `863b30f`（ER-01 event registry 后的干净基线） |
-| feature_status | `implemented`（RuntimeEvent identity links、correlation helpers、ID-aware projections source） |
+| feature_status | `partial`（identity-link, EventStore, and ID-aware projection source slices exist; full entrypoint parity and a clean complete ER-02 CI receipt remain unproven） |
 | proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
 | canonical path | command/request → RuntimeEvent correlation/causation/parent links → aggregate stream version → Invocation/Run/Receipt projection |
 | this step does | 区分 command/request/session/run/turn/invocation/execution/attempt/event ID owner，新增可选 links，默认 correlation=request_id，拒绝 self-link，投影按 run/request ID 配对而非 sequence |
@@ -73,15 +73,18 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 | `event_id_reuse_is_denied` | EventStore 全局 event_id duplicate fail-closed |
 | `same_request_different_command_digest_conflicts` | command digest drift 不覆盖既有事实 |
 | `malformed_identity_links_are_denied_before_append` | EventStore append 边界拒绝 self-causation/self-parent 与 command-without-correlation |
-| `idempotent_replay_rejects_identity_link_drift` | 相同幂等键 replay 必须保持 command/correlation/causation/parent identity |
+| `idempotent_replay_rejects_command_id_drift` | 相同幂等键 replay 拒绝 command ID 单独漂移 |
+| `idempotent_replay_rejects_correlation_id_drift` | 相同幂等键 replay 拒绝 correlation ID 单独漂移 |
+| `idempotent_replay_rejects_causation_event_id_drift` | 相同幂等键 replay 拒绝 causation event ID 单独漂移 |
+| `idempotent_replay_rejects_parent_event_id_drift` | 相同幂等键 replay 拒绝 parent event ID 单独漂移 |
 | `cross_run_result_cannot_pair_by_sequence` | 同 sequence/同 capability ID 的 foreign run result 不配对 |
 | `event_identity_links_and_projection_use_stable_ids_not_request_sequence` | domain/core source guard |
 
-`.github/workflows/er02-identity.yml` 在 GitHub runner 串行执行 domain/eventlog/core fixtures、fmt/fetch；本地不运行测试，CI 结果不等待。
+统一 `.github/workflows/ci.yml` 按 `scripts/ci/test-shards.json` 执行 domain/core ER-02 targets 和完整 `kiana-eventlog` crate；本地不运行测试，也不等待 CI。
 
-当前统一 CI 已接管原专项 workflow；新增 EventStore identity-boundary fixtures 随
-`kiana-eventlog` shard 执行，core source guard 同时锁定 storage validator 与幂等 replay
-的 identity-link 比较。拒绝路径仍只在 GitHub Actions 验证。
+新增 EventStore identity-boundary fixtures 随 `kiana-eventlog` crate target 执行，core
+source guard 锁定 storage validator 与幂等 replay 的 identity-link 比较。拒绝路径仍只在
+GitHub Actions 验证。
 
 ## 6. 限制与交接
 
@@ -90,3 +93,13 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 - EventStore CAS/duplicate guard 在内存/JSONL 适配器有 source/局部行为证据，但不证明掉电、网络文件系统、跨主机或外部 effect exactly-once。
 - Projection 过滤能阻止跨 run 错配，但完整 InvocationLedger、attempt retry/reconcile、result delivery、retention/delete 和 Receipt correctness 仍需 ER-03+、CP-07+、PD/SC。
 - 本地只做格式、workspace test-target 静态编译和 diff 检查；不提升 local_behavior/durable/live/physical。
+
+## 7. Latest readable CI receipt (2026-10-02)
+
+Run `36961448573` used head `21027ecccca3db0fe42a88ecfcd840728c472eba`; its three relevant jobs completed with failure before the run was cancelled by a newer push. ER-02 targets themselves passed:
+
+- `kiana-domain-s2/4`, job `110695889284`: all 3 `er02_identity` fixtures passed: `journal_frames_reject_identity_link_drift`, `legacy_events_without_links_remain_readable_but_self_links_fail_closed`, and `new_events_have_request_correlation_and_explicit_links_round_trip`. The shard also failed `co08_replay`, `co11_criteria_coverage`, `co17_company_handoff`, `co29_rework_contract`, `connector_conformance`, `connector_notifications`, `cp12_resource_lease`, `cp15_cancellation`, `dep08_deployment_config`, `dep11_health_aggregation`, `dep16_reconcile`, `dep17_capacity`, `dep18_incident`, `dep19_backup_manifest`, `dep20_quiesce_gate`, `dep21_backup_lifecycle`, `dep22_restore_quarantine`, `dep27_migration_registry`, `dep39_supply_chain_release_evidence`, and `dep40_release_uat_evidence`.
+- `kiana-core-s3/6`, job `110695889194`: both `er02_identity` and `er02_identity_guard` passed: `cross_run_result_cannot_pair_by_sequence` and `event_identity_links_and_projection_use_stable_ids_not_request_sequence`. The shard also failed `cp26_decision_trace_guard`, `cp27_nonblocking_limits_guard`, `cp28_migration_boundary_guard`, `dep00_deployment_guard`, `dep23_restore_activation`, `dep25_effect_reconcile_route`, `dep25_effect_reconciliation`, `dep26_retention_deletion`, `dep27_migration_registry_guard`, `dep28_migration_preflight_guard`, `dep29_migration_primitives_guard`, `dep30_migration_runner_guard`, `dep31_migration_rebuild_guard`, `dep32_migration_rollback_guard`, `dep33_revision_compatibility_guard`, `dep34_release_preflight_guard`, `dep36_container_adapter_guard`, `dep37_orchestrated_rollout_guard`, `dep38_rollout_lifecycle_guard`, `dep39_supply_chain_guard`, `dep41_release_gate_guard`, `dependency_boundaries`, `eq09_eval_runtime_guard`, `eq10_fake_provider_guard`, `eq11_deny_broker_guard`, `eq13_initial_state_guard`, `eq14_evidence_capture_guard`, `eq15_fault_plan_guard`, `eq16_boundary_evidence_guard`, `er12_receipt_aggregation`, `er18_workspace_checkpoint_guard`, `er19_process_handle_guard`, `er20_restart_projector_guard`, `er21_resume_claim_guard`, `er22_cancel_recovery_guard`, `er25_retry_policy_guard`, and `eval_baseline`.
+- `kiana-eventlog`, job `110695889200`: all 4 `er02_identity` fixtures passed: `event_id_reuse_is_denied`, `same_request_different_command_digest_conflicts`, `malformed_identity_links_are_denied_before_append`, and the then-existing `idempotent_replay_rejects_identity_link_drift` (parent-link case). The shard also failed `oa06_commit_observer`, `pd08_integrity_scan`, `pd27_writer_queue`, `pd27_writer_queue_guard`, `pd30_storage_fault_matrix`, and `pd31_adapter_conformance`.
+
+These are exact fixture/job results within failed aggregate shards; none of the listed sibling targets is an ER-02 fixture. The current four-field replay matrix is source/test-fixture coverage only and has no CI receipt yet. `feature_status=partial`, `proof_level=source`; direct/Harness/approval-resume identity-chain parity and a clean complete ER-02 shard receipt remain unproven.

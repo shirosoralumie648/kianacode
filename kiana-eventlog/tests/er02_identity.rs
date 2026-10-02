@@ -58,28 +58,112 @@ async fn malformed_identity_links_are_denied_before_append() {
 }
 
 #[tokio::test]
-async fn idempotent_replay_rejects_identity_link_drift() {
+async fn idempotent_replay_rejects_command_id_drift() {
+    assert_identity_link_drift_denied(IdentityLink::CommandId).await;
+}
+
+#[tokio::test]
+async fn idempotent_replay_rejects_correlation_id_drift() {
+    assert_identity_link_drift_denied(IdentityLink::CorrelationId).await;
+}
+
+#[tokio::test]
+async fn idempotent_replay_rejects_causation_event_id_drift() {
+    assert_identity_link_drift_denied(IdentityLink::CausationEventId).await;
+}
+
+#[tokio::test]
+async fn idempotent_replay_rejects_parent_event_id_drift() {
+    assert_identity_link_drift_denied(IdentityLink::ParentEventId).await;
+}
+
+#[derive(Clone, Copy)]
+enum IdentityLink {
+    CommandId,
+    CorrelationId,
+    CausationEventId,
+    ParentEventId,
+}
+
+async fn assert_identity_link_drift_denied(link: IdentityLink) {
     let store = MemoryEventLog::new();
     let request_id = RequestId::new();
-    let first = RuntimeEvent::new(request_id, 1, "run.accepted", json!({}))
-        .unwrap()
-        .with_identity_links(Some(request_id), Some(request_id), None, None)
+    let command_id = distinct_request_id(&[request_id]);
+    let correlation_id = distinct_request_id(&[request_id]);
+    let first_base = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    let causation_event_id = distinct_event_id(&[first_base.event_id]);
+    let parent_event_id = distinct_event_id(&[first_base.event_id, causation_event_id]);
+    let first = first_base
+        .with_identity_links(
+            Some(command_id),
+            Some(correlation_id),
+            Some(causation_event_id),
+            Some(parent_event_id),
+        )
         .with_idempotency_key("er02-identity-key");
     store.append_idempotent(first).await.unwrap();
 
-    let drifted = RuntimeEvent::new(request_id, 1, "run.accepted", json!({}))
-        .unwrap()
+    let drifted_base = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    let (drifted_command_id, drifted_correlation_id, drifted_causation_id, drifted_parent_id) =
+        match link {
+            IdentityLink::CommandId => (
+                Some(distinct_request_id(&[command_id, request_id])),
+                Some(correlation_id),
+                Some(causation_event_id),
+                Some(parent_event_id),
+            ),
+            IdentityLink::CorrelationId => (
+                Some(command_id),
+                Some(distinct_request_id(&[correlation_id, request_id])),
+                Some(causation_event_id),
+                Some(parent_event_id),
+            ),
+            IdentityLink::CausationEventId => (
+                Some(command_id),
+                Some(correlation_id),
+                Some(distinct_event_id(&[
+                    causation_event_id,
+                    drifted_base.event_id,
+                ])),
+                Some(parent_event_id),
+            ),
+            IdentityLink::ParentEventId => (
+                Some(command_id),
+                Some(correlation_id),
+                Some(causation_event_id),
+                Some(distinct_event_id(&[parent_event_id, drifted_base.event_id])),
+            ),
+        };
+    let drifted = drifted_base
         .with_identity_links(
-            Some(request_id),
-            Some(request_id),
-            None,
-            Some(EventId::new()),
+            drifted_command_id,
+            drifted_correlation_id,
+            drifted_causation_id,
+            drifted_parent_id,
         )
         .with_idempotency_key("er02-identity-key");
     assert!(matches!(
         store.append_idempotent(drifted).await,
         Err(PortError::Conflict(reason)) if reason == "event_idempotency_key_payload_mismatch"
     ));
+}
+
+fn distinct_request_id(excluded: &[RequestId]) -> RequestId {
+    loop {
+        let candidate = RequestId::new();
+        if !excluded.contains(&candidate) {
+            return candidate;
+        }
+    }
+}
+
+fn distinct_event_id(excluded: &[EventId]) -> EventId {
+    loop {
+        let candidate = EventId::new();
+        if !excluded.contains(&candidate) {
+            return candidate;
+        }
+    }
 }
 
 fn transition(command_id: RequestId, digest: char) -> TransitionBatch {

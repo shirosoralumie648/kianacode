@@ -3290,6 +3290,29 @@ limitations: current CI run has not completed; unified shard results are not yet
 reviewer: Codex ER-02 source review; verified a single EventStore validator is used by append/replay paths, frame validation remains compatibility-readable for legacy links, and no local runtime tests were executed
 ```
 
+### ER-02 replay identity-link field matrix and exact prior CI receipts (2026-10-02)
+
+```text
+source_snapshot: origin/master=956e6269; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/er02_identity_guard.rs; kiana-eventlog/src/event_store_core.rs; docs/roadmap/event-receipt-identity-baseline.md
+worktree_status: isolated branch step/er02-replay-fixtures-20261002. Replaced the single parent-link replay case with four CI-only denial fixtures, each changing exactly one of command_id, correlation_id, causation_event_id, or parent_event_id; source guard checks all four comparator expressions and fixture names. No production behavior, workflow, or manifest changed; the outer roadmap row remains 🔄 and the detail summary now accurately says partial/source.
+command_argv:
+  git worktree add -b step/er02-replay-fixtures-20261002 /tmp/kiana-er02-replay-fixture-20261002 origin/master
+  cargo fmt --all --manifest-path /tmp/kiana-er02-replay-fixture-20261002/Cargo.toml
+  git -C /tmp/kiana-er02-replay-fixture-20261002 diff --check
+  gh run view 36961448573 --json headSha,status,conclusion,jobs
+  gh run view 36961448573 --job 110695889284 --log-failed
+  gh run view 36961448573 --job 110695889194 --log-failed
+  gh run view 36961448573 --job 110695889200 --log-failed
+  no local test, build, check, clippy, or smoke command was run
+cwd·environment: /tmp/kiana-er02-replay-fixture-20261002; Linux; tests are GitHub Actions only
+fixture·cassette: new eventlog fixtures `idempotent_replay_rejects_command_id_drift`, `idempotent_replay_rejects_correlation_id_drift`, `idempotent_replay_rejects_causation_event_id_drift`, `idempotent_replay_rejects_parent_event_id_drift`; core source guard asserts all four `ensure_idempotent_match` comparisons and all four fixture names
+exit_code: cargo fmt --all and git diff --check exited 0; no local test/build/check exit code exists. Prior run 36961448573 at head 21027ecc had ER-02 domain 3/3, core 2/2, eventlog 4/4 fixture cases pass; all three aggregate jobs failed on sibling targets listed below. New four-field fixture matrix has not run in CI.
+status_change: ER-02 remains 🔄 and `feature_status=partial`; this adds test/guard coverage only and does not close the card
+proof-level change: `proof_level=source`; no local_behavior, durable, live, or physical promotion
+limitations: prior domain job 110695889284 also failed `co08_replay`, `co11_criteria_coverage`, `co17_company_handoff`, `co29_rework_contract`, `connector_conformance`, `connector_notifications`, `cp12_resource_lease`, `cp15_cancellation`, `dep08_deployment_config`, `dep11_health_aggregation`, `dep16_reconcile`, `dep17_capacity`, `dep18_incident`, `dep19_backup_manifest`, `dep20_quiesce_gate`, `dep21_backup_lifecycle`, `dep22_restore_quarantine`, `dep27_migration_registry`, `dep39_supply_chain_release_evidence`, `dep40_release_uat_evidence`; core job 110695889194 also failed `cp26_decision_trace_guard`, `cp27_nonblocking_limits_guard`, `cp28_migration_boundary_guard`, `dep00_deployment_guard`, `dep23_restore_activation`, `dep25_effect_reconcile_route`, `dep25_effect_reconciliation`, `dep26_retention_deletion`, `dep27_migration_registry_guard`, `dep28_migration_preflight_guard`, `dep29_migration_primitives_guard`, `dep30_migration_runner_guard`, `dep31_migration_rebuild_guard`, `dep32_migration_rollback_guard`, `dep33_revision_compatibility_guard`, `dep34_release_preflight_guard`, `dep36_container_adapter_guard`, `dep37_orchestrated_rollout_guard`, `dep38_rollout_lifecycle_guard`, `dep39_supply_chain_guard`, `dep41_release_gate_guard`, `dependency_boundaries`, `eq09_eval_runtime_guard`, `eq10_fake_provider_guard`, `eq11_deny_broker_guard`, `eq13_initial_state_guard`, `eq14_evidence_capture_guard`, `eq15_fault_plan_guard`, `eq16_boundary_evidence_guard`, `er12_receipt_aggregation`, `er18_workspace_checkpoint_guard`, `er19_process_handle_guard`, `er20_restart_projector_guard`, `er21_resume_claim_guard`, `er22_cancel_recovery_guard`, `er25_retry_policy_guard`, `eval_baseline`; eventlog job 110695889200 also failed `oa06_commit_observer`, `pd08_integrity_scan`, `pd27_writer_queue`, `pd27_writer_queue_guard`, `pd30_storage_fault_matrix`, `pd31_adapter_conformance`. None is an ER-02 fixture. The three-entrypoint direct/Harness/approval-resume identity-chain evidence is still missing, and no clean full ER-02 shard receipt exists.
+reviewer: source review confirmed each candidate replay preserves the request, payload, key, and three non-target links while changing one identity field; the comparator denial reason remains `event_idempotency_key_payload_mismatch`. No local test reviewer.
+```
+
 ### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
 
 ```text

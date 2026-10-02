@@ -6,6 +6,7 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     let projection = include_str!("../src/invocation_projection.rs");
     let span = include_str!("../src/span_projection.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-identity-baseline.md");
+    let eventlog_fixtures = include_str!("../../kiana-eventlog/tests/er02_identity.rs");
 
     for marker in [
         "command_id",
@@ -44,5 +45,31 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     assert!(baseline.contains("legacy"));
     let event_store = include_str!("../../kiana-eventlog/src/event_store_core.rs");
     assert!(event_store.contains("event_identity_links_invalid"));
-    assert!(event_store.contains("existing.causation_event_id == candidate.causation_event_id"));
+    for comparison in [
+        "existing.command_id == candidate.command_id",
+        "existing.correlation_id == candidate.correlation_id",
+        "existing.causation_event_id == candidate.causation_event_id",
+        "existing.parent_event_id == candidate.parent_event_id",
+    ] {
+        assert!(
+            event_store.contains(comparison),
+            "idempotent replay comparison missing: {comparison}"
+        );
+    }
+    for fixture in [
+        "idempotent_replay_rejects_command_id_drift",
+        "idempotent_replay_rejects_correlation_id_drift",
+        "idempotent_replay_rejects_causation_event_id_drift",
+        "idempotent_replay_rejects_parent_event_id_drift",
+    ] {
+        assert!(
+            eventlog_fixtures.contains(fixture),
+            "idempotent replay denial fixture missing: {fixture}"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "baseline fixture missing: {fixture}"
+        );
+    }
+    assert!(eventlog_fixtures.contains("event_idempotency_key_payload_mismatch"));
 }
