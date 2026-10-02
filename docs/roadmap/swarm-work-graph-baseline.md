@@ -27,7 +27,7 @@
 |---|---|
 | `swarm_plan_rejects_partition_overlap_and_unbound_input` | 重叠 owned path、空 input refs 均在构造/图校验前拒绝 |
 | `work_graph_rejects_cycle_missing_duplicate_and_first_success` | cycle/missing dependency、重复 fingerprint 与 `first_success` fail-closed |
-| `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/budget 上限拒绝，成功依赖后的 ready 投影可读，unknown fields 拒绝 |
+| `work_graph_rejects_limits_and_preserves_stable_projection` | count/depth/concurrency/spawn-rate/TTL/token/model-call budget 上限拒绝，成功依赖后的 ready 投影可读，unknown fields 拒绝 |
 | `work_graph_rejects_duplicate_partition_keys_and_ordinals` | 重绑 graph digest 后，duplicate PartitionId key 与 ordinal 分别命中稳定拒绝码；run `36993318357` domain-s4/4 目标 6/6 通过 |
 | `work_graph_projection_reports_failure_causes_and_stably_sorts_ready_items` | Failed/Cancelled/ResultUnknown、失败依赖传播、运行中/未完成依赖阻塞、成功依赖放行及多项 ready/failed 的稳定排序；run `36993318357` domain-s4/4 目标 6/6 通过 |
 | `swarm_work_graph_uses_shared_packet_graph_and_keeps_execution_in_control_plane` | domain 复用 shared packet graph；Swarm 仍通过现有 ControlPlane/EventLog 唯一路径 |
@@ -113,3 +113,16 @@ proof-level change: none; remains `source`
 limitations: run `36994107681` was cancelled by a subsequent push and its shards failed on unrelated sibling tests despite the exact SW-02 domain/core targets passing. Workflow-reference and rustfmt gate corrections are recorded in `CURRENT_STATUS.md`; optional graph migration and durable dispatch/effect fencing remain outside SW-02.
 reviewer: source-level review of rejection setup, projection expectations and unified CI shard mapping; no runtime test reviewer
 ```
+
+## 8. 2026-10-03 model-call budget rejection fixture
+
+The existing limit fixture now covers both model-call budget branches. A graph above
+`MAX_SWARM_MODEL_CALLS` is re-digested before validation and must return the hard-cap error with no
+partition ID. A valid two-partition graph whose aggregate model-call budgets exceed its declared
+graph limit is also re-digested and must return the same error bound to the partition that crosses
+the limit. No validator behavior or shared packet binding contract changed.
+
+The additions run in the existing `sw02_work_graph` target on `kiana-domain-s4/4`; the core source
+guard remains on `kiana-core-s6/6`, and no shard/workflow change is needed. This source commit has no
+GitHub receipt yet. SW-02 remains `partial/source`: exact packet-set binding, optional legacy graph
+migration, durable dispatch and effect-time fencing remain open.
