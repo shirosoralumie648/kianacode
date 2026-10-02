@@ -100,9 +100,10 @@ fn threat_register_is_explicit_and_deny_first_without_claiming_enforcement() {
     assert!(
         register.contains("COMPLIANCE-3.4:T02 | confused deputy | SC01:T01, SC01:T03, SC01:T12")
     );
+    let normalized_crosswalk = crosswalk.split_whitespace().collect::<Vec<_>>().join(" ");
     for marker in ["SC01:T01", "SC01:T02", "SC01:T10", "not aliases"] {
         assert!(
-            crosswalk.contains(marker),
+            normalized_crosswalk.contains(marker),
             "SC-34 namespace marker missing: {marker}"
         );
     }

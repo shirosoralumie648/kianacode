@@ -19438,6 +19438,21 @@ limitations: decode fixtures await GitHub CI; no authenticated ingress bridge, e
 reviewer: source review confirmed equivalent serialized fields/defaults and that deserialization delegates to the existing validation contract; no local runtime reviewer
 ```
 
+### SC-01 threat/control crosswalk source guard (2026-10-03)
+
+```text
+source_snapshot: source commit `b6da179ab2a69311b24f9d3d3664420ac3b82db9`, cherry-picked to master as `5629f594`; follow-up marker correction in current worktree; `kiana-core/tests/sc01_threat_register.rs`; `docs/roadmap/security-control-crosswalk.md`; `docs/roadmap.md`
+worktree_status: the guard now structurally requires twelve unique SC01:T01-T12 crosswalk rows, the expected nine data columns, non-empty threat/control/taxonomy/backing cells, and exactly `source`/`partial` ceiling/status values plus a source-only proof boundary. The isolated run exposed an earlier marker assertion that searched for `not aliases` contiguously even though the Markdown wraps it across lines; the follow-up normalizes whitespace before marker checks. No runtime/security-control behavior changed.
+command_argv: `gh api --allow-escape-sequences repos/shirosoralumie648/kianacode/actions/jobs/111013007686/logs`; `sed`/`rg` source inspection; isolated `cargo fmt --all --check`; `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-sc01-crosswalk-guard-20261003`; integration in repository root; GitHub Actions is the only test executor
+fixture·cassette: run `37059531699`, head `779fffed`, Workflow structure passed and core-s6 job `111013007686` ran `threat_register_is_explicit_and_deny_first_without_claiming_enforcement`; it failed at `SC-34 namespace marker missing: not aliases` before reaching the newly added 12-row structure assertions. Whitespace normalization is now added, but no post-fix CI result exists yet.
+exit_code: observed source-guard target failure due multiline wording mismatch; local formatting and diff checks pass for correction; no local runtime result
+status_change: SC-01 remains roadmap row 112 `🔄`, `feature_status=partial`, `proof_level=source`; structural crosswalk guard is added, with the correction awaiting GitHub CI
+proof-level change: none
+limitations: this guard checks documentation structure and stated proof ceilings only; it does not prove any mapped security control is enforced, certified, runtime, durable, live or physical. No promotion is made.
+reviewer: exact CI assertion output and source crosswalk line-wrap comparison; no local runtime reviewer
+```
+
 ### PD-01 failed lock initialization cleanup (2026-10-03)
 
 ```text
