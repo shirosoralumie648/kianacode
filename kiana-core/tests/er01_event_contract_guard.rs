@@ -18,7 +18,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "validate_runtime_event",
         "secret_policy",
         "required_ids",
+        "CAPABILITY_DECISION_IDS",
         "CAPABILITY_BLOCKED_FIELDS",
+        "CAPABILITY_DECISION_FIELDS",
         "result_source",
     ] {
         assert!(
@@ -35,9 +37,18 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(baseline.contains("event_schema_version_cannot_downgrade"));
     assert!(baseline.contains("event_payload_unknown_field_is_not_silently_dropped"));
     assert!(baseline.contains("capability_blocked_contract_matches_direct_deny_producers"));
+    assert!(baseline.contains("capability_decision_contract_accepts_policy_and_gate"));
+    assert!(baseline.contains("event_capability_identity_pair_incomplete"));
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
     assert!(approvals.contains("json!({\"error\":reason})"));
     assert!(approvals.contains("\"attempt\":1,\"effect_started\":false"));
     assert!(approvals.contains("\"capability.blocked\""));
+    assert!(approvals.contains("\"policy\":policy,\"gate\":gate"));
+    assert!(approvals
+        .contains("json!({\"policy\":policy,\"gate\":gate,\n            \"action_digest\""));
+    assert!(approvals.contains(
+        "json!({\"run_id\":invocation.run_id,\"capability_request_id\":request.request_id,\"policy\":policy,\"gate\":gate,"
+    ));
+    assert!(approvals.matches("\"capability.decision\"").count() >= 2);
 }

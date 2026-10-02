@@ -14,6 +14,7 @@ pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 const REQUEST_IDS: &[&str] = &["request_id"];
 const RUN_IDS: &[&str] = &["run_id"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
+const CAPABILITY_DECISION_IDS: &[&str] = &[];
 const EXECUTION_PREPARED_IDS: &[&str] = &[
     "execution_id",
     "invocation_id",
@@ -261,6 +262,7 @@ macro_rules! invocation_fields {
     };
 }
 const INVOCATION_FIELDS: &[&str] = invocation_fields!();
+const CAPABILITY_DECISION_FIELDS: &[&str] = invocation_fields!("policy", "gate");
 const CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
     "error",
     "attempt",
@@ -1101,8 +1103,8 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "capability.decision",
         "run",
-        INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        CAPABILITY_DECISION_IDS,
+        CAPABILITY_DECISION_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1350,6 +1352,14 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
     let object = payload
         .as_object()
         .ok_or_else(|| "event_payload_object_required".to_owned())?;
+    if kind == "capability.decision" {
+        match (object.get("run_id"), object.get("capability_request_id")) {
+            (None, None) => {}
+            (Some(run_id), Some(capability_request_id))
+                if !run_id.is_null() && !capability_request_id.is_null() => {}
+            _ => return Err("event_capability_identity_pair_incomplete".to_owned()),
+        }
+    }
     for id in spec.required_ids {
         if !object.get(*id).is_some_and(|value| !value.is_null()) {
             return Err(format!("event_required_id_missing:{id}"));

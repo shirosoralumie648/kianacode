@@ -240,3 +240,54 @@ fn capability_blocked_contract_matches_direct_deny_producers() {
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn capability_decision_contract_accepts_policy_and_gate_and_rejects_unknown_fields() {
+    let spec = event_kind_spec("capability.decision").unwrap();
+    assert!(spec.required_ids.is_empty());
+    assert!(spec.allowed_fields.contains(&"policy"));
+    assert!(spec.allowed_fields.contains(&"gate"));
+    assert_eq!(
+        spec.allowed_fields.len(),
+        event_kind_spec("invocation.executing")
+            .unwrap()
+            .allowed_fields
+            .len()
+            + 2
+    );
+
+    let mut payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "capability_request_id": kiana_domain::RequestId::new(),
+        "policy": {"decision":"allowed"},
+        "gate": {"decision":"allowed"},
+        "attempt": 1,
+        "effect_started": false,
+        "effect_known": true,
+        "zero_effect": true,
+        "stop_state": "not_requested",
+        "fenced": false,
+    });
+    validate_event_payload("capability.decision", &payload).unwrap();
+
+    let mut direct_payload = payload.clone();
+    direct_payload.as_object_mut().unwrap().remove("run_id");
+    direct_payload
+        .as_object_mut()
+        .unwrap()
+        .remove("capability_request_id");
+    validate_event_payload("capability.decision", &direct_payload).unwrap();
+
+    let mut partial_identity = direct_payload;
+    partial_identity["run_id"] = json!(kiana_domain::RunId::new());
+    assert_eq!(
+        validate_event_payload("capability.decision", &partial_identity).unwrap_err(),
+        "event_capability_identity_pair_incomplete"
+    );
+
+    payload["unexpected_decision_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("capability.decision", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
