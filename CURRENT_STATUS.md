@@ -876,6 +876,21 @@ limitations: the post-fix target has not yet run on GitHub CI; all CO-06 integra
 reviewer: isolated CO-06 source review; no runtime test reviewer
 ```
 
+### CO-06 RegisterArtifact fixture role correction (2026-10-02)
+
+```text
+source_snapshot: 4cf54a20 plus this isolated follow-up; kiana-domain/src/company_policy.rs, kiana-daemon/tests/co06_company_artifact_history.rs
+worktree_status: isolated branch step/co06-company-history-20261002; fixture now retains public CoreResponse status/error and uses the policy-authorized Builder role for RegisterArtifact
+command_argv: rustfmt --edition 2021 --check kiana-daemon/tests/co06_company_artifact_history.rs; cargo fmt --all --check; git diff --check; no local test/build/check/clippy/smoke
+cwd·environment: /tmp/kiana-co06-company-history-20261002; Linux x86_64; no Cargo test or compile execution
+fixture·cassette: GitHub run 37019474036 daemon job reported the valid registration as Blocked; `CompanyCommandPolicy` source shows RegisterArtifact allows builder/reviewer/architect/pm/closer and rejects other roles with `company_role_denied`; fixture now uses `RoleSpec::builder()` and explicitly asserts the missing source returns `company_artifact_read_failed`
+exit_code: rustfmt --check=0; cargo fmt --all --check=0; git diff --check=0; no CI receipt for this follow-up
+status_change: none; CO-06 remains 🔄 / feature_status=partial / proof_level=source; the integration now reaches the intended missing-source denial and registered-artifact success assertions without changing production policy
+proof-level change: source only; no runtime or CI proof promotion
+limitations: the follow-up has not run on GitHub CI; business-command historical read-back, UI difference presentation, cross-store atomicity, crash recovery, retention/deletion, and power-loss guarantees remain open
+reviewer: isolated CO-06 source review of command role policy and fixture context; no runtime test reviewer
+```
+
 ### UI-13 Authorization header redaction evidence (2026-09-26)
 
 ```text

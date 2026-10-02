@@ -76,7 +76,7 @@ impl Fixture {
         );
         context.project_trusted = true;
         context.permission_profile = PermissionProfile::Balanced;
-        context.assign_role(&RoleSpec::sponsor());
+        context.assign_role(&RoleSpec::builder());
         context
     }
 
@@ -87,7 +87,7 @@ impl Fixture {
         idempotency_key: &str,
         artifact_id: &str,
         relative_path: &str,
-    ) -> ExecutionStatus {
+    ) -> kiana_domain::CoreResponse {
         let request = CompanyCommandRequest {
             schema: COMPANY_COMMAND_SCHEMA.to_owned(),
             expected_revision,
@@ -103,7 +103,6 @@ impl Fixture {
         )
         .await
         .expect("ControlPlane command")
-        .status
     }
 }
 
@@ -160,7 +159,12 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
             "missing.txt",
         )
         .await;
-    assert_eq!(missing, ExecutionStatus::Blocked, "{missing:?}");
+    assert_eq!(missing.status, ExecutionStatus::Blocked, "{missing:?}");
+    assert_eq!(
+        missing.error.as_deref(),
+        Some("company_artifact_read_failed"),
+        "{missing:?}"
+    );
     assert_eq!(
         fs::read_dir(&fixture.artifact_store_path)
             .expect("artifact store root")
@@ -188,7 +192,11 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
             "evidence.txt",
         )
         .await;
-    assert_eq!(registered, ExecutionStatus::Completed, "{registered:?}");
+    assert_eq!(
+        registered.status,
+        ExecutionStatus::Completed,
+        "{registered:?}"
+    );
 
     let original_fact = registered_company_event(event_log.as_ref()).await;
     let original_version = original_fact

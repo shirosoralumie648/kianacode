@@ -136,8 +136,12 @@ durability.
 
 The first CI compile of the Company integration fixture, run `37016768593` daemon job
 `110870088862`, rejected its helper's named private `kiana_core::CoreResponse` return type. The
-helper now returns the public `ExecutionStatus` projection while preserving all fixture commands
-and assertions. This follow-up has no post-fix CI receipt yet.
+helper now returns the public `kiana_domain::CoreResponse` so failure diagnostics retain both
+status and reason. A later CI run, `37019474036`, compiled the target but showed the successful
+registration was still Blocked; source review found the fixture used Sponsor, while the current
+RegisterArtifact policy allows Builder, Reviewer, Architect, PM and Closer. The fixture now uses
+Builder and explicitly checks the missing-source failure reason before its success path. Neither
+follow-up has a post-fix CI receipt yet.
 
 Run `37010476076` daemon job `110849027662` exposed two stale expectations in
 `local_artifact_duplicate_version_cannot_replace_content_or_manifest`. The fixture now aligns
