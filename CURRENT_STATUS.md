@@ -19392,3 +19392,18 @@ proof-level change: none
 limitations: the historical CompanyProof assertions have not run on GitHub after this correction; cross-store atomicity/reconciliation, crash recovery, product original-versus-current presentation, retention/deletion and power-loss durability remain unproven
 reviewer: exact CI compiler output plus source name-resolution trace; no runtime test reviewer
 ```
+
+### CI-03 unavailable resolver and missing credential fixture (2026-10-03)
+
+```text
+source_snapshot: isolated commit `1ed9713f565f419c64612aa19bd34c6585d7fe1d`, cherry-picked to current master as `79ddefa0`; `kiana-ports/tests/ci03_ports.rs`; `docs/roadmap/ports-identity-baseline.md`; `docs/roadmap.md`
+worktree_status: the existing CI-only target now calls UnsupportedIdentity principal/authority resolution and UnsupportedConfig read/publish, asserting the exact `PortError::Unavailable` values. It calls MissingCredential and checks requested SecretRef identity, explicit Missing state, absent expiry/digest, and metadata validity. Publication uses an explicit expected revision; no `None` semantics, production adapter, workflow, manifest or lockfile changed.
+command_argv: isolated `rustfmt --edition 2021 kiana-ports/tests/ci03_ports.rs`; isolated `git diff --check`; isolated `git show --check HEAD`; root `git cherry-pick 1ed9713f565f419c64612aa19bd34c6585d7fe1d`; no local tests/build/check/clippy/smoke
+cwd·environment: source worktree `/tmp/kiana-ci03-unavailable-fixtures-20261003`, branch `fix/ci03-unavailable-fixtures-20261003`; integration in repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `unavailable_identity_and_config_ports_fail_closed_and_missing_stays_explicit`; current `.github/workflows/ci.yml` maps the existing whole-crate `kiana-ports` shard; the previous snapshot's `ci03_ports` target passed 4/4 in run `36994107681` / job `110797094579`; this new target has no CI receipt at this snapshot
+exit_code: isolated formatting/diff/show checks passed; no local runtime result; remote run pending after push
+status_change: CI-03 remains roadmap row 086 `🔄`, `feature_status=partial`, `proof_level=source`; the new failure-first fixture covers unavailable resolver errors and explicit Missing metadata without defining initial config publish semantics
+proof-level change: none
+limitations: new fixture awaits GitHub CI; existing ports shard has unrelated historical BQ-05/PD-34 failures. No production IdentityResolver, ConfigSnapshotStore, CredentialResolver, SecretStore/lease/OAuth, durable rotation/revoke, cancellation-after-effect, or live provider effect is proven.
+reviewer: source review against IdentityResolver, ConfigSnapshotStore and CredentialResolution contracts; no local runtime reviewer
+```

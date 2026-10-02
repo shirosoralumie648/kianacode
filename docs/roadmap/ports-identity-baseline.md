@@ -109,3 +109,16 @@ status_change: none; CI-03 remains 🔄 with `feature_status=partial` and `proof
 limitations: test-local in-memory fakes only; initial config publish, durable persistence, production adapters, lease lifecycle, cancellation/recovery and credential rotation/revoke durability remain unproven; the containing ports shard failed on unrelated BQ-05/PD-34 targets and the run was later cancelled
 reviewer: manual source review; no runtime test reviewer
 ```
+
+## 10. 2026-10-03 unavailable resolver fixture follow-up
+
+`ci03_ports::unavailable_identity_and_config_ports_fail_closed_and_missing_stays_explicit`
+now invokes both `IdentityResolver` methods and both `ConfigSnapshotStore` methods on the
+unavailable fakes, asserting their exact `PortError::Unavailable` values. It also calls
+`MissingCredential` and verifies the result retains the requested `SecretRef`, reports
+`CredentialState::Missing`, carries no expiry or resolved digest, and passes metadata validation.
+The test does not define `expected_revision=None` behavior: config publication uses an explicit
+expected revision. The existing `kiana-ports` whole-crate shard already includes the target, so no
+workflow or shard-map change is needed. CI-03 remains `partial/source`; this fixture has no remote
+receipt yet and does not prove production adapters, SecretStore/lease behavior, durable identity,
+or a green ports shard.
