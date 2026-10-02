@@ -221,6 +221,29 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched payload keys, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+## 5.6 Activated approval transition contract
+
+The shared approval transition producer emits `approval.activated` with a distinct payload from
+the staged record: schema, approval ID, previous/current state, request hash, timestamp and the
+activation command ID. Reusing the broad `APPROVAL_FIELDS` would omit real fields and make the
+interpretation boundary depend on unrelated transition payloads. The registry now uses an exact
+activated allowlist while preserving the approval aggregate, required ID and legacy approval
+migration. Missing approval IDs and unknown fields remain deny-first; no transition behavior or
+EventStore wiring changed.
+
+```text
+source_snapshot: source commit `940ac2edfc5df99330eca366c762915425e73e9c`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `approval.activated` now has exact transition fields, approval aggregate metadata, approval_id requirement and explicit legacy migration; source guard pins the real transition kind, payload and stream version; no EventStore or approval behavior changed
+command_argv: source trace of shared approval `transition_event`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 656fca79`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `81804359`; integration repository root; Linux/bash; GitHub Actions is the runtime test executor
+fixture·cassette: `approval_activated_contract_matches_transition_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes the domain target through `kiana-domain-s2/4` and Core guard through `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; activated approval transition payload is now explicitly covered by the registry
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; `approval.requested` and other approval transitions still require producer-by-producer reconciliation; no approval durability, replay/recovery or external-effect claim
+reviewer: source trace matched transition kind, exact fields, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
