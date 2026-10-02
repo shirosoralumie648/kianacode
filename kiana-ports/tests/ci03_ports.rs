@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use kiana_domain::{
-    json_digest, AuthenticatedPrincipalRef, ConfigSnapshot, ProjectIdentity, SecretRef,
+    json_digest, AuthenticatedPrincipalRef, ConfigSnapshot, Principal, PrincipalId, PrincipalKind,
+    ProjectIdentity, SecretRef,
 };
 use kiana_ports::{
     ConfigSnapshotStore, CredentialResolution, CredentialResolver, CredentialRotationPort,
@@ -242,6 +243,14 @@ fn config_snapshot(revision: &str, model: &str) -> ConfigSnapshot {
     .unwrap()
 }
 
+fn principal() -> Principal {
+    let principal_id = PrincipalId::new();
+    let mut authentication = AuthenticatedPrincipalRef::local();
+    authentication.principal_id = principal_id.to_string();
+    authentication.principal_digest = authentication.digest();
+    Principal::new(principal_id, PrincipalKind::Human, authentication, 1).unwrap()
+}
+
 #[tokio::test]
 async fn config_snapshot_store_revision_cas_is_deterministic() {
     let project = project_identity();
@@ -333,8 +342,53 @@ fn credential_resolution_metadata_is_strict_and_fail_closed() {
         non_hex_digest.validate(1_000).unwrap_err(),
         kiana_ports::PortError::Failed("credential_resolution_digest_invalid".to_owned())
     );
+}
 
-    let _ = MissingCredential;
-    let _ = UnsupportedIdentity;
-    let _ = UnsupportedConfig;
+#[tokio::test]
+async fn unavailable_identity_and_config_ports_fail_closed_and_missing_stays_explicit() {
+    let identity = UnsupportedIdentity;
+    let principal = principal();
+    let project = project_identity();
+
+    assert_eq!(
+        identity
+            .resolve_principal(&principal.authentication)
+            .await
+            .unwrap_err(),
+        PortError::Unavailable("identity_fixture_unavailable".to_owned())
+    );
+    assert_eq!(
+        identity
+            .resolve_authority(&principal, &project, "fixture-owner", "builder", 1_000)
+            .await
+            .unwrap_err(),
+        PortError::Unavailable("authority_fixture_unavailable".to_owned())
+    );
+
+    let config = UnsupportedConfig;
+    assert_eq!(
+        config.read_snapshot(&project).await.unwrap_err(),
+        PortError::Unavailable("config_fixture_unavailable".to_owned())
+    );
+    assert_eq!(
+        config
+            .publish_snapshot(
+                config_snapshot("config-v1", "fixture-model-v1"),
+                Some("fixture-expected-revision"),
+            )
+            .await
+            .unwrap_err(),
+        PortError::Unavailable("config_fixture_unavailable".to_owned())
+    );
+
+    let requested = credential_secret_ref(4);
+    let missing = MissingCredential
+        .resolve_credential(&requested, 1_000)
+        .await
+        .unwrap();
+    assert_eq!(missing.secret_ref, requested);
+    assert_eq!(missing.state, CredentialState::Missing);
+    assert_eq!(missing.expires_at_unix_ms, None);
+    assert_eq!(missing.resolved_digest, None);
+    missing.validate(1_000).unwrap();
 }
