@@ -15,6 +15,12 @@ fn quality_eval_objects_are_strict_and_only_value_contracts() {
         "provenance",
         "target_versions",
         "normalized_events",
+        "MAX_EVAL_TARGET_VERSIONS",
+        "MAX_EVAL_ARTIFACT_HASHES",
+        "MAX_EVAL_TRACE_BYTES",
+        "golden_trace_events_too_large",
+        "key.contains('\\0')",
+        "value.contains('\\0')",
         "deny_unknown_fields",
         "golden_trace_digest_mismatch",
     ] {

@@ -4587,6 +4587,21 @@ limitations: no EvalStore/fixture-loader persistence, judge or replay proof; ful
 reviewer: Codex integration review of declared dataset/suite references, digest rebinding and retained assertions
 ```
 
+### EQ-03 GoldenTrace aggregate bounds (2026-10-02)
+
+```text
+source_snapshot: 4557750be7badf8148a168c48cdac97f12d779b2 plus isolated EQ-03 DTO/fixture/documentation changes
+worktree_status: branch step/eq03-deep-20261002; GoldenTrace now bounds target-version entries, artifact hashes and aggregate encoded normalized events before constructor digesting; target-version key/value NUL is rejected; no store, runner, provider, Broker or manifest changes
+command_argv: git diff --check; rg -n 'eq03_eval_objects|eq03_eval_objects_guard' scripts/ci/test-shards.json; gh run view 36959912924 --json headSha,status,conclusion,url
+cwd/environment: /tmp/kiana-eq03-deep-20261002; Linux; no local cargo test/build/check/fmt/clippy/smoke
+fixture or cassette: kiana-domain/tests/eq03_eval_objects.rs adds CI-only overflow/NUL denial fixtures; kiana-core/tests/eq03_eval_objects_guard.rs pins the bound and NUL checks; existing GitHub shards domain-s2/4 and core-s3/6
+exit_code: 0 for diff check and CI shard mapping inspection; latest pre-change unified CI run 36959912924 was queued at base 4557750b; new fixtures are not yet executed
+status_change: EQ-03 remains source-level; oversized GoldenTrace metadata and NUL-bearing target versions fail closed
+proof-level change: unchanged at feature_status=implemented, proof_level=source
+limitations: no CI receipt exists for this change yet; raw JSON deserialization may allocate before DTO validation; refs remain declarations rather than isolated-store reads; owner/privacy remain descriptive metadata, not authenticated trust or retention enforcement
+reviewer: EQ-03 strict DTO resource, provenance, digest and no-execution-path source review; no runtime test reviewer
+```
+
 
 ### EQ-04 evaluation admission metadata evidence (2026-09-17)
 

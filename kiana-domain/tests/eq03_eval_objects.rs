@@ -6,6 +6,32 @@ fn digest(value: char) -> String {
     format!("sha256:{}", value.to_string().repeat(64))
 }
 
+fn golden_trace_with(
+    target_versions: BTreeMap<String, String>,
+    artifact_hashes: Vec<String>,
+    normalized_events: Vec<serde_json::Value>,
+) -> Result<GoldenTrace, String> {
+    GoldenTrace::new(
+        EvalSuiteId::new(),
+        EvalCaseId::new(),
+        None,
+        "source:commit",
+        digest('a'),
+        target_versions,
+        1,
+        2,
+        normalized_events,
+        artifact_hashes,
+        Some(digest('c')),
+        "normalization.v1",
+        Some(true),
+        Some(0.95),
+        100,
+        Some(200),
+        "provenance:capture-1",
+    )
+}
+
 #[test]
 fn eval_dataset_suite_case_and_golden_trace_bind_schema_and_provenance() {
     let case_id = EvalCaseId::new();
@@ -198,5 +224,57 @@ fn golden_trace_rejects_cursor_and_expiry_regressions() {
         )
         .unwrap_err(),
         "golden_trace_header_invalid"
+    );
+}
+
+#[test]
+fn golden_trace_bounds_references_and_total_event_bytes_and_rejects_nul_versions() {
+    let event = json!({"kind":"run.completed"});
+    let target_versions = (0..=MAX_EVAL_TARGET_VERSIONS)
+        .map(|index| (format!("target-{index:02}"), "v1".to_owned()))
+        .collect();
+    assert_eq!(
+        golden_trace_with(target_versions, Vec::new(), vec![event.clone()]).unwrap_err(),
+        "golden_trace_target_versions_invalid"
+    );
+
+    let artifact_hashes = (0..=MAX_EVAL_ARTIFACT_HASHES)
+        .map(|index| format!("sha256:{index:064x}"))
+        .collect();
+    assert_eq!(
+        golden_trace_with(
+            BTreeMap::from([("runtime".to_owned(), "v1".to_owned())]),
+            artifact_hashes,
+            vec![event.clone()],
+        )
+        .unwrap_err(),
+        "golden_trace_artifacts_invalid"
+    );
+
+    for (key, value) in [("runtime\0", "v1"), ("runtime", "v1\0")] {
+        assert_eq!(
+            golden_trace_with(
+                BTreeMap::from([(key.to_owned(), value.to_owned())]),
+                Vec::new(),
+                vec![event.clone()],
+            )
+            .unwrap_err(),
+            "golden_trace_target_versions_invalid"
+        );
+    }
+
+    let single_event = serde_json::Value::String("x".repeat(MAX_EVAL_CONFIG_BYTES - 2));
+    let oversized_events = vec![
+        single_event;
+        MAX_EVAL_TRACE_BYTES / MAX_EVAL_CONFIG_BYTES + 1
+    ];
+    assert_eq!(
+        golden_trace_with(
+            BTreeMap::from([("runtime".to_owned(), "v1".to_owned())]),
+            Vec::new(),
+            oversized_events,
+        )
+        .unwrap_err(),
+        "golden_trace_events_too_large"
     );
 }
