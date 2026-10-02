@@ -378,6 +378,8 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 #### CAP-02 — 统一参数边界与输入摘要　🔄
 
+2026-10-03 follow-up adds a manual-only focused acceptance workflow; the source remains partial until its exact GitHub targets have a receipt.
+
 当前 source slice 与 CI-only 证据见 [`capability-input-baseline.md`](capability-input-baseline.md)。
 
 - **落点：** domain schema/canonical helpers、provider response parser、runner/tools、broker 输入校验；复用 `P1-H-02` 现有验证器后再补缺项。

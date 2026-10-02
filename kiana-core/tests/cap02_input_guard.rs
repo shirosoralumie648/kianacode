@@ -10,6 +10,7 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     let provider = include_str!("../../kiana-provider/src/response.rs");
     let provider_transport = include_str!("../../kiana-provider/src/transport.rs");
     let baseline = include_str!("../../docs/roadmap/capability-input-baseline.md");
+    let workflow = include_str!("../../.github/workflows/cap02-input.yml");
 
     for marker in [
         "TOOL_JSON_MAX_BYTES",
@@ -68,4 +69,21 @@ fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     assert!(baseline.contains("conflicting_mcp_tool_aliases_are_rejected"));
     assert!(baseline.contains("equivalent_json_inputs_have_the_same_digest"));
     assert!(baseline.contains("execution_affecting_input_changes_change_digest"));
+    for fixture in [
+        "duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse",
+        "object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call",
+        "streamed_object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call",
+        "object_form_tool_arguments_over_the_bounded_input_limit_are_rejected",
+        "conflicting_mcp_tool_aliases_are_rejected",
+        "schema_depth_and_reference_limits_fail_before_dispatch",
+        "duplicate_json_object_fields_are_rejected_before_value_collapse",
+        "reserved_authority_fields_cannot_change_execution_scope",
+        "object_form_tool_arguments",
+        "streamed_object_form_tool_arguments_accept_valid_nested_values",
+    ] {
+        assert!(
+            workflow.contains(fixture),
+            "missing GitHub workflow target {fixture}"
+        );
+    }
 }

@@ -1,14 +1,14 @@
 # CAP-02 capability input boundary and digest baseline
 
-> 首次快照：2026-09-16；provider raw-string/object 参数补充及 ControlPlane authority/scope fixture：2026-10-02。本文记录 CAP-02 的 bounded JSON/schema、provider shell/argv、patch、MCP、Memory 输入归一化和摘要合同；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
+> 首次快照：2026-09-16；provider raw-string/object 参数补充及 ControlPlane authority/scope fixture：2026-10-02；专项 GitHub acceptance workflow：2026-10-03。本文记录 CAP-02 的 bounded JSON/schema、provider shell/argv、patch、MCP、Memory 输入归一化和摘要合同；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
 
 ## 1. 目标与证明上限
 
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CAP-02`](capability.md#step-cap-02) |
-| source snapshot | ControlPlane fixture source commit `c609482b`, based on `43e1cbe8`, integrated on current master; initial implementation baseline `7d269b7` |
-| feature_status | `partial`（bounded input/schema/normalization/digest source exists; this slice has no CI receipt） |
+| source snapshot | CAP-02 production and fixture snapshot `302c6b46` includes ControlPlane fixture commit `c609482b`; this acceptance slice is based on `5ec79dca` and adds only a GitHub workflow, its workflow-target source guard, and evidence documentation |
+| feature_status | `partial`（bounded input/schema/normalization/digest source exists; the focused acceptance workflow has no CI receipt yet） |
 | proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
 | canonical path | raw model/direct input → bounded parser/schema validator → canonical CapabilityRequest → PreparedAction input/action/catalog digest → policy/approval/Broker |
 | this step does | JSON bytes/depth/items/duplicate key 限制，schema dialect subset，shell string/argv、patch、MCP、Memory 归一化，reserved authority field 清理、alias/NUL/path/numeric 校验及 canonical input digest |
@@ -61,6 +61,8 @@
 
 CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。当前 `scripts/ci/test-shards.json` 把 `cap02_input` 分配给 domain shards、`cap02_input_guard` 分配给 `kiana-core-s1/6`；新增的 ControlPlane fixture 复用既有 `control_plane` target（`kiana-core-s2/6`），不改 shard manifest；`kiana-provider` shard 运行 provider 单元夹具。GitHub CI 负责执行，本地不运行测试，不连接 provider/connector。
 
+2026-10-03 acceptance follow-up adds `.github/workflows/cap02-input.yml` as a manual-only workflow. It runs provider raw-string/object duplicate-key and oversized-input rejection fixtures, domain alias/schema/depth/duplicate-key denial fixtures, the ControlPlane forged-authority fixture, the complete domain digest/input target, accepted provider nested-input fixtures, and the existing cross-layer source guard. That source guard pins the selected denial and success target names in the workflow so the documented acceptance surface cannot drift silently. The `workflow_dispatch`-only trigger preserves the repository's automatic-workflow fan-out rule; the unified `ci.yml` remains the push gate and retains ownership of the same test targets. No run for this workflow has been observed, so CAP-02 remains `partial` / `source`.
+
 ## Source anchors
 
 | 边界 | 文件 | SHA-256 |
@@ -70,6 +72,7 @@ CAP-02 原专属 workflow 于 2026-09-27 合并进 `.github/workflows/ci.yml`。
 | Fixtures/guard/historical workflow | `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs`, `kiana-core/tests/control_plane.rs`, historical `.github/workflows/cap02-input.yml` (removed by CI consolidation `08552ada`) | `808fb7152cd8a0d30bbed59a687f7d1f9460091ffb440117e4f13092655f650d`, `54d1aad77469ff8eba6b6e1e7c60443f285c98a066671ba6d0159de1b1691cee`, `a977449a88dcce8a5b99b3a8b00dfdb399ce558099eb7ae2e798a14c26fed377`, `2526a6060cc27c11db4462234d2faa9ce189fadefb41a865ca97b08fd2bd155d` |
 | 2026-10-02 provider raw-argument correction | `kiana-provider/src/response.rs`, `kiana-domain/tests/cap02_input.rs`, `kiana-core/tests/cap02_input_guard.rs` | `518ed2fbae7da1580fadaaf7b0ac3ee88dd97eee629eaf442a051e8073f6d2b4`, `6a1ea156037fc4536bff8cd75d2ba4f1de97e943df00883c93cc5847cc0e53eb`, `c4d0c8494095dad30b396f27a0db513f1e6f19938ab3418d6f6782e91a46d98e` |
 | 2026-10-02 provider object-form duplicate-key follow-up | `kiana-provider/src/response.rs`, `kiana-provider/src/transport.rs`, `kiana-core/tests/cap02_input_guard.rs` | `0720112e594054bdccd0e9e410e53a24039c71cf60065df56ecbad0d7d2dcfde`, `79a3583f1ade40d7966bebfbd9a030372a2e7aecb1dab69caf4e3ce560d7c5dd`, `b60aada1dcded971ba3f02129e33719855f1d3ba2b85ff2513e1cf099c21a4a0` |
+| 2026-10-03 focused acceptance workflow and target guard | `.github/workflows/cap02-input.yml`, `kiana-core/tests/cap02_input_guard.rs` | `2c2de8e4441d1a40f081e474454778b5659c0ec7daabed75d58c6d5897ee3847`, `2804f39bafff46103bd229ef98d5c62db4534590073b223169eb6cf47e08899e` |
 
 2026-10-02 provider ingress correction: string-form arguments use `parse_bounded_json`; object-form parameters are now duplicate-checked from the original provider envelope/frame bytes by `UniqueProviderJson` before they become `Value`. The envelope parser uses the existing 8 MiB transport-body ceiling and does not apply the 512 KiB tool-argument parser limit to the whole response. Tool argument schema validation retains the 512 KiB bound before `ModelToolCall` construction; the existing later `validate_model_calls` boundary still applies its stricter 256 KiB per-call limit. This deliberately fails closed on duplicate object keys anywhere in a provider envelope/frame, including metadata, while preserving the existing ProviderGateway and ControlPlane path.
 
@@ -83,7 +86,11 @@ Remote CI evidence at the raw-string correction snapshot: historical CAP-02 run 
 
 这些 hash 只用于 CAP-02 输入边界漂移复核，不是执行授权、secret 或 handler effect 证明。
 
+2026-10-03 acceptance follow-up adds .github/workflows/cap02-input.yml as a manual-only workflow. Its first test step runs provider raw-string/object duplicate-key and oversized-input rejection fixtures; the next step runs domain alias/schema/depth/duplicate-key denial fixtures and the ControlPlane forged-authority fixture; later steps run the complete domain digest/input target, provider accepted nested-input fixtures, and the existing cross-layer source guard. The workflow_dispatch-only trigger preserves the repository's automatic-workflow fan-out rule. The unified ci.yml remains the push gate and continues to own the same test targets; the focused workflow provides an independently inspectable receipt after dispatch. No run for this workflow has been observed, so CAP-02 remains partial / source. A successful focused run can establish fixture execution for that snapshot only and does not by itself prove durable authorization, correct external effects, live provider behavior, or physical containment.
+
 ## 5. 限制与交接
+
+- The focused CAP-02 workflow is manual-only and has not been dispatched or observed; no CI proof promotion is made here.
 
 - 当前 schema validator 是有界子集，未支持任意 JSON Schema `$ref`、所有组合关键字、MCP outputSchema 或外部 schema fetch；不因 parser 通过宣称完整兼容。
 - authority fields 在 ControlPlane prepare 清理并覆写，但 `CapabilityRequest` compatibility JSON 仍可被调用者构造；Grant/Approval/ExecutionContext/epoch 的最终交集由 CP-04+/CAP-03+/SC-04+ 完成。

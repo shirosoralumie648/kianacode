@@ -1,0 +1,41 @@
+name: CAP-02 capability input boundary acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cap02-input:
+    name: CAP-02 deny-first input and digest fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Reject provider raw and object-form duplicate arguments
+        run: |
+          cargo test -p kiana-provider --lib --locked duplicate_openai_tool_argument_fields_are_rejected_before_value_collapse -- --test-threads=1
+          cargo test -p kiana-provider --lib --locked object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call -- --test-threads=1
+          cargo test -p kiana-provider --lib --locked streamed_object_form_tool_arguments_reject_duplicate_keys_before_model_tool_call -- --test-threads=1
+          cargo test -p kiana-provider --lib --locked object_form_tool_arguments_over_the_bounded_input_limit_are_rejected -- --test-threads=1
+      - name: Reject invalid domain inputs and forged authority
+        run: |
+          cargo test -p kiana-domain --test cap02_input --locked conflicting_mcp_tool_aliases_are_rejected -- --test-threads=1
+          cargo test -p kiana-domain --test cap02_input --locked schema_depth_and_reference_limits_fail_before_dispatch -- --test-threads=1
+          cargo test -p kiana-domain --test cap02_input --locked duplicate_json_object_fields_are_rejected_before_value_collapse -- --test-threads=1
+          cargo test -p kiana-core --test control_plane --locked reserved_authority_fields_cannot_change_execution_scope -- --exact --test-threads=1
+      - name: Verify canonical digest and accepted bounded inputs
+        run: |
+          cargo test -p kiana-domain --test cap02_input --locked -- --test-threads=1
+          cargo test -p kiana-provider --lib --locked object_form_tool_arguments -- --test-threads=1
+          cargo test -p kiana-provider --lib --locked streamed_object_form_tool_arguments_accept_valid_nested_values -- --test-threads=1
+      - name: Run CAP-02 cross-layer source guard
+        run: cargo test -p kiana-core --test cap02_input_guard --locked -- --test-threads=1
