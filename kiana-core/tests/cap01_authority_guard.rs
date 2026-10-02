@@ -8,6 +8,9 @@ fn capability_catalog_binding_is_single_source_and_sealed_at_composition_root() 
     let runner = include_str!("../../kiana-runner/src/tools.rs");
     let actions = include_str!("../../kiana-domain/src/actions.rs");
     let tool_authority = include_str!("../../kiana-domain/src/tool_authority.rs");
+    let operation_catalog = include_str!("../../kiana-domain/src/operation_catalog.rs");
+    let tool_catalog = include_str!("../../kiana-domain/src/tool_catalog.rs");
+    let broker_routing = include_str!("../../kiana-capability-broker/tests/routing.rs");
     let baseline = include_str!("../../docs/roadmap/capability-authority-baseline.md");
 
     assert!(broker.contains("validate_catalog_bindings"));
@@ -32,13 +35,36 @@ fn capability_catalog_binding_is_single_source_and_sealed_at_composition_root() 
     assert!(actions.contains("crate::validate_tool_action_bindings()?;"));
     assert!(tool_authority.contains("pub fn validate_tool_action_bindings()"));
     assert!(tool_authority.contains("pub fn validate_tool_action_binding("));
-    assert!(tool_authority.contains("ACTION_OPERATIONS.contains(&spec.operation)"));
+    assert!(operation_catalog.contains("define_operation_catalog!"));
+    assert!(operation_catalog.contains("pub const ACTION_OPERATIONS"));
+    assert!(operation_catalog.contains("pub const OPERATION_SPECS"));
+    assert!(operation_catalog.contains("DynamicRiskRule"));
+    assert!(operation_catalog.contains("pub fn model_tool_schemas()"));
+    assert!(operation_catalog
+        .contains("apply_patch.preview\" => {\n        capability: CapabilityKind::Filesystem"));
+    assert!(operation_catalog
+        .contains("connector.mcp_handshake\" => {\n        capability: CapabilityKind::Tool"));
+    assert!(tool_authority.contains("static TOOL_SPECS_CACHE"));
+    assert!(tool_authority.contains("impl std::ops::Deref for ToolSpecCollection"));
+    assert!(tool_authority.contains("impl AsRef<[ToolSpec]> for ToolSpecCollection"));
+    assert!(tool_authority.contains(".filter_map(tool_spec_from_operation)"));
+    assert!(tool_catalog.contains("crate::model_tool_schemas()"));
     assert!(tool_authority.contains("descriptor.capability != spec.capability"));
     assert!(tool_authority.contains("descriptor.minimum_risk != spec.risk_policy"));
     assert!(tool_authority.contains("tool_action_schema_mismatch"));
+    assert!(actions.contains("pub fn capability_action_minimum_risk"));
+    assert!(runner.contains("capability_action_minimum_risk("));
+    assert!(broker_routing.contains("sealed_broker_routes_spec_kinds_without_fallback"));
+    assert!(broker_routing.contains("apply_patch.preview"));
+    assert!(broker_routing.contains("connector.mcp_handshake"));
     assert!(baseline.contains("duplicate_alias_or_operation_is_rejected"));
     assert!(baseline.contains("descriptor_binding_version_mismatch_never_dispatches"));
     assert!(baseline.contains("tool_authority_covers_every_model_visible_tool"));
     assert!(baseline.contains("tool_action_binding_rejects_controlled_metadata_drift"));
+    assert!(baseline.contains("operation_specs_preserve_model_schema_and_descriptor_projection"));
+    assert!(baseline.contains("spec_kind_drives_policy_for_preview_and_mcp_handshake"));
+    assert!(baseline.contains("sealed_broker_routes_spec_kinds_without_fallback"));
+    assert!(baseline.contains("OPERATION_SPECS"));
+    assert!(baseline.contains("ToolSpecCollection"));
     assert!(baseline.contains("Operator-only"));
 }

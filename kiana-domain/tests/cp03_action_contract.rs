@@ -1,7 +1,8 @@
 use kiana_domain::{
-    capability_action_descriptor, capability_action_digest, normalize_capability_action,
-    parse_bounded_json, validate_action_catalog, CapabilityKind, CapabilityRequest, PreparedAction,
-    RequestId, RiskLevel, ACTION_CATALOG_SCHEMA, ACTION_OPERATIONS,
+    capability_action_contract, capability_action_descriptor, capability_action_digest,
+    normalize_capability_action, operator_only_action, parse_bounded_json, validate_action_catalog,
+    CapabilityKind, CapabilityRequest, PreparedAction, RequestId, RiskLevel, ACTION_CATALOG_SCHEMA,
+    ACTION_OPERATIONS,
 };
 use serde_json::json;
 
@@ -57,6 +58,84 @@ fn forged_readonly_risk_cannot_downgrade_registered_effect() {
             "action_risk_downgrade"
         );
     }
+}
+
+#[test]
+fn spec_kind_drives_policy_for_preview_and_mcp_handshake() {
+    let cases = [
+        (CapabilityKind::Filesystem, "apply_patch.preview"),
+        (CapabilityKind::Tool, "connector.mcp_handshake"),
+    ];
+    for (kind, operation) in cases {
+        let descriptor = capability_action_descriptor(operation).unwrap();
+        assert_eq!(descriptor.capability, kind);
+        assert_eq!(descriptor.minimum_risk, RiskLevel::ReadOnly);
+        assert!(!operator_only_action(operation));
+
+        let request = CapabilityRequest::new(RequestId::new(), kind, operation, json!({}))
+            .with_risk(RiskLevel::ReadOnly);
+        assert_eq!(
+            capability_action_contract(&request),
+            Ok(RiskLevel::ReadOnly)
+        );
+
+        let wrong_kind = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            operation,
+            json!({}),
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        assert_eq!(
+            capability_action_contract(&wrong_kind),
+            Err("action_capability_mismatch")
+        );
+    }
+}
+
+#[test]
+fn spec_risk_rules_preserve_sandbox_and_operator_action_floors() {
+    let workspace_write = CapabilityRequest::new(
+        RequestId::new(),
+        CapabilityKind::Process,
+        "process.start",
+        json!({"operator_authorized":true,"sandbox":"workspace-write"}),
+    )
+    .with_risk(RiskLevel::LocalWrite);
+    assert_eq!(
+        capability_action_contract(&workspace_write),
+        Ok(RiskLevel::LocalWrite)
+    );
+
+    let forged_readonly = workspace_write.clone().with_risk(RiskLevel::ReadOnly);
+    assert_eq!(
+        capability_action_contract(&forged_readonly),
+        Err("action_risk_downgrade")
+    );
+
+    let transaction_read = CapabilityRequest::new(
+        RequestId::new(),
+        CapabilityKind::Filesystem,
+        "workspace.transaction",
+        json!({"operator_authorized":true,"action":"inspect"}),
+    )
+    .with_risk(RiskLevel::ReadOnly);
+    assert_eq!(
+        capability_action_contract(&transaction_read),
+        Ok(RiskLevel::ReadOnly)
+    );
+
+    let transaction_recovery = CapabilityRequest::new(
+        RequestId::new(),
+        CapabilityKind::Filesystem,
+        "workspace.transaction",
+        json!({"operator_authorized":true,"action":"rollback"}),
+    )
+    .with_risk(RiskLevel::Critical);
+    assert_eq!(
+        capability_action_contract(&transaction_recovery),
+        Ok(RiskLevel::Critical)
+    );
 }
 
 #[test]

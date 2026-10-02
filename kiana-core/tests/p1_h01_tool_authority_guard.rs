@@ -9,6 +9,9 @@ fn runner_and_daemon_consume_the_single_tool_authority_registry() {
         "pub struct ToolSpec",
         "pub const TOOL_SPECS",
         "pub fn tool_spec",
+        "static TOOL_SPECS_CACHE",
+        "impl std::ops::Deref for ToolSpecCollection",
+        "impl AsRef<[ToolSpec]> for ToolSpecCollection",
         "validate_tool_authority",
         "side_effecting",
         "risk_policy",
@@ -20,11 +23,12 @@ fn runner_and_daemon_consume_the_single_tool_authority_registry() {
     }
     assert!(catalog.contains("crate::tool_authority::tool_spec(name)"));
     for marker in [
-        "let canonical = model_tool_name(&call.name)",
+        "let canonical = descriptor.name.as_str()",
         "match canonical",
         "TOOL_SHELL =>",
         "TOOL_APPLY_PATCH =>",
         "TOOL_MCP =>",
+        "capability_action_minimum_risk(",
     ] {
         assert!(
             runner.contains(marker),

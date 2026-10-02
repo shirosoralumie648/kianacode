@@ -3519,6 +3519,29 @@ limitations: the canceled run did not execute Broker/domain fixtures past the co
 reviewer: CI error location traced to the missing module import; no runtime test reviewer
 ```
 
+### CAP-01 closed OperationSpec source and admission-kind correction (2026-10-02)
+
+```text
+source_snapshot: `10d24378c3687b29f3e851d3a9e093b2eb28f6c8` plus the isolated CAP-01 OperationSpec slice; `kiana-domain/src/lib.rs`; `kiana-domain/src/operation_catalog.rs`; `kiana-domain/src/actions.rs`; `kiana-domain/src/connectors.rs`; `kiana-domain/src/tool_authority.rs`; `kiana-domain/src/tool_catalog.rs`; `kiana-runner/src/tools.rs`; `kiana-capability-broker/tests/routing.rs`; `kiana-domain/tests/cap01_registry.rs`; `kiana-domain/tests/cp03_action_contract.rs`; `kiana-core/tests/cap01_authority_guard.rs`; `kiana-core/tests/p1_h01_tool_authority_guard.rs`; `docs/roadmap/capability-authority-baseline.md`; `CURRENT_STATUS.md`
+worktree_status: isolated branch `step/cap01-operation-spec-20261002` at `10d24378`; source/doc changes remain uncommitted, unpushed and unmerged. The single closed spec has 38 operations in the existing order and projects ACTION_OPERATIONS, descriptor fields/schemas, model names/aliases/five schemas, ToolSpec, operator-only status, ToolCatalog v1 metadata, and dynamic risk rules. `apply_patch.preview` now admits `Filesystem/ReadOnly`; `connector.mcp_handshake` now admits `Tool/ReadOnly`; both previously had those descriptor kinds but policy catch-all admission derived Query and rejected them. Their `operator_only=false`, the five-tool surface, and `process.start` dynamic sandbox risk behavior remain unchanged.
+command_argv:
+  `git stash push -u -m cap01-operation-spec-draft`
+  `git fetch origin master`
+  `git merge --ff-only origin/master`
+  `git stash pop`
+  read-only `rg`, `sed`, `git show origin/master:<path>`, and `gh run view 36970698983 --json jobs`
+  `gh run view 36970698983 --job 110723944047 --log`
+  `gh run view 36970698983 --job 110723944163 --log`
+  `git diff --check --cached` (exit 0); `cargo fmt --all` (exit 0, formatting only); no local test/build/check/clippy/smoke command run
+cwd·environment: isolated worktree `/tmp/kiana-cap01-operation-spec-20261002`, branch `step/cap01-operation-spec-20261002`, Linux x86_64; base and `origin/master` both `10d24378c3687b29f3e851d3a9e093b2eb28f6c8`; shared master unchanged
+fixture·cassette: CI-only additions/updates: `operation_specs_preserve_model_schema_and_descriptor_projection` pins 38 operation names/order, every descriptor authority/behavior field, the five old schema JSON Values, and ToolCatalog v1 projection/envelope separation; `spec_kind_drives_policy_for_preview_and_mcp_handshake`; `spec_risk_rules_preserve_sandbox_and_operator_action_floors`; `sealed_broker_routes_spec_kinds_without_fallback`; existing `tool_authority_covers_every_model_visible_tool`, `tool_action_binding_rejects_controlled_metadata_drift`, `operator_only_capabilities_never_enter_model_schema`, `capability_catalog_binding_is_single_source_and_sealed_at_composition_root`, and `runner_and_daemon_consume_the_single_tool_authority_registry` now guard the spec/projection join. Prior exact receipt only: run `36970698983` / head `78a6d796`, core-s1 job `110723944047` target `capability_catalog_binding_is_single_source_and_sealed_at_composition_root` 1/1 pass; domain-s1 job `110723944163` then-current `cap01_registry` 3/3 pass. Both shard jobs failed because sibling targets failed; workflow conclusion was cancelled by a newer push. No receipt covers this slice.
+exit_code: `git diff --check --cached` 0; `cargo fmt --all` 0; no local tests/build/check/clippy/smoke were run; source and documentation were manually reviewed
+status_change: CAP-01 remains 🔄 / `feature_status=partial`; no roadmap completion, commit, push, or merge is claimed
+proof-level change: remains `proof_level=source`; no local_behavior, durable, live, or physical promotion
+limitations: this source slice has no CI compile or fixture receipt. Snapshot/schema compatibility is asserted by source fixtures but unobserved until GitHub CI runs. `TOOL_SPECS` changes from a const slice type to a facade, retaining `Deref<[ToolSpec]>`, `AsRef<[ToolSpec]>`, indexing, iteration and the original `tool_spec -> Option<&'static ToolSpec>` reference API; consumers requiring the exact const type can use `.as_ref()`. Operation specs and handler bindings remain process-local; handler registration still explicitly selects existing handlers in DaemonHost. No authorization/permit, effect, durable, external or live claim is made.
+reviewer: manual source review only; no local runtime or CI reviewer for this slice
+```
+
 ### CAP-02 capability input boundary and digest evidence (2026-09-16)
 
 ```text

@@ -1,10 +1,10 @@
 //! The server-owned authority catalog for the currently supported model-visible tools.
 //!
-//! JSON schemas remain in `tool_catalog`; this typed table owns the identity/alias/capability
-//! mapping so Runner and policy code cannot silently grow a second model tool surface.
+//! `OPERATION_SPECS` owns operation identity and policy; this cached projection preserves the
+//! reference-based ToolSpec API without introducing a second authority table.
 use crate::{
     json_digest, model_tool_name, tool_schemas, validate_schema_contract, CapabilityKind,
-    RiskLevel, TOOL_APPLY_PATCH, TOOL_MCP, TOOL_MEMORY_SEARCH, TOOL_MEMORY_WRITE, TOOL_SHELL,
+    RiskLevel, OPERATION_SPECS,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -25,9 +25,78 @@ pub struct ToolSpec {
     pub schema: &'static str,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ToolSpecCollection;
+
+pub const TOOL_SPECS: ToolSpecCollection = ToolSpecCollection;
+static TOOL_SPECS_CACHE: std::sync::LazyLock<Vec<ToolSpec>> = std::sync::LazyLock::new(|| {
+    OPERATION_SPECS
+        .iter()
+        .filter_map(tool_spec_from_operation)
+        .collect()
+});
+
+impl ToolSpecCollection {
+    pub fn iter(&self) -> impl Iterator<Item = &'static ToolSpec> + '_ {
+        TOOL_SPECS_CACHE.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl std::ops::Deref for ToolSpecCollection {
+    type Target = [ToolSpec];
+
+    fn deref(&self) -> &Self::Target {
+        TOOL_SPECS_CACHE.as_slice()
+    }
+}
+
+impl AsRef<[ToolSpec]> for ToolSpecCollection {
+    fn as_ref(&self) -> &[ToolSpec] {
+        TOOL_SPECS_CACHE.as_slice()
+    }
+}
+
+impl IntoIterator for ToolSpecCollection {
+    type Item = &'static ToolSpec;
+    type IntoIter = std::slice::Iter<'static, ToolSpec>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TOOL_SPECS_CACHE.iter()
+    }
+}
+
+impl IntoIterator for &ToolSpecCollection {
+    type Item = &'static ToolSpec;
+    type IntoIter = std::slice::Iter<'static, ToolSpec>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TOOL_SPECS_CACHE.iter()
+    }
+}
+
+fn tool_spec_from_operation(spec: &crate::OperationSpec) -> Option<ToolSpec> {
+    let model = spec.model?;
+    Some(ToolSpec {
+        name: model.name,
+        aliases: model.aliases,
+        capability: spec.capability.clone(),
+        operation: spec.operation,
+        risk_policy: spec.minimum_risk,
+        side_effecting: model.side_effecting,
+        schema: model.schema,
+    })
+}
+
 /// Versioned, immutable view consumed by model schema mapping, policy and Broker registration.
-/// The static `ToolSpec` table remains the source for aliases/capability identity; this snapshot
-/// adds the schema, output and replay metadata that must be pinned for one model step.
+/// Every ToolDescriptor is projected from the closed operation specification.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolCatalogSnapshot {
@@ -62,19 +131,15 @@ pub struct ToolDescriptor {
 
 impl ToolCatalogSnapshot {
     pub fn current() -> Self {
-        let schemas = tool_schemas();
         let tools = TOOL_SPECS
             .iter()
             .filter_map(|spec| {
-                let argument_schema = schemas
-                    .iter()
-                    .find(|schema| schema["name"] == spec.name)
-                    .and_then(|schema| schema.get("parameters"))
-                    .cloned()?;
+                let model = crate::model_tool_projection_for_operation(spec.operation)?;
+                let argument_schema = (model.parameters)();
                 Some(ToolDescriptor {
-                    name: spec.name.to_owned(),
-                    wire_name: spec.name.replace('.', "_"),
-                    aliases: spec
+                    name: model.name.to_owned(),
+                    wire_name: model.name.replace('.', "_"),
+                    aliases: model
                         .aliases
                         .iter()
                         .map(|alias| (*alias).to_owned())
@@ -84,10 +149,7 @@ impl ToolCatalogSnapshot {
                     minimum_risk: spec.risk_policy,
                     side_effecting: spec.side_effecting,
                     argument_schema,
-                    result_schema: json!({
-                        "type": "object",
-                        "additionalProperties": true
-                    }),
+                    result_schema: (model.result_schema)(),
                     output_limit: TOOL_DEFAULT_OUTPUT_LIMIT,
                     execution_mode: "brokered".to_owned(),
                     replay_class: if spec.side_effecting {
@@ -100,10 +162,11 @@ impl ToolCatalogSnapshot {
                     } else {
                         "parallel_read".to_owned()
                     },
-                    resources: match spec.operation {
-                        "memory.search" => vec!["memory".to_owned()],
-                        _ => vec!["workspace".to_owned()],
-                    },
+                    resources: model
+                        .catalog_resources
+                        .iter()
+                        .map(|resource| (*resource).to_owned())
+                        .collect(),
                     max_parallelism: if spec.side_effecting { 1 } else { 4 },
                 })
             })
@@ -220,54 +283,6 @@ pub fn tool_wire_name(name: &str) -> Option<String> {
         .map(|tool| tool.wire_name.clone())
 }
 
-pub const TOOL_SPECS: &[ToolSpec] = &[
-    ToolSpec {
-        name: TOOL_SHELL,
-        aliases: &["shell.exec", "bash", "exec", "command_execution"],
-        capability: CapabilityKind::Process,
-        operation: "shell.exec",
-        risk_policy: RiskLevel::ReadOnly,
-        side_effecting: true,
-        schema: "kiana.tool.shell.v1",
-    },
-    ToolSpec {
-        name: TOOL_APPLY_PATCH,
-        aliases: &["file_change"],
-        capability: CapabilityKind::Filesystem,
-        operation: "apply_patch",
-        risk_policy: RiskLevel::LocalWrite,
-        side_effecting: true,
-        schema: "kiana.tool.apply-patch.v1",
-    },
-    ToolSpec {
-        name: TOOL_MCP,
-        aliases: &["mcp.call"],
-        capability: CapabilityKind::Network,
-        operation: "mcp.call",
-        risk_policy: RiskLevel::ExternalSideEffect,
-        side_effecting: true,
-        schema: "kiana.tool.mcp.v1",
-    },
-    ToolSpec {
-        name: TOOL_MEMORY_SEARCH,
-        aliases: &[],
-        capability: CapabilityKind::Query,
-        operation: "memory.search",
-        risk_policy: RiskLevel::ReadOnly,
-        side_effecting: false,
-        schema: "kiana.tool.memory-search.v1",
-    },
-    ToolSpec {
-        name: TOOL_MEMORY_WRITE,
-        aliases: &[],
-        capability: CapabilityKind::Filesystem,
-        operation: "memory.write",
-        risk_policy: RiskLevel::LocalWrite,
-        side_effecting: true,
-        schema: "kiana.tool.memory-write.v1",
-    },
-];
-
 pub fn tool_spec(name: &str) -> Option<&'static ToolSpec> {
     TOOL_SPECS
         .iter()
@@ -325,7 +340,8 @@ pub fn validate_tool_action_bindings() -> Result<(), String> {
 }
 
 pub fn validate_tool_authority() -> Result<(), String> {
-    if TOOL_SPECS.is_empty() {
+    let model_tool_count = TOOL_SPECS.len();
+    if model_tool_count == 0 || model_tool_count != 5 {
         return Err("tool_authority_surface_invalid".to_owned());
     }
     ToolCatalogSnapshot::current().validate()?;

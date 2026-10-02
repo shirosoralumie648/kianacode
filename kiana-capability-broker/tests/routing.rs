@@ -72,11 +72,18 @@ impl CapabilityHandler for RecordingHandler {
 }
 
 fn sealed_broker(handler: Arc<dyn CapabilityHandler>) -> CapabilityBroker {
+    sealed_broker_for(handler, "memory.search")
+}
+
+fn sealed_broker_for(
+    handler: Arc<dyn CapabilityHandler>,
+    target_operation: &str,
+) -> CapabilityBroker {
     let mut broker = CapabilityBroker::new();
     for operation in kiana_domain::ACTION_OPERATIONS {
         let descriptor = kiana_domain::capability_action_descriptor(operation)
             .expect("catalog operation has a descriptor");
-        let handler: Arc<dyn CapabilityHandler> = if *operation == "memory.search" {
+        let handler: Arc<dyn CapabilityHandler> = if *operation == target_operation {
             handler.clone()
         } else {
             Arc::new(NoopHandler {
@@ -92,7 +99,7 @@ fn sealed_broker(handler: Arc<dyn CapabilityHandler>) -> CapabilityBroker {
     broker
 }
 
-fn memory_search_scope(request: &CapabilityRequest) -> ExecutionScope {
+fn action_scope(request: &CapabilityRequest) -> ExecutionScope {
     let permission_scope = ScopeSet::new(
         ScopeDimension::Restricted(vec![request.operation.clone()]),
         ScopeDimension::NotApplicable,
@@ -166,12 +173,73 @@ async fn registered_handler_is_selected_by_exact_capability_and_operation() {
     )
     .with_risk(RiskLevel::ReadOnly);
     kiana_domain::normalize_capability_action(&mut request).unwrap();
-    request.execution_scope = Some(memory_search_scope(&request));
+    request.execution_scope = Some(action_scope(&request));
     let authorized = AuthorizedCapabilityRequest::new("policy:query-1", request).unwrap();
     let result = broker.execute(authorized).await.unwrap();
     assert_eq!(result.output["operation"], "memory.search");
     assert_eq!(result.output["authorization_id"], "policy:query-1");
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn sealed_broker_routes_spec_kinds_without_fallback() {
+    for operation in ["apply_patch.preview", "connector.mcp_handshake"] {
+        let descriptor = kiana_domain::capability_action_descriptor(operation).unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let broker = sealed_broker_for(
+            Arc::new(RecordingHandler {
+                calls: calls.clone(),
+                binding_version: descriptor.binding_version,
+            }),
+            operation,
+        );
+
+        let mut correct = CapabilityRequest::new(
+            RequestId::new(),
+            descriptor.capability.clone(),
+            operation,
+            json!({}),
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        kiana_domain::normalize_capability_action(&mut correct).unwrap();
+        correct.execution_scope = Some(action_scope(&correct));
+        let result = broker
+            .execute(AuthorizedCapabilityRequest::new("policy:cap01", correct).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(result.output["operation"], operation);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let wrong_kind = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            operation,
+            json!({}),
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        assert_eq!(
+            broker
+                .execute(AuthorizedCapabilityRequest::new("policy:wrong-kind", wrong_kind).unwrap())
+                .await
+                .unwrap_err(),
+            PortError::Failed("action_capability_mismatch".to_owned())
+        );
+
+        let unknown = CapabilityRequest::new(
+            RequestId::new(),
+            descriptor.capability,
+            format!("{operation}.unknown"),
+            json!({}),
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        assert!(matches!(
+            broker
+                .execute(AuthorizedCapabilityRequest::new("policy:unknown", unknown).unwrap())
+                .await,
+            Err(PortError::Failed(reason)) if reason == "action_operation_unknown"
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
 }
 
 #[tokio::test]

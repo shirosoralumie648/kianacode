@@ -1,7 +1,7 @@
 //! Server-owned contracts for the operations admitted by the product composition root.
 use crate::{
     CapabilityErrorCode, CapabilityExecutionState, CapabilityKind, CapabilityRequest,
-    CapabilityResult, RequestId, RiskLevel,
+    CapabilityResult, DynamicRiskRule, RequestId, RiskLevel, ACTION_OPERATIONS,
 };
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -9,48 +9,6 @@ use std::collections::HashSet;
 pub const ACTION_CATALOG_SCHEMA: &str = "kiana.action-catalog.v1";
 pub const ACTION_HANDLER_BINDING_VERSION: &str = "kiana.handler-binding.v1";
 pub const ACTION_CATALOG_SCHEMA_VERSION: crate::SchemaVersion = crate::SchemaVersion::new(1, 0);
-
-/// The admission catalog is deliberately closed. New handlers need a matching product contract.
-pub const ACTION_OPERATIONS: &[&str] = &[
-    "shell.exec",
-    "apply_patch",
-    "mcp.call",
-    "mcp.discover",
-    "memory.search",
-    "memory.write",
-    "context.repo_map",
-    "context.index.read",
-    "context.index.cache.write",
-    "context.artifacts.read",
-    "context.artifacts.cache.write",
-    "context.artifact_store.read",
-    "context.artifact_store.cache.write",
-    "context.artifact_ingest.write",
-    "context.artifact_graph.read",
-    "context.artifact_readiness.read",
-    "context.search",
-    "context.vector_search",
-    "context.pack",
-    "memory.review",
-    "data.governance",
-    "extension.manage",
-    "connector.manage",
-    "connector.invoke",
-    "connector.health",
-    "connector.mcp_handshake",
-    "apply_patch.preview",
-    "workspace.checkpoint.restore",
-    "workspace.transaction",
-    "local.package",
-    "execution.output.read",
-    "process.start",
-    "process.poll",
-    "process.stdin",
-    "process.resize",
-    "process.stop",
-    "environment.inspect",
-    "tool.search",
-];
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct CapabilityActionDescriptor {
@@ -127,194 +85,24 @@ pub fn validate_action_catalog() -> Result<(), String> {
 
 pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionDescriptor> {
     let operation = canonical_action_operation(operation)?;
-    let (capability, minimum_risk, resources, effect): (_, _, &'static [&'static str], _) =
-        match operation {
-            "shell.exec" | "process.start" => (
-                CapabilityKind::Process,
-                RiskLevel::ReadOnly,
-                &["workdir", "path_allow"],
-                "sandbox_bound_process",
-            ),
-            "apply_patch" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::LocalWrite,
-                &["patch", "path_allow"],
-                "workspace_patch",
-            ),
-            "apply_patch.preview" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::ReadOnly,
-                &["patch", "path_allow"],
-                "workspace_patch_preview",
-            ),
-            "mcp.call" | "mcp.discover" => (
-                CapabilityKind::Network,
-                RiskLevel::ExternalSideEffect,
-                &["server", "tool"],
-                "external_tool",
-            ),
-            "process.stdin" | "process.resize" | "process.stop" => (
-                CapabilityKind::Process,
-                RiskLevel::LocalWrite,
-                &["process_id"],
-                "managed_process_control",
-            ),
-            "workspace.transaction" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::ReadOnly,
-                &["transaction_id", "resolution"],
-                "workspace_recovery",
-            ),
-            "local.package" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::LocalWrite,
-                &["package_id", "destination", "sources"],
-                "local_package_publication",
-            ),
-            "memory.search" => (
-                CapabilityKind::Query,
-                RiskLevel::ReadOnly,
-                &["collection"],
-                "read",
-            ),
-            "memory.write" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::LocalWrite,
-                &["collection", "source", "promote_to"],
-                "memory_write",
-            ),
-            "memory.review" | "data.governance" | "extension.manage" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::ReadOnly,
-                &["action", "project_root"],
-                "operator_management",
-            ),
-            "connector.manage" => (
-                CapabilityKind::Tool,
-                RiskLevel::ReadOnly,
-                &["binding_id", "action"],
-                "connector_management",
-            ),
-            "connector.invoke" => (
-                CapabilityKind::Tool,
-                RiskLevel::ReadOnly,
-                &["binding_snapshot", "operation"],
-                "binding_declared_effect",
-            ),
-            "connector.health" => (
-                CapabilityKind::Tool,
-                RiskLevel::ReadOnly,
-                &["binding_snapshot", "probe_kind"],
-                "connector_read_only_probe",
-            ),
-            "connector.mcp_handshake" => (
-                CapabilityKind::Tool,
-                RiskLevel::ReadOnly,
-                &["binding_id", "server", "session_ref"],
-                "connector_mcp_handshake",
-            ),
-            "workspace.checkpoint.restore" => (
-                CapabilityKind::Filesystem,
-                RiskLevel::Critical,
-                &["snapshot"],
-                "workspace_restore",
-            ),
-            _ if operation.ends_with(".write") => (
-                CapabilityKind::Query,
-                RiskLevel::LocalWrite,
-                &["root", "cache", "source", "store"],
-                "context_write",
-            ),
-            _ => (
-                CapabilityKind::Query,
-                RiskLevel::ReadOnly,
-                &["root"],
-                "read",
-            ),
-        };
-    let mut argument_schema = crate::model_tool_name(operation)
-        .and_then(|name| {
-            crate::tool_schemas()
-                .into_iter()
-                .find(|schema| schema["name"] == name)
-                .map(|schema| schema["parameters"].clone())
-        })
-        .unwrap_or_else(|| json!({"type":"object"}));
-    // Server identity and compatibility fields coexist with operation arguments during migration.
-    // The policy and handler still validate authority; unknown operations never reach this point.
+    let spec = crate::operation_spec(operation)?;
+    let mut argument_schema = match spec.model {
+        Some(model) => (model.parameters)(),
+        None => crate::operator_argument_schema(spec),
+    };
     argument_schema["additionalProperties"] = json!(true);
-    if crate::model_tool_name(operation).is_none() {
-        let required: &[&str] = match operation {
-            "memory.review" | "data.governance" | "extension.manage" | "connector.manage" => {
-                &["action"]
-            }
-            "connector.invoke" => &[
-                "binding_snapshot",
-                "operation",
-                "payload",
-                "idempotency_key",
-            ],
-            "connector.health" => &["binding_snapshot", "probe_kind"],
-            "workspace.checkpoint.restore" => &["snapshot"],
-            "workspace.transaction" => &["action"],
-            "local.package" => &["package_id", "destination", "manifest", "sources"],
-            "execution.output.read" => &["output_id"],
-            "process.start" => &["command"],
-            "process.poll" | "process.stop" => &["process_id"],
-            "process.stdin" => &["process_id", "data"],
-            "process.resize" => &["process_id", "rows", "cols"],
-            "context.search" | "context.vector_search" | "context.pack" => &["query"],
-            "context.index.cache.write"
-            | "context.artifacts.cache.write"
-            | "context.artifact_store.cache.write" => &["cache"],
-            "context.artifact_ingest.write" => &["source"],
-            _ => &[],
-        };
-        argument_schema["required"] = json!(required);
-    }
-    if crate::model_tool_name(operation).is_none() {
-        argument_schema["properties"] = json!({
-            "action":{"type":"string","minLength":1,"maxLength":64},
-            "package_id":{"type":"string","minLength":36,"maxLength":36},
-            "destination":{"type":"string","minLength":1,"maxLength":4096},
-            "manifest":{"type":"object"},
-            "sources":{"type":"array","maxItems":4096},
-            "server":{"type":"string","minLength":1,"maxLength":256},
-            "transaction_id":{"type":"string","minLength":1,"maxLength":256},
-            "resolution":{"type":"string","enum":["commit","rollback"]},
-            "output_id":{"type":"string","minLength":1,"maxLength":256},
-            "run_id":{"type":"string","minLength":36,"maxLength":36},
-            "cursor":{"type":"string","minLength":1,"maxLength":256},
-            "process_id":{"type":"string","minLength":1,"maxLength":256},
-            "data":{"type":"string","maxLength":65536},
-            "rows":{"type":"integer","minimum":1,"maximum":4096},
-            "cols":{"type":"integer","minimum":1,"maximum":4096},
-            "offset":{"type":"integer","minimum":0},
-            "query":{"type":"string","maxLength":16384}
-        });
-    }
     Some(CapabilityActionDescriptor {
-        operation,
-        binding_version: ACTION_HANDLER_BINDING_VERSION,
-        capability,
-        minimum_risk,
+        operation: spec.operation,
+        binding_version: spec.binding_version,
+        capability: spec.capability.clone(),
+        minimum_risk: spec.minimum_risk,
         argument_schema,
-        result_schema: json!({"type":"object","required":["request_id","success","output","evidence_refs"],
-            "additionalProperties":false,"properties":{"request_id":{"type":"string"},"success":{"type":"boolean"},
-            "output":{},"evidence_refs":{"type":"array","items":{"type":"string"}}}}),
-        resource_fields: resources,
-        effect,
-        cancellation: if operation == "shell.exec" {
-            "process_group_stop_confirmation"
-        } else {
-            "cooperative_or_result_unknown"
-        },
-        reconciliation: if operation.starts_with("connector.") {
-            "operator_receipt"
-        } else {
-            "operator_required_on_unknown"
-        },
-        idempotency: "dispatch_permit_once_no_automatic_retry",
+        result_schema: crate::action_result_schema(),
+        resource_fields: spec.resource_fields,
+        effect: spec.effect,
+        cancellation: spec.cancellation,
+        reconciliation: spec.reconciliation,
+        idempotency: spec.idempotency,
     })
 }
 
@@ -381,38 +169,16 @@ impl PreparedAction {
 }
 
 pub fn canonical_action_operation(operation: &str) -> Option<&'static str> {
-    if let Some(tool) = crate::model_tool_name(operation) {
-        return Some(match tool {
-            crate::TOOL_SHELL => "shell.exec",
-            crate::TOOL_MCP => "mcp.call",
-            crate::TOOL_APPLY_PATCH => "apply_patch",
-            crate::TOOL_MEMORY_SEARCH => "memory.search",
-            crate::TOOL_MEMORY_WRITE => "memory.write",
-            _ => return None,
-        });
-    }
-    ACTION_OPERATIONS
-        .iter()
-        .copied()
-        .find(|known| *known == operation)
+    crate::model_operation_spec(operation)
+        .or_else(|| crate::operation_spec(operation))
+        .map(|spec| spec.operation)
 }
 
 /// Exact operation and capability class, plus the minimum effect for these arguments.
 pub fn operator_only_action(operation: &str) -> bool {
-    matches!(
-        operation,
-        "mcp.discover"
-            | "workspace.transaction"
-            | "local.package"
-            | "execution.output.read"
-            | "process.start"
-            | "process.poll"
-            | "process.stdin"
-            | "process.resize"
-            | "process.stop"
-            | "environment.inspect"
-            | "tool.search"
-    )
+    canonical_action_operation(operation)
+        .and_then(crate::operation_spec)
+        .is_some_and(|spec| spec.operator_only)
 }
 
 pub fn capability_action_contract(request: &CapabilityRequest) -> Result<RiskLevel, &'static str> {
@@ -423,71 +189,57 @@ pub fn capability_action_contract(request: &CapabilityRequest) -> Result<RiskLev
     {
         return Err("action_operator_required");
     }
-    let (kind, minimum) = match operation {
-        "shell.exec" | "process.start" => (
-            CapabilityKind::Process,
-            match request.arguments["sandbox"].as_str() {
-                Some("workspace-write") => RiskLevel::LocalWrite,
-                Some("read-only") | None => RiskLevel::ReadOnly,
-                _ => return Err("sandbox_unsupported"),
-            },
-        ),
-        "apply_patch" | "memory.write" | "local.package" => {
-            (CapabilityKind::Filesystem, RiskLevel::LocalWrite)
-        }
-        "mcp.call" | "mcp.discover" => (CapabilityKind::Network, RiskLevel::ExternalSideEffect),
-        "memory.search" => (CapabilityKind::Query, RiskLevel::ReadOnly),
-        "workspace.checkpoint.restore" => (CapabilityKind::Filesystem, RiskLevel::Critical),
-        "workspace.transaction" => (
-            CapabilityKind::Filesystem,
-            match request.arguments["action"].as_str() {
-                Some("list" | "inspect") => RiskLevel::ReadOnly,
-                Some("recover" | "rollback") => RiskLevel::Critical,
-                _ => return Err("workspace_transaction_action_invalid"),
-            },
-        ),
-        "process.stdin" | "process.resize" | "process.stop" => {
-            (CapabilityKind::Process, RiskLevel::LocalWrite)
-        }
-        "memory.review" | "data.governance" | "extension.manage" => (
-            CapabilityKind::Filesystem,
-            if matches!(
-                request.arguments["action"].as_str(),
-                Some("list" | "inspect")
-            ) {
-                RiskLevel::ReadOnly
-            } else {
-                RiskLevel::ExternalSideEffect
-            },
-        ),
-        "connector.manage" => (
-            CapabilityKind::Tool,
-            if request.arguments["action"] == "list" {
-                RiskLevel::ReadOnly
-            } else {
-                RiskLevel::ExternalSideEffect
-            },
-        ),
-        "connector.invoke" => (
-            CapabilityKind::Tool,
-            crate::connector_invocation_risk(request)?,
-        ),
-        "connector.health" => (CapabilityKind::Tool, RiskLevel::ReadOnly),
-        _ => (
-            CapabilityKind::Query,
-            if operation.ends_with(".write") {
-                RiskLevel::LocalWrite
-            } else {
-                RiskLevel::ReadOnly
-            },
-        ),
-    };
-    if request.capability != kind {
+    let spec = crate::operation_spec(operation).ok_or("action_operation_unknown")?;
+    let minimum = capability_action_minimum_risk(operation, &request.arguments)?;
+    if request.capability != spec.capability {
         return Err("action_capability_mismatch");
     }
     if risk_rank(request.risk) < risk_rank(minimum) {
         return Err("action_risk_downgrade");
     }
+    Ok(minimum)
+}
+
+/// Compute the argument-dependent floor from the closed operation specification.
+///
+/// Request adapters use this when constructing a request; the full contract below additionally
+/// checks operator authority, capability kind, and that the supplied risk does not understate it.
+pub fn capability_action_minimum_risk(
+    operation: &str,
+    arguments: &Value,
+) -> Result<RiskLevel, &'static str> {
+    let operation = canonical_action_operation(operation).ok_or("action_operation_unknown")?;
+    let spec = crate::operation_spec(operation).ok_or("action_operation_unknown")?;
+    let minimum = match spec.risk_rule {
+        DynamicRiskRule::Static => spec.minimum_risk,
+        DynamicRiskRule::SandboxMode => match arguments["sandbox"].as_str() {
+            Some("workspace-write") => RiskLevel::LocalWrite,
+            Some("read-only") | None => RiskLevel::ReadOnly,
+            _ => return Err("sandbox_unsupported"),
+        },
+        DynamicRiskRule::WorkspaceTransactionAction => match arguments["action"].as_str() {
+            Some("list" | "inspect") => RiskLevel::ReadOnly,
+            Some("recover" | "rollback") => RiskLevel::Critical,
+            _ => return Err("workspace_transaction_action_invalid"),
+        },
+        DynamicRiskRule::ListOrInspectExternal => {
+            if matches!(arguments["action"].as_str(), Some("list" | "inspect")) {
+                RiskLevel::ReadOnly
+            } else {
+                RiskLevel::ExternalSideEffect
+            }
+        }
+        DynamicRiskRule::ListExternal => {
+            if arguments["action"] == "list" {
+                RiskLevel::ReadOnly
+            } else {
+                RiskLevel::ExternalSideEffect
+            }
+        }
+        DynamicRiskRule::ConnectorInvocation => {
+            crate::connector_invocation_risk_for_arguments(arguments)?
+        }
+    };
     Ok(minimum)
 }
 
@@ -671,6 +423,7 @@ pub fn capability_action_catalog_digest() -> String {
     // invalidate a previously prepared action even if its outward JSON schema stayed equal.
     crate::json_digest(&json!({"schema":ACTION_CATALOG_SCHEMA,
         "contracts":ACTION_OPERATIONS.iter().map(|operation|capability_action_descriptor(operation).expect("closed catalog")).collect::<Vec<_>>(),
+        "operation_specs_source":include_str!("operation_catalog.rs"),
         "tool_catalog_digest": crate::tool_catalog_digest(),
         "normalizer_source":include_str!("actions.rs"),"schema_validator_source":include_str!("tool_catalog.rs")}))
 }

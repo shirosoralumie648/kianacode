@@ -554,10 +554,16 @@ pub fn connector_bindings(
 pub fn connector_invocation_risk(
     request: &crate::CapabilityRequest,
 ) -> Result<RiskLevel, &'static str> {
+    connector_invocation_risk_for_arguments(&request.arguments)
+}
+
+pub(crate) fn connector_invocation_risk_for_arguments(
+    arguments: &Value,
+) -> Result<RiskLevel, &'static str> {
     let binding: ConnectorBindingSnapshot =
-        serde_json::from_value(request.arguments["binding_snapshot"].clone())
+        serde_json::from_value(arguments["binding_snapshot"].clone())
             .map_err(|_| "connector_binding_snapshot_required")?;
-    let operation = request.arguments["operation"]
+    let operation = arguments["operation"]
         .as_str()
         .ok_or("connector_operation_required")?;
     let contract = binding.operation(operation)?;

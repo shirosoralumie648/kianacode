@@ -6,7 +6,7 @@
 //! [`CapabilityRequest`]，不会直接执行命令、写文件、访问 MCP 或读写记忆。
 
 use crate::model::ModelToolCall;
-use kiana_domain::{CapabilityRequest, RequestId, RiskLevel};
+use kiana_domain::{CapabilityRequest, RequestId};
 use serde_json::{json, Value};
 
 pub use kiana_domain::{
@@ -14,7 +14,7 @@ pub use kiana_domain::{
     TOOL_MEMORY_WRITE, TOOL_SHELL,
 };
 #[cfg(test)]
-use kiana_domain::{validate_schema_value, CapabilityKind};
+use kiana_domain::{validate_schema_value, CapabilityKind, RiskLevel};
 
 /// 将一次模型工具调用映射成带风险等级的能力请求。
 ///
@@ -48,8 +48,8 @@ pub fn capability_for_tool_with_request_id(
     let canonical = descriptor.name.as_str();
     validate_tool_arguments(&call.name, &call.arguments)?;
 
-    match canonical {
-        TOOL_SHELL => Ok(CapabilityRequest::new(
+    let mut request = match canonical {
+        TOOL_SHELL => CapabilityRequest::new(
             request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
@@ -61,9 +61,8 @@ pub fn capability_for_tool_with_request_id(
                 "sandbox": sandbox,
                 "project_root": project_root,
             }),
-        )
-        .with_risk(shell_risk(sandbox))),
-        TOOL_APPLY_PATCH => Ok(CapabilityRequest::new(
+        ),
+        TOOL_APPLY_PATCH => CapabilityRequest::new(
             request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
@@ -74,9 +73,8 @@ pub fn capability_for_tool_with_request_id(
                 "sandbox": sandbox,
                 "project_root": project_root,
             }),
-        )
-        .with_risk(RiskLevel::LocalWrite)),
-        TOOL_MCP => Ok(CapabilityRequest::new(
+        ),
+        TOOL_MCP => CapabilityRequest::new(
             request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
@@ -90,9 +88,8 @@ pub fn capability_for_tool_with_request_id(
                 "sandbox": sandbox,
                 "project_root": project_root,
             }),
-        )
-        .with_risk(RiskLevel::ExternalSideEffect)),
-        TOOL_MEMORY_SEARCH => Ok(CapabilityRequest::new(
+        ),
+        TOOL_MEMORY_SEARCH => CapabilityRequest::new(
             request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
@@ -104,9 +101,8 @@ pub fn capability_for_tool_with_request_id(
                 "sandbox": sandbox,
                 "project_root": project_root,
             }),
-        )
-        .with_risk(RiskLevel::ReadOnly)),
-        TOOL_MEMORY_WRITE => Ok(CapabilityRequest::new(
+        ),
+        TOOL_MEMORY_WRITE => CapabilityRequest::new(
             request_id,
             descriptor.capability.clone(),
             descriptor.operation.clone(),
@@ -119,22 +115,14 @@ pub fn capability_for_tool_with_request_id(
                 "sandbox": sandbox,
                 "project_root": project_root,
             }),
-        )
-        .with_risk(RiskLevel::LocalWrite)),
+        ),
         // 未知工具不做模糊匹配或通用回退，保持固定工具面和 fail-closed 行为。
-        _ => Err(format!("tool_unsupported:{}", call.name)),
-    }
-}
-
-/// 将 sandbox 字符串转换为 shell 的初步风险等级。
-///
-/// 只有精确的 `workspace-write` 视为 LocalWrite，其他值按只读处理；这只是请求构造时的
-/// 初步分类，ControlPlane、grant 和实际执行器必须继续验证 sandbox 是否有效。
-fn shell_risk(sandbox: &str) -> RiskLevel {
-    match sandbox {
-        "workspace-write" => RiskLevel::LocalWrite,
-        _ => RiskLevel::ReadOnly,
-    }
+        _ => return Err(format!("tool_unsupported:{}", call.name)),
+    };
+    request.risk =
+        kiana_domain::capability_action_minimum_risk(&request.operation, &request.arguments)
+            .map_err(str::to_owned)?;
+    Ok(request)
 }
 
 #[cfg(test)]
