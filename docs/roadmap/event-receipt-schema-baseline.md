@@ -288,6 +288,27 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched decision fields, decision_fact, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+## 5.9 Denied approval decision contract
+
+`approval.denied` reuses the decision transition producer payload used by `approval.approved`,
+but its registry semantics are terminal. It now has the same exact ten-field decision allowlist,
+approval aggregate and required ID, with `terminal=true` and the existing legacy approval
+migration. Missing IDs and unknown fields remain deny-first; no approval transition or EventStore
+behavior changed.
+
+```text
+source_snapshot: source commit `e748cde265e243e93f3d857bceb2d417e45d9fb7`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/journal_approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `approval.denied` now has exact decision-transition fields and terminal semantics, approval aggregate metadata, approval_id requirement and explicit legacy migration; source guard pins the Denied transition kind and decision_fact producer; no EventStore or approval behavior changed
+command_argv: source trace of shared approval `transition_event` and `ApprovalState::Denied`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick e9a2abcd`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated producer-audit worktree based on `f64b0d81`; integration repository root; Linux/bash; GitHub Actions is the runtime test executor
+fixture·cassette: `approval_denied_contract_matches_decision_producer_and_rejects_unknown_fields`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; denied approval decision payload is now explicitly covered with terminal semantics
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; expired/cancelled/consumed transitions and other approval producers still require reconciliation; no approval durability/replay/recovery or external-effect claim
+reviewer: source trace matched decision fields, decision_fact, terminal flag, approval aggregate, stream version and migration lookup; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
