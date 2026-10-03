@@ -42,6 +42,35 @@ const RUN_AUTHORIZED_FIELDS: &[&str] = &[
 const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
 const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
 const RUN_DELTA_FIELDS: &[&str] = &["run_id", "text"];
+const RUN_SNAPSHOT_FIELDS: &[&str] = &["run_id", "snapshot"];
+const RUN_INPUT_ACCEPTED_FIELDS: &[&str] = &[
+    "run_id",
+    "input_id",
+    "source",
+    "target",
+    "target_turn_id",
+    "text",
+    "received_sequence",
+    "disposition",
+];
+const RUN_INPUT_CLAIMED_FIELDS: &[&str] = &[
+    "run_id",
+    "input_id",
+    "source",
+    "target",
+    "target_turn_id",
+    "received_sequence",
+    "disposition",
+    "error",
+];
+const RUN_CLARIFICATION_REQUESTED_FIELDS: &[&str] = &[
+    "run_id",
+    "interaction_id",
+    "turn_id",
+    "request",
+    "wait",
+    "status",
+];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const CAPABILITY_DECISION_IDS: &[&str] = &[];
 const EXECUTION_PREPARED_IDS: &[&str] = &[
@@ -1380,7 +1409,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.snapshot",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_SNAPSHOT_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1388,7 +1417,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.input.accepted",
         "run",
         INPUT_IDS,
-        RUN_FIELDS,
+        RUN_INPUT_ACCEPTED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1396,7 +1425,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.input.claimed",
         "run",
         INPUT_IDS,
-        RUN_FIELDS,
+        RUN_INPUT_CLAIMED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1404,7 +1433,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.clarification.requested",
         "run",
         CLARIFICATION_IDS,
-        RUN_FIELDS,
+        RUN_CLARIFICATION_REQUESTED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

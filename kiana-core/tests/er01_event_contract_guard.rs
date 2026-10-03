@@ -21,6 +21,64 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
+    assert!(baseline.contains("run_input_snapshot_and_clarification_contracts_match_producers"));
+    for (kind, expected_count) in [
+        ("run.input.accepted", 1),
+        ("run.input.claimed", 1),
+        ("run.clarification.requested", 1),
+    ] {
+        assert_eq!(
+            lifecycle.matches(&format!("\"{kind}\"")).count(),
+            expected_count,
+            "unexpected lifecycle producer count for {kind}"
+        );
+    }
+    for (kind, fields, ids) in [
+        ("run.snapshot", "RUN_SNAPSHOT_FIELDS", "RUN_IDS"),
+        (
+            "run.input.accepted",
+            "RUN_INPUT_ACCEPTED_FIELDS",
+            "INPUT_IDS",
+        ),
+        ("run.input.claimed", "RUN_INPUT_CLAIMED_FIELDS", "INPUT_IDS"),
+        (
+            "run.clarification.requested",
+            "RUN_CLARIFICATION_REQUESTED_FIELDS",
+            "CLARIFICATION_IDS",
+        ),
+    ] {
+        let spec = format!("\"{kind}\",\n        \"run\",\n        {ids},\n        {fields},");
+        assert!(
+            contracts.contains(&spec),
+            "run event {kind} must use exact fields and IDs"
+        );
+    }
+    for marker in [
+        "\"source\": source,",
+        "\"target\": target,",
+        "\"target_turn_id\": target_turn_id,",
+        "\"text\": safe_text,",
+        "\"received_sequence\": accepted_sequence,",
+        "\"disposition\": \"accepted\",",
+        "\"run_id\":run_id,\"input_id\":input_id,\"source\":\"control_plane\",\"target\":target,",
+        "\"target_turn_id\":target_turn_id,\"received_sequence\":accepted_sequence,\"disposition\":\"rejected\",\"error\":error",
+        "\"run_id\":run_id,\"snapshot\":safe",
+        "\"interaction_id\": request.interaction_id,",
+        "\"turn_id\": request.turn_id,",
+        "\"request\": &request,",
+        "\"wait\": &wait,",
+        "\"status\": kiana_domain::CLARIFICATION_WAITING_STATUS,",
+    ] {
+        let source = if marker.contains("snapshot") {
+            recovery
+        } else {
+            lifecycle
+        };
+        assert!(
+            source.contains(marker),
+            "missing run input/clarification producer field {marker}"
+        );
+    }
     for marker in [
         "EventKindSpec",
         "EVENT_KIND_SPECS",

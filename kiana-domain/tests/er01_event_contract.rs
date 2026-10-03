@@ -1609,3 +1609,119 @@ fn run_lifecycle_contracts_match_real_producers_and_reject_drift() {
         &["run_id", "text"][..]
     );
 }
+
+#[test]
+fn run_input_snapshot_and_clarification_contracts_match_producers() {
+    let run_id = kiana_domain::RunId::new();
+    let input_id = kiana_domain::InputId::new();
+    let interaction_id = kiana_domain::InteractionId::new();
+    let turn_id = kiana_domain::TurnId::new();
+    let cases = [
+        (
+            "run.input.accepted",
+            &["run_id", "input_id"][..],
+            &[
+                "run_id",
+                "input_id",
+                "source",
+                "target",
+                "target_turn_id",
+                "text",
+                "received_sequence",
+                "disposition",
+            ][..],
+            json!({
+                "run_id": run_id,
+                "input_id": input_id,
+                "source": "control_plane",
+                "target": "next-step",
+                "target_turn_id": turn_id,
+                "text": "safe input",
+                "received_sequence": 1,
+                "disposition": "accepted",
+            }),
+        ),
+        (
+            "run.input.claimed",
+            &["run_id", "input_id"][..],
+            &[
+                "run_id",
+                "input_id",
+                "source",
+                "target",
+                "target_turn_id",
+                "received_sequence",
+                "disposition",
+                "error",
+            ][..],
+            json!({
+                "run_id": run_id,
+                "input_id": input_id,
+                "source": "control_plane",
+                "target": "next-step",
+                "target_turn_id": turn_id,
+                "received_sequence": 1,
+                "disposition": "rejected",
+                "error": "input_rejected",
+            }),
+        ),
+        (
+            "run.snapshot",
+            &["run_id"][..],
+            &["run_id", "snapshot"][..],
+            json!({"run_id":run_id,"snapshot":{}}),
+        ),
+        (
+            "run.clarification.requested",
+            &["run_id", "interaction_id", "turn_id"][..],
+            &[
+                "run_id",
+                "interaction_id",
+                "turn_id",
+                "request",
+                "wait",
+                "status",
+            ][..],
+            json!({
+                "run_id": run_id,
+                "interaction_id": interaction_id,
+                "turn_id": turn_id,
+                "request": {},
+                "wait": {},
+                "status": "waiting",
+            }),
+        ),
+    ];
+
+    for (kind, required_ids, allowed_fields, payload) in cases {
+        let spec = event_kind_spec(kind).unwrap();
+        assert_eq!(spec.aggregate_type, "run", "{kind}");
+        assert_eq!(spec.required_ids, required_ids, "{kind}");
+        assert_eq!(spec.allowed_fields, allowed_fields, "{kind}");
+        assert!(!spec.terminal, "{kind}");
+        assert_eq!(
+            event_migration(kind, 0, 1),
+            Some("legacy_run_event_v0_to_v1"),
+            "{kind}"
+        );
+        validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
+
+        for id in required_ids {
+            let mut missing_id = payload.clone();
+            missing_id.as_object_mut().unwrap().remove(id);
+            assert_eq!(
+                validate_event_payload(kind, &missing_id).unwrap_err(),
+                format!("event_required_id_missing:{id}"),
+                "{kind}"
+            );
+        }
+
+        let mut unknown_field = payload;
+        unknown_field["unregistered_input_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload(kind, &unknown_field).unwrap_err(),
+            "event_payload_unknown_field",
+            "{kind}"
+        );
+    }
+}
