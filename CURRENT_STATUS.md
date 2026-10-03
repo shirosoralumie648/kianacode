@@ -20277,3 +20277,18 @@ proof-level change: none
 limitations: raw compatibility `resolve_credential` remains callable and no production caller migration is included; no production identity/config/credential adapter, SecretStore/lease/OAuth, durable rotation/revoke, cancellation-after-effect or provider live effect is established
 reviewer: source review checked validation ordering, exact reference/generation equality and typed stale conflict; no local runtime reviewer
 ```
+
+### H07 focused budget diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h07-budget-diagnostic.yml; kiana-runner/src/{budget.rs,harness.rs}; kiana-runner/tests/{h07_budget.rs,h07_budget_guard.rs}; docs/roadmap/harness-budget-baseline.md
+worktree_status: restored a manual GitHub-only focused workflow for the existing H07 four behavior fixtures and source guard; no runner budget behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h07-budget-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: h07_budget and h07_budget_guard; the workflow matrix runs both targets serially within each focused job
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H07 remains roadmap row 146 / current row 159 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for the already implemented budget contract
+proof-level change: none
+limitations: no local runtime result, task-ledger restart/cross-process merge, provider tokenizer/billing, external/live/physical proof or H08 cancellation proof
+reviewer: source review confirmed pre-provider reservation, conservative unknown settlement, task-chain isolation and reuse of the existing KianaHarness path; no local runtime reviewer
+```

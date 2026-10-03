@@ -37,6 +37,8 @@ turn 步数，ledger scope 不重置；不同项目/角色的 run 账本隔离�
 ## 3. Proof ceiling and handoff
 
 H07 proof ceiling 为 `source`：runner 账本与配置链已接入，ModelTurn 带受限 accounting 摘要，
-CI-only fixtures/source guard 固化拒绝路径。进程重启后的 task ledger 重建、跨进程/并行 sibling
+CI-only fixtures/source guard 固化拒绝路径。当前新增 `.github/workflows/h07-budget-diagnostic.yml`
+作为手动 focused receipt，分别运行预算行为 fixture 和 source guard；远程结果不在本地等待。
+进程重启后的 task ledger 重建、跨进程/并行 sibling
 原子合并、Company project cumulative projector、provider tokenizer/账单、人工等待 TTL、真实
 network retry 和 live/physical proof 仍留待 H08+ / CP-11/12/15–17 / P4 / PD/INT。
