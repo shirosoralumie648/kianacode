@@ -19,7 +19,8 @@ fn eval_runtime_is_an_isolation_adapter_not_a_second_runner() {
     }
     assert!(daemon.contains("pub mod eval_runtime"));
     assert!(!runtime.contains("KianaHarness"));
-    assert!(!runtime.contains("CapabilityBroker"));
+    assert!(runtime.contains("DenyByDefaultEvalBroker"));
+    assert!(runtime.contains("impl CapabilityBrokerPort for DenyByDefaultEvalBroker"));
     assert!(!runtime.contains("tokio::spawn"));
     assert!(!runtime.contains("reqwest"));
 }
