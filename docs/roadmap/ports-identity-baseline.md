@@ -146,3 +146,24 @@ proof-level change: none
 limitations: the raw compatibility resolver remains callable and no production caller has been migrated in this slice; no production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapter, SecretStore/lease/OAuth, durable rotation/revoke, cancellation-after-effect or provider live effect is established
 reviewer: source review checked metadata validation ordering, exact SecretRef/generation comparison and stale conflict typing; no local runtime reviewer
 ```
+
+## 12. Checked identity resolution binding (2026-10-03)
+
+`IdentityResolver::resolve_principal_checked` now validates both the authenticated input and the
+resolved `Principal`, then requires the returned authentication reference to equal the exact input.
+This rejects a resolver result that reuses the principal ID while substituting a different
+authentication generation. The raw compatibility method remains available and no production
+resolver caller was migrated.
+
+```text
+source_snapshot: isolated commit `9809ebc7bdd2d719741ea99fafd6f5e600130708`; `kiana-ports/src/lib.rs`; `kiana-ports/tests/ci03_ports.rs`; `kiana-core/tests/ci03_ports_guard.rs`
+worktree_status: checked identity resolution is an explicit opt-in wrapper; stale authenticated generation returns `PortError::Conflict("resolved_principal_binding_mismatch")`; no production adapter, manifest or lockfile changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-ci03-identity-20261003`, branch `fix/ci03-identity-checked-20261003`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `identity_resolution_rejects_a_stale_authenticated_generation`; unified `.github/workflows/ci.yml` routes `ci03_ports` through the kiana-ports shard; fresh CI receipt pending
+exit_code: isolated format/diff checks 0; no local runtime result; new identity binding fixture awaits GitHub CI
+status_change: CI-03 remains roadmap row 086 `🔄`, `feature_status=partial`, `proof_level=source`; the port layer now offers an explicit authenticated-reference-bound identity path
+proof-level change: none
+limitations: raw compatibility `resolve_principal` remains callable and no production caller migration is included; no production IdentityResolver adapter, durable identity store, OS credential verification, OAuth, cross-process recovery or provider/live effect is established
+reviewer: source review checked authenticated input validation, resolved Principal validation, exact authentication reference/generation equality and typed conflict; no local runtime reviewer
+```

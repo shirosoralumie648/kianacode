@@ -20307,3 +20307,18 @@ proof-level change: none
 limitations: no local runtime result, cross-process cancellation persistence, OS power-loss/kill proof, real provider/MCP network evidence, complete P0-J1 state-machine proof or external/live/physical proof
 reviewer: source review confirmed cancellation watch propagation, deadline/retry fence, process-group stop confirmation and no success on unconfirmed stop; no local runtime reviewer
 ```
+
+### CI-03 checked identity resolution binding (2026-10-03)
+
+```text
+source_snapshot: isolated commit `9809ebc7bdd2d719741ea99fafd6f5e600130708`; kiana-ports/src/lib.rs; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs; docs/roadmap/ports-identity-baseline.md; docs/roadmap.md
+worktree_status: `IdentityResolver::resolve_principal_checked` validates the authenticated input and resolved Principal, then requires exact authentication reference/generation equality; stale generation returns `PortError::Conflict("resolved_principal_binding_mismatch")`; raw compatibility resolver remains available; no production adapter, manifest or lockfile changed
+command_argv: isolated `cargo fmt --all --check`; isolated `git diff --check`; isolated staged diff/show checks; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-ci03-identity-20261003`, branch `fix/ci03-identity-checked-20261003`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `identity_resolution_rejects_a_stale_authenticated_generation`; existing CI-03 unavailable identity/config and checked credential fixtures remain; unified CI routes `ci03_ports` through the kiana-ports shard; fresh identity fixture receipt pending
+exit_code: isolated format/diff checks 0; no local runtime result; new identity binding fixture awaits GitHub CI
+status_change: CI-03 remains roadmap row 086 `🔄`, `feature_status=partial`, `proof_level=source`; the port layer now offers an explicit authenticated-reference-bound identity path
+proof-level change: none
+limitations: raw compatibility `resolve_principal` remains callable and no production caller migration is included; no production IdentityResolver adapter, durable identity store, OS credential verification, OAuth, cross-process recovery or provider/live effect is established
+reviewer: source review checked authenticated input validation, resolved Principal validation, exact authentication reference/generation equality and typed conflict; no local runtime reviewer
+```
