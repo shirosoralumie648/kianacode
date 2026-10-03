@@ -21928,6 +21928,21 @@ limitations: existing UsageRecord/CostLedger/model-budget/receipt/CellRegistry b
 reviewer: exact focused job, source inventory, migration marker correction and unknown-usage semantics reviewed; no local runtime reviewer
 ```
 
+### CO-06 scoped focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `6188b816`; .github/workflows/co06-artifact-evidence.yml; kiana-domain/src/{artifact_store,artifact_evidence}.rs; kiana-ports/src/lib.rs; kiana-core/src/{company,artifact_store}.rs; kiana-daemon/src/{artifact_store,lib}.rs; focused CO-06 domain/ports/core/daemon fixtures
+worktree_status: restored a manual GitHub-only scoped lane for artifact/evidence contracts, LocalArtifactStore and Company historical artifact wiring; no production cross-store transaction, storage-root composition, manifest or lockfile change
+command_argv: `gh run view 37156665079 --json status,conclusion,headSha,jobs,url`; `gh run view 37156665079 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: domain artifact target, ports content target, Core artifact/company guards, daemon LocalArtifactStore and Company history targets all passed; all target-scoped no-run compiles passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CO-06 remains roadmap row 065 `🔄`; scoped contract evidence refreshed, `feature_status=partial`, `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: EventLog/blob cross-store atomic commit, reconciliation/crash recovery, original-vs-current UI projection, retention/deletion, power-loss durability, StorageRoot/lease composition and unified CI remain open and require later architecture/CompanyOS work
+reviewer: exact focused job steps and artifact/company wiring boundaries reviewed; no local runtime reviewer
+```
+
 ### SC-01 focused acceptance receipt (2026-10-04)
 
 ```text
