@@ -96,6 +96,7 @@ read committed frame
 | `run_receipt_contract_bounds_top_level_projection` | `run.receipt` 的 37 个固定顶层 projection 键和可选 work-packet 键；缺 run_id、未知顶层字段拒绝，嵌套值保持各自 projection contract |
 | `credential_recovery_contract_matches_typed_producer` | `recovery.credential` 的 run_id/recovery 顶层 envelope；缺 run_id、未知顶层字段拒绝，nested fact 由 CredentialRecoveryFact contract 验证 |
 | `communication_lifecycle_contracts_match_producers` | handoff acknowledged/rejected 的同构 lifecycle 字段与 incident escalated 的 evidence_refs 变体；缺 message_id、未知字段拒绝 |
+| `communication_send_contracts_match_shared_producer` | 七类 communication send kind 的共享 message/lifecycle/authority/context 八字段；缺 message、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -574,6 +575,27 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; communication send kinds and nested message/lifecycle schema remain separate contracts, and no durable notification delivery or external channel claim is made
 reviewer: source trace matched both handoff branches, incident escalation evidence refs, message identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.22 Communication send producer contracts
+
+The seven communication send kinds share one producer and now use one exact eight-field top-level
+allowlist: `message`, `message_id`, `lifecycle`, `authority_granted`, `project_root`, `actor_id`,
+`session_id` and `request_id`. They remain communication aggregate, non-terminal and without a
+migration declaration. The fixture covers every kind and rejects a missing message or unknown
+field; nested message and lifecycle values remain owned by their DTO contracts.
+
+```text
+source_snapshot: source commit `87cafdc3`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/communication.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: seven communication send kinds now use an exact shared eight-field allowlist matching `send_communication`; message remains required and communication aggregate/non-terminal semantics remain explicit; no communication or EventStore behavior changed
+command_argv: source trace of `communication_event_kind` and `send_communication`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 73a701c5`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `communication_send_contracts_match_shared_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; communication send payload is now bounded across all seven send kinds
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; lifecycle transition and nested DTO contracts remain separate, with no durable notification delivery or external channel claim
+reviewer: source trace matched shared send producer, seven event-kind mappings, required message identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接

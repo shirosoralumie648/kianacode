@@ -19798,6 +19798,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched both handoff branches, incident escalation evidence refs, message identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 communication send producer contracts (2026-10-03)
+
+```text
+source_snapshot: source commit `87cafdc3`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/communication.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: seven communication send kinds now use an exact shared eight-field allowlist matching `send_communication`; message remains required and communication aggregate/non-terminal semantics remain explicit; no communication or EventStore behavior changed
+command_argv: source trace of `communication_event_kind` and `send_communication`; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `communication_send_contracts_match_shared_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; communication send payload is now bounded across all seven send kinds
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; lifecycle transition and nested DTO contracts remain separate, with no durable notification delivery or external channel claim
+reviewer: source trace matched shared send producer, seven event-kind mappings, required message identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
