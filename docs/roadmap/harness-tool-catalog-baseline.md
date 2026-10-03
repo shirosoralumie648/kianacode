@@ -37,3 +37,4 @@ H09 proof ceiling 为 `source`：catalog/mapper/provider pin 与 action/checkpoi
 CI-only fixtures/source guard 固化。当前新增 `.github/workflows/h09-tool-catalog-diagnostic.yml`
 作为手动 focused receipt，运行两个 runner 目标；远程结果不在本地等待。真实第三方 provider wire catalog、多版本迁移/别名下线、
 Broker handler 远程一致性、approval durable recovery 与 external/live/physical proof 仍留待 H10+ / CP/PD/P4/INT。
+修复后 run `37109715665` 的 `h09_tool_catalog` 与 `h09_tool_catalog_guard` 两个 job 均 success。

@@ -39,3 +39,4 @@ H10 proof ceiling 为 `source`：Runner batch 与稳定 request identity 已接�
 `.github/workflows/h10-invocation-identity-diagnostic.yml` 作为手动 focused receipt，运行两个
 runner 目标；远程结果不在本地等待。完整 Invocation declaration/dispatch
 ledger、结果立即持久化、审批恢复、跨进程 CAS、provider/external/live/physical effect proof 仍留待 H11+ / H12–H14 / CP/PD/INT。
+修复 checkpoint 字段读取后，run `37109890351` 的 `h10_invocation_identity` 与 `h10_invocation_identity_guard` 两个 job 均 success。

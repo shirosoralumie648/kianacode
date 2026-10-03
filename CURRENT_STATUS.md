@@ -20413,6 +20413,21 @@ limitations: no local runtime result, durable Invocation outcome, automatic repa
 reviewer: source review confirmed typed status/repair mapping, bounded redacted summary, untrusted model data and no-retry gates; no local runtime reviewer
 ```
 
+### H09/H10 focused correction receipts (2026-10-03)
+
+```text
+source_snapshot: H09 `9e99d52c`; H10 `c2b646f3`; .github/workflows/{h09-tool-catalog-diagnostic.yml,h10-invocation-identity-diagnostic.yml}
+worktree_status: H09 provider resolver guard now matches ToolNameMap::from_tools/names.wire_name; H10 queue/restore fixture now reads explicit PendingTool.request_id; production catalog and invocation restore validators unchanged
+command_argv: gh run view 37109715665 --json status,conclusion,headSha,jobs,url; gh run view 37109890351 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H09 h09_tool_catalog + h09_tool_catalog_guard, both success; H10 h10_invocation_identity + h10_invocation_identity_guard, both success
+exit_code: all four focused GitHub jobs 0
+status_change: H09/H10 remain roadmap rows 148/149 and current rows 161/162 `feature_status=implemented` / `proof_level=source`; source guards and checkpoint fixture now have current focused receipts
+proof-level change: none
+limitations: no local runtime result, durable Invocation ledger, provider catalog migration, remote Broker parity, cross-process recovery or external/live/physical proof
+reviewer: exact focused job receipts and source/fixture correction review; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
