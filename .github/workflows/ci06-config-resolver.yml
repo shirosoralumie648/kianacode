@@ -1,0 +1,33 @@
+name: CI-06 single config resolver
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config-resolver:
+    name: CI-06 focused config resolver contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run provider resolver fixtures
+        run: cargo test -p kiana-provider --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Run daemon legacy-boundary guard
+        run: cargo test -p kiana-daemon --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Run core resolver source guard
+        run: cargo test -p kiana-core --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Compile provider resolver target
+        run: cargo test -p kiana-provider --test ci06_config_resolver --no-run --locked
+      - name: Compile daemon resolver target
+        run: cargo test -p kiana-daemon --test ci06_config_resolver --no-run --locked
+      - name: Compile core resolver target
+        run: cargo test -p kiana-core --test ci06_config_resolver --no-run --locked
