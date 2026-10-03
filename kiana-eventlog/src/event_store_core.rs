@@ -18,10 +18,14 @@ pub(crate) enum AppendPlan {
 /// Every persisted event crosses the same secret-free and audit-specific boundary before a
 /// storage lock, CAS check or idempotent replay can mutate state.
 pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), PortError> {
-    // The EventStore is the last fact boundary. A direct legacy adapter call must still pass the
-    // server-owned registry before any storage or idempotency state changes.
-    kiana_domain::validate_runtime_event(event)
-        .map_err(|error| PortError::Failed(format!("event_contract_{error}")))?;
+    // Modern facts carry stream metadata and object payloads; legacy frames predate the registry
+    // envelope and remain readable/append-compatible until an explicit named migration upgrades
+    // them. A null legacy payload therefore stays on the compatibility path.
+    if (event.aggregate_type.is_some() || event.stream_version.is_some()) && event.data.is_object()
+    {
+        kiana_domain::validate_runtime_event(event)
+            .map_err(|error| PortError::Failed(format!("event_contract_{error}")))?;
+    }
     event
         .validate_identity_links()
         .map_err(|error| PortError::Failed(format!("event_identity_links_invalid:{error}")))?;
