@@ -21852,3 +21852,18 @@ proof-level_change: none; focused CI evidence only
 limitations: projection is read-only and source-order; no durable checkpoint, Metric/Trace/Audit exporter, Receipt/cost reconciliation, provider cache instrumentation, retention, live backend or unified CI proof
 reviewer: exact focused jobs and semantic-free budget correction reviewed; no local runtime reviewer
 ```
+
+### OA-09 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `e377132b`; .github/workflows/oa09-capability-instrumentation.yml; kiana-core/src/capability_attempt_projection.rs; kiana-core/src/capabilities.rs; kiana-domain/src/observability.rs; kiana-core/tests/oa09_capability_instrumentation.rs
+worktree_status: capability-attempt projection now treats omitted lifecycle metadata as neutral, accepts the producer's `run.tool_call.tool` alias, binds a later authoritative action digest over an untrusted fallback, and keeps explicit malformed/conflicting metadata fail-closed; no unrelated WIP, manifest or lockfile changed
+command_argv: `gh run view 37153895252 --json status,conclusion,headSha,jobs,url`; `gh run view 37153895252 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: OA-09 capability target 4/4, including successful admission with a preceding production-shaped `run.tool_call`; deny, expired approval, TOCTOU/lease mismatch and unconfirmed cancellation preserve denied/unknown/fenced semantics; target-scoped compile success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-09 roadmap row 175 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: attempt projection remains a replayable EventLog view without durable checkpoint/reconcile queue, external effect receipt, provider-side verification, process-group stop confirmation, telemetry exporter or live backend; result persistence/effect uncertainty still requires future reconciliation; unified CI is not claimed green
+reviewer: exact focused job, producer event order and digest-binding correction reviewed; no local runtime reviewer
+```
