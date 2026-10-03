@@ -41,7 +41,7 @@ const RUN_AUTHORIZED_FIELDS: &[&str] = &[
     "role_output_schema",
     "decision",
 ];
-const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
+const RUN_STARTED_FIELDS: &[&str] = &["run_id", "sequence"];
 const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
 const RUN_DELTA_FIELDS: &[&str] = &["run_id", "text"];
 const RUN_CANCELLING_FIELDS: &[&str] = &[
@@ -152,6 +152,7 @@ const QUALITY_IDS: &[&str] = &["request_id"];
 const RECOVERY_IDS: &[&str] = &["run_id"];
 const MODEL_EVENT_IDS: &[&str] = &[
     "run_id",
+    "sequence",
     "session_id",
     "turn_id",
     "step_id",
