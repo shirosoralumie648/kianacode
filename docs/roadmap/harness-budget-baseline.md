@@ -40,7 +40,8 @@ H07 proof ceiling 为 `source`：runner 账本与配置链已接入，ModelTurn 
 CI-only fixtures/source guard 固化拒绝路径。当前新增 `.github/workflows/h07-budget-diagnostic.yml`
 作为手动 focused receipt，分别运行预算行为 fixture 和 source guard；远程结果不在本地等待。
 远端首次 focused run `37107522288` 暴露了 Continue 第二轮复用旧 driver step 的真实状态 bug；修复
-已在 `RunDriver::BeginTurn` 清零 step，source guard 同步到当前 cancellable provider 调用。
+已在 `RunDriver::BeginTurn` 清零 step，source guard 同步到当前 cancellable provider 调用。修复后
+run `37108795986` 的 `h07_budget` 与 `h07_budget_guard` 两个 job 均 success。
 进程重启后的 task ledger 重建、跨进程/并行 sibling
 原子合并、Company project cumulative projector、provider tokenizer/账单、人工等待 TTL、真实
 network retry 和 live/physical proof 仍留待 H08+ / CP-11/12/15–17 / P4 / PD/INT。

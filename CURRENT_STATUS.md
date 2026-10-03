@@ -20338,6 +20338,21 @@ limitations: no local runtime result; fresh focused workflows have not yet run o
 reviewer: remote failure logs, state-driver transition source, current ModelClient cancellation API and ProcessSupervisor source reviewed; no local runtime reviewer
 ```
 
+### H07 focused correction receipt (2026-10-03)
+
+```text
+source_snapshot: `8fa64e4a`; .github/workflows/h07-budget-diagnostic.yml; kiana-runner/src/state_driver.rs; kiana-runner/tests/{h07_budget.rs,h07_budget_guard.rs}
+worktree_status: RunDriver::BeginTurn now resets the per-turn step counter while BudgetLedger remains project/role task scoped; current cancellable provider call is pinned by the source guard
+command_argv: gh run view 37108795986 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: h07_budget and h07_budget_guard; both focused jobs success at head 8fa64e4a
+exit_code: remote h07_budget 0; remote h07_budget_guard 0
+status_change: H07 remains roadmap row 146 / current row 159 `feature_status=implemented` / `proof_level=source`; the previously failing Continue state boundary now has a successful focused receipt
+proof-level change: none
+limitations: no local runtime result, restart/cross-process task-ledger proof, provider billing/tokenizer, external/live/physical proof or H08/ER-01 closure
+reviewer: exact GitHub jobs, driver reset source and budget guard review; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
