@@ -20982,3 +20982,18 @@ proof-level_change: none; source plus remote CI wiring only, with no CI result p
 limitations: cost/files/model/evidence aggregation, provider receipts, artifact failure, durable projector/restart, multi-entrypoint parity and external/live/physical proof remain ER-12+ / PD/CP work
 reviewer: source review confirmed strict schema/version/digest validation, owner/scope/source provenance, compatibility projection and projection-error downgrade without raw prompt/args/secret/output or permission issuance; no local runtime reviewer
 ```
+
+### ER-12 focused receipt aggregation workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/er12-receipt-aggregation.yml; docs/roadmap/event-receipt-aggregation-baseline.md; kiana-domain/src/{receipt_aggregation.rs,receipt_contracts.rs,contracts.rs,lib.rs}; kiana-core/src/receipts.rs; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/tests/er12_receipt_aggregation.rs
+worktree_status: restored a manual GitHub-only workflow for the existing ER-12 strict aggregation DTO, committed-fact reducer, hashed evidence/provider refs and Unknown/partial source fixtures; no aggregation behavior, shard manifest, lockfile or second receipt authority changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run er12-receipt-aggregation.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain er12_receipt_aggregation and kiana-core er12_receipt_aggregation; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for committed-fact counts, normalized files/memory hits, hashed refs, Unknown usage/effect and no-settlement boundaries
+proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
+limitations: provider rate card/billing, ArtifactStore provenance/retention/revoke, durable changesets, unified result delivery, durable projector/restart and external/live/physical proof remain open
+reviewer: source review confirmed run-scoped event filtering, duplicate/foreign/empty-source denial, normalized relative paths, digest-only refs and separation of estimated cost from budget settlement; no local runtime reviewer
+```
