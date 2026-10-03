@@ -438,6 +438,24 @@ fn reload_rejects_trust_drift_stale_revision_and_failed_candidates_without_mutat
             &before.snapshot_digest,
         )
         .unwrap_err();
+    assert_eq!(error.code, "model_profile_credential_reference_required");
+    assert_eq!(gateway.configuration_snapshot().unwrap(), before);
+    assert!(gateway
+        .workspace_configuration_snapshot()
+        .unwrap()
+        .is_none());
+
+    // Satisfy the opaque-reference preflight to reach provider construction. No credential
+    // material is needed: the unsupported provider is rejected before the store is resolved.
+    invalid["profiles"]["planning"]["api_key_env"] = json!("CI06_SECRET_KEY");
+    let error = gateway
+        .reload_workspace(
+            config.clone(),
+            &invalid.to_string(),
+            trust(&revision),
+            &before.snapshot_digest,
+        )
+        .unwrap_err();
     assert_eq!(error.code, "model_provider_unsupported");
     assert_eq!(gateway.configuration_snapshot().unwrap(), before);
     assert!(gateway
