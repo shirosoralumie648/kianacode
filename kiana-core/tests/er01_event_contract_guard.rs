@@ -292,4 +292,35 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             "missing communication producer field {marker}"
         );
     }
+    for marker in [
+        "COMMUNICATION_SEND_FIELDS",
+        "\"communication.chat\"",
+        "\"communication.command\"",
+        "\"communication.handoff\"",
+        "\"communication.decision\"",
+        "\"communication.status_report\"",
+        "\"communication.evidence\"",
+        "\"communication.incident\"",
+    ] {
+        assert!(
+            contracts.contains(marker),
+            "missing communication send marker {marker}"
+        );
+    }
+    for marker in [
+        "let kind = communication_event_kind(message.kind)",
+        "\"message\": message.clone(),",
+        "\"message_id\": message.message_id,",
+        "\"lifecycle\": lifecycle,",
+        "\"authority_granted\": false,",
+        "\"project_root\": context.project_root,",
+        "\"actor_id\": context.actor_id,",
+        "\"session_id\": context.session_id,",
+        "\"request_id\": context.request_id,",
+    ] {
+        assert!(
+            communication.contains(marker),
+            "missing communication send producer field {marker}"
+        );
+    }
 }

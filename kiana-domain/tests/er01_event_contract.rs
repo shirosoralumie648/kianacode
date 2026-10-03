@@ -668,6 +668,62 @@ fn communication_lifecycle_contracts_match_producers() {
 }
 
 #[test]
+fn communication_send_contracts_match_shared_producer() {
+    let fields = [
+        "message",
+        "message_id",
+        "lifecycle",
+        "authority_granted",
+        "project_root",
+        "actor_id",
+        "session_id",
+        "request_id",
+    ];
+    let kinds = [
+        "communication.chat",
+        "communication.command",
+        "communication.handoff",
+        "communication.decision",
+        "communication.status_report",
+        "communication.evidence",
+        "communication.incident",
+    ];
+    for kind in kinds {
+        let spec = event_kind_spec(kind).unwrap();
+        assert_eq!(spec.aggregate_type, "communication");
+        assert_eq!(spec.required_ids, &["message"][..]);
+        assert!(!spec.terminal);
+        assert!(spec.migration.is_none());
+        assert_eq!(spec.allowed_fields, &fields[..]);
+
+        let mut payload = json!({
+            "message": {},
+            "message_id": "message-1",
+            "lifecycle": {},
+            "authority_granted": false,
+            "project_root": "/workspace/project",
+            "actor_id": "actor-1",
+            "session_id": "session-1",
+            "request_id": kiana_domain::RequestId::new(),
+        });
+        validate_event_payload(kind, &payload).unwrap();
+
+        let mut missing_message = payload.clone();
+        missing_message.as_object_mut().unwrap().remove("message");
+        assert_eq!(
+            validate_event_payload(kind, &missing_message).unwrap_err(),
+            "event_required_id_missing:message"
+        );
+
+        payload["unexpected_send_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload(kind, &payload).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

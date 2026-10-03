@@ -271,6 +271,16 @@ const COMMUNICATION_FIELDS: &[&str] = &[
     "session_id",
     "request_id",
 ];
+const COMMUNICATION_SEND_FIELDS: &[&str] = &[
+    "message",
+    "message_id",
+    "lifecycle",
+    "authority_granted",
+    "project_root",
+    "actor_id",
+    "session_id",
+    "request_id",
+];
 const COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS: &[&str] = &[
     "message",
     "message_id",
@@ -796,7 +806,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.chat",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -804,7 +814,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.command",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -812,7 +822,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.handoff",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -820,7 +830,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.decision",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -828,7 +838,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.status_report",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -836,7 +846,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.evidence",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
@@ -844,7 +854,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.incident",
         "communication",
         COMMUNICATION_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_SEND_FIELDS,
         false,
         None
     ),
