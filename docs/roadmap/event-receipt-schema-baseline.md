@@ -741,6 +741,26 @@ limitations: prior passed cases cover their unchanged source only; the new sourc
 reviewer: source review of the real approval request producer and exact remote failure, plus diff review; no local runtime reviewer
 ```
 
+## 5.29 Manual CI receipt and input-fixture key correction
+
+Manual run `37091006922` at `7fe7da0e` completed. Core job `111111159716` passed its entire
+source guard (1/1). Domain job `111111159623` exited 101 before any tests because the input fixture
+passed an iterated `&&str` key to `serde_json::Map::remove` (`E0277`, line 1745). Source `821627a9`
+destructures the key reference; every required-ID and unknown-field assertion is retained.
+
+```text
+source_snapshot: 821627a9; kiana-domain/tests/er01_event_contract.rs; observed head 7fe7da0e
+worktree_status: one fixture iteration corrected from &&str to &str; no product/schema behavior changed
+command_argv: gh run view 37091006922 --job 111111159623 --log; gh run view 37091006922 --job 111111159716 --log; cargo fmt --all --check; git diff --check
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: Core er01_event_contract_guard 1/1 success; domain input fixture compile error E0277; fresh domain execution pending
+exit_code: Core remote job 0; domain remote job 101 before tests; local format/diff checks 0
+status_change: ER-01 remains partial/source; Core guard now has an exact receipt for 7fe7da0e, domain remains unverified
+proof-level change: none
+limitations: guard success is source-boundary coverage only; corrected domain target and complete EventStore/migration behavior remain unverified
+reviewer: exact remote logs and fixture type/source review
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

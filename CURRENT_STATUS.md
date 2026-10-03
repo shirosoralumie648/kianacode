@@ -19903,6 +19903,21 @@ limitations: no fresh acceptance receipt yet; Core target absent from inspected 
 reviewer: source and exact CI failure review; no local runtime reviewer
 ```
 
+### ER-01 manual CI receipt and input-fixture key correction (2026-10-03)
+
+```text
+source_snapshot: 821627a9; kiana-domain/tests/er01_event_contract.rs; observed head 7fe7da0e
+worktree_status: fixture key iteration corrected to &str, retaining every required-ID/unknown-field assertion; no product code changed
+command_argv: gh run view 37091006922 --job 111111159623 --log; gh run view 37091006922 --job 111111159716 --log; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; prior runtime execution on GitHub Actions
+fixture·cassette: Core guard job 111111159716 passed 1/1; domain job 111111159623 exited 101 on E0277 before tests, required_ids iteration was &&str
+exit_code: Core remote 0; domain remote 101; local format/diff 0
+status_change: ER-01 remains row 036 🔄 / partial / source; Core guard has a target-specific receipt, domain compile fix awaits CI
+proof-level change: none
+limitations: no current domain receipt or global EventStore enforcement/migration claim
+reviewer: exact job logs and fixture type/source review
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
