@@ -37,6 +37,8 @@ ControlPlane dispatch permit。绑定变化、过期、取消、拒绝或消费�
 ## 3. Proof ceiling and handoff
 
 H14 proof ceiling 为 `source`：同进程审批暂停、typed binding、保护材料重载、重新 admission 和
-原 Runner result delivery 已接线，拒绝/重复/恢复语义由 CI-only fixtures 固化。当前
+原 Runner result delivery 已接线，拒绝/重复/恢复语义由 CI-only fixtures 固化。当前新增
+`.github/workflows/h14-approval-resume-diagnostic.yml` 作为手动 focused receipt，运行 domain binding
+和 Core approval-resume 两个目标；远程结果不在本地等待。当前
 `PendingInvocation` 与 Runner checkpoint 仍由进程内 host 持有；跨进程 checkpoint hydration、
 掉电后的 CAS/reconcile、外部 provider effect 观察和 live/physical proof 留待 H24/H25、PD/INT。

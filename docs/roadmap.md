@@ -319,7 +319,7 @@
 | 150 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈；新增 focused GitHub workflow 复核 observation fixtures/source guard | `H05`、`H10` | 🔄 | [专项卡](roadmap/harness.md#step-h11) |
 | 151 | W2 | 专项 | [`H12`](roadmap/harness.md#step-h12) | Harness · 串行批次先完整闭环，再考虑并行 | `H08`、`H10`、`H11` | ✅ | [专项卡](roadmap/harness.md#step-h12) |
 | 152 | W2 | 专项 | [`H13`](roadmap/harness.md#step-h13) | Harness · Invocation 账本与结果立即持久化 | `H10`、`H11`、`H12` | ✅ | [专项卡](roadmap/harness.md#step-h13) |
-| 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | 🔄 | [专项卡](roadmap/harness.md#step-h14) |
+| 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复；新增 focused GitHub workflow 复核 binding/approval-resume fixtures | `H12`、`H13` | 🔄 | [专项卡](roadmap/harness.md#step-h14) |
 | 154 | W2 | 专项 | [`CM-05`](roadmap/context-memory.md#step-cm-05) | Context / Memory · EventStore 唯一提交点与 JSONL/index 投影 | `CM-04` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-05) |
 | 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-06) |
 | 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ✅ | [基础卡](#step-p0-f-01) |
@@ -1485,6 +1485,7 @@
 | 2026-10-03 | `H09` guard drift audit：run `37109051081` 的 catalog guard 仍查找已移除的显式 `kiana_domain::tool_wire_name`；当前 provider 通过共享 `ToolNameMap::from_tools`/`names.wire_name` 解析 catalog，fixtures 未显示行为失败；仅更新 source guard，未改 catalog/mapper 行为 | `37109051081` |
 | 2026-10-03 | `H10` focused diagnostic workflow：恢复手动 GitHub-only `h10_invocation_identity` 与 `h10_invocation_identity_guard` 两个目标，复用已有 batch/duplicate/queue-restore fixtures，未运行本地测试，H10 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
 | 2026-10-03 | `H11` focused diagnostic workflow：恢复手动 GitHub-only `h11_tool_observation` 与 `h11_tool_observation_guard` 两个目标，复用已有 unknown/deny/cancel/repair/untrusted fixtures，未运行本地测试，H11 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
+| 2026-10-03 | `H14` focused diagnostic workflow：恢复手动 GitHub-only domain binding 与 Core approval-resume guard，复用已有 expiry/change/duplicate/identity fixtures，未运行本地测试，H14 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
 | 2026-10-03 | `H10` queue/restore fixture drift：run `37109457432` 的 batch/duplicate fixtures 与 source guard 通过，queue/restore fixture 仍按旧 tuple-array 读取 pending tool request，当前 checkpoint 已是显式 `{request_id,call,phase}` 结构；仅更新 fixture 读取稳定 `request_id` 字段，不改 restore/identity 校验 | `37109457432` |
 | 2026-10-03 | `H11` observation classification audit：run `37110152510` 的 unknown/no-retry、untrusted output 与 source guard 通过，但 known `execution_failed` 被 policy 的 `requires_new_authorization` precedence 错分为 Denied，阻断 bounded model repair；修复分类 precedence，保留其他需授权错误的 Denied/no-retry 边界 | `37110152510` |
 | 2026-10-03 | `H09` focused correction receipt：run `37109715665` / head `9e99d52c` 的 `h09_tool_catalog` 与 `h09_tool_catalog_guard` 两个 job 全部 success；H09 仍 source，不宣称 provider migration/Broker parity/durable/live/physical | `37109715665` |

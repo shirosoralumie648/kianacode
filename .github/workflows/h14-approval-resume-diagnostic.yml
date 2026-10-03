@@ -1,0 +1,29 @@
+name: H14 approval resume diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    name: H14 ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: domain-binding
+            command: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+          - name: core-approval-resume-guard
+            command: cargo test -p kiana-core --test h14_approval_resume --locked -- --test-threads=1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run focused H14 target
+        run: ${{ matrix.command }}

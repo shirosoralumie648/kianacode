@@ -20443,6 +20443,21 @@ limitations: no local runtime result, automatic repair loop, durable Invocation 
 reviewer: exact remote failure and CapabilityErrorPolicy/ToolObservation precedence reviewed; no local runtime reviewer
 ```
 
+### H14 focused approval-resume diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h14-approval-resume-diagnostic.yml; kiana-domain/src/{invocation_resume.rs,capabilities.rs,contracts.rs,event_contracts.rs}; kiana-runner/src/harness.rs; kiana-core/src/{approvals.rs,capabilities.rs,recovery.rs,lifecycle.rs}; tests kiana-domain/h14_invocation_resume.rs and kiana-core/h14_approval_resume.rs
+worktree_status: restored a manual GitHub-only focused workflow for existing H14 binding and approval-resume source fixtures; no approval behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h14-approval-resume-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h14_invocation_resume and kiana-core h14_approval_resume; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H14 remains roadmap row 153 / current row 166 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for typed binding and same-process approval resume
+proof-level change: none
+limitations: no local runtime result, cross-process checkpoint hydration, power-loss CAS/reconcile, external provider effect or live/physical proof
+reviewer: source review confirmed binding digest/identity fences, approve-before-dispatch revalidation, idempotent decision/consumption and original runner continuity; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
