@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### SW-02 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `ea22bf3b`; .github/workflows/sw02-work-graph.yml; kiana-domain/tests/sw02_work_graph.rs; kiana-core/tests/sw02_work_graph_guard.rs; docs/roadmap/swarm-work-graph-baseline.md
+worktree_status: formatting, SW-02 domain work-graph fixtures, Core source guard and both target-scoped no-run compile steps passed; no validator behavior or assertion changed in the gate correction
+command_argv: gh run view 37129126170 --json status,conclusion,headSha,jobs,url; gh run view 37129126170 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: SW-02 domain work-graph target success; SW-02 Core guard target success; domain/Core targets compiled with `--no-run`
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: SW-02 remains roadmap row 090 `🔄` / `feature_status=partial` / `proof_level=source`; corrected target-scoped lane now has a current successful receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: typed packet-set binding, optional legacy migration, durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery and effect-time fencing remain open
+reviewer: exact focused job steps and target-scoped compile results reviewed; no local runtime reviewer
+```
+
 ### CI-03 corrected focused receipt (2026-10-03)
 
 ```text

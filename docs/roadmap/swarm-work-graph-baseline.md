@@ -137,3 +137,11 @@ The restored focused run `37121825992` passed the domain work-graph target (`6/6
 errors. The manual lane now compiles only `sw02_work_graph` and `sw02_work_graph_guard` with
 target-scoped `--no-run` commands. No validator behavior or fixture assertion changed; a fresh
 remote receipt is required before any status or proof-level promotion.
+
+## 10. Corrected focused CI receipt (2026-10-03)
+
+Run `37129126170` at head `ea22bf3b` completed successfully. Formatting, the SW-02 domain
+work-graph fixtures, the Core source guard, and both target-scoped `--no-run` compilation steps all
+passed. The receipt validates the corrected focused lane only; SW-02 remains `🔄` / `partial/source`
+with typed packet-set binding, durable queue/claim/scheduler behavior, replay/recovery and
+effect-time fencing still open.
