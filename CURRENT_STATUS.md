@@ -21822,3 +21822,18 @@ proof-level_change: none; focused CI evidence only
 limitations: full CLI/Web/Workbench/stream-json ingress parity, legacy MCP migration, complete schema dialect, durable action snapshots, physical TOCTOU/egress, external/live effects and unified CI remain open; HTTP MCP remains unsupported/frozen
 reviewer: exact focused jobs and three producer-contract corrections reviewed; no local runtime reviewer
 ```
+
+### OA-06 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `81b829f3`; .github/workflows/oa06-commit-observer.yml; kiana-ports/src/lib.rs; kiana-eventlog/src/stream.rs; kiana-eventlog/tests/oa06_commit_observer.rs
+worktree_status: StreamEventStore remains a decorator over the existing EventStorePort; only fresh Committed outcomes notify, while replay/conflict/unknown and observer errors retain bounded semantics
+command_argv: `gh run view 37151321667 --json status,conclusion,headSha,jobs,url`; `gh run view 37151321667 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: fresh commit/receipt visibility, replay suppression, CAS conflict/Unknown suppression, observer failure diagnostics and forged cursor/event identity rejection
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-06 roadmap row 172 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; focused CI evidence only
+limitations: observer is a process-local wake/diagnostic hint; durable projector checkpoint/restart scan, backpressure policy, query/export sink, entrypoint wiring, external/live/physical outcomes and unified CI remain open
+reviewer: exact focused jobs and committed-only observer boundaries reviewed; no local runtime reviewer
+```
