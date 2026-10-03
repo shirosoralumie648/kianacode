@@ -18,3 +18,7 @@
 The exact tokenizer/provider adapter remains optional and external; local conservative estimation
 is an explicit fallback. This step does not claim a provider-specific billing/tokenizer result,
 cache hit rate, live provider behavior or cross-process cache durability.
+
+The manual focused diagnostic workflow [`h21-request-budget-diagnostic.yml`](../../.github/workflows/h21-request-budget-diagnostic.yml)
+runs the domain budget fixtures and runner budget/prefix guard in parallel. An unawaited remote run
+does not raise the proof level.

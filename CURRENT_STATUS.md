@@ -20623,6 +20623,21 @@ limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejec
 reviewer: exact second failure and deferred_inputs/ActiveRun completion boundary reviewed; no local runtime reviewer
 ```
 
+### H21 focused request-budget diagnostic workflow and status conflict (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h21-request-budget-diagnostic.yml; kiana-domain/src/request_budget.rs; kiana-runner/src/{harness.rs,budget.rs,compact.rs}; tests kiana-domain/h21_request_budget.rs and kiana-runner/h21_budget_prefix_guard.rs
+worktree_status: restored a manual GitHub-only focused matrix for existing H21 WireBudget/StablePrefix fixtures and runner source guard; no budget, compaction, cache identity, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h21-request-budget-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h21_request_budget and kiana-runner h21_budget_prefix_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H21 remains roadmap row 308 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for shared request budget and stable-prefix identity fixtures
+proof-level change: none
+limitations: historical CURRENT_STATUS H21 block says roadmap row 308 is ✅ while authoritative docs/roadmap.md remains 🔄; provider tokenizer/billing, live cache hit behavior and cross-process cache durability remain open
+reviewer: source review confirmed shared output reservation, explicit Exact/ConservativeUtf8 accounting, dynamic suffix exclusion and catalog/data epoch cache invalidation; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text

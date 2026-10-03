@@ -476,7 +476,7 @@
 | **W4** | **上下文、记忆与扩展** |  |  |  |  |  |  |
 | 306 | W4 | 专项 | [`CP-25`](roadmap/control-plane.md#step-cp-25) | ControlPlane · Skills、Hooks、Memory、MCP 与 Secret 的统一边界 | `CP-03`、`CP-04`、`CP-08`、`CP-13`、`CP-18` | ✅ | [专项卡](roadmap/control-plane.md#step-cp-25) |
 | 307 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译；新增 focused GitHub workflow 复核 ContextPlan 与 runner guard fixtures | `H04`、`H09`、`H18` | 🔄 | [专项卡](roadmap/harness.md#step-h20) |
-| 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀 | `H07`、`H20` | 🔄 | [专项卡](roadmap/harness.md#step-h21) |
+| 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀；新增 focused GitHub workflow 复核 request budget 与 stable-prefix fixtures | `H07`、`H20` | 🔄 | [专项卡](roadmap/harness.md#step-h21) |
 | 309 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction | `H05`、`H11`、`H15`、`H20`、`H21` | 🔄 | [专项卡](roadmap/harness.md#step-h22) |
 | 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | 🔄 | [专项卡](roadmap/harness.md#step-h23) |
 | 311 | W4 | 专项 | [`H24`](roadmap/harness.md#step-h24) | Harness · 完整检查点与显式 Resume | `H13`、`H14`、`H17`、`H18`、`H23` | ✅ | [专项卡](roadmap/harness.md#step-h24) |
@@ -1499,6 +1499,7 @@
 | 2026-10-03 | `H19` deferred mailbox completion audit：run `37114202470` protocol/Core success、runner 仍为 1 次模型调用；输入留在 in-flight `deferred_inputs`，文本完成判断只看 ActiveRun inbox；补充 deferred NextStep completion fence，H19 fresh receipt 待 GitHub | `37114202470` |
 | 2026-10-03 | `H20` focused diagnostic workflow：恢复手动 GitHub-only domain ContextPlan 与 runner source guard 两个目标，复用已有 Product/Context authority、untrusted source、budget、route/workspace/data binding fixtures，未运行本地测试；权威 roadmap row 307 仍 🔄，历史 CURRENT_STATUS 的 ✅ 标记冲突单独保留待核对 | 待本提交 |
 | 2026-10-03 | `H20` domain guard drift audit：run `37114129574` 的 runner guard 与 domain 2/3 fixtures 通过，workspace source 冒充 Product 时错误先返回 material-type 而非 source-untrusted；调整 ContextMaterialType authority/source precedence，H20 fresh receipt 待 GitHub | `37114129574` |
+| 2026-10-03 | `H21` focused diagnostic workflow：恢复手动 GitHub-only domain request budget 与 runner budget/prefix guard 两个目标，复用已有 Unicode/exact-vs-conservative/overflow/stable-prefix fixtures，未运行本地测试；权威 roadmap row 308 仍 🔄，历史 CURRENT_STATUS 的 ✅ 标记冲突单独保留待核对 | 待本提交 |
 | 2026-10-03 | `H10` queue/restore fixture drift：run `37109457432` 的 batch/duplicate fixtures 与 source guard 通过，queue/restore fixture 仍按旧 tuple-array 读取 pending tool request，当前 checkpoint 已是显式 `{request_id,call,phase}` 结构；仅更新 fixture 读取稳定 `request_id` 字段，不改 restore/identity 校验 | `37109457432` |
 | 2026-10-03 | `H11` observation classification audit：run `37110152510` 的 unknown/no-retry、untrusted output 与 source guard 通过，但 known `execution_failed` 被 policy 的 `requires_new_authorization` precedence 错分为 Denied，阻断 bounded model repair；修复分类 precedence，保留其他需授权错误的 Denied/no-retry 边界 | `37110152510` |
 | 2026-10-03 | `H11` focused correction receipt：run `37110570321` / head `14a1d9a4` 的 `h11_tool_observation` 与 `h11_tool_observation_guard` 两个 job 全部 success；H11 仍 source，不宣称自动 repair loop、durable Invocation、external/live/physical | `37110570321` |
