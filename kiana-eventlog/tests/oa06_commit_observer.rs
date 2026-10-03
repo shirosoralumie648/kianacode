@@ -80,7 +80,8 @@ async fn only_fresh_committed_transitions_notify_and_replay_links_original_recei
     assert_eq!(seen.lock().unwrap().len(), 1);
     assert_eq!(observed.committed_cursor(), 1);
 
-    let conflict = transition(RequestId::new(), "run-a", 2);
+    let mut conflict = transition(RequestId::new(), "run-a", 2);
+    conflict.expected_versions[0].version = 0;
     assert!(matches!(
         observed.commit_transition(conflict).await.unwrap(),
         CommitOutcome::Conflict { .. }
