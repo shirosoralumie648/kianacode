@@ -896,6 +896,29 @@ limitations: this corrects only the envelope/payload request identity distinctio
 reviewer: exact remote logs and trace of RuntimeEvent::request_id plus all request.accepted/rejected writers
 ```
 
+## 5.36 EventStore modern-frame acceptance and remaining producer boundary
+
+Focused run `37095988450` at `80e260bb` passed the Core registry guard. The full EventStore target
+passed 28/28 unit tests, 4/4, 3/3, 3/3 and 2/2 subordinate targets, then failed only the three
+`cp06_atomic_transitions` cases because `run.authorized` omitted `decision` from its allowlist.
+The real ControlPlane success producer also passed; its deny producer still stops at the unresolved
+`run.rejected` aggregate/schema decision. Source `6d33e71e` adds `decision` to the authorized fields.
+The corrected focused run `37096497402` is pending; no claim is made until its EventStore target and
+real producers finish.
+
+```text
+source_snapshot: `80e260bb` observed focused receipt; correction `6d33e71e`; kiana-domain/src/event_contracts.rs; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/cp06_atomic_transitions.rs; .github/workflows/er01-event-schema.yml
+worktree_status: modern object-payload stream frames are validated at shared append planner; null/opaque legacy frames retain compatibility path; authorized decision field corrected; no run.rejected architecture choice made
+command_argv: gh run view 37095988450 --job 111125898979 --log; gh run view 37095988450 --job 111125899111 --log; cargo fmt --all --check; git diff --check; gh workflow run er01-event-schema.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively executes runtime targets
+fixture·cassette: EventStore target observed all subordinate groups passing except cp06 three cases; success producer passed, deny producer failed `event_contract_unknown_required_event_kind` for run.rejected; new run 37096497402 pending
+exit_code: Core guard 0; prior EventStore target 101 with 3 allowlist failures; prior control producer 1/2; new remote pending
+status_change: ER-01 remains row 036 🔄 / partial / source; EventStore boundary and modern/legacy distinction are source-backed, decision allowlist correction awaits CI
+proof-level change: none
+limitations: run.rejected remains a human architecture gate because one kind has request/work_packet/run aggregate producers; no generic migration/upcaster execution, terminal/result reconciliation, durable/live/physical promotion
+reviewer: exact remote receipts and source trace of modern stream metadata, legacy null frames, and cp06 producer payload
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

@@ -19993,6 +19993,21 @@ limitations: existing malformed known-kind fixtures may fail and require honest 
 reviewer: source review of shared planner and MemoryEventLog deny-first path; no local runtime reviewer
 ```
 
+### ER-01 EventStore modern-frame receipt and authorized decision correction (2026-10-03)
+
+```text
+source_snapshot: `80e260bb` observed run; correction `6d33e71e`; kiana-domain/src/event_contracts.rs; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/cp06_atomic_transitions.rs; kiana-core/tests/control_plane.rs
+worktree_status: shared planner validates object-payload stream facts, preserves null/opaque legacy compatibility, and now admits actual run.authorized decision field; no run.rejected kind/aggregate choice
+command_argv: gh run view 37095988450 --job 111125898979 --log; gh run view 37095988450 --job 111125899111 --log; cargo fmt --all --check; git diff --check; gh workflow run er01-event-schema.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions runtime authority
+fixture·cassette: EventStore 28/28 + 4/4 + 3/3 + 3/3 + 2/2 passed, cp06 three failed only `event_contract_event_payload_unknown_field`; real producer success passed, deny failed unknown required run.rejected kind; corrected run 37096497402 pending
+exit_code: guard 0; EventStore prior target 101; producer prior 1/2; local format/diff 0
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; EventStore modern-frame path and legacy distinction are source-backed, authorized decision correction pending CI
+proof-level change: none
+limitations: run.rejected remains explicit architecture gate; no complete upcasters, terminal/result unions, durable/live/physical claim
+reviewer: exact focused logs and producer/adapter source review; no local runtime reviewer
+```
+
 ### ER-01 request identity envelope correction (2026-10-03)
 
 ```text
