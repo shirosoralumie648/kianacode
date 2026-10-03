@@ -118,13 +118,20 @@ fn shutdown(
 
 /// A shutdown that would be accepted: drained, nothing outstanding, lock handed back.
 fn clean(mode: WriterShutdownMode) -> Result<WriterShutdown, String> {
+    // A hard-killed writer ran no shutdown code, so its acknowledgement cannot advance either
+    // the durable or admitted cursor. Graceful and cancelled writers may report their flushed
+    // cursor after the common starting point.
+    let (durable_after, last_admitted) = match mode {
+        WriterShutdownMode::HardKill => (10, 10),
+        WriterShutdownMode::Graceful | WriterShutdownMode::Cancelled => (12, 12),
+    };
     shutdown(
         mode,
         0,
         0,
         10,
-        12,
-        12,
+        durable_after,
+        last_admitted,
         0,
         Vec::new(),
         mode != WriterShutdownMode::HardKill,
