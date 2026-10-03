@@ -650,13 +650,17 @@ pub fn append_audit_records(
     }
     let appended = reduce_audit_records(events, source_cursor)?;
     for record in &appended {
-        if !audit_ids.insert(record.audit_id.clone()) {
-            return Err("audit_record_conflict".to_owned());
-        }
         for event_id in &record.source_event_ids {
-            if !source_ids.insert(event_id.to_string()) {
+            if source_ids.contains(&event_id.to_string()) {
                 return Err("audit_source_event_conflict".to_owned());
             }
+        }
+        if audit_ids.contains(&record.audit_id) {
+            return Err("audit_record_conflict".to_owned());
+        }
+        audit_ids.insert(record.audit_id.clone());
+        for event_id in &record.source_event_ids {
+            source_ids.insert(event_id.to_string());
         }
     }
     let mut result = existing.to_vec();
