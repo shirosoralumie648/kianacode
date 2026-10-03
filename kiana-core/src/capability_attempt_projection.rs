@@ -570,7 +570,11 @@ impl AttemptState {
             }
             self.malformed |= malformed;
         }
-        if let Some(value) = event.data.get("capability") {
+        if let Some(value) = event
+            .data
+            .get("capability")
+            .or_else(|| event.data.get("tool"))
+        {
             let (capability, malformed) = capability_label(Some(value));
             if self.capability_id == "unknown" {
                 self.capability_id = capability;
@@ -970,7 +974,10 @@ pub fn project_capability_attempts(
         };
         let (attempt, _) = parse_attempt(event);
         let state_exists = states.contains_key(&(request_id, attempt));
-        let capability_value = event.data.get("capability");
+        let capability_value = event
+            .data
+            .get("capability")
+            .or_else(|| event.data.get("tool"));
         let (capability_id, capability_malformed) = capability_label(capability_value);
         let capability_malformed =
             capability_malformed && (capability_value.is_some() || !state_exists);
@@ -987,7 +994,8 @@ pub fn project_capability_attempts(
             "unknown",
             MAX_OPERATION_BYTES,
         );
-        let operation_malformed = operation_label_malformed
+        let operation_malformed = (operation_label_malformed
+            && (operation_value.is_some() || !state_exists))
             || (operation_field_present && operation_value.is_none())
             || (!state_exists && operation_value.is_none());
         let (action_digest, digest_malformed) =
@@ -1000,7 +1008,11 @@ pub fn project_capability_attempts(
                 .get("permit")
                 .and_then(|permit| permit.get("action_digest"))
                 .is_some();
-        let digest_malformed = digest_malformed && (digest_present || !state_exists);
+        let digest_missing_required = matches!(
+            event.kind.as_str(),
+            "run.capability_requested" | "execution.prepared"
+        ) || (!state_exists && event.kind != "run.tool_call");
+        let digest_malformed = digest_malformed && (digest_present || digest_missing_required);
         if is_terminal_result_event(&event.kind) && !states.contains_key(&(request_id, attempt)) {
             return Err(CapabilityAttemptProjectionError::ForeignAttemptResult(
                 format!("{}:{attempt}", request_id),
