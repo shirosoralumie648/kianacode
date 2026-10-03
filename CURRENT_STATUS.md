@@ -19888,6 +19888,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched lifecycle/recovery producer shapes, required IDs and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 requested approval isolation and focused CI acceptance (2026-10-03)
+
+```text
+source_snapshot: `2a69bc6f`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; .github/workflows/er01-event-schema.yml
+worktree_status: requested approval allowlist matches its real 13-field producer plus optional run/resume_binding; its fixture no longer derives a field count from approval.approved; Core guards count writer arguments; manual-only domain/Core acceptance restored
+command_argv: gh run view 37089844345 --job 111107689615 --log; producer source trace; cargo fmt --all; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; prior target execution on GitHub Actions at head 4682efe5
+fixture·cassette: domain job 111107689615 executed er01_event_contract with 28 passed/1 failed; requested fixture failed at the unrelated count assertion, left 20/right 11; fresh complete domain/Core acceptance pending push and dispatch
+exit_code: prior remote target failed; format/diff checks 0; no local runtime result
+status_change: ER-01 partial/source, roadmap row 036 🔄; requested payload and fixture now bind the same producer
+proof-level change: none
+limitations: no fresh acceptance receipt yet; Core target absent from inspected unified job log; no global EventStore validation or complete migration claim
+reviewer: source and exact CI failure review; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text

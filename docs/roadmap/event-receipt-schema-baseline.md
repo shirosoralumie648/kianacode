@@ -714,6 +714,33 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched lifecycle/recovery producer shapes, required IDs and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+## 5.28 Requested approval field isolation and focused GitHub acceptance
+
+Run `37089844345`, head `4682efe5`, domain job `111107689615` executed the complete
+ER-01 contract target: 28 passed and the requested-approval fixture failed because it compared
+its field count to the separately narrowed approved-decision contract (20 versus 11). The requested
+producer has 13 fixed fields and optional run/resume-binding fields. Its allowlist is now exactly
+that 15-field union, and the fixture validates direct and Run-bound shapes while refusing the five
+unproduced fields that came from the old shared approval template. The Core source guard counts
+writer arguments rather than read predicates containing the same kind literal.
+
+The restored `.github/workflows/er01-event-schema.yml` is manual-only. It executes the complete
+domain contract target and Core guard in separate jobs, with no push-concurrency cancellation, so
+subsequent roadmap pushes can continue while this exact snapshot finishes remotely.
+
+```text
+source_snapshot: `2a69bc6f`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; .github/workflows/er01-event-schema.yml
+worktree_status: requested approval fields are scoped to the real producer; Core writer counting excludes query predicates; manual-only acceptance added without changing unified shard coverage
+command_argv: gh run view 37089844345 --job 111107689615 --log; source trace of stage_capability_action; cargo fmt --all; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root on Linux/bash; observed runtime result is from GitHub Actions at 4682efe5
+fixture·cassette: complete er01_event_contract target previously 28/29; updated requested fixture covers direct/Run-bound input and unknown fields; fresh manual domain/Core jobs pending dispatch after push
+exit_code: prior domain target failed; local format/diff checks 0; no current runtime result
+status_change: ER-01 remains partial/source and roadmap row 036 remains 🔄; a fixture assumption and excess requested fields are corrected
+proof-level change: none
+limitations: prior passed cases cover their unchanged source only; the new source has no receipt yet; the Core target was not observed in the inspected unified job log; generic EventStore validation and complete legacy upcasters remain open
+reviewer: source review of the real approval request producer and exact remote failure, plus diff review; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。
