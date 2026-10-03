@@ -22032,3 +22032,18 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: callback crash/replay recovery, provider receipt/reconciliation, terminal shutdown, cross-process delivery recovery, external/live/physical proof and unified CI remain open
 reviewer: exact current-head job and finalizer/result-delivery source boundaries reviewed; no local runtime reviewer
 ```
+
+### ER-11 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `480d601c`; .github/workflows/er11-receipt-dto.yml; kiana-domain/src/receipt_contracts.rs; kiana-core/src/receipts.rs; kiana-core/tests/er11_receipt_guard.rs; kiana-domain/tests/er11_receipt_contracts.rs; kiana-protocol/src/lib.rs; docs/roadmap/event-receipt-receipt-dto-baseline.md
+worktree_status: current-head ER-11 focused lane passed after the OA-09 receipt projection changes; no second receipt/authority path, manifest or lockfile changed, and later changes contain only docs/workflow updates outside receipt sources
+command_argv: `gh run view 37157338056 --json status,conclusion,headSha,jobs,url`; `gh run view 37157338056 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: domain receipt contracts 3/3, Core source guard 1/1 and target compile passed; owner/source/redaction binding, Unknown/fence, strict unknown-field/tamper rejection and raw/authority exclusion are covered
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-11 roadmap row 137 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: cost/files/evidence/provider receipt aggregation, artifact failure, durable projector/restart, multi-entrypoint parity, external/live/physical proof and unified CI remain open
+reviewer: exact current-head job, receipt projection changes and strict redacted/source-bound contract reviewed; no local runtime reviewer
+```
