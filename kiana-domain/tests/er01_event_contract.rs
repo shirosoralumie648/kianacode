@@ -181,9 +181,13 @@ fn result_event_contracts_accept_only_their_result_fields() {
         capability_result.allowed_fields.contains(&"session_id"),
         "run-scoped capability terminal result must retain its session identity"
     );
+    assert!(
+        capability_result.allowed_fields.contains(&"stdout"),
+        "capability terminal result must retain the broker stdout field"
+    );
     assert_eq!(
         capability_result.allowed_fields.len(),
-        invocation.allowed_fields.len() + 3
+        invocation.allowed_fields.len() + 4
     );
 
     let mut execution_payload = json!({
@@ -208,6 +212,7 @@ fn result_event_contracts_accept_only_their_result_fields() {
         "run_id":kiana_domain::RunId::new(),
         "session_id":"session-1",
         "capability_request_id":kiana_domain::RequestId::new(),
+        "stdout":"scope captured",
         "result_receipt":{"receipt_digest":format!("sha256:{}", "b".repeat(64))},
         "result_source":"model-claimed-user-source",
     });
