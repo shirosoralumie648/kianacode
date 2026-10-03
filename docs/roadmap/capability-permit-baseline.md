@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`CAP-05`](capability.md#step-cap-05) |
 | feature_status | `partial`（permit verifier read-set recheck + single-consume fence；pre-handler execution facts 已并入 consume CAS，等待远端复核） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 fixtures |
+| proof_level | `source`；本地不运行测试，`.github/workflows/cap05-permit.yml` 负责 fixtures 与 workspace test-target compile |
 | authority | `JournalPermitVerifier` + EventStore `execution.prepared`/`invocation.dispatching`/`invocation.executing` CAS |
 | this step does | non-empty opaque `permit:` identity、strict permit/request/project/expiry validation、authority dependency epoch recheck、single consumption and handler-after-commit ordering |
 | this step does not | 不把任意 authorization string 当 permit，不使用进程内 HashSet 记消费状态，不在 permit 未确认时调用 handler，不声明外部 exactly-once |

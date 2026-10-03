@@ -21012,3 +21012,18 @@ proof-level_change: none; source plus remote CI wiring only, with no CI result p
 limitations: recent ER-01 capability-request/result-delivery producer contract correction still needs its own fresh receipt; callback crash/replay, provider receipt/reconcile, terminal shutdown, cross-process recovery and external/live/physical proof remain open
 reviewer: source review confirmed all three finalizer paths, EventStore commit-before-claim ordering, run/result digest CAS, terminal/cancel rejection and no-repeat Runner callback/model path; no local runtime reviewer
 ```
+
+### CAP-05 focused permit workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/cap05-permit.yml; docs/roadmap/capability-permit-baseline.md; kiana-core/src/dispatch.rs; kiana-capability-broker/src/lib.rs; kiana-domain/src/dispatch.rs; kiana-core/tests/cap05_permit.rs
+worktree_status: restored a manual GitHub-only workflow for the existing CAP-05 opaque permit, authority epoch recheck, concurrent single-consume, forged executing denial and Broker-before-handler source guard fixtures; no permit behavior, shard manifest, lockfile or second dispatch path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cap05-permit.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-core cap05_permit; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CAP-05 remains roadmap row 143 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for opaque permit identity, prepared envelope, read-set/epoch checks, one-time CAS and no-handler-before-commit ordering
+proof-level_change: none; source plus remote CI wiring only, with no post-fix result promoted here
+limitations: CP-13's prior CM-02 failure and source correction still require a fresh post-fix receipt; JSONL power-loss/cross-process contention, OS spawn crash windows, provider/connector exactly-once and full approval resume remain open
+reviewer: source review confirmed exact permit/request/project/invocation binding, authority recheck, atomic dispatching/executing consume, forged pre-existing execution rejection and Broker verify-before-handler order; no local runtime reviewer
+```
