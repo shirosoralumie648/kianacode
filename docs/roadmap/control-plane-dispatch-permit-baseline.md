@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`CP-13`](control-plane.md#step-cp-13) |
 | feature_status | `partial`（strict DispatchPermit、prepared/atomic dispatch-start CAS；本次 source correction 等待 GitHub CI 复核） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 fixtures |
+| proof_level | `source`；本地不运行测试，`.github/workflows/cp13-dispatch-permit.yml` 负责 fixtures 与 workspace test-target compile |
 | authority | ControlPlane EventLog transition + `ExecutionPermitVerifierPort`; Broker never mints authority; effect-start fact is committed by the verifier consume CAS |
 | this step does | permit schema/version/digest/action binding, authority read-set, cancel-before-commit guard, one-time execution permit consumption, invocation dispatch boundary |
 | this step does not | 不声称外部 effect exactly-once、不接完整 budget/lease/cancel/result reconciliation、不允许 forged authorization string 或 handler fallback |

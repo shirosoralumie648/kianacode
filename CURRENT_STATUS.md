@@ -20922,3 +20922,18 @@ proof-level_change: none; source plus remote CI wiring only, with no CI result p
 limitations: docs/roadmap/control-plane.md and the historical CP-12 status block say `✅`/implemented while authoritative docs/roadmap.md row 128 remains `🔄`; ResourceLease does not itself prove durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration or external/live/physical outcomes
 reviewer: source review confirmed canonical path rejection, O_NOFOLLOW/LOCK_NB boundary, authority-backed lease validation and exact fencing-token settlement; no local runtime reviewer
 ```
+
+### CP-13 focused dispatch-permit workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/cp13-dispatch-permit.yml; docs/roadmap/control-plane-dispatch-permit-baseline.md; kiana-domain/tests/cp13_dispatch_permit.rs; kiana-core/tests/cp13_dispatch_guard.rs; kiana-core/tests/cap05_permit.rs
+worktree_status: restored a manual GitHub-only workflow for the existing CP-13 opaque permit, prepared/dispatching/executing CAS and Core source guard fixtures; no dispatch behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cp13-dispatch-permit.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain cp13_dispatch_permit and kiana-core cp13_dispatch_guard; unified CI also owns CAP-05 concurrent/replay/preexisting-executing permit fixtures; workflow runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CP-13 remains roadmap row 129 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for opaque permit validation, cancellation/read-set checks, single consume and handler-before-commit fencing
+proof-level_change: none; source plus remote CI wiring only, with no post-fix result promoted here
+limitations: the prior remote failure and source correction still require a fresh post-fix receipt; budget/lease/fence/result/cancel/Unknown full transaction wiring, cross-process crash recovery, external exactly-once and live/physical proof remain open
+reviewer: source review confirmed prepared identity headers, exact permit/read-set validation, atomic dispatching/executing transition and Broker verify-before-handler order; no local runtime reviewer
+```
