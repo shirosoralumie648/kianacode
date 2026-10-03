@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`ER-11`](event-receipt-recovery.md#step-er-11) |
 | feature_status | `implemented`（strict RunReceipt/ExecutionReceipt + compatibility projection） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 fixtures |
+| proof_level | `source`；本地不运行测试，`.github/workflows/er11-receipt-dto.yml` 负责 fixtures 与 workspace test-target compile |
 | authority | EventLog facts + ControlPlane receipt projection；typed DTO 不可反向授权 |
 | this step does | versioned Run/Execution receipt schemas、owner/project/scope digest、status/unknown、source cursor/event IDs、redaction profile、feature/proof level、result/receipt digest、legacy JSON compatibility |
 | this step does not | 不保存 raw prompt/arguments/secret/output，不从 cache/模型自述创造成功，不证明 provider/external effect 或 exactly-once；cost/files/evidence aggregation 留待 ER-12 |

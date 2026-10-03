@@ -20967,3 +20967,18 @@ proof-level_change: none; source plus remote CI wiring only, with no post-fix re
 limitations: prior CI exposed health-digest and formatter corrections, so a fresh post-fix receipt is still required; slow-disk/worker-panic/terminal-flush combinations, projector/backup/retention, cross-process/power-loss and external/live/physical proof remain open
 reviewer: source review confirmed bounded worker admission, structured health digest, file/parent sync boundary, close fencing and daemon/core delegation; no local runtime reviewer
 ```
+
+### ER-11 focused receipt DTO workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/er11-receipt-dto.yml; docs/roadmap/event-receipt-receipt-dto-baseline.md; kiana-domain/src/{receipt_contracts.rs,contracts.rs,lib.rs}; kiana-core/src/{receipts.rs,capability_attempt_projection.rs}; kiana-protocol/src/lib.rs; kiana-domain/tests/er11_receipt_contracts.rs; kiana-core/tests/er11_receipt_guard.rs
+worktree_status: restored a manual GitHub-only workflow for the existing ER-11 strict RunReceipt/ExecutionReceipt, redaction, source cursor and projection-error-to-Unknown fixtures; no receipt behavior, shard manifest, lockfile or second authority path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run er11-receipt-dto.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain er11_receipt_contracts and kiana-core er11_receipt_guard; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: ER-11 remains roadmap row 137 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for typed redacted receipts, owner/source binding, Unknown/fence contradiction and no-raw/authority boundaries
+proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
+limitations: cost/files/model/evidence aggregation, provider receipts, artifact failure, durable projector/restart, multi-entrypoint parity and external/live/physical proof remain ER-12+ / PD/CP work
+reviewer: source review confirmed strict schema/version/digest validation, owner/scope/source provenance, compatibility projection and projection-error downgrade without raw prompt/args/secret/output or permission issuance; no local runtime reviewer
+```
