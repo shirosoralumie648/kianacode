@@ -19,6 +19,9 @@ jobs:
             target: er01_event_contract
           - crate: kiana-core
             target: er01_event_contract_guard
+          - crate: kiana-core
+            target: control_plane
+            selector: er01_real_
     env:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: "symbols"
@@ -32,4 +35,10 @@ jobs:
         env:
           CONTRACT_CRATE: ${{ matrix.crate }}
           CONTRACT_TARGET: ${{ matrix.target }}
-        run: cargo test -p "$CONTRACT_CRATE" --test "$CONTRACT_TARGET" --locked -- --test-threads=1
+          CONTRACT_SELECTOR: ${{ matrix.selector }}
+        run: |
+          if [ -n "$CONTRACT_SELECTOR" ]; then
+            cargo test -p "$CONTRACT_CRATE" --test "$CONTRACT_TARGET" --locked "$CONTRACT_SELECTOR" -- --test-threads=1
+          else
+            cargo test -p "$CONTRACT_CRATE" --test "$CONTRACT_TARGET" --locked -- --test-threads=1
+          fi
