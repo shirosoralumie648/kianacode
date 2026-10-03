@@ -21148,6 +21148,21 @@ limitations: no EvalStore/fixture-loader persistence, normalization/diff, evalua
 reviewer: historical workflow/test comparison and current EQ-03 DTO/source-boundary review; no local runtime reviewer
 ```
 
+### EQ-03 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `9656ad23`; .github/workflows/eq03-eval-objects.yml; kiana-domain/src/quality.rs; kiana-domain/tests/eq03_eval_objects.rs; kiana-core/tests/eq03_eval_objects_guard.rs; docs/roadmap/evaluation-objects-baseline.md
+worktree_status: formatting, four EQ-03 domain fixtures, Core source guard and both target-scoped no-run compiles passed; declared case identity, GoldenTrace bounds and NUL checks are included; no EvalStore/loader/evaluator path changed
+command_argv: gh run view 37135653271 --json status,conclusion,headSha,jobs,url; gh run view 37135653271 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `eq03_eval_objects` 4/4; `eq03_eval_objects_guard` success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-03 remains roadmap row 102 `🔄` / `feature_status=implemented` / `proof_level=source`; current focused contract evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: no EvalStore/fixture-loader persistence, normalization/diff, evaluator/Judge/Experiment/Result/Gate/Promote/Rollback or durable/live replay proof
+reviewer: exact focused job steps and current fixture bounds reviewed; no local runtime reviewer
+```
+
 ### NM-01 focused compile correction and lane restoration (2026-10-03)
 
 ```text

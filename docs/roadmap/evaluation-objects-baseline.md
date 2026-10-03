@@ -129,3 +129,11 @@ lane is restored from the historical commands: it runs the domain evaluation-obj
 Core source guard, then compiles each target with `--no-run`. The lane isolates EQ-03 evidence from
 unrelated workspace shards; current GitHub results are required before any status or proof-level
 promotion.
+
+## 10. Corrected focused CI receipt (2026-10-03)
+
+Run `37135653271` at head `9656ad23` completed successfully. Formatting, the four EQ-03 domain
+fixtures, the Core source guard, and both target-scoped `--no-run` compilation steps passed. The
+receipt includes the declared case identity correction, GoldenTrace aggregate bounds and NUL
+checks. EQ-03 remains `implemented/source`; EvalStore persistence, loader/normalization/diff,
+Judge, experiment/result/gate/promotion and durable replay remain outside this contract step.
