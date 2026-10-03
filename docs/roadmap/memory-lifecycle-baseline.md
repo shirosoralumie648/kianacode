@@ -301,3 +301,16 @@ proof-level change: none
 limitations: no current-head CI receipt yet; existing memory.review stack-overflow/event-contract failure is separate; durable recovery, retention/revocation/deletion, semantic recall and live/physical effects remain open
 reviewer: isolated CM-02 source audit and deny-first fixture review; no local runtime reviewer
 ```
+
+## 12. Focused CI failure receipt (2026-10-03)
+
+Run `37122861013` at head `3ed1d466` passed the domain lifecycle target and the daemon legacy
+import target. The daemon evidence-denial target then failed while the model-written rejection was
+being persisted: the response carried
+`model_admission_denied:port_failed:event_contract_unknown_required_event_kind`, identifying the
+current `run.rejected` event-contract boundary. The target assertions did not reach the intended
+unsearchable-memory checks, so this is failure evidence, not CM-02 completion.
+
+The failure is recorded as an ER-01 event-shape decision gate. CM-02 remains `🔄` with
+`feature_status=partial` and `proof_level=source` until the rejection-event contract is resolved
+and the focused daemon target runs through its assertions. No fixture expectation was weakened.

@@ -21148,6 +21148,21 @@ limitations: prior exact daemon executions `37051593527`, `37053666899` and `370
 reviewer: source review confirmed lifecycle validation before visibility/search, explicit LegacyImport conversion, zero-revision persistence fence and no-evidence rejection ordering; no local runtime reviewer
 ```
 
+### CM-02 focused receipt: ER-01 rejection-event contract gate (2026-10-03)
+
+```text
+source_snapshot: `3ed1d466`; .github/workflows/cm02-memory-lifecycle.yml; kiana-domain/tests/cm02_memory.rs; kiana-daemon/src/harness_memory.rs; kiana-daemon/tests/daemon_host.rs; docs/roadmap/memory-lifecycle-baseline.md
+worktree_status: domain lifecycle and daemon legacy-import targets passed; daemon evidence-denial target failed before its unsearchable-memory assertions while persisting the model rejection; no fixture expectation was changed
+command_argv: gh run view 37122861013 --json status,conclusion,headSha,jobs,url; gh run view 37122861013 --log-failed; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: `cm02_memory` success; `legacy_memory_is_unverifiable_until_reviewed` success; `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` failed with `model_admission_denied:port_failed:event_contract_unknown_required_event_kind` while writing `run.rejected`
+exit_code: remote focused workflow 1; first two target steps 0; later compile steps skipped; no local runtime exit code
+status_change: CM-02 remains roadmap row 050 `🔄` / `feature_status=partial` / `proof_level=source`; the failure is classified as the unresolved ER-01 rejection-event shape gate, not as a memory lifecycle pass
+proof-level_change: none; source plus remote failure evidence only
+limitations: no proof of the intended evidence-denial/unsearchable assertions, no accepted Native EventStore-backed promotion, no event-to-quote binding, durable recovery, retention/revocation/delete or semantic recall; architecture choice for split versus context-aware rejection events remains pending
+reviewer: exact GitHub job steps and failure code reviewed against the event-contract registry; no local runtime reviewer
+```
+
 ### CM-06 focused closure expectation correction (2026-10-03)
 
 ```text
