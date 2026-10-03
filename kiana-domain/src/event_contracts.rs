@@ -194,6 +194,7 @@ pub struct EventKindSpec {
 
 const RUN_FIELDS: &[&str] = &[
     "run_id",
+    "sequence",
     "session_id",
     "actor_id",
     "project_root",
