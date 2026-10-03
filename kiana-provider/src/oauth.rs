@@ -1808,7 +1808,7 @@ mod tests {
             let expected_code = if transition == "permanent" {
                 "oauth_reauth_required"
             } else {
-                "oauth_revoked"
+                "oauth_credential_revoked"
             };
             if transition == "manual-revoke" {
                 manager.revoke().await.expect("revoke");
