@@ -22166,3 +22166,33 @@ proof-level_change: none; prior baseline success does not prove the changed-sour
 limitations: protected keyring/file/OS backends, cross-process replay/rotation/revocation, full product-chain secret-leak proof, external/live/physical proof and unified CI remain open
 reviewer: all current CredentialLease issuers/consumers and connector-specific one-shot/TTL checks reviewed; no local runtime reviewer
 ```
+
+### CI-09 new-grant generation fencing (2026-10-04)
+
+```text
+source_snapshot: parent `6abe23e9` plus this commit; isolated implementation `a125af84`; kiana-provider/src/oauth.rs; kiana-domain/tests/ci09_oauth_contracts.rs; .github/workflows/ci09-oauth-lifecycle.yml
+worktree_status: independently reviewed OAuthManager generation/CAS repair integrated with its negative fixtures and evidence documentation; no manifest, lockfile, raw-secret domain field or additional execution path
+command_argv: `gh run view 37161948995 --json status,conclusion,headSha,url`; after push `gh workflow run ci09-oauth-lifecycle.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root and isolated worktree /tmp/kiana-ci09-refresh-repair; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: four new-grant entrypoints times four old-refresh outcomes; pending/in-flight authorization versus revoke; zero exchange on a stale callback; unchanged replacement/revoked token-file bytes and reload; generation overflow; exact refresh skew boundary
+exit_code: pre-repair focused workflow at `6abe23e9` 0; changed-source CI pending; no local runtime exit code
+status_change: CI-09 roadmap row 169 remains 🔄; feature_status=partial; proof_level=source
+proof-level_change: none; prior guard/fixture success does not prove the changed generation behavior
+limitations: same-manager fencing only; ProviderGateway/real IdP/workload attestation integration, cross-process token-file CAS, product-chain recovery, external/live/physical proof and unified CI remain open
+reviewer: callback/install/refresh/rotation/revoke/persistence consumers and deterministic held-future fixtures reviewed; no local runtime reviewer
+```
+
+### CI-07 changed-source focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `145ac4fe`; run `37161862542`; CredentialLease/Broker negative fixtures and connector regressions
+worktree_status: the focused lane completed after the lease shape repair; later CI-09 guard/OAuth changes do not change the lease source
+command_argv: `gh run view 37161862542 --json status,conclusion,headSha,url`; no local runtime command
+cwd·environment: GitHub Actions Ubuntu runner
+fixture·cassette: domain/Broker lease fixtures, provider SecretStore/projection fixtures, connector credential/port/HTTPS regressions, core guard and target-scoped compilation
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CI-07 remains 🔄 / partial / source
+proof-level_change: no product-chain, durable or live promotion
+limitations: protected storage backends, cross-process replay/rotation/revocation, full product-chain secret-leak proof and unified CI remain open
+reviewer: exact changed-source workflow status reviewed; no local runtime reviewer
+```

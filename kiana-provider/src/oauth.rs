@@ -200,6 +200,12 @@ struct PendingFlow {
     request: OAuthAuthorizationRequest,
     state: String,
     verifier: String,
+    observed_generation: u64,
+}
+
+struct ConsumedAuthorization {
+    verifier: String,
+    observed_generation: u64,
 }
 
 #[derive(Default)]
@@ -209,6 +215,14 @@ struct OAuthState {
     tokens: Option<StoredTokens>,
     refreshing: bool,
     refresh_cooldown_until: u64,
+}
+
+impl OAuthState {
+    fn generation(&self) -> u64 {
+        self.tokens
+            .as_ref()
+            .map_or(0, |tokens| tokens.metadata.generation)
+    }
 }
 
 /// Clears a single-flight claim when the leader future is cancelled before it can publish a
@@ -351,12 +365,14 @@ impl OAuthManager {
                 .append_pair("code_challenge_method", "S256");
         }
         let mut store = self.state.lock().unwrap();
+        let observed_generation = store.generation();
         store.pending.insert(
             request.flow_id,
             PendingFlow {
                 request: request.clone(),
                 state: csrf_state,
                 verifier,
+                observed_generation,
             },
         );
         while store.pending.len() > MAX_PENDING_FLOWS {
@@ -378,7 +394,7 @@ impl OAuthManager {
         &self,
         callback: &OAuthCallback,
         now_unix_ms: u64,
-    ) -> Result<String, OAuthError> {
+    ) -> Result<ConsumedAuthorization, OAuthError> {
         callback
             .validate()
             .map_err(|_| OAuthError::Invalid("oauth_callback_invalid"))?;
@@ -404,6 +420,9 @@ impl OAuthManager {
         {
             return Err(OAuthError::Invalid("oauth_redirect_mismatch"));
         }
+        if pending.observed_generation != state.generation() {
+            return Err(OAuthError::GenerationConflict);
+        }
         let code_digest = json_digest(&serde_json::json!({"authorization_code": &callback.code}));
         if state.consumed_code_digests.contains(&code_digest) {
             return Err(OAuthError::Invalid("oauth_code_replay"));
@@ -419,7 +438,10 @@ impl OAuthManager {
         if pkce_challenge(&pending.verifier)? != pending.request.code_challenge {
             return Err(OAuthError::Invalid("oauth_pkce_mismatch"));
         }
-        Ok(pending.verifier)
+        Ok(ConsumedAuthorization {
+            verifier: pending.verifier,
+            observed_generation: pending.observed_generation,
+        })
     }
 
     pub(crate) fn complete_authorization(
@@ -428,9 +450,13 @@ impl OAuthManager {
         response: RawTokenResponse,
         now_unix_ms: u64,
     ) -> Result<OAuthTokenMetadata, OAuthError> {
-        let _verifier = self.consume_callback(&callback, now_unix_ms)?;
+        let authorization = self.consume_callback(&callback, now_unix_ms)?;
         let material = parse_token_response(response, now_unix_ms, &self.config.scopes, None)?;
-        self.store_material(material, now_unix_ms)
+        self.store_material(
+            material,
+            now_unix_ms,
+            Some(authorization.observed_generation),
+        )
     }
 
     /// Exchange a validated callback through an injected token endpoint.  The closure receives
@@ -446,8 +472,8 @@ impl OAuthManager {
         F: FnOnce(String, String, String) -> Fut + Send,
         Fut: Future<Output = Result<Vec<u8>, RefreshFailure>> + Send,
     {
-        let verifier = self.consume_callback(&callback, now_unix_ms)?;
-        let bytes = exchange(callback.code, verifier, callback.redirect_uri)
+        let authorization = self.consume_callback(&callback, now_unix_ms)?;
+        let bytes = exchange(callback.code, authorization.verifier, callback.redirect_uri)
             .await
             .map_err(|failure| match failure {
                 RefreshFailure::Transient => OAuthError::Transient,
@@ -456,18 +482,34 @@ impl OAuthManager {
             })?;
         let response = decode_token_response(&bytes)?;
         let material = parse_token_response(response, now_unix_ms, &self.config.scopes, None)?;
-        self.store_material(material, now_unix_ms)
+        self.store_material(
+            material,
+            now_unix_ms,
+            Some(authorization.observed_generation),
+        )
     }
 
     fn store_material(
         &self,
         material: TokenMaterial,
         now_unix_ms: u64,
+        observed_generation: Option<u64>,
     ) -> Result<OAuthTokenMetadata, OAuthError> {
+        // A new grant advances the same fence as refresh/rotation/revoke. Keep generation
+        // allocation, persistence and publication under one lock so an old completion cannot
+        // overwrite a newer token file or reuse generation 1 after reauthorization.
+        let mut state = self.state.lock().unwrap();
+        let current_generation = state.generation();
+        if observed_generation.is_some_and(|observed| observed != current_generation) {
+            return Err(OAuthError::GenerationConflict);
+        }
+        let generation = current_generation
+            .checked_add(1)
+            .ok_or(OAuthError::Invalid("oauth_generation_overflow"))?;
         let metadata = OAuthTokenMetadata::new(
             self.config.provider_account.clone(),
             self.config.subject,
-            1,
+            generation,
             material.scopes.clone(),
             now_unix_ms,
             material.expires_at_unix_ms,
@@ -484,7 +526,9 @@ impl OAuthManager {
             refresh_token: material.refresh_token,
         };
         self.persist(&stored)?;
-        self.state.lock().unwrap().tokens = Some(stored);
+        state.tokens = Some(stored);
+        state.refresh_cooldown_until = 0;
+        self.refresh_notify.notify_waiters();
         Ok(metadata)
     }
 
@@ -494,10 +538,14 @@ impl OAuthManager {
         response: &[u8],
         now_unix_ms: u64,
     ) -> Result<OAuthTokenMetadata, OAuthError> {
-        let _verifier = self.consume_callback(&callback, now_unix_ms)?;
+        let authorization = self.consume_callback(&callback, now_unix_ms)?;
         let response = decode_token_response(response)?;
         let material = parse_token_response(response, now_unix_ms, &self.config.scopes, None)?;
-        self.store_material(material, now_unix_ms)
+        self.store_material(
+            material,
+            now_unix_ms,
+            Some(authorization.observed_generation),
+        )
     }
 
     pub(crate) fn install_tokens(
@@ -514,7 +562,7 @@ impl OAuthManager {
             now_unix_ms,
             self.config.scopes.clone(),
         )?;
-        self.store_material(material, now_unix_ms)
+        self.store_material(material, now_unix_ms, None)
     }
 
     pub(crate) async fn access_token<F, Fut>(
@@ -1097,6 +1145,29 @@ mod tests {
         }
     }
 
+    fn callback(manager: &OAuthManager, now_unix_ms: u64, code: &str) -> OAuthCallback {
+        let (request, url) = manager.start_authorization(now_unix_ms).expect("flow");
+        let state = reqwest::Url::parse(&url)
+            .expect("authorization URL")
+            .query_pairs()
+            .find(|(key, _)| key == "state")
+            .expect("state parameter")
+            .1
+            .into_owned();
+        OAuthCallback::new(request.flow_id, state, code, request.redirect_uri).expect("callback")
+    }
+
+    fn token_json(access: &str, refresh: &str) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "access_token": access,
+            "refresh_token": refresh,
+            "expires_in": 3_600,
+            "scope": "model.read model.use",
+            "token_type": "Bearer"
+        }))
+        .expect("token JSON")
+    }
+
     #[tokio::test]
     async fn pkce_state_and_redirect_are_single_use_and_fail_closed() {
         let manager = OAuthManager::new(config(), None).expect("manager");
@@ -1506,6 +1577,198 @@ mod tests {
         assert_eq!(
             manager.metadata().expect("metadata").access_digest,
             json_digest(&serde_json::json!("new-access"))
+        );
+    }
+
+    #[tokio::test]
+    async fn new_grants_fence_every_old_refresh_outcome_and_preserve_persisted_tokens() {
+        for grant_kind in ["install", "callback", "json", "exchange"] {
+            for failure in [
+                None,
+                Some(RefreshFailure::Transient),
+                Some(RefreshFailure::Permanent),
+                Some(RefreshFailure::Revoked),
+            ] {
+                let root = std::env::temp_dir().join(format!("kiana-ci09-{}", RequestId::new()));
+                let path = root.join("oauth.json");
+                let manager = OAuthManager::new(config(), Some(path.clone())).expect("manager");
+                let initial = manager
+                    .install_tokens(
+                        "old-access".to_owned(),
+                        Some("old-refresh".to_owned()),
+                        2_000,
+                        1_000,
+                    )
+                    .expect("seed");
+                let (release, wait) = tokio::sync::oneshot::channel::<()>();
+                let (started, started_wait) = tokio::sync::oneshot::channel::<()>();
+                let refreshing = manager.clone();
+                let task = tokio::spawn(async move {
+                    refreshing
+                        .access_token(1_500, 1_000, move |refresh| async move {
+                            assert_eq!(refresh, "old-refresh");
+                            started.send(()).expect("announce refresh");
+                            wait.await.expect("release refresh");
+                            match failure {
+                                Some(failure) => Err(failure),
+                                None => Ok(response("stale-access", Some("stale-refresh"), 3_600)),
+                            }
+                        })
+                        .await
+                });
+                started_wait.await.expect("old refresh started");
+                let replacement = match grant_kind {
+                    "install" => manager.install_tokens(
+                        "current-access".to_owned(),
+                        Some("current-refresh".to_owned()),
+                        3_601_500,
+                        1_500,
+                    ),
+                    "callback" => manager.complete_authorization(
+                        callback(&manager, 1_500, "new-code"),
+                        response("current-access", Some("current-refresh"), 3_600),
+                        1_500,
+                    ),
+                    "json" => manager.complete_authorization_json(
+                        callback(&manager, 1_500, "new-code"),
+                        &token_json("current-access", "current-refresh"),
+                        1_500,
+                    ),
+                    "exchange" => {
+                        manager
+                            .exchange_authorization(
+                                callback(&manager, 1_500, "new-code"),
+                                1_500,
+                                |_, _, _| async {
+                                    Ok(token_json("current-access", "current-refresh"))
+                                },
+                            )
+                            .await
+                    }
+                    _ => unreachable!(),
+                }
+                .expect("replacement grant");
+                assert_eq!(replacement.generation, initial.generation + 1);
+                let persisted = std::fs::read(&path).expect("replacement token file");
+                release.send(()).expect("release old response");
+                let error = match task.await.expect("refresh task") {
+                    Ok(_) => panic!("old refresh must lose to {grant_kind}: {failure:?}"),
+                    Err(error) => error,
+                };
+                assert_eq!(error, OAuthError::GenerationConflict);
+                assert_eq!(manager.metadata().expect("metadata"), replacement);
+                assert_eq!(std::fs::read(&path).expect("token file"), persisted);
+                let reloaded = OAuthManager::load(config(), path).expect("reload token file");
+                assert_eq!(reloaded.metadata().expect("reloaded metadata"), replacement);
+                let current = manager
+                    .access_token(1_501, 0, |_| async {
+                        panic!("fresh replacement must not refresh")
+                    })
+                    .await
+                    .expect("current token");
+                assert_eq!(current.value, "current-access");
+                std::fs::remove_dir_all(root).expect("remove fixture directory");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn revoke_fences_pending_and_in_flight_authorization_without_persisted_overwrite() {
+        let root = std::env::temp_dir().join(format!("kiana-ci09-{}", RequestId::new()));
+        let path = root.join("oauth.json");
+        let manager = OAuthManager::new(config(), Some(path.clone())).expect("manager");
+        manager
+            .install_tokens("old".to_owned(), Some("refresh".to_owned()), 2_000, 1_000)
+            .expect("seed");
+        let pending = callback(&manager, 1_500, "pending-code");
+        let in_flight = callback(&manager, 1_500, "in-flight-code");
+        let (release, wait) = tokio::sync::oneshot::channel::<()>();
+        let (started, started_wait) = tokio::sync::oneshot::channel::<()>();
+        let exchanging = manager.clone();
+        let task = tokio::spawn(async move {
+            exchanging
+                .exchange_authorization(in_flight, 1_500, move |_, _, _| async move {
+                    started.send(()).expect("announce exchange");
+                    wait.await.expect("release exchange");
+                    Ok(token_json("stale-access", "stale-refresh"))
+                })
+                .await
+        });
+        started_wait.await.expect("exchange started");
+        let revoked = manager.revoke().await.expect("revoke");
+        let persisted = std::fs::read(&path).expect("revoked token file");
+        let calls = Arc::new(AtomicUsize::new(0));
+        let exchange_calls = calls.clone();
+        assert_eq!(
+            manager
+                .exchange_authorization(pending, 1_501, move |_, _, _| async move {
+                    exchange_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(token_json("must-not-exchange", "must-not-install"))
+                })
+                .await
+                .unwrap_err(),
+            OAuthError::GenerationConflict
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        release.send(()).expect("release stale exchange");
+        assert_eq!(
+            task.await.expect("exchange task").unwrap_err(),
+            OAuthError::GenerationConflict
+        );
+        assert_eq!(manager.metadata().expect("metadata"), revoked);
+        assert_eq!(std::fs::read(&path).expect("token file"), persisted);
+        let reloaded = OAuthManager::load(config(), path).expect("reload revoked file");
+        assert_eq!(reloaded.metadata().expect("reloaded metadata"), revoked);
+
+        let replacement = manager
+            .complete_authorization(
+                callback(&manager, 2_000, "fresh-code"),
+                response("new-access", Some("new-refresh"), 3_600),
+                2_000,
+            )
+            .expect("new authorization after revoke");
+        assert_eq!(replacement.generation, revoked.generation + 1);
+        assert_eq!(replacement.status, OAuthTokenStatus::Active);
+        std::fs::remove_dir_all(root).expect("remove fixture directory");
+    }
+
+    #[test]
+    fn generation_overflow_does_not_replace_current_grant() {
+        let manager = OAuthManager::new(config(), None).expect("manager");
+        manager
+            .install_tokens(
+                "current".to_owned(),
+                Some("refresh".to_owned()),
+                2_000,
+                1_000,
+            )
+            .expect("seed");
+        {
+            let mut state = manager.state.lock().unwrap();
+            let metadata = &mut state.tokens.as_mut().expect("tokens").metadata;
+            metadata.generation = u64::MAX;
+            metadata.metadata_digest = metadata.digest();
+            metadata.validate_at(1_000).expect("maximum generation");
+        }
+        let current = manager.metadata().expect("current metadata");
+        assert_eq!(
+            manager
+                .install_tokens("replacement".to_owned(), None, 3_000, 1_500)
+                .unwrap_err()
+                .code(),
+            "oauth_generation_overflow"
+        );
+        assert_eq!(manager.metadata().expect("metadata"), current);
+        assert_eq!(
+            manager
+                .state
+                .lock()
+                .unwrap()
+                .tokens
+                .as_ref()
+                .expect("tokens")
+                .access_token,
+            "current"
         );
     }
 

@@ -41,3 +41,22 @@ single-flight/CAS/error/file fixtures 与 core source guard，并编译 workspac
 - 真实 workload attestation、PKCE browser callback listener、scope policy、OAuth account
   discovery、rotation/revoke EventLog receipt 和跨设备恢复留 CI-10/11、PD/SC/ER；旧
   `kiana-services` OAuth facade 保持兼容，不作为新的 ControlPlane 执行路径。
+
+## 2026-10-04 new-grant generation fencing
+
+Installing or authorizing a new grant now increments the current generation instead of resetting
+it to `1`. Pending authorization records capture the observed generation; callback consumption
+and exchange completion must still match that generation. Token persistence and publication
+share the same manager lock, so an older refresh or authorization response cannot overwrite a
+newer grant or a revoked token file. Generation overflow preserves the current grant.
+
+The CI fixtures hold an old refresh across each of four grant entrypoints and then release
+success, transient, permanent and revoked outcomes. All 16 races require a generation conflict
+and unchanged replacement metadata/file bytes. Additional fixtures cover revoke during a
+pending callback or asynchronous exchange, file reload and generation overflow. Domain fixtures
+assert both sides of the refresh skew boundary.
+
+Run `37161948995` at `6abe23e9` passed the pre-repair focused lane after correcting the workload
+enum source guard. Changed-source validation is submitted to GitHub CI after this commit;
+no local test/build/check/clippy/smoke or validation script runs. The card remains partial/source:
+Gateway/IdP integration, cross-process token-file CAS and product-chain recovery remain open.
