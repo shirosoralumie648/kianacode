@@ -1,0 +1,24 @@
+name: OA-09 capability instrumentation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability-instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run OA-09 capability fixtures
+        run: cargo test -p kiana-core --test oa09_capability_instrumentation --locked -- --test-threads=1
+      - name: Compile OA-09 target
+        run: cargo test -p kiana-core --test oa09_capability_instrumentation --no-run --locked
