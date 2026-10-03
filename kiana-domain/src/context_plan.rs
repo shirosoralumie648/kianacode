@@ -122,6 +122,9 @@ impl ContextMaterialType {
         if product && authority != PromptAuthority::Product {
             return Err("context_product_authority_missing".to_owned());
         }
+        if authority == PromptAuthority::Product && source.kind != SourceKind::Prompt {
+            return Err("context_product_source_untrusted".to_owned());
+        }
         if !product && authority == PromptAuthority::Product {
             return Err("context_product_material_type_invalid".to_owned());
         }

@@ -20593,6 +20593,21 @@ limitations: historical CURRENT_STATUS text at the H20 evidence block says roadm
 reviewer: source review confirmed Product/Context authority separation, omission reasons, budget/digest binding and route/workspace/catalog/data drift fences; no local runtime reviewer
 ```
 
+### H20 focused domain failure audit and correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37114129574` / head `c10320e6`; kiana-domain/tests/h20_context_plan.rs; kiana-domain/src/context_plan.rs
+worktree_status: runner source guard passed; domain Product/Context fixture failed because ContextMaterialType::validate_authority returned context_product_material_type_invalid before checking that a Product-authority workspace source is untrusted; validator now reports context_product_source_untrusted first for non-Prompt Product claims, while Prompt/non-Product material still returns material_type_invalid
+command_argv: gh run view 37114129574 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H20 domain `product_candidate_from_a_workspace_file_is_rejected` failed; other two domain fixtures and runner guard passed
+exit_code: remote domain job failed 2/3; remote runner job 1/1 success; correction awaits fresh GitHub receipt
+status_change: H20 remains roadmap row 307 `🔄` / `feature_status=implemented` / `proof_level=source`; source trust rejection precedence is corrected without widening Product authority
+proof-level change: none
+limitations: historical CURRENT_STATUS H20 block says row 307 is ✅ while authoritative docs/roadmap.md remains 🔄; adapter retrieval, provider tokenizer/wire/live prompt and cross-process context recovery remain open
+reviewer: exact failure and ContextMaterialType authority/source ordering reviewed; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text
