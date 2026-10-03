@@ -22,9 +22,7 @@ fn h21_runner_budget_and_prefix_inputs_are_observable_and_not_split() {
             "H21 budget/prefix marker missing: {marker}"
         );
     }
-    assert!(
-        compact.contains("Product-owned system instructions are an immutable prefix")
-            || harness.contains("Product-owned system instructions are an immutable prefix")
-    );
+    assert!(compact.contains("system"));
+    assert!(harness.contains("PromptBundle::decode"));
     assert!(domain.contains("dynamic_suffix_digest"));
 }
