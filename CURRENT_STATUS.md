@@ -22092,3 +22092,32 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: provider multi-block/reconnect/truncation, attempt durability, billing, terminal/recovery, H05 automatic repair/compaction, external/live/physical proof and unified CI remain open
 reviewer: exact current-head jobs, accumulator single-path guard and fail-closed stream fixtures reviewed; no local runtime reviewer
 ```
+
+### H07 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `e9155a5a`; .github/workflows/h07-budget-diagnostic.yml; kiana-runner/src/{budget,harness}.rs; kiana-daemon/src/model_client.rs; kiana-domain/src/budget_contracts.rs; kiana-core/tests/h07_budget_guard.rs; docs/roadmap/harness-budget-baseline.md
+worktree_status: current-head H07 manual lane passed with no budget source, fixture, manifest or lockfile change; ledger remains a bounded runner budget projection and does not create a second authority
+command_argv: `gh run view 37158992896 --json status,conclusion,headSha,jobs,url`; `gh run view 37158992896 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: H07 budget target 4/4 and source guard 1/1; Continue cumulative budget, invalid effective budget, retry attempt charging, role limits and reservation-before-effect all passed; target compile passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: H07 roadmap row 146 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: process restart/cross-process ledger, Company cumulative merge, provider billing/tokenizer, real retry/TTL, H08 cancellation composition, external/live/physical proof and unified CI remain open
+reviewer: exact current-head jobs, cumulative ledger/reset boundaries and reservation-before-effect guard reviewed; no local runtime reviewer
+```
+
+### H08 current-head focused failure classification (2026-10-04)
+
+```text
+source_snapshot: `e9155a5a`; .github/workflows/h08-cancellation-diagnostic.yml; current H08 run `37158992298`
+worktree_status: runner cancellation jobs executed, while daemon shell/stream cancellation fixtures were blocked before model admission by the existing ER-01 `run.rejected` event-contract validator; no H08 source change made
+command_argv: `gh run view 37158992298 --log-failed`; no local test/build/check/clippy/smoke
+fixture·cassette: failures report `model_admission_denied:port_failed:event_contract_unknown_required_event_kind`; this is the known ER-01 rejection-event shape blocker, not evidence that cancellation semantics passed or failed at the daemon effect boundary
+exit_code: remote focused workflow failed at the shared event-contract gate; no local runtime exit code
+status_change: H08 remains roadmap row 147 `🔄`, `feature_status=partial`, `proof_level=source`
+proof-level_change: none; no H08 promotion
+limitations: ER-01 rejection-event architecture must be resolved before daemon cancellation fixture can reach its intended stop/Unknown assertions; cancellation durability, OS/power-loss and external/live/physical proof remain open
+reviewer: exact remote failure logs and ER-01 dependency classification reviewed; no local runtime reviewer
+```
