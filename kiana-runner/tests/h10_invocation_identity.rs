@@ -118,7 +118,7 @@ async fn invocation_identity_survives_queue_approval_and_restore() {
     let queued = checkpoint["pending_tools"].as_array().unwrap();
     assert_eq!(queued.len(), 2);
     let second_request: kiana_domain::RequestId =
-        serde_json::from_value(queued[1][0].clone()).unwrap();
+        serde_json::from_value(queued[1]["request_id"].clone()).unwrap();
 
     let restored = KianaHarness::new(Arc::new(ScriptedModel::new(Vec::new())));
     restored.restore(run_id, checkpoint).await.unwrap();

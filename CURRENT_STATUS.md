@@ -20383,6 +20383,21 @@ limitations: no local runtime result; fresh H09 workflow required; provider cata
 reviewer: exact remote guard failure and provider source review; no local runtime reviewer
 ```
 
+### H10 queue/restore fixture correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37109457432` / head `517ec576`; correction kiana-runner/tests/h10_invocation_identity.rs; checkpoint source kiana-runner/src/harness.rs
+worktree_status: batch validation, duplicate call rejection and H10 source guard passed; queue/restore fixture failed while reading `pending_tools` as the old tuple-array shape (`queued[1][0]`), but current checkpoint serializes explicit PendingTool fields and restore validates `request_id` against the stable tuple-derived identity; fixture now reads `queued[1][request_id]` and keeps the post-restore identity equality assertion
+command_argv: gh run view 37109457432 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: invocation_identity_survives_queue_approval_and_restore; h10_invocation_identity_guard remains successful on the same head
+exit_code: remote behavior 2/3 passed, guard 1/1 passed; local format/diff checks pending before commit; fresh H10 receipt pending after push
+status_change: H10 remains roadmap row 149 / current row 162 `feature_status=implemented` / `proof_level=source`; the fixture now matches the versioned checkpoint shape without weakening restore validation
+proof-level change: none
+limitations: no local runtime result, durable Invocation ledger, cross-process CAS/recovery, provider/external/live/physical effect or approval durable proof
+reviewer: exact remote failure, PendingTool checkpoint schema and restore identity fence reviewed; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
