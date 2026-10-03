@@ -76,3 +76,14 @@ fn projection_rebuild_matches_committed_memory() {
     assert!(domain.contains("json_digest"));
     assert!(source.contains("memory_projection_lag"));
 }
+
+#[test]
+fn memory_reader_has_zero_revision_persistence_fence() {
+    let source = include_str!("../src/harness_memory.rs");
+    let reader = source
+        .split("fn read_records_file")
+        .nth(1)
+        .expect("memory reader");
+    assert!(reader.contains("record.revision == 0"));
+    assert!(reader.contains("memory_record_revision_invalid"));
+}

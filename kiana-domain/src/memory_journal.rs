@@ -278,6 +278,9 @@ impl MemoryJournalFact {
             return Err("memory_fact_invalid".to_owned());
         }
         self.record.validate_lifecycle()?;
+        if self.record.revision == 0 {
+            return Err("memory_fact_revision_invalid".to_owned());
+        }
         self.body_ref.validate().map_err(str::to_owned)?;
         if self.record.content_hash != self.body_ref.content_hash {
             return Err("memory_body_ref_hash_mismatch".to_owned());

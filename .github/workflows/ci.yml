@@ -91,6 +91,11 @@ jobs:
           cargo test -p kiana-daemon --test daemon_host
           model_written_memory_without_evidence_is_rejected_and_stays_unsearchable
           --locked -- --exact --nocapture --test-threads=1
+      - name: Run memory zero-revision persistence fence
+        run: >-
+          cargo test -p kiana-daemon --lib
+          harness_memory::tests::memory_read_rejects_zero_revision_before_projection
+          --locked -- --exact --nocapture --test-threads=1
 
   rust-tests:
     name: Tests (${{ matrix.shard }})

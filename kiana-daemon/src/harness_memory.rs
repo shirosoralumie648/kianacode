@@ -1350,6 +1350,9 @@ fn read_records_file(file: &File) -> Result<Vec<MemoryRecord>, PortError> {
             record = MemoryRecord::legacy_import(raw.clone()).map_err(failed)?;
         }
         record.validate_lifecycle().map_err(failed)?;
+        if record.revision == 0 {
+            return Err(failed("memory_record_revision_invalid"));
+        }
         if let Some(previous) = records.get(&record.id) {
             if record.revision != previous.revision.saturating_add(1)
                 || record.text != previous.text
@@ -1478,6 +1481,33 @@ mod tests {
         assert_eq!(records[0].admission_state, MemoryAdmission::Candidate);
         assert_eq!(records[0].state, MemoryState::Draft);
         assert!(!records[0].searchable());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn memory_read_rejects_zero_revision_before_projection() {
+        let root = temp_memory_path("zero-revision");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("memory.jsonl");
+        let row = json!({
+            "schema": MEMORY_RECORD_SCHEMA_V2,
+            "id": "zero-revision",
+            "layer": MEMORY_LAYER_PROJECT,
+            "collection": MEMORY_LAYER_PROJECT,
+            "text": "unpersisted revision",
+            "source": "fixture",
+            "role_id": "builder",
+            "department_id": "executing",
+            "session_id": "session-zero-revision",
+            "created_at_ms": 1,
+            "kind": "fact",
+            "revision": 0
+        });
+        fs::write(&path, format!("{row}\n")).unwrap();
+
+        let error = read_records(&path).unwrap_err();
+        assert!(error.to_string().contains("memory_record_revision_invalid"));
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -82,6 +82,33 @@ fn schema_v1_native_qualified_record_requires_explicit_legacy_import() {
 }
 
 #[test]
+fn memory_fact_rejects_zero_revision_at_authority_boundary() {
+    let record = MemoryRecord {
+        schema: MEMORY_RECORD_SCHEMA_V2.to_owned(),
+        id: "zero-revision".to_owned(),
+        layer: "project".to_owned(),
+        collection: "project".to_owned(),
+        text: "unpersisted revision".to_owned(),
+        source: "fixture".to_owned(),
+        role_id: "builder".to_owned(),
+        department_id: "executing".to_owned(),
+        session_id: "session-zero-revision".to_owned(),
+        created_at_ms: 1,
+        kind: "fact".to_owned(),
+        content_hash: "a".repeat(64),
+        revision: 0,
+        ..MemoryRecord::default()
+    };
+    let fact = MemoryJournalFact::new(
+        "write",
+        "memory.fact:zero-revision",
+        record,
+        MemoryBodyRef::new("memory-stream", "a".repeat(64)),
+    );
+    assert_eq!(fact.validate().unwrap_err(), "memory_fact_revision_invalid");
+}
+
+#[test]
 fn memory_record_rejects_unknown_nested_lifecycle_fields() {
     let base = || {
         json!({
