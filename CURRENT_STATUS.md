@@ -20937,3 +20937,18 @@ proof-level_change: none; source plus remote CI wiring only, with no post-fix re
 limitations: the prior remote failure and source correction still require a fresh post-fix receipt; budget/lease/fence/result/cancel/Unknown full transaction wiring, cross-process crash recovery, external exactly-once and live/physical proof remain open
 reviewer: source review confirmed prepared identity headers, exact permit/read-set validation, atomic dispatching/executing transition and Broker verify-before-handler order; no local runtime reviewer
 ```
+
+### ER-05 focused JSONL v2 workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/er05-jsonl.yml; docs/roadmap/event-receipt-jsonl-baseline.md; kiana-domain/src/journal.rs; kiana-eventlog/src/{jsonl.rs,journal_core.rs,event_store_core.rs}; kiana-eventlog/tests/er05_jsonl_v2.rs
+worktree_status: restored a manual GitHub-only workflow for the existing ER-05 JSONL v2 transaction-frame, lock/sync and corruption-recovery integration fixtures; no parser, writer, permission fixture, checksum validation, shard manifest, lockfile or second EventLog path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run er05-jsonl.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-eventlog er05_jsonl_v2; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: ER-05 remains roadmap row 131 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for atomic transaction pages, malformed/tampered denial, torn-tail classification and legacy-after-v2 refusal
+proof-level_change: none; source plus remote CI wiring only, with no post-fix result promoted here
+limitations: prior CI exposed fixture permission and checksum-guard drift, so a fresh post-fix receipt is still required; power-loss/NFS/cross-host locking, async queue/backpressure/shutdown ack, projector/checkpoint, backup/retention and external/live/physical proof remain open
+reviewer: source review confirmed bounded frame/header validation, single writer lock, O_NOFOLLOW/identity/sync boundaries, narrow torn-tail repair and malformed/checksum fail-closed behavior; no local runtime reviewer
+```

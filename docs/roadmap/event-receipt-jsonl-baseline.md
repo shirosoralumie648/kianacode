@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`ER-05`](event-receipt-recovery.md#step-er-05) |
 | feature_status | `implemented`（JSONL v2 header/frame、锁、CAS cursor、损坏分类） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 eventlog fixtures |
+| proof_level | `source`；本地不运行测试，`.github/workflows/er05-jsonl.yml` 负责 eventlog fixtures 与 workspace test-target compile |
 | authority | `kiana-eventlog::JsonlEventLog` + `kiana-domain::JournalFrame`；Memory adapter 只作兼容合同 |
 | this step does | required writer header、checksummed bounded frame、完整 transaction page、flock/dirfd/no-follow、write/flush/sync/identity boundary、legacy upgrade gate、torn-tail repair 与 malformed/checksum fail-closed |
 | this step does not | 不声称 power-loss、NFS/跨主机、SQLite、备份/恢复或外部 effect exactly-once；异步 worker/backpressure/shutdown ack 留待 ER-06 |
