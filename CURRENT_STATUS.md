@@ -21882,3 +21882,18 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: project/authority/policy revisions remain authenticated ControlPlane context and approval evidence; durable TriggerOccurrence/event envelope/CAS/cursor, multi-scheduler recovery, scheduler and external/live/physical effect proof, and unified CI remain open in AUT-05+
 reviewer: exact focused jobs, trigger shape/source contract and planner purity boundaries reviewed; no local runtime reviewer
 ```
+
+### EQ-09 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `290368b4`; .github/workflows/eq09-eval-runtime.yml; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq09_eval_runtime.rs; kiana-core/tests/eq09_eval_runtime_guard.rs; docs/roadmap/evaluation-runtime-baseline.md
+worktree_status: restored a manual GitHub-only EQ-09 lane and corrected the stale source guard to recognize the later EQ-11 deny-only broker adapter while preserving the no-runner/no-real-network boundary; no production runtime, manifest or lockfile change beyond the focused guard/workflow
+command_argv: `gh run view 37154763393 --json status,conclusion,headSha,jobs,url`; `gh run view 37154763393 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: daemon isolation fixture and Core source guard passed; temporary root/workspace/KIANA_HOME, fixed clock/seed, environment restoration, no KianaHarness, no tokio spawn and no reqwest; deny-only `DenyByDefaultEvalBroker`/`CapabilityBrokerPort` is explicitly bounded to EQ-11 and does not execute effects
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-09 roadmap row 181 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: EvalTarget/FixtureStore/DaemonHost execution composition, initial-state/policy/role persistence, fake provider/deny broker chain, EventLog/Receipt/evidence capture, fault/restart recovery, external/live/physical proof and unified CI remain EQ-10+
+reviewer: exact focused jobs, stale-guard correction and deny-only broker boundary reviewed; no local runtime reviewer
+```
