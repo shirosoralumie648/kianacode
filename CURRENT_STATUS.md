@@ -21035,12 +21035,27 @@ source_snapshot: current master before this receipt; .github/workflows/cm06-sour
 worktree_status: restored a manual GitHub-only workflow for the existing deterministic SourceDependencyGraph, reverse impact closure, monotonic data_epoch invalidation and Core governance no-authority-bypass guard fixtures; no graph behavior, EventStore authority, shard manifest, lockfile or second cleanup path changed
 command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cm06-source-dependencies.yml --ref master; no local tests/build/check/clippy/smoke
 cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
-fixture·cassette: kiana-domain cm06_source_dependencies and kiana-core cm06_source_dependencies; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+fixture·cassette: kiana-domain cm06_source_dependencies and kiana-core cm06_source_dependencies; workflow also runs cargo fmt --all --check and target-scoped `cargo test --no-run` compilation for both focused targets
 exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
 status_change: CM-06 remains total roadmap row 155 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for deterministic graph digest/closure, unrelated-source isolation, epoch rollback denial and governance integration markers
 proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
 limitations: docs/roadmap/context-memory.md and the historical CM-06 status block say `✅`/implemented while authoritative docs/roadmap.md remains `🔄`; graph is not an independently durable aggregate/UI command, DataGovernance cleanup/delete workers and artifact/index/cache integration remain open, with no cross-process/power-loss or external/live/physical proof
-reviewer: source review confirmed bounded node/edge validation, canonical ordering/digest, reverse BFS closure, unknown/self/duplicate/gap rejection, monotonic data epoch and no-delete/no-authority mutation boundary; no local runtime reviewer
+reviewer: source review confirmed bounded node/edge validation, canonical ordering/digest, reverse BFS closure, unknown/self/duplicate/gap rejection, monotonic data epoch and no-delete/no-authority mutation boundary; the first remote run exposed a test fixture that reversed already-canonicalized edges, corrected here by reconstructing through `SourceDependencyGraph::new`; no local runtime reviewer
+```
+
+### CM-06 focused fixture correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37121341901`; kiana-domain/tests/cm06_source_dependencies.rs; .github/workflows/cm06-source-dependencies.yml
+worktree_status: the domain target failed only because the fixture reversed an already constructed graph and compared stale edge order/digest; the fixture now reverses raw edges before reconstructing through the canonical constructor; no SourceDependencyGraph production behavior changed
+command_argv: gh run view 37121341901 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `revoking_source_invalidates_all_derived_context` failed at the pre-revoke canonical-order equality; `source_dependency_graph_rejects_drift_and_unknown_edges` passed
+exit_code: remote domain focused target 1/2; Core target was not reached; correction pending fresh focused CI
+status_change: CM-06 remains roadmap row 155 `🔄` / `feature_status=implemented` / `proof_level=source`; only the fixture construction boundary is corrected
+proof-level_change: none
+limitations: durable graph aggregate, cleanup/delete workers, artifact/index/cache integration, cross-process repair, power-loss and external/live/physical proof remain open
+reviewer: exact remote assertion and graph constructor ordering reviewed; no local runtime reviewer
 ```
 
 ### CI-03 focused ports workflow (2026-10-03)

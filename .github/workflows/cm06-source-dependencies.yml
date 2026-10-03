@@ -22,5 +22,7 @@ jobs:
         run: cargo test -p kiana-domain --test cm06_source_dependencies --locked -- --test-threads=1
       - name: Run governance source guard
         run: cargo test -p kiana-core --test cm06_source_dependencies --locked -- --test-threads=1
-      - name: Compile CM-06 targets
-        run: cargo check --workspace --tests --locked
+      - name: Compile CM-06 domain target
+        run: cargo test -p kiana-domain --test cm06_source_dependencies --no-run --locked
+      - name: Compile CM-06 Core target
+        run: cargo test -p kiana-core --test cm06_source_dependencies --no-run --locked

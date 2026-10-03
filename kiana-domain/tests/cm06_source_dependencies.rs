@@ -51,8 +51,11 @@ fn graph() -> SourceDependencyGraph {
 #[test]
 fn revoking_source_invalidates_all_derived_context() {
     let mut first = graph();
-    let mut reversed = graph();
-    reversed.edges.reverse();
+    let mut reversed_edges = graph().edges;
+    reversed_edges.reverse();
+    let reversed =
+        SourceDependencyGraph::new(1, graph().nodes.into_values().collect(), reversed_edges)
+            .expect("reversed fixture graph");
     assert_eq!(first, reversed);
     assert_eq!(first.schema, SOURCE_DEPENDENCY_GRAPH_SCHEMA);
 

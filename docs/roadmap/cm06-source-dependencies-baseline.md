@@ -28,7 +28,7 @@ cargo check --workspace --tests --locked
 
 本地只执行格式和 `git diff --check`；不执行测试或 workspace compile。
 `.github/workflows/cm06-source-dependencies.yml` 在 GitHub Actions 运行 domain fixture、Core
-guard 与 workspace test-target compile，且本地不等待结果。
+guard，并只编译这两个 focused test target；本地不等待结果。
 
 ## 限制与交接
 
