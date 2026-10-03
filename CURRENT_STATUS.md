@@ -21687,3 +21687,18 @@ proof-level_change: none; focused acceptance evidence only
 limitations: full crate shards, automatic repair/compaction, streaming accumulator, budget/provider billing, external/live and physical effect proof remain open; unified CI remains unclaimed green
 reviewer: exact seven job conclusions and focused log results reviewed; no local runtime reviewer
 ```
+
+### CP-12 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `3b665bb0`; .github/workflows/cp12-resource-leases.yml; kiana-domain/tests/cp12_resource_lease.rs; kiana-core/tests/cp12_resource_guard.rs; docs/roadmap/control-plane-resource-lease-baseline.md
+worktree_status: complete focused lane passed the three domain lease fixtures, Core source guard and both target-scoped no-run compiles; successor receiver/previous direction matches ResourceLease::validate_successor
+command_argv: gh run view 37123857213 --json status,conclusion,headSha,jobs,url; gh run view 37123857213 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: CP-12 domain resource lease target 3/3; Core guard success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CP-12 roadmap row 128 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration, external/live/physical proof and unified CI remain unproven
+reviewer: exact focused jobs and successor contract direction reviewed; no local runtime reviewer
+```

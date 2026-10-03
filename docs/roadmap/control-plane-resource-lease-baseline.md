@@ -46,3 +46,10 @@ crash recovery 和 external/live/physical proof 留待后续步骤。
 Run `37123857213` at head `3b665bb0` passed the three domain lease fixtures, the Core source guard,
 and both target-scoped compile steps. This is current focused source/CI evidence only; it does not
 promote the proof ceiling beyond `source`.
+
+## 5. Focused acceptance closeout (2026-10-04)
+
+The scoped CP-12 acceptance lane is complete at `implemented/source`: run `37123857213` passed
+the three domain lease fixtures, Core source guard and both target-scoped compile steps. Unified
+workspace CI is not claimed green; durable OS lease/projector, approval-wait lock release,
+effect-time integration, cross-process recovery and live/physical proof remain later work.
