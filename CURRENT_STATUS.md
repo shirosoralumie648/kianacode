@@ -20128,6 +20128,21 @@ limitations: target awaits GitHub CI; no automatic repair/retry, ContextRepair p
 reviewer: source review confirmed that the new metadata assertions preserve the existing failure/zero-handoff/zero-completion contract; no local runtime reviewer
 ```
 
+### H05 structured Responses ContextRepair producer (2026-10-03)
+
+```text
+source_snapshot: isolated commit `ef0c5efb`; integrated commit `022bbf26`; kiana-provider/src/response.rs; .github/workflows/h05-stop-diagnostic.yml; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: OpenAI Responses non-stream `status=failed` and stream `response.failed` now classify only structured `error.code=context_length_exceeded` as ContextRepair; message-only same text and other codes remain Terminal; no automatic repair loop, manifest or lockfile change
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick ef0c5efb; git push origin master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-h05-context-repair-producer-20261003` integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: `responses_context_limit_errors_are_typed_context_repair`; ContextRepair emits `model_context_limit_exceeded` with request_sent=true, side_effect_state=none and retry_class=Never; message-only adversarial response remains `provider_response_incomplete`/Terminal
+exit_code: isolated format/diff 0; integration/push 0; focused GitHub receipt pending
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; one typed OpenAI Responses ContextRepair producer is now source-backed
+proof-level change: none
+limitations: no automatic repair/compaction loop, arbitrary provider-message inference, full provider matrix, unified shard/live/durable/physical proof
+reviewer: isolated provider source/fixture review; no local runtime reviewer
+```
+
 ### CO-06 Company history stack-overflow phase markers (2026-10-03)
 
 ```text

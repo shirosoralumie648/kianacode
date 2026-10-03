@@ -157,10 +157,32 @@ limitations: unified shard siblings, ContextRepair producer/automatic repair, st
 reviewer: exact GitHub job receipts and source fixture review; no local runtime reviewer
 ```
 
+## 4.5 Structured Responses ContextRepair producer
+
+The provider boundary now maps only a structured OpenAI Responses failure code,
+`error.code=context_length_exceeded`, to `ContextRepair`. The mapping is shared by non-stream
+`status=failed` responses and stream `response.failed` events. A message that merely contains the
+same words, or another provider error code, remains terminal. The producer records that the model
+request was sent, no tool side effect was observed, and the error is not admitted to the transport
+retry path.
+
+```text
+source_snapshot: isolated commit `ef0c5efb`; integrated commit `022bbf26`; kiana-provider/src/response.rs; .github/workflows/h05-stop-diagnostic.yml
+worktree_status: OpenAI Responses structured failure producer and focused selector added; non-stream and stream fixtures include a message-only adversarial case; no automatic repair loop, manifest or lockfile change
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; no local tests/build/check/clippy/smoke; root cherry-pick ef0c5efb; git push origin master
+cwd·environment: isolated worktree `/tmp/kiana-h05-context-repair-producer-20261003` integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: `responses_context_limit_errors_are_typed_context_repair`; structured `context_length_exceeded` maps to `model_context_limit_exceeded`/ContextRepair with request_sent=true, side_effect_state=none and retry=Never; message-only same text and non-context provider codes remain Terminal
+exit_code: isolated format/diff 0; integration/push 0; focused GitHub receipt pending on current head
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; one unambiguous OpenAI Responses ContextRepair producer is now source-backed
+proof-level change: none
+limitations: no automatic repair/compaction loop, no arbitrary provider-message inference, no complete provider matrix, unified shard/live/durable/physical proof
+reviewer: isolated provider source/fixture review; no local runtime reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
-- Provider structured-output content failures (empty, invalid JSON, shape and schema mismatch) identify `FormatRepair` at their producer. Invalid local response schemas remain `Terminal`. After a model response arrives, malformed tool-argument JSON, non-object arguments and arguments rejected by the existing tool schema identify `ToolRepair`; Runner records the bounded outcome and reports `model_tool_repair_unavailable` without retrying or handing off a capability. Other provider errors default to `Terminal` unless a typed source explicitly marks an eligible transport rejection. The existing dead-code OutputRepair helper remains inactive and no repair loop is introduced. ContextRepair still has no production error producer because current Provider contracts do not supply an unambiguous typed context-limit signal; no inference from error strings is allowed.
+- Provider structured-output content failures (empty, invalid JSON, shape and schema mismatch) identify `FormatRepair` at their producer. Invalid local response schemas remain `Terminal`. After a model response arrives, malformed tool-argument JSON, non-object arguments and arguments rejected by the existing tool schema identify `ToolRepair`; Runner records the bounded outcome and reports `model_tool_repair_unavailable` without retrying or handing off a capability. OpenAI Responses `error.code=context_length_exceeded` is the first explicit ContextRepair producer for both non-stream and stream failure envelopes; message-only matches and other provider codes remain `Terminal`. Other provider errors default to `Terminal` unless a typed source explicitly marks an eligible transport rejection. The existing dead-code OutputRepair helper remains inactive and no repair loop is introduced.
 - TransportRetry still requires the existing `RetryPolicy` class/status/effect checks, per-attempt budget reservation, deadline, observed-delta fence and cancellation-aware delay. Legacy ModelError without a disposition becomes Terminal; unknown values fail deserialization.
 - `side_effect_state=unknown` 只表示模型请求/传输边界不确定，不替代 capability attempt 的 effect/stop projection。
 - Provider-specific stop detail 和 response IDs 仍只作受限诊断，不能跨 route/model 复用；live provider、账单、外部业务 Outcome 和 physical effect 未证明。
