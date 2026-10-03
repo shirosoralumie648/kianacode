@@ -1972,3 +1972,65 @@ fn run_capability_and_approval_contracts_match_all_producers() {
         );
     }
 }
+
+#[test]
+fn run_cancelling_contract_matches_lifecycle_and_project_invalidation_producers() {
+    let run_id = kiana_domain::RunId::new();
+    let lifecycle_payload = json!({
+        "run_id": run_id,
+        "reason": "user",
+        "cancellation_state": "stopping",
+        "cancellation_reason": "user",
+        "cancel_actor_id": "operator",
+        "cancellation_targets": [kiana_domain::RequestId::new()],
+        "cancellation_at_unix_ms": 123,
+        "cancellation_fact": {},
+    });
+    let project_invalidation_payload = json!({
+        "run_id": run_id,
+        "reason": "data.revocation_requested",
+        "project_root": "/workspace/project",
+    });
+    let required_ids = &["run_id"][..];
+    let allowed_fields = &[
+        "run_id",
+        "reason",
+        "cancellation_state",
+        "cancellation_reason",
+        "cancel_actor_id",
+        "cancellation_targets",
+        "cancellation_at_unix_ms",
+        "cancellation_fact",
+        "project_root",
+    ][..];
+
+    let spec = event_kind_spec("run.cancelling").unwrap();
+    assert_eq!(spec.aggregate_type, "run");
+    assert_eq!(spec.required_ids, required_ids);
+    assert_eq!(spec.allowed_fields, allowed_fields);
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("run.cancelling", 0, 1),
+        Some("legacy_run_event_v0_to_v1")
+    );
+
+    for payload in [lifecycle_payload, project_invalidation_payload] {
+        validate_event_payload("run.cancelling", &payload).unwrap();
+
+        for &id in required_ids {
+            let mut missing_id = payload.clone();
+            missing_id.as_object_mut().unwrap().remove(id);
+            assert_eq!(
+                validate_event_payload("run.cancelling", &missing_id).unwrap_err(),
+                format!("event_required_id_missing:{id}")
+            );
+        }
+
+        let mut unknown_field = payload;
+        unknown_field["unregistered_cancellation_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload("run.cancelling", &unknown_field).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+}

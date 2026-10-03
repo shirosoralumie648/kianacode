@@ -42,6 +42,17 @@ const RUN_AUTHORIZED_FIELDS: &[&str] = &[
 const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
 const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
 const RUN_DELTA_FIELDS: &[&str] = &["run_id", "text"];
+const RUN_CANCELLING_FIELDS: &[&str] = &[
+    "run_id",
+    "reason",
+    "cancellation_state",
+    "cancellation_reason",
+    "cancel_actor_id",
+    "cancellation_targets",
+    "cancellation_at_unix_ms",
+    "cancellation_fact",
+    "project_root",
+];
 const RUN_CAPABILITY_REQUESTED_FIELDS: &[&str] = &[
     "run_id",
     "request_id",
@@ -1213,7 +1224,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.cancelling",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_CANCELLING_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

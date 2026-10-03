@@ -617,4 +617,36 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         );
     }
     assert!(capabilities.contains("Some(run_id) => (\"run\", run_id.to_string())"));
+    assert_eq!(
+        lifecycle.matches("\"run.cancelling\"").count(),
+        1,
+        "expected one lifecycle cancellation writer"
+    );
+    assert_eq!(
+        data_governance.matches("\"run.cancelling\"").count(),
+        1,
+        "expected one project invalidation cancellation writer"
+    );
+    assert!(contracts.contains("const RUN_CANCELLING_FIELDS: &[&str]"));
+    assert!(contracts.contains(
+        "\"run.cancelling\",\n        \"run\",\n        RUN_IDS,\n        RUN_CANCELLING_FIELDS,\n        false,"
+    ));
+    for marker in [
+        "\"run_id\": run_id,",
+        "\"reason\": reason,",
+        "\"cancellation_state\": \"stopping\",",
+        "\"cancellation_reason\": reason,",
+        "\"cancel_actor_id\": context.actor_id,",
+        "\"cancellation_targets\": canonical_targets,",
+        "\"cancellation_at_unix_ms\": at_unix_ms,",
+        "\"cancellation_fact\": fact,",
+        ".with_stream_metadata(\"run\", run_id.to_string(), version + 1)",
+    ] {
+        assert!(
+            lifecycle.contains(marker),
+            "missing typed cancellation producer marker {marker}"
+        );
+    }
+    assert!(data_governance
+        .contains("json!({\"run_id\":run_id,\"reason\":kind,\"project_root\":root})"));
 }
