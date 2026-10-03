@@ -92,6 +92,7 @@ read committed frame
 | `run_tool_contracts_match_cancel_and_dispatch_producers` | `run.tool_call` 与 `run.tool_result` 各自使用精确字段集；缺 capability_request_id、未知 call/result 字段拒绝 |
 | `run_predecessor_contract_matches_lifecycle_producer` | `run.predecessor` 的 run/previous-run/turn/session/semantics 六字段；缺 run_id、未知字段拒绝 |
 | `run_resume_prepared_contract_matches_recovery_producer` | `run.resume_prepared` 的 run/session/actor/snapshot-event/turn 六字段；缺 run_id、未知字段拒绝 |
+| `run_compacted_contract_matches_lifecycle_producer` | `run.compacted` 的 schema/run/tokens-before/tokens-after/summary 字段；缺 run_id、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -484,6 +485,27 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; compacted/receipt/rejected and model/session producer families remain open; no resume durability, cross-process replay or external-effect claim
 reviewer: source trace matched recovery snapshot claim fields, required run identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.18 Run compaction producer contract
+
+`run.compacted` is now registered as a non-terminal run event with the exact fields emitted by the
+lifecycle compaction handler: `schema`, `run_id`, `tokens_before`, `tokens_after` and
+`summary_present`. It requires the run identity and keeps the explicit legacy run migration. The
+fixture rejects a missing `run_id` and unknown fields; no compaction, projection or EventStore
+behavior changed.
+
+```text
+source_snapshot: source commit `d7513491`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `run.compacted` is registered with run aggregate, run_id requirement, non-terminal semantics, legacy run migration and an exact five-field allowlist; no lifecycle or EventStore behavior changed
+command_argv: source trace of the RunnerEvent::Compacted lifecycle producer; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick cad189f0`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_compacted_contract_matches_lifecycle_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; compaction event schema is now bounded to its real lifecycle producer
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; run.receipt/rejected and model/session producer families remain open; no durable compaction replay or external-effect claim
+reviewer: source trace matched compaction schema/tokens/summary fields, migration metadata, required run identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
