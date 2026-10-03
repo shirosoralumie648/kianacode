@@ -21762,3 +21762,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: graph is not an independently durable EventStore aggregate/UI command; DataGovernance cleanup/delete, artifact/index/cache integration, cross-process repair, power-loss, live/physical proof and unified CI remain unproven
 reviewer: exact focused jobs and corrected transitive closure fixture reviewed; no local runtime reviewer
 ```
+
+### Focused CI batch and contract-failure triage (2026-10-04)
+
+```text
+source_snapshot: `c4ed8066`; restored/manual workflows on master; fixture corrections `e7353ebf` and `e207e047`; no manifest or lockfile change
+worktree_status: focused lanes were restored and pushed independently; PD-01 and SC-01 passed, while SC-02/05/07/09 and EQ-08 exposed fixture or formatting drift; current rerun head is `c4ed8066`
+command_argv: `git diff --check`; `cargo fmt --all` for the CI-reported formatting correction; `git push origin master`; `gh workflow run` for the focused lanes; no local test/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions Ubuntu runners are the only runtime test authority
+fixture·cassette: successful focused runs `37145759535` (PD-01), `37145881667` (SC-01), `37146392026` (SC-10), `37146443107` (H05), `37146443285` (OA-03), `37146443958` (OA-02), `37146531403` (CAP-05), `37146531548` (ER-06), `37146531605` (ER-13), `37146532028` (ER-05), `37146532401` (ER-11), `37147814048` (SC-02); failed diagnostic `37146443308` (CM-02 known ER-01 gate) and `37146444083` (CAP-02 result-event persistence fixture); reruns `37147814269`, `37147814273`, `37147814862`, `37147813952` remain in progress at observation
+exit_code: local diff/format commands 0; successful/failed remote conclusions are listed above; no local runtime exit code
+status_change: no additional roadmap card was promoted; successful focused lanes add remote evidence only, and CM-02/CAP-02/ER-01 remain open; EQ-08/SC-05/SC-07/SC-09 reruns remain unclaimed until their current receipts are read
+proof-level_change: none; no promotion beyond source-scoped focused CI evidence
+limitations: unified CI is not claimed green; production entrypoint/storage/policy/inbox integration, ER-01 rejection-event architecture, durable recovery, external/live/physical outcomes remain open; CAP-02 still needs a fresh successful ControlPlane scope fixture
+reviewer: root source/log review plus isolated fixture audits; no local runtime reviewer
+```
