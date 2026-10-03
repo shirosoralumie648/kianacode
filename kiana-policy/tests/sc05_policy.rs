@@ -106,7 +106,9 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
     let bundle = PolicyBundle::new(SecurityPolicyId::new(), 2, 3, rules).unwrap();
     let context = trusted_context();
 
-    let denied = bundle.evaluate(&context, &request("context.search")).unwrap();
+    let denied = bundle
+        .evaluate(&context, &request("context.search"))
+        .unwrap();
     assert!(matches!(denied.decision, PolicyDecision::Deny { .. }));
     assert_eq!(denied.trace.outcome, PolicyOutcome::Deny);
     assert_eq!(
@@ -119,7 +121,9 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
         denied.trace
     );
 
-    let asking = bundle.evaluate(&context, &request("context.vector_search")).unwrap();
+    let asking = bundle
+        .evaluate(&context, &request("context.vector_search"))
+        .unwrap();
     assert!(matches!(asking.decision, PolicyDecision::Ask { .. }));
     assert_eq!(asking.trace.outcome, PolicyOutcome::Ask);
 
@@ -146,7 +150,12 @@ fn stale_snapshot_and_invalid_policy_never_fall_back_to_allow() {
     let bundle = PolicyBundle::new(SecurityPolicyId::new(), 1, 4, vec![rule]).unwrap();
     let context = trusted_context();
     let stale = bundle
-        .evaluate_with_snapshot(&context, &request("context.search"), 5, &bundle.policy_digest)
+        .evaluate_with_snapshot(
+            &context,
+            &request("context.search"),
+            5,
+            &bundle.policy_digest,
+        )
         .unwrap();
     assert!(matches!(stale.decision, PolicyDecision::Deny { .. }));
     assert_eq!(

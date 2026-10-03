@@ -67,8 +67,8 @@ fn security_registry_rejects_unknown_major_duplicate_ids_and_rollback() {
     let successor =
         SecuritySchemaRegistry::successor(&first_successor, 2, 1, 3).expect("successor");
     assert!(successor.validate_successor(&first_successor).is_ok());
-    let unrelated = SecuritySchemaRegistry::successor(&registry, 1, 1, 2)
-        .expect("unrelated successor");
+    let unrelated =
+        SecuritySchemaRegistry::successor(&registry, 1, 1, 2).expect("unrelated successor");
     assert_eq!(
         successor.validate_successor(&unrelated).unwrap_err(),
         "security_schema_registry_digest_rollback"
