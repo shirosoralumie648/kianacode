@@ -21942,3 +21942,63 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: this is documentation and source-guard evidence only; it does not enforce authorization, authenticate principals, provide SecretStore/TOCTOU/egress/recovery controls, certify compliance or prove red-team, external or physical safety; SC-02+ and CP/CAP/ER/PD/DEP/INT remain open
 reviewer: exact focused job, threat taxonomy/crosswalk and proof-ceiling guard reviewed; no local runtime reviewer
 ```
+
+### ER-05 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `dda61aa9`; .github/workflows/er05-jsonl.yml; kiana-domain/src/journal.rs; kiana-eventlog/src/{jsonl.rs,journal_core.rs,event_store_core.rs}; kiana-eventlog/tests/er05_jsonl_v2.rs; docs/roadmap/event-receipt-jsonl-baseline.md
+worktree_status: post-fix focused lane passed without parser, writer, lockfile or second EventLog changes; the earlier permission/checksum fixture drift was corrected before this run
+command_argv: `gh run view 37146532028 --json status,conclusion,headSha,jobs,url`; `gh run view 37146532028 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: ER-05 eventlog target 4/4; fmt and workspace test-target compile success; malformed first frame, checksum tamper, torn-tail repair, legacy-after-v2 refusal and lock/sync source guards remain covered
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-05 roadmap row 131 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: power-loss/NFS/cross-host locking, async queue/backpressure/shutdown ack, projector/checkpoint, backup/retention, external exactly-once and unified CI remain unproven
+reviewer: exact post-fix focused job and eventlog fixture/source boundary reviewed; no local runtime reviewer
+```
+
+### ER-06 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `dda61aa9`; .github/workflows/er06-async-lifecycle.yml; kiana-ports/src/lib.rs; kiana-eventlog/src/{jsonl.rs,stream.rs}; kiana-daemon/src/{lib.rs,run_stream.rs}; kiana-eventlog/tests/er06_async_lifecycle.rs; docs/roadmap/event-receipt-async-baseline.md
+worktree_status: post-fix focused lane passed without async adapter, health digest, lockfile or second EventStore changes; prior health-digest and formatter drift were corrected before this run
+command_argv: `gh run view 37146531548 --json status,conclusion,headSha,jobs,url`; `gh run view 37146531548 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: ER-06 eventlog target 5/5; fmt and workspace test-target compile success; bounded admission, flush/health/cursor/close acknowledgement and closed-state rejection remain covered
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-06 roadmap row 132 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: slow-disk/worker-panic/terminal-flush combinations, projector/checkpoint, backup/retention, cross-process/power-loss behavior, external/live/physical proof and unified CI remain unproven
+reviewer: exact post-fix focused job and bounded lifecycle/source boundary reviewed; no local runtime reviewer
+```
+
+### ER-11 historical focused run audit (2026-10-04)
+
+```text
+source_snapshot: historical run head `dda61aa9`; current head includes subsequent OA-09 changes in kiana-core/src/capability_attempt_projection.rs
+worktree_status: historical run `37146532401` passed its domain 3/3, Core 1/1, fmt and workspace compile jobs; current receipt projection source changed after that run, so no current-head promotion is made
+command_argv: `gh run view 37146532401 --json status,conclusion,headSha,jobs,url`; `gh run view --job 111271526291 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: historical ER-11 receipt contracts/source guard; current-head fresh focused workflow required before changing roadmap row 137
+exit_code: historical remote focused workflow 0; no local runtime exit code
+status_change: ER-11 remains roadmap row 137 🔄 / `feature_status=implemented` / `proof_level=source`
+proof-level_change: none; historical focused evidence is retained but does not cover the changed current source
+limitations: cost/files/evidence/provider receipts, artifact failure, durable projector/restart, multi-entrypoint parity, external/live/physical proof and unified CI remain unproven
+reviewer: source-head comparison against OA-09 commits and historical focused job reviewed; no local runtime reviewer
+```
+
+### ER-13 historical focused run audit (2026-10-04)
+
+```text
+source_snapshot: historical run head `dda61aa9`; current head includes subsequent CAP-02 changes in kiana-core/src/capabilities.rs
+worktree_status: historical run `37146531605` passed its Core source guard, fmt and workspace compile jobs; current finalizer source changed after that run, so no current-head promotion is made
+command_argv: `gh run view 37146531605 --json status,conclusion,headSha,jobs,url`; `gh run view --job 111271523472 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: historical ER-13 result-delivery source guard; current-head fresh focused workflow required before changing roadmap row 139
+exit_code: historical remote focused workflow 0; no local runtime exit code
+status_change: ER-13 remains roadmap row 139 🔄 / `feature_status=implemented` / `proof_level=source`
+proof-level_change: none; historical focused evidence is retained but does not cover the changed current source
+limitations: callback crash/replay, provider receipt/reconcile, terminal shutdown, cross-process delivery recovery, external/live/physical proof and unified CI remain unproven
+reviewer: source-head comparison against CAP-02 commits and historical focused job reviewed; no local runtime reviewer
+```
