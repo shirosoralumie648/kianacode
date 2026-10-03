@@ -582,12 +582,30 @@ pub fn aggregate_receipt_facts(
         if event.payload_recoverable == Some(false) {
             verification = kiana_domain::AggregationVerification::Partial;
         }
-        if event.data.get("committed") == Some(&Value::Bool(false))
-            && verification != kiana_domain::AggregationVerification::Unknown
-        {
-            verification = kiana_domain::AggregationVerification::Partial;
+        let committed = event
+            .data
+            .get("committed")
+            .and_then(Value::as_bool)
+            .or_else(|| {
+                event
+                    .data
+                    .pointer("/result_receipt/committed")
+                    .and_then(Value::as_bool)
+            })
+            .unwrap_or(true);
+        if !committed {
+            let effect_unknown = event.data.get("effect_known") == Some(&Value::Bool(false))
+                || event
+                    .data
+                    .pointer("/result_receipt/effect_known")
+                    .is_some_and(|value| value == &Value::Bool(false));
+            if effect_unknown {
+                verification = kiana_domain::AggregationVerification::Unknown;
+            } else if verification != kiana_domain::AggregationVerification::Unknown {
+                verification = kiana_domain::AggregationVerification::Partial;
+            }
         }
-        if event.kind == "run.model_turn" && event.data["attempted"] == true {
+        if event.kind == "run.model_turn" && committed && event.data["attempted"] == true {
             model_turns = model_turns.saturating_add(1);
             let input = event
                 .data
@@ -613,13 +631,13 @@ pub fn aggregate_receipt_facts(
                 }
             }
         }
-        if event.kind == "execution.result_committed" {
+        if event.kind == "execution.result_committed" && committed {
             committed_executions = committed_executions.saturating_add(1);
             if event.data.get("effect_known") == Some(&Value::Bool(false)) {
                 verification = kiana_domain::AggregationVerification::Unknown;
             }
         }
-        if event.kind == "capability.completed" {
+        if event.kind == "capability.completed" && committed {
             if let Some(changed) = event.data.get("changed").and_then(Value::as_array) {
                 for item in changed {
                     let Some(path) = item.get("path").and_then(Value::as_str) else {
@@ -645,14 +663,18 @@ pub fn aggregate_receipt_facts(
                 );
             }
         }
-        if let Some(refs) = event.data.get("evidence_refs").and_then(Value::as_array) {
-            evidence_ref_digests.extend(refs.iter().map(kiana_domain::json_digest));
+        if committed {
+            if let Some(refs) = event.data.get("evidence_refs").and_then(Value::as_array) {
+                evidence_ref_digests.extend(refs.iter().map(kiana_domain::json_digest));
+            }
         }
-        for field in ["provider_receipt_ref", "provider_receipt_id"] {
-            if let Some(reference) = event.data.get(field).and_then(Value::as_str) {
-                provider_receipt_refs.push(kiana_domain::json_digest(
-                    &json!({"field":field,"reference":reference}),
-                ));
+        if committed {
+            for field in ["provider_receipt_ref", "provider_receipt_id"] {
+                if let Some(reference) = event.data.get(field).and_then(Value::as_str) {
+                    provider_receipt_refs.push(kiana_domain::json_digest(
+                        &json!({"field":field,"reference":reference}),
+                    ));
+                }
             }
         }
     }

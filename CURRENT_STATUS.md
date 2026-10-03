@@ -21712,8 +21712,38 @@ command_argv: gh run view 37124666770 --json status,conclusion,headSha,jobs,url;
 cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
 fixture·cassette: ER-12 domain contract target success; Core aggregation target success; domain/Core target-scoped compiles success; corrected Unknown-effect cassette included
 exit_code: remote focused workflow 0; no local runtime exit code
-status_change: ER-12 roadmap row 138 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+status_change: retracted during source audit; ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`
 proof-level_change: none; per-step focused evidence only, not unified workspace proof
-limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart, external/live/physical proof and unified CI remain unproven
+limitations: committed-only audit found uncommitted changed paths and refs were still aggregated; reducer/assertion correction is pending fresh focused CI; provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart, external/live/physical proof and unified CI remain unproven
 reviewer: exact corrected focused jobs and Unknown precedence reviewed; no local runtime reviewer
+```
+
+### ER-12 committed-only aggregation correction (2026-10-04)
+
+```text
+source_snapshot: current source after `1a71af08`; kiana-core/src/receipts.rs; kiana-core/tests/er12_receipt_aggregation.rs; docs/roadmap/event-receipt-aggregation-baseline.md
+worktree_status: source audit found capability.completed with committed=false still contributed changed paths and refs; reducer now excludes uncommitted model/effect/file/memory/evidence/provider contributions and the focused cassette asserts all are absent
+command_argv: source review; git diff --check; no local tests/build/check/clippy/smoke; fresh GitHub workflow pending after push
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost` now asserts empty files_changed, memory_hits, evidence_ref_digests and provider_receipt_refs for uncommitted output
+exit_code: source/diff checks 0; no local runtime exit code; remote focused result pending
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`
+proof-level_change: none; previous focused receipt is insufficient for committed-only aggregation
+limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart and external/live/physical proof remain open
+reviewer: source audit of reducer, nested result_receipt compatibility and focused cassette; no local runtime reviewer
+```
+
+### CM-06 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `d7dc7dec`; .github/workflows/cm06-source-dependencies.yml; kiana-domain/tests/cm06_source_dependencies.rs; kiana-core/tests/cm06_source_dependencies.rs; docs/roadmap/cm06-source-dependencies-baseline.md
+worktree_status: corrected focused lane passed domain dependency fixture, Core governance guard and both target-scoped no-run compiles; transitive summary closure expectation is included
+command_argv: gh run view 37124531526 --json status,conclusion,headSha,jobs,url; gh run view 37124531526 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `cm06_source_dependencies` domain target 2/2; Core governance guard success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CM-06 roadmap row 155 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: graph is not an independently durable EventStore aggregate/UI command; DataGovernance cleanup/delete, artifact/index/cache integration, cross-process repair, power-loss, live/physical proof and unified CI remain unproven
+reviewer: exact focused jobs and corrected transitive closure fixture reviewed; no local runtime reviewer
 ```

@@ -34,6 +34,13 @@ guard，并只编译这两个 focused test target；本地不等待结果。
 compile steps 全部成功。该回执仍只提升 source/CI evidence，不证明 durable graph aggregate、
 cleanup/delete worker、cross-process repair 或 live/physical effects。
 
+## Focused acceptance closeout (2026-10-04)
+
+The scoped CM-06 acceptance lane is complete at `implemented/source`: run `37124531526` passed
+the domain dependency fixture, Core governance guard and both target-scoped compile steps. Unified
+workspace CI is not claimed green; durable graph aggregation/UI, DataGovernance cleanup/delete,
+artifact/index/cache integration, cross-process repair and live/physical proof remain later work.
+
 ## 限制与交接
 
 - 本步交付的是可重放 graph contract 与 epoch/invalidation projection；graph 还未作为独立

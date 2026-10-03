@@ -64,7 +64,7 @@ fn aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost() 
             run_id,
             3,
             "capability.completed",
-            json!({"run_id":run_id,"committed":false,"effect_known":false,"changed":[{"path":"safe.txt"}]}),
+            json!({"run_id":run_id,"committed":false,"effect_known":false,"changed":[{"path":"safe.txt"}],"schema":"kiana.memory-search.v1","hits":[{"id":"uncommitted"}],"evidence_refs":["artifact:uncommitted"],"provider_receipt_ref":"uncommitted-provider"}),
         ),
     ];
     let aggregation = aggregate_receipt_facts(run_id, &events).unwrap();
@@ -74,6 +74,10 @@ fn aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost() 
     assert_eq!(aggregation.verification, AggregationVerification::Unknown);
     assert_eq!(aggregation.cost_micros, None);
     assert!(!aggregation.cost_estimated);
+    assert!(aggregation.files_changed.is_empty());
+    assert_eq!(aggregation.memory_hits, 0);
+    assert!(aggregation.evidence_ref_digests.is_empty());
+    assert!(aggregation.provider_receipt_refs.is_empty());
 }
 
 #[test]

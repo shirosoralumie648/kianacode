@@ -53,10 +53,10 @@ reducer, and both target-scoped compile steps. The incomplete capability cassett
 records `effect_known=false`, so the sticky `Unknown` assertion is backed by the intended evidence.
 This remains focused source/CI evidence; the proof ceiling remains `source`.
 
-## 5. Focused acceptance closeout (2026-10-04)
+## 5. Focused acceptance audit (2026-10-04)
 
-The scoped ER-12 acceptance lane is complete at `implemented/source`: corrected run `37124666770`
-passed the domain contract fixtures, Core aggregation reducer and both target-scoped compile steps;
-the `effect_known=false` cassette backs the sticky Unknown result. Unified workspace CI is not claimed
-green; provider billing/rate cards, artifact provenance/retention, durable delivery/restart and
-external/live/physical proof remain later work.
+The previous closeout was retracted during source audit: the `committed=false` cassette still added
+its `changed` path, memory hit and refs to aggregation, violating the committed-only contract. The
+reducer and focused assertions are corrected in the next source snapshot; ER-12 remains
+`🔄` / `implemented/source` until a fresh focused GitHub receipt. Provider billing/rate cards,
+artifact provenance/retention, durable delivery/restart and external/live/physical proof remain later work.
