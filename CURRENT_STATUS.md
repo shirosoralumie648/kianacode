@@ -20008,6 +20008,36 @@ limitations: run.rejected remains explicit architecture gate; no complete upcast
 reviewer: exact focused logs and producer/adapter source review; no local runtime reviewer
 ```
 
+### ER-01 current-head EventStore acceptance receipt (2026-10-03)
+
+```text
+source_snapshot: `d852ccb0`; kiana-domain/src/event_contracts.rs; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/{er02_identity.rs,pd08_integrity_scan.rs}; kiana-core/tests/{er01_event_contract_guard.rs,control_plane.rs}; .github/workflows/er01-event-schema.yml
+worktree_status: modern object-payload facts still validate through the shared Memory/JSONL planner; PD-08 integrity fixture now creates 0600 input and passes; no run.rejected kind/aggregate choice or second EventStore path
+command_argv: gh run view 37100921735 --json status,conclusion,headSha,jobs,url; gh run view 37100921735 --log-failed; cargo fmt --all --check; git diff --check; gh workflow run er01-event-schema.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: run 37100921735 / head d852ccb0: kiana-domain er01_event_contract success; kiana-core er01_event_contract_guard success; kiana-eventlog full-crate reached pd08_integrity_scan success but ended with two independent PD-27 failures (`writer_shutdown_dead_writer_cannot_flush`, `writer_registry_holder_not_redacted`); kiana-core real producer selector success 1/2, deny producer failed `event_contract_unknown_required_event_kind` for `run.rejected`
+exit_code: domain/Core guard 0; PD-08 target 0; full EventStore and real producer jobs 101; local format/diff 0
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; shared validator, modern/legacy boundary and PD-08 fixture have current remote receipts, while producer and full-shard closure remain open
+proof-level change: none
+limitations: PD-27 failures are independently audited and do not establish an ER-01 registry defect; `run.rejected` still has request/work_packet/run producers without a selected contract; no complete upcasters, terminal/result reconciliation, durable/live/physical promotion
+reviewer: exact GitHub jobs/logs and source trace; no local runtime reviewer
+```
+
+### PD-27 HardKill fixture correction (2026-10-03)
+
+```text
+source_snapshot: `181fc039`; kiana-eventlog/tests/pd27_writer_queue.rs; kiana-eventlog/src/writer_queue.rs; docs/roadmap/pd27-writer-queue-baseline.md
+worktree_status: isolated audit traced the hard-kill failure to `clean(HardKill)` claiming durable_after=12 and last_admitted=12 after a before cursor of 10; fixture now uses (10,10) only for HardKill, while Graceful/Cancelled retain (12,12); production validation is unchanged
+command_argv: gh run view 37100921735 --log-failed; source/blame trace; isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick 74c7bf45; git push origin master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated audit worktree `/tmp/kiana-pd27-failure-audit-20261003`, integrated repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: `a_hard_killed_writer_can_claim_no_lock_release_and_no_new_durability`; prior run 37100921735 failed with `writer_shutdown_dead_writer_cannot_flush` before correction; label fixture separately remains blocked by the documented redaction/sentinel precedence decision (`writer_registry_holder_not_redacted` vs `writer_registry_holder_secret_detected`)
+exit_code: isolated format/diff 0; integration/push 0; corrected remote receipt pending
+status_change: PD-27 remains roadmap row 619 🔄 / feature_status=partial / proof_level=source; only the inconsistent HardKill fixture input was corrected
+proof-level change: none
+limitations: no real multi-process writer, shutdown, disk-full, lease takeover or physical durability proof; secret sentinel precedence is an unresolved SC-34/PD-27 architecture decision and was not changed
+reviewer: isolated source audit plus exact CI failure trace; no local runtime reviewer
+```
+
 ### ER-01 request identity envelope correction (2026-10-03)
 
 ```text
