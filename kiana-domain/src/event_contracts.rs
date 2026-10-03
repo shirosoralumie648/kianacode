@@ -362,12 +362,18 @@ const RUN_RECEIPT_FIELDS: &[&str] = &[
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
+    "arguments",
     "run_id",
     "session_id",
     "actor_id",
     "project_root",
     "role_id",
     "department_id",
+    "project_trusted",
+    "cell_id",
+    "work_packet_id",
+    "harness",
+    "anti_meeting",
     "capability",
     "operation",
     "risk",
