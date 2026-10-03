@@ -20907,3 +20907,18 @@ proof-level change: none
 limitations: no local runtime result, real third-party provider catalog migration, remote Broker parity, durable approval recovery or external/live/physical proof
 reviewer: source review confirmed server-owned snapshot validation, alias/wire uniqueness, mapper/provider resolver reuse and catalog drift pins; no local runtime reviewer
 ```
+
+### CP-12 focused resource-lease workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/cp12-resource-leases.yml; docs/roadmap/control-plane-resource-lease-baseline.md; kiana-domain/tests/cp12_resource_lease.rs; kiana-core/tests/cp12_resource_guard.rs
+worktree_status: restored a manual GitHub-only workflow for the existing CP-12 canonical write-set, ResourceLease successor/fencing and kernel-lock source guard fixtures; no resource-lease behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cp12-resource-leases.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain cp12_resource_lease and kiana-core cp12_resource_guard; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CP-12 remains total roadmap row 128 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for canonical resources, owner/epoch/fencing and kernel lock guards
+proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
+limitations: docs/roadmap/control-plane.md and the historical CP-12 status block say `✅`/implemented while authoritative docs/roadmap.md row 128 remains `🔄`; ResourceLease does not itself prove durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration or external/live/physical outcomes
+reviewer: source review confirmed canonical path rejection, O_NOFOLLOW/LOCK_NB boundary, authority-backed lease validation and exact fencing-token settlement; no local runtime reviewer
+```
