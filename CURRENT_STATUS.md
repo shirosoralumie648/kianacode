@@ -20353,6 +20353,21 @@ limitations: no local runtime result, restart/cross-process task-ledger proof, p
 reviewer: exact GitHub jobs, driver reset source and budget guard review; no local runtime reviewer
 ```
 
+### H10 focused invocation identity diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h10-invocation-identity-diagnostic.yml; kiana-runner/src/{harness.rs,tools.rs,lib.rs}; kiana-domain/src/{model.rs,execution_identity.rs}; kiana-ports/src/lib.rs; kiana-core/src/dispatch.rs; kiana-runner/tests/{h10_invocation_identity.rs,h10_invocation_identity_guard.rs}
+worktree_status: restored a manual GitHub-only focused workflow for existing H10 whole-batch, duplicate-ID, queue/restore identity fixtures and source guard; no invocation behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h10-invocation-identity-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: h10_invocation_identity and h10_invocation_identity_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H10 remains roadmap row 149 / current row 162 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for the existing stable invocation identity contract
+proof-level change: none
+limitations: no local runtime result, durable Invocation ledger, cross-process CAS/recovery, provider/external/live/physical effect or approval durable proof
+reviewer: source review confirmed whole-batch validation, deterministic tuple-derived request IDs, explicit mapper reuse and checkpoint catalog/identity drift fences; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text

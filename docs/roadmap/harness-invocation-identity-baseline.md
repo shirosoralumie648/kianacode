@@ -35,5 +35,7 @@ approval 和 authority。
 ## 3. Proof ceiling and handoff
 
 H10 proof ceiling 为 `source`：Runner batch 与稳定 request identity 已接入，checkpoint restore
-拒绝 identity/catalog 漂移，CI-only fixtures/source guard 固化。完整 Invocation declaration/dispatch
+拒绝 identity/catalog 漂移，CI-only fixtures/source guard 固化。当前新增
+`.github/workflows/h10-invocation-identity-diagnostic.yml` 作为手动 focused receipt，运行两个
+runner 目标；远程结果不在本地等待。完整 Invocation declaration/dispatch
 ledger、结果立即持久化、审批恢复、跨进程 CAS、provider/external/live/physical effect proof 仍留待 H11+ / H12–H14 / CP/PD/INT。
