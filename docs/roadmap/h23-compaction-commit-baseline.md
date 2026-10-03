@@ -16,3 +16,7 @@
 This is a typed artifact-first/CAS contract. It does not claim a durable artifact adapter,
 cross-store two-phase commit, model-generated summary retry, physical GC or restart recovery; those
 remain later H/PD/SC work.
+
+The manual focused diagnostic workflow [`h23-compaction-commit-diagnostic.yml`](../../.github/workflows/h23-compaction-commit-diagnostic.yml)
+runs the domain artifact/commit fixtures and Core source guard in parallel. An unawaited remote run
+does not raise the proof level.

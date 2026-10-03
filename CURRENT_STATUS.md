@@ -20728,6 +20728,21 @@ limitations: historical CURRENT_STATUS H22 block says row 309 is ✅ while autho
 reviewer: exact missing literal and current source symbols reviewed; no local runtime reviewer
 ```
 
+### H23 focused compaction-commit diagnostic workflow and status conflict (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h23-compaction-commit-diagnostic.yml; kiana-domain/src/{compaction_commit.rs,compact_summary.rs}; kiana-runner/src/{compact.rs,harness.rs}; kiana-runner-protocol/src/lib.rs; tests kiana-domain/h23_compaction_commit.rs and kiana-core/h23_compaction_commit_guard.rs
+worktree_status: restored a manual GitHub-only focused matrix for existing H23 artifact-first/CAS commit fixtures and Core source guard; no compaction commit behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h23-compaction-commit-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h23_compaction_commit and kiana-core h23_compaction_commit_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H23 remains roadmap row 310 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for artifact digest/source cursor/epoch fencing and Core runner provenance guards
+proof-level change: none
+limitations: historical CURRENT_STATUS H23 block says roadmap row 310 is ✅ while authoritative docs/roadmap.md remains 🔄; durable ArtifactStore, cross-store commit, model retry, physical GC, restart recovery and live/physical proof remain open
+reviewer: source review confirmed artifact-first validation, duplicate source identity rejection, workspace/data epoch fences and no filesystem dependency in domain contract; no local runtime reviewer
+```
+
 ### H21 focused guard drift audit and correction (2026-10-03)
 
 ```text

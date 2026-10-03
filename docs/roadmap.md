@@ -478,7 +478,7 @@
 | 307 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译；新增 focused GitHub workflow 复核 ContextPlan 与 runner guard fixtures | `H04`、`H09`、`H18` | 🔄 | [专项卡](roadmap/harness.md#step-h20) |
 | 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀；新增 focused GitHub workflow 复核 request budget 与 stable-prefix fixtures | `H07`、`H20` | 🔄 | [专项卡](roadmap/harness.md#step-h21) |
 | 309 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction；新增 focused GitHub workflow 复核 summary 与 runner compaction fixtures | `H05`、`H11`、`H15`、`H20`、`H21` | 🔄 | [专项卡](roadmap/harness.md#step-h22) |
-| 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | 🔄 | [专项卡](roadmap/harness.md#step-h23) |
+| 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播；新增 focused GitHub workflow 复核 artifact/commit 与 Core guard fixtures | `H13`、`H18`、`H22` | 🔄 | [专项卡](roadmap/harness.md#step-h23) |
 | 311 | W4 | 专项 | [`H24`](roadmap/harness.md#step-h24) | Harness · 完整检查点与显式 Resume | `H13`、`H14`、`H17`、`H18`、`H23` | ✅ | [专项卡](roadmap/harness.md#step-h24) |
 | 312 | W4 | 专项 | [`H25`](roadmap/harness.md#step-h25) | Harness · 重放、故障注入与 Unknown 对账 | `H13`、`H16`、`H23`、`H24` | ✅ | [专项卡](roadmap/harness.md#step-h25) |
 | 313 | W4 | 专项 | [`H26`](roadmap/harness.md#step-h26) | Harness · 澄清请求与权限审批分离 | `H09`、`H14`、`H18`、`H19`、`H24` | ✅ | [专项卡](roadmap/harness.md#step-h26) |
@@ -1509,6 +1509,7 @@
 | 2026-10-03 | `H22` focused diagnostic workflow：恢复手动 GitHub-only domain CompactSummary 与 runner compaction guard 两个目标，复用已有 goal/pending/evidence/no-placeholder/fallback fixtures，未运行本地测试；权威 roadmap row 309 仍 🔄，历史 CURRENT_STATUS 的 ✅ 标记冲突单独保留待核对 | 待本提交 |
 | 2026-10-03 | `H22` guard drift audit：run `37115656551` domain summary success，runner guard 仅因 immutable Product-owned prefix marker 已由 compact.rs 移到 harness.rs 而失败；仅扩大 guard source scope，H22 fresh receipt 待 GitHub | `37115656551` |
 | 2026-10-03 | `H22` literal audit：run `37116722113` domain summary success，runner guard 仍找不到已从源码移除的历史 English prefix literal；guard 改查当前 system-prefix 与 PromptBundle decode symbols，H22 fresh receipt 待 GitHub | `37116722113` |
+| 2026-10-03 | `H23` focused diagnostic workflow：恢复手动 GitHub-only domain compaction artifact/commit 与 Core source guard 两个目标，复用已有 digest/source-range/epoch/duplicate/CAS fixtures，未运行本地测试；权威 roadmap row 310 仍 🔄，历史 CURRENT_STATUS 的 ✅ 标记冲突单独保留待核对 | 待本提交 |
 | 2026-10-03 | `H10` queue/restore fixture drift：run `37109457432` 的 batch/duplicate fixtures 与 source guard 通过，queue/restore fixture 仍按旧 tuple-array 读取 pending tool request，当前 checkpoint 已是显式 `{request_id,call,phase}` 结构；仅更新 fixture 读取稳定 `request_id` 字段，不改 restore/identity 校验 | `37109457432` |
 | 2026-10-03 | `H11` observation classification audit：run `37110152510` 的 unknown/no-retry、untrusted output 与 source guard 通过，但 known `execution_failed` 被 policy 的 `requires_new_authorization` precedence 错分为 Denied，阻断 bounded model repair；修复分类 precedence，保留其他需授权错误的 Denied/no-retry 边界 | `37110152510` |
 | 2026-10-03 | `H11` focused correction receipt：run `37110570321` / head `14a1d9a4` 的 `h11_tool_observation` 与 `h11_tool_observation_guard` 两个 job 全部 success；H11 仍 source，不宣称自动 repair loop、durable Invocation、external/live/physical | `37110570321` |
