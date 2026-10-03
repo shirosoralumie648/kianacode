@@ -26,8 +26,9 @@ cargo test -p kiana-core --test cm06_source_dependencies --locked -- --test-thre
 cargo check --workspace --tests --locked
 ```
 
-本地只执行格式、workspace test-target 静态编译和 `git diff --check`；不执行测试，也不等待
-GitHub CI。
+本地只执行格式和 `git diff --check`；不执行测试或 workspace compile。
+`.github/workflows/cm06-source-dependencies.yml` 在 GitHub Actions 运行 domain fixture、Core
+guard 与 workspace test-target compile，且本地不等待结果。
 
 ## 限制与交接
 

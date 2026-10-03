@@ -21027,3 +21027,18 @@ proof-level_change: none; source plus remote CI wiring only, with no post-fix re
 limitations: CP-13's prior CM-02 failure and source correction still require a fresh post-fix receipt; JSONL power-loss/cross-process contention, OS spawn crash windows, provider/connector exactly-once and full approval resume remain open
 reviewer: source review confirmed exact permit/request/project/invocation binding, authority recheck, atomic dispatching/executing consume, forged pre-existing execution rejection and Broker verify-before-handler order; no local runtime reviewer
 ```
+
+### CM-06 focused source-dependency workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/cm06-source-dependencies.yml; docs/roadmap/cm06-source-dependencies-baseline.md; kiana-domain/src/source_dependencies.rs; kiana-domain/src/{context_scope.rs,governance.rs,memory.rs}; kiana-core/src/data_governance.rs; kiana-domain/tests/cm06_source_dependencies.rs; kiana-core/tests/cm06_source_dependencies.rs
+worktree_status: restored a manual GitHub-only workflow for the existing deterministic SourceDependencyGraph, reverse impact closure, monotonic data_epoch invalidation and Core governance no-authority-bypass guard fixtures; no graph behavior, EventStore authority, shard manifest, lockfile or second cleanup path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cm06-source-dependencies.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain cm06_source_dependencies and kiana-core cm06_source_dependencies; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CM-06 remains total roadmap row 155 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for deterministic graph digest/closure, unrelated-source isolation, epoch rollback denial and governance integration markers
+proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
+limitations: docs/roadmap/context-memory.md and the historical CM-06 status block say `✅`/implemented while authoritative docs/roadmap.md remains `🔄`; graph is not an independently durable aggregate/UI command, DataGovernance cleanup/delete workers and artifact/index/cache integration remain open, with no cross-process/power-loss or external/live/physical proof
+reviewer: source review confirmed bounded node/edge validation, canonical ordering/digest, reverse BFS closure, unknown/self/duplicate/gap rejection, monotonic data epoch and no-delete/no-authority mutation boundary; no local runtime reviewer
+```
