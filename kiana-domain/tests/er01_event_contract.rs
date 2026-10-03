@@ -198,6 +198,77 @@ fn result_event_contracts_accept_only_their_result_fields() {
 }
 
 #[test]
+fn capability_requested_and_result_delivery_contracts_match_producers() {
+    let invocation = event_kind_spec("invocation.executing").unwrap();
+    let capability_requested = event_kind_spec("run.capability_requested").unwrap();
+    assert!(capability_requested.allowed_fields.contains(&"request_id"));
+    assert!(capability_requested
+        .allowed_fields
+        .contains(&"capability_request_id"));
+    assert!(capability_requested
+        .required_ids
+        .contains(&"capability_request_id"));
+
+    let mut capability_payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "request_id": kiana_domain::RequestId::new(),
+        "capability_request_id": kiana_domain::RequestId::new(),
+        "capability": "shell",
+        "operation": "shell.exec",
+        "risk": "low",
+        "attempt": 1,
+        "effect_started": false,
+        "effect_known": true,
+        "zero_effect": true,
+        "stop_state": "not_requested",
+        "fenced": false,
+    });
+    validate_event_payload("run.capability_requested", &capability_payload).unwrap();
+    capability_payload
+        .as_object_mut()
+        .unwrap()
+        .remove("capability_request_id");
+    assert_eq!(
+        validate_event_payload("run.capability_requested", &capability_payload).unwrap_err(),
+        "event_required_id_missing:capability_request_id"
+    );
+
+    let delivery = event_kind_spec("result.delivery_claimed").unwrap();
+    for field in [
+        "result_digest",
+        "receipt_digest",
+        "outcome_state",
+        "outcome_ready",
+        "delivery_policy",
+    ] {
+        assert!(
+            delivery.allowed_fields.contains(&field),
+            "result.delivery_claimed field not allowed: {field}"
+        );
+    }
+    assert_eq!(
+        delivery.allowed_fields.len(),
+        invocation.allowed_fields.len() + 5
+    );
+
+    let mut delivery_payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "capability_request_id": kiana_domain::RequestId::new(),
+        "result_digest": format!("sha256:{}", "a".repeat(64)),
+        "receipt_digest": format!("sha256:{}", "b".repeat(64)),
+        "outcome_state": "succeeded",
+        "outcome_ready": true,
+        "delivery_policy": "single_advance",
+    });
+    validate_event_payload("result.delivery_claimed", &delivery_payload).unwrap();
+    delivery_payload["unknown_delivery_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("result.delivery_claimed", &delivery_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

@@ -1126,6 +1126,7 @@ impl ControlPlane {
                     "run.capability_requested",
                     json!({"run_id":run_id,
                         "request_id":original.request_id,
+                        "capability_request_id":original.request_id,
                         "capability":original.capability,
                         "operation":original.operation,
                         "risk":original.risk,
@@ -1169,7 +1170,8 @@ impl ControlPlane {
         )
         .await?;
         self.record_event(request_id,sequence,"run.capability_requested",json!({"run_id":run_id,
-            "request_id":request.request_id,"capability":request.capability,"operation":request.operation,"risk":request.risk,
+            "request_id":request.request_id,"capability_request_id":request.request_id,
+            "capability":request.capability,"operation":request.operation,"risk":request.risk,
             "cell_id":request.cell_id,"capability_grant_id":request.capability_grant_id,"budget_lease_id":request.budget_lease_id,
             "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
             "stop_state":"not_requested","fenced":false,

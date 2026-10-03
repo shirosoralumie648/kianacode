@@ -275,6 +275,13 @@ const CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
 const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!("result_receipt", "result_source");
 const EXECUTION_RESULT_FIELDS: &[&str] =
     invocation_fields!("outcome_state", "outcome_ready", "result_receipt");
+const RESULT_DELIVERY_FIELDS: &[&str] = invocation_fields!(
+    "result_digest",
+    "receipt_digest",
+    "outcome_state",
+    "outcome_ready",
+    "delivery_policy"
+);
 const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "run_id",
     "session_id",
@@ -1355,7 +1362,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "result.delivery_claimed",
         "result_delivery",
         INVOCATION_IDS,
-        INVOCATION_FIELDS,
+        RESULT_DELIVERY_FIELDS,
         false,
         Some("legacy_invocation_event_v0_to_v1")
     ),

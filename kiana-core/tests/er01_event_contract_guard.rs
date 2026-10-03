@@ -7,6 +7,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let approvals = include_str!("../../kiana-core/src/approvals.rs");
     let capabilities = include_str!("../../kiana-core/src/capabilities.rs");
+    let dispatch = include_str!("../../kiana-core/src/dispatch.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -118,4 +119,23 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(approvals.contains(
         "\"approval_id\": approval_id,\n                        \"run_id\": persisted_approval.run_id,\n                        \"error\": \"approval_continuation_unavailable\","
     ));
+    assert!(capabilities.contains(
+        "\"request_id\":original.request_id,\n                        \"capability_request_id\":original.request_id,"
+    ));
+    assert!(capabilities.contains(
+        "\"request_id\":request.request_id,\"capability_request_id\":request.request_id,"
+    ));
+    assert!(dispatch.contains("\"result.delivery_claimed\""));
+    for marker in [
+        "\"result_digest\":json_digest",
+        "\"receipt_digest\":receipt_digest",
+        "\"outcome_state\":outcome_state",
+        "\"outcome_ready\":true",
+        "\"delivery_policy\":\"single_advance\"",
+    ] {
+        assert!(
+            dispatch.contains(marker),
+            "missing result delivery producer field {marker}"
+        );
+    }
 }
