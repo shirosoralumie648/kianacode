@@ -20038,6 +20038,21 @@ limitations: focused targets do not prove full crate shards, ContextRepair produ
 reviewer: exact GitHub jobs and source fixture review; no local runtime reviewer
 ```
 
+### H05 focused current-head acceptance receipt (2026-10-03)
+
+```text
+source_snapshot: `31d79ad4`; `.github/workflows/h05-stop-diagnostic.yml`; H05 domain/runner/provider focused fixtures
+worktree_status: focused manual workflow; product/manifest/lockfile/unified shard unchanged
+command_argv: gh run view 37097488794 --json headSha,status,conclusion,jobs,url; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub-only runtime execution
+fixture·cassette: all six jobs successful: h05_model_outcome, h05_stop_guard, explicit incomplete status/stream, structured FormatRepair, malformed ToolRepair
+exit_code: six remote jobs 0; local format/diff 0
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; current-head focused stop/recovery matrix is fully receipted
+proof-level change: none
+limitations: no full crate green, ContextRepair producer/automatic repair, stream accumulator, budget/live provider, billing, external effect or physical proof
+reviewer: exact GitHub jobs and source fixture review; no local runtime reviewer
+```
+
 ### H05 incomplete-stop diagnostic retention fixture (2026-10-03)
 
 ```text

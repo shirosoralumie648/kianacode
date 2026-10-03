@@ -136,6 +136,27 @@ limitations: ContextRepair producer/automatic repair loops, complete unified sha
 reviewer: exact GitHub job receipts and source fixture review; no local runtime reviewer
 ```
 
+## 4.4 Focused H05 acceptance receipt
+
+Manual workflow `37097488794` at head `31d79ad4` completed successfully across all six matrix
+jobs: domain `h05_model_outcome`, runner `h05_stop_guard`, and provider selectors for incomplete
+status responses, incomplete stream events, structured-output FormatRepair, and malformed tool
+argument ToolRepair. This is the first current-head receipt for the newly retained incomplete
+diagnostic assertions as well as the existing length and repair boundaries.
+
+```text
+source_snapshot: `31d79ad4`; `.github/workflows/h05-stop-diagnostic.yml`; H05 domain/runner/provider source fixtures
+worktree_status: focused manual workflow only; product behavior, manifest, lockfile and unified shard map unchanged
+command_argv: gh run view 37097488794 --json headSha,status,conclusion,jobs,url; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; six selected targets ran only on GitHub Actions
+fixture·cassette: six jobs all success: h05_model_outcome, h05_stop_guard, explicit_incomplete_statuses, explicit_incomplete_stream_events, structured_output_format_repair, malformed_tool_arguments
+exit_code: all six remote jobs 0; local format/diff 0
+status_change: H05 remains row 047 `🔄` / `feature_status=partial` / `proof_level=source`; focused current-head matrix has a complete receipt
+proof-level change: none; no full-crate, live provider, billing, external effect or physical promotion
+limitations: unified shard siblings, ContextRepair producer/automatic repair, stream accumulator, budget/live provider and physical contracts remain open
+reviewer: exact GitHub job receipts and source fixture review; no local runtime reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
