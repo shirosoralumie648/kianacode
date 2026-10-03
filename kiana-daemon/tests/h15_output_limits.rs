@@ -1,6 +1,7 @@
 #[test]
 fn huge_tool_output_is_bounded_before_buffering() {
     let source = include_str!("../src/harness_capabilities.rs");
+    let output = include_str!("../src/execution_output.rs");
     for marker in [
         "read_capped",
         "READ_CHUNK_SIZE",
@@ -11,10 +12,11 @@ fn huge_tool_output_is_bounded_before_buffering() {
         "drain_capped",
     ] {
         assert!(
-            source.contains(marker),
+            source.contains(marker) || output.contains(marker),
             "H15 output bound marker missing: {marker}"
         );
     }
+    assert!(source.contains("read_capped"));
     assert!(source.find("read_capped").unwrap() < source.find("child.wait").unwrap());
 }
 
