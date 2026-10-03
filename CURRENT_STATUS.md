@@ -22062,3 +22062,18 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: complete budget/lease/fence/result/cancel/Unknown transaction wiring, post-prepared data-revocation/checkpoint helper failure recovery, cross-process crash recovery, external exactly-once, Secret/egress, external/live/physical proof and unified CI remain open
 reviewer: exact current-head job, permit/read-set CAS and verifier-before-handler boundaries reviewed; no local runtime reviewer
 ```
+
+### CAP-05 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `7e3306e3`; .github/workflows/cap05-permit.yml; kiana-core/src/{dispatch,capabilities}.rs; kiana-domain/src/dispatch.rs; kiana-core/tests/cap05_permit.rs; docs/roadmap/capability-permit-baseline.md
+worktree_status: current-head CAP-05 focused lane passed after capability result-persistence changes; no second permit/authority path, manifest or lockfile changed, and later changes contain only docs/workflow updates outside the permit sources
+command_argv: `gh run view 37158407122 --json status,conclusion,headSha,jobs,url`; `gh run view 37158407122 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: six permit fixtures passed: opaque/empty authorization denial, concurrent single consumption, preexisting executing rejection, prepared identity drift and request drift; target-scoped compile passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CAP-05 roadmap row 143 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: cross-process/power-loss CAS, OS spawn crash window, provider/connector exactly-once, Secret/egress, result/cancel/Unknown full transaction wiring, external/live/physical proof and unified CI remain open
+reviewer: exact current-head job, permit single-consume fixtures and verifier/source boundaries reviewed; no local runtime reviewer
+```
