@@ -20503,6 +20503,21 @@ limitations: no local runtime result, cross-process ArtifactStore, retention/del
 reviewer: exact remote failure logs and current producer/consumer source locations reviewed; no product output logic changed and no local runtime reviewer
 ```
 
+### H15 focused correction receipt (2026-10-03)
+
+```text
+source_snapshot: `7c8c39f1`; kiana-daemon/tests/h15_output_limits.rs follows current execution_output capture helper and domain ExecutionOutputBudget.collect_max_bytes/observed_max_bytes; output production code unchanged
+worktree_status: both focused targets passed after the daemon guard stopped expecting deleted flat constants and instead matched the current budget contract
+command_argv: gh run view 37112741571 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H15 `domain-output-reference` and `daemon-output-limits`; both focused jobs success at head `7c8c39f1`
+exit_code: remote domain job 0; remote daemon job 0
+status_change: H15 remains roadmap row 256 / current row 167 `feature_status=implemented` / `proof_level=source`; typed reference, bounded capture, run fencing, expiry and verified paging now have a current focused receipt
+proof-level change: none
+limitations: no local runtime result, cross-process ArtifactStore, retention/deletion propagation, MCP-wide bounded result or external/live/physical proof
+reviewer: exact focused jobs and current budget/source guard contract reviewed; no local runtime reviewer
+```
+
 ### H17 focused job-handle diagnostic workflow (2026-10-03)
 
 ```text
@@ -20516,6 +20531,36 @@ status_change: H17 remains roadmap row 258 / current row 169 `feature_status=imp
 proof-level change: none
 limitations: no local runtime result, cross-process JobHandle projector, process-group persistence, full output Artifact durability or external/live/physical proof
 reviewer: source review confirmed handle digest/identity binding, owner/run/turn/authority/expiry checks, no-PID-attach restart path and separate continuation operations; no local runtime reviewer
+```
+
+### H16 focused correction receipt (2026-10-03)
+
+```text
+source_snapshot: `0e2b048f`; kiana-core/tests/h16_parallel_barriers.rs now checks the actual dispatch producer for outcome_ready and the projection consumer for result_receipt; scheduling, revocation and outcome logic unchanged
+worktree_status: the first Core guard failure was stale evidence scope: outcome_ready is emitted by kiana-core/src/dispatch.rs while invocation_projection validates the receipt; domain scheduling target already passed
+command_argv: gh run view 37111860884 --log-failed; gh run view 37112109956 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H16 `domain-scheduling` and `core-barriers`; both focused jobs success at head `0e2b048f`
+exit_code: remote domain job 0; remote Core job 0
+status_change: H16 remains roadmap row 257 / current row 168 `feature_status=implemented` / `proof_level=source`; planner, exclusive barrier, revocation and H13 outcome reuse guard coverage now has a current focused receipt
+proof-level change: none
+limitations: no local runtime result, bounded worker pool, cross-process resource CAS, queue-head pressure or external/live/physical proof
+reviewer: exact failure/success jobs and producer/consumer guard scope reviewed; no local runtime reviewer
+```
+
+### H17 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `77aec659`; .github/workflows/h17-job-handle-diagnostic.yml; kiana-domain/tests/h17_job_handle.rs and kiana-daemon/tests/h17_job_handle.rs
+worktree_status: typed JobHandle round-trip/tamper and daemon owner/PID-reuse/no-restart/operation-boundary guards passed; no process behavior changed
+command_argv: gh run view 37112412428 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H17 `domain-job-handle` and `daemon-job-handle`; both focused jobs success at head `77aec659`
+exit_code: remote domain job 0; remote daemon job 0
+status_change: H17 remains roadmap row 258 / current row 169 `feature_status=implemented` / `proof_level=source`; typed owner/authority/TTL fencing, restart no-attach and distinct continuation invocation evidence now has a current focused receipt
+proof-level change: none
+limitations: no local runtime result, cross-process JobHandle projector, process-group persistence, full output Artifact durability or external/live/physical proof
+reviewer: exact focused job receipts and JobHandle source/guard review; no local runtime reviewer
 ```
 
 ### H14 focused correction receipt (2026-10-03)
