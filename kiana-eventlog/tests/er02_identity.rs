@@ -7,7 +7,7 @@ use serde_json::json;
 async fn event_id_reuse_is_denied() {
     let store = MemoryEventLog::new();
     let request_id = RequestId::new();
-    let first = RuntimeEvent::new(request_id, 1, "run.accepted", json!({"run_id":"run-1"}))
+    let first = RuntimeEvent::new(request_id, 1, "run.started", json!({"run_id":"run-1"}))
         .unwrap()
         .with_stream_metadata("run", "run-1", 1);
     let mut duplicate = first.clone();
@@ -39,7 +39,7 @@ async fn same_request_different_command_digest_conflicts() {
 async fn malformed_identity_links_are_denied_before_append() {
     let store = MemoryEventLog::new();
     let request_id = RequestId::new();
-    let mut malformed = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    let mut malformed = RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
     malformed.causation_event_id = Some(malformed.event_id);
     assert!(matches!(
         store.append(malformed).await,
@@ -47,7 +47,7 @@ async fn malformed_identity_links_are_denied_before_append() {
     ));
 
     let mut command_without_correlation =
-        RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+        RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
     command_without_correlation.command_id = Some(RequestId::new());
     command_without_correlation.correlation_id = None;
     assert!(matches!(
@@ -117,7 +117,7 @@ async fn assert_identity_link_drift_denied(link: IdentityLink) {
     let request_id = RequestId::new();
     let command_id = distinct_request_id(&[request_id]);
     let correlation_id = distinct_request_id(&[request_id]);
-    let first_base = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    let first_base = RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
     let causation_event_id = distinct_event_id(&[first_base.event_id]);
     let parent_event_id = distinct_event_id(&[first_base.event_id, causation_event_id]);
     let first = first_base
@@ -130,7 +130,7 @@ async fn assert_identity_link_drift_denied(link: IdentityLink) {
         .with_idempotency_key("er02-identity-key");
     store.append_idempotent(first).await.unwrap();
 
-    let drifted_base = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    let drifted_base = RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
     let (drifted_command_id, drifted_correlation_id, drifted_causation_id, drifted_parent_id) =
         match link {
             IdentityLink::CommandId => (
@@ -197,7 +197,7 @@ fn transition(command_id: RequestId, digest: char) -> TransitionBatch {
     let event = RuntimeEvent::new(
         command_id,
         1,
-        "run.accepted",
+        "run.started",
         json!({"run_id":"run-identity"}),
     )
     .unwrap()

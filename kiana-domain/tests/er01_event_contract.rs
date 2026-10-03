@@ -1651,6 +1651,7 @@ fn run_lifecycle_contracts_match_real_producers_and_reject_drift() {
             "role_catalog_version",
             "role_input_schema",
             "role_output_schema",
+            "decision",
         ][..]
     );
     assert_eq!(
