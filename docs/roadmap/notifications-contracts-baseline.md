@@ -141,3 +141,11 @@ production contract, assertion, or expected error code changed.
 A manual focused lane is restored from the historical workflow. It runs the NM-01 domain fixture,
 Core source guard, NM-00 notification baseline guard, and target-scoped `--no-run` compilation for
 all three targets. A fresh GitHub receipt is required before any status or proof-level promotion.
+
+## 10. Focused CI receipt (2026-10-03)
+
+Run `37133064068` at head `b3b8f8e6` completed successfully. Formatting, the NM-01 domain
+contract target, the Core source guard, the NM-00 notification baseline guard, and all three
+target-scoped `--no-run` compilation steps passed. NM-01 remains `partial/source`: the receipt
+covers contract fixtures and source guards only, not notification persistence, materialization,
+delivery or external channels.

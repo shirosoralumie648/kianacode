@@ -21148,6 +21148,21 @@ limitations: no NotificationStore, recipient resolver, materializer, outbox, del
 reviewer: exact GitHub compiler errors and Git-history fixture comparison reviewed; no local runtime reviewer
 ```
 
+### NM-01 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `b3b8f8e6`; .github/workflows/nm01-contracts.yml; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs; kiana-core/tests/notifications_baseline.rs; docs/roadmap/notifications-contracts-baseline.md
+worktree_status: formatting, NM-01 domain contracts, Core source guard, NM-00 baseline guard and all three target-scoped no-run compiles passed; test helper bound/shadowing correction did not alter production code or assertions
+command_argv: gh run view 37133064068 --json status,conclusion,headSha,jobs,url; gh run view 37133064068 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `nm01_contracts` success; `nm01_contracts_guard` success; `notifications_baseline` success; domain/Core/baseline target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: NM-01 remains roadmap row 097 `🔄` / `feature_status=partial` / `proof_level=source`; current focused contract and baseline evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: no NotificationStore, recipient resolver, materializer, outbox, delivery worker, durable read state, external channel, live or physical proof
+reviewer: exact focused job steps and test-file correction reviewed; no local runtime reviewer
+```
+
 ### OA-03 focused redaction workflow restored (2026-10-03)
 
 ```text
