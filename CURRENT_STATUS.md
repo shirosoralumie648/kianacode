@@ -20368,6 +20368,21 @@ limitations: no local runtime result, durable Invocation ledger, cross-process C
 reviewer: source review confirmed whole-batch validation, deterministic tuple-derived request IDs, explicit mapper reuse and checkpoint catalog/identity drift fences; no local runtime reviewer
 ```
 
+### H09 focused guard drift correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37109051081` / head `06a26f5e`; correction kiana-runner/tests/h09_tool_catalog_guard.rs; provider source kiana-provider/src/request.rs
+worktree_status: H09 catalog guard failed only because it searched for the removed explicit `kiana_domain::tool_wire_name` string; current provider source uses the shared `ToolNameMap::from_tools` and `names.wire_name` resolver, so the guard now pins those actual shared-resolver markers; no catalog/mapper/provider behavior changed
+command_argv: gh run view 37109051081 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: h09_tool_catalog_guard; H09 behavior target log had no reported fixture assertion before the guard failure
+exit_code: remote guard 1 from stale marker; local format/diff checks pending before commit; fresh focused receipt pending after push
+status_change: H09 remains roadmap row 148 / current row 161 `feature_status=implemented` / `proof_level=source`; source guard now matches the current shared provider resolver
+proof-level change: none
+limitations: no local runtime result; fresh H09 workflow required; provider catalog migration, remote Broker parity, durable recovery and external/live/physical proof remain open
+reviewer: exact remote guard failure and provider source review; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text

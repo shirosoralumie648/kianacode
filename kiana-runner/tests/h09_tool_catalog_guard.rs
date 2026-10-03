@@ -39,7 +39,7 @@ fn h09_tool_catalog_is_versioned_and_single_source() {
     }
     assert!(authority.contains("ToolCatalogSnapshot::current().validate()"));
     assert!(tools.contains("catalog.validate()?"));
-    assert!(provider.contains("kiana_domain::tool_wire_name"));
+    assert!(provider.contains("ToolNameMap::from_tools") && provider.contains("names.wire_name"));
     assert!(model.contains("tool_catalog_hash != crate::tool_catalog_hash"));
     assert!(actions.contains("tool_catalog_digest"));
     for forbidden in [
