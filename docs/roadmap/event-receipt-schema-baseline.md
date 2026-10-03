@@ -98,6 +98,7 @@ read committed frame
 | `communication_lifecycle_contracts_match_producers` | handoff acknowledged/rejected 的同构 lifecycle 字段与 incident escalated 的 evidence_refs 变体；缺 message_id、未知字段拒绝 |
 | `communication_send_contracts_match_shared_producer` | 七类 communication send kind 的共享 message/lifecycle/authority/context 八字段；缺 message、未知字段拒绝 |
 | `connector_health_and_handshake_contracts_match_daemon_producers` | connector health 的 12 字段和 MCP handshake 的 10 字段；缺 request/connector/binding ID、未知顶层字段拒绝 |
+| `session_assignment_contract_matches_producer` | session assignment 的稳定 session_id 与 18 个 assignment 顶层字段；缺 session_id、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -619,6 +620,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; nested health/handshake schemas and connector registry replay remain owner contracts, with no external transport or credential effect claim
 reviewer: source trace matched both daemon producers, required connector identities, exact top-level fields and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.24 Session assignment producer contract
+
+`session.assigned` now matches the stable assignment envelope written by
+`bind_session_assignment`. Its required identity is `session_id`, which is also the stable
+assignment key; the random RuntimeEvent request envelope remains transport metadata. The registry
+uses an exact 18-field top-level allowlist, session-assignment aggregate and legacy session
+migration. The fixture rejects a missing session ID and unknown fields. No session binding,
+idempotency or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `fb738736`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/sessions.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `session.assigned` now uses session_id as required identity and an exact assignment envelope instead of request fields; existing session binding/idempotency behavior is unchanged
+command_argv: source trace of `bind_session_assignment`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 1b82ff3c`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `session_assignment_contract_matches_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; session assignment identity and top-level payload are now bounded to the real producer
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested principal/project/assignment DTO contracts and cross-process session rebuild remain separate, with no external-effect claim
+reviewer: source trace matched stable session assignment key, exact producer fields and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接

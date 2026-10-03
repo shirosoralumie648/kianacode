@@ -19828,6 +19828,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched both daemon producers, required connector identities, exact top-level fields and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 session assignment producer contract (2026-10-03)
+
+```text
+source_snapshot: source commit `fb738736`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/sessions.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `session.assigned` now uses session_id as required identity and an exact assignment envelope instead of request fields; existing session binding/idempotency behavior is unchanged
+command_argv: source trace of `bind_session_assignment`; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `session_assignment_contract_matches_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; session assignment identity and top-level payload are now bounded to the real producer
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested principal/project/assignment DTO contracts and cross-process session rebuild remain separate, with no external-effect claim
+reviewer: source trace matched stable session assignment key, exact producer fields and deny-first fixture/source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
