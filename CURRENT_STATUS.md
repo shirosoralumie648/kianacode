@@ -20488,6 +20488,21 @@ limitations: no local runtime result, bounded worker pool, cross-process resourc
 reviewer: source review confirmed server-owned scheduling metadata, source-order grouping, exclusive barrier semantics and independent ControlPlane revalidation; no local runtime reviewer
 ```
 
+### H15 focused guard drift audit and correction (2026-10-03)
+
+```text
+source_snapshot: failed remote runs `37111611662` / head `768201eb` and `37111992255` / head `4f2af08d`; kiana-daemon/tests/h15_output_limits.rs; current capture implementation kiana-daemon/src/execution_output.rs plus kiana-domain::ExecutionOutputBudget
+worktree_status: the first daemon target passed 3/4 fixtures but the source guard still looked for READ_CHUNK_SIZE in harness_capabilities after capture moved to execution_output; after that evidence-scope fix, the guard still looked for removed EXEC_OUTPUT_MAX_BYTES while the current contract uses collect_max_bytes/observed_max_bytes; no output behavior changed
+command_argv: gh run view 37111611662 --log-failed; gh run view 37111992255 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: h15_output_limits; artifact scope, expiry and paging fixtures passed in both runs; only huge_tool_output_is_bounded_before_buffering exposed stale markers
+exit_code: run `37111611662` daemon 3/4 behavior fixtures passed with missing READ_CHUNK_SIZE marker; run `37111992255` daemon 3/4 passed with missing EXEC_OUTPUT_MAX_BYTES marker; guard correction now follows execution_output.rs and ExecutionOutputBudget fields
+status_change: H15 remains roadmap row 256 / current row 167 `feature_status=implemented` / `proof_level=source`; the focused target is being re-run after evidence-only marker corrections
+proof-level change: none
+limitations: no local runtime result, cross-process ArtifactStore, retention/deletion propagation, MCP-wide bounded result or external/live/physical proof
+reviewer: exact remote failure logs and current producer/consumer source locations reviewed; no product output logic changed and no local runtime reviewer
+```
+
 ### H17 focused job-handle diagnostic workflow (2026-10-03)
 
 ```text

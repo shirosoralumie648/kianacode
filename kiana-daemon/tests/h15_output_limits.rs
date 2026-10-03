@@ -5,7 +5,8 @@ fn huge_tool_output_is_bounded_before_buffering() {
     for marker in [
         "read_capped",
         "READ_CHUNK_SIZE",
-        "EXEC_OUTPUT_MAX_BYTES",
+        "collect_max_bytes",
+        "observed_max_bytes",
         "output_total_limit",
         "observed_bytes",
         "truncated",
