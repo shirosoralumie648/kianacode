@@ -145,3 +145,10 @@ work-graph fixtures, the Core source guard, and both target-scoped `--no-run` co
 passed. The receipt validates the corrected focused lane only; SW-02 remains `🔄` / `partial/source`
 with typed packet-set binding, durable queue/claim/scheduler behavior, replay/recovery and
 effect-time fencing still open.
+
+## 11. Focused acceptance closeout (2026-10-04)
+
+The scoped acceptance lane is complete at `implemented/source`: run `37129126170` passed the
+domain fixture, Core guard and both target-scoped compile steps. Unified workspace CI is not claimed
+green; typed packet-set binding, durable queue/claim/scheduler, replay/recovery and effect-time
+fencing remain later work.

@@ -21567,3 +21567,18 @@ proof-level_change: none; this is per-step source plus focused CI evidence, not 
 limitations: production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth, durable identity/rotation/revoke, provider effects and unified CI remain unproven
 reviewer: exact focused job steps and checked resolver source reviewed; no local runtime reviewer
 ```
+
+### SW-02 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `ea22bf3b`; .github/workflows/sw02-work-graph.yml; kiana-domain/tests/sw02_work_graph.rs; kiana-core/tests/sw02_work_graph_guard.rs; docs/roadmap/swarm-work-graph-baseline.md
+worktree_status: the complete focused lane passed formatting, SW-02 domain work-graph fixture, Core guard and both target-scoped no-run compiles
+command_argv: gh run view 37129126170 --json status,conclusion,headSha,jobs,url; gh run view 37129126170 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: SW-02 domain work-graph target success; SW-02 Core guard target success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: SW-02 roadmap row 090 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: typed packet-set binding, optional legacy migration, durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery, effect-time fencing and unified CI remain unproven
+reviewer: exact focused job steps and validator source reviewed; no local runtime reviewer
+```
