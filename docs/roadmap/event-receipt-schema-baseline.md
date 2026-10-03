@@ -97,6 +97,7 @@ read committed frame
 | `credential_recovery_contract_matches_typed_producer` | `recovery.credential` 的 run_id/recovery 顶层 envelope；缺 run_id、未知顶层字段拒绝，nested fact 由 CredentialRecoveryFact contract 验证 |
 | `communication_lifecycle_contracts_match_producers` | handoff acknowledged/rejected 的同构 lifecycle 字段与 incident escalated 的 evidence_refs 变体；缺 message_id、未知字段拒绝 |
 | `communication_send_contracts_match_shared_producer` | 七类 communication send kind 的共享 message/lifecycle/authority/context 八字段；缺 message、未知字段拒绝 |
+| `connector_health_and_handshake_contracts_match_daemon_producers` | connector health 的 12 字段和 MCP handshake 的 10 字段；缺 request/connector/binding ID、未知顶层字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -596,6 +597,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; lifecycle transition and nested DTO contracts remain separate, with no durable notification delivery or external channel claim
 reviewer: source trace matched shared send producer, seven event-kind mappings, required message identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.23 Connector health and MCP handshake producer contracts
+
+The connector health event already had a fixed top-level envelope and now has an explicit ER-01
+fixture/source guard. The previously opaque `connector.mcp_handshake` event is registered with its
+own exact ten-field envelope. Both events use the connector aggregate, require request/connector/
+binding identity, remain non-terminal and have no migration declaration. Nested health and
+handshake values remain validated by their existing DTO contracts; no connector behavior or
+EventStore validation changed.
+
+```text
+source_snapshot: source commit `e92bf2e8`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/connectors.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: connector.health_checked is pinned to its existing 12-field top-level producer and connector.mcp_handshake is newly registered with an exact 10-field allowlist; required IDs, connector aggregate and non-terminal semantics are explicit; nested DTOs remain owner-scoped
+command_argv: source trace of daemon health/handshake event producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick fd952df1`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `connector_health_and_handshake_contracts_match_daemon_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; connector health and previously opaque MCP handshake envelopes are now bounded
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested health/handshake schemas and connector registry replay remain owner contracts, with no external transport or credential effect claim
+reviewer: source trace matched both daemon producers, required connector identities, exact top-level fields and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接

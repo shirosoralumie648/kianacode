@@ -19813,6 +19813,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched shared send producer, seven event-kind mappings, required message identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 connector health and MCP handshake producer contracts (2026-10-03)
+
+```text
+source_snapshot: source commit `e92bf2e8`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-daemon/src/connectors.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: connector.health_checked is pinned to its existing 12-field top-level producer and connector.mcp_handshake is newly registered with an exact 10-field allowlist; required request/connector/binding IDs, connector aggregate and non-terminal semantics are explicit; nested DTOs remain owner-scoped
+command_argv: source trace of daemon health/handshake event producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `connector_health_and_handshake_contracts_match_daemon_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; connector health and previously opaque MCP handshake envelopes are now bounded
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested health/handshake schemas and connector registry replay remain owner contracts, with no external transport or credential effect claim
+reviewer: source trace matched both daemon producers, required connector identities, exact top-level fields and deny-first fixture/source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
