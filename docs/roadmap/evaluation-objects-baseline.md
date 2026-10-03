@@ -122,3 +122,10 @@ proof-level change: unchanged; no local_behavior, durable, live or physical prom
 limitations: post-format GitHub receipt remains pending; this correction changes formatting only
 reviewer: Codex review of the exact two-file formatter diff; no runtime test reviewer
 ```
+## 9. Focused lane restoration (2026-10-03)
+
+The historical EQ-03 workflow was removed during unified workflow consolidation. A manual focused
+lane is restored from the historical commands: it runs the domain evaluation-object fixtures and
+Core source guard, then compiles each target with `--no-run`. The lane isolates EQ-03 evidence from
+unrelated workspace shards; current GitHub results are required before any status or proof-level
+promotion.

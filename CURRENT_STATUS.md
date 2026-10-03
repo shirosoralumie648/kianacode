@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### EQ-03 focused evaluation-object workflow restored (2026-10-03)
+
+```text
+source_snapshot: `b0083460`; .github/workflows/eq03-eval-objects.yml; kiana-domain/src/quality.rs; kiana-domain/tests/eq03_eval_objects.rs; kiana-core/tests/eq03_eval_objects_guard.rs; docs/roadmap/evaluation-objects-baseline.md
+worktree_status: restored a manual GitHub-only lane from the historical EQ-03 commands; it runs domain eval-object fixtures, Core source guard and target-scoped no-run compiles, with no EvalStore, loader, normalizer, evaluator, manifest or second authority path changed
+command_argv: git show 08552ada^:.github/workflows/eq03-eval-objects.yml; cargo fmt --all --check; git diff --check; git push origin master; gh workflow run eq03-eval-objects.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `eq03_eval_objects`; `eq03_eval_objects_guard`; target-scoped `cargo test --no-run --locked` compilation for both; fresh run pending after push
+exit_code: source/diff/dispatch actions pending commit; no local runtime exit code
+status_change: EQ-03 remains roadmap row 102 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored without completion or proof promotion
+proof-level_change: none; source plus remote CI wiring only
+limitations: no EvalStore/fixture-loader persistence, normalization/diff, evaluator/Judge/Experiment/Result/Gate/Promote/Rollback or durable/live replay proof
+reviewer: historical workflow/test comparison and current EQ-03 DTO/source-boundary review; no local runtime reviewer
+```
+
 ### NM-01 focused compile correction and lane restoration (2026-10-03)
 
 ```text

@@ -1,0 +1,28 @@
+name: EQ-03 eval object contracts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-objects:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run EQ-03 eval object fixtures
+        run: cargo test -p kiana-domain --test eq03_eval_objects --locked -- --test-threads=1
+      - name: Run EQ-03 source guard
+        run: cargo test -p kiana-core --test eq03_eval_objects_guard --locked -- --test-threads=1
+      - name: Compile EQ-03 domain target
+        run: cargo test -p kiana-domain --test eq03_eval_objects --no-run --locked
+      - name: Compile EQ-03 Core guard target
+        run: cargo test -p kiana-core --test eq03_eval_objects_guard --no-run --locked
