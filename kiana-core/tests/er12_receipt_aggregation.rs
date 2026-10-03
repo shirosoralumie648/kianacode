@@ -64,7 +64,7 @@ fn aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost() 
             run_id,
             3,
             "capability.completed",
-            json!({"run_id":run_id,"committed":false,"effect_known":false,"changed":[{"path":"safe.txt"}],"schema":"kiana.memory-search.v1","hits":[{"id":"uncommitted"}],"evidence_refs":["artifact:uncommitted"],"provider_receipt_ref":"uncommitted-provider"}),
+            json!({"run_id":run_id,"result_receipt":{"committed":false,"effect_known":false},"effect_known":false,"changed":[{"path":"safe.txt"}],"schema":"kiana.memory-search.v1","hits":[{"id":"uncommitted"}],"evidence_refs":["artifact:uncommitted"],"provider_receipt_ref":"uncommitted-provider"}),
         ),
     ];
     let aggregation = aggregate_receipt_facts(run_id, &events).unwrap();
