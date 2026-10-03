@@ -546,6 +546,35 @@ fn run_receipt_contract_bounds_top_level_projection() {
 }
 
 #[test]
+fn recovery_credential_contract_matches_typed_producer() {
+    let spec = event_kind_spec("recovery.credential").unwrap();
+    assert_eq!(spec.aggregate_type, "run");
+    assert_eq!(spec.required_ids, &["run_id"][..]);
+    assert!(!spec.terminal);
+    assert!(event_migration("recovery.credential", 0, 1).is_none());
+    assert_eq!(spec.allowed_fields, &["run_id", "recovery"][..]);
+
+    let mut payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "recovery": {"schema": "kiana.credential-recovery-event.v1"},
+    });
+    validate_event_payload("recovery.credential", &payload).unwrap();
+
+    let mut missing_run = payload.clone();
+    missing_run.as_object_mut().unwrap().remove("run_id");
+    assert_eq!(
+        validate_event_payload("recovery.credential", &missing_run).unwrap_err(),
+        "event_required_id_missing:run_id"
+    );
+
+    payload["unexpected_recovery_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("recovery.credential", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

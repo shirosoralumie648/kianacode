@@ -13,6 +13,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let recovery = include_str!("../../kiana-core/src/recovery.rs");
     let receipts = include_str!("../../kiana-core/src/receipts.rs");
     let events = include_str!("../../kiana-core/src/events.rs");
+    let credential_recovery =
+        include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -258,4 +260,10 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     }
     assert!(events.contains("receipt[\"work_packet_id\"] = json!(work_packet_id)"));
     assert!(events.contains("receipt[\"input\"] = json!(\"work_packet\")"));
+    assert!(contracts.contains("const RECOVERY_IDS: &[&str] = &[\"run_id\"]"));
+    assert!(contracts.contains("const RECOVERY_FIELDS: &[&str] = &[\"run_id\", \"recovery\"]"));
+    assert!(contracts.contains("\"recovery.credential\""));
+    assert!(credential_recovery.contains("CREDENTIAL_RECOVERY_EVENT_KIND"));
+    assert!(credential_recovery.contains("json!({\"run_id\": self.run_ref, \"recovery\": self})"));
+    assert!(credential_recovery.contains("validate_runtime_event(&event)?"));
 }
