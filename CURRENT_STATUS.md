@@ -21777,3 +21777,18 @@ proof-level_change: none; no promotion beyond source-scoped focused CI evidence
 limitations: unified CI is not claimed green; production entrypoint/storage/policy/inbox integration, ER-01 rejection-event architecture, durable recovery, external/live/physical outcomes remain open; CAP-02 still needs a fresh successful ControlPlane scope fixture
 reviewer: root source/log review plus isolated fixture audits; no local runtime reviewer
 ```
+
+### EQ-08 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `c4ed8066`; .github/workflows/eq08-fixture-loader.yml; kiana-commands/src/eval_fixtures.rs; kiana-commands/tests/eq08_fixture_loader.rs; kiana-core/tests/eq08_fixture_loader_guard.rs; tests/eval/*
+worktree_status: strict declared-file loader and source guard are unchanged in production scope; the valid fixture now passes a relative manifest declaration while absolute and escape paths remain denied
+command_argv: `gh run view 37147814269 --json status,conclusion,headSha,jobs,url`; `gh run view 37147814269 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: commands loader 3/3; Core source guard success; commands/Core target-scoped no-run compile success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-08 roadmap row 107 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; focused CI evidence only
+limitations: loader remains a legacy test adapter, not FixtureStore/DaemonHost/ControlPlane; isolated workspace/home, content-level schema validation, provider/effect evidence, CAS/recovery and unified CI remain EQ-09+ / ER / PD / SC work
+reviewer: exact focused jobs and path-boundary fixture correction reviewed; no local runtime reviewer
+```
