@@ -1953,7 +1953,7 @@ fn run_capability_and_approval_contracts_match_all_producers() {
         );
         validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
 
-        for id in required_ids {
+        for &id in required_ids {
             let mut missing_id = payload.clone();
             missing_id.as_object_mut().unwrap().remove(id);
             assert_eq!(
