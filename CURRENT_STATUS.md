@@ -21627,3 +21627,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: ACK does not drive Company/Swarm dispatch; old request-aggregate facts remain compatibility-only; notification materialization/subscription resolver/outbox/read state/external delivery, cross-process recovery and unified CI remain unproven
 reviewer: exact focused job steps and lifecycle source reviewed; no local runtime reviewer
 ```
+
+### EQ-03 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `9656ad23`; .github/workflows/eq03-eval-objects.yml; kiana-domain/src/quality.rs; kiana-domain/tests/eq03_eval_objects.rs; kiana-core/tests/eq03_eval_objects_guard.rs; docs/roadmap/evaluation-objects-baseline.md
+worktree_status: complete focused lane passed formatting, four EQ-03 domain fixtures, Core source guard and both target-scoped no-run compiles; declared case identity, GoldenTrace bounds and NUL checks are included
+command_argv: gh run view 37135653271 --json status,conclusion,headSha,jobs,url; gh run view 37135653271 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `eq03_eval_objects` 4/4; `eq03_eval_objects_guard` success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-03 roadmap row 102 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: EvalStore/fixture-loader persistence, normalization/diff, evaluator/Judge/Experiment/Result/Gate/Promote/Rollback, authenticated privacy/retention, durable replay and unified CI remain unproven
+reviewer: exact focused job steps and evaluation-object source reviewed; no local runtime reviewer
+```

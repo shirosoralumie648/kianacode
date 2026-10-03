@@ -137,3 +137,10 @@ fixtures, the Core source guard, and both target-scoped `--no-run` compilation s
 receipt includes the declared case identity correction, GoldenTrace aggregate bounds and NUL
 checks. EQ-03 remains `implemented/source`; EvalStore persistence, loader/normalization/diff,
 Judge, experiment/result/gate/promotion and durable replay remain outside this contract step.
+
+## 11. Focused acceptance closeout (2026-10-04)
+
+The scoped EQ-03 acceptance lane is complete at `implemented/source`: run `37135653271` passed
+the four domain fixtures, Core guard and both target-scoped compile steps. Unified workspace CI is
+not claimed green; EvalStore persistence, loader/normalization/diff, Judge, experiment/result/gate,
+promotion and durable replay remain later work.
