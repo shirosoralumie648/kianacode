@@ -20653,6 +20653,21 @@ limitations: historical CURRENT_STATUS H21 block says roadmap row 308 is ✅ whi
 reviewer: source review confirmed shared output reservation, explicit Exact/ConservativeUtf8 accounting, dynamic suffix exclusion and catalog/data epoch cache invalidation; no local runtime reviewer
 ```
 
+### H22 focused compaction diagnostic workflow and status conflict (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h22-compaction-diagnostic.yml; kiana-domain/src/compact_summary.rs; kiana-runner/src/{compact.rs,harness.rs}; tests kiana-domain/h22_compact_summary.rs and kiana-runner/h22_compact_guard.rs
+worktree_status: restored a manual GitHub-only focused matrix for existing H22 evidence-only CompactSummary and runner working-state guards; no compaction behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h22-compaction-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h22_compact_summary and kiana-runner h22_compact_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H22 remains roadmap row 309 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for bounded summary evidence, complete recent groups, pending pairs and no-placeholder fallback
+proof-level change: none
+limitations: historical CURRENT_STATUS H22 block says roadmap row 309 is ✅ while authoritative docs/roadmap.md remains 🔄; admitted summary model/retry, durable summary event, cross-process recovery and live/physical proof remain open
+reviewer: source review confirmed evidence-only summary validation, actionable-state preservation and refusal to infer completion from prose; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text

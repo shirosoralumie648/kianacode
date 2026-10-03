@@ -17,3 +17,7 @@
 The current summary is deterministic local extraction; a real admitted ModelClient compaction
 request, one bounded retry, durable summary event and cross-process recovery remain later H23/H24
 work. No business completion, approval consumption or tool result is inferred from the summary.
+
+The manual focused diagnostic workflow [`h22-compaction-diagnostic.yml`](../../.github/workflows/h22-compaction-diagnostic.yml)
+runs the domain summary fixture and runner compaction guard in parallel. An unawaited remote run does
+not raise the proof level.
