@@ -724,6 +724,115 @@ fn communication_send_contracts_match_shared_producer() {
 }
 
 #[test]
+fn connector_health_and_handshake_contracts_match_daemon_producers() {
+    let health = event_kind_spec("connector.health_checked").unwrap();
+    assert_eq!(health.aggregate_type, "connector");
+    assert_eq!(
+        health.required_ids,
+        &["request_id", "connector_id", "binding_id"][..]
+    );
+    assert!(!health.terminal);
+    assert!(health.migration.is_none());
+    assert_eq!(
+        health.allowed_fields,
+        &[
+            "schema",
+            "request_id",
+            "connector_id",
+            "binding_id",
+            "status",
+            "health",
+            "probe_kind",
+            "checked_at_unix_ms",
+            "project_root",
+            "actor_id",
+            "authorization_id",
+            "request_fingerprint",
+        ][..]
+    );
+    let mut health_payload = json!({
+        "schema": "kiana.connector-health-event.v1",
+        "request_id": kiana_domain::RequestId::new(),
+        "connector_id": "connector-demo",
+        "binding_id": "binding-demo",
+        "status": "connectivity_only",
+        "health": {},
+        "probe_kind": "read_only",
+        "checked_at_unix_ms": 1_700_000_000_000u64,
+        "project_root": "/workspace/project",
+        "actor_id": "actor-1",
+        "authorization_id": "permit-1",
+        "request_fingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    validate_event_payload("connector.health_checked", &health_payload).unwrap();
+    let mut missing_health_id = health_payload.clone();
+    missing_health_id
+        .as_object_mut()
+        .unwrap()
+        .remove("binding_id");
+    assert_eq!(
+        validate_event_payload("connector.health_checked", &missing_health_id).unwrap_err(),
+        "event_required_id_missing:binding_id"
+    );
+    health_payload["unknown_connector_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("connector.health_checked", &health_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+
+    let handshake = event_kind_spec("connector.mcp_handshake").unwrap();
+    assert_eq!(handshake.aggregate_type, "connector");
+    assert_eq!(
+        handshake.required_ids,
+        &["request_id", "connector_id", "binding_id"][..]
+    );
+    assert!(!handshake.terminal);
+    assert!(handshake.migration.is_none());
+    assert_eq!(
+        handshake.allowed_fields,
+        &[
+            "schema",
+            "request_id",
+            "connector_id",
+            "binding_id",
+            "server",
+            "actor_id",
+            "project_root",
+            "authorization_id",
+            "handshake",
+            "proof_level",
+        ][..]
+    );
+    let mut handshake_payload = json!({
+        "schema": "kiana.connector-mcp-handshake-event.v1",
+        "request_id": kiana_domain::RequestId::new(),
+        "connector_id": "connector-demo",
+        "binding_id": "binding-demo",
+        "server": "server-demo",
+        "actor_id": "actor-1",
+        "project_root": "/workspace/project",
+        "authorization_id": "permit-1",
+        "handshake": {},
+        "proof_level": "source",
+    });
+    validate_event_payload("connector.mcp_handshake", &handshake_payload).unwrap();
+    let mut missing_handshake_id = handshake_payload.clone();
+    missing_handshake_id
+        .as_object_mut()
+        .unwrap()
+        .remove("connector_id");
+    assert_eq!(
+        validate_event_payload("connector.mcp_handshake", &missing_handshake_id).unwrap_err(),
+        "event_required_id_missing:connector_id"
+    );
+    handshake_payload["unknown_connector_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("connector.mcp_handshake", &handshake_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

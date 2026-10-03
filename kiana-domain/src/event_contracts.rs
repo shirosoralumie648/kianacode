@@ -510,6 +510,19 @@ const CONNECTOR_HEALTH_FIELDS: &[&str] = &[
     "authorization_id",
     "request_fingerprint",
 ];
+const CONNECTOR_MCP_HANDSHAKE_IDS: &[&str] = &["request_id", "connector_id", "binding_id"];
+const CONNECTOR_MCP_HANDSHAKE_FIELDS: &[&str] = &[
+    "schema",
+    "request_id",
+    "connector_id",
+    "binding_id",
+    "server",
+    "actor_id",
+    "project_root",
+    "authorization_id",
+    "handshake",
+    "proof_level",
+];
 const MODEL_ATTEMPT_LIFECYCLE_FIELDS: &[&str] = &[
     "schema",
     "version",
@@ -975,6 +988,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "connector",
         CONNECTOR_HEALTH_IDS,
         CONNECTOR_HEALTH_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "connector.mcp_handshake",
+        "connector",
+        CONNECTOR_MCP_HANDSHAKE_IDS,
+        CONNECTOR_MCP_HANDSHAKE_FIELDS,
         false,
         None
     ),

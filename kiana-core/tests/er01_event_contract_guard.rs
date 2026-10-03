@@ -16,6 +16,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let credential_recovery =
         include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
     let communication = include_str!("../../kiana-core/src/communication.rs");
+    let daemon_connectors = include_str!("../../kiana-daemon/src/connectors.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -321,6 +322,38 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         assert!(
             communication.contains(marker),
             "missing communication send producer field {marker}"
+        );
+    }
+    for marker in [
+        "CONNECTOR_HEALTH_IDS",
+        "CONNECTOR_HEALTH_FIELDS",
+        "CONNECTOR_MCP_HANDSHAKE_IDS",
+        "CONNECTOR_MCP_HANDSHAKE_FIELDS",
+        "\"connector.health_checked\"",
+        "\"connector.mcp_handshake\"",
+    ] {
+        assert!(
+            contracts.contains(marker),
+            "missing connector contract marker {marker}"
+        );
+    }
+    for marker in [
+        "CONNECTOR_HEALTH_EVENT_KIND",
+        "\"schema\":\"kiana.connector-health-event.v1\"",
+        "\"connector_id\":&fact.connector_id",
+        "\"binding_id\":&fact.binding_id",
+        "\"health\":fact",
+        "\"request_fingerprint\":request_fingerprint",
+        "CONNECTOR_MCP_HANDSHAKE_EVENT_KIND",
+        "\"schema\": \"kiana.connector-mcp-handshake-event.v1\"",
+        "\"connector_id\": snapshot.definition.connector_id",
+        "\"binding_id\": binding_id",
+        "\"handshake\": handshake",
+        "\"proof_level\": \"source\"",
+    ] {
+        assert!(
+            daemon_connectors.contains(marker),
+            "missing connector daemon producer field {marker}"
         );
     }
 }
