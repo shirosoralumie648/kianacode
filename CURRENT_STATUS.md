@@ -21463,6 +21463,21 @@ limitations: ACK does not drive Company/Swarm dispatch, old request-aggregate fa
 reviewer: historical workflow comparison and current lifecycle/source-guard correction review; no local runtime reviewer
 ```
 
+### NM-02 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `b541dc13`; .github/workflows/nm02-lifecycle.yml; f0d47d8f; kiana-domain/src/communication.rs; kiana-domain/tests/nm02_lifecycle.rs; kiana-core/src/communication.rs; kiana-core/tests/nm02_lifecycle_guard.rs; docs/roadmap/notifications-lifecycle-baseline.md
+worktree_status: formatting, NM-02 domain lifecycle fixtures, Core source guard and both target-scoped no-run compiles passed; current terminal-ordering, strict Incident evidence and comment-filtered no-dispatch corrections are included
+command_argv: gh run view 37134681304 --json status,conclusion,headSha,jobs,url; gh run view 37134681304 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `nm02_lifecycle` success; `nm02_lifecycle_guard` success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: NM-02 remains roadmap row 098 `🔄` / `feature_status=partial` / `proof_level=source`; corrected communication lifecycle evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: ACK does not drive Company/Swarm dispatch; old request-aggregate facts remain compatibility-only; notification materialization/subscription resolver/outbox/read state/external delivery/cross-process recovery remain NM-03+ / ER / PD / SC work
+reviewer: exact focused job steps and current source correction reviewed; no local runtime reviewer
+```
+
 ### CI-03 focused compile-gate correction (2026-10-03)
 
 ```text

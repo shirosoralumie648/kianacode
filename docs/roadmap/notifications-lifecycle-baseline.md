@@ -50,3 +50,11 @@ lane is restored from the historical commands: it runs the domain lifecycle fixt
 guard and target-scoped `--no-run` compilation for both targets. The lane uses the current
 terminal-ordering, strict Incident evidence and comment-filtered no-dispatch corrections from
 `f0d47d8f`; a fresh GitHub receipt is required before any status or proof-level promotion.
+
+## 7. Focused CI receipt (2026-10-03)
+
+Run `37134681304` at head `b541dc13` completed successfully. Formatting, both NM-02 lifecycle
+domain/core fixture targets, and both target-scoped `--no-run` compilation steps passed after the
+terminal-ordering, strict Incident evidence and comment-filtered source-guard corrections. NM-02
+remains `🔄` / `partial/source`; ACK does not drive Company/Swarm dispatch and notification
+materialization, delivery, read state and cross-process recovery remain later scope.
