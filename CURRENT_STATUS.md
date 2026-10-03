@@ -21222,3 +21222,18 @@ proof-level_change: none; source plus remote focused CI only
 limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart and external/live/physical proof remain open
 reviewer: exact focused jobs and aggregation precedence/source filtering review; no local runtime reviewer
 ```
+
+### ER-12 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `3db4c3ad`; .github/workflows/er12-receipt-aggregation.yml; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/src/receipts.rs; kiana-core/tests/er12_receipt_aggregation.rs
+worktree_status: corrected incomplete capability cassette now records `effect_known=false`; domain contract, Core aggregation reducer and both target-scoped compile steps passed in GitHub Actions
+command_argv: gh run view 37124666770 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: ER-12 domain contract target success, Core aggregation target success, domain/Core target-scoped compile success; corrected Unknown-effect cassette included
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`; corrected committed-fact aggregation and Unknown precedence have a fresh focused receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart and external/live/physical proof remain open
+reviewer: exact focused jobs and corrected effect-known cassette reviewed; no local runtime reviewer
+```

@@ -47,3 +47,8 @@ retention/revoke、changeset durability、统一 result delivery 与 external/li
 Run `37123857320` at head `3b665bb0` passed the domain contract fixtures, Core aggregation reducer,
 and both target-scoped compile steps. This is current focused source/CI evidence only; the proof
 ceiling remains `source`.
+
+Run `37124666770` at head `3db4c3ad` passed the corrected domain contract fixtures, Core aggregation
+reducer, and both target-scoped compile steps. The incomplete capability cassette now explicitly
+records `effect_known=false`, so the sticky `Unknown` assertion is backed by the intended evidence.
+This remains focused source/CI evidence; the proof ceiling remains `source`.
