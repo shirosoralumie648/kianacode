@@ -20428,6 +20428,21 @@ limitations: no local runtime result, durable Invocation ledger, provider catalo
 reviewer: exact focused job receipts and source/fixture correction review; no local runtime reviewer
 ```
 
+### H11 observation classification correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37110152510` / head `e09b2b3b`; correction kiana-domain/src/capabilities.rs; fixtures kiana-runner/tests/h11_tool_observation.rs
+worktree_status: H11 unknown/no-retry, untrusted output and source guard passed; known `execution_failed:test_output` was classified as Denied because the generic requires_new_authorization policy branch ran before the explicit ModelRepair mapping, so the bounded repair fixture could not reach its second model call; classification now gives only ExecutionFailed/InvalidArguments the FailedKnown status before the generic authorization branch, with no permission or retry bypass
+command_argv: gh run view 37110152510 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: failed_test_observation_allows_bounded_model_fix; tool_observation_is_bounded_and_typed; unknown_result_never_triggers_automatic_retry; tool_output_cannot_grant_permissions; h11_tool_observation_guard
+exit_code: remote behavior 2/4 passed and guard 1/1 passed; local format/diff checks pending before commit; fresh focused receipt pending after push
+status_change: H11 remains roadmap row 150 / current row 163 `feature_status=implemented` / `proof_level=source`; known repairable execution/argument failures now reach the existing one-step model repair path
+proof-level change: none
+limitations: no local runtime result, automatic repair loop, durable Invocation outcome, external effect reconciliation or live/physical proof
+reviewer: exact remote failure and CapabilityErrorPolicy/ToolObservation precedence reviewed; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text

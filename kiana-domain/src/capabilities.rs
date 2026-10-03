@@ -865,6 +865,15 @@ impl ToolObservation {
             && dimensions.effect == CapabilityEffectState::NotStarted
         {
             ToolObservationStatus::CancelledNotStarted
+        } else if error_code.is_some_and(|code| {
+            matches!(
+                code,
+                CapabilityErrorCode::ExecutionFailed | CapabilityErrorCode::InvalidArguments
+            )
+        }) {
+            // These bounded, known failures may be shown to the model for one repair attempt;
+            // they do not grant permission and the next capability request still re-enters Core.
+            ToolObservationStatus::FailedKnown
         } else if error_code.is_some_and(|code| code.policy().requires_new_authorization) {
             ToolObservationStatus::Denied
         } else {
