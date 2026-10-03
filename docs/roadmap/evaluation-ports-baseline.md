@@ -59,3 +59,10 @@ the Core dependency guard, and both target-scoped `--no-run` compilation steps p
 current receipt verifies the seven quality port contracts and their source boundary; EQ-07 remains
 source proof only because production adapters, durable CAS/recovery, scope/path isolation and live
 quality evidence are later work.
+
+## 8. Focused acceptance closeout (2026-10-04)
+
+The scoped EQ-07 acceptance lane is complete at `implemented/source`: run `37136861920` passed
+formatting, the ports fixture, Core dependency guard and both target-scoped compile steps. Unified
+workspace CI is not claimed green; production adapters, durable CAS/recovery, scope/path isolation,
+authenticated source and live quality evidence remain later work.

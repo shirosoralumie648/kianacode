@@ -21553,6 +21553,21 @@ limitations: no production EvalStore/FixtureStore/TraceSource/ArtifactReader/Jud
 reviewer: exact focused job steps and default-deny source guard reviewed; no local runtime reviewer
 ```
 
+### EQ-07 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `1b398350`; .github/workflows/eq07-quality-ports.yml; kiana-ports/src/lib.rs; kiana-ports/tests/eq07_quality_ports.rs; kiana-core/tests/eq07_quality_ports_guard.rs; docs/roadmap/evaluation-ports-baseline.md
+worktree_status: complete focused lane passed formatting, EQ-07 ports fixture, Core dependency guard and both target-scoped no-run compiles; default-deny correction `a8d0aa61` is included and no production adapter or execution path changed
+command_argv: gh run view 37136861920 --json status,conclusion,headSha,jobs,url; gh run view 37136861920 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `eq07_quality_ports` success; `eq07_quality_ports_guard` success; ports/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-07 roadmap row 106 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: no production EvalStore/FixtureStore/TraceSource/ArtifactReader/Judge/MetricsSink/Clock adapter, durable CAS/recovery, scope/path isolation, authenticated source, live quality evidence or unified CI
+reviewer: exact focused job steps and default-deny source guard reviewed; no local runtime reviewer
+```
+
 ### CI-03 focused acceptance closeout (2026-10-04)
 
 ```text
