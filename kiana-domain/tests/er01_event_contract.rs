@@ -189,9 +189,15 @@ fn result_event_contracts_accept_only_their_result_fields() {
         capability_result.allowed_fields.contains(&"outcome"),
         "capability terminal result must retain normalized outcome dimensions"
     );
+    for field in ["cell_id", "capability_grant_id", "budget_lease_id"] {
+        assert!(
+            capability_result.allowed_fields.contains(&field),
+            "capability terminal result must retain scope correlation field: {field}"
+        );
+    }
     assert_eq!(
         capability_result.allowed_fields.len(),
-        invocation.allowed_fields.len() + 5
+        invocation.allowed_fields.len() + 8
     );
 
     let mut execution_payload = json!({
@@ -216,6 +222,9 @@ fn result_event_contracts_accept_only_their_result_fields() {
         "run_id":kiana_domain::RunId::new(),
         "session_id":"session-1",
         "capability_request_id":kiana_domain::RequestId::new(),
+        "cell_id":null,
+        "capability_grant_id":null,
+        "budget_lease_id":null,
         "stdout":"scope captured",
         "outcome": {"schema":"kiana.capability-outcome.v1"},
         "result_receipt":{"receipt_digest":format!("sha256:{}", "b".repeat(64))},

@@ -547,6 +547,9 @@ const CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
 ];
 const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!(
     "session_id",
+    "cell_id",
+    "capability_grant_id",
+    "budget_lease_id",
     "stdout",
     "outcome",
     "result_receipt",
