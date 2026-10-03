@@ -14,7 +14,7 @@ fn transition(command_id: RequestId, aggregate_id: &str, version: u64) -> Transi
     let event = RuntimeEvent::new(
         command_id,
         version,
-        "run.accepted",
+        "run.started",
         json!({"run_id": aggregate_id}),
     )
     .unwrap()
