@@ -112,6 +112,15 @@ pub fn safe_prepared_metadata(prepared: &PreparedModelCall) -> Result<Value, Mod
     // 【⚠ 刻意缺席的字段】 prompt 原文、工具参数、Authorization 头、endpoint 明文 URL、
     // 响应正文。它们都在 `prepared` 里可达，但放进来就等于给泄漏开了口子。
 
+    let budget = json!({
+        "accounting": prepared.budget.accounting,
+        "message_bytes": prepared.budget.messages,
+        "system_prompt_bytes": prepared.budget.system_prompt,
+        "tool_schema_bytes": prepared.budget.tool_schemas,
+        "reserved_output": prepared.budget.reserved_output,
+        "total_bytes": prepared.budget.total,
+        "limit_bytes": prepared.budget.limit,
+    });
     Ok(json!({
         "schema": MODEL_ATTEMPT_TELEMETRY_SCHEMA,
         "model_call_id": prepared.spec.call_id,
@@ -124,7 +133,7 @@ pub fn safe_prepared_metadata(prepared: &PreparedModelCall) -> Result<Value, Mod
         "route_digest": route.digest(),
         "prompt_version": prepared.request_hash,
         "tool_catalog_hash": prepared.tool_catalog_hash,
-        "budget": prepared.budget,
+        "budget": budget,
         "provider_account": prepared.provider_account,
         "credential_revision": prepared.credential_revision,
     }))
