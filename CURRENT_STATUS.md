@@ -21927,3 +21927,18 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: existing UsageRecord/CostLedger/model-budget/receipt/CellRegistry behavior remains unchanged; no UsageVector/NormalizedUsage/RateCard/Money/QuotaReservation/CostCorrection production path, provider invoice/currency/correction ledger, durable quota/capacity projector or unified CI proof is claimed
 reviewer: exact focused job, source inventory, migration marker correction and unknown-usage semantics reviewed; no local runtime reviewer
 ```
+
+### SC-01 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `f28dbed4`; .github/workflows/sc01-threat-register.yml; docs/roadmap/security-threat-register.md; docs/roadmap/security-control-crosswalk.md; docs/roadmap/security-compliance-baseline.md; kiana-core/tests/sc01_threat_register.rs
+worktree_status: SC-01 threat register and fixture catalog are now guarded on the current master head; no runtime authorization, permission, secret path, execution spine, manifest or lockfile change was introduced
+command_argv: `gh run view 37155884244 --json status,conclusion,headSha,jobs,url`; `gh run view 37155884244 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: source fixture 1/1 asserts T01-T12 IDs, impact/owner/control/proof mappings, many-to-many crosswalk, explicit deny-first catalog and non-enforcement proof ceiling; target-scoped compile passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: SC-01 roadmap row 112 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: this is documentation and source-guard evidence only; it does not enforce authorization, authenticate principals, provide SecretStore/TOCTOU/egress/recovery controls, certify compliance or prove red-team, external or physical safety; SC-02+ and CP/CAP/ER/PD/DEP/INT remain open
+reviewer: exact focused job, threat taxonomy/crosswalk and proof-ceiling guard reviewed; no local runtime reviewer
+```
