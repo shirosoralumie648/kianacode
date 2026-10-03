@@ -21912,3 +21912,18 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: no independent durable snapshot/projector/cursor migration journal, full typed reference or multi-aggregate/business-state upcast, object-level acceptance, cross-process recovery or unified CI proof is claimed
 reviewer: exact focused job, duplicate-order correction baseline and reducer/load wiring reviewed; no local runtime reviewer
 ```
+
+### BQ-00 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `66143859`; .github/workflows/bq00-cost-capacity.yml; kiana-core/tests/bq00_cost_capacity_guard.rs; docs/roadmap/billing-quota-cost-baseline.md; kiana-domain/src/usage.rs; kiana-domain/src/budget_contracts.rs; kiana-core/src/{model_budget.rs,receipts.rs,cell_registry.rs}; kiana-provider/src/response.rs
+worktree_status: restored a manual GitHub-only BQ-00 lane and made the baseline handoff markers explicit (`BQ-30` release gate and `missing usage is not zero`); no target billing type, provider invoice, rate card, second ledger, manifest or lockfile was introduced
+command_argv: `gh run view 37155342299 --json status,conclusion,headSha,jobs,url`; `gh run view 37155342299 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: BQ-00 source guard passed current usage/budget/receipt/provider/CellRegistry markers, migration handoff names, optional-usage unknown semantics and manual-only workflow constraints; target-scoped compile passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: BQ-00 roadmap row 189 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: existing UsageRecord/CostLedger/model-budget/receipt/CellRegistry behavior remains unchanged; no UsageVector/NormalizedUsage/RateCard/Money/QuotaReservation/CostCorrection production path, provider invoice/currency/correction ledger, durable quota/capacity projector or unified CI proof is claimed
+reviewer: exact focused job, source inventory, migration marker correction and unknown-usage semantics reviewed; no local runtime reviewer
+```
