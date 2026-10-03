@@ -21867,3 +21867,18 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: attempt projection remains a replayable EventLog view without durable checkpoint/reconcile queue, external effect receipt, provider-side verification, process-group stop confirmation, telemetry exporter or live backend; result persistence/effect uncertainty still requires future reconciliation; unified CI is not claimed green
 reviewer: exact focused job, producer event order and digest-binding correction reviewed; no local runtime reviewer
 ```
+
+### AUT-04 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `e96155dd`; .github/workflows/aut04-trigger.yml; kiana-domain/src/automation.rs; kiana-domain/src/contracts.rs; kiana-workflow/src/durable.rs; kiana-workflow/tests/aut04_trigger_definition.rs; kiana-core/src/automation.rs; kiana-core/tests/aut04_trigger_guard.rs; docs/roadmap/automation-trigger-baseline.md
+worktree_status: restored a manual GitHub-only AUT-04 lane; TriggerDefinition shape/digest and Manual/Event/Interval source admission remain deny-first, with no manifest, lockfile, production execution spine or unrelated WIP change
+command_argv: `gh run view 37154513165 --json status,conclusion,headSha,jobs,url`; `gh run view 37154513165 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: workflow trigger definition target and Core trigger guard passed; owner/role/approval/source evidence, malformed input/expiry/unknown field, occurrence key, duplicate/concurrency/quota and planner no-second-loop boundaries are covered; target-scoped compiles passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: AUT-04 roadmap row 179 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: project/authority/policy revisions remain authenticated ControlPlane context and approval evidence; durable TriggerOccurrence/event envelope/CAS/cursor, multi-scheduler recovery, scheduler and external/live/physical effect proof, and unified CI remain open in AUT-05+
+reviewer: exact focused jobs, trigger shape/source contract and planner purity boundaries reviewed; no local runtime reviewer
+```
