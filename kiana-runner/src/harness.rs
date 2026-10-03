@@ -1485,7 +1485,6 @@ impl KianaHarness {
             .begin_step(run.step_id.expect("step ID was just assigned"), run.steps)
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
-        let mut consumed_next_step_input = false;
         for message in run.inbox.claim(InboxTarget::NextStep) {
             if message
                 .target_turn_id
@@ -1497,7 +1496,6 @@ impl KianaHarness {
                 })?;
                 return Ok(StepProgress::Finished);
             }
-            consumed_next_step_input = true;
             run.messages.push(ModelMessage::user(message.text));
         }
 
@@ -1607,7 +1605,7 @@ impl KianaHarness {
                     .insert_for_run(run_id, target, message)
                     .map_err(KianaHarnessError::Failed)?;
             }
-            if run.inbox.next_step.is_empty() && !consumed_next_step_input && !deferred_next_step {
+            if run.inbox.next_step.is_empty() && !deferred_next_step {
                 let ModelOutput {
                     usage,
                     stop_reason,

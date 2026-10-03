@@ -20638,6 +20638,21 @@ limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejec
 reviewer: exact third failure and mailbox visibility/receipt handoff reviewed; no local runtime reviewer
 ```
 
+### H19 deferred steer extra-step audit (2026-10-03)
+
+```text
+source_snapshot: remote run `37115392899` / head `b6847840`; kiana-runner/src/harness.rs
+worktree_status: protocol and Core jobs passed; runner reached three model calls because the prior completion fence still carried consumed_next_step_input into the second step, forcing a third turn after the deferred message had already been consumed; the correction removes that consumed-input continuation condition and keeps only newly handed-off deferred NextStep as a continuation signal
+command_argv: gh run view 37115392899 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H19 runner deferred-steer failed with model.calls 3 vs 2; protocol/Core remained success
+exit_code: remote runner job failed; fresh receipt awaits the exact-step completion correction
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; one deferred input now schedules exactly one additional model step
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejected`; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: exact fourth failure and two-step completion boundary reviewed; no local runtime reviewer
+```
+
 ### H21 focused request-budget diagnostic workflow and status conflict (2026-10-03)
 
 ```text
