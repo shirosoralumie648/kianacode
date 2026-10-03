@@ -52,3 +52,11 @@ Run `37124666770` at head `3db4c3ad` passed the corrected domain contract fixtur
 reducer, and both target-scoped compile steps. The incomplete capability cassette now explicitly
 records `effect_known=false`, so the sticky `Unknown` assertion is backed by the intended evidence.
 This remains focused source/CI evidence; the proof ceiling remains `source`.
+
+## 5. Focused acceptance closeout (2026-10-04)
+
+The scoped ER-12 acceptance lane is complete at `implemented/source`: corrected run `37124666770`
+passed the domain contract fixtures, Core aggregation reducer and both target-scoped compile steps;
+the `effect_known=false` cassette backs the sticky Unknown result. Unified workspace CI is not claimed
+green; provider billing/rate cards, artifact provenance/retention, durable delivery/restart and
+external/live/physical proof remain later work.

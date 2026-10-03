@@ -21702,3 +21702,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration, external/live/physical proof and unified CI remain unproven
 reviewer: exact focused jobs and successor contract direction reviewed; no local runtime reviewer
 ```
+
+### ER-12 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `3db4c3ad`; .github/workflows/er12-receipt-aggregation.yml; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/src/receipts.rs; kiana-core/tests/er12_receipt_aggregation.rs; docs/roadmap/event-receipt-aggregation-baseline.md
+worktree_status: corrected focused lane passed domain aggregation contract, Core reducer and both target-scoped no-run compiles; incomplete capability cassette explicitly records effect_known=false and preserves Unknown precedence
+command_argv: gh run view 37124666770 --json status,conclusion,headSha,jobs,url; gh run view 37124666770 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: ER-12 domain contract target success; Core aggregation target success; domain/Core target-scoped compiles success; corrected Unknown-effect cassette included
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-12 roadmap row 138 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart, external/live/physical proof and unified CI remain unproven
+reviewer: exact corrected focused jobs and Unknown precedence reviewed; no local runtime reviewer
+```
