@@ -4,6 +4,7 @@ fn expired_or_changed_approval_never_dispatches() {
     let recovery = include_str!("../src/recovery.rs");
     let daemon = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let dispatch = include_str!("../src/dispatch.rs");
+    let domain = include_str!("../../kiana-domain/src/invocation_resume.rs");
     for marker in [
         "pending_with_proof",
         "approval_expired",
@@ -25,7 +26,8 @@ fn expired_or_changed_approval_never_dispatches() {
             approvals.contains(marker)
                 || recovery.contains(marker)
                 || daemon.contains(marker)
-                || dispatch.contains(marker),
+                || dispatch.contains(marker)
+                || domain.contains(marker),
             "H14 expiry/change marker missing: {marker}"
         );
     }
