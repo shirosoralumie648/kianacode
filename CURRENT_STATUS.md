@@ -21837,3 +21837,18 @@ proof-level_change: none; focused CI evidence only
 limitations: observer is a process-local wake/diagnostic hint; durable projector checkpoint/restart scan, backpressure policy, query/export sink, entrypoint wiring, external/live/physical outcomes and unified CI remain open
 reviewer: exact focused jobs and committed-only observer boundaries reviewed; no local runtime reviewer
 ```
+
+### OA-08 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `4513ebe0`; .github/workflows/oa08-model-instrumentation.yml; kiana-provider/src/telemetry.rs; kiana-provider/tests/oa08_provider_telemetry.rs; kiana-core/src/model_attempt_projection.rs; kiana-core/tests/oa08_model_instrumentation.rs
+worktree_status: provider safe summary, daemon/model boundary and committed run.model_turn projection remain source-only; telemetry budget fields now use explicit byte-count names and no request正文/raw response is representable
+command_argv: `gh run view 37151861615 --json status,conclusion,headSha,jobs,url`; `gh run view 37151861615 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: Core model attempt 3/3; provider telemetry 1/1; Core/provider target-scoped no-run compiles success; secret sentinel/malformed/truncated/timeout/retry/missing-usage paths covered
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-08 roadmap row 174 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; focused CI evidence only
+limitations: projection is read-only and source-order; no durable checkpoint, Metric/Trace/Audit exporter, Receipt/cost reconciliation, provider cache instrumentation, retention, live backend or unified CI proof
+reviewer: exact focused jobs and semantic-free budget correction reviewed; no local runtime reviewer
+```
