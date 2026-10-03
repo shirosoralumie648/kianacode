@@ -1,0 +1,28 @@
+name: NM-02 communication lifecycle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  communication-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-02 lifecycle fixtures
+        run: cargo test -p kiana-domain --test nm02_lifecycle --locked -- --test-threads=1
+      - name: Run NM-02 source guard
+        run: cargo test -p kiana-core --test nm02_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile NM-02 domain target
+        run: cargo test -p kiana-domain --test nm02_lifecycle --no-run --locked
+      - name: Compile NM-02 Core guard target
+        run: cargo test -p kiana-core --test nm02_lifecycle_guard --no-run --locked

@@ -42,3 +42,11 @@ GitHub 的统一 `.github/workflows/ci.yml` matrix 在 runner 执行 `nm02_lifec
 远端 `ci` run `36677090825`（`c221c211`）暴露了三处本步边界问题：终态 Handoff transition 的错误分类被 ACK 专用检查遮蔽；core source guard 把注释中的禁用调用名当成执行路径；Incident escalation 的 `evidence_refs` 可缺失或静默丢弃非字符串值。修复后，transition 校验先保留终态/类型错误的稳定分类，Incident 必须至少有一个 evidence ref，ControlPlane 对 evidence 数组执行严格字符串解析，source guard 只检查去除注释后的可执行文本并保留静默丢弃的负向守卫。
 
 本次修复仍只覆盖 NM-02 的 domain/core lifecycle 边界。统一 CI 的完整结果不作为本地证明；roadmap 状态保持 `🔄`，证明上限保持 `proof_level=source`。
+
+## 6. Focused lane restoration (2026-10-03)
+
+The historical NM-02 workflow was removed during unified workflow consolidation. A manual focused
+lane is restored from the historical commands: it runs the domain lifecycle fixture, the Core source
+guard and target-scoped `--no-run` compilation for both targets. The lane uses the current
+terminal-ordering, strict Incident evidence and comment-filtered no-dispatch corrections from
+`f0d47d8f`; a fresh GitHub receipt is required before any status or proof-level promotion.

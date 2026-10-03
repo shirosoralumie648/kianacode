@@ -21448,6 +21448,21 @@ limitations: EventLog commit observer, checkpoint/rebuild, durable projection, q
 reviewer: exact corrected job steps and precedence behavior reviewed; no local runtime reviewer
 ```
 
+### NM-02 focused communication lifecycle workflow restored (2026-10-03)
+
+```text
+source_snapshot: `eb507b0f`; `.github/workflows/nm02-lifecycle.yml`; `f0d47d8f`; kiana-domain/src/communication.rs; kiana-domain/tests/nm02_lifecycle.rs; kiana-core/src/communication.rs; kiana-core/tests/nm02_lifecycle_guard.rs; docs/roadmap/notifications-lifecycle-baseline.md
+worktree_status: restored a manual GitHub-only lane from the historical NM-02 commands; it runs domain lifecycle, Core source guard and target-scoped no-run compiles, with current terminal-ordering, strict Incident evidence and comment-filtered no-dispatch corrections; no manifest, lockfile or second execution path changed
+command_argv: git show e0e0b02c:.github/workflows/nm02-lifecycle.yml; cargo fmt --all --check; git diff --check; git push origin master; gh workflow run nm02-lifecycle.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `nm02_lifecycle`; `nm02_lifecycle_guard`; target-scoped `cargo test --no-run --locked` compilation for both; fresh run pending after push
+exit_code: source/diff/dispatch actions pending commit; no local runtime exit code
+status_change: NM-02 remains roadmap row 098 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring is restored without completion or proof promotion
+proof-level_change: none; source plus remote CI wiring only
+limitations: ACK does not drive Company/Swarm dispatch, old request-aggregate facts remain compatibility-only, notification materialization/subscription resolver/outbox/read state/external delivery/cross-process recovery remain NM-03+ / ER / PD / SC work
+reviewer: historical workflow comparison and current lifecycle/source-guard correction review; no local runtime reviewer
+```
+
 ### CI-03 focused compile-gate correction (2026-10-03)
 
 ```text
