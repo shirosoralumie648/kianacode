@@ -19993,6 +19993,21 @@ limitations: existing malformed known-kind fixtures may fail and require honest 
 reviewer: source review of shared planner and MemoryEventLog deny-first path; no local runtime reviewer
 ```
 
+### ER-01 request identity envelope correction (2026-10-03)
+
+```text
+source_snapshot: `01cd2814` observed CI failure; current source changes kiana-domain/src/event_contracts.rs and kiana-domain/tests/er01_event_contract.rs
+worktree_status: request.accepted/rejected validate their RuntimeEvent request identity in the envelope rather than require an identical payload field; missing/unknown payload fields remain denied
+command_argv: gh run view 37093780910 --job 111119432890 --log-failed; source trace of request producers and RuntimeEvent envelope; cargo fmt --all; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the test authority
+fixture·cassette: at 01cd2814 domain er01_event_contract 32/32 and Core guard 1/1 passed; real ControlPlane target failed 0/2 with event_contract_event_required_id_missing:request_id; new complete-event fixture has no remote receipt yet
+exit_code: domain/Core guard 0; ControlPlane producer selector 101; local format/diff 0
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; exact first compatibility mismatch now has a source correction
+proof-level change: none
+limitations: corrected fixture pending CI; this distinction does not close other event schema mismatches, run.rejected aggregate naming, terminal/result unions, or executed legacy upcasters
+reviewer: exact GitHub failure logs and source trace; no local runtime reviewer
+```
+
 ### H05 incomplete-stop diagnostic retention fixture (2026-10-03)
 
 ```text

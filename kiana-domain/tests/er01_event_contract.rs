@@ -21,6 +21,32 @@ fn event_kind_registry_is_machine_readable_and_bounded() {
 }
 
 #[test]
+fn request_event_identity_is_required_in_the_envelope_not_duplicated_in_payload() {
+    for kind in ["request.accepted", "request.rejected"] {
+        let spec = event_kind_spec(kind).unwrap();
+        assert!(spec.required_ids.is_empty(), "{kind}");
+    }
+
+    let accepted = RuntimeEvent::new(
+        RequestId::new(),
+        1,
+        "request.accepted",
+        json!({"command": "run.start"}),
+    )
+    .unwrap();
+    validate_runtime_event(&accepted).unwrap();
+
+    let rejected = RuntimeEvent::new(
+        RequestId::new(),
+        1,
+        "request.rejected",
+        json!({"reason": "prompt_required"}),
+    )
+    .unwrap();
+    validate_runtime_event(&rejected).unwrap();
+}
+
+#[test]
 fn unknown_required_kind_and_schema_downgrade_fail_closed() {
     assert_eq!(
         unknown_event_policy("future.opaque").unwrap(),

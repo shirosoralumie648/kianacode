@@ -873,6 +873,29 @@ limitations: legacy test fixtures using malformed known-kind payloads may requir
 reviewer: source review of both adapters' shared planner and deny-first fixture
 ```
 
+## 5.35 Request identity stays in the RuntimeEvent envelope
+
+The first EventStore-boundary run, `37093780910` at `01cd2814`, passed the complete domain
+contract target (32/32) and Core source guard (1/1), but both real ControlPlane producer fixtures
+failed when `request.accepted` tried to satisfy `request_id` inside its payload. The producer
+contract places request identity on `RuntimeEvent.request_id`; accepted/rejected payloads contain
+command/reason facts and need not duplicate that identity. `REQUEST_IDS` is now empty for these two
+payload schemas, while the envelope continues to require its typed request ID. A domain fixture
+validates both minimal producer shapes as complete RuntimeEvents.
+
+```text
+source_snapshot: `01cd2814` observed failure; current source adds request-event payload identity correction in kiana-domain/src/event_contracts.rs and kiana-domain/tests/er01_event_contract.rs
+worktree_status: request.accepted/rejected no longer require duplicate payload request_id; envelope identity and bounded allowed-field validation remain intact
+command_argv: gh run view 37093780910 --job 111119432890 --log-failed; producer source trace; cargo fmt --all; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: observed real producer target 0/2 because both failed with event_contract_event_required_id_missing:request_id; complete domain 32/32 and Core guard 1/1; corrected fixture awaits new focused run after push
+exit_code: Core guard/domain targets 0; real producer target 101; current local format/diff 0
+status_change: ER-01 remains row 036 🔄 / partial / source; validator is wired at EventStore, and the first producer compatibility mismatch has a source correction awaiting CI
+proof-level change: none
+limitations: this corrects only the envelope/payload request identity distinction; other existing known-kind legacy fixtures may expose additional schema mismatches; run.rejected aggregate choice, terminal/result unions, complete upcasters and durable/live claims remain open
+reviewer: exact remote logs and trace of RuntimeEvent::request_id plus all request.accepted/rejected writers
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

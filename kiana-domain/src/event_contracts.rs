@@ -11,7 +11,8 @@ use serde_json::Value;
 pub const RUNTIME_EVENT_SCHEMA: &str = "kiana.runtime-event.v1";
 pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
-const REQUEST_IDS: &[&str] = &["request_id"];
+// The request identity is carried by RuntimeEvent.request_id, not duplicated in the payload.
+const REQUEST_IDS: &[&str] = &[];
 const SESSION_ASSIGNMENT_IDS: &[&str] = &["session_id"];
 const RUN_IDS: &[&str] = &["run_id"];
 const RUN_AUTHORIZED_FIELDS: &[&str] = &[
