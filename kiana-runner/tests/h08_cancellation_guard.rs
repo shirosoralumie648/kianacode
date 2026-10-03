@@ -4,6 +4,7 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
     let harness = include_str!("../src/harness.rs");
     let runner_tests = include_str!("h08_cancellation.rs");
     let shell = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let mcp = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
     let dispatch = include_str!("../../kiana-core/src/dispatch.rs");
     for marker in [
@@ -14,8 +15,8 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
         "tokio::time::timeout",
         "cancel_during_retry_wait_prevents_next_attempt",
         "silent_model_is_interrupted_by_deadline",
-        "terminate_process_group",
-        "PROCESS_GROUP_EXIT_GRACE",
+        "ProcessSupervisor::stop",
+        "TERM_GRACE",
         "wait_for_cancellation",
         "mcp_request_stopped",
         "mcp_stop_unconfirmed",
@@ -27,6 +28,7 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
                 || harness.contains(marker)
                 || runner_tests.contains(marker)
                 || shell.contains(marker)
+                || supervisor.contains(marker)
                 || mcp.contains(marker)
                 || dispatch.contains(marker),
             "H08 marker missing: {marker}"
@@ -51,6 +53,7 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
             !ports.contains(forbidden)
                 && !harness.contains(forbidden)
                 && !shell.contains(forbidden)
+                && !supervisor.contains(forbidden)
                 && !mcp.contains(forbidden),
             "forbidden H08 cancellation bypass: {forbidden}"
         );

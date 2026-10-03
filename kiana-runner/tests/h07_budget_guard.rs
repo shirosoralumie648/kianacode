@@ -41,7 +41,7 @@ fn h07_budget_is_shared_and_reserved_before_effects() {
         .find("reserve_attempt(&budget_scope")
         .expect("model attempt must reserve before provider");
     let provider = harness
-        .find("complete_prepared(prepared")
+        .find("complete_prepared_cancellable(prepared")
         .expect("model provider call must remain visible");
     assert!(reserve < provider);
     assert!(harness.contains("settle_attempt(reservation, measured)"));

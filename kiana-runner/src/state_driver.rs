@@ -396,6 +396,7 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
             next.accepted_inputs = 0;
             next.pending_tools = 0;
             next.step_id = None;
+            next.step = 0;
             next.pending_interaction_id = None;
             next.terminal = None;
             next.turn.terminal = None;

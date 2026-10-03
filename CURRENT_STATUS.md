@@ -20322,3 +20322,18 @@ proof-level change: none
 limitations: raw compatibility `resolve_principal` remains callable and no production caller migration is included; no production IdentityResolver adapter, durable identity store, OS credential verification, OAuth, cross-process recovery or provider/live effect is established
 reviewer: source review checked authenticated input validation, resolved Principal validation, exact authentication reference/generation equality and typed conflict; no local runtime reviewer
 ```
+
+### H07/H08 focused CI failure audit and source correction (2026-10-03)
+
+```text
+source_snapshot: remote H07 run `37107522288` / head `af3a111a`; remote H08 run `37107766040` / head `3acdfd1f`; correction source in kiana-runner/src/state_driver.rs, kiana-runner/tests/{h07_budget_guard.rs,h08_cancellation_guard.rs}, kiana-daemon/src/process_supervisor.rs
+worktree_status: H07 Continue fixture failed because RunDriver::BeginTurn reset step_id but retained the prior turn's step counter, so the second turn's first step was rejected as harness_driver_step_invalid; H07 guard still searched for pre-cancellation complete_prepared; H08 guard still searched for removed terminate_process_group/PROCESS_GROUP_EXIT_GRACE markers; H08 daemon shell target independently failed at ER-01 EventStore admission with model_admission_denied:port_failed:event_contract_unknown_required_event_kind
+command_argv: gh run view 37107522288 --log-failed; gh run view 37107766040 --job 111159550495 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: continue_cannot_reset_task_chain_total_budget; h07_budget_is_shared_and_reserved_before_effects; h08_cancellation_fence_covers_model_and_effect_boundaries; cancel_stops_in_flight_shell_before_it_writes
+exit_code: remote H07 behavior 3/4 passed and guard 0/1; remote H08 runner behavior passed, runner guard 0/1, daemon shell 0/1, daemon stream was still in progress; local format/diff checks passed; correction pending fresh remote receipt
+status_change: H07 and H08 remain roadmap rows 146/147 `feature_status=implemented` / `proof_level=source`; H07 BeginTurn now clears the per-turn step counter, and H07/H08 source guards bind current APIs; ER-01 deny producer remains independently blocked and unchanged
+proof-level change: none
+limitations: no local runtime result; fresh focused workflows have not yet run on this correction; H08 daemon shell still requires the ER-01 run.rejected aggregate decision; no durable/cross-process/provider-live/physical proof
+reviewer: remote failure logs, state-driver transition source, current ModelClient cancellation API and ProcessSupervisor source reviewed; no local runtime reviewer
+```

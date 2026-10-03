@@ -20,7 +20,7 @@
 
 Provider 已使用不可变 `PreparedModelCall.deadline_unix_ms`，transport 的 headers/first-event/
 idle/total timeout 只能收紧该期限；Harness retry backoff 也在同一 cancellation select 中等待。
-shell 通过 `terminate_process_group` 后检查 leader/process group，MCP write/read/call 和 stop
+shell 通过 daemon `ProcessSupervisor::stop` 发送 TERM/KILL 并检查 leader/process group，MCP write/read/call 和 stop
 使用同一 watch receiver；无法确认停止的执行进入 `result_unknown`，未启动的调用才可标为
 `not_started`。
 
