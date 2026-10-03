@@ -21252,3 +21252,18 @@ proof-level_change: none; source plus remote focused CI only
 limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart and external/live/physical proof remain open
 reviewer: exact focused jobs and corrected effect-known cassette reviewed; no local runtime reviewer
 ```
+
+### CO-06 current-head GDB diagnostic receipt (2026-10-03)
+
+```text
+source_snapshot: `efca60d9`; .github/workflows/co06-history-diagnostic.yml; kiana-daemon/tests/co06_company_artifact_history.rs; kiana-core/src/commands.rs; docs/roadmap/artifact-evidence-baseline.md
+worktree_status: current-head focused diagnostic compiled one CO-06 fixture and completed the bounded GDB capture; selected target passed 1/1, with no production path or shared manifest change in this receipt
+command_argv: gh run view 37127915623 --json status,conclusion,headSha,jobs,url; gh run view 37127915623 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner with GDB, default stack, debug symbols, bounded argument-free frame capture
+fixture·cassette: `artifact_version_remains_reviewable_after_workspace_file_changes`; workflow structure 184 files/5 automatic/179 manual and 33 members/41 shards/1470 targets; test result 1 passed, 0 failed; debugger_exit_code=0; log_exit_code=0
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CO-06 remains roadmap row 065 `🔄` / `feature_status=partial` / `proof_level=source`; current-head router-boundary diagnostic has a fresh successful receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: this target does not prove the wider CompanyProof artifact readback flow, cross-store atomicity/reconciliation, original/current UI comparison, cross-process recovery, retention/deletion or power-loss durability
+reviewer: exact current-head GDB job and target output reviewed; no local runtime reviewer
+```

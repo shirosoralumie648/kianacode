@@ -285,3 +285,15 @@ proof-level change: none
 limitations: no claim until fresh GDB/daemon target; cross-store atomicity/reconciliation, original/current UI, recovery, retention and durability remain open
 reviewer: source/API compatibility review and exact debugger evidence; no local runtime reviewer
 ```
+
+## 15. Current-head GDB diagnostic receipt (2026-10-03)
+
+Run `37127915623` at head `efca60d9` passed the exact GDB lane. Workflow structure, formatting,
+single-target compilation, bounded debugger capture, and artifact upload all succeeded; the selected
+`artifact_version_remains_reviewable_after_workspace_file_changes` target reported `1 passed, 0
+failed`, with debugger and log exit codes both zero.
+
+This is a fresh diagnostic receipt for the router-boundary fixture only. CO-06 remains `🔄` with
+`feature_status=partial` and `proof_level=source`; cross-store atomicity/reconciliation, product
+original-versus-current presentation, recovery, retention/deletion, and power-loss durability are
+still unproven.
