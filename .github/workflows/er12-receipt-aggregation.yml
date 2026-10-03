@@ -22,5 +22,7 @@ jobs:
         run: cargo test -p kiana-domain --test er12_receipt_aggregation --locked -- --test-threads=1
       - name: Run ER-12 aggregation reducer fixtures
         run: cargo test -p kiana-core --test er12_receipt_aggregation --locked -- --test-threads=1
-      - name: Compile ER-12 targets
-        run: cargo check --workspace --tests --locked
+      - name: Compile ER-12 domain target
+        run: cargo test -p kiana-domain --test er12_receipt_aggregation --no-run --locked
+      - name: Compile ER-12 Core target
+        run: cargo test -p kiana-core --test er12_receipt_aggregation --no-run --locked

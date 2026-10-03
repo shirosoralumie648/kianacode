@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`CP-12`](control-plane.md#step-cp-12) |
 | feature_status | `implemented`（strict ResourceLease、canonical write-set、Cell capability fence token） |
-| proof_level | `source`；本地不运行测试，`.github/workflows/cp12-resource-leases.yml` 负责 fixtures 与 workspace test-target compile |
+| proof_level | `source`；本地不运行测试，`.github/workflows/cp12-resource-leases.yml` 负责 fixtures 与 focused domain/Core target compile |
 | authority | ControlPlane current authority epoch + existing kernel-backed path-lock adapter |
 | this step does | owner run/cell/session、resource digest、authority epoch、monotonic sequence、expiry、successor fencing、canonical path set、O_NOFOLLOW/LOCK_NB boundary |
 | this step does not | 不声称 lease 自身持有 OS lock、不在 approval wait 自动释放 Cell 写集、不实现跨进程 durable lease projector、Broker permit/effect-time atomicity 或 external/live/physical proof |

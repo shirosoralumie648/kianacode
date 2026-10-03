@@ -24,7 +24,7 @@ fn resource_lease_binds_owner_scope_epoch_and_fencing_successor() {
     assert!(lease.conflicts("src").unwrap());
 
     let successor = ResourceLease::successor(&lease, FenceTokenId::new(), 4, 1_100, 2_000).unwrap();
-    assert!(lease.validate_successor(&successor).is_ok());
+    assert!(successor.validate_successor(&lease).is_ok());
     assert!(successor
         .validate_current(1_500, 4, successor.fence_token)
         .is_ok());

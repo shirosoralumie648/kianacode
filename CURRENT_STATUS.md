@@ -20998,6 +20998,21 @@ limitations: provider rate card/billing, ArtifactStore provenance/retention/revo
 reviewer: source review confirmed run-scoped event filtering, duplicate/foreign/empty-source denial, normalized relative paths, digest-only refs and separation of estimated cost from budget settlement; no local runtime reviewer
 ```
 
+### ER-12 focused aggregation failure correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37120832437`; kiana-core/src/receipts.rs; kiana-core/tests/er12_receipt_aggregation.rs; .github/workflows/er12-receipt-aggregation.yml
+worktree_status: the reducer preserved `Partial` for missing usage but allowed a later committed=false marker to overwrite an earlier `effect_known=false` Unknown; foreign-only input also reached the general run identity fence before aggregation could report an empty source. Unknown is now sticky, foreign-only filtering returns the documented empty-source error, and the broad workspace compile gate is narrowed to the two focused targets
+command_argv: gh run view 37120832437 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: Core target previously passed 2/4; missing-usage/effect target returned Partial instead of expected Unknown, and foreign-only source returned invocation identity conflict instead of receipt_aggregation_source_empty
+exit_code: remote Core focused target 2/4 before correction; source correction awaits fresh focused CI
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`; correction is limited to Unknown precedence, foreign-only source classification and target-scoped compile evidence
+proof-level_change: none
+limitations: provider rate card/billing, ArtifactStore provenance/retention/revoke, durable changesets, result delivery, durable projector/restart and external/live/physical proof remain open
+reviewer: exact remote assertions and `aggregate_receipt_facts`/`try_filter_run_events` interaction reviewed; no local runtime reviewer
+```
+
 ### ER-13 focused result-delivery workflow (2026-10-03)
 
 ```text
@@ -21116,4 +21131,19 @@ status_change: CM-02 remains roadmap row 050 `🔄` / `feature_status=partial` /
 proof-level_change: none; source plus remote CI wiring only, with no result promoted here
 limitations: prior exact daemon executions `37051593527`, `37053666899` and `37054968622` ended with stack overflow during memory.review preparation/approval staging; this run is expected to expose whether that failure remains, and any SIGABRT/Cargo 101 is failure evidence, not completion. EventStore-backed successful Native successor, evidence-to-event/quote binding, durable recovery, retention/revocation/delete and semantic recall remain open
 reviewer: source review confirmed lifecycle validation before visibility/search, explicit LegacyImport conversion, zero-revision persistence fence and no-evidence rejection ordering; no local runtime reviewer
+```
+
+### CP-12 focused successor fixture correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37119598025`; kiana-domain/tests/cp12_resource_lease.rs; kiana-domain/src/resource_leases.rs; .github/workflows/cp12-resource-leases.yml
+worktree_status: the production `ResourceLease::validate_successor` contract takes the successor as receiver and previous lease as argument; the fixture called the method in reverse, so a valid successor was rejected. The fixture now matches the existing successor contract, and the broad workspace compile gate is narrowed to the domain/Core focused targets
+command_argv: gh run view 37119598025 --log-failed; source comparison with kiana-domain/src/fencing.rs and security successor fixtures; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: CP-12 domain target 2/3 before correction; `resource_lease_binds_owner_scope_epoch_and_fencing_successor` failed only at `lease.validate_successor(&successor)`, while the tamper and canonical-write-set fixtures passed
+exit_code: remote domain focused target 2/3 before correction; Core target was not reached; source/fixture correction awaits fresh focused CI
+status_change: CP-12 remains roadmap row 128 `🔄` / `feature_status=implemented` / `proof_level=source`; only the fixture call direction and target-scoped compile gate are corrected
+proof-level_change: none
+limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration and external/live/physical proof remain open
+reviewer: exact remote assertion and existing successor method conventions reviewed; no local runtime reviewer
 ```

@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`ER-12`](event-receipt-recovery.md#step-er-12) |
 | feature_status | `implemented`（strict ReceiptAggregation + receipt integration） |
-| proof_level | `source`；本地不运行测试，`.github/workflows/er12-receipt-aggregation.yml` 负责 fixtures 与 workspace test-target compile |
+| proof_level | `source`；本地不运行测试，`.github/workflows/er12-receipt-aggregation.yml` 负责 fixtures 与 focused domain/Core target compile |
 | authority | EventLog committed model/effect/memory/artifact facts；aggregation 是只读 Receipt 子投影 |
 | this step does | model turns、known/unknown usage tokens、committed execution count、normalized files_changed、memory hits、hashed evidence/provider refs、verification state、cost-estimate separation |
 | this step does not | 不结算预算、不采信 provider estimate、不暴露 raw provider/artifact/output、不把 uncommitted/partial patch 标成 completed、不提供 external/live/physical proof |

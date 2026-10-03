@@ -539,7 +539,25 @@ pub fn aggregate_receipt_facts(
     run_id: RunId,
     events: &[RuntimeEvent],
 ) -> Result<kiana_domain::ReceiptAggregation, String> {
-    let events = try_filter_run_events(events, run_id)?;
+    let events = if events.is_empty() {
+        Vec::new()
+    } else {
+        match try_filter_run_events(events, run_id) {
+            Ok(filtered) => filtered,
+            Err(reason)
+                if reason == "invocation_event_run_id_conflict"
+                    && !events.iter().any(|event| {
+                        event.aggregate_type.as_deref() == Some("run")
+                            && event.aggregate_id.as_deref() == Some(run_id.to_string().as_str())
+                            || event.data.get("run_id").and_then(Value::as_str)
+                                == Some(run_id.to_string().as_str())
+                    }) =>
+            {
+                Vec::new()
+            }
+            Err(reason) => return Err(reason),
+        }
+    };
     if events.is_empty() {
         return Err("receipt_aggregation_source_empty".to_owned());
     }
@@ -564,7 +582,9 @@ pub fn aggregate_receipt_facts(
         if event.payload_recoverable == Some(false) {
             verification = kiana_domain::AggregationVerification::Partial;
         }
-        if event.data.get("committed") == Some(&Value::Bool(false)) {
+        if event.data.get("committed") == Some(&Value::Bool(false))
+            && verification != kiana_domain::AggregationVerification::Unknown
+        {
             verification = kiana_domain::AggregationVerification::Partial;
         }
         if event.kind == "run.model_turn" && event.data["attempted"] == true {

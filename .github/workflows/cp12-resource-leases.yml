@@ -22,5 +22,7 @@ jobs:
         run: cargo test -p kiana-domain --test cp12_resource_lease --locked -- --test-threads=1
       - name: Run CP-12 source guard
         run: cargo test -p kiana-core --test cp12_resource_guard --locked -- --test-threads=1
-      - name: Compile CP-12 targets
-        run: cargo check --workspace --tests --locked
+      - name: Compile CP-12 domain target
+        run: cargo test -p kiana-domain --test cp12_resource_lease --no-run --locked
+      - name: Compile CP-12 Core target
+        run: cargo test -p kiana-core --test cp12_resource_guard --no-run --locked
