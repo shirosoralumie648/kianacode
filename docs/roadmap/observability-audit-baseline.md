@@ -333,6 +333,14 @@ and compiles that same target with `--no-run`. This lane covers the current prof
 sentinel, numeric usage, placeholder, depth, NUL and size fixtures without claiming runtime sink or
 producer integration. A current GitHub receipt is required before any status or proof-level change.
 
+## 9.2 OA-03 focused CI receipt (2026-10-03)
+
+Run `37131247176` at head `34c76b93` completed successfully. Locked dependency fetch, formatting,
+the domain `oa03_redaction` contract target, and its target-scoped `--no-run` compilation all
+passed. This is current focused source/CI evidence only; OA-03 remains `partial/source` because
+runtime producers, sinks, streaming coverage and downstream classification boundaries are still
+outside this card.
+
 ## 10. OA-04 叠加说明
 
 OA-04 在 `kiana-domain/src/audit.rs` 固定 RuntimeEvent taxonomy，覆盖 command、authorization、

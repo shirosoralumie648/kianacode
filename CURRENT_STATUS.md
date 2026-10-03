@@ -21148,6 +21148,21 @@ limitations: runtime EventStore/Receipt/Provider/Broker/TraceSink/export produce
 reviewer: historical workflow/test comparison and current redaction boundary review; no local runtime reviewer
 ```
 
+### OA-03 focused redaction receipt (2026-10-03)
+
+```text
+source_snapshot: `34c76b93`; .github/workflows/oa03-redaction.yml; kiana-domain/src/redaction.rs; kiana-domain/tests/oa03_redaction.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: locked dependency fetch, formatting, OA-03 domain redaction fixtures and the target-scoped no-run compile all passed on GitHub Actions; no producer/sink or authority path changed
+command_argv: gh run view 37131247176 --json status,conclusion,headSha,jobs,url; gh run view 37131247176 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `oa03_redaction` domain target success; target-scoped `cargo test -p kiana-domain --test oa03_redaction --no-run --locked` success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-03 remains roadmap row 094 `🔄` / `feature_status=partial` / `proof_level=source`; current focused redaction contract evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: runtime EventStore/Receipt/Provider/Broker/TraceSink/export producer wiring, split-chunk streaming, arbitrary unmarked secret formats and downstream classification ceilings remain open
+reviewer: exact focused job steps and target-scoped compile result reviewed; no local runtime reviewer
+```
+
 ### OA-04 focused audit workflow restored (2026-10-03)
 
 ```text
