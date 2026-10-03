@@ -95,6 +95,7 @@ read committed frame
 | `run_compacted_contract_matches_lifecycle_producer` | `run.compacted` 的 schema/run/tokens-before/tokens-after/summary 字段；缺 run_id、未知字段拒绝 |
 | `run_receipt_contract_bounds_top_level_projection` | `run.receipt` 的 37 个固定顶层 projection 键和可选 work-packet 键；缺 run_id、未知顶层字段拒绝，嵌套值保持各自 projection contract |
 | `credential_recovery_contract_matches_typed_producer` | `recovery.credential` 的 run_id/recovery 顶层 envelope；缺 run_id、未知顶层字段拒绝，nested fact 由 CredentialRecoveryFact contract 验证 |
+| `communication_lifecycle_contracts_match_producers` | handoff acknowledged/rejected 的同构 lifecycle 字段与 incident escalated 的 evidence_refs 变体；缺 message_id、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -551,6 +552,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; nested recovery fact validation, projection replay, durable checkpoint and live credential rotation remain separate contracts; no authorization or external-effect claim
 reviewer: source trace matched the unique typed recovery producer, registry fields, required run identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.21 Communication lifecycle producer contracts
+
+The two handoff lifecycle events share one exact top-level allowlist: message, message ID,
+lifecycle, accepted, reason, authority/project/actor/session/request context. Incident escalation
+uses the same envelope with an additional `evidence_refs` field. All three events remain
+communication aggregate, non-terminal and without a migration declaration. The fixture rejects a
+missing message ID and unknown fields for each variant; nested message/lifecycle DTOs remain owned
+by their communication contracts.
+
+```text
+source_snapshot: source commit `cb294092`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/communication.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: handoff acknowledged/rejected now use an exact shared lifecycle allowlist and incident escalation uses an exact evidence_refs variant; all keep message_id required, communication aggregate and non-terminal semantics; no communication or EventStore behavior changed
+command_argv: source trace of acknowledge_communication and escalate_communication producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 24f1caf9`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `communication_lifecycle_contracts_match_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; communication lifecycle payload variants are now bounded per kind
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; communication send kinds and nested message/lifecycle schema remain separate contracts, and no durable notification delivery or external channel claim is made
+reviewer: source trace matched both handoff branches, incident escalation evidence refs, message identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
