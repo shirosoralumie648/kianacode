@@ -7,6 +7,7 @@
 | roadmap card | [`H15`](harness.md#step-h15) |
 | feature_status | `implemented`（shell/进程输出与受控 output-read；ArtifactStore 全量治理仍由后续 PD/ER 补齐） |
 | proof_level | `source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions 负责 fixtures |
+| focused CI | 手动 workflow [`h15-output-bounds-diagnostic.yml`](../../.github/workflows/h15-output-bounds-diagnostic.yml) 并行运行 `h15_output_ref` 与 `h15_output_limits`；不把未等待的远程结果提升为更高 proof |
 | authority | ControlPlane/Broker admit `execution.output.read`; daemon owns bounded capture and validates the typed reference before returning bytes |
 | this step does | 读取流按 chunk 计数并在进入内存时限额，记录 observed/lines/truncated/read error；完整安全输出落到受保护本地记录，`ExecutionOutputRef` 绑定 output/run/invocation/content/scope/expiry；分页读取按 owner/run/data epoch、内容摘要、offset/limit 和稳定 cursor 校验 |
 | this step does not | 不把截断文本称为完整结果，不让模型访问 operator-only output-read，不允许跨 Run/项目猜测 output id 读取，也不声称跨进程 ArtifactStore/删除传播或外部 effect proof |

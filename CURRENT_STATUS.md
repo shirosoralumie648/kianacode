@@ -20458,6 +20458,21 @@ limitations: no local runtime result, cross-process checkpoint hydration, power-
 reviewer: source review confirmed binding digest/identity fences, approve-before-dispatch revalidation, idempotent decision/consumption and original runner continuity; no local runtime reviewer
 ```
 
+### H15 focused output-bounds diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h15-output-bounds-diagnostic.yml; kiana-domain/src/{execution_output.rs,actions.rs,contracts.rs,lib.rs}; kiana-daemon/src/{execution_control.rs,harness_capabilities.rs}; kiana-core/src/capabilities.rs; tests kiana-domain/h15_output_ref.rs and kiana-daemon/h15_output_limits.rs
+worktree_status: restored a manual GitHub-only focused workflow for existing H15 typed output-reference and bounded daemon capture fixtures; no output behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h15-output-bounds-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h15_output_ref and kiana-daemon h15_output_limits; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H15 remains roadmap row 256 / current row 167 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for typed output integrity, bounded capture, run fencing, expiry and verified paging
+proof-level change: none
+limitations: no local runtime result, cross-process ArtifactStore, retention/deletion propagation, MCP-wide bounded result or external/live/physical proof
+reviewer: source review confirmed bounded chunk capture, typed output digest/scope/expiry binding, owner/run/data epoch fencing and UTF-8 cursor paging; no local runtime reviewer
+```
+
 ### H11 focused correction receipt (2026-10-03)
 
 ```text
