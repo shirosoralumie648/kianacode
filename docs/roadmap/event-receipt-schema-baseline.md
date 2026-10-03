@@ -761,6 +761,28 @@ limitations: guard success is source-boundary coverage only; corrected domain ta
 reviewer: exact remote logs and fixture type/source review
 ```
 
+## 5.30 Run capability request, denial and approval-wait contracts
+
+`run.capability_requested` now admits the exact union of the preparation-denial and normal
+request producers. `run.capability_blocked` admits the common attempt facts and their error/reason
+variants. Its terminal marker describes the capability attempt, not the enclosing run outcome.
+`run.awaiting_approval` includes the actual approval ID and requires all three run, capability
+request and approval identities. The previous broad run allowlist omitted approval_id and would
+have rejected that producer if used; no generic EventStore validation is enabled by this repair.
+
+```text
+source_snapshot: 472eb3b4 plus fixture-key correction 879e2aa6; event_contracts.rs; er01_event_contract.rs; er01_event_contract_guard.rs; producer capabilities.rs
+worktree_status: three kind-specific bounded allowlists and Run-bound approval IDs; no producer, policy, dispatch or EventStore behavior changed
+command_argv: source trace of both request/denial paths and stage_capability_action; git cherry-pick c8a491f0; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree based on c55b2bb2, integrated at repository root Linux/bash; tests execute only in GitHub
+fixture·cassette: run_capability_and_approval_contracts_match_all_producers plus Core producer/spec guards; complete domain/Core manual acceptance available
+exit_code: local format/diff 0; fresh remote fixture receipt pending
+status_change: ER-01 remains row 036 🔄 / partial / source; approval-wait payload and required identities now match its producer
+proof-level change: none
+limitations: exact top-level unions only; nested payload validation and generic EventStore enforcement remain open; attempt denial is not a run terminal fact
+reviewer: all producer variants traced; domain missing-ID/unknown-field and Core source boundaries reviewed
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

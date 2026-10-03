@@ -19918,6 +19918,21 @@ limitations: no current domain receipt or global EventStore enforcement/migratio
 reviewer: exact job logs and fixture type/source review
 ```
 
+### ER-01 run capability and approval-wait contracts (2026-10-03)
+
+```text
+source_snapshot: 472eb3b4 plus fixture-key correction 879e2aa6; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; producer kiana-core/src/capabilities.rs
+worktree_status: requested/blocked kinds use exact producer unions; awaiting approval admits approval_id and requires run_id/capability_request_id/approval_id; no EventStore or product dispatch change
+command_argv: producer source trace; git cherry-pick c8a491f0; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree c55b2bb2, integrated repository root Linux/bash; GitHub CI only
+fixture·cassette: run_capability_and_approval_contracts_match_all_producers covers every variant and missing required IDs/unknown fields; updated Core source guard; fresh remote receipt pending
+exit_code: local format/diff 0; no local runtime result
+status_change: ER-01 row 036 🔄 / partial / source; current approval-wait producer is now representable
+proof-level change: none
+limitations: blocked terminal means capability-attempt end, not run completion; top-level matrix does not prove nested contracts or global validation
+reviewer: source trace and fixtures reviewed
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
