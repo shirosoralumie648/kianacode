@@ -20,7 +20,6 @@ fn config_resolver_has_a_trust_and_revision_fence() {
         "project_trust_revision",
         "configuration_snapshot",
         "config::snapshot",
-        "config_resolver_has_a_trust_and_revision_fence",
     ] {
         assert!(
             resolver.contains(marker)
