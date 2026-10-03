@@ -20997,3 +20997,18 @@ proof-level_change: none; source plus remote CI wiring only, with no CI result p
 limitations: provider rate card/billing, ArtifactStore provenance/retention/revoke, durable changesets, unified result delivery, durable projector/restart and external/live/physical proof remain open
 reviewer: source review confirmed run-scoped event filtering, duplicate/foreign/empty-source denial, normalized relative paths, digest-only refs and separation of estimated cost from budget settlement; no local runtime reviewer
 ```
+
+### ER-13 focused result-delivery workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/er13-result-delivery.yml; docs/roadmap/event-receipt-result-delivery-baseline.md; kiana-core/src/{dispatch.rs,capabilities.rs,approvals.rs,lifecycle.rs}; kiana-runner/src/harness.rs; kiana-domain/src/capabilities.rs; kiana-core/tests/er13_result_delivery.rs
+worktree_status: restored a manual GitHub-only workflow for the existing ER-13 shared finalizer, committed result-before-delivery CAS, terminal/cancel fence and Runner callback ordering source guard; no result delivery behavior, shard manifest, lockfile or second callback/authority path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run er13-result-delivery.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-core er13_result_delivery; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: ER-13 remains roadmap row 139 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring now exists for shared finalization, result commit before delivery, replay/terminal fencing and Unknown callback boundaries
+proof-level_change: none; source plus remote CI wiring only, with no CI result promoted here
+limitations: recent ER-01 capability-request/result-delivery producer contract correction still needs its own fresh receipt; callback crash/replay, provider receipt/reconcile, terminal shutdown, cross-process recovery and external/live/physical proof remain open
+reviewer: source review confirmed all three finalizer paths, EventStore commit-before-claim ordering, run/result digest CAS, terminal/cancel rejection and no-repeat Runner callback/model path; no local runtime reviewer
+```

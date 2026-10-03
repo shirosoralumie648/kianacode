@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`ER-13`](event-receipt-recovery.md#step-er-13) |
 | feature_status | `implemented`（统一 finalizer、committed result、single delivery claim） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 source guard |
+| proof_level | `source`；本地不运行测试，`.github/workflows/er13-result-delivery.yml` 负责 source guard 与 workspace test-target compile |
 | authority | ControlPlane EventLog result commit/delivery claim；Runner 只消费已提交 result |
 | this step does | direct/Harness/approval-resume shared finalizer、execution.result_committed before delivery、result.delivery_claimed CAS、run terminal/cancel fence、same-result command digest idempotency、callback uncertainty→Unknown |
 | this step does not | 不从 delivery claim 重做工具/模型、不把 Runner callback 当 EventLog fact、不证明 callback/external effect exactly-once、不实现 provider receipt/reconcile |
