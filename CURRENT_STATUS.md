@@ -20473,6 +20473,21 @@ limitations: no local runtime result, cross-process ArtifactStore, retention/del
 reviewer: source review confirmed bounded chunk capture, typed output digest/scope/expiry binding, owner/run/data epoch fencing and UTF-8 cursor paging; no local runtime reviewer
 ```
 
+### H14 focused correction receipt (2026-10-03)
+
+```text
+source_snapshot: `87dab100`; kiana-core/tests/h14_approval_resume.rs guard now includes kiana-domain/src/invocation_resume.rs for the binding-change marker; production approval/resume sources unchanged
+worktree_status: the prior H14 Core guard failure was a stale evidence scope, not an approval behavior failure; domain binding and Core approval-resume fixtures both passed after the guard correction
+command_argv: gh run view 37111353379 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H14 `domain-binding` and `core-approval-resume-guard`; both focused jobs success at head `87dab100`
+exit_code: remote domain job 0; remote Core job 0
+status_change: H14 remains roadmap row 153 / current row 166 `feature_status=implemented` / `proof_level=source`; expiry/change, duplicate-decision and turn/step/invocation identity guard coverage now has a current focused receipt
+proof-level change: none
+limitations: no local runtime result, cross-process checkpoint hydration, power-loss CAS/reconcile, external provider effect or live/physical proof
+reviewer: exact GitHub jobs and guard-source scope correction reviewed; no local runtime reviewer
+```
+
 ### H11 focused correction receipt (2026-10-03)
 
 ```text
