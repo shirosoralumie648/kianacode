@@ -18,6 +18,27 @@ fn cleanup(path: &Path) {
     let _ = fs::remove_file(path.with_extension("jsonl.lock"));
 }
 
+fn write_fixture(path: &Path, contents: impl AsRef<[u8]>) {
+    let contents = contents.as_ref();
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .unwrap();
+        file.write_all(contents).unwrap();
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(path, contents).unwrap();
+    }
+}
+
 #[tokio::test]
 async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     let empty = temp_path("empty");
@@ -36,7 +57,7 @@ async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     )
     .unwrap()
     .with_stream_metadata("run", run_id, 1);
-    fs::write(&ready, serde_json::to_string(&event).unwrap() + "\n").unwrap();
+    write_fixture(&ready, serde_json::to_string(&event).unwrap() + "\n");
     let ready_report = scan_jsonl(&ready).await;
     assert_eq!(
         ready_report.status,
@@ -55,11 +76,10 @@ async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     let header = serde_json::to_string(&JournalHeader::default()).unwrap();
     let mut value = serde_json::to_value(frame).unwrap();
     value["body_sha256"] = json!("0".repeat(64));
-    fs::write(
+    write_fixture(
         &corrupt,
         format!("{}\n{}\n", header, serde_json::to_string(&value).unwrap()),
-    )
-    .unwrap();
+    );
     let corrupt_report = scan_jsonl(&corrupt).await;
     assert_eq!(corrupt_report.status, IntegrityScanStatus::Corrupt);
     assert!(corrupt_report.quarantine_required);
