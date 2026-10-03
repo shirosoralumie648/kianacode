@@ -18,8 +18,6 @@ const RUN_IDS: &[&str] = &["run_id"];
 const RUN_AUTHORIZED_FIELDS: &[&str] = &[
     "run_id",
     "session_id",
-    "turn_id",
-    "turn",
     "actor_id",
     "project_root",
     "role_id",
@@ -41,6 +39,7 @@ const RUN_AUTHORIZED_FIELDS: &[&str] = &[
     "role_catalog_version",
     "role_input_schema",
     "role_output_schema",
+    "decision",
 ];
 const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
 const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
