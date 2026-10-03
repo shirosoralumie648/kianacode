@@ -1,0 +1,26 @@
+name: SW-02 typed swarm work graph
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swarm-work-graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SW-02 work graph fixtures
+        run: cargo test -p kiana-domain --test sw02_work_graph --locked -- --test-threads=1
+      - name: Run SW-02 source guard
+        run: cargo test -p kiana-core --test sw02_work_graph_guard --locked -- --test-threads=1
+      - name: Compile work graph path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked

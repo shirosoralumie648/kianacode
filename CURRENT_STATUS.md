@@ -21057,3 +21057,18 @@ proof-level_change: none; source plus remote CI wiring only, with no focused res
 limitations: unified shard receipts were only partial because unrelated ports targets failed; the new focused run is pending; raw compatibility resolver methods remain callable and production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth, durable rotation/revoke and provider/live effects remain open
 reviewer: source review confirmed non-secret DTOs, exact SecretRef/authentication generation checks, stale CAS conflict boundaries and separation of port contracts from authority/adapter effects; no local runtime reviewer
 ```
+
+### SW-02 focused work-graph workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/sw02-work-graph.yml; docs/roadmap/swarm-work-graph-baseline.md; kiana-domain/src/{packet_graph.rs,swarm.rs,swarm_graph.rs}; kiana-protocol/src/lib.rs; kiana-core/src/swarm.rs; kiana-domain/tests/sw02_work_graph.rs; kiana-core/tests/sw02_work_graph_guard.rs
+worktree_status: restored a manual GitHub-only workflow for the existing strict Partition/SwarmWorkGraph validator, shared packet-graph topology, deterministic projection, Create pre-write guard and bounded model-call budget fixtures; no graph behavior, queue/claim/scheduler, manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run sw02-work-graph.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain sw02_work_graph and kiana-core sw02_work_graph_guard; workflow also runs cargo fmt --all --check and cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: SW-02 remains roadmap row 090 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for overlap/unbound input, cycle/missing/duplicate/fingerprint/strategy/limit denial, stable projection and pre-write validation order
+proof-level_change: none; source plus remote CI wiring only, with no current-head focused result promoted here
+limitations: prior unified receipts covered exact targets but shards failed on unrelated siblings; typed packet-set binding remains undefined, optional legacy graph migration is incomplete, and durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery and effect-time fencing remain open
+reviewer: source review confirmed canonical paths/data scopes, shared packet_graph reuse, strict fingerprint/limit validation, deterministic readiness and ControlPlane-only validation before state write; no local runtime reviewer
+```
