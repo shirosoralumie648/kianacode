@@ -19333,6 +19333,21 @@ limitations: no current-head CI receipt yet; existing memory.review stack-overfl
 reviewer: isolated CM-02 source audit and deny-first fixture review; no local runtime reviewer
 ```
 
+### PD-08 unknown-format integrity fixture (2026-10-03)
+
+```text
+source_snapshot: `188815ac`; kiana-eventlog/tests/pd08_integrity_scan.rs; kiana-core/tests/pd08_integrity_guard.rs; docs/roadmap/pd08-integrity-scan-baseline.md
+worktree_status: unknown schema/required/writer-version JSONL input is created with 0600 permissions; scan_jsonl must return Unknown without quarantine, use pause_and_reconcile, and fail the health gate; Core guard retains the read-only/no-destructive-repair boundary
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick 188815ac; git push origin master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated branch `fix/pd08-unknown-format-20261003` integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: unknown schema/required/writer-version JSONL fixture; existing Empty/Ready/checksum-Corrupt cases remain; current-head CI run follows push and is pending
+exit_code: isolated format/diff 0; integration/push 0; remote runtime pending
+status_change: PD-08 remains roadmap row 202 🔄 / feature_status=partial / proof_level=source; Unknown branch now has explicit source/fixture coverage
+proof-level change: none
+limitations: no current-head runtime receipt yet; no automatic quarantine move, middle-frame recovery, projector health integration, kill-9, durable/live/physical proof
+reviewer: isolated PD-08 source/fixture audit; no local runtime reviewer
+```
+
 ### CAP-02 focused acceptance workflow (2026-10-03)
 
 ```text
