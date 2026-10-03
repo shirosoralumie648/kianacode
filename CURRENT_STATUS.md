@@ -22121,3 +22121,18 @@ proof-level_change: none; no H08 promotion
 limitations: ER-01 rejection-event architecture must be resolved before daemon cancellation fixture can reach its intended stop/Unknown assertions; cancellation durability, OS/power-loss and external/live/physical proof remain open
 reviewer: exact remote failure logs and ER-01 dependency classification reviewed; no local runtime reviewer
 ```
+
+### H09/H10/H11 current-head focused acceptance receipts (2026-10-04)
+
+```text
+source_snapshot: `9c6eabfd`; .github/workflows/{h09-tool-catalog-diagnostic,h10-invocation-identity-diagnostic,h11-tool-observation-diagnostic}.yml; kiana-domain/src/{tool_catalog,tool_observation}.rs; kiana-runner/src/{tools,harness}.rs; kiana-provider/src/request.rs; focused H09/H10/H11 fixtures and guards
+worktree_status: all three current-head manual lanes passed without tool catalog, identity, observation, manifest or lockfile changes; no second runner/authority path added
+command_argv: `gh run view 37159309392 --json status,conclusion,headSha,jobs,url`; `gh run view 37159309570 --json status,conclusion,headSha,jobs,url`; `gh run view 37159308944 --json status,conclusion,headSha,jobs,url`; corresponding `--log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runners are the runtime test authority
+fixture·cassette: H09 catalog 3/3 plus guard; H10 invocation identity 3/3 plus guard; H11 observation 4/4 plus guard; all target-scoped compiles passed
+exit_code: all three remote focused workflows 0; no local runtime exit code
+status_change: H09/H10/H11 roadmap rows 148-150 promoted 🔄 → ✅; each `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: durable invocation/outcome/approval recovery, real provider/third-party catalog migration, automatic repair loop, external/live/physical effect proof and unified CI remain open
+reviewer: exact current-head jobs, catalog drift/identity batch/observation repair boundaries reviewed; no local runtime reviewer
+```
