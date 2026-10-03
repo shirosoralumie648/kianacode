@@ -21013,6 +21013,21 @@ limitations: provider rate card/billing, ArtifactStore provenance/retention/revo
 reviewer: exact remote assertions and `aggregate_receipt_facts`/`try_filter_run_events` interaction reviewed; no local runtime reviewer
 ```
 
+### ER-12 focused fixture evidence correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37120832437`; kiana-core/tests/er12_receipt_aggregation.rs; kiana-core/src/receipts.rs
+worktree_status: the reducer source correction made Unknown sticky and the empty/foreign source case now reaches receipt_aggregation_source_empty; the remaining fixture mismatch was that its capability.completed event had committed=false but omitted effect_known=false, so the expected Unknown had no explicit unknown-effect evidence. The fixture now carries that field; production aggregation code is unchanged in this correction
+command_argv: gh run view 37120832437 --log-failed; source/fixture comparison; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost` previously returned Partial instead of Unknown; the missing-usage branch remains Partial by contract
+exit_code: remote Core focused target 2/4 before this fixture correction; fresh ER-12 workflow awaits GitHub CI
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`; only fixture evidence is corrected
+proof-level_change: none
+limitations: provider rate card/billing, ArtifactStore provenance/retention/revoke, durable changesets, result delivery, durable projector/restart and external/live/physical proof remain open
+reviewer: exact fixture payload and reducer precedence reviewed; no local runtime reviewer
+```
+
 ### ER-13 focused result-delivery workflow (2026-10-03)
 
 ```text

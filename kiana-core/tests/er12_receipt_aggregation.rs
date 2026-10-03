@@ -64,7 +64,7 @@ fn aggregation_marks_unknown_usage_and_effect_without_settling_estimated_cost() 
             run_id,
             3,
             "capability.completed",
-            json!({"run_id":run_id,"committed":false,"changed":[{"path":"safe.txt"}]}),
+            json!({"run_id":run_id,"committed":false,"effect_known":false,"changed":[{"path":"safe.txt"}]}),
         ),
     ];
     let aggregation = aggregate_receipt_facts(run_id, &events).unwrap();
