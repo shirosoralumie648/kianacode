@@ -1656,7 +1656,7 @@ fn run_lifecycle_contracts_match_real_producers_and_reject_drift() {
     );
     assert_eq!(
         event_kind_spec("run.started").unwrap().allowed_fields,
-        &["run_id"][..]
+        &["run_id", "sequence"][..]
     );
     for kind in ["run.prompt", "run.delta"] {
         assert!(event_kind_spec(kind).is_some());
