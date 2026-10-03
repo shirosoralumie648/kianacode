@@ -19843,6 +19843,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched stable session assignment key, exact producer fields and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 action authority pin producer fixture (2026-10-03)
+
+```text
+source_snapshot: base commit `9cfebfe3`; kiana-domain/tests/er01_event_contract.rs; kiana-core/src/dispatch.rs; kiana-core/tests/er01_event_contract_guard.rs; docs/roadmap/event-receipt-schema-baseline.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: existing action.authority_pinned registry and producer are unchanged; domain fixture covers valid payload, missing request_id/action_digest and unknown fields; Core source guard pins the single dispatch producer, exact emitted fields, action stream/version and authority read-set
+command_argv: source trace of ControlPlane::pin_action_authority; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree /tmp/kiana-er01-action-authority-pinned; branch step/er01-action-authority-pinned-20261003; base origin/master 9cfebfe3; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift; updated event_contract_registry_and_migration_boundary_are_source_owned; existing unified CI domain/Core shards; fresh receipt pending
+exit_code: formatting and diff checks passed; no local runtime result
+status_change: ER-01 remains roadmap row 036 🔄, feature_status=partial, proof_level=source; action.authority_pinned now has deny-first domain fixture and unique-producer source guard
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: legacy_action_event_v0_to_v1 remains registry migration metadata without an implemented payload transformer; generic EventStore append still does not call validate_runtime_event; remote fixtures pending
+reviewer: source trace matched unique dispatch producer, exact payload, action aggregate/version and authority read-set; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text

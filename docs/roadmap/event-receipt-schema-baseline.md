@@ -99,6 +99,7 @@ read committed frame
 | `communication_send_contracts_match_shared_producer` | 七类 communication send kind 的共享 message/lifecycle/authority/context 八字段；缺 message、未知字段拒绝 |
 | `connector_health_and_handshake_contracts_match_daemon_producers` | connector health 的 12 字段和 MCP handshake 的 10 字段；缺 request/connector/binding ID、未知顶层字段拒绝 |
 | `session_assignment_contract_matches_producer` | session assignment 的稳定 session_id 与 18 个 assignment 顶层字段；缺 session_id、未知字段拒绝 |
+| `action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift` | dispatch 的 authority pin payload、action aggregate 元数据；缺 request_id/action_digest、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -642,6 +643,29 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; nested principal/project/assignment DTO contracts and cross-process session rebuild remain separate, with no external-effect claim
 reviewer: source trace matched stable session assignment key, exact producer fields and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.25 Action authority pin producer contract
+
+`action.authority_pinned` has one producer in `ControlPlane::pin_action_authority`. It emits
+`request_id`, `action_digest`, `authority_version`, `authority_key` and `actor_id`, and commits
+to the `action/<request_id>` stream at version 1 while fencing the read `authority/<key>` version.
+The existing registry already declares the action aggregate, required request/action digest,
+non-terminal semantics and legacy action migration name; this slice adds deny-first fixture and
+source coverage without changing producer or registry behavior. The named migration is registry
+metadata only here; no legacy payload transformer or EventStore-wide validator wiring is claimed.
+
+```text
+source_snapshot: base commit `9cfebfe3`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/dispatch.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`; `CURRENT_STATUS.md`
+worktree_status: existing `action.authority_pinned` registry and producer are unchanged; domain fixture now checks action aggregate, request_id/action_digest, allowlist, non-terminal/migration metadata, valid payload, missing IDs and unknown-field rejection; core source guard pins its unique producer, emitted fields, action stream version and authority read-set
+command_argv: source trace of `ControlPlane::pin_action_authority`; `cargo fmt --all --check`; `git diff --check`; isolated commit; no local tests/build/check/clippy/smoke
+cwd·environment: `/tmp/kiana-er01-action-authority-pinned`; branch `step/er01-action-authority-pinned-20261003`; base `origin/master` at `9cfebfe3`; Linux/bash; runtime fixtures remain GitHub CI only
+fixture·cassette: `action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; existing unified CI domain/Core shards; fresh receipt pending
+exit_code: formatting and diff checks passed; no local runtime result
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the existing authority pin event now has deny-first fixture and unique-producer source guard
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: the migration entry names a legacy action family but does not implement a payload transformer; generic EventStore append still does not call `validate_runtime_event`; no durable replay, authority effect or runtime fixture result is established
+reviewer: source trace matched the unique dispatch producer, exact payload, action aggregate/version and authority read-set; no local runtime reviewer
 ```
 
 ## 6. 限制与交接

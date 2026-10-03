@@ -1433,3 +1433,63 @@ fn approval_continuation_unavailable_contract_matches_recovery_producer() {
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift() {
+    let spec = event_kind_spec("action.authority_pinned").unwrap();
+    assert_eq!(spec.aggregate_type, "action");
+    assert_eq!(spec.required_ids, &["request_id", "action_digest"][..]);
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "request_id",
+            "action_digest",
+            "authority_version",
+            "authority_key",
+            "actor_id",
+            "run_id",
+            "turn_id",
+            "invocation_id",
+            "execution_id",
+            "capability_request_id",
+            "call_id",
+            "operation",
+            "attempt",
+            "result",
+            "effect_started",
+            "effect_known",
+            "zero_effect",
+            "stop_state",
+            "fenced",
+        ][..]
+    );
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("action.authority_pinned", 0, 1),
+        Some("legacy_action_event_v0_to_v1")
+    );
+
+    let mut payload = json!({
+        "action_digest": format!("sha256:{}", "a".repeat(64)),
+        "authority_version": 3,
+        "request_id": kiana_domain::RequestId::new(),
+        "authority_key": "project:trusted",
+        "actor_id": "operator",
+    });
+    validate_event_payload("action.authority_pinned", &payload).unwrap();
+
+    for id in ["request_id", "action_digest"] {
+        let mut missing_id = payload.clone();
+        missing_id.as_object_mut().unwrap().remove(id);
+        assert_eq!(
+            validate_event_payload("action.authority_pinned", &missing_id).unwrap_err(),
+            format!("event_required_id_missing:{id}")
+        );
+    }
+
+    payload["unexpected_authority_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("action.authority_pinned", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}

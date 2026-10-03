@@ -75,6 +75,29 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     );
     assert!(baseline.contains("result_source"));
     assert!(baseline.contains("legacy decode"));
+    assert!(contracts.contains("const ACTION_IDS: &[&str] = &[\"request_id\", \"action_digest\"]"));
+    assert!(contracts.contains("\"action.authority_pinned\""));
+    assert!(contracts.contains("Some(\"legacy_action_event_v0_to_v1\")"));
+    assert_eq!(
+        dispatch.matches("\"action.authority_pinned\"").count(),
+        1,
+        "action.authority_pinned must have one dispatch producer"
+    );
+    for marker in [
+        "let command_id = derived_request_id(\"action.pin\", &request.request_id.to_string())",
+        "\"action_digest\":digest,\"authority_version\":version",
+        "\"request_id\":request.request_id,\"authority_key\":key,\"actor_id\":context.actor_id",
+        ".with_stream_metadata(\"action\", request.request_id.to_string(), 1)",
+        "AggregateVersion::new(\"action\", request.request_id.to_string(), 0)",
+        "AggregateVersion::new(\"authority\", key, version)",
+    ] {
+        assert!(
+            dispatch.contains(marker),
+            "missing action pin producer boundary {marker}"
+        );
+    }
+    assert!(baseline
+        .contains("action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift"));
     assert!(approvals.contains("json!({\"error\":reason})"));
     assert!(approvals.contains("\"attempt\":1,\"effect_started\":false"));
     assert!(approvals.contains("\"capability.blocked\""));
