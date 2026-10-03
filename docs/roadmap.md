@@ -212,7 +212,7 @@
 | 044 | W1 | 专项 | [`H02`](roadmap/harness.md#step-h02) | Harness · Session / Run / Turn / Step 的身份与生命周期 | `H01` | ✅ | [专项卡](roadmap/harness.md#step-h02) |
 | 045 | W1 | 专项 | [`H03`](roadmap/harness.md#step-h03) | Harness · 将 KianaHarness 收敛为单一状态驱动器 | `H02` | ✅ | [专项卡](roadmap/harness.md#step-h03) |
 | 046 | W1 | 专项 | [`H04`](roadmap/harness.md#step-h04) | Harness · 结构化模型消息与无损 Provider 转换 | `H03` | ✅ | [专项卡](roadmap/harness.md#step-h04) |
-| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类；length/incomplete-stop 夹具均要求保留 typed ModelTurn stop/error diagnostics，最新断言等待 GitHub CI | `H04` | 🔄 | [专项卡](roadmap/harness.md#step-h05) · [baseline](roadmap/harness-stop-retry-baseline.md) |
+| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类；length/incomplete-stop 夹具与 provider repair 诊断均有 focused GitHub receipt，完整 shard/live 证明仍开放 | `H04` | 🔄 | [专项卡](roadmap/harness.md#step-h05) · [baseline](roadmap/harness-stop-retry-baseline.md) |
 | 048 | W1 | 专项 | [`P4-J7-05`](roadmap/provider.md#step-p4-j7-05) | Provider · 非流式工具响应必须严格解析 | `P4-J7-04` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-05) |
 | 049 | W1 | 专项 | [`CM-01`](roadmap/context-memory.md#step-cm-01) | Context / Memory · 建立共享来源与 scope 值对象 | `CM-00` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-01) |
 | 050 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-02) |
@@ -1473,6 +1473,7 @@
 | 2026-10-03 | `ER-01` actual ControlPlane producer fixtures：invalid prompt/role/department 拒绝且 Runner/Broker 零调用，从真实 EventLog 验证 authorized/prompt/started/delta/receipt/session assignment payload、身份与幂等；manual CI 新增 er01_real_ job，不改产品/shards，不运行本地测试 | `0b4045a0` + `26bc10b6` |
 | 2026-10-03 | `H05` length-stop diagnostic fixture：现有拒绝测试继续确认不 handoff、不完成，并要求 `RunnerEvent::ModelTurn` 留下 normalized `length` 和 `model_output_truncated`；仅增加 CI 断言，不改 stop/retry/repair 行为；不运行本地测试，远端 receipt pending，状态仍 `🔄` / `partial` / `source` | 待本提交 |
 | 2026-10-03 | `H05` incomplete-stop diagnostic fixture：对称要求 `RunnerEvent::ModelTurn` 保留 normalized `incomplete`、outcome stop reason 与 `model_transport_incomplete`，继续断言零 capability handoff/零完成；仅增加 CI 断言，不改运行行为；不运行本地测试，receipt 待 GitHub | `f27e0c2` |
+| 2026-10-03 | `H05` current-head focused receipt：manual run `37097488794` / head `31d79ad4` 的 domain、runner 与四个 provider stop/repair filters 全部成功；H05 仍保持 partial/source，不宣称完整 shard/live/physical | `37097488794` |
 | 2026-10-03 | `ER-01` exact manual CI receipt：run `37091699872` / head `6265363e` 完整 domain 31/31、Core guard 1/1；真实 producer 拒绝用例通过，成功用例在模型分配阶段被测试 Runner 默认拒绝，修正端口支持待提交。仅记录精确目标证据；无本地测试，ER-01 保持 🔄 / partial / source | `6265363e` (observed source) |
 | 2026-10-03 | `ER-01` complete manual acceptance：run `37092219974` / head `4fffbe43` 完整 domain 31/31、Core guard 1/1、真实 ControlPlane producer 2/2；模型分配测试端口修正后成功事件路径也通过。仍不宣称通用 EventStore 强制或 ER-01 完成，状态保持 🔄 / partial / source | `4fffbe43` |
 | 2026-10-03 | `CO-06` exact overflow boundary：run `37090467881` 的 authority sync 完成、首次 Company command 栈溢出；source `4c7bdb4f` 增加单目标手动 GDB（默认栈、每线程最多48帧、无参数/locals）与只读 Future 类型字节数，run `37092002135` 已启动；未猜测生产根因，状态保持 🔄 / partial / source，无本地测试或编译 | `4c7bdb4f` |

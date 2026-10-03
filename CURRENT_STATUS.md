@@ -20023,6 +20023,21 @@ limitations: corrected fixture pending CI; this distinction does not close other
 reviewer: exact GitHub failure logs and source trace; no local runtime reviewer
 ```
 
+### H05 current-head focused GitHub receipt (2026-10-03)
+
+```text
+source_snapshot: `31d79ad4`; .github/workflows/h05-stop-diagnostic.yml; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider focused selectors
+worktree_status: manual-only focused workflow; no product, manifest, lockfile or unified shard changes
+command_argv: gh run view 37097488794 --json headSha,status,conclusion,jobs,url; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively ran six selected targets
+fixture·cassette: domain h05_model_outcome, runner h05_stop_guard, provider explicit incomplete statuses/stream events, structured FormatRepair and malformed ToolRepair; all six jobs success
+exit_code: six remote jobs 0; local format/diff 0
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; focused current-head stop/recovery matrix now has a complete receipt
+proof-level change: none
+limitations: focused targets do not prove full crate shards, ContextRepair production, automatic repair, live provider, billing, external effects or physical behavior
+reviewer: exact GitHub jobs and source fixture review; no local runtime reviewer
+```
+
 ### H05 incomplete-stop diagnostic retention fixture (2026-10-03)
 
 ```text

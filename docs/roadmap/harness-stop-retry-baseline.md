@@ -116,6 +116,26 @@ limitations: no current-head receipt yet; no automatic repair/retry, ContextRepa
 reviewer: source review preserved original zero-handoff/zero-completion checks and added only bounded ModelTurn metadata assertions
 ```
 
+## 4.3 Current-head focused H05 GitHub receipt
+
+Manual workflow `37097488794` at head `31d79ad4` passed all six focused jobs: domain
+`h05_model_outcome`, runner `h05_stop_guard`, and the four provider filters for explicit
+incomplete statuses, incomplete stream events, structured-output FormatRepair, and malformed tool
+arguments ToolRepair. This confirms the deny-first stop/recovery fixtures at this source snapshot.
+
+```text
+source_snapshot: `31d79ad4`; .github/workflows/h05-stop-diagnostic.yml; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src tests
+worktree_status: focused workflow only; no production behavior, manifest, lockfile or unified shard map changed
+command_argv: gh run view 37097488794 --json headSha,status,conclusion,jobs,url; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively executed the six targets
+fixture·cassette: six jobs all conclusion=success; runner h05_stop_guard and domain h05_model_outcome plus four provider selectors
+exit_code: all six remote jobs 0; local format/diff 0
+status_change: H05 remains row 047 🔄 / feature_status=partial / proof_level=source; current-head focused stop/recovery evidence is complete for the selected matrix
+proof-level change: none; no full-crate green, live provider, billing, external effect or physical promotion
+limitations: ContextRepair producer/automatic repair loops, complete unified shard, stream accumulator, budget/live/provider and physical contracts remain open
+reviewer: exact GitHub job receipts and source fixture review; no local runtime reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
