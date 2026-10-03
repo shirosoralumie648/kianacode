@@ -167,4 +167,18 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             "missing governance tool-result producer field {marker}"
         );
     }
+    assert!(lifecycle.contains("\"run.predecessor\""));
+    for marker in [
+        "\"run_id\": run_id,",
+        "\"previous_run_id\": previous_run_id,",
+        "\"turn_id\": turn_id,",
+        "\"turn\": turn,",
+        "\"session_id\": context.session_id,",
+        "\"semantics\": \"new_turn_v2\",",
+    ] {
+        assert!(
+            lifecycle.contains(marker),
+            "missing predecessor producer field {marker}"
+        );
+    }
 }

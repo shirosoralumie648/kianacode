@@ -178,6 +178,14 @@ const RUN_TOOL_RESULT_FIELDS: &[&str] = &[
     "stop_confirmed",
     "fenced",
 ];
+const RUN_PREDECESSOR_FIELDS: &[&str] = &[
+    "run_id",
+    "previous_run_id",
+    "turn_id",
+    "turn",
+    "session_id",
+    "semantics",
+];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
     "run_id",
@@ -892,7 +900,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.predecessor",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_PREDECESSOR_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

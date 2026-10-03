@@ -355,6 +355,46 @@ fn run_tool_contracts_match_cancel_and_dispatch_producers() {
 }
 
 #[test]
+fn run_predecessor_contract_matches_lifecycle_producer() {
+    let spec = event_kind_spec("run.predecessor").unwrap();
+    assert_eq!(spec.required_ids, &["run_id"][..]);
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "run_id",
+            "previous_run_id",
+            "turn_id",
+            "turn",
+            "session_id",
+            "semantics",
+        ][..]
+    );
+
+    let mut payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "previous_run_id": kiana_domain::RunId::new(),
+        "turn_id": kiana_domain::TurnId::new(),
+        "turn": {},
+        "session_id": "session-1",
+        "semantics": "new_turn_v2",
+    });
+    validate_event_payload("run.predecessor", &payload).unwrap();
+
+    let mut missing_run = payload.clone();
+    missing_run.as_object_mut().unwrap().remove("run_id");
+    assert_eq!(
+        validate_event_payload("run.predecessor", &missing_run).unwrap_err(),
+        "event_required_id_missing:run_id"
+    );
+
+    payload["unexpected_predecessor_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("run.predecessor", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");
