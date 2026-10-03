@@ -1,0 +1,33 @@
+name: H08 cancellation diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    name: H08 ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: runner-cancellation
+            command: cargo test -p kiana-runner --test h08_cancellation --locked -- --test-threads=1
+          - name: runner-guard
+            command: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+          - name: daemon-stream-cancellation
+            command: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+          - name: daemon-shell-cancellation
+            command: cargo test -p kiana-daemon --test daemon_host cancel_stops_in_flight_shell_before_it_writes --locked -- --test-threads=1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run focused H08 target
+        run: ${{ matrix.command }}

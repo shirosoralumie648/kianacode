@@ -20292,3 +20292,18 @@ proof-level change: none
 limitations: no local runtime result, task-ledger restart/cross-process merge, provider tokenizer/billing, external/live/physical proof or H08 cancellation proof
 reviewer: source review confirmed pre-provider reservation, conservative unknown settlement, task-chain isolation and reuse of the existing KianaHarness path; no local runtime reviewer
 ```
+
+### H08 focused cancellation diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h08-cancellation-diagnostic.yml; kiana-ports/src/model.rs; kiana-runner/src/harness.rs; kiana-runner/tests/{h08_cancellation.rs,h08_cancellation_guard.rs}; kiana-daemon/src/{harness_capabilities.rs,mcp_stdio.rs}; kiana-daemon/tests/daemon_host.rs
+worktree_status: restored a manual GitHub-only focused workflow for runner deadline/retry cancellation, runner source guard, daemon mid-stream cancellation and daemon shell process-group cancellation; no runtime implementation, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h08-cancellation-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: h08_cancellation, h08_cancellation_guard, cancelling_mid_stream_never_completes_or_emits_a_late_delta, cancel_stops_in_flight_shell_before_it_writes
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H08 remains roadmap row 147 / current row 160 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for existing cancellation contracts
+proof-level change: none
+limitations: no local runtime result, cross-process cancellation persistence, OS power-loss/kill proof, real provider/MCP network evidence, complete P0-J1 state-machine proof or external/live/physical proof
+reviewer: source review confirmed cancellation watch propagation, deadline/retry fence, process-group stop confirmation and no success on unconfirmed stop; no local runtime reviewer
+```

@@ -37,5 +37,7 @@ shell 通过 `terminate_process_group` 后检查 leader/process group，MCP writ
 ## 3. Proof ceiling and handoff
 
 H08 proof ceiling 为 `source`：模型端口与 effect adapter 的取消信号、deadline 和停止确认已接线，
-CI-only runner/daemon fixtures 固化拒绝路径。跨进程取消信号持久化、OS 强杀/电源故障窗口、真实
+CI-only runner/daemon fixtures 固化拒绝路径。当前新增 `.github/workflows/h08-cancellation-diagnostic.yml`
+作为手动 focused receipt，覆盖 runner 两个目标和 daemon 两个既有取消目标；远程结果不在本地等待。
+跨进程取消信号持久化、OS 强杀/电源故障窗口、真实
 provider 网络与 MCP server 证据、完整 P0-J1 状态机和 live/physical proof 仍留待后续 CP/PD/P4/INT。
