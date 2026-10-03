@@ -22136,3 +22136,18 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: durable invocation/outcome/approval recovery, real provider/third-party catalog migration, automatic repair loop, external/live/physical effect proof and unified CI remain open
 reviewer: exact current-head jobs, catalog drift/identity batch/observation repair boundaries reviewed; no local runtime reviewer
 ```
+
+### H14 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `b95d2a01`; .github/workflows/h14-approval-resume-diagnostic.yml; kiana-domain/src/invocation_resume.rs; kiana-runner/src/harness.rs; kiana-core/src/{approvals,capabilities,recovery,lifecycle}.rs; kiana-domain/tests/h14_invocation_resume.rs; kiana-core/tests/h14_approval_resume.rs; docs/roadmap/harness-approval-resume-baseline.md
+worktree_status: current-head H14 manual lane passed without approval/resume source, fixture, manifest or lockfile changes; resume continues through the existing runner/result path
+command_argv: `gh run view 37159803978 --json status,conclusion,headSha,jobs,url`; `gh run view 37159803978 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: Core approval-resume guard 3/3 and domain binding 2/2; Turn/Step/Invocation continuity, duplicate-decision idempotence, expiry/change denial and server-owned binding all passed; target compiles passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: H14 roadmap row 153 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: cross-process checkpoint hydration, power-loss CAS/reconcile, full Runner recovery, external effect observation, external/live/physical proof and unified CI remain open
+reviewer: exact current-head jobs, binding material/identity and approval resume source boundaries reviewed; no local runtime reviewer
+```
