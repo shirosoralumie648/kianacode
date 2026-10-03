@@ -21792,3 +21792,18 @@ proof-level_change: none; focused CI evidence only
 limitations: loader remains a legacy test adapter, not FixtureStore/DaemonHost/ControlPlane; isolated workspace/home, content-level schema validation, provider/effect evidence, CAS/recovery and unified CI remain EQ-09+ / ER / PD / SC work
 reviewer: exact focused jobs and path-boundary fixture correction reviewed; no local runtime reviewer
 ```
+
+### SC-02/SC-05/SC-09 focused acceptance receipts (2026-10-04)
+
+```text
+source_snapshot: `c4ed8066`; .github/workflows/sc02-security-contract.yml; .github/workflows/sc05-policy.yml; .github/workflows/sc09-grant-scope.yml; corrected fixtures `e7353ebf` and `e207e047`
+worktree_status: three source-contract lanes passed after fail-first fixture corrections; no production execution spine, broker, store or manifest change was introduced
+command_argv: `gh run view 37147814048 --json status,conclusion,headSha,jobs,url`; `gh run view 37147814273 --json status,conclusion,headSha,jobs,url`; `gh run view 37147813952 --json status,conclusion,headSha,jobs,url`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runners are the runtime test authority
+fixture·cassette: SC-02 domain contract 6/6 plus Core guard and two no-run compiles; SC-05 policy fixture plus Core guard and two no-run compiles; SC-09 grant fixture plus Core guard and two no-run compiles
+exit_code: all three focused workflows remote exit 0; no local runtime exit code
+status_change: SC-02 roadmap row 113, SC-05 row 116 and SC-09 row 120 promoted 🔄 → ✅; each remains `feature_status=implemented`, `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: SC-02 registry is not a durable cross-process security store; SC-05 BundlePolicyEngine is not the default ControlPlane policy store; SC-09 GrantScope is not yet the durable Cell/Approval/Permit authority; external/live/physical outcomes and unified CI remain unproven
+reviewer: exact focused jobs, fixture corrections and source boundaries reviewed; no local runtime reviewer
+```
