@@ -20578,6 +20578,36 @@ limitations: H08 daemon shell focused target remains blocked by the unresolved E
 reviewer: source review confirmed shared Client→DaemonHost→ControlPlane routing, stale-turn rejection and one-time next-step delivery; no local runtime reviewer
 ```
 
+### H20 focused context-plan diagnostic workflow and status conflict (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h20-context-plan-diagnostic.yml; kiana-domain/src/context_plan.rs and related prompts/context scope/model contracts; kiana-runner/src/{harness.rs,model.rs}; tests kiana-domain/h20_context_plan.rs and kiana-runner/h20_context_guard.rs
+worktree_status: restored a manual GitHub-only focused matrix for existing H20 immutable ContextPlan/ResolvedStepContext fixtures and runner source guard; no context compilation behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h20-context-plan-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h20_context_plan and kiana-runner h20_context_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H20 remains roadmap row 307 `🔄` / `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for immutable plan compilation and runner binding guards
+proof-level change: none
+limitations: historical CURRENT_STATUS text at the H20 evidence block says roadmap row 307 is ✅ while authoritative docs/roadmap.md remains 🔄; this conflict is reported, not silently resolved; adapter retrieval, provider tokenizer/wire/live prompt and cross-process context recovery remain open
+reviewer: source review confirmed Product/Context authority separation, omission reasons, budget/digest binding and route/workspace/catalog/data drift fences; no local runtime reviewer
+```
+
+### H19 focused CI failure audit and correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37113337627` / head `2407de18`; kiana-protocol/tests/h19_steer_inject.rs; kiana-runner/tests/h19_steer_inject.rs; kiana-runner/src/harness.rs
+worktree_status: Core route guard passed; protocol unknown-field fixture placed `unexpected` on the envelope body object, while the actual SteerRequest deny_unknown_fields boundary is body.request; runner consumed a deferred next-step input but text-only completion checked only the now-empty inbox and ended before a second model step
+command_argv: gh run view 37113337627 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H19 protocol wire (1/2 passed), runner deferred steer (0/1), Core route guard (1/1); corrections move unknown-field injection to SteerRequest.request and continue once after consuming NextStep input
+exit_code: protocol and runner jobs failed; Core guard job 0; correction is source/fixture scoped and awaits fresh GitHub receipt
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; additive routing/guard source remains, with one confirmed runner state-machine fix and one fixture boundary correction pending focused rerun
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejected`; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: exact remote failures and existing model_step/inbox/protocol boundaries reviewed; no local runtime reviewer
+```
+
 ### H14 focused correction receipt (2026-10-03)
 
 ```text

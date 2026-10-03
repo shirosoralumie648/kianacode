@@ -17,3 +17,7 @@
 The domain contract does not query files, Memory or providers. Adapter-side retrieval, provider
 wire serialization, real tokenization and live prompt execution remain CI/integration work; no
 external business outcome or production tokenizer accuracy is claimed.
+
+The manual focused diagnostic workflow [`h20-context-plan-diagnostic.yml`](../../.github/workflows/h20-context-plan-diagnostic.yml)
+runs the domain ContextPlan fixture and runner source guard in parallel. An unawaited remote run does
+not raise the proof level.

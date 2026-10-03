@@ -1,0 +1,31 @@
+name: H20 context plan diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    name: H20 ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: domain-context-plan
+            package: kiana-domain
+            target: h20_context_plan
+          - name: runner-context-guard
+            package: kiana-runner
+            target: h20_context_guard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run focused H20 target
+        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1
