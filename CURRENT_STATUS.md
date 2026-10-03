@@ -19663,6 +19663,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched consumption fields, terminal state definition, approval aggregate, stream version and migration lookup; no local runtime reviewer
 ```
 
+### ER-01 approval continuation unavailable contract (2026-10-03)
+
+```text
+source_snapshot: source commit `8cba0ea6`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/approvals.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `approval.continuation_unavailable` now requires approval_id/run_id and only the bounded recovery error field, with terminal semantics and explicit legacy approval migration; source guard pins the persisted Run-bound recovery payload; no approval recovery behavior or EventStore enforcement changed
+command_argv: source trace of Run-bound approval continuation failure; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `approval_continuation_unavailable_contract_matches_recovery_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the continuation failure producer now has an exact registry contract
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: the recovery append remains on the Run event stream while static metadata retains approval as the canonical aggregate; generic EventStore append still does not call `validate_runtime_event`; other event producers and complete migration remain open; no approval durability, replay or external-effect claim
+reviewer: source trace matched persisted approval/run IDs and bounded error, terminal flag, migration lookup and source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
