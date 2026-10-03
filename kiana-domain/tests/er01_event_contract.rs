@@ -1759,3 +1759,216 @@ fn run_input_snapshot_and_clarification_contracts_match_producers() {
         );
     }
 }
+
+#[test]
+fn run_capability_and_approval_contracts_match_all_producers() {
+    let run_id = kiana_domain::RunId::new();
+    let request_id = kiana_domain::RequestId::new();
+    let approval_id = kiana_domain::ApprovalId::new();
+    let normal_request = json!({
+        "run_id": run_id,
+        "request_id": request_id,
+        "capability_request_id": request_id,
+        "capability": "shell",
+        "operation": "shell.exec",
+        "risk": "low",
+        "cell_id": null,
+        "capability_grant_id": null,
+        "budget_lease_id": null,
+        "attempt": 1,
+        "effect_started": false,
+        "effect_known": true,
+        "zero_effect": true,
+        "stop_state": "not_requested",
+        "fenced": false,
+        "action_digest": format!("sha256:{}", "a".repeat(64)),
+        "turn_id": kiana_domain::TurnId::new(),
+        "step_id": kiana_domain::StepId::new(),
+        "invocation_id": kiana_domain::InvocationId::new(),
+        "arguments": {},
+        "execution_scope": {},
+    });
+    let mut preparation_denied_request = normal_request.clone();
+    preparation_denied_request
+        .as_object_mut()
+        .unwrap()
+        .remove("execution_scope");
+
+    let cases = [
+        (
+            "run.capability_requested",
+            &["run_id", "capability_request_id"][..],
+            &[
+                "run_id",
+                "request_id",
+                "capability_request_id",
+                "capability",
+                "operation",
+                "risk",
+                "cell_id",
+                "capability_grant_id",
+                "budget_lease_id",
+                "attempt",
+                "effect_started",
+                "effect_known",
+                "zero_effect",
+                "stop_state",
+                "fenced",
+                "action_digest",
+                "turn_id",
+                "step_id",
+                "invocation_id",
+                "arguments",
+                "execution_scope",
+            ][..],
+            false,
+            normal_request,
+        ),
+        (
+            "run.capability_requested",
+            &["run_id", "capability_request_id"][..],
+            &[
+                "run_id",
+                "request_id",
+                "capability_request_id",
+                "capability",
+                "operation",
+                "risk",
+                "cell_id",
+                "capability_grant_id",
+                "budget_lease_id",
+                "attempt",
+                "effect_started",
+                "effect_known",
+                "zero_effect",
+                "stop_state",
+                "fenced",
+                "action_digest",
+                "turn_id",
+                "step_id",
+                "invocation_id",
+                "arguments",
+                "execution_scope",
+            ][..],
+            false,
+            preparation_denied_request,
+        ),
+        (
+            "run.capability_blocked",
+            &["run_id", "capability_request_id"][..],
+            &[
+                "run_id",
+                "capability_request_id",
+                "error",
+                "reason",
+                "attempt",
+                "effect_started",
+                "effect_known",
+                "zero_effect",
+                "stop_state",
+                "fenced",
+            ][..],
+            true,
+            json!({
+                "run_id": run_id,
+                "capability_request_id": request_id,
+                "error": "prepare_rejected",
+                "attempt": 1,
+                "effect_started": false,
+                "effect_known": true,
+                "zero_effect": true,
+                "stop_state": "not_requested",
+                "fenced": false,
+            }),
+        ),
+        (
+            "run.capability_blocked",
+            &["run_id", "capability_request_id"][..],
+            &[
+                "run_id",
+                "capability_request_id",
+                "error",
+                "reason",
+                "attempt",
+                "effect_started",
+                "effect_known",
+                "zero_effect",
+                "stop_state",
+                "fenced",
+            ][..],
+            true,
+            json!({
+                "run_id": run_id,
+                "capability_request_id": request_id,
+                "reason": "policy_denied",
+                "attempt": 1,
+                "effect_started": false,
+                "effect_known": true,
+                "zero_effect": true,
+                "stop_state": "not_requested",
+                "fenced": false,
+            }),
+        ),
+        (
+            "run.awaiting_approval",
+            &["run_id", "capability_request_id", "approval_id"][..],
+            &[
+                "run_id",
+                "approval_id",
+                "capability_request_id",
+                "attempt",
+                "effect_started",
+                "effect_known",
+                "zero_effect",
+                "stop_state",
+                "fenced",
+                "resume_binding",
+            ][..],
+            false,
+            json!({
+                "run_id": run_id,
+                "approval_id": approval_id,
+                "capability_request_id": request_id,
+                "attempt": 1,
+                "effect_started": false,
+                "effect_known": true,
+                "zero_effect": true,
+                "stop_state": "not_requested",
+                "fenced": false,
+                "resume_binding": {},
+            }),
+        ),
+    ];
+
+    for (kind, required_ids, allowed_fields, terminal, payload) in cases {
+        let spec = event_kind_spec(kind).unwrap();
+        assert_eq!(spec.aggregate_type, "run", "{kind}");
+        assert_eq!(spec.required_ids, required_ids, "{kind}");
+        assert_eq!(spec.allowed_fields, allowed_fields, "{kind}");
+        assert_eq!(spec.terminal, terminal, "{kind}");
+        assert_eq!(
+            event_migration(kind, 0, 1),
+            Some("legacy_run_event_v0_to_v1"),
+            "{kind}"
+        );
+        validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
+
+        for id in required_ids {
+            let mut missing_id = payload.clone();
+            missing_id.as_object_mut().unwrap().remove(id);
+            assert_eq!(
+                validate_event_payload(kind, &missing_id).unwrap_err(),
+                format!("event_required_id_missing:{id}"),
+                "{kind}"
+            );
+        }
+
+        let mut unknown_field = payload;
+        unknown_field["unregistered_capability_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload(kind, &unknown_field).unwrap_err(),
+            "event_payload_unknown_field",
+            "{kind}"
+        );
+    }
+}

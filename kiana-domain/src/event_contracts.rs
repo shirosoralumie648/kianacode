@@ -42,6 +42,54 @@ const RUN_AUTHORIZED_FIELDS: &[&str] = &[
 const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
 const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
 const RUN_DELTA_FIELDS: &[&str] = &["run_id", "text"];
+const RUN_CAPABILITY_REQUESTED_FIELDS: &[&str] = &[
+    "run_id",
+    "request_id",
+    "capability_request_id",
+    "capability",
+    "operation",
+    "risk",
+    "cell_id",
+    "capability_grant_id",
+    "budget_lease_id",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+    "action_digest",
+    "turn_id",
+    "step_id",
+    "invocation_id",
+    "arguments",
+    "execution_scope",
+];
+const RUN_CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
+    "run_id",
+    "capability_request_id",
+    "error",
+    "reason",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+];
+const RUN_AWAITING_APPROVAL_IDS: &[&str] = &["run_id", "capability_request_id", "approval_id"];
+const RUN_AWAITING_APPROVAL_FIELDS: &[&str] = &[
+    "run_id",
+    "approval_id",
+    "capability_request_id",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+    "resume_binding",
+];
 const RUN_SNAPSHOT_FIELDS: &[&str] = &["run_id", "snapshot"];
 const RUN_INPUT_ACCEPTED_FIELDS: &[&str] = &[
     "run_id",
@@ -1132,15 +1180,16 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.capability_requested",
         "run",
         INVOCATION_IDS,
-        RUN_FIELDS,
+        RUN_CAPABILITY_REQUESTED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
+    // Terminal closes this capability attempt only, not the enclosing run.
     spec!(
         "run.capability_blocked",
         "run",
         INVOCATION_IDS,
-        RUN_FIELDS,
+        RUN_CAPABILITY_BLOCKED_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1155,8 +1204,8 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "run.awaiting_approval",
         "run",
-        APPROVAL_IDS,
-        RUN_FIELDS,
+        RUN_AWAITING_APPROVAL_IDS,
+        RUN_AWAITING_APPROVAL_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

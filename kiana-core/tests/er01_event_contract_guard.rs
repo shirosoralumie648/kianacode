@@ -544,4 +544,77 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             "missing session producer field {marker}"
         );
     }
+    for (kind, expected_count) in [
+        ("run.capability_requested", 2),
+        ("run.capability_blocked", 2),
+        ("run.awaiting_approval", 1),
+    ] {
+        assert_eq!(
+            capabilities.matches(&format!("\"{kind}\"")).count(),
+            expected_count,
+            "unexpected capability producer count for {kind}"
+        );
+    }
+    for (kind, fields, ids, terminal) in [
+        (
+            "run.capability_requested",
+            "RUN_CAPABILITY_REQUESTED_FIELDS",
+            "INVOCATION_IDS",
+            false,
+        ),
+        (
+            "run.capability_blocked",
+            "RUN_CAPABILITY_BLOCKED_FIELDS",
+            "INVOCATION_IDS",
+            true,
+        ),
+        (
+            "run.awaiting_approval",
+            "RUN_AWAITING_APPROVAL_FIELDS",
+            "RUN_AWAITING_APPROVAL_IDS",
+            false,
+        ),
+    ] {
+        let spec = format!(
+            "\"{kind}\",\n        \"run\",\n        {ids},\n        {fields},\n        {terminal},"
+        );
+        assert!(
+            contracts.contains(&spec),
+            "run event {kind} must use its producer contract"
+        );
+    }
+    for marker in [
+        "const RUN_CAPABILITY_REQUESTED_FIELDS: &[&str]",
+        "const RUN_CAPABILITY_BLOCKED_FIELDS: &[&str]",
+        "const RUN_AWAITING_APPROVAL_IDS: &[&str] = &[\"run_id\", \"capability_request_id\", \"approval_id\"]",
+        "const RUN_AWAITING_APPROVAL_FIELDS: &[&str]",
+        "Terminal closes this capability attempt only, not the enclosing run.",
+    ] {
+        assert!(
+            contracts.contains(marker),
+            "missing run capability contract marker {marker}"
+        );
+    }
+    for marker in [
+        "\"request_id\":original.request_id,",
+        "\"capability_request_id\":original.request_id,",
+        "\"cell_id\":original.cell_id,",
+        "\"capability_grant_id\":original.capability_grant_id,",
+        "\"budget_lease_id\":original.budget_lease_id,",
+        "\"invocation_id\":kiana_domain::InvocationId::from_uuid(original.request_id.as_uuid()),",
+        "\"arguments\":redact_event_value(&original.arguments)",
+        "\"request_id\":request.request_id,\"capability_request_id\":request.request_id,",
+        "\"execution_scope\":request.execution_scope,",
+        "\"error\":reason,",
+        "\"reason\":reason,",
+        "\"run_id\":run_id,\"approval_id\":challenge.approval_id,",
+        "\"resume_binding\":resume_binding",
+        ".with_stream_metadata(aggregate_type, &aggregate_id, version + 2)",
+    ] {
+        assert!(
+            capabilities.contains(marker),
+            "missing capability producer field or boundary {marker}"
+        );
+    }
+    assert!(capabilities.contains("Some(run_id) => (\"run\", run_id.to_string())"));
 }
