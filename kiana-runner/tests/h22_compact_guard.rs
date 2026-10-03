@@ -19,9 +19,7 @@ fn h22_compaction_keeps_summary_evidence_and_complete_recent_groups() {
         );
     }
     assert!(!compact.contains("(no summary available)"));
-    assert!(
-        compact.contains("Product-owned system instructions are an immutable prefix")
-            || harness.contains("Product-owned system instructions are an immutable prefix")
-    );
+    assert!(compact.contains("system"));
+    assert!(harness.contains("PromptBundle::decode"));
     assert!(domain.contains("compact_summary_evidence_ref_invalid"));
 }

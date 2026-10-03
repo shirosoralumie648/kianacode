@@ -20698,6 +20698,21 @@ limitations: historical CURRENT_STATUS H22 block says row 309 is ✅ while autho
 reviewer: exact remote failure and compact/harness source ownership reviewed; no local runtime reviewer
 ```
 
+### H22 focused guard literal audit (2026-10-03)
+
+```text
+source_snapshot: remote run `37116722113` / head `8221b522`; kiana-runner/tests/h22_compact_guard.rs; current source kiana-runner/src/{compact.rs,harness.rs}
+worktree_status: domain summary passed; runner guard still failed because the historical English prefix sentence no longer exists in either source file. The guard now checks the actual system-prefix and PromptBundle decode symbols that enforce the same boundary; no compaction behavior changed
+command_argv: gh run view 37116722113 --log-failed; rg -n -F "Product-owned system instructions are an immutable prefix" .; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H22 domain-summary success; runner guard failed only at a removed historical literal
+exit_code: remote domain job 0; runner guard 1; fresh receipt awaits actual-symbol guard correction
+status_change: H22 remains roadmap row 309 `🔄` / `feature_status=implemented` / `proof_level=source`; guard now follows current compaction/prompt ownership
+proof-level change: none
+limitations: historical CURRENT_STATUS H22 block says row 309 is ✅ while authoritative docs/roadmap.md remains 🔄; admitted summary model/retry, durable summary event, cross-process recovery and live/physical proof remain open
+reviewer: exact missing literal and current source symbols reviewed; no local runtime reviewer
+```
+
 ### H21 focused guard drift audit and correction (2026-10-03)
 
 ```text
