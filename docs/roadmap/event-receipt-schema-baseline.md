@@ -806,6 +806,29 @@ limitations: MemoryEventLog and scripted Runner exercise selected real ControlPl
 reviewer: source review confirms events come from ControlPlane writes, not fixture-created RuntimeEvents, and deny cases assert zero Runner/Broker calls
 ```
 
+## 5.32 Complete contract CI receipt and real-producer fixture boundary
+
+Manual run `37091699872` at `6265363e` passed the complete domain contract target
+(31/31, job `111113230833`) and Core source guard (1/1, job `111113231028`). Its real
+ControlPlane selector (job `111113231021`) passed the deny-before-execution fixture but failed
+the success fixture at `start_run`: the scripted ChunkedDeltaRunner inherits the default
+`bind_model_assignment` rejection (`runner_model_assignment_unsupported`). The two session
+assignment calls completed; the selected lifecycle events have not yet been validated remotely.
+This is a missing test Runner port implementation, not evidence of a successful producer path.
+
+```text
+source_snapshot: observed head 6265363ef247e0f8d40ab485457672fa91b28e90; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: receipt-only ledger update; real-producer Runner correction is being prepared independently; no assertions or product code changed in this update
+command_argv: gh run view 37091699872 --json headSha,status,conclusion,jobs,url; gh run view 37091699872 --job 111113230833 --log; gh run view 37091699872 --job 111113231028 --log; gh run view 37091699872 --job 111113231021 --log; source trace of RunnerPort::bind_model_assignment and start_run
+cwd·environment: repository root Linux/bash; all compilation and runtime execution on GitHub Actions
+fixture·cassette: er01_event_contract 31/31; er01_event_contract_guard 1/1; er01_real_ selector 1 passed/1 failed, 111 filtered out
+exit_code: domain/Core guard remote 0; real-producer remote 101; no local runtime result
+status_change: ER-01 remains row 036 🔄 / partial / source; the bounded source contracts now have an exact complete-target receipt
+proof-level change: none
+limitations: success producer fixture stopped before lifecycle validation; generic EventStore validation, complete migrations, run.rejected aggregate naming and terminal/result payload reconciliation remain open; no durable/live/physical claim
+reviewer: exact GitHub target logs plus producer/Runner source review
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

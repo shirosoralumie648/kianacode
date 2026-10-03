@@ -19948,6 +19948,21 @@ limitations: selected non-terminal/session/receipt events on MemoryEventLog and 
 reviewer: real ControlPlane event writes and zero Runner/Broker denial assertions reviewed
 ```
 
+### ER-01 complete contract CI receipt and fixture Runner boundary (2026-10-03)
+
+```text
+source_snapshot: observed head 6265363ef247e0f8d40ab485457672fa91b28e90; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: receipt-only update; the real-producer Runner correction is independent and not claimed here; no product or assertion changes
+command_argv: gh run view 37091699872 --json headSha,status,conclusion,jobs,url; exact logs for jobs 111113230833, 111113231028, 111113231021; source trace of RunnerPort::bind_model_assignment and start_run; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively compiled and executed the fixtures
+fixture·cassette: complete er01_event_contract 31/31; complete er01_event_contract_guard 1/1; er01_real_ 1 passed/1 failed, 111 filtered out; deny-before-execution passed, success stopped at start_run with runner_model_assignment_unsupported
+exit_code: domain/Core guard 0; real-producer target 101; no local runtime result
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; bounded source contracts have an exact full-target receipt
+proof-level change: none
+limitations: both session assignment calls completed, but selected lifecycle events were not validated remotely; global EventStore schema enforcement, complete migrations, run.rejected aggregate naming and terminal/result payload reconciliation remain open; no durability/live provider or physical claim
+reviewer: exact CI logs and source review; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
