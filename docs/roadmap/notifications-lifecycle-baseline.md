@@ -58,3 +58,10 @@ domain/core fixture targets, and both target-scoped `--no-run` compilation steps
 terminal-ordering, strict Incident evidence and comment-filtered source-guard corrections. NM-02
 remains `🔄` / `partial/source`; ACK does not drive Company/Swarm dispatch and notification
 materialization, delivery, read state and cross-process recovery remain later scope.
+
+## 8. Focused acceptance closeout (2026-10-04)
+
+The scoped NM-02 acceptance lane is complete at `implemented/source`: run `37134681304` passed
+the lifecycle domain target, Core guard and both target-scoped compile steps. Unified workspace CI
+is not claimed green; ACK dispatch, notification materialization, delivery/read state and
+cross-process recovery remain later work.

@@ -21612,3 +21612,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: NotificationStore, recipient resolver, materializer, outbox, delivery worker, durable read state, external channel, live/physical proof and unified CI remain unproven
 reviewer: exact focused job steps and contract-boundary source reviewed; no local runtime reviewer
 ```
+
+### NM-02 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `b541dc13`; .github/workflows/nm02-lifecycle.yml; kiana-domain/src/communication.rs; kiana-domain/tests/nm02_lifecycle.rs; kiana-core/src/communication.rs; kiana-core/tests/nm02_lifecycle_guard.rs; docs/roadmap/notifications-lifecycle-baseline.md
+worktree_status: complete focused lane passed formatting, NM-02 lifecycle domain fixtures, Core source guard and both target-scoped no-run compiles; terminal ordering, strict Incident evidence and comment-filtered no-dispatch corrections are included
+command_argv: gh run view 37134681304 --json status,conclusion,headSha,jobs,url; gh run view 37134681304 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `nm02_lifecycle` success; `nm02_lifecycle_guard` success; domain/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: NM-02 roadmap row 098 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: ACK does not drive Company/Swarm dispatch; old request-aggregate facts remain compatibility-only; notification materialization/subscription resolver/outbox/read state/external delivery, cross-process recovery and unified CI remain unproven
+reviewer: exact focused job steps and lifecycle source reviewed; no local runtime reviewer
+```
