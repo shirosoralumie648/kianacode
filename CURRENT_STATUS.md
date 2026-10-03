@@ -22077,3 +22077,18 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: cross-process/power-loss CAS, OS spawn crash window, provider/connector exactly-once, Secret/egress, result/cancel/Unknown full transaction wiring, external/live/physical proof and unified CI remain open
 reviewer: exact current-head job, permit single-consume fixtures and verifier/source boundaries reviewed; no local runtime reviewer
 ```
+
+### H06 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `7e3306e3`; .github/workflows/h06-stream-diagnostic.yml; kiana-runner/src/{stream,harness}.rs; kiana-runner/tests/{h06_stream_normalizer,h06_stream_guard}.rs; docs/roadmap/harness-stream-baseline.md
+worktree_status: current-head H06 manual lane passed with no stream source, fixture, manifest or lockfile change; one accumulator/finalize boundary remains the only runner stream path
+command_argv: `gh run view 37158650125 --json status,conclusion,headSha,jobs,url`; `gh run view 37158650125 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: normalizer target 4/4 and source guard 1/1; duplicate stop, EOF/late cancel, interleaved tool deltas and split invalid tool JSON all passed; no partial tool dispatch
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: H06 roadmap row 145 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: provider multi-block/reconnect/truncation, attempt durability, billing, terminal/recovery, H05 automatic repair/compaction, external/live/physical proof and unified CI remain open
+reviewer: exact current-head jobs, accumulator single-path guard and fail-closed stream fixtures reviewed; no local runtime reviewer
+```
