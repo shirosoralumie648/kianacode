@@ -93,6 +93,7 @@ read committed frame
 | `run_predecessor_contract_matches_lifecycle_producer` | `run.predecessor` 的 run/previous-run/turn/session/semantics 六字段；缺 run_id、未知字段拒绝 |
 | `run_resume_prepared_contract_matches_recovery_producer` | `run.resume_prepared` 的 run/session/actor/snapshot-event/turn 六字段；缺 run_id、未知字段拒绝 |
 | `run_compacted_contract_matches_lifecycle_producer` | `run.compacted` 的 schema/run/tokens-before/tokens-after/summary 字段；缺 run_id、未知字段拒绝 |
+| `run_receipt_contract_bounds_top_level_projection` | `run.receipt` 的 37 个固定顶层 projection 键和可选 work-packet 键；缺 run_id、未知顶层字段拒绝，嵌套值保持各自 projection contract |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -506,6 +507,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; run.receipt/rejected and model/session producer families remain open; no durable compaction replay or external-effect claim
 reviewer: source trace matched compaction schema/tokens/summary fields, migration metadata, required run identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.19 Run receipt top-level projection contract
+
+`run.receipt` is a derived read-model snapshot written after the real run terminal event. The
+registry now bounds its top-level shape to the 37 fixed keys emitted by `receipt_from_events`, plus
+the optional `work_packet_id` and `input` keys added by `with_work_packet`; it remains a
+non-terminal run event with the legacy run migration. The fixture checks the complete top-level
+shape, missing `run_id` and unknown top-level fields while leaving nested projection contracts to
+their owners. No receipt computation, lifecycle behavior or EventStore validation changed.
+
+```text
+source_snapshot: source commit `140b0420`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/src/receipts.rs`; `kiana-core/src/events.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `run.receipt` now uses an exact 39-key top-level allowlist (37 fixed projection keys plus optional work-packet keys), requires run_id, is non-terminal and carries legacy run migration; nested read-model values remain dynamic and no receipt behavior changed
+command_argv: source trace of the lifecycle receipt write, receipt_from_events fixed keys and with_work_packet optional keys; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 59264b3f`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_receipt_contract_bounds_top_level_projection`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; receipt top-level envelope is now bounded without claiming nested projection closure or business outcome
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested receipt/aggregation/model/invocation projections remain owner contracts, and receipt remains a derived shadow copy rather than an additional fact; no durable replay, external delivery or outcome claim
+reviewer: source trace matched lifecycle write, receipt_from_events fixed top-level keys, with_work_packet optional keys and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
