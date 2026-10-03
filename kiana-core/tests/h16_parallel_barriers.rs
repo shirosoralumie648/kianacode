@@ -49,7 +49,9 @@ fn revocation_blocks_not_started_parallel_call() {
 fn crash_with_later_outcome_ready_does_not_rerun_it() {
     let ledger = include_str!("h13_invocation_ledger.rs");
     let projection = include_str!("../src/invocation_projection.rs");
+    let dispatch = include_str!("../src/dispatch.rs");
     assert!(ledger.contains("persisted_outcome_is_reused_without_reexecuting_tool"));
     assert!(projection.contains("execution.result_committed"));
-    assert!(projection.contains("outcome_ready"));
+    assert!(dispatch.contains("outcome_ready"));
+    assert!(projection.contains("result_receipt"));
 }
