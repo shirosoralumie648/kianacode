@@ -22226,3 +22226,18 @@ proof-level_change: none; no restart/durable product-chain promotion from this f
 limitations: historical fenced files that discarded the digest cannot reconstruct it; this is provider-only file metadata preservation, not the generic CI-07 FileSecretStore; cross-process CAS, Gateway/IdP integration, recovery and unified CI remain open
 reviewer: all token-file producers/decoders and revoke/reauth transitions reviewed; no local runtime reviewer
 ```
+
+### CP-13 / ER-13 whole-card acceptance correction (2026-10-04)
+
+```text
+source_snapshot: `732d91dd`; kiana-core/src/{capabilities,dispatch}.rs; docs/roadmap/control-plane.md#step-cp-13; docs/roadmap/event-receipt-recovery.md#step-er-13
+worktree_status: read-only comparison of detailed card exit conditions against the current shared prepare/finalize/delivery path; implementation and CI receipts are preserved, while the completion ledger is corrected
+command_argv: source/document/Git reads only; no local runtime validation
+cwd·environment: repository root
+fixture·cassette: CP-13 run `37157922411` covers domain permits plus source guard; ER-13 run `37157175701` covers source guard only; neither measures the missing whole-card behaviors
+exit_code: historical focused workflows 0; no new runtime exit code
+status_change: roadmap rows 129 / 139 corrected ✅ → 🔄; feature_status=partial; proof_level=source; this supersedes the earlier current-head acceptance status changes
+proof-level_change: none; focused source/contract success is retained with its actual scope
+limitations: CP-13 reserves scheduler/Cell resources before a separate execution.prepared transaction, with budget/lease and post-prepared failure recovery still open; ER-13 delivery currently claims without checking a committed execution result/typed receipt or source turn; true crash/replay recovery remains open
+reviewer: full detailed-card requirements and production helper sources reviewed; CP-13 Broker effect fixtures and ER-13 committed-source delivery repair delegated in isolated worktrees; no local runtime reviewer
+```
