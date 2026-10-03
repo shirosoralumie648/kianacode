@@ -167,12 +167,12 @@ request was sent, no tool side effect was observed, and the error is not admitte
 retry path.
 
 ```text
-source_snapshot: isolated commit `ef0c5efb`; integrated commit `022bbf26`; kiana-provider/src/response.rs; .github/workflows/h05-stop-diagnostic.yml
+source_snapshot: integrated commit `022bbf26`; kiana-provider/src/response.rs; .github/workflows/h05-stop-diagnostic.yml
 worktree_status: OpenAI Responses structured failure producer and focused selector added; non-stream and stream fixtures include a message-only adversarial case; no automatic repair loop, manifest or lockfile change
 command_argv: isolated cargo fmt --all --check; isolated git diff --check; no local tests/build/check/clippy/smoke; root cherry-pick ef0c5efb; git push origin master
 cwd·environment: isolated worktree `/tmp/kiana-h05-context-repair-producer-20261003` integrated at repository root Linux/bash; GitHub Actions is the runtime authority
 fixture·cassette: `responses_context_limit_errors_are_typed_context_repair`; structured `context_length_exceeded` maps to `model_context_limit_exceeded`/ContextRepair with request_sent=true, side_effect_state=none and retry=Never; message-only same text and non-context provider codes remain Terminal
-exit_code: isolated format/diff 0; integration/push 0; focused GitHub receipt pending on current head
+exit_code: isolated format/diff 0; integration/push 0; focused run `37102779074` all seven jobs success
 status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; one unambiguous OpenAI Responses ContextRepair producer is now source-backed
 proof-level change: none
 limitations: no automatic repair/compaction loop, no arbitrary provider-message inference, no complete provider matrix, unified shard/live/durable/physical proof

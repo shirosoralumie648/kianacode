@@ -20140,7 +20140,22 @@ exit_code: isolated format/diff 0; integration/push 0; focused GitHub receipt pe
 status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; one typed OpenAI Responses ContextRepair producer is now source-backed
 proof-level change: none
 limitations: no automatic repair/compaction loop, arbitrary provider-message inference, full provider matrix, unified shard/live/durable/physical proof
-reviewer: isolated provider source/fixture review; no local runtime reviewer
+reviewer: isolated provider source/fixture review plus exact focused GitHub receipt; no local runtime reviewer
+```
+
+### H05 focused ContextRepair receipt (2026-10-03)
+
+```text
+source_snapshot: `f0d5fa20`; .github/workflows/h05-stop-diagnostic.yml; kiana-provider/src/response.rs; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs
+worktree_status: current-head focused workflow includes the new Responses ContextRepair producer selector; no unified shard, manifest, lockfile or automatic repair loop change
+command_argv: gh run view 37102779074 --json status,conclusion,headSha,jobs,url; cargo fmt --all --check; git diff --check; gh workflow run h05-stop-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively executed focused runtime targets
+fixture·cassette: seven jobs all success: h05_model_outcome, h05_stop_guard, responses_context_repair, explicit incomplete status/stream, malformed ToolRepair and structured-output FormatRepair
+exit_code: seven remote jobs 0; local format/diff 0
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; the structured Responses ContextRepair producer now has a focused current-head receipt
+proof-level change: none
+limitations: no automatic repair/compaction loop, complete unified shard, arbitrary provider-message inference, stream accumulator, budget/live provider, billing, external effect or physical proof
+reviewer: exact GitHub job receipts and provider source/fixture review; no local runtime reviewer
 ```
 
 ### CO-06 Company history stack-overflow phase markers (2026-10-03)
