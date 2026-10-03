@@ -19363,6 +19363,21 @@ limitations: no real provider multi-block/reconnect/network-truncation, durable 
 reviewer: isolated H06 source/fixture review; no local runtime reviewer
 ```
 
+### H06 current-head focused receipt (2026-10-03)
+
+```text
+source_snapshot: `602b801e`; .github/workflows/h06-stream-diagnostic.yml; kiana-runner/src/stream_normalizer.rs; kiana-runner/tests/{h06_stream_normalizer.rs,h06_stream_guard.rs}
+worktree_status: duplicate Stop reachability correction and source guard are on current master; no provider adapter, manifest or lockfile change
+command_argv: gh run view 37105711959 --json status,conclusion,headSha,jobs,url; cargo fmt --all --check; git diff --check; gh workflow run h06-stream-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions focused runtime authority
+fixture·cassette: h06_stream_normalizer and h06_stream_guard; both remote jobs success
+exit_code: two remote jobs 0; local format/diff 0
+status_change: H06 remains roadmap row 145 / current row 158 `feature_status=implemented` / `proof_level=source`; focused duplicate-stop receipt now observed
+proof-level change: none
+limitations: no real provider multi-block/reconnect/network-truncation, durable attempt ledger, billing/retry integration, terminal/recovery or external/live/physical proof
+reviewer: exact focused jobs plus source/fixture review; no local runtime reviewer
+```
+
 ### CAP-02 focused acceptance workflow (2026-10-03)
 
 ```text

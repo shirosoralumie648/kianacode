@@ -41,3 +41,18 @@ H06 proof ceiling 为 `source`：runner/domain accumulator 与 Harness 接线已
 guard 固化，未运行本地测试。重复 Stop 的 focused fixture 和手动 workflow 由当前头 GitHub CI
 执行；真实 provider 多块/重连/网络截断、stream usage billing、跨进程
 attempt persistence、terminal/recovery 和 live/physical proof 仍留待 H07+ / P4 / ER/PD/INT。
+
+### 4.1 Current-head duplicate-stop receipt
+
+```text
+source_snapshot: `602b801e`; .github/workflows/h06-stream-diagnostic.yml; kiana-runner/src/stream_normalizer.rs; kiana-runner/tests/{h06_stream_normalizer.rs,h06_stream_guard.rs}
+worktree_status: duplicate Stop reaches explicit stream_duplicate_stop after the reachability correction; first terminal reason remains authoritative and non-Stop late deltas remain fenced
+command_argv: gh run view 37105711959 --json status,conclusion,headSha,jobs,url; cargo fmt --all --check; git diff --check; gh workflow run h06-stream-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions executed both focused H06 targets
+fixture·cassette: h06_stream_normalizer and h06_stream_guard; both jobs success
+exit_code: two remote jobs 0; local format/diff 0
+status_change: H06 remains `feature_status=implemented` / `proof_level=source`; duplicate-stop fixture and source guard now have a current-head focused receipt
+proof-level change: none
+limitations: no real provider multi-block/reconnect/network-truncation, durable attempt ledger, billing/retry integration, terminal/recovery or external/live/physical proof
+reviewer: exact focused GitHub jobs and source guard/fixture review; no local runtime reviewer
+```
