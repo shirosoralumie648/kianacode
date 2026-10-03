@@ -10,6 +10,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let dispatch = include_str!("../../kiana-core/src/dispatch.rs");
     let lifecycle = include_str!("../../kiana-core/src/lifecycle.rs");
     let data_governance = include_str!("../../kiana-core/src/data_governance.rs");
+    let recovery = include_str!("../../kiana-core/src/recovery.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -165,6 +166,17 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         assert!(
             data_governance.contains(marker),
             "missing governance tool-result producer field {marker}"
+        );
+    }
+    assert!(recovery.contains("\"run.resume_prepared\""));
+    for marker in [
+        "\"run_id\":run_id,\"session_id\":context.session_id,\"actor_id\":context.actor_id,",
+        "\"snapshot_event_id\":event.event_id,",
+        "\"turn_id\":resume_turn.turn_id,\"turn\":resume_turn,",
+    ] {
+        assert!(
+            recovery.contains(marker),
+            "missing resume producer field {marker}"
         );
     }
     assert!(lifecycle.contains("\"run.predecessor\""));

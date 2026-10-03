@@ -186,6 +186,14 @@ const RUN_PREDECESSOR_FIELDS: &[&str] = &[
     "session_id",
     "semantics",
 ];
+const RUN_RESUME_PREPARED_FIELDS: &[&str] = &[
+    "run_id",
+    "session_id",
+    "actor_id",
+    "snapshot_event_id",
+    "turn_id",
+    "turn",
+];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
     "run_id",
@@ -988,7 +996,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.resume_prepared",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_RESUME_PREPARED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
