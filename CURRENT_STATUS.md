@@ -21118,6 +21118,21 @@ limitations: prior unified receipts covered exact targets but shards failed on u
 reviewer: source review confirmed canonical paths/data scopes, shared packet_graph reuse, strict fingerprint/limit validation, deterministic readiness and ControlPlane-only validation before state write; no local runtime reviewer
 ```
 
+### SW-02 focused compile-gate correction (2026-10-03)
+
+```text
+source_snapshot: `9a7048bf`; .github/workflows/sw02-work-graph.yml; kiana-domain/tests/sw02_work_graph.rs; kiana-core/tests/sw02_work_graph_guard.rs; docs/roadmap/swarm-work-graph-baseline.md
+worktree_status: prior focused run passed the domain work-graph target 6/6 and Core guard 2/2; only the broad final test compile failed on unrelated `kiana-domain/tests/nm01_contracts.rs` errors; workflow now uses two target-scoped no-run compile steps and no validator behavior or assertion changed
+command_argv: gh run view 37121825992 --json status,conclusion,headSha,jobs,url; gh run view 37121825992 --log-failed; git show 08552ada^:.github/workflows/sw02-work-graph.yml; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: prior focused run `sw02_work_graph` 6/6 and `sw02_work_graph_guard` 2/2; broad compile stopped at unrelated `nm01_contracts.rs` E0277/E0618 errors; corrected workflow targets `cargo test -p kiana-domain --test sw02_work_graph --no-run --locked` and `cargo test -p kiana-core --test sw02_work_graph_guard --no-run --locked`
+exit_code: prior remote workflow 1 at unrelated broad compile; source/diff checks 0; no local runtime exit code; fresh corrected workflow pending
+status_change: SW-02 remains roadmap row 090 `🔄` / `feature_status=partial` / `proof_level=source`; this is a CI gate-scope correction only
+proof-level_change: none; source plus prior focused fixture receipt, fresh target-scoped receipt pending
+limitations: typed packet-set binding, optional legacy migration, durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery and effect-time fencing remain unproven
+reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
+```
+
 ### OA-02 focused correlation workflow (2026-10-03)
 
 ```text

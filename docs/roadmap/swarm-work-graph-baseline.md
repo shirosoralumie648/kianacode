@@ -129,3 +129,11 @@ manual focused lane with both targets and the work-graph compile path. Run `3705
 including both new model-call budget branches; the enclosing domain shard failed on sibling targets.
 SW-02 remains `partial/source`: exact packet-set binding, optional legacy graph migration, durable
 dispatch and effect-time fencing remain open.
+
+## 9. Focused compile-gate correction (2026-10-03)
+
+The restored focused run `37121825992` passed the domain work-graph target (`6/6`) and Core guard
+(`2/2`) but failed its final broad test compile on unrelated `kiana-domain/tests/nm01_contracts.rs`
+errors. The manual lane now compiles only `sw02_work_graph` and `sw02_work_graph_guard` with
+target-scoped `--no-run` commands. No validator behavior or fixture assertion changed; a fresh
+remote receipt is required before any status or proof-level promotion.

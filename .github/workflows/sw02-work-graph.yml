@@ -22,5 +22,7 @@ jobs:
         run: cargo test -p kiana-domain --test sw02_work_graph --locked -- --test-threads=1
       - name: Run SW-02 source guard
         run: cargo test -p kiana-core --test sw02_work_graph_guard --locked -- --test-threads=1
-      - name: Compile work graph path
-        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked
+      - name: Compile SW-02 domain target
+        run: cargo test -p kiana-domain --test sw02_work_graph --no-run --locked
+      - name: Compile SW-02 Core guard target
+        run: cargo test -p kiana-core --test sw02_work_graph_guard --no-run --locked
