@@ -196,7 +196,7 @@ fn successful_attempt_has_complete_admission_to_effect_evidence_without_raw_payl
     let second = project_capability_attempts(run_id, &events).unwrap();
     assert_eq!(first, second);
     let record = first.first().expect("capability attempt");
-    assert_eq!(record.status, TraceStatus::Ok);
+    assert_eq!(record.status, TraceStatus::Ok, "{record:?}");
     assert_eq!(record.admission, CapabilityAdmissionState::Allowed);
     assert_eq!(record.approval, CapabilityApprovalState::Approved);
     assert_eq!(record.effect, CapabilityEffectState::Succeeded);
