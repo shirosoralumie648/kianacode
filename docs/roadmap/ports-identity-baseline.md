@@ -31,7 +31,7 @@
 | `credential_rotation_port_generation_cas_rejects_stale_without_mutation` | 测试内存 fake 对 rotate/revoke 均按 observed generation CAS；旧 generation 拒绝且 SecretRef 不变，当前 generation 成功递增 |
 | `ports_keep_identity_config_credential_and_rotation_boundaries_separate` | 四类 port、错误/secret-free metadata 和 CI-02 domain contracts 均有 source guard |
 
-统一 `.github/workflows/ci.yml` 的 test shard 在 GitHub runner 执行 ports fixture、core source guard、fmt 和 domain/ports/core test-target 编译；旧的独立 CI-03 workflow 已合并删除。本地不运行测试。
+`.github/workflows/ci.yml` 的 test shard 继续在 GitHub runner 执行 ports fixture、core source guard、fmt 和 domain/ports/core test-target 编译；`.github/workflows/ci03-ports.yml` 提供当前头的手动 focused receipt。本地不运行测试。
 
 ## 4. 限制与交接
 

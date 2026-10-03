@@ -21042,3 +21042,18 @@ proof-level_change: none; source plus remote CI wiring only, with no CI result p
 limitations: docs/roadmap/context-memory.md and the historical CM-06 status block say `✅`/implemented while authoritative docs/roadmap.md remains `🔄`; graph is not an independently durable aggregate/UI command, DataGovernance cleanup/delete workers and artifact/index/cache integration remain open, with no cross-process/power-loss or external/live/physical proof
 reviewer: source review confirmed bounded node/edge validation, canonical ordering/digest, reverse BFS closure, unknown/self/duplicate/gap rejection, monotonic data epoch and no-delete/no-authority mutation boundary; no local runtime reviewer
 ```
+
+### CI-03 focused ports workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/ci03-ports.yml; docs/roadmap/ports-identity-baseline.md; kiana-ports/src/lib.rs; kiana-domain/src/identity_contracts.rs; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs
+worktree_status: restored a manual GitHub-only workflow for the current CI-03 port contract and source guard, including checked identity/credential binding, explicit config/generation CAS and secret-free metadata fixtures; no production adapter, manifest, lockfile or second authority path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run ci03-ports.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-ports ci03_ports and kiana-core ci03_ports_guard; workflow also runs cargo fmt --all --check and cargo check -p kiana-domain -p kiana-ports -p kiana-core --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CI-03 remains roadmap row 086 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for raw-secret exclusion, strict resolution metadata, unavailable/missing handling, config revision CAS, credential generation CAS and checked identity/reference binding
+proof-level_change: none; source plus remote CI wiring only, with no focused result promoted here
+limitations: unified shard receipts were only partial because unrelated ports targets failed; the new focused run is pending; raw compatibility resolver methods remain callable and production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth, durable rotation/revoke and provider/live effects remain open
+reviewer: source review confirmed non-secret DTOs, exact SecretRef/authentication generation checks, stale CAS conflict boundaries and separation of port contracts from authority/adapter effects; no local runtime reviewer
+```
