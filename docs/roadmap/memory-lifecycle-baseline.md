@@ -55,7 +55,9 @@ Daemon JSONL reader 对 `kiana.memory-record.v1` 调用 `MemoryRecord::legacy_im
 | `memory_review_without_evidence_keeps_candidate_unmodified_and_unjournaled` | 普通 model Candidate 缺 evidence 时拒绝晋升；LegacyImport 原位 review 也拒绝；两者 JSONL 字节不变且 EventStore 未追加 memory fact |
 | `model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` | 缺 source evidence 的批准不能把模型候选变成 Qualified/Active 或 searchable |
 
-以前的独立 `.github/workflows/cm02-memory-lifecycle.yml` 已删除并合并进 `.github/workflows/ci.yml`：`cm02_memory` 由 `kiana-domain-s1/4` shard 执行，daemon legacy reader fixture 随 `kiana-daemon` 包测试执行，fmt 由 Rust gates 执行。本地不运行测试或格式检查。
+`.github/workflows/ci.yml` 继续运行 `cm02_memory`（`kiana-domain-s1/4`）和 daemon package tests；
+`.github/workflows/cm02-memory-lifecycle.yml` 提供当前头的手动 focused lane，额外单独运行
+legacy reader 与 evidence-denial daemon target，并只编译这三个 focused test target。本地不运行测试或格式检查。
 
 ## 5. 限制与交接
 

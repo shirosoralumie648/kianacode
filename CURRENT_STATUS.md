@@ -21087,3 +21087,18 @@ proof-level_change: none; source plus remote CI wiring only, with no current-hea
 limitations: prior unified receipts were exact-target only and enclosing shards failed on unrelated siblings; authenticated ingress→provider→broker→EventLog propagation, recovery link durability, exporter/sink integration and external/live/physical trace proof remain open
 reviewer: source review confirmed server-derived context, foreign input as link-only, strict typed IDs, causation/attempt scope and side-effect-free port construction; no local runtime reviewer
 ```
+
+### CM-02 focused memory-lifecycle workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/cm02-memory-lifecycle.yml; docs/roadmap/memory-lifecycle-baseline.md; kiana-domain/src/memory.rs; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/cm02_memory.rs; kiana-daemon/tests/daemon_host.rs
+worktree_status: restored a manual GitHub-only workflow for the current CM-02 lifecycle/import fixtures plus the daemon evidence-denial target that previously overflowed during memory.review preparation; no Memory authority, EventStore path, manifest, lockfile or second store changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run cm02-memory-lifecycle.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain cm02_memory; kiana-daemon legacy_memory_is_unverifiable_until_reviewed; kiana-daemon daemon_host model_written_memory_without_evidence_is_rejected_and_stays_unsearchable; workflow also runs cargo fmt --all --check and target-scoped `cargo test --no-run` compilation for those three targets
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: CM-02 remains roadmap row 050 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for lifecycle/provenance denial, explicit legacy import and the current evidence-denial integration target
+proof-level_change: none; source plus remote CI wiring only, with no result promoted here
+limitations: prior exact daemon executions `37051593527`, `37053666899` and `37054968622` ended with stack overflow during memory.review preparation/approval staging; this run is expected to expose whether that failure remains, and any SIGABRT/Cargo 101 is failure evidence, not completion. EventStore-backed successful Native successor, evidence-to-event/quote binding, durable recovery, retention/revocation/delete and semantic recall remain open
+reviewer: source review confirmed lifecycle validation before visibility/search, explicit LegacyImport conversion, zero-revision persistence fence and no-evidence rejection ordering; no local runtime reviewer
+```

@@ -1,0 +1,32 @@
+name: CM-02 memory lifecycle and legacy import
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run CM-02 domain lifecycle fixtures
+        run: cargo test -p kiana-domain --test cm02_memory --locked -- --test-threads=1
+      - name: Run CM-02 daemon legacy import fixture
+        run: cargo test -p kiana-daemon --lib legacy_memory_is_unverifiable_until_reviewed --locked -- --test-threads=1
+      - name: Run CM-02 daemon evidence-denial fixture
+        run: cargo test -p kiana-daemon --test daemon_host model_written_memory_without_evidence_is_rejected_and_stays_unsearchable --locked -- --test-threads=1
+      - name: Compile CM-02 domain target
+        run: cargo test -p kiana-domain --test cm02_memory --no-run --locked
+      - name: Compile CM-02 daemon targets
+        run: |
+          cargo test -p kiana-daemon --lib legacy_memory_is_unverifiable_until_reviewed --no-run --locked
+          cargo test -p kiana-daemon --test daemon_host --no-run --locked
