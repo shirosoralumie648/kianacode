@@ -20563,6 +20563,21 @@ limitations: no local runtime result, cross-process JobHandle projector, process
 reviewer: exact focused job receipts and JobHandle source/guard review; no local runtime reviewer
 ```
 
+### H19 focused steer/inject diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h19-steer-inject-diagnostic.yml; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-core/src/lifecycle.rs; kiana-runner-protocol/src/lib.rs; kiana-runner/src/{harness,protocol_runner}.rs; tests kiana-protocol/h19_steer_inject.rs, kiana-runner/h19_steer_inject.rs and kiana-core/h19_steer_inject_guard.rs
+worktree_status: restored a manual GitHub-only focused matrix for existing H19 additive wire, deferred runner delivery and Core route/source guards; no input routing, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h19-steer-inject-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: protocol h19_steer_inject, runner h19_steer_inject and core h19_steer_inject_guard; the workflow matrix runs all three targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for additive request decoding, expected-turn fencing, bounded deferred delivery and sandbox/model immutability
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by the unresolved ER-01 `run.rejected` EventStore contract; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: source review confirmed shared Client→DaemonHost→ControlPlane routing, stale-turn rejection and one-time next-step delivery; no local runtime reviewer
+```
+
 ### H14 focused correction receipt (2026-10-03)
 
 ```text

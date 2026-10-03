@@ -7,6 +7,7 @@
 | roadmap card | [`H19`](harness.md#step-h19) |
 | feature_status | `implemented`（protocol/client/daemon/core/runner source；CI-only fixtures） |
 | proof_level | `source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 负责运行时夹具 |
+| focused CI | 手动 workflow [`h19-steer-inject-diagnostic.yml`](../../.github/workflows/h19-steer-inject-diagnostic.yml) 并行运行 protocol wire、runner deferred-steer 与 Core route guard；不把未等待的远程结果提升为更高 proof |
 | authority | ControlPlane owns run/input identity, current-turn fence and accepted receipt; Runner only queues input at a safe boundary |
 | this step does | additive `SteerRequest`/`InjectRequest` and Runner command; core validates source/target/expected turn, records `run.input.accepted`, returns bounded ACK, records a rejected claim when Runner refuses delivery, and queues through the same KianaClient→DaemonHost→ControlPlane spine; in-flight runs use a deferred mailbox |
 | this step does not | Continue v1 public return values are unchanged; Steer cannot alter sandbox/model/active tool parameters and never cancels work; Inject does not wake an idle turn; durable cross-process Inbox/projector and live provider proof remain open |
