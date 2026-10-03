@@ -20023,6 +20023,21 @@ limitations: PD-27 failures are independently audited and do not establish an ER
 reviewer: exact GitHub jobs/logs and source trace; no local runtime reviewer
 ```
 
+### ER-01 post-PD-27 correction receipt (2026-10-03)
+
+```text
+source_snapshot: `50eb8ab2`; kiana-domain/src/event_contracts.rs; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/pd27_writer_queue.rs; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: HardKill fixture now agrees with the production no-new-durability invariant; shared EventStore planner and modern/legacy boundary unchanged; no run.rejected kind/aggregate choice made
+command_argv: gh run view 37101688654 --json status,conclusion,headSha,jobs,url; gh run view 37101688654 --log-failed; cargo fmt --all --check; git diff --check; gh workflow run er01-event-schema.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: run 37101688654 / head 50eb8ab2: domain contract success; Core guard success; EventStore full-crate 25/26 PD-27 writer tests plus all other observed targets passed, with only `writer_registry_holder_not_redacted` vs `writer_registry_holder_secret_detected` failing; real producer selector success 1/2, deny producer failed `event_contract_unknown_required_event_kind` for `run.rejected`
+exit_code: domain/Core guard 0; corrected HardKill target 0; full EventStore and real producer jobs 101; local format/diff 0
+status_change: ER-01 remains row 036 🔄 / feature_status=partial / proof_level=source; PD-27 HardKill fixture correction is remotely observed, while sentinel precedence and run.rejected contract remain open
+proof-level change: none
+limitations: SC-34/PD-27 sentinel precedence requires an explicit architecture decision; request/work_packet/run rejection producers still have no selected event-kind contract; no complete upcasters, terminal/result reconciliation, durable/live/physical promotion
+reviewer: exact GitHub logs and source trace; no local runtime reviewer
+```
+
 ### PD-27 HardKill fixture correction (2026-10-03)
 
 ```text
