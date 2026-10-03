@@ -3,7 +3,7 @@ use kiana_commands::eval_fixtures::{
 };
 use serde_json::json;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn fixture_root(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!("kiana-eq08-{label}-{}", std::process::id()))
@@ -36,7 +36,7 @@ fn fixture_loader_is_deterministic_and_enforces_declared_schema() {
             {"case_id":"a-case","fixture_ref":"a.jsonl","fixture_schema":EVAL_RUNTIME_FIXTURE_SCHEMA,"max_bytes":64}
         ]),
     );
-    let loaded = load_fixture_manifest(&root, &root.join("manifest.json")).unwrap();
+    let loaded = load_fixture_manifest(&root, Path::new("manifest.json")).unwrap();
     assert_eq!(loaded.fixtures[0].case_id, "a-case");
     assert_eq!(loaded.fixtures[1].case_id, "z-case");
     assert!(loaded.fixtures[0].sha256.starts_with("sha256:"));
