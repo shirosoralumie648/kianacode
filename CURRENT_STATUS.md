@@ -20683,6 +20683,21 @@ limitations: historical CURRENT_STATUS H22 block says roadmap row 309 is ✅ whi
 reviewer: source review confirmed evidence-only summary validation, actionable-state preservation and refusal to infer completion from prose; no local runtime reviewer
 ```
 
+### H22 focused guard drift audit and correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37115656551` / head `0b7c90dd`; kiana-runner/tests/h22_compact_guard.rs; current immutable-prefix text lives in kiana-runner/src/harness.rs while compaction mechanics remain in compact.rs
+worktree_status: domain summary fixture passed; runner guard passed all markers except the immutable Product-owned prefix marker because the source guard read only compact.rs; guard now accepts the actual harness owner of that invariant, with compaction behavior unchanged
+command_argv: gh run view 37115656551 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H22 domain-summary 1/1 success; runner-compaction-guard 0/1 due to stale source scope
+exit_code: remote domain job 0; remote runner guard 1; correction awaits fresh H22 receipt
+status_change: H22 remains roadmap row 309 `🔄` / `feature_status=implemented` / `proof_level=source`; focused source guard now follows the actual immutable-prefix owner
+proof-level change: none
+limitations: historical CURRENT_STATUS H22 block says row 309 is ✅ while authoritative docs/roadmap.md remains 🔄; admitted summary model/retry, durable summary event, cross-process recovery and live/physical proof remain open
+reviewer: exact remote failure and compact/harness source ownership reviewed; no local runtime reviewer
+```
+
 ### H21 focused guard drift audit and correction (2026-10-03)
 
 ```text
