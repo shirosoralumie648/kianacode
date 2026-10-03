@@ -12,8 +12,8 @@ fn batch(command_id: RequestId, aggregate: &str, start: u64, count: u64) -> Tran
             RuntimeEvent::new(
                 command_id,
                 sequence,
-                "run.progress",
-                json!({"run_id": aggregate, "sequence": sequence}),
+                "run.delta",
+                json!({"run_id": aggregate, "text": format!("fixture delta {sequence}")}),
             )
             .unwrap()
             .with_stream_metadata("run", aggregate, sequence)
