@@ -31,7 +31,7 @@ fn policy_bundle_is_versioned_digest_bound_and_default_deny() {
         PolicyRule::new(
             "allow-read",
             20,
-            "safe.read",
+            "context.search",
             Some(CapabilityKind::Query),
             Some(RiskLevel::ReadOnly),
             PolicyEffect::Allow,
@@ -41,7 +41,7 @@ fn policy_bundle_is_versioned_digest_bound_and_default_deny() {
         PolicyRule::new(
             "ask-export",
             10,
-            "safe.export",
+            "context.vector_search",
             Some(CapabilityKind::Query),
             None,
             PolicyEffect::Ask,
@@ -75,7 +75,7 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
         PolicyRule::new(
             "allow-query",
             50,
-            "safe.read",
+            "context.search",
             Some(CapabilityKind::Query),
             None,
             PolicyEffect::Allow,
@@ -85,7 +85,7 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
         PolicyRule::new(
             "deny-query",
             90,
-            "safe.read",
+            "context.search",
             None,
             None,
             PolicyEffect::Deny,
@@ -95,7 +95,7 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
         PolicyRule::new(
             "ask-export",
             1,
-            "safe.export",
+            "context.vector_search",
             None,
             None,
             PolicyEffect::Ask,
@@ -106,7 +106,7 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
     let bundle = PolicyBundle::new(SecurityPolicyId::new(), 2, 3, rules).unwrap();
     let context = trusted_context();
 
-    let denied = bundle.evaluate(&context, &request("safe.read")).unwrap();
+    let denied = bundle.evaluate(&context, &request("context.search")).unwrap();
     assert!(matches!(denied.decision, PolicyDecision::Deny { .. }));
     assert_eq!(denied.trace.outcome, PolicyOutcome::Deny);
     assert_eq!(
@@ -119,11 +119,11 @@ fn policy_evaluator_is_deny_first_and_trace_is_replayable() {
         denied.trace
     );
 
-    let asking = bundle.evaluate(&context, &request("safe.export")).unwrap();
+    let asking = bundle.evaluate(&context, &request("context.vector_search")).unwrap();
     assert!(matches!(asking.decision, PolicyDecision::Ask { .. }));
     assert_eq!(asking.trace.outcome, PolicyOutcome::Ask);
 
-    let unknown = bundle.evaluate(&context, &request("unregistered")).unwrap();
+    let unknown = bundle.evaluate(&context, &request("context.pack")).unwrap();
     assert!(matches!(unknown.decision, PolicyDecision::Deny { .. }));
     assert_eq!(
         unknown.trace.reason,
@@ -136,7 +136,7 @@ fn stale_snapshot_and_invalid_policy_never_fall_back_to_allow() {
     let rule = PolicyRule::new(
         "allow-read",
         1,
-        "safe.read",
+        "context.search",
         Some(CapabilityKind::Query),
         None,
         PolicyEffect::Allow,
@@ -146,7 +146,7 @@ fn stale_snapshot_and_invalid_policy_never_fall_back_to_allow() {
     let bundle = PolicyBundle::new(SecurityPolicyId::new(), 1, 4, vec![rule]).unwrap();
     let context = trusted_context();
     let stale = bundle
-        .evaluate_with_snapshot(&context, &request("safe.read"), 5, &bundle.policy_digest)
+        .evaluate_with_snapshot(&context, &request("context.search"), 5, &bundle.policy_digest)
         .unwrap();
     assert!(matches!(stale.decision, PolicyDecision::Deny { .. }));
     assert_eq!(
@@ -157,7 +157,7 @@ fn stale_snapshot_and_invalid_policy_never_fall_back_to_allow() {
     let stale_digest = bundle
         .evaluate_with_snapshot(
             &context,
-            &request("safe.read"),
+            &request("context.search"),
             4,
             "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         )
@@ -173,7 +173,7 @@ fn stale_snapshot_and_invalid_policy_never_fall_back_to_allow() {
     assert!(PolicyBundle::from_json(&unknown_major).is_err());
     let engine = BundlePolicyEngine::new(bundle).unwrap();
     assert!(matches!(
-        engine.evaluate(&context, &request("safe.read")),
+        engine.evaluate(&context, &request("context.search")),
         PolicyDecision::Allow { .. }
     ));
 }
@@ -183,7 +183,7 @@ fn policy_rules_reject_ambiguity_and_unknown_fields() {
     let deny = PolicyRule::new(
         "deny",
         1,
-        "safe.read",
+        "context.search",
         None,
         None,
         PolicyEffect::Deny,
@@ -193,7 +193,7 @@ fn policy_rules_reject_ambiguity_and_unknown_fields() {
     let duplicate = PolicyRule::new(
         "deny-two",
         1,
-        "safe.read",
+        "context.search",
         None,
         None,
         PolicyEffect::Deny,
@@ -208,7 +208,7 @@ fn policy_rules_reject_ambiguity_and_unknown_fields() {
     let invalid_allow = PolicyRule::new(
         "allow-with-reason",
         1,
-        "safe.read",
+        "context.search",
         None,
         None,
         PolicyEffect::Allow,
@@ -237,7 +237,7 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
     let rule = PolicyRule::new(
         "allow-read",
         1,
-        "safe.read",
+        "context.search",
         Some(CapabilityKind::Query),
         None,
         PolicyEffect::Allow,
@@ -248,7 +248,7 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
     let context = trusted_context();
 
     let mut allow_trace = bundle
-        .evaluate(&context, &request("safe.read"))
+        .evaluate(&context, &request("context.search"))
         .unwrap()
         .trace;
     allow_trace.reason = Some(SecurityReasonCode::PolicyApprovalRequired);
@@ -259,7 +259,7 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
     );
 
     let mut deny_trace = bundle
-        .evaluate(&context, &request("unknown"))
+        .evaluate(&context, &request("context.pack"))
         .unwrap()
         .trace;
     deny_trace.reason = None;
@@ -270,7 +270,7 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
     );
 
     let mut oversized = bundle
-        .evaluate(&context, &request("unknown"))
+        .evaluate(&context, &request("context.pack"))
         .unwrap()
         .trace;
     oversized.matched_rule_ids = vec!["rule".to_owned(); MAX_POLICY_RULES + 1];
@@ -281,7 +281,7 @@ fn decision_trace_rejects_inconsistent_reason_and_rule_shape() {
     );
 
     let mut duplicate = bundle
-        .evaluate(&context, &request("safe.read"))
+        .evaluate(&context, &request("context.search"))
         .unwrap()
         .trace;
     duplicate.matched_rule_ids = vec!["allow-read".to_owned(), "allow-read".to_owned()];

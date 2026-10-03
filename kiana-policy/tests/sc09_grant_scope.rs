@@ -132,6 +132,7 @@ fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimen
     );
 
     let mut foreign_project = parent_grant();
+    foreign_project.principal_id = parent.principal_id;
     foreign_project.project_id = ProjectId::new();
     foreign_project.grant_digest = foreign_project.digest();
     assert_eq!(
@@ -140,6 +141,8 @@ fn grant_scope_rejects_empty_capability_intersection_cross_scope_and_mixed_dimen
     );
 
     let mut foreign_epoch = parent_grant();
+    foreign_epoch.principal_id = parent.principal_id;
+    foreign_epoch.project_id = parent.project_id;
     foreign_epoch.authority_epoch = 5;
     foreign_epoch.grant_digest = foreign_epoch.digest();
     assert_eq!(

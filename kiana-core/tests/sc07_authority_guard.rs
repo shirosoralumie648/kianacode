@@ -27,7 +27,7 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
     );
     for marker in [
         "project.project_id != self.project_trust.project_id",
-        "canonical_root: project.canonical_root",
+        "\"canonical_root\": project.canonical_root",
         "project.trust_revision != self.project_trust.trust_revision",
         "context.project_root != project.root",
     ] {
