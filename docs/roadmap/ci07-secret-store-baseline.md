@@ -42,3 +42,16 @@ wrong-purpose/wrong-endpoint/replay、未知字段和 sentinel 不进入 snapsho
   single-flight 和真实 provider effect 仍未完成。
 - header/client 内部可能复制认证值；清理 `SecretMaterial` 是 best-effort，不是物理内存擦除
   或外部系统删除证明。
+
+## 2026-10-04 lease validation repair
+
+`CredentialLease::validate_at` now requires `one_shot=true` and a SHA-256 endpoint digest
+containing exactly 64 ASCII hexadecimal digits. A payload with a recomputed metadata digest
+cannot bypass these shape requirements. Broker denial preserves the entire lease, including
+its consumption state and digest. The focused CI lane also runs the existing connector
+credential and HTTPS/connector-port fixtures because they consume the same domain contract.
+
+The previous focused lane at `15094d39`, run `37161315827`, passed before this repair. The new
+fixtures are submitted to GitHub CI after this commit; no local test/build/check/clippy/smoke
+or validation script runs. `CI-07` remains partial/source: the protected keyring/file/OS
+backends, cross-process revocation/replay and full product-chain secret-leak proof remain open.

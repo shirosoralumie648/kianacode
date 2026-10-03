@@ -65,6 +65,7 @@ fn broker_denies_endpoint_drift_before_consumption() {
         100,
     )
     .expect("lease");
+    let before = lease.clone();
     let result = consume_credential_lease(
         &mut lease,
         1_001,
@@ -77,4 +78,51 @@ fn broker_denies_endpoint_drift_before_consumption() {
         result,
         Err(kiana_ports::PortError::Failed(code)) if code == "credential_lease_endpoint_mismatch"
     ));
+    assert_eq!(lease, before, "endpoint denial must not consume the lease");
+}
+
+#[test]
+fn broker_rejects_invalid_lease_metadata_without_consumption() {
+    let endpoint_digest = json_digest(&serde_json::json!("https://provider.invalid/v1"));
+    let reference = SecretRef::new(
+        "env",
+        "CI07_BROKER_SECRET",
+        "provider.request",
+        "fake-provider",
+        1,
+    )
+    .expect("reference");
+    let valid = CredentialLease::issue(
+        reference,
+        "fake-provider",
+        "provider.request",
+        "fake-provider",
+        endpoint_digest,
+        1_000,
+        100,
+    )
+    .expect("lease");
+    for malformed_endpoint in [false, true] {
+        let mut lease = valid.clone();
+        if malformed_endpoint {
+            lease.endpoint_digest = format!("sha256:{}", "z".repeat(64));
+        } else {
+            lease.one_shot = false;
+        }
+        lease.lease_digest = lease.digest();
+        let before = lease.clone();
+        let effect_endpoint = lease.endpoint_digest.clone();
+        assert!(matches!(
+            consume_credential_lease(
+                &mut lease,
+                1_001,
+                "fake-provider",
+                "provider.request",
+                "fake-provider",
+                &effect_endpoint,
+            ),
+            Err(kiana_ports::PortError::Failed(code)) if code == "credential_lease_invalid"
+        ));
+        assert_eq!(lease, before, "invalid metadata must not consume the lease");
+    }
 }

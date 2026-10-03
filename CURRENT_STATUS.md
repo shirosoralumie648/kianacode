@@ -22151,3 +22151,18 @@ proof-level_change: current focused source evidence only; no local_behavior, dur
 limitations: cross-process checkpoint hydration, power-loss CAS/reconcile, full Runner recovery, external effect observation, external/live/physical proof and unified CI remain open
 reviewer: exact current-head jobs, binding material/identity and approval resume source boundaries reviewed; no local runtime reviewer
 ```
+
+### CI-07 lease validation repair (2026-10-04)
+
+```text
+source_snapshot: parent `15094d39` plus this commit; kiana-domain/src/credentials.rs; kiana-domain/tests/ci07_credential_lease.rs; kiana-capability-broker/tests/ci07_credential_lease.rs; .github/workflows/ci07-secret-store.yml
+worktree_status: only the lease shape checks, negative fixtures, connector regression lane and evidence documentation changed; no manifest, lockfile or new execution path
+command_argv: `gh run view 37161315827 --json status,conclusion,headSha,url`; after push `gh workflow run ci07-secret-store.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: recomputed metadata digest with reusable flag or non-hex endpoint; malformed digest issue/consume denial; exact Broker endpoint binding; denial leaves lease state unchanged; existing connector credential/port/HTTPS regressions
+exit_code: prior focused workflow at `15094d39` 0; changed-source CI pending; no local runtime exit code
+status_change: CI-07 roadmap row 167 remains 🔄; feature_status=partial; proof_level=source
+proof-level_change: none; prior baseline success does not prove the changed-source fixtures
+limitations: protected keyring/file/OS backends, cross-process replay/rotation/revocation, full product-chain secret-leak proof, external/live/physical proof and unified CI remain open
+reviewer: all current CredentialLease issuers/consumers and connector-specific one-shot/TTL checks reviewed; no local runtime reviewer
+```

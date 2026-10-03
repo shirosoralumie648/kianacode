@@ -109,3 +109,81 @@ fn lease_json_has_no_secret_slot_and_rejects_unknown_fields() {
     value["secret_value"] = serde_json::json!("CI07_SECRET_VALUE");
     assert!(serde_json::from_value::<CredentialLease>(value).is_err());
 }
+
+#[test]
+fn malformed_endpoint_digest_cannot_be_issued_or_consumed() {
+    let endpoint_digest = json_digest(&serde_json::json!("https://provider.invalid/v1"));
+    for invalid in [
+        format!("sha256:{}", "g".repeat(64)),
+        format!("sha256:{}", "a".repeat(63)),
+        format!("sha256:{}", "a".repeat(65)),
+        format!("sha512:{}", "a".repeat(64)),
+    ] {
+        assert_eq!(
+            CredentialLease::issue(
+                reference(),
+                "fake-provider",
+                "provider.request",
+                "fake-provider",
+                invalid.clone(),
+                1_000,
+                100,
+            )
+            .unwrap_err(),
+            "credential_lease_invalid"
+        );
+        let mut lease = CredentialLease::issue(
+            reference(),
+            "fake-provider",
+            "provider.request",
+            "fake-provider",
+            endpoint_digest.clone(),
+            1_000,
+            100,
+        )
+        .expect("valid lease");
+        lease.endpoint_digest = invalid;
+        lease.lease_digest = lease.digest();
+        let before = lease.clone();
+        assert_eq!(
+            lease.consume(1_001).unwrap_err(),
+            "credential_lease_invalid"
+        );
+        assert_eq!(lease, before, "denial must not consume the lease");
+    }
+}
+
+#[test]
+fn reusable_metadata_cannot_authorize_a_credential_effect() {
+    let endpoint_digest = json_digest(&serde_json::json!("https://provider.invalid/v1"));
+    let mut lease = CredentialLease::issue(
+        reference(),
+        "fake-provider",
+        "provider.request",
+        "fake-provider",
+        endpoint_digest.clone(),
+        1_000,
+        100,
+    )
+    .expect("valid lease");
+    lease.one_shot = false;
+    lease.lease_digest = lease.digest();
+    let before = lease.clone();
+    assert_eq!(
+        lease
+            .validate_for(
+                1_001,
+                "fake-provider",
+                "provider.request",
+                "fake-provider",
+                &endpoint_digest,
+            )
+            .unwrap_err(),
+        "credential_lease_invalid"
+    );
+    assert_eq!(
+        lease.consume(1_001).unwrap_err(),
+        "credential_lease_invalid"
+    );
+    assert_eq!(lease, before, "denial must not consume the lease");
+}

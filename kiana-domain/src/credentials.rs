@@ -84,9 +84,14 @@ impl CredentialLease {
             || self.expires_at_unix_ms <= self.issued_at_unix_ms
             || now_unix_ms < self.issued_at_unix_ms
             || now_unix_ms >= self.expires_at_unix_ms
+            || !self.one_shot
             || self.consumed
-            || !self.endpoint_digest.starts_with("sha256:")
-            || self.endpoint_digest.len() != 71
+            || !self
+                .endpoint_digest
+                .strip_prefix("sha256:")
+                .is_some_and(|hex| {
+                    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
             || self.lease_digest != self.digest()
         {
             return Err(if now_unix_ms >= self.expires_at_unix_ms {
