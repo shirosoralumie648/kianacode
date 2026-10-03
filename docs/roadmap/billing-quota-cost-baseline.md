@@ -49,4 +49,5 @@ The BQ sequence keeps these names stable for later steps:
 BQ-00 only records the source snapshot and migration boundary. BQ-01 owns stable IDs/schema and
 unknown/reason enums; BQ-02/03 own normalized usage; BQ-04/05 own price arithmetic/rate cards;
 later BQ steps own reservation, capacity, settlement, rollups, corrections, migration and release
-evidence. No source implementation is claimed by this baseline.
+evidence, with BQ-30 owning the final release gate and status ledger. No source implementation is
+claimed by this baseline.
