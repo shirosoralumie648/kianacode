@@ -232,3 +232,31 @@ proof-level change: none
 limitations: no phase-marker receipt yet, so the stack overflow's producing layer is unresolved; markers do not prove a successful CompanyProof readback. Cross-store atomicity/reconciliation, product UI comparison, cross-process recovery, retention/deletion and power-loss durability remain open.
 reviewer: remote daemon log plus source trace through `company_proof`, artifact lookup and the Company command boundary; no local runtime reviewer
 ```
+
+## 13. 2026-10-03 Exact overflow boundary and GitHub debugger capture
+
+Daemon job `111109559933` in run `37090467881` at `c55b2bb2` printed authority synchronization
+begin/complete and Company command begin, then aborted with stack overflow before command completion.
+Run `37073823121` at `f64b0d81` showed the same boundary. The first command is the missing-source
+RegisterArtifact denial; the new historical CompanyProof readback has not yet been reached.
+Source inspection has not established recursion or a production cause. The old exact target pass
+at `c9c17dac` does not validate this later fixture shape.
+
+Source `4c7bdb4f` adds a manual GitHub-only debugger workflow. It compiles only this target with
+debug info, preserves the default stack, stops on SIGSEGV/SIGABRT and records at most 48 frames per
+thread without arguments or locals. The fixture logs the handle_command Future type's byte size
+without constructing or polling it. Run `37092002135` was dispatched at that exact source head;
+its result is pending. Diagnostic failure is retained as failure and cannot count as a test pass.
+
+```text
+source_snapshot: 4c7bdb4f1229bd9cab2cf471138abe468a284bb6; .github/workflows/co06-history-diagnostic.yml; kiana-daemon/tests/co06_company_artifact_history.rs; observed prior head c55b2bb2
+worktree_status: manual-only diagnostic and test-only Future-size marker integrated; no production code, manifest or lockfile change
+command_argv: gh run view 37090467881 --job 111109559933 --log; gh run view 37073823121 --job 111059534609 --log; source trace; git cherry-pick 7ae65c7a; cargo fmt --all --check; git diff HEAD^ --check; git push origin master; gh workflow run co06-history-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke/validator
+cwd·environment: isolated /tmp/kiana-co06-gdb-diagnostic-20261003 integrated at repository root Linux/bash; runtime compilation and GDB execute only on GitHub
+fixture·cassette: artifact_version_remains_reviewable_after_workspace_file_changes exact selector; manual run 37092002135 / job 111114125097 at 4c7bdb4f; debug=1, strip=none, default stack, bounded 90-second GDB capture and seven-day evidence artifact
+exit_code: prior daemon target SIGABRT/Cargo 101; local formatting/diff and dispatch 0; new remote diagnostic pending
+status_change: CO-06 remains row 065 🔄 / partial / source; authority setup is now excluded from the observed overflow boundary and exact stack evidence is requested
+proof-level change: none
+limitations: debugger execution can return 255 when stopped on a signal and is not fixture success; large async Future/stack use is only a hypothesis until exact frames/byte counts arrive; cross-store atomicity, original/current UI, recovery/reconciliation, retention and durability remain open
+reviewer: exact daemon phase output plus source and bounded-diagnostic review
+```

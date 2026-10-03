@@ -19993,6 +19993,21 @@ limitations: new CI phase output is pending and no CompanyProof target pass is e
 reviewer: remote daemon log and static trace through CompanyProof, ArtifactStore reads, authority initialization and command handling; no local runtime reviewer
 ```
 
+### CO-06 exact overflow boundary and GitHub debugger diagnostic (2026-10-03)
+
+```text
+source_snapshot: 4c7bdb4f1229bd9cab2cf471138abe468a284bb6; .github/workflows/co06-history-diagnostic.yml; kiana-daemon/tests/co06_company_artifact_history.rs; prior observed head c55b2bb2
+worktree_status: manual-only diagnostic with bounded, argument-free/local-free frames and Future-type byte size; product/manifests unchanged
+command_argv: gh run view 37090467881 --job 111109559933 --log; gh run view 37073823121 --job 111059534609 --log; source trace; git cherry-pick 7ae65c7a; cargo fmt --all --check; git diff HEAD^ --check; gh workflow run co06-history-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke/validator
+cwd·environment: source worktree /tmp/kiana-co06-gdb-diagnostic-20261003 integrated at repository root Linux/bash; GitHub exclusively compiles/runs the fixture
+fixture·cassette: artifact_version_remains_reviewable_after_workspace_file_changes; prior markers finish authority sync and stop after Company command begin on missing-source RegisterArtifact; manual run 37092002135 / job 111114125097 at 4c7bdb4f pending
+exit_code: prior target SIGABRT/Cargo 101; local formatting/diff/dispatch 0; remote diagnostic pending
+status_change: CO-06 row 065 remains 🔄 / feature_status=partial / proof_level=source; observed overflow boundary is narrowed and GitHub stack capture is available
+proof-level change: none
+limitations: no proven recursion/production root cause; Future size alone is not peak stack use; GDB signal-stop/255 is diagnostic failure, not test success; unchanged cross-store atomicity, UI original/current, recovery and durability gaps
+reviewer: exact remote phase logs and diagnostic/source review
+```
+
 ### CI-03 checked credential resolution reference binding (2026-10-03)
 
 ```text
