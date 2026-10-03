@@ -45,6 +45,8 @@
 //! 所以本文件里的分支只做**形状与前置条件**校验，任何真正产生副作用的路径最终都必须
 //! 汇入 `authorize_and_execute`。
 
+use std::{future::Future, pin::Pin};
+
 use super::*;
 
 impl ControlPlane {
@@ -304,7 +306,20 @@ impl ControlPlane {
     /// 将来如果命令数量继续增长，应当抽成「命令注册表 + 分派表」，
     /// 但要注意：**注册表只能做路由，不能携带授权逻辑**，否则就等于给「新增命令」开了一条
     /// 默认放行的后门。
-    pub async fn handle_command(
+    /// Dispatch one command through the single ControlPlane route.
+    ///
+    /// The router body is intentionally boxed at this boundary: it contains the complete
+    /// command matrix and its generated async state is large enough to exhaust a test or host
+    /// thread stack before the first authorization branch is polled.
+    pub fn handle_command(
+        &self,
+        context: RequestContext,
+        intent: CommandIntent,
+    ) -> Pin<Box<dyn Future<Output = Result<CoreResponse, CoreError>> + Send + '_>> {
+        Box::pin(self.handle_command_inner(context, intent))
+    }
+
+    async fn handle_command_inner(
         &self,
         context: RequestContext,
         intent: CommandIntent,
@@ -807,8 +822,7 @@ impl ControlPlane {
             return self.reclaim_packet_leases(context, intent.arguments).await;
         }
         if intent.name == kiana_domain::COMPANY_COMMAND {
-            // Keep the large Company command future off this monolithic router's stack frame.
-            return Box::pin(self.handle_company_command(context, intent.arguments)).await;
+            return self.handle_company_command(context, intent.arguments).await;
         }
         if intent.name == kiana_domain::COMPANY_SNAPSHOT || intent.name == "company.next.v1" {
             return self.company_snapshot(context).await;

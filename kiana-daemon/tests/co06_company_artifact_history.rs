@@ -176,7 +176,7 @@ fn trace_ci_future_size(bytes: usize) {
     let mut stderr = std::io::stderr().lock();
     let _ = writeln!(
         stderr,
-        "co06_company_artifact_history handle_command future bytes: {bytes}"
+        "co06_company_artifact_history handle_command boxed future bytes: {bytes}"
     );
     let _ = stderr.flush();
 }
