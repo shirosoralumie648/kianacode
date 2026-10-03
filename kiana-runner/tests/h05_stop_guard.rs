@@ -142,6 +142,23 @@ async fn incomplete_stop_never_dispatches_tools_or_completes_turn() {
                 if *failed_run == run_id && error == "model_transport_incomplete"
         )
     }));
+    let diagnostic = events
+        .iter()
+        .find_map(|event| match event {
+            RunnerEvent::ModelTurn {
+                run_id: turn_run,
+                metadata,
+                ..
+            } if *turn_run == run_id => Some(metadata),
+            _ => None,
+        })
+        .expect("incomplete stop must retain its bounded model-turn diagnostic");
+    assert_eq!(diagnostic["stop_reason_normalized"], "incomplete");
+    assert_eq!(diagnostic["outcome"]["stop_reason"], "incomplete");
+    assert_eq!(
+        diagnostic["outcome"]["error_code"],
+        "model_transport_incomplete"
+    );
     assert_eq!(
         events
             .iter()
