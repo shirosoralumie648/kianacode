@@ -1,0 +1,32 @@
+name: SC-07 project trust and role authority
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-07 domain fixture
+        run: cargo test -p kiana-domain --test sc07_trust_snapshots --locked -- --test-threads=1
+      - name: Run SC-07 authority fixture
+        run: cargo test -p kiana-core --test sc07_authority_snapshot --locked -- --test-threads=1
+      - name: Run SC-07 source guard
+        run: cargo test -p kiana-core --test sc07_authority_guard --locked -- --test-threads=1
+      - name: Compile SC-07 domain target
+        run: cargo test -p kiana-domain --test sc07_trust_snapshots --no-run --locked
+      - name: Compile SC-07 authority target
+        run: cargo test -p kiana-core --test sc07_authority_snapshot --no-run --locked
+      - name: Compile SC-07 source guard target
+        run: cargo test -p kiana-core --test sc07_authority_guard --no-run --locked
