@@ -269,6 +269,92 @@ fn capability_requested_and_result_delivery_contracts_match_producers() {
 }
 
 #[test]
+fn run_tool_contracts_match_cancel_and_dispatch_producers() {
+    let tool_call = event_kind_spec("run.tool_call").unwrap();
+    assert_eq!(
+        tool_call.allowed_fields,
+        &[
+            "run_id",
+            "capability_request_id",
+            "call_id",
+            "turn_id",
+            "step_id",
+            "invocation_id",
+            "execution_scope",
+            "tool",
+            "operation",
+        ][..]
+    );
+    let mut call_payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "capability_request_id": kiana_domain::RequestId::new(),
+        "call_id": "call-1",
+        "turn_id": kiana_domain::TurnId::new(),
+        "step_id": kiana_domain::StepId::new(),
+        "invocation_id": kiana_domain::InvocationId::new(),
+        "execution_scope": null,
+        "tool": "shell",
+        "operation": "shell.exec",
+    });
+    validate_event_payload("run.tool_call", &call_payload).unwrap();
+    call_payload["arguments"] = json!({"command":"pwd"});
+    assert_eq!(
+        validate_event_payload("run.tool_call", &call_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+    call_payload.as_object_mut().unwrap().remove("arguments");
+    call_payload
+        .as_object_mut()
+        .unwrap()
+        .remove("capability_request_id");
+    assert_eq!(
+        validate_event_payload("run.tool_call", &call_payload).unwrap_err(),
+        "event_required_id_missing:capability_request_id"
+    );
+
+    let tool_result = event_kind_spec("run.tool_result").unwrap();
+    assert_eq!(
+        tool_result.allowed_fields,
+        &[
+            "run_id",
+            "capability_request_id",
+            "call_id",
+            "result",
+            "cancelled",
+            "not_executed",
+            "attempt",
+            "effect_started",
+            "effect_known",
+            "zero_effect",
+            "stop_state",
+            "stop_confirmed",
+            "fenced",
+        ][..]
+    );
+    let mut result_payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "capability_request_id": kiana_domain::RequestId::new(),
+        "call_id": "call-1",
+        "result": {"error":"cancelled:user","not_executed":true},
+        "cancelled": true,
+        "not_executed": true,
+        "attempt": 1,
+        "effect_started": false,
+        "effect_known": true,
+        "zero_effect": true,
+        "stop_state": "confirmed",
+        "stop_confirmed": true,
+        "fenced": false,
+    });
+    validate_event_payload("run.tool_result", &result_payload).unwrap();
+    result_payload["unknown_tool_result_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("run.tool_result", &result_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

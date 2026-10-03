@@ -152,6 +152,32 @@ const RUN_FIELDS: &[&str] = &[
     "lease_digest",
     "resource_digest",
 ];
+const RUN_TOOL_CALL_FIELDS: &[&str] = &[
+    "run_id",
+    "capability_request_id",
+    "call_id",
+    "turn_id",
+    "step_id",
+    "invocation_id",
+    "execution_scope",
+    "tool",
+    "operation",
+];
+const RUN_TOOL_RESULT_FIELDS: &[&str] = &[
+    "run_id",
+    "capability_request_id",
+    "call_id",
+    "result",
+    "cancelled",
+    "not_executed",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "stop_confirmed",
+    "fenced",
+];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
     "run_id",
@@ -906,7 +932,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.tool_call",
         "run",
         INVOCATION_IDS,
-        RUN_FIELDS,
+        RUN_TOOL_CALL_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -930,7 +956,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.tool_result",
         "run",
         INVOCATION_IDS,
-        RUN_FIELDS,
+        RUN_TOOL_RESULT_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

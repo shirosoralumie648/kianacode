@@ -8,6 +8,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let approvals = include_str!("../../kiana-core/src/approvals.rs");
     let capabilities = include_str!("../../kiana-core/src/capabilities.rs");
     let dispatch = include_str!("../../kiana-core/src/dispatch.rs");
+    let lifecycle = include_str!("../../kiana-core/src/lifecycle.rs");
+    let data_governance = include_str!("../../kiana-core/src/data_governance.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -136,6 +138,33 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         assert!(
             dispatch.contains(marker),
             "missing result delivery producer field {marker}"
+        );
+    }
+    assert!(capabilities.contains("\"run.tool_call\""));
+    assert!(capabilities.contains("\"tool\":request.capability,\"operation\":request.operation"));
+    for marker in [
+        "\"result\":result.output,\"cancelled\":",
+        "\"not_executed\":true",
+        "\"stop_confirmed\":true,\"fenced\":false",
+    ] {
+        assert!(
+            capabilities.contains(marker),
+            "missing capability tool producer field {marker}"
+        );
+    }
+    for marker in [
+        "\"result\":{\"error\":\"cancelled:approval_pending\",\"not_executed\":true,\"replay_safe\":true},\"not_executed\":true",
+        "\"result\":result,\"cancelled\":true,\"not_executed\":true",
+    ] {
+        assert!(lifecycle.contains(marker), "missing lifecycle tool-result producer field {marker}");
+    }
+    for marker in [
+        "\"result\":{\"error\":format!(\"cancelled:{reason}\"),\"not_executed\":true,\"replay_safe\":true},\"not_executed\":true",
+        "\"capability_request_id\":capability_id,\"call_id\":call_id,\"result\":result,\"not_executed\":true",
+    ] {
+        assert!(
+            data_governance.contains(marker),
+            "missing governance tool-result producer field {marker}"
         );
     }
 }
