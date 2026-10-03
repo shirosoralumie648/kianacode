@@ -39,3 +39,5 @@ H11 proof ceiling 为 `source`：统一 observation 合同和 runner gate 已接
 guard 固化 failure-first 路径。当前新增 `.github/workflows/h11-tool-observation-diagnostic.yml`
 作为手动 focused receipt，运行两个 runner 目标；远程结果不在本地等待。完整串行批次、Invocation 持久结果、审批恢复、自动修复策略、
 provider/外部 effect 对账与 live/physical proof 仍留待 H12+ / CP/PD/INT。
+修复已知 `ExecutionFailed`/`InvalidArguments` 的分类 precedence 后，run `37110570321` 的
+`h11_tool_observation` 与 `h11_tool_observation_guard` 两个 job 均 success。

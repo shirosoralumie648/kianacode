@@ -20458,6 +20458,21 @@ limitations: no local runtime result, cross-process checkpoint hydration, power-
 reviewer: source review confirmed binding digest/identity fences, approve-before-dispatch revalidation, idempotent decision/consumption and original runner continuity; no local runtime reviewer
 ```
 
+### H11 focused correction receipt (2026-10-03)
+
+```text
+source_snapshot: `14a1d9a4`; .github/workflows/h11-tool-observation-diagnostic.yml; kiana-domain/src/capabilities.rs; kiana-runner/tests/{h11_tool_observation.rs,h11_tool_observation_guard.rs}
+worktree_status: known ExecutionFailed/InvalidArguments observations now classify as FailedKnown before generic requires_new_authorization policy, allowing the existing single bounded model-repair path while preserving Denied/Unknown/Cancelled no-retry gates
+command_argv: gh run view 37110570321 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: h11_tool_observation and h11_tool_observation_guard; both focused jobs success at head 14a1d9a4
+exit_code: remote h11_tool_observation 0; remote h11_tool_observation_guard 0
+status_change: H11 remains roadmap row 150 / current row 163 `feature_status=implemented` / `proof_level=source`; previously failing repairable observation classification now has a successful focused receipt
+proof-level change: none
+limitations: no local runtime result, automatic repair loop, durable Invocation outcome, external effect reconciliation or live/physical proof
+reviewer: exact GitHub jobs and CapabilityErrorPolicy/ToolObservation precedence review; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
