@@ -21897,3 +21897,18 @@ proof-level_change: focused CI source evidence only; no local_behavior, durable,
 limitations: EvalTarget/FixtureStore/DaemonHost execution composition, initial-state/policy/role persistence, fake provider/deny broker chain, EventLog/Receipt/evidence capture, fault/restart recovery, external/live/physical proof and unified CI remain EQ-10+
 reviewer: exact focused jobs, stale-guard correction and deny-only broker boundary reviewed; no local runtime reviewer
 ```
+
+### CO-08 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `bed8ff57`; .github/workflows/co08-company-replay.yml; kiana-domain/src/company_replay.rs; kiana-domain/tests/co08_replay.rs; kiana-core/src/company.rs; kiana-core/tests/co08_replay_guard.rs; docs/roadmap/companyos.md
+worktree_status: restored a manual GitHub-only CO-08 lane after the prior unified fixture exposed duplicate-key ordering; current reducer/source guard and fixtures are unchanged by the lane restoration, and unrelated WIP, manifest and lockfile were preserved
+command_argv: `gh run view 37155215449 --json status,conclusion,headSha,jobs,url`; `gh run view 37155215449 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: domain replay target 4/4 covers deterministic v1 rebuild, parseable v0 migration, gap/duplicate/unknown schema rejection without state change and unknown-field rejection; Core load path guard and both target-scoped compiles passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CO-08 roadmap row 067 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: focused CI source evidence only; no local_behavior, durable, live or physical promotion
+limitations: no independent durable snapshot/projector/cursor migration journal, full typed reference or multi-aggregate/business-state upcast, object-level acceptance, cross-process recovery or unified CI proof is claimed
+reviewer: exact focused job, duplicate-order correction baseline and reducer/load wiring reviewed; no local runtime reviewer
+```
