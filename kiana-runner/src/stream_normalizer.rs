@@ -121,9 +121,10 @@ impl ModelStreamAccumulator {
                 if reason.trim().is_empty() || reason.len() > 128 {
                     return Err("stream_stop_invalid".to_owned());
                 }
-                if self.stop_reason.replace(reason).is_some() {
+                if self.stop_reason.is_some() {
                     return Err("stream_duplicate_stop".to_owned());
                 }
+                self.stop_reason = Some(reason);
             }
             _ => return Err("model_delta_unsupported".to_owned()),
         }

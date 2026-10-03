@@ -91,3 +91,29 @@ fn eof_and_late_cancel_deltas_never_complete() {
         "late_delta_after_cancel_is_discarded"
     );
 }
+
+#[test]
+fn duplicate_stop_rejects_conflict_without_replacing_first_terminal_reason() {
+    let mut accumulator = ModelStreamAccumulator::new(ModelAttemptId::new());
+    accumulator
+        .push(ModelDelta::Stop {
+            reason: "stop".to_owned(),
+        })
+        .unwrap();
+    assert_eq!(
+        accumulator
+            .push(ModelDelta::Stop {
+                reason: "length".to_owned(),
+            })
+            .unwrap_err(),
+        "stream_duplicate_stop"
+    );
+
+    let output = accumulator
+        .finish(ModelOutput {
+            stop_reason: Some("stop".to_owned()),
+            ..ModelOutput::default()
+        })
+        .expect("the first terminal reason remains authoritative");
+    assert_eq!(output.stop_reason.as_deref(), Some("stop"));
+}

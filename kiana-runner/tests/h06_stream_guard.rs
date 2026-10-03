@@ -31,6 +31,14 @@ fn h06_harness_uses_one_attempt_stream_accumulator() {
     assert!(harness.contains("stream.push(delta)?"));
     assert!(normalizer.contains("validate_model_calls"));
     assert!(normalizer.contains("parse_bounded_json"));
+    let stop_guard = normalizer
+        .find("if self.stop_reason.is_some()")
+        .expect("duplicate stop must be rejected before mutating the first reason");
+    let stop_commit = normalizer
+        .find("self.stop_reason = Some(reason)")
+        .expect("the first stop reason must be committed explicitly");
+    assert!(stop_guard < stop_commit);
+    assert!(!normalizer.contains("self.stop_reason.replace(reason)"));
     for forbidden in [
         "dispatch_tools_from_partial_json",
         "complete_on_eof_without_stop",
