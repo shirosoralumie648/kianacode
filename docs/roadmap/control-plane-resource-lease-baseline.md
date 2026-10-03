@@ -53,3 +53,7 @@ The scoped CP-12 acceptance lane is complete at `implemented/source`: run `37123
 the three domain lease fixtures, Core source guard and both target-scoped compile steps. Unified
 workspace CI is not claimed green; durable OS lease/projector, approval-wait lock release,
 effect-time integration, cross-process recovery and live/physical proof remain later work.
+The three broader card-level race scenarios (`cp_stale_worker_cannot_write_after_lease_reassignment`,
+`cp_overlapping_directory_and_file_leases_conflict`, and
+`cp_approval_wait_does_not_hold_writer_lock`) are not present in this focused fixture and remain
+later CP-13/CP-15 acceptance work.

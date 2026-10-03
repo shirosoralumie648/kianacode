@@ -21699,7 +21699,7 @@ fixture·cassette: CP-12 domain resource lease target 3/3; Core guard success; d
 exit_code: remote focused workflow 0; no local runtime exit code
 status_change: CP-12 roadmap row 128 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
 proof-level_change: none; per-step focused evidence only, not unified workspace proof
-limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration, external/live/physical proof and unified CI remain unproven
+limitations: the card-level scenarios `cp_stale_worker_cannot_write_after_lease_reassignment`, `cp_overlapping_directory_and_file_leases_conflict`, and `cp_approval_wait_does_not_hold_writer_lock` are not present in this focused fixture; durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration, external/live/physical proof and unified CI remain unproven
 reviewer: exact focused jobs and successor contract direction reviewed; no local runtime reviewer
 ```
 
