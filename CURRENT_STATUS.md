@@ -20743,6 +20743,21 @@ limitations: historical CURRENT_STATUS H23 block says roadmap row 310 is ✅ whi
 reviewer: source review confirmed artifact-first validation, duplicate source identity rejection, workspace/data epoch fences and no filesystem dependency in domain contract; no local runtime reviewer
 ```
 
+### H23 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `42e39cd1`; .github/workflows/h23-compaction-commit-diagnostic.yml; domain compaction artifact/commit contract and Core event-store source guard
+worktree_status: artifact-first digest/source-range/epoch/duplicate fixtures and Core guard both passed after the guard included kiana-core/src/events.rs for append_idempotent_expected; production compaction contract unchanged
+command_argv: gh run view 37118073753 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H23 `domain-compaction-commit` and `core-compaction-guard`; both focused jobs success at head `42e39cd1`
+exit_code: remote domain job 0; remote Core job 0
+status_change: H23 remains roadmap row 310 / `feature_status=implemented` / `proof_level=source`; artifact digest, source cursor/event identity, workspace/data epoch and EventStore idempotency guard coverage now has a current focused receipt
+proof-level change: none
+limitations: no local runtime result, durable ArtifactStore, cross-store commit, model retry, physical GC, restart recovery or live/physical proof
+reviewer: exact focused jobs and Core event-store producer/source guard review; no local runtime reviewer
+```
+
 ### H23 focused guard drift audit and correction (2026-10-03)
 
 ```text
