@@ -284,3 +284,18 @@ proof-level change: none
 limitations: no stack trace or source-level recursive call identified; MemoryReviewHandler, evidence rejection, unchanged memory JSONL and post-review unsearchability were not reached
 reviewer: source trace through command dispatch, authorize/gate and approval staging; no local runtime reviewer
 ```
+
+### Zero revision is refused at persistence and authority boundaries (2026-10-03)
+
+```text
+source_snapshot: `0753da22`; kiana-daemon/src/harness_memory.rs; kiana-domain/src/memory_journal.rs; kiana-domain/tests/cm02_memory.rs; kiana-daemon/tests/cm05_memory_eventstore.rs; .github/workflows/ci.yml
+worktree_status: daemon JSONL read_records_file rejects v2 records with revision=0 before projection; MemoryJournalFact::validate rejects the same invalid authority fact; pure in-memory lifecycle/visibility and CM-04 CAS paths are unchanged
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick 0753da22; git push origin master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree `/tmp/kiana-cm02-zero-revision-20261003` integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: memory_read_rejects_zero_revision_before_projection; memory_fact_rejects_zero_revision_at_authority_boundary; memory_reader_has_zero_revision_persistence_fence; current-head CI run 37103038176 / head 4d70ea82 pending
+exit_code: isolated format/diff 0; integration/push 0; remote runtime pending
+status_change: CM-02 remains 🔄 / feature_status=partial / proof_level=source; zero-revision persistence/authority gap is closed in source, without proof promotion
+proof-level change: none
+limitations: no current-head CI receipt yet; existing memory.review stack-overflow/event-contract failure is separate; durable recovery, retention/revocation/deletion, semantic recall and live/physical effects remain open
+reviewer: isolated CM-02 source audit and deny-first fixture review; no local runtime reviewer
+```
