@@ -62,7 +62,7 @@ impl ModelStreamAccumulator {
         if self.cancelled {
             return Err("late_delta_after_cancel_is_discarded".to_owned());
         }
-        if self.stop_reason.is_some() {
+        if self.stop_reason.is_some() && !matches!(&delta, ModelDelta::Stop { .. }) {
             return Err("stream_delta_after_stop".to_owned());
         }
         self.delta_count = self.delta_count.saturating_add(1);
