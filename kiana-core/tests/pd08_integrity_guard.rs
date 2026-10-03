@@ -18,6 +18,7 @@ fn integrity_scan_reports_corrupt_unknown_and_health_gate_without_repairing_fact
         );
     }
     assert!(jsonl.contains("load_delta"));
+    assert!(jsonl.contains("eventlog_required_record_unsupported"));
     assert!(!integrity.contains("remove_file"));
     assert!(!integrity.contains("CapabilityBroker"));
     assert!(!integrity.contains("KianaHarness"));

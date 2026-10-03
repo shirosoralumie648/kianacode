@@ -85,4 +85,21 @@ async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     assert!(corrupt_report.quarantine_required);
     assert!(corrupt_report.health_gate().is_err());
     cleanup(&corrupt);
+
+    let unknown = temp_path("unknown-format");
+    write_fixture(
+        &unknown,
+        r#"{"schema":"kiana.journal-header.v9","required":true,"writer_version":9}
+"#,
+    );
+    let unknown_report = scan_jsonl(&unknown).await;
+    assert_eq!(unknown_report.status, IntegrityScanStatus::Unknown);
+    assert!(!unknown_report.quarantine_required);
+    assert!(unknown_report
+        .incident_code
+        .as_deref()
+        .is_some_and(|code| code.contains("eventlog_required_record_unsupported")));
+    assert_eq!(unknown_report.recovery_action, "pause_and_reconcile");
+    assert!(unknown_report.health_gate().is_err());
+    cleanup(&unknown);
 }

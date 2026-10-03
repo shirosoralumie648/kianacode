@@ -9,8 +9,9 @@ does not delete or move a journal; quarantine remains an explicit operator/recov
 
 ## Evidence and limits
 
-- `kiana-eventlog/tests/pd08_integrity_scan.rs` covers empty/ready/checksum-corrupt reports and
-  health-gate behavior.
+- `kiana-eventlog/tests/pd08_integrity_scan.rs` covers empty/ready/checksum-corrupt reports plus
+  an unknown schema/required/writer-version record, with health-gate behavior for both failure
+  classes.
 - `kiana-core/tests/pd08_integrity_guard.rs` protects the read-only/no-destructive-repair boundary.
   GitHub Actions runs fixtures; local tests are intentionally not executed.
 
