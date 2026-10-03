@@ -5,8 +5,8 @@ fn h21_runner_budget_and_prefix_inputs_are_observable_and_not_split() {
     let compact = include_str!("../src/compact.rs");
     let domain = include_str!("../../kiana-domain/src/request_budget.rs");
     for marker in [
-        "TokenBudget",
-        "reserved_output_tokens",
+        "WireBudget",
+        "output_reserved_tokens",
         "tool_schema_bytes",
         "prompt_sources",
         "route_digest",

@@ -20683,6 +20683,21 @@ limitations: historical CURRENT_STATUS H22 block says roadmap row 309 is ✅ whi
 reviewer: source review confirmed evidence-only summary validation, actionable-state preservation and refusal to infer completion from prose; no local runtime reviewer
 ```
 
+### H21 focused guard drift audit and correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37115392784` / head `b6847840`; kiana-runner/tests/h21_budget_prefix_guard.rs; current contract kiana-domain/src/request_budget.rs
+worktree_status: domain request-budget fixtures passed; runner source guard failed only because it expected historical TokenBudget/reserved_output_tokens markers while the current source contract is WireBudget/output_reserved_tokens; request budget and stable-prefix behavior unchanged
+command_argv: gh run view 37115392784 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H21 domain-request-budget 3/3 success; runner-budget-prefix-guard 0/1 due to stale markers
+exit_code: remote domain job 0; remote runner guard 1; correction follows current WireBudget contract and awaits fresh receipt
+status_change: H21 remains roadmap row 308 `🔄` / `feature_status=implemented` / `proof_level=source`; only the focused source guard markers are corrected
+proof-level change: none
+limitations: historical CURRENT_STATUS H21 block says row 308 is ✅ while authoritative docs/roadmap.md remains 🔄; provider tokenizer/billing, live cache hit behavior and cross-process cache durability remain open
+reviewer: exact remote failure and current request-budget source markers reviewed; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text
