@@ -57,11 +57,7 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
             "transport lease marker missing: {marker}"
         );
     }
-    for marker in [
-        "consume_credential_lease",
-        "effect",
-        "CredentialLease",
-    ] {
+    for marker in ["consume_credential_lease", "effect", "CredentialLease"] {
         assert!(
             broker.contains(marker),
             "broker lease marker missing: {marker}"
