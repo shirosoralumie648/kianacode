@@ -21657,3 +21657,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: EvalStore/fixture-loader persistence, normalization/diff, evaluator/Judge/Experiment/Result/Gate/Promote/Rollback, authenticated privacy/retention, durable replay and unified CI remain unproven
 reviewer: exact focused job steps and evaluation-object source reviewed; no local runtime reviewer
 ```
+
+### H05 rustdoc doctest boundary correction (2026-10-04)
+
+```text
+source_snapshot: `424e5321`; kiana-runner/src/harness.rs; kiana-protocol/src/lib.rs; .github/workflows/h05-stop-diagnostic.yml
+worktree_status: two documentation-only corrections: runner architecture/data-flow diagrams are fenced as text and protocol digest prose no longer has doctest-inducing indentation; no runtime/API/manifest/lockfile change
+command_argv: source diff review; git diff --check; gh workflow run h05-stop-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: focused H05 workflow run `37140646601` at head `424e5321`, queued and intentionally not awaited
+exit_code: source/diff checks 0; remote focused result pending
+status_change: H05 remains roadmap row 047 `🔄` / `feature_status=partial` / `proof_level=source`
+proof-level_change: none; documentation parsing correction awaits GitHub CI confirmation
+limitations: unified CI remains red from unrelated workspace failures; full H05 shard, provider/live, budget and durable evidence remain open
+reviewer: exact rustdoc diff and workflow dispatch reviewed; no local runtime reviewer
+```

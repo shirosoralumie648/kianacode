@@ -179,6 +179,27 @@ limitations: no automatic repair/compaction loop, no arbitrary provider-message 
 reviewer: isolated provider source/fixture review; no local runtime reviewer
 ```
 
+## 4.6 Rustdoc doctest boundary correction (2026-10-04)
+
+The full CI runner/protocol jobs exposed documentation-only doctest drift: two Chinese/Unicode
+architecture diagrams in `kiana-runner/src/harness.rs` were unlabelled fenced blocks, and the
+`ProviderCredentialProbeResponse::digest` prose in `kiana-protocol/src/lib.rs` had indentation that
+rustdoc interpreted as code. Commit `424e5321` labels the diagrams as `text` and restores ordinary
+prose indentation. No runtime behavior, API, assertion, manifest or lockfile changed.
+
+```text
+source_snapshot: `424e5321`; kiana-runner/src/harness.rs; kiana-protocol/src/lib.rs; .github/workflows/h05-stop-diagnostic.yml
+worktree_status: two documentation parsing corrections only; `git diff --check` passed; no local test/build/check/clippy/smoke
+command_argv: source diff review; git diff --check; gh workflow run h05-stop-diagnostic.yml --ref master
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: focused H05 workflow run `37140646601`, queued after push; no result awaited
+exit_code: source/diff checks 0; remote run pending
+status_change: H05 remains roadmap row 047 `🔄` / `feature_status=partial` / `proof_level=source`
+proof-level change: none; documentation parsing correction awaits remote confirmation
+limitations: unified CI remains red from unrelated workspace failures; complete H05 provider/shard/live evidence is still open
+reviewer: exact rustdoc diff and queued focused workflow reviewed; no local runtime reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
