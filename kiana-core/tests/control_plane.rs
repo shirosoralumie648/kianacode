@@ -4,11 +4,11 @@ use kiana_core::{
     project_run_state, ControlPlane, CoreError, RunOutcome, RunPhase, RunProjectionError, RunState,
 };
 use kiana_domain::{
-    ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest,
-    CapabilityExecutionState, CapabilityKind, CapabilityRequest, CapabilityResult, CommandIntent,
-    ConversationMessage, ConversationRole, ExecutionStatus, GateDecision, PendingApproval,
-    PermissionProfile, PolicyDecision, RequestContext, RequestId, RoleSpec, RunId, RuntimeEvent,
-    WorkPacket, APPROVAL_CHALLENGE_SCHEMA,
+    event_kind_spec, validate_runtime_event, ApprovalChallenge, ApprovalDecision, ApprovalId,
+    AuthorizedCapabilityRequest, CapabilityExecutionState, CapabilityKind, CapabilityRequest,
+    CapabilityResult, CommandIntent, ConversationMessage, ConversationRole, ExecutionStatus,
+    GateDecision, PendingApproval, PermissionProfile, PolicyDecision, RequestContext, RequestId,
+    RoleSpec, RunId, RuntimeEvent, WorkPacket, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::{DefaultGateEngine, GateEngine};
@@ -867,6 +867,164 @@ fn trusted_context_in(root: &PathBuf, session: &str) -> RequestContext {
     context.project_trusted = true;
     context.permission_profile = PermissionProfile::Balanced;
     context
+}
+
+#[tokio::test]
+async fn er01_real_start_producer_denies_invalid_input_before_execution() {
+    let runner_calls = Arc::new(Mutex::new(0));
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(CountingRunner {
+            calls: runner_calls.clone(),
+        }),
+        broker.clone(),
+    );
+
+    for (role, department, prompt, reason) in [
+        ("builder", "executing", " \n\t", "prompt_required"),
+        ("unregistered-role", "executing", "inspect", "role_unknown"),
+        ("pm", "executing", "inspect", "role_department_mismatch"),
+    ] {
+        let mut context = trusted_context();
+        context.role_id = role.to_owned();
+        context.department_id = department.to_owned();
+        let request_id = context.request_id;
+        let response = harness
+            .core
+            .start_run(context, prompt.to_owned(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+        assert_eq!(response.error.as_deref(), Some(reason));
+        assert_eq!(*runner_calls.lock().await, 0, "{reason}");
+        assert_eq!(*broker.calls.lock().await, 0, "{reason}");
+
+        let events = harness.events.read_request(&request_id).await.unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["request.accepted", "run.rejected"],
+            "{reason}: {events:?}"
+        );
+        // Pre-run rejection payloads have no run_id; their registry contract remains a
+        // separate architecture gate. Check the real denial without validating that kind.
+        assert_eq!(events[1].data["reason"], reason);
+    }
+}
+
+#[tokio::test]
+async fn er01_real_lifecycle_and_session_producers_conform_to_registry() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(ChunkedDeltaRunner {
+            chunks: vec!["registry", " conformance"],
+        }),
+        broker.clone(),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    harness
+        .core
+        .bind_session_assignment(&context)
+        .await
+        .unwrap();
+    harness
+        .core
+        .bind_session_assignment(&context)
+        .await
+        .unwrap();
+
+    let response = harness
+        .core
+        .start_run(
+            context.clone(),
+            "inspect api_key=er01-producer-fixture-secret".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(*broker.calls.lock().await, 0);
+    let run_id = response.output["run_id"].as_str().expect("run identity");
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    // Validate untouched server-produced envelopes from the EventLog. Terminal kinds
+    // have their own contract gate and are deliberately outside this fixture's selection.
+    let lifecycle = events
+        .iter()
+        .filter(|event| {
+            matches!(
+                event.kind.as_str(),
+                "run.authorized" | "run.prompt" | "run.started" | "run.delta" | "run.receipt"
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lifecycle
+            .iter()
+            .map(|event| event.kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "run.authorized",
+            "run.prompt",
+            "run.started",
+            "run.delta",
+            "run.receipt"
+        ],
+        "{events:?}"
+    );
+    for event in &lifecycle {
+        assert_eq!(validate_runtime_event(event), Ok(()), "{event:?}");
+        let spec = event_kind_spec(&event.kind).expect("registered lifecycle kind");
+        assert!(!spec.terminal, "{}", event.kind);
+        assert_eq!(event.aggregate_type.as_deref(), Some(spec.aggregate_type));
+        assert_eq!(event.aggregate_id.as_deref(), Some(run_id));
+        assert_eq!(event.request_id, request_id);
+        assert_eq!(event.data["run_id"], response.output["run_id"]);
+    }
+    assert_eq!(lifecycle[0].data["capability_mode"], "brokered");
+    assert_eq!(lifecycle[0].data["sandbox"], "read-only");
+    assert_eq!(lifecycle[1].data["text"], "inspect api_key=[REDACTED]");
+    assert_eq!(lifecycle[3].data["text"], "registry conformance");
+    assert_eq!(lifecycle[4].data, response.output);
+
+    let all_events = harness.events.read_all().await.unwrap();
+    let assignments = all_events
+        .iter()
+        .filter(|event| event.kind == "session.assigned")
+        .collect::<Vec<_>>();
+    assert_eq!(assignments.len(), 1, "{assignments:?}");
+    let assignment = assignments[0];
+    assert_eq!(validate_runtime_event(assignment), Ok(()), "{assignment:?}");
+    let spec = event_kind_spec(&assignment.kind).expect("registered session kind");
+    assert!(!spec.terminal);
+    assert_eq!(
+        assignment.aggregate_type.as_deref(),
+        Some(spec.aggregate_type)
+    );
+    assert!(assignment
+        .aggregate_id
+        .as_ref()
+        .is_some_and(|id| !id.is_empty()));
+    assert_eq!(assignment.stream_version, Some(1));
+    assert_eq!(assignment.data["session_id"], context.session_id.as_str());
+    assert_eq!(assignment.data["actor_id"], lifecycle[0].data["actor_id"]);
+    assert_eq!(assignment.data["role_id"], lifecycle[0].data["role_id"]);
+    assert_eq!(
+        assignment.data["department_id"],
+        lifecycle[0].data["department_id"]
+    );
+    assert_eq!(
+        assignment.data["authority_epoch"],
+        lifecycle[0].data["authority_epoch"]
+    );
 }
 
 #[tokio::test]
