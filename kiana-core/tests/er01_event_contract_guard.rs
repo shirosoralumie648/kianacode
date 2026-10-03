@@ -193,4 +193,17 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             "missing predecessor producer field {marker}"
         );
     }
+    assert!(lifecycle.contains("\"run.compacted\""));
+    for marker in [
+        "\"schema\": COMPACT_SCHEMA,",
+        "\"run_id\": run_id,",
+        "\"tokens_before\": tokens_before,",
+        "\"tokens_after\": tokens_after,",
+        "\"summary_present\": summary_present,",
+    ] {
+        assert!(
+            lifecycle.contains(marker),
+            "missing compaction producer field {marker}"
+        );
+    }
 }

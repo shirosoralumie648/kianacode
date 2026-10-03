@@ -194,6 +194,13 @@ const RUN_RESUME_PREPARED_FIELDS: &[&str] = &[
     "turn_id",
     "turn",
 ];
+const RUN_COMPACTED_FIELDS: &[&str] = &[
+    "schema",
+    "run_id",
+    "tokens_before",
+    "tokens_after",
+    "summary_present",
+];
 const REQUEST_FIELDS: &[&str] = &[
     "command",
     "run_id",
@@ -997,6 +1004,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run",
         RUN_IDS,
         RUN_RESUME_PREPARED_FIELDS,
+        false,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
+        "run.compacted",
+        "run",
+        RUN_IDS,
+        RUN_COMPACTED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

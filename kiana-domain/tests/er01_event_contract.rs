@@ -435,6 +435,49 @@ fn run_resume_prepared_contract_matches_recovery_producer() {
 }
 
 #[test]
+fn run_compacted_contract_matches_lifecycle_producer() {
+    let spec = event_kind_spec("run.compacted").unwrap();
+    assert_eq!(spec.required_ids, &["run_id"][..]);
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("run.compacted", 0, 1),
+        Some("legacy_run_event_v0_to_v1")
+    );
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "schema",
+            "run_id",
+            "tokens_before",
+            "tokens_after",
+            "summary_present",
+        ][..]
+    );
+
+    let mut payload = json!({
+        "schema": "kiana.compact.v1",
+        "run_id": kiana_domain::RunId::new(),
+        "tokens_before": 100,
+        "tokens_after": 40,
+        "summary_present": true,
+    });
+    validate_event_payload("run.compacted", &payload).unwrap();
+
+    let mut missing_run = payload.clone();
+    missing_run.as_object_mut().unwrap().remove("run_id");
+    assert_eq!(
+        validate_event_payload("run.compacted", &missing_run).unwrap_err(),
+        "event_required_id_missing:run_id"
+    );
+
+    payload["unexpected_compaction_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("run.compacted", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");
