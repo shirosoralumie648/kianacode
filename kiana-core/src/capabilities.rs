@@ -1043,15 +1043,16 @@ impl ControlPlane {
             ExecutionStatus::ResultUnknown => "capability.result_unknown",
             _ => "capability.failed",
         };
-        if self
+        if let Err(error) = self
             .record_event(event_request_id, sequence, kind, payload)
             .await
-            .is_err()
         {
             finalized = FinalizedCapabilityAction::unknown(
                 request.request_id,
                 "result_event_persistence_failed",
             );
+            finalized.result.output["persistence_reason"] =
+                json!(stable_event_persistence_reason(&error));
         }
         if let Some(lease) = lease {
             let outcome = match finalized.status {
@@ -1368,6 +1369,26 @@ impl FinalizedCapabilityAction {
 }
 fn action_error(reason: &str) -> CoreError {
     PortError::Failed(reason.to_owned()).into()
+}
+
+fn stable_event_persistence_reason(error: &CoreError) -> &'static str {
+    match error {
+        CoreError::Port(PortError::Failed(reason)) if reason.starts_with("event_contract_") => {
+            "event_contract"
+        }
+        CoreError::Port(PortError::Failed(reason))
+            if reason.starts_with("event_identity_links_") =>
+        {
+            "event_identity_links"
+        }
+        CoreError::Port(PortError::Failed(reason)) if reason.starts_with("eventlog_") => {
+            "eventlog_boundary"
+        }
+        CoreError::Port(PortError::Conflict(_)) => "event_conflict",
+        CoreError::Port(PortError::Unavailable(_)) => "event_store_unavailable",
+        CoreError::Port(PortError::Failed(_)) => "event_store_failed",
+        CoreError::Domain(_) => "event_domain_failed",
+    }
 }
 pub(crate) fn approval_requirements(reason: &str) -> Vec<String> {
     reason
