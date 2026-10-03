@@ -14,6 +14,34 @@ pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 const REQUEST_IDS: &[&str] = &["request_id"];
 const SESSION_ASSIGNMENT_IDS: &[&str] = &["session_id"];
 const RUN_IDS: &[&str] = &["run_id"];
+const RUN_AUTHORIZED_FIELDS: &[&str] = &[
+    "run_id",
+    "session_id",
+    "actor_id",
+    "project_root",
+    "role_id",
+    "department_id",
+    "harness",
+    "sandbox",
+    "capability_mode",
+    "max_steps_per_turn",
+    "runtime_budget",
+    "authority_revision",
+    "authority_epoch",
+    "turn_id",
+    "turn",
+    "role_prompt_hash",
+    "model_profile",
+    "role_spec_schema",
+    "role_version",
+    "role_catalog_schema",
+    "role_catalog_version",
+    "role_input_schema",
+    "role_output_schema",
+];
+const RUN_STARTED_FIELDS: &[&str] = &["run_id"];
+const RUN_PROMPT_FIELDS: &[&str] = &["run_id", "session_id", "turn_id", "turn", "text"];
+const RUN_DELTA_FIELDS: &[&str] = &["run_id", "text"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const CAPABILITY_DECISION_IDS: &[&str] = &[];
 const EXECUTION_PREPARED_IDS: &[&str] = &[
@@ -1024,7 +1052,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.authorized",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_AUTHORIZED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1040,7 +1068,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.started",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_STARTED_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1056,7 +1084,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.prompt",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_PROMPT_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1064,7 +1092,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.delta",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_DELTA_FIELDS,
         false,
         Some("legacy_run_event_v0_to_v1")
     ),

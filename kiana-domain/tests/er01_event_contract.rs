@@ -1493,3 +1493,119 @@ fn action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift() {
         "event_payload_unknown_field"
     );
 }
+
+#[test]
+fn run_lifecycle_contracts_match_real_producers_and_reject_drift() {
+    let run_id = kiana_domain::RunId::new();
+    let prompt = json!({
+        "run_id": run_id,
+        "session_id": "session-1",
+        "turn_id": kiana_domain::TurnId::new(),
+        "turn": {},
+        "text": "do the work",
+    });
+    let delta = json!({"run_id": run_id, "text": "partial output"});
+    let authorized = json!({
+        "run_id": run_id,
+        "session_id": "session-1",
+        "actor_id": "operator",
+        "project_root": "/workspace",
+        "role_id": "builder",
+        "department_id": "executing",
+        "harness": "kiana-harness-v1",
+        "sandbox": "workspace-write",
+        "capability_mode": "brokered",
+        "max_steps_per_turn": 8,
+        "runtime_budget": {},
+        "authority_revision": 2,
+        "authority_epoch": 3,
+        "turn_id": kiana_domain::TurnId::new(),
+        "turn": {},
+        "role_prompt_hash": "sha256:prompt",
+        "model_profile": "default",
+        "role_spec_schema": "kiana.role.v1",
+        "role_version": 1,
+        "role_catalog_schema": "kiana.role-catalog.v1",
+        "role_catalog_version": {},
+        "role_input_schema": {},
+        "role_output_schema": {},
+    });
+    let cases = [
+        ("run.authorized", authorized),
+        ("run.started", json!({"run_id":run_id})),
+        ("run.prompt", prompt),
+        ("run.delta", delta),
+    ];
+
+    for (kind, payload) in cases {
+        let spec = event_kind_spec(kind).unwrap();
+        assert_eq!(spec.aggregate_type, "run", "{kind}");
+        assert_eq!(spec.required_ids, &["run_id"][..], "{kind}");
+        assert!(!spec.terminal, "{kind}");
+        assert_eq!(
+            event_migration(kind, 0, 1),
+            Some("legacy_run_event_v0_to_v1")
+        );
+        validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
+
+        let mut missing_run_id = payload.clone();
+        missing_run_id.as_object_mut().unwrap().remove("run_id");
+        assert_eq!(
+            validate_event_payload(kind, &missing_run_id).unwrap_err(),
+            "event_required_id_missing:run_id",
+            "{kind}"
+        );
+
+        let mut unknown_field = payload;
+        unknown_field["unregistered_lifecycle_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload(kind, &unknown_field).unwrap_err(),
+            "event_payload_unknown_field",
+            "{kind}"
+        );
+    }
+
+    assert_eq!(
+        event_kind_spec("run.authorized").unwrap().allowed_fields,
+        &[
+            "run_id",
+            "session_id",
+            "actor_id",
+            "project_root",
+            "role_id",
+            "department_id",
+            "harness",
+            "sandbox",
+            "capability_mode",
+            "max_steps_per_turn",
+            "runtime_budget",
+            "authority_revision",
+            "authority_epoch",
+            "turn_id",
+            "turn",
+            "role_prompt_hash",
+            "model_profile",
+            "role_spec_schema",
+            "role_version",
+            "role_catalog_schema",
+            "role_catalog_version",
+            "role_input_schema",
+            "role_output_schema",
+        ][..]
+    );
+    assert_eq!(
+        event_kind_spec("run.started").unwrap().allowed_fields,
+        &["run_id"][..]
+    );
+    for kind in ["run.prompt", "run.delta"] {
+        assert!(event_kind_spec(kind).is_some());
+    }
+    assert_eq!(
+        event_kind_spec("run.prompt").unwrap().allowed_fields,
+        &["run_id", "session_id", "turn_id", "turn", "text"][..]
+    );
+    assert_eq!(
+        event_kind_spec("run.delta").unwrap().allowed_fields,
+        &["run_id", "text"][..]
+    );
+}

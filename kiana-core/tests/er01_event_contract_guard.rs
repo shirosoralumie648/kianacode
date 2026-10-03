@@ -98,6 +98,76 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     }
     assert!(baseline
         .contains("action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift"));
+    for (kind, expected_count) in [
+        ("run.authorized", 1),
+        ("run.started", 1),
+        ("run.prompt", 2),
+        ("run.delta", 1),
+    ] {
+        assert_eq!(
+            lifecycle.matches(&format!("\"{kind}\"")).count(),
+            expected_count,
+            "unexpected lifecycle producer count for {kind}"
+        );
+    }
+    for (kind, fields) in [
+        ("run.authorized", "RUN_AUTHORIZED_FIELDS"),
+        ("run.started", "RUN_STARTED_FIELDS"),
+        ("run.prompt", "RUN_PROMPT_FIELDS"),
+        ("run.delta", "RUN_DELTA_FIELDS"),
+    ] {
+        let spec = format!("\"{kind}\",\n        \"run\",\n        RUN_IDS,\n        {fields},");
+        assert!(
+            contracts.contains(&spec),
+            "run event {kind} must use its own exact field set"
+        );
+    }
+    for marker in [
+        "RUN_AUTHORIZED_FIELDS",
+        "RUN_STARTED_FIELDS",
+        "RUN_PROMPT_FIELDS",
+        "RUN_DELTA_FIELDS",
+        "run_lifecycle_contracts_match_real_producers_and_reject_drift",
+    ] {
+        assert!(
+            contracts.contains(marker) || baseline.contains(marker),
+            "missing run lifecycle contract marker {marker}"
+        );
+    }
+    for marker in [
+        "\"run_id\": run_id,",
+        "\"session_id\": context.session_id,",
+        "\"actor_id\": context.actor_id,",
+        "\"project_root\": context.project_root,",
+        "\"role_id\": context.role_id,",
+        "\"department_id\": context.department_id,",
+        "\"harness\": HARNESS_ID,",
+        "\"sandbox\": sandbox,",
+        "\"capability_mode\": \"brokered\",",
+        "\"max_steps_per_turn\": max_steps_per_turn,",
+        "\"runtime_budget\":runtime_budget,",
+        "\"authority_revision\":authority_revision,",
+        "\"authority_epoch\":authority_epoch,",
+        "\"turn_id\":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),",
+        "\"turn\":turn,",
+        "\"role_prompt_hash\": role.prompt_hash,",
+        "\"model_profile\": role.model_profile,",
+        "\"role_spec_schema\": role.schema,",
+        "\"role_version\": role.version,",
+        "\"role_catalog_schema\": kiana_domain::ROLE_CATALOG_SCHEMA,",
+        "\"role_catalog_version\": kiana_domain::SchemaVersion::new(1, 0),",
+        "\"role_input_schema\": role.input_schema,",
+        "\"role_output_schema\": role.output_schema,",
+        "json!({ \"run_id\": run_id })",
+        "\"run_id\": run_id,\n                \"session_id\": context.session_id,\n                \"turn_id\": turn_id,\n                \"turn\": turn.clone(),\n                \"text\": &prompt,",
+        "\"run_id\": run_id,\n                \"session_id\": context.session_id,\n                \"turn_id\": legacy_turn.turn_id,\n                \"turn\": legacy_turn.clone(),\n                \"text\": &prompt,",
+        "json!({ \"run_id\": run_id, \"text\": text })",
+    ] {
+        assert!(
+            lifecycle.contains(marker),
+            "missing lifecycle run producer field {marker}"
+        );
+    }
     assert!(approvals.contains("json!({\"error\":reason})"));
     assert!(approvals.contains("\"attempt\":1,\"effect_started\":false"));
     assert!(approvals.contains("\"capability.blocked\""));
