@@ -919,3 +919,10 @@ fixtures, all Core reducer fixtures, and both target-scoped `--no-run` compilati
 after the source-event precedence correction. OA-04 remains `partial/source`; this focused receipt
 does not establish EventLog observer durability, checkpoint/rebuild, query/export sinks,
 authenticated principal binding or live/physical projection.
+
+## OA-04 focused acceptance closeout (2026-10-04)
+
+The OA-04 scoped acceptance lane is complete at `implemented/source`: run `37133402660` passed
+the domain taxonomy target, Core reducer target and both target-scoped compile steps. The unified
+workspace workflow is not claimed green; observer durability, checkpoint/rebuild, query/export,
+authenticated principal binding and live/physical projection remain later OA work.

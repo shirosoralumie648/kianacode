@@ -21582,3 +21582,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: typed packet-set binding, optional legacy migration, durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery, effect-time fencing and unified CI remain unproven
 reviewer: exact focused job steps and validator source reviewed; no local runtime reviewer
 ```
+
+### OA-04 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `58d17b17`; .github/workflows/oa04-audit.yml; kiana-domain/src/audit.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/tests/oa04_audit_reducer.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: complete focused lane passed formatting, all four domain taxonomy fixtures, Core reducer fixtures and both target-scoped no-run compiles after source-event conflict precedence correction
+command_argv: gh run view 37133402660 --json status,conclusion,headSha,jobs,url; gh run view 37133402660 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: OA-04 domain taxonomy 4/4; OA-04 Core reducer target success; domain/Core target-scoped compiles success; source-event collision is rejected before generated audit-id collision
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-04 roadmap row 095 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink, authenticated principal binding, live/physical projection and unified CI remain unproven
+reviewer: exact focused job steps and precedence behavior reviewed; no local runtime reviewer
+```
