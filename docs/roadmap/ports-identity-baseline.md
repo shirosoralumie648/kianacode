@@ -167,3 +167,12 @@ proof-level change: none
 limitations: raw compatibility `resolve_principal` remains callable and no production caller migration is included; no production IdentityResolver adapter, durable identity store, OS credential verification, OAuth, cross-process recovery or provider/live effect is established
 reviewer: source review checked authenticated input validation, resolved Principal validation, exact authentication reference/generation equality and typed conflict; no local runtime reviewer
 ```
+
+## 13. Focused compile-gate correction (2026-10-03)
+
+The first restored focused run `37121635967` passed the CI-03 ports fixture (`7/7`) and Core
+guard (`1/1`) but failed its final workspace test compile because unrelated
+`kiana-domain/tests/nm01_contracts.rs` errors were pulled into the broad `--tests` command. The
+manual lane now compiles only `ci03_ports` and `ci03_ports_guard` with target-scoped `--no-run`
+commands. No product code or assertion changed; a fresh remote receipt is required before any
+status or proof-level promotion.

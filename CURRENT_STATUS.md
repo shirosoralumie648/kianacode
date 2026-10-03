@@ -21267,3 +21267,18 @@ proof-level_change: none; source plus remote focused CI only
 limitations: this target does not prove the wider CompanyProof artifact readback flow, cross-store atomicity/reconciliation, original/current UI comparison, cross-process recovery, retention/deletion or power-loss durability
 reviewer: exact current-head GDB job and target output reviewed; no local runtime reviewer
 ```
+
+### CI-03 focused compile-gate correction (2026-10-03)
+
+```text
+source_snapshot: `efca60d9`; .github/workflows/ci03-ports.yml; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs; docs/roadmap/ports-identity-baseline.md
+worktree_status: the restored focused run passed the CI-03 ports fixture 7/7 and Core guard 1/1; only the broad final test compile failed on unrelated `kiana-domain/tests/nm01_contracts.rs` errors; workflow now uses two target-scoped no-run compile steps and no product code or assertion changed
+command_argv: gh run view 37121635967 --json status,conclusion,headSha,jobs,url; gh run view 37121635967 --log-failed; git show 08552ada^:.github/workflows/ci03-ports.yml; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: prior focused run `ci03_ports` 7/7 and `ci03_ports_guard` 1/1; broad compile stopped at unrelated `nm01_contracts.rs` E0277/E0618 errors; corrected workflow targets `cargo test -p kiana-ports --test ci03_ports --no-run --locked` and `cargo test -p kiana-core --test ci03_ports_guard --no-run --locked`
+exit_code: prior remote workflow 1 at unrelated broad compile; source/diff checks 0; no local runtime exit code; fresh corrected workflow pending
+status_change: CI-03 remains roadmap row 086 `🔄` / `feature_status=partial` / `proof_level=source`; this is a CI gate-scope correction only
+proof-level_change: none; source plus prior focused fixture receipt, fresh target-scoped receipt pending
+limitations: production resolver adapters, SecretStore/lease/OAuth, durable identity/rotation/revoke, cancellation/recovery and provider/live effects remain unproven
+reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
+```
