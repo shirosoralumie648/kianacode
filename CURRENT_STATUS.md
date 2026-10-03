@@ -21807,3 +21807,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: SC-02 registry is not a durable cross-process security store; SC-05 BundlePolicyEngine is not the default ControlPlane policy store; SC-09 GrantScope is not yet the durable Cell/Approval/Permit authority; external/live/physical outcomes and unified CI remain unproven
 reviewer: exact focused jobs, fixture corrections and source boundaries reviewed; no local runtime reviewer
 ```
+
+### CAP-02 focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `395a119f`; .github/workflows/cap02-input.yml; kiana-domain/src/{tool_catalog, event_contracts}.rs; kiana-domain/tests/cap02_input.rs; kiana-core/tests/{cap02_input_guard,control_plane}.rs; kiana-provider/src/{response,transport}.rs
+worktree_status: bounded JSON/schema/path/alias/digest boundaries, provider raw/object/stream duplicate-key and oversize checks, server-stamped authority/scope fixture, and ER-01 terminal result fields are integrated; no second authorization or execution path added
+command_argv: `gh run view 37150173427 --json status,conclusion,headSha,jobs,url`; `gh run view 37150173427 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: provider raw/object/stream selectors passed; domain input target passed; Core authority-scope fixture and source guard passed; focused target compiles passed
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CAP-02 roadmap row 041 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; focused CI evidence only
+limitations: full CLI/Web/Workbench/stream-json ingress parity, legacy MCP migration, complete schema dialect, durable action snapshots, physical TOCTOU/egress, external/live effects and unified CI remain open; HTTP MCP remains unsupported/frozen
+reviewer: exact focused jobs and three producer-contract corrections reviewed; no local runtime reviewer
+```
