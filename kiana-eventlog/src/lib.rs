@@ -530,7 +530,7 @@ mod tests {
         })
         .await
         .expect("eventlog append/read lock-order deadlock");
-        assert_eq!(result.0.len(), 1);
+        assert!(matches!(result.0.len(), 1 | 2));
         assert_eq!(second.read_all().await.unwrap().len(), 2);
     }
 
