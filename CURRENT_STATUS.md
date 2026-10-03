@@ -21597,3 +21597,18 @@ proof-level_change: none; per-step focused evidence only, not unified workspace 
 limitations: EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink, authenticated principal binding, live/physical projection and unified CI remain unproven
 reviewer: exact focused job steps and precedence behavior reviewed; no local runtime reviewer
 ```
+
+### NM-01 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `b3b8f8e6`; .github/workflows/nm01-contracts.yml; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs; kiana-core/tests/notifications_baseline.rs; docs/roadmap/notifications-contracts-baseline.md
+worktree_status: complete focused lane passed formatting, NM-01 domain contracts, Core source guard, NM-00 baseline guard and all three target-scoped no-run compiles; test helper correction preserved production contracts and assertions
+command_argv: gh run view 37133064068 --json status,conclusion,headSha,jobs,url; gh run view 37133064068 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `nm01_contracts` success; `nm01_contracts_guard` success; `notifications_baseline` success; domain/Core/baseline target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: NM-01 roadmap row 097 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: NotificationStore, recipient resolver, materializer, outbox, delivery worker, durable read state, external channel, live/physical proof and unified CI remain unproven
+reviewer: exact focused job steps and contract-boundary source reviewed; no local runtime reviewer
+```

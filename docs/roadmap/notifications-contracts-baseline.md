@@ -7,7 +7,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`NM-01`](../roadmap.md#step-nm-01) |
-| feature_status | `partial`（domain contracts are present; NM-01 remains open for remote verification and remaining acceptance fixtures） |
+| feature_status | `implemented`（domain contracts and focused acceptance are complete; notification adapters and delivery remain later work） |
 | proof_level | `source`；静态编译和远程 fixtures 不提升为 `local_behavior`、`durable`、`live` 或 `physical` |
 | canonical fact source | contracts are facts/intents only; EventLog/ControlPlane remains the source of authority |
 | this step does | six strict schemas, stable IDs, bounded text/scope/TTL, digest/canonical bytes, notification/subscription scope intersection, status transitions and explicit v0 Message upcast |
@@ -149,3 +149,10 @@ contract target, the Core source guard, the NM-00 notification baseline guard, a
 target-scoped `--no-run` compilation steps passed. NM-01 remains `partial/source`: the receipt
 covers contract fixtures and source guards only, not notification persistence, materialization,
 delivery or external channels.
+
+## 11. Focused acceptance closeout (2026-10-04)
+
+The scoped NM-01 acceptance lane is complete at `implemented/source`: run `37133064068` passed
+the domain contracts, Core guard, NM-00 baseline guard and all three target-scoped compile steps.
+The unified workspace workflow is not claimed green; notification persistence, materialization,
+delivery, durable read state and external channels remain later work.
