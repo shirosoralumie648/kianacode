@@ -94,6 +94,7 @@ read committed frame
 | `run_resume_prepared_contract_matches_recovery_producer` | `run.resume_prepared` 的 run/session/actor/snapshot-event/turn 六字段；缺 run_id、未知字段拒绝 |
 | `run_compacted_contract_matches_lifecycle_producer` | `run.compacted` 的 schema/run/tokens-before/tokens-after/summary 字段；缺 run_id、未知字段拒绝 |
 | `run_receipt_contract_bounds_top_level_projection` | `run.receipt` 的 37 个固定顶层 projection 键和可选 work-packet 键；缺 run_id、未知顶层字段拒绝，嵌套值保持各自 projection contract |
+| `credential_recovery_contract_matches_typed_producer` | `recovery.credential` 的 run_id/recovery 顶层 envelope；缺 run_id、未知顶层字段拒绝，nested fact 由 CredentialRecoveryFact contract 验证 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -529,6 +530,27 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; nested receipt/aggregation/model/invocation projections remain owner contracts, and receipt remains a derived shadow copy rather than an additional fact; no durable replay, external delivery or outcome claim
 reviewer: source trace matched lifecycle write, receipt_from_events fixed top-level keys, with_work_packet optional keys and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.20 Credential recovery producer contract
+
+The existing `recovery.credential` registry entry now has a deny-first producer fixture. The only
+typed producer, `CredentialRecoveryFact::to_runtime_event`, emits the exact top-level envelope
+`{run_id, recovery}` on the run aggregate; the nested recovery fact remains governed by its own
+versioned `CredentialRecoveryFact` validation. The fixture rejects a missing `run_id` and unknown
+top-level fields. No recovery projection or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `706881f5`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/src/credential_recovery_evidence.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: existing `recovery.credential` registry contract is now pinned to the unique typed producer envelope `{run_id,recovery}` with run aggregate and required run_id; nested fact validation remains owner-scoped; no recovery or EventStore behavior changed
+command_argv: source trace of `CredentialRecoveryFact::to_runtime_event`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 4e98fb29`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `credential_recovery_contract_matches_typed_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; the credential-recovery top-level producer envelope now has an explicit deny-first fixture
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested recovery fact validation, projection replay, durable checkpoint and live credential rotation remain separate contracts; no authorization or external-effect claim
+reviewer: source trace matched the unique typed recovery producer, registry fields, required run identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
