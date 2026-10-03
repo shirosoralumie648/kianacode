@@ -21672,3 +21672,18 @@ proof-level_change: none; documentation parsing correction awaits GitHub CI conf
 limitations: unified CI remains red from unrelated workspace failures; full H05 shard, provider/live, budget and durable evidence remain open
 reviewer: exact rustdoc diff and workflow dispatch reviewed; no local runtime reviewer
 ```
+
+### H05 focused receipt after rustdoc correction (2026-10-04)
+
+```text
+source_snapshot: `424e5321`; .github/workflows/h05-stop-diagnostic.yml; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src/response.rs; kiana-provider/src/request.rs
+worktree_status: all seven focused jobs passed after documentation-only doctest corrections; product behavior, assertions, manifest and lockfile unchanged
+command_argv: gh run view 37140646601 --json status,conclusion,headSha,jobs,url; gh run view 37140646601 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `h05_model_outcome` 12/12; `h05_stop_guard` 4/4; explicit incomplete status/stream, structured-output FormatRepair, malformed tool arguments and Responses ContextRepair selectors 1/1 each
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: H05 remains roadmap row 047 `🔄` / `feature_status=partial` / `proof_level=source`
+proof-level_change: none; focused acceptance evidence only
+limitations: full crate shards, automatic repair/compaction, streaming accumulator, budget/provider billing, external/live and physical effect proof remain open; unified CI remains unclaimed green
+reviewer: exact seven job conclusions and focused log results reviewed; no local runtime reviewer
+```

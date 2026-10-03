@@ -200,6 +200,15 @@ limitations: unified CI remains red from unrelated workspace failures; complete 
 reviewer: exact rustdoc diff and queued focused workflow reviewed; no local runtime reviewer
 ```
 
+## 4.7 Focused CI receipt after doctest correction (2026-10-04)
+
+Run `37140646601` at head `424e5321` completed successfully. All seven focused jobs passed: the
+domain `h05_model_outcome` target (12/12), runner `h05_stop_guard` (4/4), and five provider
+selectors for incomplete status/stream, structured-output FormatRepair, malformed tool arguments,
+and Responses ContextRepair. H05 remains `partial/source`; this receipt does not prove a green
+full crate shard, automatic repair/compaction, streaming accumulator, budget, live provider or
+physical effect.
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
