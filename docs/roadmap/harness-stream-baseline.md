@@ -33,9 +33,11 @@ output 还必须通过同一 accumulator.finish。工具请求只由 finish 后�
 | `split_invalid_tool_json_has_zero_dispatches` | 分片 JSON 不完整时 fail-closed、零工具派发 |
 | `eof_and_late_cancel_deltas_never_complete` | EOF 无 stop 与取消后 late delta 均拒绝 |
 | `h06_harness_uses_one_attempt_stream_accumulator` | Harness 单 accumulator、limits、validation 和 no-second-stream source guard |
+| `duplicate_stop_rejects_conflict_without_replacing_first_terminal_reason` | 第二个 Stop 明确拒绝，首个 terminal reason 保持权威 |
 
 ## 3. Proof ceiling and handoff
 
 H06 proof ceiling 为 `source`：runner/domain accumulator 与 Harness 接线已由 CI-only fixtures/source
-guard 固化，未运行本地测试。真实 provider 多块/重连/网络截断、stream usage billing、跨进程
+guard 固化，未运行本地测试。重复 Stop 的 focused fixture 和手动 workflow 由当前头 GitHub CI
+执行；真实 provider 多块/重连/网络截断、stream usage billing、跨进程
 attempt persistence、terminal/recovery 和 live/physical proof 仍留待 H07+ / P4 / ER/PD/INT。

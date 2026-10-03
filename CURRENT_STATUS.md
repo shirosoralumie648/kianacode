@@ -19348,6 +19348,21 @@ limitations: no current-head runtime receipt yet; no automatic quarantine move, 
 reviewer: isolated PD-08 source/fixture audit; no local runtime reviewer
 ```
 
+### H06 duplicate Stop reachability correction (2026-10-03)
+
+```text
+source_snapshot: integrated commits `37542a19` + `a3e4e558`; kiana-runner/src/stream_normalizer.rs; kiana-runner/tests/{h06_stream_normalizer.rs,h06_stream_guard.rs}; .github/workflows/h06-stream-diagnostic.yml; docs/roadmap/harness-stream-baseline.md
+worktree_status: duplicate Stop is allowed past the generic post-stop fence only long enough to hit the explicit duplicate-stop rejection; the first terminal reason is committed once and remains authoritative; non-Stop deltas after Stop still fail as stream_delta_after_stop
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick 25d762b9 then apply reachability correction from 07ba9a16; git push origin master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated H06 worktree integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: duplicate_stop_rejects_conflict_without_replacing_first_terminal_reason; h06_harness_uses_one_attempt_stream_accumulator source guard; manual workflow h06-stream-diagnostic.yml follows the push
+exit_code: isolated format/diff 0; integration/push 0; current-head H06 focused receipt pending
+status_change: H06 remains roadmap row 145 / current row 158 `feature_status=implemented` / `proof_level=source`; only duplicate-stop reachability and explicit fixture evidence were corrected
+proof-level change: none
+limitations: no real provider multi-block/reconnect/network-truncation, durable attempt ledger, billing/retry integration, terminal/recovery or external/live/physical proof
+reviewer: isolated H06 source/fixture review; no local runtime reviewer
+```
+
 ### CAP-02 focused acceptance workflow (2026-10-03)
 
 ```text
