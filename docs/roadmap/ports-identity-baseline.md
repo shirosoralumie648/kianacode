@@ -7,7 +7,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CI-03`](../roadmap.md#step-ci-03) |
-| feature_status | `partial`（ports contracts + secret-free resolution boundary source；adapter and recovery limits remain open） |
+| feature_status | `implemented`（ports contracts + secret-free resolution boundary；adapter and recovery limits remain open） |
 | proof_level | `source`；静态编译和远程 fixtures 不提升为 `local_behavior`、`durable`、`live` 或 `physical` |
 | canonical path | protected ingress → IdentityResolver → AuthoritySnapshot; ConfigSnapshotStore → non-secret config; CredentialResolver/RotationRevoke → opaque SecretRef/metadata at effect boundary |
 | this step does | identity/authority resolution port、credential status/ref port、config snapshot CAS port、credential rotation/revoke generation port；所有端口不返回 raw secret |
@@ -184,3 +184,10 @@ the Core source guard, and both target-scoped `--no-run` compilation steps all p
 the focused lane after removing the unrelated workspace `nm01_contracts.rs` compile dependency.
 The roadmap row remains `🔄` / `partial/source`; production adapters and durable credential/identity
 behavior are outside this receipt.
+
+## 15. Focused acceptance closeout (2026-10-04)
+
+The scoped acceptance lane is complete at `implemented/source`: run `37128865323` passed all
+CI-03 fixture, guard and compile steps. The unified workspace workflow is not claimed green, and
+production resolver adapters, SecretStore/lease/OAuth, durable identity/rotation and provider
+effect evidence remain outside this step.

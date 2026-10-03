@@ -21552,3 +21552,18 @@ proof-level_change: none; source plus remote focused CI only
 limitations: no production EvalStore/FixtureStore/TraceSource/ArtifactReader/Judge/MetricsSink/Clock adapter, durable CAS/recovery, scope/path isolation, authenticated source or live quality evidence
 reviewer: exact focused job steps and default-deny source guard reviewed; no local runtime reviewer
 ```
+
+### CI-03 focused acceptance closeout (2026-10-04)
+
+```text
+source_snapshot: `9a7048bf`; .github/workflows/ci03-ports.yml; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs; docs/roadmap/ports-identity-baseline.md
+worktree_status: the complete focused lane passed formatting, CI-03 ports fixture 7/7, Core guard and both target-scoped no-run compiles; checked identity/credential binding and CAS/error fixtures are included
+command_argv: gh run view 37128865323 --json status,conclusion,headSha,jobs,url; gh run view 37128865323 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `ci03_ports` 7/7; `ci03_ports_guard` success; ports/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CI-03 roadmap row 086 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; this is per-step source plus focused CI evidence, not unified workspace proof
+limitations: production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth, durable identity/rotation/revoke, provider effects and unified CI remain unproven
+reviewer: exact focused job steps and checked resolver source reviewed; no local runtime reviewer
+```
