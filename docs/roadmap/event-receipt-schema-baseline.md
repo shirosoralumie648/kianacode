@@ -101,6 +101,7 @@ read committed frame
 | `session_assignment_contract_matches_producer` | session assignment 的稳定 session_id 与 18 个 assignment 顶层字段；缺 session_id、未知字段拒绝 |
 | `action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift` | dispatch 的 authority pin payload、action aggregate 元数据；缺 request_id/action_digest、未知字段拒绝 |
 | `run_lifecycle_contracts_match_real_producers_and_reject_drift` | run.authorized/started/prompt/delta 的 per-kind 精确字段；缺 run_id、未知字段拒绝 |
+| `run_input_snapshot_and_clarification_contracts_match_producers` | accepted/claimed input、snapshot、clarification 的 per-kind envelope；缺 required IDs、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -689,6 +690,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; terminal run events, model turns and rejected/approval branches remain separate contracts; no durable replay or external-effect claim
 reviewer: source trace matched authorization/start/prompt/delta producer shapes, required run identities and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.27 Run input, snapshot and clarification producer contracts
+
+Input acceptance, input-claim rejection, run snapshots and clarification requests now use
+independent top-level allowlists matching the lifecycle/recovery producers. Each retains its
+existing required run/input or run/interaction/turn identities, non-terminal run aggregate and
+legacy run migration. Nested snapshot and clarification values remain owned by their respective
+contracts. The fixture covers all four shapes and rejects missing IDs and unknown fields; no input,
+checkpoint, clarification or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `5c8abd03`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/src/recovery.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: run.input.accepted/claimed, run.snapshot and run.clarification.requested now use exact per-kind envelopes instead of broad RUN_FIELDS; required IDs and non-terminal/migration metadata remain explicit; no lifecycle/recovery or EventStore behavior changed
+command_argv: source trace of queue_run_input, checkpoint_run and RunnerEvent::ClarificationRequested; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick da618835`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_input_snapshot_and_clarification_contracts_match_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; run input/snapshot/clarification envelopes are now bounded per kind
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; nested snapshot/clarification DTOs, claim-to-runner atomicity and cross-process recovery remain separate contracts; no durable replay or external-effect claim
+reviewer: source trace matched lifecycle/recovery producer shapes, required IDs and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
