@@ -105,6 +105,12 @@ impl Fixture {
             .await
             .expect("server authority snapshot");
         trace_ci_phase("authority synchronization complete");
+        trace_ci_future_size(future_type_size(|| {
+            core.handle_command(
+                context.clone(),
+                CommandIntent::new(COMPANY_COMMAND, json!(request)),
+            )
+        }));
         trace_ci_phase("Company command begin");
         let response = core
             .handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
@@ -158,6 +164,20 @@ impl Fixture {
 fn trace_ci_phase(phase: &str) {
     let mut stderr = std::io::stderr().lock();
     let _ = writeln!(stderr, "co06_company_artifact_history phase: {phase}");
+    let _ = stderr.flush();
+}
+
+// Infer the opaque future type without constructing or polling the future.
+fn future_type_size<F: std::future::Future>(_factory: impl FnOnce() -> F) -> usize {
+    std::mem::size_of::<F>()
+}
+
+fn trace_ci_future_size(bytes: usize) {
+    let mut stderr = std::io::stderr().lock();
+    let _ = writeln!(
+        stderr,
+        "co06_company_artifact_history handle_command future bytes: {bytes}"
+    );
     let _ = stderr.flush();
 }
 

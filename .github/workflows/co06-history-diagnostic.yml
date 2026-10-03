@@ -1,0 +1,102 @@
+name: CO-06 Company history stack diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  co06-history-diagnostic:
+    name: CO-06 exact fixture under GDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "1"
+      CARGO_PROFILE_TEST_STRIP: "none"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          df -h / | tail -1
+      - name: Install GDB
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq gdb
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: co06-history-diagnostic
+      - name: Validate workflow structure
+        run: bash scripts/ci/validate-workflows.sh
+      - name: Check source formatting
+        run: cargo fmt --all --check
+      - name: Compile only the CO-06 fixture
+        id: fixture
+        run: |
+          mkdir -p .co06-diagnostic
+          cargo test -p kiana-daemon --test co06_company_artifact_history \
+            --locked --no-run --message-format=json \
+            > .co06-diagnostic/cargo-artifacts.jsonl
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          executables = set()
+          with open(".co06-diagnostic/cargo-artifacts.jsonl", encoding="utf-8") as records:
+              for line in records:
+                  record = json.loads(line)
+                  if (record.get("reason") == "compiler-artifact"
+                          and record.get("target", {}).get("name") == "co06_company_artifact_history"
+                          and record.get("profile", {}).get("test") is True
+                          and record.get("executable")):
+                      executables.add(record["executable"])
+          if len(executables) != 1:
+              raise SystemExit("expected exactly one CO-06 test executable")
+          executable = pathlib.Path(executables.pop()).resolve(strict=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"executable={executable}\n")
+          PY
+      - name: Capture bounded stack frames without arguments or locals
+        env:
+          CO06_FIXTURE_EXECUTABLE: ${{ steps.fixture.outputs.executable }}
+        run: |
+          # Preserve the runner's default stack. Stop before Rust's overflow handler
+          # obscures the fault, and keep a failing debugger status as a failure.
+          set +e
+          timeout --kill-after=10s 90s gdb --nx --batch --quiet --return-child-result \
+            -ex 'set pagination off' \
+            -ex 'set confirm off' \
+            -ex 'set auto-load off' \
+            -ex 'set debuginfod enabled off' \
+            -ex 'set print frame-arguments none' \
+            -ex 'set print entry-values no' \
+            -ex 'set backtrace limit 48' \
+            -ex 'handle SIGSEGV stop print nopass' \
+            -ex 'handle SIGABRT stop print nopass' \
+            -ex 'run' \
+            -ex 'thread apply all bt -no-filters -frame-arguments none 48' \
+            --args "$CO06_FIXTURE_EXECUTABLE" \
+              artifact_version_remains_reviewable_after_workspace_file_changes \
+              --exact --nocapture --test-threads=1 \
+            2>&1 | tee .co06-diagnostic/gdb-backtrace.txt
+          co06_status=("${PIPESTATUS[@]}")
+          set -e
+          printf 'debugger_exit_code=%s\nlog_exit_code=%s\n' \
+            "${co06_status[0]}" "${co06_status[1]}" \
+            | tee .co06-diagnostic/exit-status.txt
+          if [ "${co06_status[1]}" -ne 0 ]; then
+            exit "${co06_status[1]}"
+          fi
+          exit "${co06_status[0]}"
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: co06-history-diagnostic-${{ github.run_id }}
+          path: .co06-diagnostic/
+          if-no-files-found: warn
+          retention-days: 7
