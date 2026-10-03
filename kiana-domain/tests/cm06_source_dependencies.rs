@@ -67,6 +67,7 @@ fn revoking_source_invalidates_all_derived_context() {
         "index:1".to_owned(),
         "memory:1".to_owned(),
         "plan:1".to_owned(),
+        "summary:1".to_owned(),
         "source:file".to_owned(),
     ]);
     assert_eq!(affected.into_iter().collect::<BTreeSet<_>>(), expected);

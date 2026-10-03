@@ -21133,6 +21133,21 @@ limitations: prior exact daemon executions `37051593527`, `37053666899` and `370
 reviewer: source review confirmed lifecycle validation before visibility/search, explicit LegacyImport conversion, zero-revision persistence fence and no-evidence rejection ordering; no local runtime reviewer
 ```
 
+### CM-06 focused closure expectation correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37123196641`; kiana-domain/tests/cm06_source_dependencies.rs; kiana-domain/src/source_dependencies.rs
+worktree_status: the first fixture correction correctly reconstructed reversed raw edges through the canonical constructor; the next remote failure showed the expected reverse-BFS closure omitted transitive `summary:1` through `summary -> plan -> memory -> evidence -> event -> source:file`; production graph canonicalization and closure code were unchanged
+command_argv: gh run view 37123196641 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `revoking_source_invalidates_all_derived_context` left set included `summary:1`, expected set did not; drift/unknown-edge fixture passed
+exit_code: remote domain focused target 1/2; Core target was not reached; expectation correction awaits fresh focused CI
+status_change: CM-06 remains roadmap row 155 `🔄` / `feature_status=implemented` / `proof_level=source`; only the fixture closure expectation is corrected
+proof-level_change: none
+limitations: durable graph aggregate, cleanup/delete workers, artifact/index/cache integration, cross-process repair, power-loss and external/live/physical proof remain open
+reviewer: exact remote closure diff and graph dependency direction reviewed; no local runtime reviewer
+```
+
 ### CP-12 focused successor fixture correction (2026-10-03)
 
 ```text
