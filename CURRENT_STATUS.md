@@ -20713,6 +20713,21 @@ limitations: historical CURRENT_STATUS H21 block says row 308 is ✅ while autho
 reviewer: exact remote failure and current request-budget source markers reviewed; no local runtime reviewer
 ```
 
+### H21 focused prefix guard drift audit (2026-10-03)
+
+```text
+source_snapshot: remote run `37116475816` / head `7e6d509c`; kiana-runner/tests/h21_budget_prefix_guard.rs; current immutable-prefix text lives in kiana-runner/src/harness.rs
+worktree_status: domain request-budget target passed; after WireBudget marker correction, runner guard still failed because it asserted the Product-owned prefix literal only in compact.rs; guard now checks compact.rs or harness.rs, with budget/prefix behavior unchanged
+command_argv: gh run view 37116475816 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H21 domain-request-budget success; runner-budget-prefix-guard failed only at immutable-prefix source ownership
+exit_code: remote domain job 0; runner guard 1; fresh receipt awaits source-scope correction
+status_change: H21 remains roadmap row 308 `🔄` / `feature_status=implemented` / `proof_level=source`; guard now follows both budget and immutable-prefix owners
+proof-level change: none
+limitations: historical CURRENT_STATUS H21 block says row 308 is ✅ while authoritative docs/roadmap.md remains 🔄; provider tokenizer/billing, live cache hit behavior and cross-process cache durability remain open
+reviewer: exact second guard failure and compact/harness source ownership reviewed; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text
