@@ -45,6 +45,6 @@ fn steer_and_inject_reject_unknown_fields() {
         "steer",
     );
     let mut wire = serde_json::to_value(request).unwrap();
-    wire["body"]["unexpected"] = serde_json::json!(true);
+    wire["body"]["request"]["unexpected"] = serde_json::json!(true);
     assert!(serde_json::from_value::<RequestEnvelope>(wire).is_err());
 }

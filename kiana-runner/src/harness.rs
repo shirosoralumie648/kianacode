@@ -1485,6 +1485,7 @@ impl KianaHarness {
             .begin_step(run.step_id.expect("step ID was just assigned"), run.steps)
             .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
+        let mut consumed_next_step_input = false;
         for message in run.inbox.claim(InboxTarget::NextStep) {
             if message
                 .target_turn_id
@@ -1496,6 +1497,7 @@ impl KianaHarness {
                 })?;
                 return Ok(StepProgress::Finished);
             }
+            consumed_next_step_input = true;
             run.messages.push(ModelMessage::user(message.text));
         }
 
@@ -1590,7 +1592,7 @@ impl KianaHarness {
 
         if output.tool_calls.is_empty() {
             // DeepSeek: a text-only step ends the turn only when next-step is empty.
-            if run.inbox.next_step.is_empty() {
+            if run.inbox.next_step.is_empty() && !consumed_next_step_input {
                 let ModelOutput {
                     usage,
                     stop_reason,
