@@ -783,6 +783,29 @@ limitations: exact top-level unions only; nested payload validation and generic 
 reviewer: all producer variants traced; domain missing-ID/unknown-field and Core source boundaries reviewed
 ```
 
+## 5.31 Real ControlPlane producer conformance fixtures
+
+The new `er01_real_` tests use the real ControlPlane and MemoryEventLog. Invalid prompt, role and
+department cases must fail before either Runner or Broker is called. The success fixture reads
+the actual authorized/prompt/started/delta/receipt/session-assignment events, then validates their
+untouched payloads against the registry. It also checks server identity, aggregate bindings,
+session-assignment idempotency, prompt redaction and accumulated deltas. The manual acceptance
+workflow runs these two tests through the existing control_plane target in an additional job;
+unified shard coverage remains intact.
+
+```text
+source_snapshot: 0b4045a0; workflow wiring 26bc10b6; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: two behavior fixtures plus a manual CI selector, with no product/manifest/shard changes
+command_argv: git cherry-pick f51b6a76; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: isolated worktree c55b2bb2 integrated in repository root Linux/bash; runtime execution only on GitHub
+fixture·cassette: er01_real_start_producer_denies_invalid_input_before_execution; er01_real_lifecycle_and_session_producers_conform_to_registry; er01_real_ selector; fresh receipt pending
+exit_code: local format/diff 0; runtime results pending
+status_change: ER-01 remains row 036 🔄 / partial / source; producer conformance now has behavioral coverage prepared for CI
+proof-level change: none
+limitations: MemoryEventLog and scripted Runner exercise selected real ControlPlane producers; no durability/live provider claim; run.rejected and run terminal schemas remain outside this selection and open for separate reconciliation
+reviewer: source review confirms events come from ControlPlane writes, not fixture-created RuntimeEvents, and deny cases assert zero Runner/Broker calls
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

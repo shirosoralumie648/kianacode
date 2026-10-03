@@ -19933,6 +19933,21 @@ limitations: blocked terminal means capability-attempt end, not run completion; 
 reviewer: source trace and fixtures reviewed
 ```
 
+### ER-01 real ControlPlane producer conformance (2026-10-03)
+
+```text
+source_snapshot: 0b4045a0 plus workflow 26bc10b6; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: invalid-input zero-execution fixture and real EventLog producer-conformance fixture added to existing target; manual CI runs er01_real_ alongside complete domain/Core targets
+command_argv: git cherry-pick f51b6a76; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: isolated c55b2bb2 worktree integrated at repository root Linux/bash; GitHub Actions runtime authority
+fixture·cassette: er01_real_start_producer_denies_invalid_input_before_execution; er01_real_lifecycle_and_session_producers_conform_to_registry; remote receipt pending
+exit_code: local format/diff 0; no local runtime result
+status_change: ER-01 row 036 🔄 / partial / source; actual selected server producers now have CI behavior fixtures
+proof-level change: none
+limitations: selected non-terminal/session/receipt events on MemoryEventLog and fake Runner; no global schema enforcement, run.rejected/terminal reconciliation, durable/live provider or external effect claim
+reviewer: real ControlPlane event writes and zero Runner/Broker denial assertions reviewed
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
