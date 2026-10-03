@@ -100,6 +100,7 @@ read committed frame
 | `connector_health_and_handshake_contracts_match_daemon_producers` | connector health 的 12 字段和 MCP handshake 的 10 字段；缺 request/connector/binding ID、未知顶层字段拒绝 |
 | `session_assignment_contract_matches_producer` | session assignment 的稳定 session_id 与 18 个 assignment 顶层字段；缺 session_id、未知字段拒绝 |
 | `action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift` | dispatch 的 authority pin payload、action aggregate 元数据；缺 request_id/action_digest、未知字段拒绝 |
+| `run_lifecycle_contracts_match_real_producers_and_reject_drift` | run.authorized/started/prompt/delta 的 per-kind 精确字段；缺 run_id、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -666,6 +667,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: the migration entry names a legacy action family but does not implement a payload transformer; generic EventStore append still does not call `validate_runtime_event`; no durable replay, authority effect or runtime fixture result is established
 reviewer: source trace matched the unique dispatch producer, exact payload, action aggregate/version and authority read-set; no local runtime reviewer
+```
+
+## 5.26 Run lifecycle producer contracts
+
+The core run lifecycle events now use per-kind allowlists instead of the broad `RUN_FIELDS` set:
+`run.authorized` follows its server-owned authorization envelope, `run.started` carries only the
+run identity, `run.prompt` carries the shared prompt/turn envelope, and `run.delta` carries only
+run identity plus accumulated text. All require `run_id`, remain non-terminal and use the legacy
+run migration. The fixture covers the four real producer shapes and rejects missing identity and
+unknown fields; no lifecycle or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `b986bf4d`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: run.authorized/started/prompt/delta now use separate exact allowlists matching their lifecycle producers; required run_id, non-terminal semantics and legacy migration remain explicit; no lifecycle or EventStore behavior changed
+command_argv: source trace of lifecycle authorization, runner start, prompt and delta producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 708653e2`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_lifecycle_contracts_match_real_producers_and_reject_drift`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; core run lifecycle envelopes are now bounded per kind
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; terminal run events, model turns and rejected/approval branches remain separate contracts; no durable replay or external-effect claim
+reviewer: source trace matched authorization/start/prompt/delta producer shapes, required run identities and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
