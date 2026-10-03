@@ -911,3 +911,11 @@ Commit `d40633cb` changes only the producer-side check order: source-event colli
 before generated audit-ID collisions, and neither identity set is mutated until all appended records
 pass both checks. Existing validation, duplicate denial, append-only behavior and no-overwrite
 semantics remain intact. A fresh focused CI receipt is required; OA-04 remains `partial/source`.
+
+## OA-04 corrected focused CI receipt (2026-10-03)
+
+Run `37133402660` at head `58d17b17` completed successfully. Formatting, all four domain taxonomy
+fixtures, all Core reducer fixtures, and both target-scoped `--no-run` compilation steps passed
+after the source-event precedence correction. OA-04 remains `partial/source`; this focused receipt
+does not establish EventLog observer durability, checkpoint/rebuild, query/export sinks,
+authenticated principal binding or live/physical projection.

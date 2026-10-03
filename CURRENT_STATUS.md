@@ -21433,6 +21433,21 @@ limitations: EventLog commit observer, checkpoint/rebuild, durable projection, q
 reviewer: exact failure output, append helper and historical fixture precedence reviewed; no local runtime reviewer
 ```
 
+### OA-04 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `58d17b17`; .github/workflows/oa04-audit.yml; kiana-domain/src/audit.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/tests/oa04_audit_reducer.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: source-event conflict precedence correction is integrated; domain taxonomy 4/4, Core reducer fixtures and both target-scoped no-run compile steps passed on GitHub Actions
+command_argv: gh run view 37133402660 --json status,conclusion,headSha,jobs,url; gh run view 37133402660 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: OA-04 domain taxonomy target 4/4; OA-04 Core reducer target success; domain/Core target-scoped compiles success; replayed source event now returns `audit_source_event_conflict` before audit-id collision
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-04 remains roadmap row 095 `🔄` / `feature_status=partial` / `proof_level=source`; corrected focused audit evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink, authenticated principal binding and external/live/physical proof remain open
+reviewer: exact corrected job steps and precedence behavior reviewed; no local runtime reviewer
+```
+
 ### CI-03 focused compile-gate correction (2026-10-03)
 
 ```text
