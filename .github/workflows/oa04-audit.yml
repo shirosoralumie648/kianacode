@@ -1,0 +1,29 @@
+name: OA-04 Audit Taxonomy and Reducer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Committed audit projection guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run OA-04 domain taxonomy tests
+        run: cargo test -p kiana-domain --test oa04_audit_taxonomy --locked -- --test-threads=1
+      - name: Run OA-04 Core reducer tests
+        run: cargo test -p kiana-core --test oa04_audit_reducer --locked -- --test-threads=1
+      - name: Compile OA-04 domain target
+        run: cargo test -p kiana-domain --test oa04_audit_taxonomy --no-run --locked
+      - name: Compile OA-04 Core target
+        run: cargo test -p kiana-core --test oa04_audit_reducer --no-run --locked

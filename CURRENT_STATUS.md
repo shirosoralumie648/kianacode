@@ -21148,6 +21148,21 @@ limitations: runtime EventStore/Receipt/Provider/Broker/TraceSink/export produce
 reviewer: historical workflow/test comparison and current redaction boundary review; no local runtime reviewer
 ```
 
+### OA-04 focused audit workflow restored (2026-10-03)
+
+```text
+source_snapshot: `34c76b93`; .github/workflows/oa04-audit.yml; kiana-domain/src/audit.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/src/audit.rs; kiana-core/tests/oa04_audit_reducer.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: restored a manual GitHub-only lane from the historical OA-04 commands; it runs domain taxonomy and Core reducer fixtures plus target-scoped no-run compiles, with no EventLog observer, manifest, lockfile or second authority path changed
+command_argv: git show 08552ada^:.github/workflows/oa04-audit.yml; cargo fmt --all --check; git diff --check; git push origin master; gh workflow run oa04-audit.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: kiana-domain `oa04_audit_taxonomy`; kiana-core `oa04_audit_reducer`; target-scoped `cargo test --no-run` compilation for both; fresh run pending after push
+exit_code: source/diff/dispatch actions pending commit; no local runtime exit code
+status_change: OA-04 remains roadmap row 095 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring is restored without completion or proof promotion
+proof-level_change: none; source plus remote CI wiring only
+limitations: EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink, authenticated principal binding and external/live/physical proof remain open
+reviewer: historical workflow/test comparison and current audit taxonomy/reducer source review; no local runtime reviewer
+```
+
 ### OA-02 corrected focused receipt (2026-10-03)
 
 ```text

@@ -351,6 +351,14 @@ reducer facade，不访问 Broker、Provider、UI 或 exporter。
 本地不执行测试且不声称 durable/live/physical。OA-05/OA-06 已建立端口、fake sink 和 committed
 observer；projection checkpoint 留给 OA-10/OA-15。
 
+## 10.1 OA-04 focused lane restored (2026-10-03)
+
+The historical OA-04 workflow was removed during unified workflow consolidation. A manual focused
+lane is restored from the Git history command: it runs the domain taxonomy and Core reducer targets,
+then compiles each target with `--no-run`. The lane covers committed-fact taxonomy/reducer and
+malformed decision/gate boundaries without claiming an EventLog observer, checkpoint, query/export
+sink or durable/live projection.
+
 ## 11. OA-05 叠加说明
 
 OA-05 在 `kiana-ports` 增加 `ObservabilityPort`、`TraceSink`、`MetricSink`、`AuditQueryPort` 和
