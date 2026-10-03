@@ -311,6 +311,29 @@ pub trait IdentityResolver: Send + Sync {
         authenticated: &AuthenticatedPrincipalRef,
     ) -> Result<Principal, PortError>;
 
+    /// Resolve a principal and reject output that is not bound to the exact authenticated
+    /// reference supplied by the protected ingress. The compatibility method remains available
+    /// for existing adapters, but callers that cross into authorization should use this checked
+    /// wrapper so a stale authentication generation cannot be substituted silently.
+    async fn resolve_principal_checked(
+        &self,
+        authenticated: &AuthenticatedPrincipalRef,
+    ) -> Result<Principal, PortError> {
+        authenticated.validate().map_err(|error| {
+            PortError::Failed(format!("authenticated_principal_invalid:{error}"))
+        })?;
+        let principal = self.resolve_principal(authenticated).await?;
+        principal
+            .validate()
+            .map_err(|error| PortError::Failed(format!("resolved_principal_invalid:{error}")))?;
+        if principal.authentication != *authenticated {
+            return Err(PortError::Conflict(
+                "resolved_principal_binding_mismatch".to_owned(),
+            ));
+        }
+        Ok(principal)
+    }
+
     async fn resolve_authority(
         &self,
         principal: &Principal,

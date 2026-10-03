@@ -4,6 +4,8 @@ fn ports_keep_identity_config_credential_and_rotation_boundaries_separate() {
     let domain = include_str!("../../kiana-domain/src/identity_contracts.rs");
     for marker in [
         "pub trait IdentityResolver",
+        "resolve_principal_checked",
+        "resolved_principal_binding_mismatch",
         "pub trait CredentialResolver",
         "pub trait ConfigSnapshotStore",
         "pub trait CredentialRotationPort",

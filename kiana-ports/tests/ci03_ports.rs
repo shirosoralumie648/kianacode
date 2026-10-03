@@ -43,6 +43,37 @@ impl CredentialResolver for StaleGenerationCredential {
     }
 }
 
+struct StaleGenerationIdentity;
+
+#[async_trait]
+impl IdentityResolver for StaleGenerationIdentity {
+    async fn resolve_principal(
+        &self,
+        authenticated: &AuthenticatedPrincipalRef,
+    ) -> Result<Principal, kiana_ports::PortError> {
+        let principal_id = PrincipalId::parse_str(&authenticated.principal_id)
+            .ok_or_else(|| PortError::Failed("identity_fixture_principal_id_invalid".to_owned()))?;
+        let mut stale = authenticated.clone();
+        stale.credential_generation = stale.credential_generation.saturating_add(1);
+        stale.principal_digest = stale.digest();
+        Principal::new(principal_id, PrincipalKind::Human, stale, 1)
+            .map_err(|error| PortError::Failed(format!("identity_fixture_principal:{error}")))
+    }
+
+    async fn resolve_authority(
+        &self,
+        _principal: &Principal,
+        _project: &ProjectIdentity,
+        _session_owner: &str,
+        _requested_role: &str,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::AuthoritySnapshot, kiana_ports::PortError> {
+        Err(PortError::Unavailable(
+            "identity_fixture_authority_unused".to_owned(),
+        ))
+    }
+}
+
 struct UnsupportedIdentity;
 
 #[async_trait]
@@ -417,5 +448,23 @@ async fn credential_resolution_rejects_a_stale_requested_generation() {
             .await
             .unwrap_err(),
         PortError::Conflict("credential_resolution_ref_mismatch".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn identity_resolution_rejects_a_stale_authenticated_generation() {
+    let authenticated = {
+        let mut value = AuthenticatedPrincipalRef::local();
+        let principal_id = PrincipalId::new();
+        value.principal_id = principal_id.to_string();
+        value.principal_digest = value.digest();
+        value
+    };
+    assert_eq!(
+        StaleGenerationIdentity
+            .resolve_principal_checked(&authenticated)
+            .await
+            .unwrap_err(),
+        PortError::Conflict("resolved_principal_binding_mismatch".to_owned())
     );
 }
