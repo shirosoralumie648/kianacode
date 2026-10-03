@@ -25,7 +25,7 @@ fn h06_harness_uses_one_attempt_stream_accumulator() {
         .find("ModelStreamAccumulator::new(model_attempt_id)")
         .expect("each attempt must create one accumulator");
     let finish = harness
-        .find("stream.finish(reply.output)")
+        .find(".finish(reply.output)")
         .expect("final output must pass through the same accumulator");
     assert!(create < finish);
     assert!(harness.contains("stream.push(delta)?"));
