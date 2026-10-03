@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### OA-03 focused redaction workflow restored (2026-10-03)
+
+```text
+source_snapshot: `91399d69`; .github/workflows/oa03-redaction.yml; kiana-domain/src/redaction.rs; kiana-domain/tests/oa03_redaction.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: restored a manual GitHub-only lane from the historical OA-03 command; it runs the domain redaction contract target and its target-scoped no-run compile, with no producer/sink, manifest, lockfile or second authority path changed
+command_argv: git show 08552ada^:.github/workflows/oa03-redaction.yml; cargo fmt --all --check; git diff --check; git push origin master; gh workflow run oa03-redaction.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: kiana-domain `oa03_redaction`; target-scoped `cargo test -p kiana-domain --test oa03_redaction --no-run --locked`; fresh run pending after push
+exit_code: source/diff/dispatch actions pending commit; no local runtime exit code
+status_change: OA-03 remains roadmap row 094 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring is restored without completion or proof promotion
+proof-level_change: none; source plus remote CI wiring only
+limitations: runtime EventStore/Receipt/Provider/Broker/TraceSink/export producer wiring, split-chunk streaming, arbitrary unmarked secret formats and downstream classification ceilings remain open
+reviewer: historical workflow/test comparison and current redaction boundary review; no local runtime reviewer
+```
+
 ### OA-02 corrected focused receipt (2026-10-03)
 
 ```text

@@ -325,6 +325,14 @@ Commit `ca638df7` adds the same credential-key predicate to redaction and residu
 domain shard had unrelated sibling failures and the run was cancelled by a later push. OA-03
 remains `partial/source` because the runtime sinks/producers listed above remain unimplemented.
 
+## 9.1 OA-03 focused lane restored (2026-10-03)
+
+The historical OA-03 workflow was removed during the unified workflow consolidation. A manual
+focused lane is restored from the Git history command: it runs the domain redaction contract target
+and compiles that same target with `--no-run`. This lane covers the current profile, nested
+sentinel, numeric usage, placeholder, depth, NUL and size fixtures without claiming runtime sink or
+producer integration. A current GitHub receipt is required before any status or proof-level change.
+
 ## 10. OA-04 叠加说明
 
 OA-04 在 `kiana-domain/src/audit.rs` 固定 RuntimeEvent taxonomy，覆盖 command、authorization、
