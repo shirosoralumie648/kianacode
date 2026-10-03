@@ -15,6 +15,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let events = include_str!("../../kiana-core/src/events.rs");
     let credential_recovery =
         include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
+    let communication = include_str!("../../kiana-core/src/communication.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -266,4 +267,29 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(credential_recovery.contains("CREDENTIAL_RECOVERY_EVENT_KIND"));
     assert!(credential_recovery.contains("json!({\"run_id\": self.run_ref, \"recovery\": self})"));
     assert!(credential_recovery.contains("validate_runtime_event(&event)?"));
+    for marker in [
+        "COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS",
+        "COMMUNICATION_INCIDENT_LIFECYCLE_FIELDS",
+        "\"communication.handoff_acknowledged\"",
+        "\"communication.handoff_rejected\"",
+        "\"communication.incident_escalated\"",
+    ] {
+        assert!(
+            contracts.contains(marker),
+            "missing communication contract marker {marker}"
+        );
+    }
+    for marker in [
+        "\"message_id\": message_id",
+        "\"accepted\": to_status == CommunicationLifecycleStatus::Acknowledged",
+        "\"reason\": reason",
+        "\"evidence_refs\": lifecycle.evidence_refs.clone()",
+        "\"authority_granted\": false",
+        "\"request_id\": context.request_id",
+    ] {
+        assert!(
+            communication.contains(marker),
+            "missing communication producer field {marker}"
+        );
+    }
 }

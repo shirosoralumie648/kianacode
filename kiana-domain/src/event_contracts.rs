@@ -271,6 +271,30 @@ const COMMUNICATION_FIELDS: &[&str] = &[
     "session_id",
     "request_id",
 ];
+const COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS: &[&str] = &[
+    "message",
+    "message_id",
+    "lifecycle",
+    "accepted",
+    "reason",
+    "authority_granted",
+    "project_root",
+    "actor_id",
+    "session_id",
+    "request_id",
+];
+const COMMUNICATION_INCIDENT_LIFECYCLE_FIELDS: &[&str] = &[
+    "message",
+    "message_id",
+    "lifecycle",
+    "evidence_refs",
+    "reason",
+    "authority_granted",
+    "project_root",
+    "actor_id",
+    "session_id",
+    "request_id",
+];
 const SWARM_TRANSITION_FIELDS: &[&str] = &[
     "swarm_plan_id",
     "partition_id",
@@ -828,7 +852,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.handoff_acknowledged",
         "communication",
         COMMUNICATION_LIFECYCLE_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS,
         false,
         None
     ),
@@ -836,7 +860,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.handoff_rejected",
         "communication",
         COMMUNICATION_LIFECYCLE_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS,
         false,
         None
     ),
@@ -844,7 +868,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "communication.incident_escalated",
         "communication",
         COMMUNICATION_LIFECYCLE_IDS,
-        COMMUNICATION_FIELDS,
+        COMMUNICATION_INCIDENT_LIFECYCLE_FIELDS,
         false,
         None
     ),

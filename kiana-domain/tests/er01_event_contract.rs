@@ -575,6 +575,99 @@ fn recovery_credential_contract_matches_typed_producer() {
 }
 
 #[test]
+fn communication_lifecycle_contracts_match_producers() {
+    let handoff_fields = [
+        "message",
+        "message_id",
+        "lifecycle",
+        "accepted",
+        "reason",
+        "authority_granted",
+        "project_root",
+        "actor_id",
+        "session_id",
+        "request_id",
+    ];
+    for (kind, accepted) in [
+        ("communication.handoff_acknowledged", true),
+        ("communication.handoff_rejected", false),
+    ] {
+        let spec = event_kind_spec(kind).unwrap();
+        assert_eq!(spec.aggregate_type, "communication");
+        assert_eq!(spec.required_ids, &["message_id"][..]);
+        assert!(!spec.terminal);
+        assert!(spec.migration.is_none());
+        assert_eq!(spec.allowed_fields, &handoff_fields[..]);
+
+        let mut payload = json!({
+            "message": {},
+            "message_id": "message-1",
+            "lifecycle": {},
+            "accepted": accepted,
+            "reason": "operator_decision",
+            "authority_granted": false,
+            "project_root": "/workspace/project",
+            "actor_id": "actor-1",
+            "session_id": "session-1",
+            "request_id": kiana_domain::RequestId::new(),
+        });
+        validate_event_payload(kind, &payload).unwrap();
+
+        let mut missing_id = payload.clone();
+        missing_id.as_object_mut().unwrap().remove("message_id");
+        assert_eq!(
+            validate_event_payload(kind, &missing_id).unwrap_err(),
+            "event_required_id_missing:message_id"
+        );
+
+        payload["unexpected_communication_field"] = json!(true);
+        assert_eq!(
+            validate_event_payload(kind, &payload).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+
+    let incident = event_kind_spec("communication.incident_escalated").unwrap();
+    assert_eq!(incident.aggregate_type, "communication");
+    assert_eq!(incident.required_ids, &["message_id"][..]);
+    assert!(!incident.terminal);
+    assert!(incident.migration.is_none());
+    assert_eq!(
+        incident.allowed_fields,
+        &[
+            "message",
+            "message_id",
+            "lifecycle",
+            "evidence_refs",
+            "reason",
+            "authority_granted",
+            "project_root",
+            "actor_id",
+            "session_id",
+            "request_id",
+        ][..]
+    );
+    let mut incident_payload = json!({
+        "message": {},
+        "message_id": "incident-1",
+        "lifecycle": {},
+        "evidence_refs": ["evidence-1"],
+        "reason": "severity_high",
+        "authority_granted": false,
+        "project_root": "/workspace/project",
+        "actor_id": "actor-1",
+        "session_id": "session-1",
+        "request_id": kiana_domain::RequestId::new(),
+    });
+    validate_event_payload("communication.incident_escalated", &incident_payload).unwrap();
+    incident_payload["unexpected_communication_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("communication.incident_escalated", &incident_payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");
