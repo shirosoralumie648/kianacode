@@ -21733,6 +21733,21 @@ limitations: provider billing/rate cards, artifact provenance/retention, durable
 reviewer: source audit of reducer, nested result_receipt compatibility and focused cassette; no local runtime reviewer
 ```
 
+### ER-12 fresh focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `c353ff96`; .github/workflows/er12-receipt-aggregation.yml; kiana-core/src/receipts.rs; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/tests/er12_receipt_aggregation.rs; docs/roadmap/event-receipt-aggregation-baseline.md
+worktree_status: fresh focused lane passed formatting, domain contract target 4/4, Core aggregation reducer target 4/4 and both target-scoped no-run compiles; canonical nested result_receipt.committed=false cassette is covered
+command_argv: gh run view 37143777850 --json status,conclusion,headSha,jobs,url; gh run view 37143777850 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: uncommitted changed paths, memory hits, evidence refs and provider refs are excluded; usage/effect Unknown/Partial semantics remain explicit
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-12 roadmap row 138 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: none; per-step focused evidence only, not unified workspace proof
+limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart, external/live/physical proof and unified CI remain unproven
+reviewer: exact fresh focused job conclusions and canonical committed-marker audit reviewed; no local runtime reviewer
+```
+
 ### CM-06 focused acceptance closeout (2026-10-04)
 
 ```text

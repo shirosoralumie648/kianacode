@@ -56,7 +56,10 @@ This remains focused source/CI evidence; the proof ceiling remains `source`.
 ## 5. Focused acceptance audit (2026-10-04)
 
 The previous closeout was retracted during source audit: the `committed=false` cassette still added
-its `changed` path, memory hit and refs to aggregation, violating the committed-only contract. The
-reducer and focused assertions are corrected in the next source snapshot; ER-12 remains
-`🔄` / `implemented/source` until a fresh focused GitHub receipt. Provider billing/rate cards,
-artifact provenance/retention, durable delivery/restart and external/live/physical proof remain later work.
+its `changed` path, memory hit and refs to aggregation. The corrected reducer reads the canonical
+nested `result_receipt.committed` marker (while retaining top-level compatibility), excludes all
+uncommitted model/effect/file/memory/evidence/provider contributions, and preserves Partial/Unknown.
+Run `37143777850` passed the four contract/reducer tests and both target-scoped compile steps, so
+the scoped ER-12 acceptance is complete at `implemented/source`. Unified workspace CI is not claimed
+green; provider billing/rate cards, artifact provenance/retention, durable delivery/restart and
+external/live/physical proof remain later work.
