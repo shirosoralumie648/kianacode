@@ -185,9 +185,13 @@ fn result_event_contracts_accept_only_their_result_fields() {
         capability_result.allowed_fields.contains(&"stdout"),
         "capability terminal result must retain the broker stdout field"
     );
+    assert!(
+        capability_result.allowed_fields.contains(&"outcome"),
+        "capability terminal result must retain normalized outcome dimensions"
+    );
     assert_eq!(
         capability_result.allowed_fields.len(),
-        invocation.allowed_fields.len() + 4
+        invocation.allowed_fields.len() + 5
     );
 
     let mut execution_payload = json!({
@@ -213,6 +217,7 @@ fn result_event_contracts_accept_only_their_result_fields() {
         "session_id":"session-1",
         "capability_request_id":kiana_domain::RequestId::new(),
         "stdout":"scope captured",
+        "outcome": {"schema":"kiana.capability-outcome.v1"},
         "result_receipt":{"receipt_digest":format!("sha256:{}", "b".repeat(64))},
         "result_source":"model-claimed-user-source",
     });

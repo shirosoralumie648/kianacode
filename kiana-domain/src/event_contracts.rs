@@ -545,8 +545,13 @@ const CAPABILITY_BLOCKED_FIELDS: &[&str] = &[
     "stop_state",
     "fenced",
 ];
-const CAPABILITY_RESULT_FIELDS: &[&str] =
-    invocation_fields!("session_id", "stdout", "result_receipt", "result_source");
+const CAPABILITY_RESULT_FIELDS: &[&str] = invocation_fields!(
+    "session_id",
+    "stdout",
+    "outcome",
+    "result_receipt",
+    "result_source"
+);
 const EXECUTION_RESULT_FIELDS: &[&str] =
     invocation_fields!("outcome_state", "outcome_ready", "result_receipt");
 const RESULT_DELIVERY_FIELDS: &[&str] = invocation_fields!(
