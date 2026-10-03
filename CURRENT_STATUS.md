@@ -22017,3 +22017,18 @@ proof-level_change: none; historical focused evidence is retained but does not c
 limitations: callback crash/replay, provider receipt/reconcile, terminal shutdown, cross-process delivery recovery, external/live/physical proof and unified CI remain unproven
 reviewer: source-head comparison against CAP-02 commits and historical focused job reviewed; no local runtime reviewer
 ```
+
+### ER-13 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `26a1a4b4`; .github/workflows/er13-result-delivery.yml; kiana-core/src/{dispatch,capabilities,approvals,lifecycle}.rs; kiana-runner/src/{harness,protocol_runner}.rs; kiana-core/tests/er13_result_delivery.rs; docs/roadmap/event-receipt-result-delivery-baseline.md
+worktree_status: current-head ER-13 focused lane passed after the capability finalizer changes; no second result-delivery path, manifest or lockfile changed, and later changes contain only docs/workflow updates outside result-delivery sources
+command_argv: `gh run view 37157175701 --json status,conclusion,headSha,jobs,url`; `gh run view 37157175701 --log`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: Core result-delivery source guard 1/1 and target-scoped compile passed; shared finalizer, committed-result-before-delivery ordering, delivery CAS/replay, terminal/cancel fences and uncertain callback Unknown semantics are covered
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-13 roadmap row 139 promoted 🔄 → ✅; `feature_status=implemented`; `proof_level=source`
+proof-level_change: current focused source evidence only; no local_behavior, durable, live or physical promotion
+limitations: callback crash/replay recovery, provider receipt/reconciliation, terminal shutdown, cross-process delivery recovery, external/live/physical proof and unified CI remain open
+reviewer: exact current-head job and finalizer/result-delivery source boundaries reviewed; no local runtime reviewer
+```
