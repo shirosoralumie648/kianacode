@@ -21507,3 +21507,18 @@ proof-level_change: none; source plus prior focused fixture receipt, fresh targe
 limitations: production resolver adapters, SecretStore/lease/OAuth, durable identity/rotation/revoke, cancellation/recovery and provider/live effects remain unproven
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
+
+### EQ-07 focused quality ports workflow restored (2026-10-04)
+
+```text
+source_snapshot: `9656ad23` plus EQ-07 workflow/docs; default-deny source `a8d0aa61`; .github/workflows/eq07-quality-ports.yml; kiana-ports/tests/eq07_quality_ports.rs; kiana-core/tests/eq07_quality_ports_guard.rs
+worktree_status: manual focused lane restored from Git history, with ports fixture, Core dependency guard and target-scoped no-run compiles; production ports and assertions unchanged
+command_argv: git show 08552ada^:.github/workflows/eq07-quality-ports.yml; source inspection; git diff --check; git push origin master; gh workflow run eq07-quality-ports.yml --ref master
+cwd·environment: repository root Linux/bash; all test/compile/format execution belongs to GitHub Actions; no local tests/build/check/clippy/smoke
+fixture·cassette: kiana-ports eq07_quality_ports and kiana-core eq07_quality_ports_guard; their no-run compile steps; remote dispatch follows push and is not awaited
+exit_code: local diff review 0; remote tests/compiles unobserved when this evidence is authored
+status_change: EQ-07 row 106 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; CI wiring is not a runtime result
+limitations: default ports remain unsupported until an adapter is supplied; no production store/fixture/trace/artifact/judge/metrics adapters, durable CAS/recovery, scope/path isolation or live quality evidence is established
+reviewer: root source review of historical commands and exact target files; runtime review pending GitHub receipt
+```

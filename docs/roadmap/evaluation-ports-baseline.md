@@ -44,3 +44,10 @@ ports required every adapter to provide a method. `FixtureStore`, `TraceSource`,
 default fails at compile time; `Clock` remains an explicit synchronous value boundary. This is a
 source-level correction only; the unified `.github/workflows/ci.yml` remains the GitHub test
 authority and no local cargo test/build/check/fmt/clippy/smoke command was run.
+
+## 6. Focused lane restoration (2026-10-04)
+
+The manual GitHub lane `.github/workflows/eq07-quality-ports.yml` runs the current ports fixture
+and Core dependency guard, including the default-deny correction `a8d0aa61`, then compiles those
+two targets with `--no-run`. The unified workflow continues to run the full workspace gates.
+This change restores a focused receipt path; no production adapter or proof level is added.
