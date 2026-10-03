@@ -20608,6 +20608,21 @@ limitations: historical CURRENT_STATUS H20 block says row 307 is ✅ while autho
 reviewer: exact failure and ContextMaterialType authority/source ordering reviewed; no local runtime reviewer
 ```
 
+### H19 deferred mailbox completion audit (2026-10-03)
+
+```text
+source_snapshot: remote run `37114202470` / head `e252fb63`; kiana-runner/tests/h19_steer_inject.rs; kiana-runner/src/harness.rs
+worktree_status: protocol wire and Core route guard passed; runner still made one model call after the first correction because the input was held in deferred_inputs while the in-flight model call completed, but text-only completion checked only ActiveRun.inbox; model_step now treats a pending deferred NextStep as non-terminal and loops through the existing model_step driver
+command_argv: gh run view 37114202470 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H19 runner deferred-steer remained 0/1; protocol and Core jobs were 1/1; fresh runner receipt awaits the deferred-mailbox completion fence correction
+exit_code: remote runner job failed with model.calls 1 vs 2; protocol/Core jobs 0
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; deferred mailbox inputs now participate in text-only completion fencing
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejected`; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: exact second failure and deferred_inputs/ActiveRun completion boundary reviewed; no local runtime reviewer
+```
+
 ### H19 focused CI failure audit and correction (2026-10-03)
 
 ```text
