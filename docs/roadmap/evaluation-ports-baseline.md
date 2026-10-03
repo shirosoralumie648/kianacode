@@ -51,3 +51,11 @@ The manual GitHub lane `.github/workflows/eq07-quality-ports.yml` runs the curre
 and Core dependency guard, including the default-deny correction `a8d0aa61`, then compiles those
 two targets with `--no-run`. The unified workflow continues to run the full workspace gates.
 This change restores a focused receipt path; no production adapter or proof level is added.
+
+## 7. Focused CI receipt (2026-10-04)
+
+Run `37136861920` at head `1b398350` completed successfully. Formatting, the EQ-07 ports fixture,
+the Core dependency guard, and both target-scoped `--no-run` compilation steps passed. This
+current receipt verifies the seven quality port contracts and their source boundary; EQ-07 remains
+source proof only because production adapters, durable CAS/recovery, scope/path isolation and live
+quality evidence are later work.

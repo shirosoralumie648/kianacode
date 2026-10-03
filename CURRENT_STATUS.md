@@ -21537,3 +21537,18 @@ proof-level_change: none; CI wiring is not a runtime result
 limitations: default ports remain unsupported until an adapter is supplied; no production store/fixture/trace/artifact/judge/metrics adapters, durable CAS/recovery, scope/path isolation or live quality evidence is established
 reviewer: root source review of historical commands and exact target files; runtime review pending GitHub receipt
 ```
+
+### EQ-07 corrected focused receipt (2026-10-04)
+
+```text
+source_snapshot: `1b398350`; .github/workflows/eq07-quality-ports.yml; kiana-ports/src/lib.rs; kiana-ports/tests/eq07_quality_ports.rs; kiana-core/tests/eq07_quality_ports_guard.rs; docs/roadmap/evaluation-ports-baseline.md
+worktree_status: formatting, EQ-07 ports fixture, Core dependency guard and both target-scoped no-run compiles passed; default-deny correction `a8d0aa61` is included; no production adapter or execution path changed
+command_argv: gh run view 37136861920 --json status,conclusion,headSha,jobs,url; gh run view 37136861920 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `eq07_quality_ports` success; `eq07_quality_ports_guard` success; ports/Core target-scoped compiles success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: EQ-07 remains roadmap row 106 `🔄` / `feature_status=implemented` / `proof_level=source`; current port contract evidence is recorded
+proof-level_change: none; source plus remote focused CI only
+limitations: no production EvalStore/FixtureStore/TraceSource/ArtifactReader/Judge/MetricsSink/Clock adapter, durable CAS/recovery, scope/path isolation, authenticated source or live quality evidence
+reviewer: exact focused job steps and default-deny source guard reviewed; no local runtime reviewer
+```
