@@ -38,7 +38,11 @@ async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     .with_stream_metadata("run", run_id, 1);
     fs::write(&ready, serde_json::to_string(&event).unwrap() + "\n").unwrap();
     let ready_report = scan_jsonl(&ready).await;
-    assert_eq!(ready_report.status, IntegrityScanStatus::Ready);
+    assert_eq!(
+        ready_report.status,
+        IntegrityScanStatus::Ready,
+        "{ready_report:?}"
+    );
     assert_eq!(ready_report.source_cursor, 1);
     ready_report.health_gate().unwrap();
     cleanup(&ready);
