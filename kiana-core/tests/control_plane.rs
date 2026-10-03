@@ -112,6 +112,32 @@ impl RunnerPort for ChunkedDeltaRunner {
     }
 }
 
+/// ER-01 needs explicit support for the ControlPlane's trusted model assignment before Start.
+struct Er01ProducerRunner(ChunkedDeltaRunner);
+
+#[async_trait]
+impl RunnerPort for Er01ProducerRunner {
+    fn bind_model_assignment(
+        &self,
+        run_id: RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        assignment
+            .validate()
+            .map_err(|error| PortError::Failed(error.to_string()))?;
+        if assignment.run_id != run_id {
+            return Err(PortError::Failed(
+                "model_assignment_run_mismatch".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        self.0.send(command).await
+    }
+}
+
 /// 两轮之间夹一个能力请求：增量必须按轮次分段落账，不能跨轮合并成一条。
 struct TwoTurnDeltaRunner;
 
@@ -923,9 +949,9 @@ async fn er01_real_lifecycle_and_session_producers_conform_to_registry() {
         calls: Mutex::new(0),
     });
     let harness = CoreHarness::with_runner_and_broker(
-        Arc::new(ChunkedDeltaRunner {
+        Arc::new(Er01ProducerRunner(ChunkedDeltaRunner {
             chunks: vec!["registry", " conformance"],
-        }),
+        })),
         broker.clone(),
     );
     let context = trusted_context();
