@@ -478,6 +478,74 @@ fn run_compacted_contract_matches_lifecycle_producer() {
 }
 
 #[test]
+fn run_receipt_contract_bounds_top_level_projection() {
+    let spec = event_kind_spec("run.receipt").unwrap();
+    assert_eq!(spec.required_ids, &["run_id"][..]);
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("run.receipt", 0, 1),
+        Some("legacy_run_event_v0_to_v1")
+    );
+    assert_eq!(spec.allowed_fields.len(), 39);
+
+    let mut payload = json!({
+        "schema": "kiana.run-result.v1",
+        "run_id": kiana_domain::RunId::new(),
+        "session_id": "session-1",
+        "harness": "kiana-harness",
+        "sandbox": "read-only",
+        "actor_id": "actor-1",
+        "role_id": "builder",
+        "department_id": "engineering",
+        "role_resolution": true,
+        "role_spec_schema": "kiana.role.v1",
+        "role_version": 1,
+        "role_catalog_schema": "kiana.role-catalog.v1",
+        "role_catalog_version": {},
+        "input_schema": "kiana.input.v1",
+        "output_schema": "kiana.output.v1",
+        "model_profile": "offline",
+        "max_steps_per_turn": 8,
+        "prompt_hash": null,
+        "model_turns": [],
+        "cost_ledger": [],
+        "files_changed": [],
+        "memory_hits": 0,
+        "retrieval_receipts": [],
+        "memory_proposals": [],
+        "invocations": null,
+        "invocation_projection_error": null,
+        "run_receipt": {},
+        "receipt_data_binding": {},
+        "projection": {},
+        "execution_receipts": [],
+        "aggregation": {},
+        "cost_breakdown": null,
+        "effect_usage": null,
+        "compact": {},
+        "capabilities": {},
+        "observability": {},
+        "output": {},
+        "work_packet_id": "packet-1",
+        "input": "work_packet",
+    });
+    validate_event_payload("run.receipt", &payload).unwrap();
+
+    let mut missing_run = payload.clone();
+    missing_run.as_object_mut().unwrap().remove("run_id");
+    assert_eq!(
+        validate_event_payload("run.receipt", &missing_run).unwrap_err(),
+        "event_required_id_missing:run_id"
+    );
+
+    payload["unexpected_receipt_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("run.receipt", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

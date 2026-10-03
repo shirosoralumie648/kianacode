@@ -11,6 +11,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let lifecycle = include_str!("../../kiana-core/src/lifecycle.rs");
     let data_governance = include_str!("../../kiana-core/src/data_governance.rs");
     let recovery = include_str!("../../kiana-core/src/recovery.rs");
+    let receipts = include_str!("../../kiana-core/src/receipts.rs");
+    let events = include_str!("../../kiana-core/src/events.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -206,4 +208,54 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             "missing compaction producer field {marker}"
         );
     }
+    assert!(
+        lifecycle.contains("record_event(request_id, sequence, \"run.receipt\", receipt.clone())")
+    );
+    assert!(receipts.contains("let receipt = with_work_packet("));
+    for marker in [
+        "\"schema\": RUN_RESULT_SCHEMA",
+        "\"run_id\": run_id",
+        "\"session_id\": context.session_id",
+        "\"harness\": HARNESS_ID",
+        "\"sandbox\": sandbox",
+        "\"actor_id\": context.actor_id",
+        "\"role_id\": role_id",
+        "\"department_id\": department_id",
+        "\"role_resolution\": worker.is_some()",
+        "\"role_spec_schema\":",
+        "\"role_version\":",
+        "\"role_catalog_schema\":",
+        "\"role_catalog_version\":",
+        "\"input_schema\":",
+        "\"output_schema\":",
+        "\"model_profile\":",
+        "\"max_steps_per_turn\":",
+        "\"prompt_hash\":",
+        "\"model_turns\":",
+        "\"cost_ledger\":",
+        "\"files_changed\":",
+        "\"memory_hits\":",
+        "\"retrieval_receipts\":",
+        "\"memory_proposals\":",
+        "\"invocations\":",
+        "\"invocation_projection_error\":",
+        "\"run_receipt\":",
+        "\"receipt_data_binding\":",
+        "\"projection\":",
+        "\"execution_receipts\":",
+        "\"aggregation\":",
+        "\"cost_breakdown\":",
+        "\"effect_usage\":",
+        "\"compact\":",
+        "\"capabilities\":",
+        "\"observability\":",
+        "\"output\": output",
+    ] {
+        assert!(
+            receipts.contains(marker),
+            "missing receipt top-level field {marker}"
+        );
+    }
+    assert!(events.contains("receipt[\"work_packet_id\"] = json!(work_packet_id)"));
+    assert!(events.contains("receipt[\"input\"] = json!(\"work_packet\")"));
 }
