@@ -20743,6 +20743,36 @@ limitations: historical CURRENT_STATUS H23 block says roadmap row 310 is ✅ whi
 reviewer: source review confirmed artifact-first validation, duplicate source identity rejection, workspace/data epoch fences and no filesystem dependency in domain contract; no local runtime reviewer
 ```
 
+### H21 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `3c392fc4`; .github/workflows/h21-request-budget-diagnostic.yml; domain request budget and runner budget/prefix guard fixtures
+worktree_status: domain WireBudget/StablePrefix fixtures and runner source guard passed after aligning historical markers with current WireBudget/output reservation and system-prefix/PromptBundle ownership; production budget behavior unchanged
+command_argv: gh run view 37117439592 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H21 `domain-request-budget` and `runner-budget-prefix-guard`; both focused jobs success at head `3c392fc4`
+exit_code: remote domain job 0; remote runner job 0
+status_change: H21 remains roadmap row 308 / `feature_status=implemented` / `proof_level=source`; shared budget, explicit accounting and stable-prefix invalidation guard coverage now has a current focused receipt
+proof-level change: none
+limitations: no local runtime result, provider tokenizer/billing accuracy, live cache hit behavior or cross-process cache durability
+reviewer: exact focused jobs and current WireBudget/system-prefix source marker review; no local runtime reviewer
+```
+
+### H22 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `3c392fc4`; .github/workflows/h22-compaction-diagnostic.yml; domain CompactSummary and runner compaction guard fixtures
+worktree_status: evidence-only summary and runner working-state compaction guards passed after aligning the guard with current system-prefix and PromptBundle ownership; compaction behavior unchanged
+command_argv: gh run view 37117439708 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H22 `domain-summary` and `runner-compaction-guard`; both focused jobs success at head `3c392fc4`
+exit_code: remote domain job 0; remote runner job 0
+status_change: H22 remains roadmap row 309 / `feature_status=implemented` / `proof_level=source`; summary evidence, complete recent groups, pending pairs and no-placeholder fallback now have a current focused receipt
+proof-level change: none
+limitations: no local runtime result, admitted summary model/retry, durable summary event, cross-process recovery or live/physical proof
+reviewer: exact focused jobs and current compaction source ownership review; no local runtime reviewer
+```
+
 ### H21 focused guard drift audit and correction (2026-10-03)
 
 ```text
