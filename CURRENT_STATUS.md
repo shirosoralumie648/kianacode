@@ -20952,3 +20952,18 @@ proof-level_change: none; source plus remote CI wiring only, with no post-fix re
 limitations: prior CI exposed fixture permission and checksum-guard drift, so a fresh post-fix receipt is still required; power-loss/NFS/cross-host locking, async queue/backpressure/shutdown ack, projector/checkpoint, backup/retention and external/live/physical proof remain open
 reviewer: source review confirmed bounded frame/header validation, single writer lock, O_NOFOLLOW/identity/sync boundaries, narrow torn-tail repair and malformed/checksum fail-closed behavior; no local runtime reviewer
 ```
+
+### ER-06 focused async lifecycle workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/er06-async-lifecycle.yml; docs/roadmap/event-receipt-async-baseline.md; kiana-eventlog/src/{jsonl.rs,stream.rs}; kiana-ports/src/lib.rs; kiana-daemon/src/{lib.rs,run_stream.rs}; kiana-core/src/receipts.rs; kiana-eventlog/tests/er06_async_lifecycle.rs
+worktree_status: restored a manual GitHub-only workflow for the existing ER-06 bounded worker, flush/health/cursor/close acknowledgement and lifecycle delegation fixture; no async adapter behavior, health digest, shard manifest, lockfile or second EventStore path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run er06-async-lifecycle.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-eventlog er06_async_lifecycle; workflow also runs cargo fmt --all --check and cargo check --workspace --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: ER-06 remains roadmap row 132 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for bounded admission, explicit durable lifecycle acknowledgement and closed-state rejection
+proof-level_change: none; source plus remote CI wiring only, with no post-fix result promoted here
+limitations: prior CI exposed health-digest and formatter corrections, so a fresh post-fix receipt is still required; slow-disk/worker-panic/terminal-flush combinations, projector/backup/retention, cross-process/power-loss and external/live/physical proof remain open
+reviewer: source review confirmed bounded worker admission, structured health digest, file/parent sync boundary, close fencing and daemon/core delegation; no local runtime reviewer
+```

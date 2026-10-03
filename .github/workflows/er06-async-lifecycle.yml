@@ -1,0 +1,24 @@
+name: ER-06 async eventlog lifecycle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  async-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run ER-06 async lifecycle fixtures
+        run: cargo test -p kiana-eventlog --test er06_async_lifecycle --locked -- --test-threads=1
+      - name: Compile ER-06 targets
+        run: cargo check --workspace --tests --locked

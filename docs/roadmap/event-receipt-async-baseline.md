@@ -7,7 +7,7 @@
 |---|---|
 | roadmap card | [`ER-06`](event-receipt-recovery.md#step-er-06) |
 | feature_status | `implemented`（bounded worker admission、flush/health/cursor/close contract） |
-| proof_level | `source`；本地不运行测试，GitHub Actions 负责 eventlog fixtures |
+| proof_level | `source`；本地不运行测试，`.github/workflows/er06-async-lifecycle.yml` 负责 eventlog fixtures 与 workspace test-target compile |
 | authority | EventStorePort + JsonlEventLog；DaemonHost 只转发存储生命周期 ack，不自产事实 |
 | this step does | bounded `spawn_blocking`/Semaphore admission、structured queue/worker/close errors、durable flush and last cursor, strict health digest, close-in-progress/closed fencing, daemon/core lifecycle delegation |
 | this step does not | 不保证无限队列、强制杀掉已运行 handler、跨主机/NFS durability、掉电证明、投影 checkpoint、外部 effect exactly-once 或 external/live/physical proof |
