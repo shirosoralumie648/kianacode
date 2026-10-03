@@ -1359,9 +1359,9 @@ impl ProviderCredentialProbeResponse {
         Ok(())
     }
 
-    ///      计算响应摘要。**故意不包含 `response_digest` 自身**——否则自引用无法收敛。
-    ///      【核心流程】 先把除 digest 外的全部字段塞进 `json!` 交给 `json_digest`，后者按键名排序后规范化序列化，保证同一逻辑内容在任何 map 顺序下都得到同一串。
-    ///      【为什么 load-bearing】 `validate()` 里的 `self.response_digest != self.digest()` 是这个 DTO 的完整性自检：任何字段被改过而 digest 没跟着改，探测结果就不可信。
+    /// 计算响应摘要。**故意不包含 `response_digest` 自身**——否则自引用无法收敛。
+    /// 【核心流程】 先把除 digest 外的全部字段塞进 `json!` 交给 `json_digest`，后者按键名排序后规范化序列化，保证同一逻辑内容在任何 map 顺序下都得到同一串。
+    /// 【为什么 load-bearing】 `validate()` 里的 `self.response_digest != self.digest()` 是这个 DTO 的完整性自检：任何字段被改过而 digest 没跟着改，探测结果就不可信。
     /// 【⚠ 往这个 struct 加字段时必须同步加进 `digest()`，否则新字段可以不带摘要地通过校验——这是个静默的完整性漏洞。】
     ///
     pub fn digest(&self) -> String {
