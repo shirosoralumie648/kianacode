@@ -888,7 +888,10 @@ fn session_assignment_contract_matches_producer() {
     validate_event_payload("session.assigned", &payload).unwrap();
 
     let mut missing_session = payload.clone();
-    missing_session.as_object_mut().unwrap().remove("session_id");
+    missing_session
+        .as_object_mut()
+        .unwrap()
+        .remove("session_id");
     assert_eq!(
         validate_event_payload("session.assigned", &missing_session).unwrap_err(),
         "event_required_id_missing:session_id"

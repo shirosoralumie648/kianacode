@@ -362,7 +362,10 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "SESSION_ASSIGNMENT_FIELDS",
         "\"session.assigned\"",
     ] {
-        assert!(contracts.contains(marker), "missing session contract marker {marker}");
+        assert!(
+            contracts.contains(marker),
+            "missing session contract marker {marker}"
+        );
     }
     for marker in [
         "\"schema\":\"kiana.session-assignment.v1\"",
@@ -384,6 +387,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "\"assignment\":typed",
         "\"session.assigned\"",
     ] {
-        assert!(sessions.contains(marker), "missing session producer field {marker}");
+        assert!(
+            sessions.contains(marker),
+            "missing session producer field {marker}"
+        );
     }
 }
