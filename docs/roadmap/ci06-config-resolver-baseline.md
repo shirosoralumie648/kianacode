@@ -2,6 +2,9 @@
 
 > 快照日期：2026-09-18。运行时验收由 GitHub Actions 执行；本地不运行测试或 smoke。
 
+> 2026-10-04 更新：下方新增的 overlay/reload 切片取代旧的纯 parser 限制；仍未接入
+> DaemonHost 多项目配置来源。当前验证命令只在 GitHub CI 运行。
+
 ## Resolver boundary
 
 生产 `ProviderGateway::from_env` 只经 `kiana-provider::ConfigResolver::resolve` 构造连接、
@@ -31,13 +34,40 @@ cargo test -p kiana-core --test ci06_config_resolver --locked -- --test-threads=
 cargo check --workspace --tests --locked
 ```
 
-本地只执行格式、workspace test-target 静态编译和 `git diff --check`；不执行测试，也不等待
-GitHub CI。
+当前工作流以对应 target 的 `--no-run` 编译和现有 provider 回归替代上方历史全 workspace
+编译命令。本地只读取和编辑源码、格式化及查看 Git 差异；不执行测试、构建、检查或验证
+脚本，推送后不等待 GitHub CI。
 
 ## 限制与交接
 
-- `ProviderConfig`/`Connection` 仍由 provider adapter 在最后边界持有 raw credential；CI-07
-  才接入 SecretStore/CredentialLease，CI-08/10 再补 route admission/policy。
-- Workspace parser 是可复用纯 API；当前 DaemonHost provider 组合仍由启动环境构造，按项目
-  动态 reload、跨进程 ConfigSnapshotStore、远端/非本地配置源和 durable fencing 留后续。
+- `Connection` 已使用 opaque SecretRef 和 provider-only SecretStore；显式
+  `ProviderConfig.api_key` 仍由兼容 inline adapter 持有，不进入配置快照。
+- 当前 DaemonHost provider 组合仍由启动环境构造，按项目配置来源与 reload、跨进程
+  ConfigSnapshotStore、远端/非本地配置源和 durable fencing 留后续。
 - 不宣称认证主体、OAuth、外部/live/physical provider effect 或生产 KMS/secret 生命周期。
+
+## 2026-10-04 trusted overlay and atomic reload
+
+`ProviderGateway::from_workspace` now resolves validated project text through the same resolver
+and connection builder used by `from_env`. Explicit API configuration takes precedence over
+environment, workspace defaults and builtins; explicit environment profiles override project
+profiles with the same name. Trust facts come from `WorkspaceConfigTrust`, with matching admitted
+and current server revisions, and are checked before parsing. Snapshots contain no secret values.
+
+`reload_workspace` constructs and validates the whole candidate before publication, then compares
+the expected current snapshot again while holding the write lock. Invalid, stale or busy reloads
+preserve the previous snapshot. Every route binds the whole candidate, trust and a monotonic
+process-local generation, so changing another profile or reverting to earlier content cannot
+revive an old prepared call. An admitted attempt pins its snapshot through budget consumption,
+capacity wait and transport; a reload during that interval returns `config_reload_busy`.
+
+Existing quota windows, semaphores and circuit state survive a reload or scope removal/re-addition;
+retained scopes are bounded, and numerical capacity policy changes are rejected. CI fixtures cover
+these behaviors with held admission/transport futures and loopback fake providers, alongside the
+existing configuration, credential, route-admission and provider-contract regressions.
+
+Changed-source GitHub validation is pending at integration. `CI-06` remains partial/source:
+the daemon has no provider workspace config path resolver, project-scoped gateway integration or
+authoritative current trust revision API. A single gateway cannot install one project's overlay
+as the default for other projects. Cross-process snapshots/generations and cancellation after a
+remote request was sent remain separate requirements.

@@ -21,11 +21,10 @@
 //! 用哪份凭据、允许多少并发、配额窗口、熔断器、以及一个已经配好策略的 `reqwest::Client`。
 //! 一个 profile 名对应一个 Connection。
 //!
-//! ## 为什么 provider 表是**启动时**决定的
+//! ## 配置快照与重载
 //!
-//! 连接、凭据、限额、熔断器全部在 `connections()` 里一次性构造好，运行期只读。
-//! 运行期再改配置会让“准入时冻结的路由”和“实际使用的路由”出现时间差，
-//! 而预算与审计都建立在“准入时看到什么就是什么”之上。
+//! 连接、凭据、限额、熔断器在 resolver 中作为完整候选构造，Gateway 原子替换快照。
+//! 已准入的调用持有旧快照直到 effect 结束；同一上游的容量计数和熔断状态跨重载保留。
 //!
 //! ## 上游 / 下游
 //!
@@ -378,9 +377,51 @@ fn parse_ollama_load_timeout(
 pub(crate) fn connections(
     config: ProviderConfig,
 ) -> Result<(BTreeMap<String, Connection>, bool), ModelError> {
+    connections_with_workspace(config, None)
+}
+
+pub(crate) fn connections_with_workspace(
+    config: ProviderConfig,
+    workspace: Option<&crate::resolver::WorkspaceConfig>,
+) -> Result<(BTreeMap<String, Connection>, bool), ModelError> {
     let configured = env("KIANA_MODEL_PROFILES_JSON");
-    let default = connection("default", config, None);
-    if configured.is_none() {
+    let default = connection_with_credential_env("default", config, None, None, None, workspace);
+    if workspace.is_some_and(|workspace| {
+        workspace.provider.is_some()
+            || workspace.model.is_some()
+            || workspace.base_url.is_some()
+            || workspace.api_key_env.is_some()
+    }) && default.is_err()
+    {
+        // An explicitly declared workspace default is part of the candidate. It must not be
+        // silently dropped merely because another profile happens to be usable.
+        return default
+            .map(|connection| (BTreeMap::from([("default".to_owned(), connection)]), false));
+    }
+    let mut values = workspace
+        .map(|workspace| {
+            workspace
+                .profiles
+                .iter()
+                .map(|(name, profile)| {
+                    (
+                        name.clone(),
+                        ProfileConfig {
+                            provider: profile.provider.clone(),
+                            model: profile.model.clone(),
+                            base_url: profile.base_url.clone(),
+                            api_key_env: profile.api_key_env.clone(),
+                            capabilities: None,
+                            ollama_load_timeout_ms: None,
+                            inherit_default: profile.inherit_default,
+                        },
+                    )
+                })
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let explicit_profiles = configured.is_some() || !values.is_empty();
+    if !explicit_profiles {
         return default
             .map(|connection| (BTreeMap::from([("default".to_owned(), connection)]), false));
     }
@@ -395,12 +436,18 @@ pub(crate) fn connections(
     // 解析成 BTreeMap 而不是 Vec：profile 名天然是键，且 BTreeMap 的迭代顺序确定，
     // 让“连接建立的顺序”是可复现的（便于测试与对账）。
 
-    let raw = configured.unwrap();
-    if raw.len() > 64 * 1024 {
-        return Err(ModelError::invalid("model_profile_config_too_large"));
+    if let Some(raw) = configured {
+        if raw.len() > 64 * 1024 {
+            return Err(ModelError::invalid("model_profile_config_too_large"));
+        }
+        let environment: BTreeMap<String, ProfileConfig> = serde_json::from_str(&raw)
+            .map_err(|_| ModelError::invalid("model_profile_config_invalid"))?;
+        // Explicit environment profiles override a project profile with the same name.
+        values.extend(environment);
     }
-    let values: BTreeMap<String, ProfileConfig> = serde_json::from_str(&raw)
-        .map_err(|_| ModelError::invalid("model_profile_config_invalid"))?;
+    if values.len() > 64 {
+        return Err(ModelError::invalid("model_profile_limit_exceeded"));
+    }
     for (profile, value) in values {
         if !RoleSpec::catalog()
             .iter()
@@ -452,6 +499,7 @@ pub(crate) fn connections(
                 value.capabilities,
                 key_env,
                 ollama_load_timeout,
+                None,
             )?
         };
         item.route.profile = profile.clone();
@@ -499,11 +547,7 @@ pub(crate) fn connections(
         // 配额是按账号+部署算的，与本次用哪个模型无关。
         // 把 model 算进去会导致“换模型 = 换配额桶”，那等于给了用户一个绕过限流的办法。
 
-        let scope = json_digest(&json!({
-            "provider":connection.route.provider_id,
-            "origin":connection.endpoint.as_str(),
-            "credential":connection.credential_ref.as_ref().map(|reference|reference.reference_digest.clone()),
-        }));
+        let scope = capacity_scope(connection);
         // `or_insert_with` 只在这个 scope 第一次出现时创建闸门，之后全部复用。
         // 于是三个 profile 共享同一个 Semaphore / CapacityWindow / CircuitBreaker。
         //
@@ -528,7 +572,15 @@ pub(crate) fn connections(
         connection.queue_slots = queue_slots;
         connection.circuit = circuit;
     }
-    Ok((result, true))
+    Ok((result, explicit_profiles))
+}
+
+pub(crate) fn capacity_scope(connection: &Connection) -> String {
+    json_digest(&json!({
+        "provider": connection.route.provider_id,
+        "origin": connection.endpoint.as_str(),
+        "credential": connection.credential_ref.as_ref().map(|reference| &reference.reference_digest),
+    }))
 }
 
 #[cfg(test)]
@@ -565,19 +617,6 @@ mod ollama_timeout_tests {
         );
     }
 }
-/// 构造一个使用**默认凭据来源**的连接。
-///
-/// 这是 `connections()` 里给 `default` profile 用的便捷包装：
-/// 凭据来源由 provider 决定（Anthropic 读 `ANTHROPIC_API_KEY`，OpenAI 读 `OPENAI_API_KEY`…）。
-
-fn connection(
-    name: &str,
-    config: ProviderConfig,
-    declared: Option<DeclaredCapabilities>,
-) -> Result<Connection, ModelError> {
-    connection_with_credential_env(name, config, declared, None, None)
-}
-
 /// 构造一个连接的**唯一真正实现**。`connections()` 的所有路径最终都汇到这里。
 ///
 /// 【作用】 把“一个 profile 的全部配置”变成一个可运行的 `Connection`：
@@ -603,10 +642,12 @@ fn connection_with_credential_env(
     declared: Option<DeclaredCapabilities>,
     credential_env_override: Option<String>,
     ollama_load_timeout: Option<Duration>,
+    workspace: Option<&crate::resolver::WorkspaceConfig>,
 ) -> Result<Connection, ModelError> {
     let provider = config
         .provider
         .or_else(|| env("KIANA_PROVIDER"))
+        .or_else(|| workspace.and_then(|workspace| workspace.provider.clone()))
         .unwrap_or_else(|| "anthropic".to_owned());
     // ========== 阶段 1：provider 名 -> 协议 + 默认值表 ==========
     //
@@ -678,6 +719,7 @@ fn connection_with_credential_env(
     let model = config
         .model
         .or_else(|| env(model_env))
+        .or_else(|| workspace.and_then(|workspace| workspace.model.clone()))
         .unwrap_or_else(|| default_model.to_owned());
     if model.trim().is_empty() || model.len() > 256 {
         return Err(ModelError::invalid("model_id_invalid"));
@@ -685,6 +727,7 @@ fn connection_with_credential_env(
     let base = config
         .base_url
         .or_else(|| env(base_env))
+        .or_else(|| workspace.and_then(|workspace| workspace.base_url.clone()))
         .unwrap_or_else(|| default_base.to_owned());
     // ========== 阶段 2：端点拼装与安全校验 ==========
     //
@@ -747,8 +790,10 @@ fn connection_with_credential_env(
     //
     // 【三条路径都只产出 SecretRef + 摘要 + store 句柄，从不把明文放进 Connection】
 
-    let configured_env =
-        credential_env_override.or_else(|| (!key_env.is_empty()).then(|| key_env.to_owned()));
+    let configured_env = credential_env_override
+        .or_else(|| (!key_env.is_empty() && env(key_env).is_some()).then(|| key_env.to_owned()))
+        .or_else(|| workspace.and_then(|workspace| workspace.api_key_env.clone()))
+        .or_else(|| (!key_env.is_empty()).then(|| key_env.to_owned()));
     let (credential_ref, credential_store, credential_revision) = if let Some(value) =
         config.api_key
     {

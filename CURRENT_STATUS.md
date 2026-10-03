@@ -22196,3 +22196,18 @@ proof-level_change: no product-chain, durable or live promotion
 limitations: protected storage backends, cross-process replay/rotation/revocation, full product-chain secret-leak proof and unified CI remain open
 reviewer: exact changed-source workflow status reviewed; no local runtime reviewer
 ```
+
+### CI-06 trusted overlay and atomic reload (2026-10-04)
+
+```text
+source_snapshot: parent `e4da9d33` plus this commit; isolated implementations `70b41272` / `b93a15e9`; kiana-provider/src/{lib,config,resolver}.rs; kiana-provider/tests/ci06_config_resolver.rs; .github/workflows/ci06-config-resolver.yml
+worktree_status: reviewed single-resolver overlay and complete-candidate CAS reload integrated from /tmp/kiana-ci06-atomic-reload; behavioral fixtures and provider regressions included; no manifest, lockfile or additional execution loop
+command_argv: after push `gh workflow run ci06-config-resolver.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root and isolated worktree; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: trust/candidate rollback, precedence and opaque credential snapshots, stale prepared call with zero budget/network, held budget/transport reload busy, cancellation drops local guard, no ABA, circuit and token-window retention, existing config/SecretStore/route/provider regressions
+exit_code: changed-source CI pending; no local runtime exit code
+status_change: CI-06 roadmap row 166 remains 🔄; feature_status=partial; proof_level=source
+proof-level_change: none; pure-parser acceptance run `37160792233` does not prove the new reload implementation
+limitations: daemon provider-config source/path resolver, project-scoped gateways and current server trust revision still require integration; process-local generations/capacity are not durable restart fences; cancellation after remote dispatch does not prove the external effect stopped; external/live/physical proof and unified CI remain open
+reviewer: resolver/connection precedence, candidate publication, retained state and same-generation budget-to-transport boundary reviewed; daemon multi-project/trust/path seam independently audited; no local runtime reviewer
+```

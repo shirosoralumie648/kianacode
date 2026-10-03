@@ -21,6 +21,8 @@ jobs:
         run: cargo fmt --all --check
       - name: Run provider resolver fixtures
         run: cargo test -p kiana-provider --test ci06_config_resolver --locked -- --test-threads=1
+      - name: Run configuration and admitted-provider regressions
+        run: cargo test -p kiana-provider --test p4_j7_08_config --test ci07_secret_store --test ci08_route_admission --test provider_contract --locked -- --test-threads=1
       - name: Run daemon legacy-boundary guard
         run: cargo test -p kiana-daemon --test ci06_config_resolver --locked -- --test-threads=1
       - name: Run core resolver source guard

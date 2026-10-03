@@ -21,7 +21,7 @@
 //!   Resolution { connections, explicit_profiles, snapshot }
 //! ```
 //!
-//! 本文件还有第二条入口：**工作区覆盖配置（workspace overlay）**。
+//! 同一解析器也接收**工作区覆盖配置（workspace overlay）**。
 //!
 //! ```text
 //!   某项目目录里的 .kiana 配置文本
@@ -30,6 +30,7 @@
 //!   【本文件 ConfigResolver::parse_workspace()】 -> WorkspaceConfig（结构化、已校验）
 //!        v
 //!   【本文件 ConfigResolver::workspace_snapshot()】 -> ConfigSnapshot（带摘要，用于版本围栏）
+//!   【本文件 ConfigResolver::resolve_with_workspace()】 -> 完整候选连接 + 配置/信任/generation 围栏
 //! ```
 //!
 //! ## 两个入口的信任模型差异（关键）
@@ -102,6 +103,42 @@ pub(crate) struct Resolution {
     pub connections: BTreeMap<String, Connection>,
     pub explicit_profiles: bool,
     pub snapshot: ProviderConfigSnapshot,
+    pub workspace_snapshot: Option<ConfigSnapshot>,
+    pub generation: u64,
+}
+
+/// Trust facts supplied by the server authority boundary, never by workspace configuration.
+/// The admitted revision must still equal the server's current revision before parsing text.
+#[derive(Clone, Copy, Debug)]
+pub struct WorkspaceConfigTrust<'a> {
+    pub project_trusted: bool,
+    pub admitted_revision: &'a str,
+    pub current_revision: &'a str,
+}
+
+impl WorkspaceConfigTrust<'_> {
+    pub(crate) fn validate(&self) -> Result<(), kiana_domain::ModelError> {
+        if !self.project_trusted {
+            return Err(kiana_domain::ModelError::invalid(
+                "config_workspace_untrusted",
+            ));
+        }
+        for revision in [self.admitted_revision, self.current_revision] {
+            if !revision.strip_prefix("sha256:").is_some_and(|hex| {
+                hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+            }) {
+                return Err(kiana_domain::ModelError::invalid(
+                    "config_project_trust_revision_invalid",
+                ));
+            }
+        }
+        if self.admitted_revision != self.current_revision {
+            return Err(kiana_domain::ModelError::invalid(
+                "config_project_trust_revision_changed",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,7 +184,7 @@ pub struct WorkspaceConfig {
 /// 半定义的路由目标没有意义。
 ///
 /// 【inherit_default】 为 `true` 时表示“整体继承 default 连接”。
-/// 此时若又写了 `base_url` 或 `api_key_env`，`validate_workspace` 会报
+/// 此时 `provider`/`model` 必须为空，`base_url`/`api_key_env` 必须省略，否则会报
 /// `config_profile_inheritance_conflict`：既说继承又说要改，语义自相矛盾，
 /// 必须在配置阶段拒绝，而不是猜一个。
 
@@ -185,11 +222,60 @@ impl ConfigResolver {
 
     pub(crate) fn resolve(config: ProviderConfig) -> Result<Resolution, kiana_domain::ModelError> {
         let (connections, explicit_profiles) = config::connections(config)?;
+        Self::resolution(connections, explicit_profiles, None, 0)
+    }
+
+    pub(crate) fn resolve_with_workspace(
+        config: ProviderConfig,
+        raw: &str,
+        trust: WorkspaceConfigTrust<'_>,
+        generation: u64,
+    ) -> Result<Resolution, kiana_domain::ModelError> {
+        trust.validate()?;
+        let workspace = Self::parse_workspace(raw, trust.project_trusted)?;
+        let effective = redacted_workspace_value(&workspace)?;
+        let workspace_snapshot = ConfigSnapshot::new(
+            vec!["workspace:provider-config".to_owned()],
+            effective.clone(),
+            json_digest(&effective),
+            trust.current_revision,
+        )
+        .map_err(kiana_domain::ModelError::invalid)?;
+        let (connections, explicit_profiles) =
+            config::connections_with_workspace(config, Some(&workspace))?;
+        Self::resolution(
+            connections,
+            explicit_profiles,
+            Some(workspace_snapshot),
+            generation,
+        )
+    }
+
+    fn resolution(
+        mut connections: BTreeMap<String, Connection>,
+        explicit_profiles: bool,
+        workspace_snapshot: Option<ConfigSnapshot>,
+        generation: u64,
+    ) -> Result<Resolution, kiana_domain::ModelError> {
+        let candidate = config::snapshot(&connections)?;
+        // Bind every route to the whole immutable configuration, including server trust and a
+        // monotonic reload generation. A change to another profile also invalidates old permits;
+        // reverting to the same content cannot resurrect an earlier generation.
+        let config_revision = json_digest(&serde_json::json!({
+            "provider_config": candidate.snapshot_digest,
+            "workspace": workspace_snapshot.as_ref().map(|snapshot| &snapshot.snapshot_digest),
+            "generation": generation,
+        }));
+        for connection in connections.values_mut() {
+            connection.route.configuration_revision = config_revision.clone();
+        }
         let snapshot = config::snapshot(&connections)?;
         Ok(Resolution {
             connections,
             explicit_profiles,
             snapshot,
+            workspace_snapshot,
+            generation,
         })
     }
 
@@ -199,8 +285,8 @@ impl ConfigResolver {
     /// 【作用】 把项目里的 JSON 文本变成经过校验的 `WorkspaceConfig`。
     ///
     /// 【调用者】
-    /// 仓库中未在 daemon/core 找到直接调用点；`workspace_snapshot` 内部会调用它。
-    /// 它是 `pub` 的，供未来接入工作区配置面时使用。
+    /// `workspace_snapshot` 和 Gateway 的 `from_workspace`/`reload_workspace` 共同调用它。
+    /// daemon/core 的项目文件读取与权威信任事实由组合根提供。
     ///
     /// 【输入】
     /// - `raw`：配置文件文本。
@@ -339,8 +425,22 @@ fn validate_workspace(config: &WorkspaceConfig) -> Result<(), kiana_domain::Mode
         .map(|role| role.model_profile)
         .collect::<std::collections::BTreeSet<_>>();
     for (name, profile) in &config.profiles {
-        if !allowed.contains(name)
-            || profile.provider.trim().is_empty()
+        if !allowed.contains(name) {
+            return Err(kiana_domain::ModelError::invalid("config_profile_invalid"));
+        }
+        if profile.inherit_default {
+            if !profile.provider.is_empty()
+                || !profile.model.is_empty()
+                || profile.base_url.is_some()
+                || profile.api_key_env.is_some()
+            {
+                return Err(kiana_domain::ModelError::invalid(
+                    "config_profile_inheritance_conflict",
+                ));
+            }
+            continue;
+        }
+        if profile.provider.trim().is_empty()
             || profile.provider.len() > 128
             || profile.model.trim().is_empty()
             || profile.model.len() > 256
@@ -351,12 +451,6 @@ fn validate_workspace(config: &WorkspaceConfig) -> Result<(), kiana_domain::Mode
             validate_endpoint(base_url)?;
         }
         validate_env_ref(profile.api_key_env.as_deref())?;
-        if profile.inherit_default && (profile.base_url.is_some() || profile.api_key_env.is_some())
-        {
-            return Err(kiana_domain::ModelError::invalid(
-                "config_profile_inheritance_conflict",
-            ));
-        }
     }
     Ok(())
 }
