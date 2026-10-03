@@ -807,7 +807,8 @@ impl ControlPlane {
             return self.reclaim_packet_leases(context, intent.arguments).await;
         }
         if intent.name == kiana_domain::COMPANY_COMMAND {
-            return self.handle_company_command(context, intent.arguments).await;
+            // Keep the large Company command future off this monolithic router's stack frame.
+            return Box::pin(self.handle_company_command(context, intent.arguments)).await;
         }
         if intent.name == kiana_domain::COMPANY_SNAPSHOT || intent.name == "company.next.v1" {
             return self.company_snapshot(context).await;
