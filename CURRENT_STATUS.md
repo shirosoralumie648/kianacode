@@ -21148,6 +21148,21 @@ limitations: prior unified receipts were exact-target only and enclosing shards 
 reviewer: source review confirmed server-derived context, foreign input as link-only, strict typed IDs, causation/attempt scope and side-effect-free port construction; no local runtime reviewer
 ```
 
+### OA-02 focused compile-gate correction (2026-10-03)
+
+```text
+source_snapshot: `ea22bf3b`; .github/workflows/oa02-correlation.yml; kiana-domain/tests/oa02_correlation.rs; kiana-ports/tests/oa02_correlation_port.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: prior focused run passed the OA-02 domain target 7/7 and ports boundary target 4/4; only the broad final test compile failed on unrelated `kiana-domain/tests/nm01_contracts.rs` errors; workflow now uses two target-scoped no-run compile steps and no correlation behavior or assertion changed
+command_argv: gh run view 37121948564 --json status,conclusion,headSha,jobs,url; gh run view 37121948564 --log-failed; git show 08552ada^:.github/workflows/oa02-correlation.yml; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: prior focused run `oa02_correlation` 7/7 and `oa02_correlation_port` 4/4; broad compile stopped at unrelated `nm01_contracts.rs` E0277/E0618 errors; corrected workflow targets `cargo test -p kiana-domain --test oa02_correlation --no-run --locked` and `cargo test -p kiana-ports --test oa02_correlation_port --no-run --locked`
+exit_code: prior remote workflow 1 at unrelated broad compile; source/diff checks 0; no local runtime exit code; fresh corrected workflow pending
+status_change: OA-02 remains roadmap row 093 `🔄` / `feature_status=partial` / `proof_level=source`; this is a CI gate-scope correction only
+proof-level_change: none; source plus prior focused fixture receipt, fresh target-scoped receipt pending
+limitations: authenticated ingress-to-provider-to-broker-to-EventLog propagation, durable recovery links, exporter/sink integration and external/live/physical trace proof remain unproven
+reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
+```
+
 ### CM-02 focused memory-lifecycle workflow (2026-10-03)
 
 ```text

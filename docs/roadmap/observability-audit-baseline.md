@@ -855,3 +855,12 @@ snapshot 仍通过 read-only query 获取。DaemonHost 只补充 process-local o
 `er30-observability` workflow 负责 focused fixtures 和 workspace test-target 编译；没有 durable
 checkpoint、外部 telemetry backend、provider/business health 或 physical/live 证明，且不把 CI 结果
 当作本次实现的阻塞条件。
+
+## 9. OA-02 focused compile-gate correction (2026-10-03)
+
+The first restored focused run `37121948564` passed the OA-02 domain correlation target (`7/7`) and
+ports boundary target (`4/4`) but failed its final broad test compile because unrelated
+`kiana-domain/tests/nm01_contracts.rs` errors were included. The manual lane now compiles only
+`oa02_correlation` and `oa02_correlation_port` with target-scoped `--no-run` commands. No
+correlation behavior or fixture assertion changed; a fresh remote receipt is required before any
+status or proof-level promotion.

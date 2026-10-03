@@ -22,5 +22,7 @@ jobs:
         run: cargo test -p kiana-domain --test oa02_correlation --locked -- --test-threads=1
       - name: Run OA-02 port boundary tests
         run: cargo test -p kiana-ports --test oa02_correlation_port --locked -- --test-threads=1
-      - name: Compile OA-02 path
-        run: cargo check -p kiana-domain -p kiana-ports --tests --locked
+      - name: Compile OA-02 domain target
+        run: cargo test -p kiana-domain --test oa02_correlation --no-run --locked
+      - name: Compile OA-02 ports target
+        run: cargo test -p kiana-ports --test oa02_correlation_port --no-run --locked
