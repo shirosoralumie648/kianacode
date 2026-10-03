@@ -22211,3 +22211,18 @@ proof-level_change: none; pure-parser acceptance run `37160792233` does not prov
 limitations: daemon provider-config source/path resolver, project-scoped gateways and current server trust revision still require integration; process-local generations/capacity are not durable restart fences; cancellation after remote dispatch does not prove the external effect stopped; external/live/physical proof and unified CI remain open
 reviewer: resolver/connection precedence, candidate publication, retained state and same-generation budget-to-transport boundary reviewed; daemon multi-project/trust/path seam independently audited; no local runtime reviewer
 ```
+
+### CI-09 fenced token-file metadata repair (2026-10-04)
+
+```text
+source_snapshot: parent `2c897d5e` plus this commit; kiana-provider/src/oauth.rs; run `37162423852` at `e4da9d33`
+worktree_status: remote-only failure classification found revoked/reauth metadata losing refresh_digest on reload; the existing equality assertion is retained and the provider-only file codec now persists the optional digest with material/status binding checks
+command_argv: `gh run view 37162423852 --log-failed`; after push `gh workflow run ci09-oauth-lifecycle.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: manual revoke and permanent/revoked refresh errors retain metadata generation/digests without refresh material; file reload never starts refresh; active digest/material mismatch or missing material denied; legacy active v1 file loads; existing stale-refresh/revoke races retained
+exit_code: prior provider OAuth target 9 passed / 1 failed (revoke/reload metadata equality), 101; changed-source CI pending; no local runtime exit code
+status_change: CI-09 remains 🔄 / partial / source
+proof-level_change: none; no restart/durable product-chain promotion from this file fixture
+limitations: historical fenced files that discarded the digest cannot reconstruct it; this is provider-only file metadata preservation, not the generic CI-07 FileSecretStore; cross-process CAS, Gateway/IdP integration, recovery and unified CI remain open
+reviewer: all token-file producers/decoders and revoke/reauth transitions reviewed; no local runtime reviewer
+```

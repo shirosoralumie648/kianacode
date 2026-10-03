@@ -962,6 +962,10 @@ struct TokenFile {
     status: OAuthTokenStatus,
     access_token: String,
     refresh_token: Option<String>,
+    // Retain redacted provenance after revoke/reauth removes the refresh token itself.
+    // Older v1 files omitted this field and derive it from their remaining token material.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    refresh_digest: Option<String>,
 }
 
 impl TokenFile {
@@ -977,6 +981,7 @@ impl TokenFile {
             status: stored.metadata.status,
             access_token: stored.access_token.clone(),
             refresh_token: stored.refresh_token.clone(),
+            refresh_digest: stored.metadata.refresh_digest.clone(),
         }
     }
 
@@ -987,6 +992,22 @@ impl TokenFile {
         {
             return Err(OAuthError::Invalid("oauth_token_file_binding_invalid"));
         }
+        let material_digest = self
+            .refresh_token
+            .as_ref()
+            .map(|token| json_digest(&serde_json::json!(token)));
+        if self.refresh_digest.as_ref().is_some_and(|digest| {
+            material_digest
+                .as_ref()
+                .is_some_and(|actual| digest != actual)
+                || material_digest.is_none()
+                    && !matches!(
+                        self.status,
+                        OAuthTokenStatus::Revoked | OAuthTokenStatus::ReauthRequired
+                    )
+        }) {
+            return Err(OAuthError::Invalid("oauth_token_file_binding_invalid"));
+        }
         let metadata = OAuthTokenMetadata::new(
             self.provider_account,
             self.subject,
@@ -995,9 +1016,7 @@ impl TokenFile {
             self.issued_at_unix_ms,
             self.expires_at_unix_ms,
             json_digest(&serde_json::json!(&self.access_token)),
-            self.refresh_token
-                .as_ref()
-                .map(|token| json_digest(&serde_json::json!(token))),
+            self.refresh_digest.or(material_digest),
         )
         .map_err(|_| OAuthError::Invalid("oauth_token_file_invalid"))?;
         let metadata = if self.status == OAuthTokenStatus::Active {
@@ -1770,6 +1789,124 @@ mod tests {
                 .access_token,
             "current"
         );
+    }
+
+    #[tokio::test]
+    async fn fenced_token_files_preserve_provenance_and_never_refresh_after_reload() {
+        for transition in ["manual-revoke", "permanent", "revoked"] {
+            let root = std::env::temp_dir().join(format!("kiana-ci09-{}", RequestId::new()));
+            let path = root.join("oauth.json");
+            let manager = OAuthManager::new(config(), Some(path.clone())).expect("manager");
+            let initial = manager
+                .install_tokens(
+                    "retained-access".to_owned(),
+                    Some("retired-refresh-material".to_owned()),
+                    2_000,
+                    1_000,
+                )
+                .expect("seed");
+            let expected_code = if transition == "permanent" {
+                "oauth_reauth_required"
+            } else {
+                "oauth_revoked"
+            };
+            if transition == "manual-revoke" {
+                manager.revoke().await.expect("revoke");
+            } else {
+                let failure = if transition == "permanent" {
+                    RefreshFailure::Permanent
+                } else {
+                    RefreshFailure::Revoked
+                };
+                let error = match manager
+                    .access_token(1_500, 1_000, |_| async { Err(failure) })
+                    .await
+                {
+                    Ok(_) => panic!("fenced refresh must fail"),
+                    Err(error) => error,
+                };
+                assert_eq!(error.code(), expected_code);
+            }
+            let fenced = manager.metadata().expect("fenced metadata");
+            assert_eq!(fenced.generation, initial.generation + 1);
+            assert_eq!(fenced.refresh_digest, initial.refresh_digest);
+            let bytes = std::fs::read(&path).expect("fenced token file");
+            let value: serde_json::Value = serde_json::from_slice(&bytes).expect("file JSON");
+            assert!(value["refresh_token"].is_null());
+            assert_eq!(
+                value["refresh_digest"],
+                serde_json::json!(fenced.refresh_digest)
+            );
+            assert!(!String::from_utf8(bytes)
+                .expect("UTF-8")
+                .contains("retired-refresh-material"));
+            let reloaded = OAuthManager::load(config(), path).expect("reload fenced token file");
+            assert_eq!(reloaded.metadata().expect("metadata"), fenced);
+            let calls = Arc::new(AtomicUsize::new(0));
+            let refresh_calls = calls.clone();
+            let error = match reloaded
+                .access_token(1_501, 1_000, move |_| async move {
+                    refresh_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response("must-not-run", None, 3_600))
+                })
+                .await
+            {
+                Ok(_) => panic!("reloaded fenced token must remain unusable"),
+                Err(error) => error,
+            };
+            assert_eq!(error.code(), expected_code);
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+            std::fs::remove_dir_all(root).expect("remove fixture directory");
+        }
+    }
+
+    #[test]
+    fn token_file_refresh_digest_is_bound_to_present_material_and_legacy_files_still_load() {
+        let root = std::env::temp_dir().join(format!("kiana-ci09-{}", RequestId::new()));
+        let path = root.join("oauth.json");
+        let manager = OAuthManager::new(config(), Some(path.clone())).expect("manager");
+        let initial = manager
+            .install_tokens(
+                "access".to_owned(),
+                Some("refresh".to_owned()),
+                2_000,
+                1_000,
+            )
+            .expect("seed");
+        let mut legacy: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("token file")).expect("file JSON");
+        legacy
+            .as_object_mut()
+            .expect("envelope")
+            .remove("refresh_digest");
+        std::fs::write(&path, serde_json::to_vec(&legacy).expect("legacy JSON"))
+            .expect("write legacy fixture");
+        let loaded = OAuthManager::load(config(), path.clone()).expect("load legacy v1 file");
+        assert_eq!(loaded.metadata().expect("metadata"), initial);
+
+        let mut invalid = legacy.clone();
+        invalid["refresh_digest"] = json_digest(&serde_json::json!("different-refresh")).into();
+        std::fs::write(&path, serde_json::to_vec(&invalid).expect("invalid JSON"))
+            .expect("write mismatched fixture");
+        assert_eq!(
+            OAuthManager::load(config(), path.clone())
+                .err()
+                .expect("digest denial")
+                .code(),
+            "oauth_token_file_binding_invalid"
+        );
+        invalid["refresh_digest"] = serde_json::json!(initial.refresh_digest);
+        invalid["refresh_token"] = serde_json::Value::Null;
+        std::fs::write(&path, serde_json::to_vec(&invalid).expect("invalid JSON"))
+            .expect("write missing-material fixture");
+        assert_eq!(
+            OAuthManager::load(config(), path)
+                .err()
+                .expect("missing-material denial")
+                .code(),
+            "oauth_token_file_binding_invalid"
+        );
+        std::fs::remove_dir_all(root).expect("remove fixture directory");
     }
 
     #[cfg(unix)]

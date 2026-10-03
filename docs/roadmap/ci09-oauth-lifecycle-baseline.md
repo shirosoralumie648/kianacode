@@ -60,3 +60,12 @@ Run `37161948995` at `6abe23e9` passed the pre-repair focused lane after correct
 enum source guard. Changed-source validation is submitted to GitHub CI after this commit;
 no local test/build/check/clippy/smoke or validation script runs. The card remains partial/source:
 Gateway/IdP integration, cross-process token-file CAS and product-chain recovery remain open.
+
+The changed-source run `37162423852` passed the 16 held-refresh races, but its revoke/reload
+fixture exposed a token-file inconsistency: revocation removes refresh material while keeping
+its digest in memory, and the old codec reconstructed metadata only from remaining material.
+The file envelope now stores an optional refresh digest, preserving revoked/reauth metadata
+across reload. A present token must match that digest; an active token cannot claim a refresh
+digest without material. Old active v1 files still derive the digest from their token. Historical
+files that already discarded the digest cannot recover it. Additional CI fixtures cover all
+three fencing transitions, zero refresh after reload and malformed/missing material binding.
