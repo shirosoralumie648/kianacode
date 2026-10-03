@@ -1,0 +1,28 @@
+name: SC-02 security IDs and schema contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-02 domain fixture
+        run: cargo test -p kiana-domain --test sc02_security_contract --locked -- --test-threads=1
+      - name: Run SC-02 source guard
+        run: cargo test -p kiana-core --test sc02_security_contract_guard --locked -- --test-threads=1
+      - name: Compile SC-02 targets
+        run: cargo test -p kiana-domain --test sc02_security_contract --no-run --locked
+      - name: Compile SC-02 Core guard target
+        run: cargo test -p kiana-core --test sc02_security_contract_guard --no-run --locked
