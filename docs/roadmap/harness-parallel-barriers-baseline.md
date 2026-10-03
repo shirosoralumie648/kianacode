@@ -7,6 +7,7 @@
 | roadmap card | [`H16`](harness.md#step-h16) |
 | feature_status | `implemented`（确定性并行计划与独占 barrier 合同；实际副作用仍逐调用回 ControlPlane） |
 | proof_level | `source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions 负责 fixtures |
+| focused CI | 手动 workflow [`h16-parallel-barriers-diagnostic.yml`](../../.github/workflows/h16-parallel-barriers-diagnostic.yml) 并行运行 `h16_tool_scheduling` 与 `h16_parallel_barriers`；不把未等待的远程结果提升为更高 proof |
 | authority | ToolCatalog owns scheduling/resource metadata; ControlPlane still owns every authorization, permit, result and CAS |
 | this step does | descriptor 标记 `parallel_read`/`exclusive`、粗粒度 resource claims 和 max parallelism；`plan_tool_batch` 保持 assistant source order，把相邻只读调用分组，把写/网络/副作用调用分成单调用独占屏障；Runner 在入队前验证计划，Core 对每个调用独立重验 |
 | this step does not | 不让批次级 Allow 覆盖兄弟调用，不把并行计划当 capability，不让未知资源/目录变化绕过 ControlPlane；跨进程并发池和外部 effect exactly-once 仍未证明 |
