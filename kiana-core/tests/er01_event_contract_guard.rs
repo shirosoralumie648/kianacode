@@ -17,6 +17,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
     let communication = include_str!("../../kiana-core/src/communication.rs");
     let daemon_connectors = include_str!("../../kiana-daemon/src/connectors.rs");
+    let sessions = include_str!("../../kiana-core/src/sessions.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
@@ -355,5 +356,34 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
             daemon_connectors.contains(marker),
             "missing connector daemon producer field {marker}"
         );
+    }
+    for marker in [
+        "SESSION_ASSIGNMENT_IDS",
+        "SESSION_ASSIGNMENT_FIELDS",
+        "\"session.assigned\"",
+    ] {
+        assert!(contracts.contains(marker), "missing session contract marker {marker}");
+    }
+    for marker in [
+        "\"schema\":\"kiana.session-assignment.v1\"",
+        "\"session_id\":context.session_id",
+        "\"actor_id\":context.actor_id",
+        "\"project_root\":Self::canonical_project_root(&context.project_root)",
+        "\"role_id\":role.role_id",
+        "\"department_id\":role.department_id",
+        "\"prompt_hash\":role.prompt_hash",
+        "\"model_profile\":role.model_profile",
+        "\"role_spec_schema\":role.schema",
+        "\"role_version\":role.version",
+        "\"role_catalog_schema\":kiana_domain::ROLE_CATALOG_SCHEMA",
+        "\"role_input_schema\":role.input_schema",
+        "\"role_output_schema\":role.output_schema",
+        "\"authority_epoch\":authority_epoch",
+        "\"principal\":principal",
+        "\"project_identity\":project",
+        "\"assignment\":typed",
+        "\"session.assigned\"",
+    ] {
+        assert!(sessions.contains(marker), "missing session producer field {marker}");
     }
 }

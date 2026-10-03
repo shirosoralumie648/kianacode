@@ -833,6 +833,74 @@ fn connector_health_and_handshake_contracts_match_daemon_producers() {
 }
 
 #[test]
+fn session_assignment_contract_matches_producer() {
+    let spec = event_kind_spec("session.assigned").unwrap();
+    assert_eq!(spec.aggregate_type, "session_assignment");
+    assert_eq!(spec.required_ids, &["session_id"][..]);
+    assert!(!spec.terminal);
+    assert_eq!(
+        event_migration("session.assigned", 0, 1),
+        Some("legacy_session_event_v0_to_v1")
+    );
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "schema",
+            "session_id",
+            "actor_id",
+            "project_root",
+            "role_id",
+            "department_id",
+            "prompt_hash",
+            "model_profile",
+            "role_spec_schema",
+            "role_version",
+            "role_catalog_schema",
+            "role_catalog_version",
+            "role_input_schema",
+            "role_output_schema",
+            "authority_epoch",
+            "principal",
+            "project_identity",
+            "assignment",
+        ][..]
+    );
+    let mut payload = json!({
+        "schema": "kiana.session-assignment.v1",
+        "session_id": "session-1",
+        "actor_id": "actor-1",
+        "project_root": "/workspace/project",
+        "role_id": "builder",
+        "department_id": "engineering",
+        "prompt_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "model_profile": "offline",
+        "role_spec_schema": "kiana.role.v1",
+        "role_version": 1,
+        "role_catalog_schema": "kiana.role-catalog.v1",
+        "role_catalog_version": {},
+        "role_input_schema": "kiana.input.v1",
+        "role_output_schema": "kiana.output.v1",
+        "authority_epoch": 1,
+        "principal": {},
+        "project_identity": {},
+        "assignment": {},
+    });
+    validate_event_payload("session.assigned", &payload).unwrap();
+
+    let mut missing_session = payload.clone();
+    missing_session.as_object_mut().unwrap().remove("session_id");
+    assert_eq!(
+        validate_event_payload("session.assigned", &missing_session).unwrap_err(),
+        "event_required_id_missing:session_id"
+    );
+    payload["unexpected_session_field"] = json!(true);
+    assert_eq!(
+        validate_event_payload("session.assigned", &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");

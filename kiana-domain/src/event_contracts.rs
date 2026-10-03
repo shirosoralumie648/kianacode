@@ -12,6 +12,7 @@ pub const RUNTIME_EVENT_SCHEMA: &str = "kiana.runtime-event.v1";
 pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 const REQUEST_IDS: &[&str] = &["request_id"];
+const SESSION_ASSIGNMENT_IDS: &[&str] = &["session_id"];
 const RUN_IDS: &[&str] = &["run_id"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const CAPABILITY_DECISION_IDS: &[&str] = &[];
@@ -257,6 +258,26 @@ const REQUEST_FIELDS: &[&str] = &[
     "reason",
     "action_digest",
     "request_id",
+];
+const SESSION_ASSIGNMENT_FIELDS: &[&str] = &[
+    "schema",
+    "session_id",
+    "actor_id",
+    "project_root",
+    "role_id",
+    "department_id",
+    "prompt_hash",
+    "model_profile",
+    "role_spec_schema",
+    "role_version",
+    "role_catalog_schema",
+    "role_catalog_version",
+    "role_input_schema",
+    "role_output_schema",
+    "authority_epoch",
+    "principal",
+    "project_identity",
+    "assignment",
 ];
 const COMMUNICATION_FIELDS: &[&str] = &[
     "message",
@@ -1530,8 +1551,8 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "session.assigned",
         "session_assignment",
-        REQUEST_IDS,
-        REQUEST_FIELDS,
+        SESSION_ASSIGNMENT_IDS,
+        SESSION_ASSIGNMENT_FIELDS,
         false,
         Some("legacy_session_event_v0_to_v1")
     ),
