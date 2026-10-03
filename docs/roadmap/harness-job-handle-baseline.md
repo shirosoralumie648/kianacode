@@ -7,6 +7,7 @@
 | roadmap card | [`H17`](harness.md#step-h17) |
 | feature_status | `implemented`（现有 process handler 的 typed handle/owner/authority 接线；跨进程进程恢复仍 fail-closed） |
 | proof_level | `source`；本地仅做格式与 workspace test-target 静态编译，GitHub Actions 负责 fixtures |
+| focused CI | 手动 workflow [`h17-job-handle-diagnostic.yml`](../../.github/workflows/h17-job-handle-diagnostic.yml) 并行运行 domain handle 与 daemon continuation fixtures；不把未等待的远程结果提升为更高 proof |
 | authority | Every `process.start/poll/stdin/resize/stop` remains a separate ControlPlane invocation/permit; JobHandle is evidence, not authority |
 | this step does | `JobHandle` 绑定 start request/invocation、Run/Turn、owner/session、project digest、authority epoch、process-group evidence 和 TTL；start 先写 prepared，再写 started handle；continuation 重新校验 owner/scope/authority/expiry，poll 提供 cursor，重启无 live process 只能读取已落盘 outcome |
 | this step does not | 不用 PID 单独认领进程，不重复 start 伪装 poll，不把后台句柄变成权限或取消逃生口；跨进程 PID/进程组恢复与完整 Artifact/stream durability 仍未实现 |

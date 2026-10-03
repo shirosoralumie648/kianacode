@@ -1,0 +1,31 @@
+name: H17 job handle diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    name: H17 ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: domain-job-handle
+            package: kiana-domain
+            target: h17_job_handle
+          - name: daemon-job-handle
+            package: kiana-daemon
+            target: h17_job_handle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run focused H17 target
+        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1

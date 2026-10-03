@@ -20488,6 +20488,21 @@ limitations: no local runtime result, bounded worker pool, cross-process resourc
 reviewer: source review confirmed server-owned scheduling metadata, source-order grouping, exclusive barrier semantics and independent ControlPlane revalidation; no local runtime reviewer
 ```
 
+### H17 focused job-handle diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h17-job-handle-diagnostic.yml; kiana-domain/src/{job_handle.rs,contracts.rs,lib.rs}; kiana-daemon/src/execution_control.rs; kiana-core/src/capabilities.rs; tests kiana-domain/h17_job_handle.rs and kiana-daemon/h17_job_handle.rs
+worktree_status: restored a manual GitHub-only focused workflow for existing H17 typed handle and daemon continuation guards; no process behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h17-job-handle-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain h17_job_handle and kiana-daemon h17_job_handle; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H17 remains roadmap row 258 / current row 169 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for typed owner/authority/TTL fencing, restart no-attach and operation-level invocation boundaries
+proof-level change: none
+limitations: no local runtime result, cross-process JobHandle projector, process-group persistence, full output Artifact durability or external/live/physical proof
+reviewer: source review confirmed handle digest/identity binding, owner/run/turn/authority/expiry checks, no-PID-attach restart path and separate continuation operations; no local runtime reviewer
+```
+
 ### H14 focused correction receipt (2026-10-03)
 
 ```text
