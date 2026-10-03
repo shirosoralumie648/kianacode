@@ -450,6 +450,7 @@ struct AttemptState {
     capability_id: String,
     operation: String,
     action_digest: String,
+    action_digest_trusted: bool,
     admission: CapabilityAdmissionState,
     approval: CapabilityApprovalState,
     effect: CapabilityEffectState,
@@ -473,6 +474,7 @@ impl AttemptState {
         capability: String,
         operation: String,
         digest: String,
+        digest_trusted: bool,
     ) -> Self {
         Self {
             run_id,
@@ -486,6 +488,7 @@ impl AttemptState {
             capability_id: capability,
             operation,
             action_digest: digest,
+            action_digest_trusted: digest_trusted,
             admission: CapabilityAdmissionState::Unknown,
             approval: CapabilityApprovalState::NotRequired,
             effect: CapabilityEffectState::NotStarted,
@@ -590,12 +593,13 @@ impl AttemptState {
             .find_map(|name| event.data.get(*name).and_then(Value::as_str))
         {
             if digest.starts_with("sha256:") && digest != self.action_digest {
-                if self.action_digest.starts_with("sha256:") && self.action_digest != digest {
+                if self.action_digest_trusted {
                     return Err(CapabilityAttemptProjectionError::TerminalConflict(
                         "action_digest_conflict".to_owned(),
                     ));
                 }
                 self.action_digest = digest.to_owned();
+                self.action_digest_trusted = true;
             }
         }
         match event.kind.as_str() {
@@ -669,6 +673,7 @@ impl AttemptState {
                 if let Some(digest) = permit_field::<String>(event, "action_digest") {
                     if digest.starts_with("sha256:") {
                         self.action_digest = digest;
+                        self.action_digest_trusted = true;
                     } else {
                         self.malformed = true;
                     }
@@ -1026,6 +1031,7 @@ pub fn project_capability_attempts(
                 capability_id.clone(),
                 operation.clone(),
                 action_digest.clone(),
+                digest_present && !digest_malformed,
             )
         });
         state.malformed |= capability_malformed || operation_malformed || digest_malformed;
