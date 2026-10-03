@@ -969,15 +969,38 @@ pub fn project_capability_attempts(
             return Err(CapabilityAttemptProjectionError::RequestIdMissing);
         };
         let (attempt, _) = parse_attempt(event);
-        let (capability_id, capability_malformed) = capability_label(event.data.get("capability"));
-        let operation = operation_for(event).unwrap_or("unknown").to_owned();
-        let (operation, operation_malformed) = safe_label(
+        let state_exists = states.contains_key(&(request_id, attempt));
+        let capability_value = event.data.get("capability");
+        let (capability_id, capability_malformed) = capability_label(capability_value);
+        let capability_malformed =
+            capability_malformed && (capability_value.is_some() || !state_exists);
+        let operation_value = operation_for(event);
+        let operation_field_present = event.data.get("operation").is_some()
+            || event
+                .data
+                .get("permit")
+                .and_then(|permit| permit.get("operation"))
+                .is_some();
+        let operation = operation_value.unwrap_or("unknown").to_owned();
+        let (operation, operation_label_malformed) = safe_label(
             Some(&Value::String(operation)),
             "unknown",
             MAX_OPERATION_BYTES,
         );
+        let operation_malformed = operation_label_malformed
+            || (operation_field_present && operation_value.is_none())
+            || (!state_exists && operation_value.is_none());
         let (action_digest, digest_malformed) =
             digest_for(event, &capability_id, &operation, request_id);
+        let digest_present = ["action_digest", "args_fingerprint"]
+            .iter()
+            .any(|name| event.data.get(*name).is_some())
+            || event
+                .data
+                .get("permit")
+                .and_then(|permit| permit.get("action_digest"))
+                .is_some();
+        let digest_malformed = digest_malformed && (digest_present || !state_exists);
         if is_terminal_result_event(&event.kind) && !states.contains_key(&(request_id, attempt)) {
             return Err(CapabilityAttemptProjectionError::ForeignAttemptResult(
                 format!("{}:{attempt}", request_id),
