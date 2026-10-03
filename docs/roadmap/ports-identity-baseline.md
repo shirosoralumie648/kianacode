@@ -176,3 +176,11 @@ guard (`1/1`) but failed its final workspace test compile because unrelated
 manual lane now compiles only `ci03_ports` and `ci03_ports_guard` with target-scoped `--no-run`
 commands. No product code or assertion changed; a fresh remote receipt is required before any
 status or proof-level promotion.
+
+## 14. Corrected focused CI receipt (2026-10-03)
+
+Run `37128865323` at head `9a7048bf` completed successfully. Formatting, the CI-03 ports fixture,
+the Core source guard, and both target-scoped `--no-run` compilation steps all passed. This confirms
+the focused lane after removing the unrelated workspace `nm01_contracts.rs` compile dependency.
+The roadmap row remains `🔄` / `partial/source`; production adapters and durable credential/identity
+behavior are outside this receipt.

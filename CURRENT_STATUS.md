@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### CI-03 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `9a7048bf`; .github/workflows/ci03-ports.yml; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs; docs/roadmap/ports-identity-baseline.md
+worktree_status: formatting, CI-03 ports fixture, Core source guard and both target-scoped no-run compile steps passed; no product code or assertion changed in the gate correction
+command_argv: gh run view 37128865323 --json status,conclusion,headSha,jobs,url; gh run view 37128865323 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: CI-03 port contract target success; CI-03 Core guard target success; ports and Core targets compiled with `--no-run`
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CI-03 remains roadmap row 086 `🔄` / `feature_status=partial` / `proof_level=source`; the target-scoped lane now has a current successful receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: raw compatibility resolver methods remain callable; production IdentityResolver/ConfigSnapshotStore/CredentialResolver adapters, SecretStore/lease/OAuth, durable identity/rotation/revoke, cancellation/recovery and provider/live effects remain open
+reviewer: exact focused job steps and target-scoped compile results reviewed; no local runtime reviewer
+```
+
 ### OA-02 focused correlation workflow (2026-10-03)
 
 ```text
