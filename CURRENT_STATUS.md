@@ -19978,6 +19978,36 @@ limitations: selected producers only; generic EventStore validator is not wired,
 reviewer: exact GitHub logs and source review of the assignment-support correction; no local runtime reviewer
 ```
 
+### ER-01 EventStore registry enforcement source slice (2026-10-03)
+
+```text
+source_snapshot: `01cd2814`; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/er01_event_contract_guard.rs
+worktree_status: shared Memory/JSONL append planner now invokes domain validate_runtime_event before identity/audit/governance/secret/CAS/idempotency/storage work; focused deny-first fixture added; no second store path
+command_argv: source trace of plan_append/plan_idempotent_append and both adapters; cargo fmt --all; cargo fmt --all --check; git diff --check; gh workflow run er01-event-schema.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively executes runtime targets
+fixture·cassette: event_store_enforces_registered_payload_ids_and_unknown_fields; Core guard asserts shared planner call; manual run 37093780910 at 01cd2814 pending
+exit_code: local format/diff 0; remote runtime pending
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; generic EventStore enforcement has a source slice and focused fixture
+proof-level change: none
+limitations: existing malformed known-kind fixtures may fail and require honest migration; no complete upcasters, run.rejected aggregate decision, terminal/result reconciliation, durable/live/physical claim
+reviewer: source review of shared planner and MemoryEventLog deny-first path; no local runtime reviewer
+```
+
+### H05 incomplete-stop diagnostic retention fixture (2026-10-03)
+
+```text
+source_snapshot: isolated commit `f27e0c2e8c7505f6f4e016651163d1b7d36e1349`; kiana-runner/tests/h05_stop_guard.rs; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: incomplete-stop fixture now asserts normalized stop=incomplete, outcome stop_reason=incomplete and error_code=model_transport_incomplete; zero capability handoff/completion assertions remain; no production/shard/manifest change
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick f27e0c2; no local tests/build/check/clippy/smoke
+cwd·environment: isolated H05 worktree integrated at repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: incomplete_stop_never_dispatches_tools_or_completes_turn in existing kiana-runner shard; fresh receipt pending
+exit_code: isolated format/diff 0; no local runtime result
+status_change: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; incomplete diagnostic retention is now pinned next to length-stop
+proof-level change: none
+limitations: no current-head receipt; no automatic repair/retry, ContextRepair producer, provider live/external effect, billing or physical claim
+reviewer: source review confirmed bounded metadata assertions preserve original deny-first checks; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
@@ -20021,6 +20051,21 @@ status_change: CO-06 row 065 remains 🔄 / feature_status=partial / proof_level
 proof-level change: none
 limitations: no proven recursion/production root cause; Future size alone is not peak stack use; GDB signal-stop/255 is diagnostic failure, not test success; unchanged cross-store atomicity, UI original/current, recovery and durability gaps
 reviewer: exact remote phase logs and diagnostic/source review
+```
+
+### CO-06 complete router Future boundary receipt (2026-10-03)
+
+```text
+source_snapshot: `dc8e3c35`; kiana-core/src/commands.rs; kiana-daemon/tests/co06_company_artifact_history.rs; .github/workflows/co06-history-diagnostic.yml
+worktree_status: public handle_command now returns a boxed Send future from a small wrapper; private inner router preserves existing routing/auth/effect path; earlier Company-branch-only box remains falsified; no stack-size tweak or fixture bypass
+command_argv: gh run view 37092002135 --job 111114125097 --log; gh run view 37092793856 --job 111116497751 --log; gh run view 37093781220 --job 111119434059 --log; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions runtime authority
+fixture·cassette: artifact_version_remains_reviewable_after_workspace_file_changes; run 37093781220 / job 111119434059 / head 01cd2814: boxed future 16 bytes, Company command complete on every call, test 1/1, debugger/log exit 0, no SIGSEGV/SIGABRT
+exit_code: prior local-box experiment run 37092793856 debugger 255/SIGSEGV; complete-router run target 0
+status_change: CO-06 row 065 remains 🔄 / feature_status=partial / proof_level=source; the async stack boundary has a focused successful receipt, while artifact/reconciliation behavior remains incomplete
+proof-level change: none; focused CI behavior does not establish durable/live/physical proof
+limitations: wider CO-06 daemon/workspace shards can fail independently; cross-store atomicity/reconciliation, original/current UI, recovery, retention and durability remain open
+reviewer: exact GDB logs, API compatibility, and source review; no local runtime reviewer
 ```
 
 ### CI-03 checked credential resolution reference binding (2026-10-03)

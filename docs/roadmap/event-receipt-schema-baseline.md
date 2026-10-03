@@ -852,6 +852,27 @@ limitations: selected ControlPlane producers only; generic EventStore validator 
 reviewer: exact GitHub receipt and source review of the assignment-support correction
 ```
 
+## 5.34 EventStore registry enforcement source slice
+
+The shared EventStore append planner now invokes `kiana_domain::validate_runtime_event` before
+identity, audit, governance, secret, CAS, idempotency or storage work. A focused eventlog fixture
+checks missing required IDs and unknown fields through the real `MemoryEventLog` adapter, and the
+Core source guard pins this call at the single shared planner. This changes the fact boundary for
+known registered kinds; opaque legacy kinds still follow the domain unknown-kind policy.
+
+```text
+source_snapshot: `01cd2814`; kiana-eventlog/src/event_store_core.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/er01_event_contract_guard.rs
+worktree_status: registry validation is wired before all adapter state changes; no adapter-specific bypass or second EventStore path added
+command_argv: source trace of MemoryEventLog/JsonlEventLog through event_store_core::plan_*; cargo fmt --all; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: event_store_enforces_registered_payload_ids_and_unknown_fields; Core guard asserts shared planner call; fresh manual ER-01 run `37093780910` pending
+exit_code: local format/diff 0; remote runtime pending
+status_change: ER-01 remains row 036 🔄 / partial / source; generic EventStore validation has a source implementation and focused fixture, with compatibility fallout to be classified by CI
+proof-level change: none
+limitations: legacy test fixtures using malformed known-kind payloads may require migration; no global migration/upcaster, run.rejected aggregate choice, terminal/result union completion or durable/live promotion
+reviewer: source review of both adapters' shared planner and deny-first fixture
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

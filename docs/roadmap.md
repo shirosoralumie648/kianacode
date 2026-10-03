@@ -212,7 +212,7 @@
 | 044 | W1 | 专项 | [`H02`](roadmap/harness.md#step-h02) | Harness · Session / Run / Turn / Step 的身份与生命周期 | `H01` | ✅ | [专项卡](roadmap/harness.md#step-h02) |
 | 045 | W1 | 专项 | [`H03`](roadmap/harness.md#step-h03) | Harness · 将 KianaHarness 收敛为单一状态驱动器 | `H02` | ✅ | [专项卡](roadmap/harness.md#step-h03) |
 | 046 | W1 | 专项 | [`H04`](roadmap/harness.md#step-h04) | Harness · 结构化模型消息与无损 Provider 转换 | `H03` | ✅ | [专项卡](roadmap/harness.md#step-h04) |
-| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类；length-stop 夹具现在要求保留 ModelTurn stop/error diagnostics，新断言等待 GitHub CI | `H04` | 🔄 | [专项卡](roadmap/harness.md#step-h05) · [baseline](roadmap/harness-stop-retry-baseline.md) |
+| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类；length/incomplete-stop 夹具均要求保留 typed ModelTurn stop/error diagnostics，最新断言等待 GitHub CI | `H04` | 🔄 | [专项卡](roadmap/harness.md#step-h05) · [baseline](roadmap/harness-stop-retry-baseline.md) |
 | 048 | W1 | 专项 | [`P4-J7-05`](roadmap/provider.md#step-p4-j7-05) | Provider · 非流式工具响应必须严格解析 | `P4-J7-04` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-05) |
 | 049 | W1 | 专项 | [`CM-01`](roadmap/context-memory.md#step-cm-01) | Context / Memory · 建立共享来源与 scope 值对象 | `CM-00` | ✅ | [专项卡](roadmap/context-memory.md#step-cm-01) |
 | 050 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | 🔄 | [专项卡](roadmap/context-memory.md#step-cm-02) |
@@ -230,7 +230,7 @@
 | 062 | W1 | 专项 | [`CO-03`](roadmap/companyos.md#step-co-03) | CompanyOS · 角色任命、有效期与撤销接入服务端身份 | `CO-02` | ✅ | [专项卡](roadmap/companyos.md#step-co-03) |
 | 063 | W1 | 专项 | [`CO-04`](roadmap/companyos.md#step-co-04) | CompanyOS · 五部门与专业岗位成为版本化目录 | `CO-03` | ✅ | [专项卡](roadmap/companyos.md#step-co-04) |
 | 064 | W1 | 专项 | [`CO-05`](roadmap/companyos.md#step-co-05) | CompanyOS · 业务命令权限、责任和人工决定合同 | `CO-03`、`CO-04` | ✅ | [专项卡](roadmap/companyos.md#step-co-05) |
-| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同；CI 已定位首次 Company command 栈溢出；保持默认栈的 GitHub GDB/Future-size 诊断已启动 | `CO-02`、`CO-05` | 🔄 | [专项卡](roadmap/companyos.md#step-co-06) · [baseline](roadmap/artifact-evidence-baseline.md) |
+| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同；CI 已定位并修复完整命令路由 Future 栈帧边界，最新 GDB 回执待观察 | `CO-02`、`CO-05` | 🔄 | [专项卡](roadmap/companyos.md#step-co-06) · [baseline](roadmap/artifact-evidence-baseline.md) |
 | 066 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ✅ | [专项卡](roadmap/companyos.md#step-co-07) |
 | 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | 🔄 | [专项卡](roadmap/companyos.md#step-co-08) |
 | 068 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ✅ | [基础卡](#step-p0-a-01b) |
@@ -1472,9 +1472,12 @@
 | 2026-10-03 | `ER-01` run capability/approval-wait contracts：requested/blocked 使用精确 producer union；awaiting approval 补 approval_id 字段并要求 run/capability request/approval 三 ID；保持 attempt terminal 与 run terminal 区别，不启用 generic validator，不运行本地测试 | `472eb3b4` + `879e2aa6` |
 | 2026-10-03 | `ER-01` actual ControlPlane producer fixtures：invalid prompt/role/department 拒绝且 Runner/Broker 零调用，从真实 EventLog 验证 authorized/prompt/started/delta/receipt/session assignment payload、身份与幂等；manual CI 新增 er01_real_ job，不改产品/shards，不运行本地测试 | `0b4045a0` + `26bc10b6` |
 | 2026-10-03 | `H05` length-stop diagnostic fixture：现有拒绝测试继续确认不 handoff、不完成，并要求 `RunnerEvent::ModelTurn` 留下 normalized `length` 和 `model_output_truncated`；仅增加 CI 断言，不改 stop/retry/repair 行为；不运行本地测试，远端 receipt pending，状态仍 `🔄` / `partial` / `source` | 待本提交 |
+| 2026-10-03 | `H05` incomplete-stop diagnostic fixture：对称要求 `RunnerEvent::ModelTurn` 保留 normalized `incomplete`、outcome stop reason 与 `model_transport_incomplete`，继续断言零 capability handoff/零完成；仅增加 CI 断言，不改运行行为；不运行本地测试，receipt 待 GitHub | `f27e0c2` |
 | 2026-10-03 | `ER-01` exact manual CI receipt：run `37091699872` / head `6265363e` 完整 domain 31/31、Core guard 1/1；真实 producer 拒绝用例通过，成功用例在模型分配阶段被测试 Runner 默认拒绝，修正端口支持待提交。仅记录精确目标证据；无本地测试，ER-01 保持 🔄 / partial / source | `6265363e` (observed source) |
 | 2026-10-03 | `ER-01` complete manual acceptance：run `37092219974` / head `4fffbe43` 完整 domain 31/31、Core guard 1/1、真实 ControlPlane producer 2/2；模型分配测试端口修正后成功事件路径也通过。仍不宣称通用 EventStore 强制或 ER-01 完成，状态保持 🔄 / partial / source | `4fffbe43` |
 | 2026-10-03 | `CO-06` exact overflow boundary：run `37090467881` 的 authority sync 完成、首次 Company command 栈溢出；source `4c7bdb4f` 增加单目标手动 GDB（默认栈、每线程最多48帧、无参数/locals）与只读 Future 类型字节数，run `37092002135` 已启动；未猜测生产根因，状态保持 🔄 / partial / source，无本地测试或编译 | `4c7bdb4f` |
+| 2026-10-03 | `CO-06` router-boundary fix：run `37092002135` 证实局部 Company 分支 `Box::pin` 未改变 58248-byte `handle_command` Future，仍在入口 SIGSEGV；source `dc8e3c35` 将整个公开 command router 改为 boxed Future，保留同一 inner ControlPlane/auth path，run `37093781220` 已启动，未运行本地测试 | `dc8e3c35` |
+| 2026-10-03 | `ER-01` EventStore enforcement source slice：domain registry validator 接入 Memory/JSONL 共用 append planner；新增真实 adapter deny-first fixture 和 Core source guard，CI receipt 待观察，状态仍 🔄 / partial / source | `01cd2814` |
 | 2026-10-03 | `CO-06` stack-overflow diagnostics：daemon CI 在多个目标出现栈溢出，静态源码追踪尚未证实生产根因；只在历史工件集成夹具的 authority synchronization 与 Company command 边界加入 value-free 固定 phase markers，不改生产逻辑；本地不运行测试，下一次 CI 输出待观察，CO-06 保持 🔄 / `partial` / `source` | 待本提交 |
 | 2026-10-03 | `CI-03` checked credential resolution：新增 `CredentialResolution::validate_for` 与 `resolve_credential_checked`，stale SecretRef/generation 返回 typed conflict；保留 raw compatibility method，新增 CI-only stale-generation fixture，不运行本地测试，fresh receipt pending，CI-03 保持 🔄 / `partial` / `source` | 待本提交 |
 | 2026-10-03 | `CAP-02` contradictory schema bounds：domain validator 现在拒绝空 length/items/numeric ranges，并针对只包含 `integer` 的声明类型检查整数见证；包含 `number` 或其他可能类型的 union 保留有效 fractional/string witnesses。新增拒绝/接受矩阵并沿用既有 CI selectors；格式/diff 检查通过，不运行本地测试；统一 CI 与手动 focused workflow 回执等待中，状态保持 `🔄` / `partial` / `source` | 待本提交 |

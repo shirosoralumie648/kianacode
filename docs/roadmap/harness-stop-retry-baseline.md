@@ -96,6 +96,26 @@ limitations: this is fixture-only evidence once CI runs; it does not establish a
 reviewer: source review confirmed the assertions inspect only bounded ModelTurn metadata and preserve the existing zero-handoff/zero-completion checks; no local runtime reviewer
 ```
 
+## 4.2 Incomplete-stop diagnostic preservation (2026-10-03)
+
+The existing `incomplete_stop_never_dispatches_tools_or_completes_turn` fixture now mirrors the
+length-stop boundary: it requires a retained `RunnerEvent::ModelTurn` with normalized stop
+`incomplete`, outcome stop reason `incomplete`, and bounded error code
+`model_transport_incomplete`, while preserving zero capability handoff and zero completion.
+
+```text
+source_snapshot: isolated commit `f27e0c2e8c7505f6f4e016651163d1b7d36e1349`; kiana-runner/tests/h05_stop_guard.rs
+worktree_status: fixture-only diagnostic assertions; no production stop/retry/repair behavior, manifest, lockfile or shard map changed
+command_argv: isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick f27e0c2; no local tests/build/check/clippy/smoke
+cwd·environment: isolated H05 worktree integrated at repository root Linux/bash; GitHub Actions is the only runtime test authority
+fixture·cassette: `incomplete_stop_never_dispatches_tools_or_completes_turn` in the existing kiana-runner shard; fresh receipt pending after push
+exit_code: isolated format/diff 0; no local runtime result
+status_change: H05 remains row 047 🔄 / partial / source; incomplete-stop diagnostic retention is now pinned beside length-stop
+proof-level change: none
+limitations: no current-head receipt yet; no automatic repair/retry, ContextRepair producer, provider live behavior, external effect, billing or physical proof
+reviewer: source review preserved original zero-handoff/zero-completion checks and added only bounded ModelTurn metadata assertions
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。

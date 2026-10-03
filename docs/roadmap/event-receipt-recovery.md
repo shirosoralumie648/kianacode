@@ -227,7 +227,7 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **动作：** 建立 machine-readable `EventKindSpec`（schema/version、aggregate、required IDs、terminal/secret policy、migration）；为现有 RuntimeEvent 保留 legacy decode，新增 required/optional 字段规则和 unknown kind policy。
 - **先拒绝：** `unknown_required_event_kind_fails_closed`、`event_schema_version_cannot_downgrade`、`event_payload_unknown_field_is_not_silently_dropped`。
 - **成功/回归：** 关键公开 kind 有 owner、serde round trip、migration fixture 和 payload validator；旧 RuntimeEvent/JSONL 只读兼容继续保留，新增 registry/version/unknown guard 由 GitHub CI 执行。
-- **当前证据：** producer 字段矩阵与各 source snapshot 见 [schema baseline](event-receipt-schema-baseline.md) §5.3–§5.33。manual run `37092219974`（head `4fffbe43`）完整 domain target 通过 31/31、Core source guard 通过 1/1，真实 ControlPlane selector 通过 2/2；成功夹具读取并验证真实 lifecycle/session producer 写入的事件，拒绝夹具保持零 Runner/Broker 调用。通用 EventStore validator 未接线，legacy migration 名称不等于已运行 upcaster，状态保持 `partial` / `source`。`run.rejected` 三类 aggregate 的命名决策仍待选择。
+- **当前证据：** producer 字段矩阵与各 source snapshot 见 [schema baseline](event-receipt-schema-baseline.md) §5.3–§5.34。manual run `37092219974`（head `4fffbe43`）完整 domain target 通过 31/31、Core source guard 通过 1/1，真实 ControlPlane selector 通过 2/2；成功夹具读取并验证真实 lifecycle/session producer 写入的事件，拒绝夹具保持零 Runner/Broker 调用。source `01cd2814` 已把 domain registry validator 接入 EventStore 共享 append planner，新的兼容性回执待观察。legacy migration 名称不等于已运行 upcaster，状态保持 `partial` / `source`。`run.rejected` 三类 aggregate 的命名决策仍待选择。
 
 <a id="step-er-02"></a>
 

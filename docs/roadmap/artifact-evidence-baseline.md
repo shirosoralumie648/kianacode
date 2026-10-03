@@ -242,11 +242,15 @@ RegisterArtifact denial; the new historical CompanyProof readback has not yet be
 Source inspection has not established recursion or a production cause. The old exact target pass
 at `c9c17dac` does not validate this later fixture shape.
 
-Source `4c7bdb4f` adds a manual GitHub-only debugger workflow. It compiles only this target with
-debug info, preserves the default stack, stops on SIGSEGV/SIGABRT and records at most 48 frames per
-thread without arguments or locals. The fixture logs the handle_command Future type's byte size
-without constructing or polling it. Run `37092002135` was dispatched at that exact source head;
-its result is pending. Diagnostic failure is retained as failure and cannot count as a test pass.
+Source `4c7bdb4f` added a manual GitHub-only debugger workflow. Run `37092002135` then measured the
+Future at 58,248 bytes and stopped on SIGSEGV at the `handle_command` entry after the Company
+command marker; no recursion frames were present. The first production attempt, source `c5a19c84`,
+boxed only the Company branch and run `37092793856` reproduced the same 58,248-byte entry crash.
+That experiment is falsified and is not counted as a fix. Source `dc8e3c35` now boxes the complete
+public command-router future and keeps the original inner route. Manual run `37093781220` / job
+`111119434059` at head `01cd2814` measured a 16-byte boxed future, printed the Company command
+complete marker on every call, and exited normally with the fixture passing 1/1. This exact GDB
+target is a successful focused receipt; it does not make the wider CO-06 card complete.
 
 ```text
 source_snapshot: 4c7bdb4f1229bd9cab2cf471138abe468a284bb6; .github/workflows/co06-history-diagnostic.yml; kiana-daemon/tests/co06_company_artifact_history.rs; observed prior head c55b2bb2
@@ -254,9 +258,30 @@ worktree_status: manual-only diagnostic and test-only Future-size marker integra
 command_argv: gh run view 37090467881 --job 111109559933 --log; gh run view 37073823121 --job 111059534609 --log; source trace; git cherry-pick 7ae65c7a; cargo fmt --all --check; git diff HEAD^ --check; git push origin master; gh workflow run co06-history-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke/validator
 cwd·environment: isolated /tmp/kiana-co06-gdb-diagnostic-20261003 integrated at repository root Linux/bash; runtime compilation and GDB execute only on GitHub
 fixture·cassette: artifact_version_remains_reviewable_after_workspace_file_changes exact selector; manual run 37092002135 / job 111114125097 at 4c7bdb4f; debug=1, strip=none, default stack, bounded 90-second GDB capture and seven-day evidence artifact
-exit_code: prior daemon target SIGABRT/Cargo 101; local formatting/diff and dispatch 0; new remote diagnostic pending
-status_change: CO-06 remains row 065 🔄 / partial / source; authority setup is now excluded from the observed overflow boundary and exact stack evidence is requested
+exit_code: prior daemon target SIGABRT/Cargo 101; run 37092002135 debugger 255 after SIGSEGV; run 37092793856 same boundary after local branch boxing; run 37093781220 debugger/log 0 and target 1/1; local formatting/diff/dispatch 0
+status_change: CO-06 remains row 065 🔄 / partial / source; exact overflow boundary is established, first candidate falsified, complete router boxing target passes, and wider artifact/reconciliation gaps remain
 proof-level change: none
 limitations: debugger execution can return 255 when stopped on a signal and is not fixture success; large async Future/stack use is only a hypothesis until exact frames/byte counts arrive; cross-store atomicity, original/current UI, recovery/reconciliation, retention and durability remain open
 reviewer: exact daemon phase output plus source and bounded-diagnostic review
+```
+
+## 14. 2026-10-03 Complete router Future boundary candidate
+
+The `ControlPlane::handle_command` public method now returns a boxed `Send` future from a small
+synchronous wrapper; its former monolithic async body is private `handle_command_inner`. All callers
+still await the same result, while routing, policy, gates, approvals, broker dispatch and the
+Company handler remain unchanged. This is a stack-frame/heap-layout fix at the existing command
+boundary, not another execution loop.
+
+```text
+source_snapshot: `dc8e3c35`; kiana-core/src/commands.rs; kiana-daemon/tests/co06_company_artifact_history.rs; .github/workflows/co06-history-diagnostic.yml
+worktree_status: complete router future boxed; the earlier Company-branch-only experiment remains recorded as falsified; no fixture bypass or stack-size change
+command_argv: exact GDB logs from runs 37092002135 and 37092793856; source commit dc8e3c35; cargo fmt --all --check; git diff --check; gh workflow run co06-history-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: isolated source worktree integrated at repository root Linux/bash; runtime proof only on GitHub
+fixture·cassette: artifact_version_remains_reviewable_after_workspace_file_changes; manual run 37093781220 / job 111119434059 at head 01cd2814; boxed future 16 bytes, Company command complete, target 1/1
+exit_code: source format/diff 0; GDB target and log exit 0; test result 1 passed
+status_change: CO-06 remains row 065 🔄 / partial / source; router stack boundary has a complete focused CI receipt, while cross-store/review/recovery contracts remain open
+proof-level change: none
+limitations: no claim until fresh GDB/daemon target; cross-store atomicity/reconciliation, original/current UI, recovery, retention and durability remain open
+reviewer: source/API compatibility review and exact debugger evidence; no local runtime reviewer
 ```
