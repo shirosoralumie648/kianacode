@@ -829,6 +829,29 @@ limitations: success producer fixture stopped before lifecycle validation; gener
 reviewer: exact GitHub target logs plus producer/Runner source review
 ```
 
+## 5.33 Complete ER-01 manual acceptance receipt
+
+Manual run `37092219974` at `4fffbe43` passed all three selected jobs: the complete domain
+contract target (`31/31`, job `111114776489`), the Core source guard (`1/1`, job
+`111114776517`), and the two real ControlPlane producer fixtures (`2/2`, job `111114776310`).
+The latter retains the deny-before-execution checks and validates the successful lifecycle and
+session-assignment events written by the real ControlPlane after the Runner assignment support was
+fixed. This is still a bounded source/fixture acceptance, not a generic EventStore enforcement
+claim.
+
+```text
+source_snapshot: 4fffbe4376fde8a82db4eed4b1ff32da4c290a92; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: producer fixture now supplies the required trusted model-assignment port; all original identity, redaction, event-order, and zero-dispatch assertions remain
+command_argv: gh run view 37092219974 --json headSha,status,conclusion,jobs,url; exact job logs; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; runtime compilation and execution on GitHub Actions
+fixture·cassette: er01_event_contract 31/31; er01_event_contract_guard 1/1; er01_real_ selector 2/2
+exit_code: all three remote jobs 0; local format/diff 0
+status_change: ER-01 remains row 036 🔄 / partial / source; bounded full target and selected real producer behavior now have complete CI receipts
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: selected ControlPlane producers only; generic EventStore validator still is not wired; run.rejected aggregate naming and terminal/result payload reconciliation remain open; migration labels are not executed upcasters
+reviewer: exact GitHub receipt and source review of the assignment-support correction
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

@@ -19963,6 +19963,21 @@ limitations: both session assignment calls completed, but selected lifecycle eve
 reviewer: exact CI logs and source review; no local runtime reviewer
 ```
 
+### ER-01 complete manual acceptance receipt (2026-10-03)
+
+```text
+source_snapshot: 4fffbe4376fde8a82db4eed4b1ff32da4c290a92; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-core/tests/control_plane.rs; .github/workflows/er01-event-schema.yml
+worktree_status: trusted model-assignment support added only to the ER-01 real-producer Runner; all original producer, identity, redaction, event-order, and zero-dispatch assertions retained
+command_argv: gh run view 37092219974 --json headSha,status,conclusion,jobs,url; exact jobs 111114776489, 111114776517, 111114776310; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions exclusively compiled and executed selected targets
+fixture·cassette: er01_event_contract 31/31; er01_event_contract_guard 1/1; er01_real_ selector 2/2; deny-before-execution and successful lifecycle/session producer cases both passed
+exit_code: all selected remote jobs 0; local format/diff 0
+status_change: ER-01 row 036 remains 🔄 / feature_status=partial / proof_level=source; complete bounded target and selected real producer fixtures now have full focused CI receipts
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: selected producers only; generic EventStore validator is not wired, run.rejected aggregate naming and terminal/result union remain open, and migration labels are not executed upcasters
+reviewer: exact GitHub logs and source review of the assignment-support correction; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
