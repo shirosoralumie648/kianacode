@@ -1,0 +1,28 @@
+name: SC-10 approval binding and human inbox
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-10 approval fixture
+        run: cargo test -p kiana-core --test sc10_approval_binding --locked -- --test-threads=1
+      - name: Run SC-10 source guard
+        run: cargo test -p kiana-core --test sc10_approval_guard --locked -- --test-threads=1
+      - name: Compile SC-10 approval target
+        run: cargo test -p kiana-core --test sc10_approval_binding --no-run --locked
+      - name: Compile SC-10 source guard target
+        run: cargo test -p kiana-core --test sc10_approval_guard --no-run --locked
