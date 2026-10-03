@@ -129,7 +129,7 @@ fn assert_secret_rejected_at_wire_boundaries<T>(
 
 fn assert_serde_rejects<T>(value: &T, payload: serde_json::Value, expected_error: &str)
 where
-    T: Serialize + DeserializeOwned,
+    T: Serialize + DeserializeOwned + std::fmt::Debug,
 {
     let serialization_error = serde_json::to_vec(value).unwrap_err().to_string();
     assert!(serialization_error.contains(expected_error));
@@ -338,22 +338,22 @@ fn notification_dtos_validate_and_redact_at_wire_boundaries() {
 
 #[test]
 fn notification_dtos_reject_unknown_schema_versions_at_wire_boundaries() {
-    let mut notification = notification();
-    notification.schema = "kiana.notification.v9".to_owned();
+    let mut invalid_notification_schema = notification();
+    invalid_notification_schema.schema = "kiana.notification.v9".to_owned();
     let mut notification_payload = serde_json::to_value(notification()).unwrap();
     notification_payload["schema"] = json!("kiana.notification.v9");
     assert_serde_rejects(
-        &notification,
+        &invalid_notification_schema,
         notification_payload,
         "notification_schema_invalid",
     );
 
-    let mut subscription = subscription();
-    subscription.schema = "kiana.notification-subscription.v9".to_owned();
+    let mut invalid_subscription_schema = subscription();
+    invalid_subscription_schema.schema = "kiana.notification-subscription.v9".to_owned();
     let mut subscription_payload = serde_json::to_value(subscription()).unwrap();
     subscription_payload["schema"] = json!("kiana.notification-subscription.v9");
     assert_serde_rejects(
-        &subscription,
+        &invalid_subscription_schema,
         subscription_payload,
         "subscription_schema_invalid",
     );

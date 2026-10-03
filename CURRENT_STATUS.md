@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### NM-01 focused compile correction and lane restoration (2026-10-03)
+
+```text
+source_snapshot: `f151095e`; .github/workflows/nm01-contracts.yml; kiana-domain/tests/nm01_contracts.rs; kiana-core/tests/nm01_contracts_guard.rs; kiana-core/tests/notifications_baseline.rs; docs/roadmap/notifications-contracts-baseline.md
+worktree_status: prior broad compile failed in the NM-01 test file with E0277 (`assert_serde_rejects` missing `Debug`) and two E0618 helper-shadowing errors; correction adds only the required test bound and renames invalid-schema locals, preserving all assertions/expected codes; focused lane now includes domain, Core guard, NM-00 baseline and target-scoped no-run compiles
+command_argv: gh run view 37121635967 --job 111219731492 --log; git show 763785f0:kiana-domain/tests/nm01_contracts.rs; git diff --check; git push origin master; gh workflow run nm01-contracts.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `nm01_contracts`, `nm01_contracts_guard`, `notifications_baseline`; each has a target-scoped `cargo test --no-run --locked` compile step; fresh run pending after push
+exit_code: prior remote broad compile 1 on test-file errors; source/diff checks 0; no local runtime exit code
+status_change: NM-01 remains roadmap row 097 `🔄` / `feature_status=partial` / `proof_level=source`; the test compilation blocker is corrected without claiming contract acceptance
+proof-level_change: none; source plus remote CI wiring only, fresh focused result pending
+limitations: no NotificationStore, recipient resolver, materializer, outbox, delivery worker, durable read state, external channel or live/physical proof; post-fix target fixtures remain unobserved until GitHub CI
+reviewer: exact GitHub compiler errors and Git-history fixture comparison reviewed; no local runtime reviewer
+```
+
 ### OA-03 focused redaction workflow restored (2026-10-03)
 
 ```text

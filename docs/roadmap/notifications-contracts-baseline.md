@@ -129,3 +129,15 @@ proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: exact target awaits GitHub CI; complete NM-01 closure also depends on the existing bounded body/scope/TTL, canonical bytes, transition, explicit upcast and source-guard acceptance; no notification store, resolver, materializer, outbox, delivery worker, durable read state or external channel is established
 reviewer: source review checked each private representation against public field order/defaults and each Debug implementation against its text-bearing fields; no local runtime reviewer
 ```
+
+## 9. Focused compile correction and lane restoration (2026-10-03)
+
+The previous unified workflow's broad compile gate exposed three test-file errors in
+`kiana-domain/tests/nm01_contracts.rs`: `assert_serde_rejects` lacked the `Debug` bound required by
+`unwrap_err`, and two local values shadowed the `notification()` and `subscription()` helpers.
+The correction only adds that test helper bound and renames those invalid-schema locals; no
+production contract, assertion, or expected error code changed.
+
+A manual focused lane is restored from the historical workflow. It runs the NM-01 domain fixture,
+Core source guard, NM-00 notification baseline guard, and target-scoped `--no-run` compilation for
+all three targets. A fresh GitHub receipt is required before any status or proof-level promotion.
