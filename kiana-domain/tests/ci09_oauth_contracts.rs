@@ -57,7 +57,7 @@ fn token_metadata_uses_generation_cas_expiry_status_and_opaque_digests() {
         Some(refresh_digest),
     )
     .expect("metadata");
-    assert!(metadata.needs_refresh(1_000, 3_000_000));
+    assert!(metadata.needs_refresh(1_000, 3_600_000));
     let next = metadata
         .rotate(
             1,

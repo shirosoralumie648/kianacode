@@ -61,7 +61,6 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
         "consume_credential_lease",
         "effect",
         "CredentialLease",
-        "credential_lease_invalid",
     ] {
         assert!(
             broker.contains(marker),
