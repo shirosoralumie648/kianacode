@@ -20623,6 +20623,21 @@ limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejec
 reviewer: exact second failure and deferred_inputs/ActiveRun completion boundary reviewed; no local runtime reviewer
 ```
 
+### H19 deferred mailbox atomic handoff correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37114684530` / head `ebb79257`; kiana-runner/src/harness.rs and h19 runner fixture
+worktree_status: protocol and Core focused jobs passed; runner still observed one model call after a mailbox visibility guard. The completion fence now atomically removes deferred inputs, inserts them into ActiveRun.inbox with the existing scoped receipt path, and only then evaluates text-only terminal completion
+command_argv: gh run view 37114684530 --log-failed; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H19 runner deferred-steer failed 0/1 at run `37114684530`; protocol/Core were 1/1; fresh receipt awaits atomic mailbox handoff correction
+exit_code: remote runner job failed with model.calls 1 vs 2; protocol/Core jobs 0
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; deferred input transfer is now explicit before terminal completion evaluation
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejected`; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: exact third failure and mailbox visibility/receipt handoff reviewed; no local runtime reviewer
+```
+
 ### H21 focused request-budget diagnostic workflow and status conflict (2026-10-03)
 
 ```text

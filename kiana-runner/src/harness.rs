@@ -1592,16 +1592,21 @@ impl KianaHarness {
 
         if output.tool_calls.is_empty() {
             // DeepSeek: a text-only step ends the turn only when next-step is empty.
-            let deferred_next_step = self
+            let deferred = self
                 .deferred_inputs
                 .lock()
                 .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
-                .get(&run_id)
-                .is_some_and(|inputs| {
-                    inputs
-                        .iter()
-                        .any(|(target, _)| *target == InboxTarget::NextStep)
-                });
+                .remove(&run_id)
+                .unwrap_or_default();
+            let mut deferred_next_step = false;
+            for (target, message) in deferred {
+                if target == InboxTarget::NextStep {
+                    deferred_next_step = true;
+                }
+                run.inbox
+                    .insert_for_run(run_id, target, message)
+                    .map_err(KianaHarnessError::Failed)?;
+            }
             if run.inbox.next_step.is_empty() && !consumed_next_step_input && !deferred_next_step {
                 let ModelOutput {
                     usage,
