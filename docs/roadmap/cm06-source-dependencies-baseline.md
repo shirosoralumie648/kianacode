@@ -30,6 +30,10 @@ cargo check --workspace --tests --locked
 `.github/workflows/cm06-source-dependencies.yml` 在 GitHub Actions 运行 domain fixture、Core
 guard，并只编译这两个 focused test target；本地不等待结果。
 
+当前头 focused receipt：run `37124531526` 的 domain fixture、Core guard 和两个 target-scoped
+compile steps 全部成功。该回执仍只提升 source/CI evidence，不证明 durable graph aggregate、
+cleanup/delete worker、cross-process repair 或 live/physical effects。
+
 ## 限制与交接
 
 - 本步交付的是可重放 graph contract 与 epoch/invalidation projection；graph 还未作为独立

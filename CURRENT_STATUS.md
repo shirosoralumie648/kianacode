@@ -21163,6 +21163,21 @@ limitations: durable graph aggregate, cleanup/delete workers, artifact/index/cac
 reviewer: exact remote closure diff and graph dependency direction reviewed; no local runtime reviewer
 ```
 
+### CM-06 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `d7dc7dec`; .github/workflows/cm06-source-dependencies.yml; kiana-domain/tests/cm06_source_dependencies.rs; kiana-core/tests/cm06_source_dependencies.rs
+worktree_status: corrected reverse-BFS expected closure now includes transitive `summary:1`; domain fixture, Core governance guard and both target-scoped compile steps passed on GitHub
+command_argv: gh run view 37124531526 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: kiana-domain cm06_source_dependencies 2/2, kiana-core cm06_source_dependencies, and domain/Core `cargo test --no-run` target compiles; all jobs success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CM-06 remains roadmap row 155 `🔄` / `feature_status=implemented` / `proof_level=source`; deterministic graph digest/closure, unrelated-source isolation, epoch rollback denial and governance guard now have a current focused receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: graph remains a projection contract rather than an independently durable EventStore aggregate/UI command; cleanup/delete workers, artifact/index/cache integration, cross-process repair, power-loss and external/live/physical proof remain open
+reviewer: exact focused jobs and corrected transitive closure fixture reviewed; no local runtime reviewer
+```
+
 ### CP-12 focused successor fixture correction (2026-10-03)
 
 ```text
