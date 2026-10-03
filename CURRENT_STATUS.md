@@ -21403,6 +21403,21 @@ limitations: this target does not prove the wider CompanyProof artifact readback
 reviewer: exact current-head GDB job and target output reviewed; no local runtime reviewer
 ```
 
+### OA-04 focused failure and source-event precedence correction (2026-10-03)
+
+```text
+source_snapshot: `14095ae4` failure; correction `d40633cb`; .github/workflows/oa04-audit.yml; kiana-domain/src/audit.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/tests/oa04_audit_reducer.rs
+worktree_status: run `37131572343` passed formatting and compiled the domain target, then reported 3/4 domain tests passing; the append-only replay fixture failed because generated audit-id conflict was checked before source-event conflict; correction checks source_event_ids first and mutates neither set until all checks pass
+command_argv: gh run view 37131572343 --json status,conclusion,headSha,jobs,url; gh run view 37131572343 --log-failed; git show 48a99249; git cherry-pick 48a99249; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `reducer_rejects_unbound_or_forged_and_never_overwrites_a_record`; actual `audit_record_conflict`, expected `audit_source_event_conflict`; Core fixtures and compile steps skipped after domain failure
+exit_code: prior remote focused workflow 1; isolated rustfmt/diff checks 0; correction integrated as `d40633cb`; no local runtime exit code
+status_change: OA-04 remains roadmap row 095 `🔄` / `feature_status=partial` / `proof_level=source`; fresh focused rerun is required
+proof-level_change: none; source plus remote failure evidence only
+limitations: EventLog commit observer, checkpoint/rebuild, durable projection, query/export sink, authenticated principal binding and external/live/physical proof remain open
+reviewer: exact failure output, append helper and historical fixture precedence reviewed; no local runtime reviewer
+```
+
 ### CI-03 focused compile-gate correction (2026-10-03)
 
 ```text

@@ -896,3 +896,18 @@ fixtures, the ports boundary fixtures, and both target-scoped `--no-run` compila
 passed. This confirms the focused lane after removing the unrelated workspace `nm01_contracts.rs`
 compile dependency. OA-02 remains `🔄` / `partial/source`; authenticated ingress propagation,
 durable recovery links and exporter/live trace behavior are outside this receipt.
+
+## OA-04 focused failure and precedence correction (2026-10-03)
+
+Run `37131572343` at head `14095ae4` passed formatting and compiled the domain test binary, then
+ran four domain fixtures: three passed and
+`reducer_rejects_unbound_or_forged_and_never_overwrites_a_record` failed. Replaying the same
+EventLog source event also reused its generated audit ID; `append_audit_records` checked the audit
+ID first and returned `audit_record_conflict`, while the stable append-only source identity contract
+and fixture require `audit_source_event_conflict`. Core fixtures and compile steps were skipped by
+the failed domain step.
+
+Commit `d40633cb` changes only the producer-side check order: source-event collisions are detected
+before generated audit-ID collisions, and neither identity set is mutated until all appended records
+pass both checks. Existing validation, duplicate denial, append-only behavior and no-overwrite
+semantics remain intact. A fresh focused CI receipt is required; OA-04 remains `partial/source`.
