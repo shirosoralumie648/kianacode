@@ -618,7 +618,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     }
     assert!(capabilities.contains("Some(run_id) => (\"run\", run_id.to_string())"));
     assert_eq!(
-        lifecycle.matches("\"run.cancelling\"").count(),
+        lifecycle
+            .matches("RuntimeEvent::new(context.request_id, *sequence, \"run.cancelling\", data)")
+            .count(),
         1,
         "expected one lifecycle cancellation writer"
     );
