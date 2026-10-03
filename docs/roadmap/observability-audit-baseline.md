@@ -864,3 +864,11 @@ ports boundary target (`4/4`) but failed its final broad test compile because un
 `oa02_correlation` and `oa02_correlation_port` with target-scoped `--no-run` commands. No
 correlation behavior or fixture assertion changed; a fresh remote receipt is required before any
 status or proof-level promotion.
+
+## 10. Corrected focused CI receipt (2026-10-03)
+
+Run `37129572580` at head `fd5fe6c2` completed successfully. Formatting, the domain correlation
+fixtures, the ports boundary fixtures, and both target-scoped `--no-run` compilation steps all
+passed. This confirms the focused lane after removing the unrelated workspace `nm01_contracts.rs`
+compile dependency. OA-02 remains `🔄` / `partial/source`; authenticated ingress propagation,
+durable recovery links and exporter/live trace behavior are outside this receipt.

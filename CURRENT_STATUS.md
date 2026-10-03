@@ -21133,6 +21133,21 @@ limitations: typed packet-set binding, optional legacy migration, durable dispat
 reviewer: old workflow and exact failed job compared against current target names; no local runtime reviewer
 ```
 
+### OA-02 corrected focused receipt (2026-10-03)
+
+```text
+source_snapshot: `fd5fe6c2`; .github/workflows/oa02-correlation.yml; kiana-domain/tests/oa02_correlation.rs; kiana-ports/tests/oa02_correlation_port.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: formatting, OA-02 domain correlation fixtures, ports boundary fixtures and both target-scoped no-run compile steps passed; no correlation behavior or assertion changed in the gate correction
+command_argv: gh run view 37129572580 --json status,conclusion,headSha,jobs,url; gh run view 37129572580 --log; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: OA-02 domain correlation target success; OA-02 ports boundary target success; domain/ports targets compiled with `--no-run`
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: OA-02 remains roadmap row 093 `🔄` / `feature_status=partial` / `proof_level=source`; corrected target-scoped lane now has a current successful receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: authenticated ingress-to-provider-to-broker-to-EventLog propagation, durable recovery links, exporter/sink integration and external/live/physical trace proof remain open
+reviewer: exact focused job steps and target-scoped compile results reviewed; no local runtime reviewer
+```
+
 ### SW-02 corrected focused receipt (2026-10-03)
 
 ```text
