@@ -19678,6 +19678,21 @@ limitations: the recovery append remains on the Run event stream while static me
 reviewer: source trace matched persisted approval/run IDs and bounded error, terminal flag, migration lookup and source guard; no local runtime reviewer
 ```
 
+### ER-01 capability request and result delivery producer contracts (2026-10-03)
+
+```text
+source_snapshot: source commit `5c3336f0`; `kiana-core/src/capabilities.rs`; `kiana-core/src/dispatch.rs`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: both `run.capability_requested` producers now emit capability_request_id alongside compatibility request_id; `result.delivery_claimed` uses the exact five-field delivery allowlist plus invocation identity; no EventStore validator or delivery behavior changed
+command_argv: source trace of preparation-rejection/normal capability request producers and result delivery claim; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `capability_requested_and_result_delivery_contracts_match_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; capability-request identity and result-delivery producer fields now match the registry
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; request_id remains a compatibility alias until downstream projections migrate; complete historical producer reconciliation, delivery crash recovery and external-effect evidence remain open
+reviewer: source trace matched both capability-request producers, result delivery claim fields, invocation identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text

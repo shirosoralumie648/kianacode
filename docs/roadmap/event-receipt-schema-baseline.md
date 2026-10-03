@@ -88,6 +88,7 @@ read committed frame
 | `result_event_contracts_accept_only_their_result_fields` | execution.result_committed 精确增加 outcome_state/outcome_ready/result_receipt，capability terminal results 接受 result_receipt/result_source；未知字段仍拒绝 |
 | `capability_blocked_contract_matches_direct_deny_producers` | direct `capability.blocked` 以 request 为 aggregate，不要求 Run ID，精确接受当前错误/attempt/effect payload，并拒绝混入 run_id；Run-bound denial 使用独立 `run.capability_blocked` |
 | `approval_continuation_unavailable_contract_matches_recovery_producer` | Run-bound approval recovery 的 `approval_id`/`run_id`/bounded error 字段和 terminal 语义；缺 run ID、未知字段拒绝 |
+| `capability_requested_and_result_delivery_contracts_match_producers` | `run.capability_requested` 显式保留 request_id 兼容别名并要求 capability_request_id；result delivery 只允许 producer 的五个 delivery 字段和 invocation identity |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -393,6 +394,29 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: the recovery append still uses the Run event stream while static metadata retains the approval aggregate; generic EventStore append does not call `validate_runtime_event`; other event producers and full historical migration remain open; no approval durability, replay or external-effect claim
 reviewer: source trace matched persisted approval/run IDs and the bounded error, terminal flag, migration lookup and source guard; no local runtime reviewer
+```
+
+## 5.14 Capability request and result delivery producer contracts
+
+The two `run.capability_requested` producers now write the explicit
+`capability_request_id` required by the invocation identity contract while retaining their
+historical `request_id` field for compatibility. The `result.delivery_claimed` registry entry now
+uses an exact allowlist for `result_digest`, `receipt_digest`, `outcome_state`, `outcome_ready` and
+`delivery_policy` in addition to the invocation identity fields emitted by the delivery command.
+The fixture rejects a missing capability identity and unknown delivery fields; no EventStore
+validation or result-delivery behavior changed.
+
+```text
+source_snapshot: source commit `5c3336f0`; `kiana-core/src/capabilities.rs`; `kiana-core/src/dispatch.rs`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: both `run.capability_requested` producers now emit capability_request_id alongside the compatibility request_id, and `result.delivery_claimed` has the exact five-field delivery allowlist; no EventStore validator or delivery behavior changed
+command_argv: source trace of preparation-rejection/normal capability request producers and result delivery claim; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick e8f69d0d`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `capability_requested_and_result_delivery_contracts_match_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; capability-request identity and result-delivery producer fields now match the registry
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; request_id remains a compatibility alias until downstream projections migrate; complete historical producer reconciliation, delivery crash recovery and external-effect evidence remain open
+reviewer: source trace matched both capability-request producers, result delivery claim fields, invocation identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
