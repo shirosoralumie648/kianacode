@@ -21072,3 +21072,18 @@ proof-level_change: none; source plus remote CI wiring only, with no current-hea
 limitations: prior unified receipts covered exact targets but shards failed on unrelated siblings; typed packet-set binding remains undefined, optional legacy graph migration is incomplete, and durable dispatch/queue/claim/scheduler, child lifecycle, replay/recovery and effect-time fencing remain open
 reviewer: source review confirmed canonical paths/data scopes, shared packet_graph reuse, strict fingerprint/limit validation, deterministic readiness and ControlPlane-only validation before state write; no local runtime reviewer
 ```
+
+### OA-02 focused correlation workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this receipt; .github/workflows/oa02-correlation.yml; docs/roadmap/observability-audit-baseline.md; kiana-domain/src/correlation.rs; kiana-domain/src/{contracts.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-domain/tests/oa02_correlation.rs; kiana-ports/tests/oa02_correlation_port.rs
+worktree_status: restored a manual GitHub-only workflow for the existing server-owned CorrelationContext, strict traceparent parsing, ForeignParent link-only semantics, typed causation/attempt/parent links and port fail-closed fixtures; no ingress/provider/Broker/EventLog bridge, manifest, lockfile or second authority path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run oa02-correlation.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: kiana-domain oa02_correlation and kiana-ports oa02_correlation_port; workflow also runs cargo fmt --all --check and cargo check -p kiana-domain -p kiana-ports --tests --locked
+exit_code: local format/diff checks passed; remote focused workflow triggered and intentionally not awaited
+status_change: OA-02 remains roadmap row 093 `🔄` / `feature_status=partial` / `proof_level=source`; focused CI wiring now exists for traceparent rejection, fresh server root, scope/epoch/actor binding, command/attempt links and malformed/self/parent link denial
+proof-level_change: none; source plus remote CI wiring only, with no current-head focused result promoted here
+limitations: prior unified receipts were exact-target only and enclosing shards failed on unrelated siblings; authenticated ingress→provider→broker→EventLog propagation, recovery link durability, exporter/sink integration and external/live/physical trace proof remain open
+reviewer: source review confirmed server-derived context, foreign input as link-only, strict typed IDs, causation/attempt scope and side-effect-free port construction; no local runtime reviewer
+```

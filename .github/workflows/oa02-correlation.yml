@@ -1,0 +1,26 @@
+name: OA-02 Correlation and Trace References
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  correlation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run OA-02 domain correlation tests
+        run: cargo test -p kiana-domain --test oa02_correlation --locked -- --test-threads=1
+      - name: Run OA-02 port boundary tests
+        run: cargo test -p kiana-ports --test oa02_correlation_port --locked -- --test-threads=1
+      - name: Compile OA-02 path
+        run: cargo check -p kiana-domain -p kiana-ports --tests --locked
