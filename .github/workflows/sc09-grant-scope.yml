@@ -1,0 +1,28 @@
+name: SC-09 grant scope intersection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grant-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-09 grant fixture
+        run: cargo test -p kiana-policy --test sc09_grant_scope --locked -- --test-threads=1
+      - name: Run SC-09 source guard
+        run: cargo test -p kiana-core --test sc09_grant_scope_guard --locked -- --test-threads=1
+      - name: Compile SC-09 policy target
+        run: cargo test -p kiana-policy --test sc09_grant_scope --no-run --locked
+      - name: Compile SC-09 Core guard target
+        run: cargo test -p kiana-core --test sc09_grant_scope_guard --no-run --locked
