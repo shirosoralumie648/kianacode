@@ -20593,6 +20593,21 @@ limitations: historical CURRENT_STATUS text at the H20 evidence block says roadm
 reviewer: source review confirmed Product/Context authority separation, omission reasons, budget/digest binding and route/workspace/catalog/data drift fences; no local runtime reviewer
 ```
 
+### H19 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `84f892ce`; .github/workflows/h19-steer-inject-diagnostic.yml; protocol/runner/Core H19 fixtures; runner deferred mailbox completion fence
+worktree_status: protocol wire, runner deferred-steer and Core route guard all passed after the unknown-field fixture boundary correction and exact one-extra-step deferred mailbox fix
+command_argv: gh run view 37116300211 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime authority
+fixture·cassette: H19 `protocol-wire`, `runner-deferred-steer` and `core-route-guard`; all three focused jobs success at head `84f892ce`
+exit_code: remote protocol job 0; remote runner job 0; remote Core job 0
+status_change: H19 remains roadmap row 260 / current row 171 `feature_status=implemented` / `proof_level=source`; additive wire decoding, expected-turn/core fencing and exactly-once deferred next-step delivery now have a current focused receipt
+proof-level change: none
+limitations: H08 daemon shell focused target remains blocked by ER-01 `run.rejected`; no cross-process accepted/claimed atomic projector, oversized input Artifact, provider-native/live stream or durable recovery proof
+reviewer: exact focused jobs plus runner mailbox/step boundary review; no local runtime reviewer
+```
+
 ### H20 focused domain failure audit and correction (2026-10-03)
 
 ```text
