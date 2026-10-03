@@ -27,7 +27,15 @@ async fn integrity_scan_distinguishes_empty_ready_and_corrupt() {
     cleanup(&empty);
 
     let ready = temp_path("ready");
-    let event = RuntimeEvent::new(RequestId::new(), 1, "run.started", json!({})).unwrap();
+    let run_id = "pd08-ready-run";
+    let event = RuntimeEvent::new(
+        RequestId::new(),
+        1,
+        "run.started",
+        json!({"run_id": run_id, "sequence": 1}),
+    )
+    .unwrap()
+    .with_stream_metadata("run", run_id, 1);
     fs::write(&ready, serde_json::to_string(&event).unwrap() + "\n").unwrap();
     let ready_report = scan_jsonl(&ready).await;
     assert_eq!(ready_report.status, IntegrityScanStatus::Ready);
