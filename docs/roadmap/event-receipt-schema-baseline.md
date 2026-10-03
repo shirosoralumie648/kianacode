@@ -89,6 +89,7 @@ read committed frame
 | `capability_blocked_contract_matches_direct_deny_producers` | direct `capability.blocked` 以 request 为 aggregate，不要求 Run ID，精确接受当前错误/attempt/effect payload，并拒绝混入 run_id；Run-bound denial 使用独立 `run.capability_blocked` |
 | `approval_continuation_unavailable_contract_matches_recovery_producer` | Run-bound approval recovery 的 `approval_id`/`run_id`/bounded error 字段和 terminal 语义；缺 run ID、未知字段拒绝 |
 | `capability_requested_and_result_delivery_contracts_match_producers` | `run.capability_requested` 显式保留 request_id 兼容别名并要求 capability_request_id；result delivery 只允许 producer 的五个 delivery 字段和 invocation identity |
+| `run_tool_contracts_match_cancel_and_dispatch_producers` | `run.tool_call` 与 `run.tool_result` 各自使用精确字段集；缺 capability_request_id、未知 call/result 字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -417,6 +418,28 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; request_id remains a compatibility alias until downstream projections migrate; complete historical producer reconciliation, delivery crash recovery and external-effect evidence remain open
 reviewer: source trace matched both capability-request producers, result delivery claim fields, invocation identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.15 Run tool-call and tool-result producer contracts
+
+`run.tool_call` and `run.tool_result` are now bounded independently from the broad run-event
+allowlist. The call contract admits only its run/invocation identity, call/turn/step identity,
+execution scope, tool and operation. The result contract admits its run/invocation identity, call,
+result and the cancellation/effect/stop facts written by capability, lifecycle and governance
+producers. The fixture rejects an unregistered call/result field and a missing
+`capability_request_id`; no projection or EventStore behavior changed.
+
+```text
+source_snapshot: source commit `681b6c9a`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/src/data_governance.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `run.tool_call` and `run.tool_result` now use separate exact allowlists instead of broad RUN_FIELDS; all known capability/lifecycle/governance producer fields are covered, while unknown fields and missing capability identity remain deny-first; no EventStore or projection behavior changed
+command_argv: source trace of capability dispatch, cancel, approval invalidation and governance tool-result producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 5fb4ea37`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_tool_contracts_match_cancel_and_dispatch_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; run tool-call/result producer fields now have bounded per-kind contracts
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; run.rejected/compacted/receipt and model/session producer families remain unreconciled; no durable replay, delivery crash recovery or external-effect claim
+reviewer: source trace matched capability dispatch and lifecycle/governance cancellation producers, exact per-kind field sets and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接

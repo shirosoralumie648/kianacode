@@ -19693,6 +19693,21 @@ limitations: generic EventStore append still does not call `validate_runtime_eve
 reviewer: source trace matched both capability-request producers, result delivery claim fields, invocation identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
+### ER-01 run tool-call and tool-result producer contracts (2026-10-03)
+
+```text
+source_snapshot: source commit `681b6c9a`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/capabilities.rs`; `kiana-core/src/lifecycle.rs`; `kiana-core/src/data_governance.rs`; `kiana-core/tests/er01_event_contract_guard.rs`; `docs/roadmap/event-receipt-schema-baseline.md`; `docs/roadmap/event-receipt-recovery.md`; `docs/roadmap.md`
+worktree_status: `run.tool_call` and `run.tool_result` now use separate exact allowlists instead of broad RUN_FIELDS; known capability/lifecycle/governance producer fields are covered, while unknown fields and missing capability identity remain deny-first; no EventStore or projection behavior changed
+command_argv: source trace of capability dispatch, cancel, approval invalidation and governance tool-result producers; isolated `cargo fmt --all --check`; isolated `git diff --check`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_tool_contracts_match_cancel_and_dispatch_producers`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; run tool-call/result producer fields now have bounded per-kind contracts
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; run.rejected/compacted/receipt and model/session producer families remain unreconciled; no durable replay, delivery crash recovery or external-effect claim
+reviewer: source trace matched capability dispatch and lifecycle/governance cancellation producers, exact per-kind field sets and deny-first fixture/source guard; no local runtime reviewer
+```
+
 ### H05 length-stop diagnostic retention fixture (2026-10-03)
 
 ```text
