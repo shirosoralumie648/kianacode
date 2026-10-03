@@ -1,0 +1,28 @@
+name: EQ-08 deterministic evaluation fixtures
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-loader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run EQ-08 fixture loader
+        run: cargo test -p kiana-commands --test eq08_fixture_loader --locked -- --test-threads=1
+      - name: Run EQ-08 source guard
+        run: cargo test -p kiana-core --test eq08_fixture_loader_guard --locked -- --test-threads=1
+      - name: Compile EQ-08 loader target
+        run: cargo test -p kiana-commands --test eq08_fixture_loader --no-run --locked
+      - name: Compile EQ-08 Core guard target
+        run: cargo test -p kiana-core --test eq08_fixture_loader_guard --no-run --locked
