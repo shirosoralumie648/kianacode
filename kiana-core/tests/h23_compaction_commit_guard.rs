@@ -3,6 +3,7 @@ fn h23_compaction_commit_is_artifact_first_and_epoch_bound() {
     let domain = include_str!("../../kiana-domain/src/compaction_commit.rs");
     let runner = include_str!("../../kiana-runner/src/harness.rs");
     let protocol = include_str!("../../kiana-runner-protocol/src/lib.rs");
+    let events = include_str!("../src/events.rs");
     for marker in [
         "CompactionArtifact",
         "CompactionCommit",
@@ -16,7 +17,10 @@ fn h23_compaction_commit_is_artifact_first_and_epoch_bound() {
         "prompt_sources",
     ] {
         assert!(
-            domain.contains(marker) || runner.contains(marker) || protocol.contains(marker),
+            domain.contains(marker)
+                || runner.contains(marker)
+                || protocol.contains(marker)
+                || events.contains(marker),
             "H23 compaction marker missing: {marker}"
         );
     }

@@ -20743,6 +20743,21 @@ limitations: historical CURRENT_STATUS H23 block says roadmap row 310 is ✅ whi
 reviewer: source review confirmed artifact-first validation, duplicate source identity rejection, workspace/data epoch fences and no filesystem dependency in domain contract; no local runtime reviewer
 ```
 
+### H23 focused guard drift audit and correction (2026-10-03)
+
+```text
+source_snapshot: remote run `37117725255` / head `dbea74b3`; kiana-core/tests/h23_compaction_commit_guard.rs; actual append helper kiana-core/src/events.rs
+worktree_status: domain artifact/commit fixtures passed; Core guard failed only because append_idempotent_expected is owned by Core events.rs but the guard read domain/runner/runner-protocol sources; guard now includes events.rs, with compaction contract unchanged
+command_argv: gh run view 37117725255 --log-failed; rg -n "append_idempotent_expected" kiana-core/src; source trace; cargo fmt --all --check; git diff --check; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: H23 domain-compaction-commit success; core-compaction-guard failed only at missing Core event-store marker
+exit_code: remote domain job 0; remote Core guard 1; correction awaits fresh receipt
+status_change: H23 remains roadmap row 310 `🔄` / `feature_status=implemented` / `proof_level=source`; guard now covers the actual EventStore idempotency producer
+proof-level change: none
+limitations: historical CURRENT_STATUS H23 block says row 310 is ✅ while authoritative docs/roadmap.md remains 🔄; durable ArtifactStore, cross-store commit, model retry, physical GC, restart recovery and live/physical proof remain open
+reviewer: exact failure and Core events source ownership reviewed; no local runtime reviewer
+```
+
 ### H21 focused receipt (2026-10-03)
 
 ```text
