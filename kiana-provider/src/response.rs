@@ -19,6 +19,37 @@ fn tool_repair_error(code: &str) -> ModelError {
     error
 }
 
+fn context_repair_error() -> ModelError {
+    let mut error = ModelError::invalid("model_context_limit_exceeded")
+        .with_recovery_disposition(ModelRecoveryDisposition::ContextRepair);
+    error.request_sent = true;
+    error.side_effect_state = ModelSideEffectState::None;
+    error
+}
+
+fn responses_error_code(value: &Value) -> Option<&str> {
+    value
+        .get("response")
+        .and_then(|response| response.get("error"))
+        .and_then(|error| error.get("code"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            value
+                .get("error")
+                .and_then(|error| error.get("code"))
+                .and_then(Value::as_str)
+        })
+        .or_else(|| value.get("code").and_then(Value::as_str))
+}
+
+fn responses_failure_error(value: &Value) -> ModelError {
+    if responses_error_code(value) == Some("context_length_exceeded") {
+        context_repair_error()
+    } else {
+        error("provider_response_incomplete")
+    }
+}
+
 struct UniqueProviderJson(Value);
 
 impl<'de> Deserialize<'de> for UniqueProviderJson {
@@ -314,6 +345,9 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             measured = usage(&value["usage"], "prompt_tokens", "completion_tokens")?;
         }
         ModelProtocol::OpenAiResponses => {
+            if value["status"] == "failed" {
+                return Err(responses_failure_error(&value));
+            }
             if value["status"] == "incomplete" {
                 return Err(error("model_transport_incomplete"));
             }
@@ -891,7 +925,7 @@ impl Accumulator {
                 self.finished = true;
             }
             Some("response.incomplete") => return Err(error("model_transport_incomplete")),
-            Some("response.failed" | "error") => return Err(error("provider_response_incomplete")),
+            Some("response.failed" | "error") => return Err(responses_failure_error(&value)),
             Some("response.refusal.delta" | "response.refusal.done") => {
                 return Err(error("model_refused"))
             }
@@ -2229,6 +2263,60 @@ mod tests {
             .code,
             "provider_hosted_tool_denied"
         );
+    }
+
+    #[test]
+    fn responses_context_limit_errors_are_typed_context_repair() {
+        let prepared = responses_prepared();
+        for (response, expected_code, expected_disposition) in [
+            (
+                json!({
+                    "id": "response-1",
+                    "status": "failed",
+                    "error": {"code": "context_length_exceeded", "message": "request is too large"}
+                }),
+                "model_context_limit_exceeded",
+                ModelRecoveryDisposition::ContextRepair,
+            ),
+            (
+                json!({
+                    "id": "response-2",
+                    "status": "failed",
+                    "error": {"code": "server_error", "message": "context_length_exceeded"}
+                }),
+                "provider_response_incomplete",
+                ModelRecoveryDisposition::Terminal,
+            ),
+        ] {
+            let error = decode(response, &prepared).unwrap_err();
+            assert_eq!(error.code, expected_code);
+            assert_eq!(error.recovery_disposition, expected_disposition);
+            if expected_disposition == ModelRecoveryDisposition::ContextRepair {
+                assert!(error.request_sent);
+                assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+                assert_eq!(error.retry_class, ModelRetryClass::Never);
+            }
+        }
+
+        let mut accumulator = Accumulator::new(ModelProtocol::OpenAiResponses);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(r#"{"type":"response.created"}"#, &mut sink(&mut deltas))
+            .unwrap();
+        let error = accumulator
+            .push(
+                r#"{"type":"response.failed","response":{"id":"response-3","status":"failed","error":{"code":"context_length_exceeded","message":"bounded"}}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "model_context_limit_exceeded");
+        assert_eq!(
+            error.recovery_disposition,
+            ModelRecoveryDisposition::ContextRepair
+        );
+        assert!(error.request_sent);
+        assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+        assert_eq!(error.retry_class, ModelRetryClass::Never);
     }
 
     #[test]

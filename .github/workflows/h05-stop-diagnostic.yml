@@ -39,6 +39,10 @@ jobs:
             mode: lib
             selector: malformed_model_tool_arguments_are_typed_tool_repair_after_request
             label: malformed_tool_arguments
+          - crate: kiana-provider
+            mode: lib
+            selector: responses_context_limit_errors_are_typed_context_repair
+            label: responses_context_repair
     env:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: symbols
