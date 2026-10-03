@@ -4,7 +4,9 @@ fn billing_quota_cost_baseline_covers_current_sources_and_conflicts() {
     let budget = include_str!("../src/model_budget.rs");
     let receipts = include_str!("../src/receipts.rs");
     let cell_registry = include_str!("../src/cell_registry.rs");
+    let provider_response = include_str!("../../kiana-provider/src/response.rs");
     let baseline = include_str!("../../docs/roadmap/billing-quota-cost-baseline.md");
+    let workflow = include_str!("../../.github/workflows/bq00-cost-capacity.yml");
     for marker in [
         "UsageRecord",
         "CostLedger",
@@ -18,12 +20,14 @@ fn billing_quota_cost_baseline_covers_current_sources_and_conflicts() {
         "cost_ledger_from_events",
         "CellRegistryPort",
         "result_unknown",
+        "ModelUsage",
     ] {
         assert!(
             usage.contains(marker)
                 || budget.contains(marker)
                 || receipts.contains(marker)
                 || cell_registry.contains(marker)
+                || provider_response.contains(marker)
                 || baseline.contains(marker),
             "billing baseline marker missing: {marker}"
         );
@@ -46,4 +50,7 @@ fn billing_quota_cost_baseline_covers_current_sources_and_conflicts() {
     assert!(usage.contains("cost_micros: None"));
     assert!(baseline.contains("feature_status=partial"));
     assert!(baseline.contains("proof_level=source"));
+    assert!(workflow.contains("workflow_dispatch:"));
+    assert!(!workflow.contains("  push:"));
+    assert!(!workflow.contains("  pull_request:"));
 }
