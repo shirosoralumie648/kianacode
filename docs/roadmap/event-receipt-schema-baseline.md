@@ -91,6 +91,7 @@ read committed frame
 | `capability_requested_and_result_delivery_contracts_match_producers` | `run.capability_requested` 显式保留 request_id 兼容别名并要求 capability_request_id；result delivery 只允许 producer 的五个 delivery 字段和 invocation identity |
 | `run_tool_contracts_match_cancel_and_dispatch_producers` | `run.tool_call` 与 `run.tool_result` 各自使用精确字段集；缺 capability_request_id、未知 call/result 字段拒绝 |
 | `run_predecessor_contract_matches_lifecycle_producer` | `run.predecessor` 的 run/previous-run/turn/session/semantics 六字段；缺 run_id、未知字段拒绝 |
+| `run_resume_prepared_contract_matches_recovery_producer` | `run.resume_prepared` 的 run/session/actor/snapshot-event/turn 六字段；缺 run_id、未知字段拒绝 |
 | `event_contract_registry_and_migration_boundary_are_source_owned` | domain/contracts/states/journal/protocol source guard |
 
 ## 5.1 2026-10-03 execution result-field matrix correction
@@ -462,6 +463,27 @@ status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `
 proof-level change: none; no local_behavior, durable, live or physical promotion
 limitations: generic EventStore append still does not call `validate_runtime_event`; resume_prepared, compacted, receipt, rejected and model/session producer families remain open; no durable replay or external-effect claim
 reviewer: source trace matched lifecycle predecessor fields, required run identity and deny-first fixture/source guard; no local runtime reviewer
+```
+
+## 5.17 Run resume-prepared producer contract
+
+`run.resume_prepared` now has a bounded six-field allowlist matching the recovery claim producer:
+`run_id`, `session_id`, `actor_id`, `snapshot_event_id`, `turn_id` and `turn`. Only the resumed
+run identity is required; the snapshot event and new turn remain explicit recovery facts. The
+fixture rejects a missing `run_id` and unknown fields. No resume CAS, projection or EventStore
+behavior changed.
+
+```text
+source_snapshot: source commit `5e1b8ee2`; `kiana-domain/src/event_contracts.rs`; `kiana-domain/tests/er01_event_contract.rs`; `kiana-core/src/recovery.rs`; `kiana-core/tests/er01_event_contract_guard.rs`
+worktree_status: `run.resume_prepared` now uses an exact six-field allowlist instead of broad RUN_FIELDS and keeps only run_id required; no recovery or EventStore behavior changed
+command_argv: source trace of the explicit resume snapshot claim; isolated `cargo fmt --all --check`; isolated `git diff --check`; root `git cherry-pick 9f06808e`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: `run_resume_prepared_contract_matches_recovery_producer`; updated `event_contract_registry_and_migration_boundary_are_source_owned`; unified CI routes domain/Core targets through `kiana-domain-s2/4` and `kiana-core-s1/6`; fresh receipt pending after push
+exit_code: formatting and diff checks passed; no local runtime result; remote fixtures pending
+status_change: ER-01 remains roadmap row 036 `🔄`, `feature_status=partial`, `proof_level=source`; resume-prepared recovery payload is now bounded to its real producer
+proof-level change: none; no local_behavior, durable, live or physical promotion
+limitations: generic EventStore append still does not call `validate_runtime_event`; compacted/receipt/rejected and model/session producer families remain open; no resume durability, cross-process replay or external-effect claim
+reviewer: source trace matched recovery snapshot claim fields, required run identity and deny-first fixture/source guard; no local runtime reviewer
 ```
 
 ## 6. 限制与交接
