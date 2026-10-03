@@ -58,6 +58,33 @@ async fn malformed_identity_links_are_denied_before_append() {
 }
 
 #[tokio::test]
+async fn event_store_enforces_registered_payload_ids_and_unknown_fields() {
+    let store = MemoryEventLog::new();
+    let request_id = RequestId::new();
+    let run_id = kiana_domain::RunId::new();
+
+    let mut missing_run_id =
+        RuntimeEvent::new(request_id, 1, "run.started", json!({"unexpected": true}))
+            .unwrap()
+            .with_stream_metadata("run", run_id.to_string(), 1);
+    assert!(matches!(
+        store.append(missing_run_id.clone()).await,
+        Err(PortError::Failed(reason)) if reason == "event_contract_event_required_id_missing:run_id"
+    ));
+
+    missing_run_id.data = json!({"run_id": run_id, "unexpected": true});
+    assert!(matches!(
+        store.append(missing_run_id).await,
+        Err(PortError::Failed(reason)) if reason == "event_contract_event_payload_unknown_field"
+    ));
+
+    let valid = RuntimeEvent::new(request_id, 1, "run.started", json!({"run_id": run_id}))
+        .unwrap()
+        .with_stream_metadata("run", run_id.to_string(), 1);
+    store.append(valid).await.unwrap();
+}
+
+#[tokio::test]
 async fn idempotent_replay_rejects_command_id_drift() {
     assert_identity_link_drift_denied(IdentityLink::CommandId).await;
 }

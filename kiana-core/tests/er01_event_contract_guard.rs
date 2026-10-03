@@ -19,6 +19,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     let daemon_connectors = include_str!("../../kiana-daemon/src/connectors.rs");
     let sessions = include_str!("../../kiana-core/src/sessions.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
+    let event_store_core = include_str!("../../kiana-eventlog/src/event_store_core.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-schema-baseline.md");
 
     assert!(baseline.contains("run_input_snapshot_and_clarification_contracts_match_producers"));
@@ -421,6 +422,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(credential_recovery.contains("CREDENTIAL_RECOVERY_EVENT_KIND"));
     assert!(credential_recovery.contains("json!({\"run_id\": self.run_ref, \"recovery\": self})"));
     assert!(credential_recovery.contains("validate_runtime_event(&event)?"));
+    assert!(event_store_core.contains("kiana_domain::validate_runtime_event(event)"));
+    assert!(event_store_core.contains("event_contract_"));
     for marker in [
         "COMMUNICATION_HANDOFF_LIFECYCLE_FIELDS",
         "COMMUNICATION_INCIDENT_LIFECYCLE_FIELDS",
