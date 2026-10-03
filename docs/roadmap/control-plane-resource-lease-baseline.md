@@ -40,3 +40,9 @@ CP-12 proof ceiling 为 `source`：路径规范化、kernel lock adapter 和 typ
 lease/lock 事实仍未由 durable projector 与 Cell/Grant/Budget/Approval 原子合并；approval wait
 释放物理锁、过期 worker 隔离、Patch/MCP effect-time、CP-13 permit、CP-15 cancellation、跨进程
 crash recovery 和 external/live/physical proof 留待后续步骤。
+
+## 4. Focused CI receipt
+
+Run `37123857213` at head `3b665bb0` passed the three domain lease fixtures, the Core source guard,
+and both target-scoped compile steps. This is current focused source/CI evidence only; it does not
+promote the proof ceiling beyond `source`.

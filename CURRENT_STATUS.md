@@ -21192,3 +21192,33 @@ proof-level_change: none
 limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time Patch/MCP/permit integration and external/live/physical proof remain open
 reviewer: exact remote assertion and existing successor method conventions reviewed; no local runtime reviewer
 ```
+
+### CP-12 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `3b665bb0`; .github/workflows/cp12-resource-leases.yml; kiana-domain/tests/cp12_resource_lease.rs; kiana-core/tests/cp12_resource_guard.rs
+worktree_status: successor fixture receiver/previous direction now matches ResourceLease::validate_successor; domain fixtures, Core guard and both focused compile steps passed
+command_argv: gh run view 37123857213 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: CP-12 domain resource lease target 3/3, Core guard success, domain/Core target-scoped compile success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: CP-12 remains roadmap row 128 `🔄` / `feature_status=implemented` / `proof_level=source`; canonical write-set, successor fencing and kernel-lock source guard have a current focused receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: durable OS lease/projector, cross-process stale-writer recovery, approval-wait lock release, effect-time integration and external/live/physical proof remain open
+reviewer: exact focused jobs and successor contract direction reviewed; no local runtime reviewer
+```
+
+### ER-12 focused receipt (2026-10-03)
+
+```text
+source_snapshot: `3b665bb0`; .github/workflows/er12-receipt-aggregation.yml; kiana-domain/tests/er12_receipt_aggregation.rs; kiana-core/src/receipts.rs; kiana-core/tests/er12_receipt_aggregation.rs
+worktree_status: missing usage remains Partial, explicit unknown effect remains sticky Unknown, foreign-only input is classified as empty source, and both focused targets compiled successfully
+command_argv: gh run view 37123857320 --json status,conclusion,headSha,jobs,url; no local tests/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions is the runtime test authority
+fixture·cassette: ER-12 domain contract target success, Core aggregation target success, domain/Core target-scoped compile success
+exit_code: remote focused workflow 0; no local runtime exit code
+status_change: ER-12 remains roadmap row 138 `🔄` / `feature_status=implemented` / `proof_level=source`; committed-fact aggregation and Unknown/Partial boundaries have a current focused receipt
+proof-level_change: none; source plus remote focused CI only
+limitations: provider billing/rate cards, artifact provenance/retention, durable changesets, result delivery/restart and external/live/physical proof remain open
+reviewer: exact focused jobs and aggregation precedence/source filtering review; no local runtime reviewer
+```

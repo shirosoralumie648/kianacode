@@ -41,3 +41,9 @@ ER-12 proof ceiling 为 `source`：只读 aggregation 与 compatibility receipt 
 CI-only fixtures 固化；未运行本地测试。Provider rate card/billing、ArtifactStore provenance/
 retention/revoke、changeset durability、统一 result delivery 与 external/live/physical proof
 留待 ER-13+、PD/DEP/INT/BQ。
+
+## 4. Focused CI receipt
+
+Run `37123857320` at head `3b665bb0` passed the domain contract fixtures, Core aggregation reducer,
+and both target-scoped compile steps. This is current focused source/CI evidence only; the proof
+ceiling remains `source`.
