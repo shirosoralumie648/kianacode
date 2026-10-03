@@ -117,7 +117,20 @@ fn successful_attempt_has_complete_admission_to_effect_evidence_without_raw_payl
     let turn_id = TurnId::new();
     let digest = action_digest('a');
     let approval_id = kiana_domain::ApprovalId::new();
-    let mut events = request_facts(run_id, request_id, "shell.exec", &digest);
+    let mut events = vec![event(
+        run_id,
+        request_id,
+        1,
+        "run.tool_call",
+        json!({
+            "run_id": run_id,
+            "capability_request_id": request_id,
+            "call_id": "call-1",
+            "tool": "process",
+            "operation": "shell.exec"
+        }),
+    )];
+    events.extend(request_facts(run_id, request_id, "shell.exec", &digest));
     events.extend([
         event(
             run_id,
