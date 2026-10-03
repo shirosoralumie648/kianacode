@@ -20337,3 +20337,18 @@ proof-level change: none
 limitations: no local runtime result; fresh focused workflows have not yet run on this correction; H08 daemon shell still requires the ER-01 run.rejected aggregate decision; no durable/cross-process/provider-live/physical proof
 reviewer: remote failure logs, state-driver transition source, current ModelClient cancellation API and ProcessSupervisor source reviewed; no local runtime reviewer
 ```
+
+### H09 focused tool catalog diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h09-tool-catalog-diagnostic.yml; kiana-domain/src/{tool_authority.rs,tool_catalog.rs,actions.rs,model.rs}; kiana-runner/src/{tools.rs,harness.rs}; kiana-runner/tests/{h09_tool_catalog.rs,h09_tool_catalog_guard.rs}; kiana-provider/src/request.rs
+worktree_status: restored a manual GitHub-only focused workflow for existing H09 catalog fixtures and source guard; no catalog behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h09-tool-catalog-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: h09_tool_catalog and h09_tool_catalog_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H09 remains roadmap row 148 / current row 161 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for the existing versioned tool catalog contract
+proof-level change: none
+limitations: no local runtime result, real third-party provider catalog migration, remote Broker parity, durable approval recovery or external/live/physical proof
+reviewer: source review confirmed server-owned snapshot validation, alias/wire uniqueness, mapper/provider resolver reuse and catalog drift pins; no local runtime reviewer
+```

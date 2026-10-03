@@ -314,7 +314,7 @@
 | 145 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应 | `H05` | 🔄 | [专项卡](roadmap/harness.md#step-h06) |
 | 146 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算；新增 focused GitHub workflow 复核已有预算 fixtures/source guard | `H05` | 🔄 | [专项卡](roadmap/harness.md#step-h07) |
 | 147 | W2 | 专项 | [`H08`](roadmap/harness.md#step-h08) | Harness · 将 deadline 和取消贯穿静默 I/O；新增 focused GitHub workflow 复核 runner/daemon 取消边界 | `H03`、`H06`、`H07` | 🔄 | [专项卡](roadmap/harness.md#step-h08) |
-| 148 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源 | `H04`、`H05` | 🔄 | [专项卡](roadmap/harness.md#step-h09) |
+| 148 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源；新增 focused GitHub workflow 复核 catalog fixtures/source guard | `H04`、`H05` | 🔄 | [专项卡](roadmap/harness.md#step-h09) |
 | 149 | W2 | 专项 | [`H10`](roadmap/harness.md#step-h10) | Harness · 一次生成、全程稳定的调用身份 | `H02`、`H09` | 🔄 | [专项卡](roadmap/harness.md#step-h10) |
 | 150 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈 | `H05`、`H10` | 🔄 | [专项卡](roadmap/harness.md#step-h11) |
 | 151 | W2 | 专项 | [`H12`](roadmap/harness.md#step-h12) | Harness · 串行批次先完整闭环，再考虑并行 | `H08`、`H10`、`H11` | ✅ | [专项卡](roadmap/harness.md#step-h12) |
@@ -1481,6 +1481,7 @@
 | 2026-10-03 | `H06` current-head focused receipt：run `37105711959` / head `602b801e` 的 `h06_stream_normalizer` 与 `h06_stream_guard` 两个 job 全部 success；H06 仍 source，真实 provider/reconnect/durable/live proof 未声称 | `37105711959` |
 | 2026-10-03 | `H07` focused diagnostic workflow：恢复手动 GitHub-only `h07_budget` 与 `h07_budget_guard` 两个目标，复用已有预算行为 fixture，未运行本地测试，H07 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
 | 2026-10-03 | `H08` focused diagnostic workflow：恢复手动 GitHub-only runner/daemon cancellation targets，复用已有 deadline/retry/stop fixtures，未运行本地测试，H08 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
+| 2026-10-03 | `H09` focused diagnostic workflow：恢复手动 GitHub-only `h09_tool_catalog` 与 `h09_tool_catalog_guard` 两个目标，复用已有 version/digest/alias/pin fixtures，未运行本地测试，H09 保持 `feature_status=implemented` / `proof_level=source`，远程 receipt 在推送后触发且不等待 | 待本提交 |
 | 2026-10-03 | `H07/H08` focused CI failure audit：run `37107522288` 的 H07 Continue fixture 因旧 driver step 未在新 turn 清零而返回 `harness_driver_step_invalid`，source guard 因 cancellable provider API 漂移失败；run `37107766040` 的 H08 guard 因旧 process-stop marker 漂移失败，daemon shell target 因 ER-01 未决 `run.rejected` validator 返回 `model_admission_denied:port_failed:event_contract_unknown_required_event_kind`；本提交只修复已确认的 H07 state bug 与 H07/H08 guards，不绕过 ER-01 | 远端 run `37107522288` / `37107766040` |
 | 2026-10-03 | `ER-01` exact manual CI receipt：run `37091699872` / head `6265363e` 完整 domain 31/31、Core guard 1/1；真实 producer 拒绝用例通过，成功用例在模型分配阶段被测试 Runner 默认拒绝，修正端口支持待提交。仅记录精确目标证据；无本地测试，ER-01 保持 🔄 / partial / source | `6265363e` (observed source) |
 | 2026-10-03 | `ER-01` complete manual acceptance：run `37092219974` / head `4fffbe43` 完整 domain 31/31、Core guard 1/1、真实 ControlPlane producer 2/2；模型分配测试端口修正后成功事件路径也通过。仍不宣称通用 EventStore 强制或 ER-01 完成，状态保持 🔄 / partial / source | `4fffbe43` |
