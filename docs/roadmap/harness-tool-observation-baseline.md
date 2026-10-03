@@ -36,5 +36,6 @@ grant、permission 或 execution scope 字段，下一次 capability 仍须完�
 ## 3. Proof ceiling and handoff
 
 H11 proof ceiling 为 `source`：统一 observation 合同和 runner gate 已接入，CI-only fixtures/source
-guard 固化 failure-first 路径。完整串行批次、Invocation 持久结果、审批恢复、自动修复策略、
+guard 固化 failure-first 路径。当前新增 `.github/workflows/h11-tool-observation-diagnostic.yml`
+作为手动 focused receipt，运行两个 runner 目标；远程结果不在本地等待。完整串行批次、Invocation 持久结果、审批恢复、自动修复策略、
 provider/外部 effect 对账与 live/physical proof 仍留待 H12+ / CP/PD/INT。

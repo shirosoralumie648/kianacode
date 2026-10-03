@@ -1,0 +1,27 @@
+name: H11 tool observation diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    name: H11 ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - h11_tool_observation
+          - h11_tool_observation_guard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run focused H11 target
+        run: cargo test -p kiana-runner --test "${{ matrix.target }}" --locked -- --test-threads=1

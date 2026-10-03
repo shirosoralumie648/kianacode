@@ -20398,6 +20398,21 @@ limitations: no local runtime result, durable Invocation ledger, cross-process C
 reviewer: exact remote failure, PendingTool checkpoint schema and restore identity fence reviewed; no local runtime reviewer
 ```
 
+### H11 focused tool observation diagnostic workflow (2026-10-03)
+
+```text
+source_snapshot: current master before this docs-only receipt; .github/workflows/h11-tool-observation-diagnostic.yml; kiana-domain/src/{capabilities.rs,contracts.rs,errors.rs}; kiana-runner/src/harness.rs; kiana-runner/tests/{h11_tool_observation.rs,h11_tool_observation_guard.rs}
+worktree_status: restored a manual GitHub-only focused workflow for existing H11 unknown/deny/cancel/repair/untrusted observation fixtures and source guard; no ToolObservation behavior, shard manifest, lockfile or second execution path changed
+command_argv: cargo fmt --all --check; git diff --check; git push origin master; gh workflow run h11-tool-observation-diagnostic.yml --ref master; no local tests/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the only runtime test executor
+fixture·cassette: h11_tool_observation and h11_tool_observation_guard; the workflow matrix runs both targets
+exit_code: local format/diff checks pending before commit; remote focused receipt triggered after push and intentionally not awaited
+status_change: H11 remains roadmap row 150 / current row 163 `feature_status=implemented` / `proof_level=source`; focused CI wiring is restored for the existing data-only observation contract
+proof-level change: none
+limitations: no local runtime result, durable Invocation outcome, automatic repair policy, external effect reconciliation or live/physical proof
+reviewer: source review confirmed typed status/repair mapping, bounded redacted summary, untrusted model data and no-retry gates; no local runtime reviewer
+```
+
 ### H09 focused tool catalog diagnostic workflow (2026-10-03)
 
 ```text
