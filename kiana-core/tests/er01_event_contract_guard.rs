@@ -28,7 +28,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         ("run.clarification.requested", 1),
     ] {
         assert_eq!(
-            lifecycle.matches(&format!("\"{kind}\"")).count(),
+            lifecycle.matches(&format!("\"{kind}\",\n")).count(),
             expected_count,
             "unexpected lifecycle producer count for {kind}"
         );
@@ -163,7 +163,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         ("run.delta", 1),
     ] {
         assert_eq!(
-            lifecycle.matches(&format!("\"{kind}\"")).count(),
+            // A query predicate also names the kind; only a writer passes it as an argument.
+            lifecycle.matches(&format!("\"{kind}\",\n")).count(),
             expected_count,
             "unexpected lifecycle producer count for {kind}"
         );

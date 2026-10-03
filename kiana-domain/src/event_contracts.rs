@@ -762,12 +762,8 @@ const APPROVAL_REQUESTED_FIELDS: &[&str] = &[
     "request_hash",
     "session_id",
     "actor_id",
-    "subject_request_id",
     "run_id",
-    "operation",
     "expires_at_unix_ms",
-    "decision",
-    "scope",
     "capability_request_id",
     "attempt",
     "effect_started",
@@ -776,7 +772,6 @@ const APPROVAL_REQUESTED_FIELDS: &[&str] = &[
     "stop_state",
     "fenced",
     "resume_binding",
-    "error",
     "action_digest",
 ];
 const APPROVAL_APPROVED_FIELDS: &[&str] = &[

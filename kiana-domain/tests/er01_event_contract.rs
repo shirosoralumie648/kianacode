@@ -1091,12 +1091,24 @@ fn approval_requested_contract_matches_capability_producer_and_rejects_unknown_f
     assert_eq!(spec.required_ids, &["approval_id"][..]);
     assert!(spec.allowed_fields.contains(&"action_digest"));
     assert_eq!(
-        spec.allowed_fields.len(),
-        event_kind_spec("approval.approved")
-            .unwrap()
-            .allowed_fields
-            .len()
-            + 1
+        spec.allowed_fields,
+        &[
+            "approval_id",
+            "request_hash",
+            "session_id",
+            "actor_id",
+            "run_id",
+            "expires_at_unix_ms",
+            "capability_request_id",
+            "attempt",
+            "effect_started",
+            "effect_known",
+            "zero_effect",
+            "stop_state",
+            "fenced",
+            "resume_binding",
+            "action_digest",
+        ][..]
     );
     assert!(!spec.terminal);
     assert_eq!(
@@ -1121,6 +1133,12 @@ fn approval_requested_contract_matches_capability_producer_and_rejects_unknown_f
     });
     validate_event_payload("approval.requested", &payload).unwrap();
 
+    // The same producer adds these two fields only for Run-bound continuation.
+    let mut run_bound = payload.clone();
+    run_bound["run_id"] = json!(kiana_domain::RunId::new());
+    run_bound["resume_binding"] = json!({});
+    validate_event_payload("approval.requested", &run_bound).unwrap();
+
     let mut missing_id = payload.clone();
     missing_id.as_object_mut().unwrap().remove("approval_id");
     assert_eq!(
@@ -1133,6 +1151,22 @@ fn approval_requested_contract_matches_capability_producer_and_rejects_unknown_f
         validate_event_payload("approval.requested", &payload).unwrap_err(),
         "event_payload_unknown_field"
     );
+
+    for field in [
+        "subject_request_id",
+        "operation",
+        "decision",
+        "scope",
+        "error",
+    ] {
+        let mut foreign = run_bound.clone();
+        foreign[field] = json!(true);
+        assert_eq!(
+            validate_event_payload("approval.requested", &foreign).unwrap_err(),
+            "event_payload_unknown_field",
+            "approval.requested must not admit the unrelated field {field}"
+        );
+    }
 }
 
 #[test]
