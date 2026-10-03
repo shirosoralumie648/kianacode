@@ -11,7 +11,8 @@ fn oauth_workload_identity_lifecycle_is_provider_owned_and_fail_closed() {
         "OAuthSubject",
         "OAuthTokenStatus",
         "oauth_generation_conflict",
-        "OAuthSubject::Workload",
+        "pub enum OAuthSubject",
+        "    Workload,",
         "deny_unknown_fields",
     ] {
         assert!(
