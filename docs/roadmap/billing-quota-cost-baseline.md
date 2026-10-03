@@ -31,6 +31,7 @@
 - No `UsageVector`, `NormalizedUsage`, `RateCard`, `Money`, `QuotaReservation`, `CostLedgerEntry`
   or `CostCorrection` target contract is wired into the production path yet.
 - Token usage is optional and provider-reported; a missing field is not a zero-cost assertion.
+  The baseline rule is: missing usage is not zero.
 - `cost_micros` has no currency/rate-card/provider-receipt provenance and must stay unknown.
 - Model reservation is bounded and EventLog-backed, but provider RPM/TPM, fair capacity queues,
   quota windows, invoice import, correction approval and durable rollups are not implemented.
