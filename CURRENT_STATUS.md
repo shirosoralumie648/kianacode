@@ -22183,6 +22183,21 @@ limitations: callback crash/replay recovery, provider receipt/reconciliation, te
 reviewer: exact current-head job and finalizer/result-delivery source boundaries reviewed; no local runtime reviewer
 ```
 
+### ER-13 current-head delivery lane refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er13-result-delivery.yml`; kiana-core/src/{dispatch.rs,capabilities.rs,dispatch_delivery_tests.rs}; kiana-core/tests/er13_result_delivery.rs; docs/roadmap/event-receipt-result-delivery-baseline.md
+worktree_status: current master contains committed execution evidence validation and existing ER-13 behavioral/source fixtures; workflow re-executes delivery behaviors, source guard, format and target-scoped compile; no second delivery authority, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er13-result-delivery.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: missing/append-only/contradictory execution source, typed turn/invocation/result/receipt drift, terminal/cancel/next-turn race, delivery CAS/replay/concurrency, callback Unknown/no-retry and one known setup-bound missing-version case; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-13 roadmap row 139 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: missing-version fixture still needs a read-fault seam; callback crash/replay, provider receipt/reconcile, terminal shutdown, cross-process recovery and external/live/physical exactly-once remain open
+reviewer: source review matched current committed-evidence checks and classified the fixture setup limitation; no local runtime reviewer
+```
+
 ### ER-11 current-head focused acceptance receipt (2026-10-04)
 
 ```text
