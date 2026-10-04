@@ -108,7 +108,8 @@ pub fn quoted_memory_proposal(
     let terms = memory_query_terms(&quote);
     let mut candidates: BTreeMap<String, Value> = BTreeMap::new();
     for event in events.iter().filter(|e| e.kind == "capability.completed") {
-        if let Some(hits) = event.data.get("hits").and_then(Value::as_array) {
+        let result = event.data.get("result").unwrap_or(&event.data);
+        if let Some(hits) = result.get("hits").and_then(Value::as_array) {
             for hit in hits {
                 let Some(id) = hit.get("id").and_then(Value::as_str) else {
                     continue;

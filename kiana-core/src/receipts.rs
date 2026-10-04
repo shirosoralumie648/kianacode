@@ -638,7 +638,8 @@ pub fn aggregate_receipt_facts(
             }
         }
         if event.kind == "capability.completed" && committed {
-            if let Some(changed) = event.data.get("changed").and_then(Value::as_array) {
+            let result = event.data.get("result").unwrap_or(&event.data);
+            if let Some(changed) = result.get("changed").and_then(Value::as_array) {
                 for item in changed {
                     let Some(path) = item.get("path").and_then(Value::as_str) else {
                         verification = kiana_domain::AggregationVerification::Partial;
@@ -651,12 +652,11 @@ pub fn aggregate_receipt_facts(
                     files_changed.push(path);
                 }
             }
-            if event.data.get("schema").and_then(Value::as_str)
+            if result.get("schema").and_then(Value::as_str)
                 == Some(kiana_domain::MEMORY_SEARCH_SCHEMA)
             {
                 memory_hits = memory_hits.saturating_add(
-                    event
-                        .data
+                    result
                         .get("hits")
                         .and_then(Value::as_array)
                         .map_or(0, |hits| hits.len() as u64),
@@ -839,7 +839,8 @@ pub(crate) fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> 
         if event.kind != "capability.completed" {
             continue;
         }
-        let Some(changed) = event.data.get("changed").and_then(Value::as_array) else {
+        let result = event.data.get("result").unwrap_or(&event.data);
+        let Some(changed) = result.get("changed").and_then(Value::as_array) else {
             continue;
         };
         for item in changed {
@@ -885,10 +886,11 @@ pub(crate) fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
         if event.kind != "capability.completed" {
             continue;
         }
-        if event.data.get("schema").and_then(Value::as_str) != Some(MEMORY_SEARCH_SCHEMA) {
+        let result = event.data.get("result").unwrap_or(&event.data);
+        if result.get("schema").and_then(Value::as_str) != Some(MEMORY_SEARCH_SCHEMA) {
             continue;
         }
-        let Some(items) = event.data.get("hits").and_then(Value::as_array) else {
+        let Some(items) = result.get("hits").and_then(Value::as_array) else {
             continue;
         };
         for item in items {
@@ -1171,12 +1173,13 @@ fn cancellation_observations_from_events(events: &[RuntimeEvent]) -> Vec<Value> 
                 || event.data.get("cancel_reason").is_some()
         })
         .map(|(index, event)| {
+            let result = event.data.get("result").unwrap_or(&event.data);
             json!({
                 "event_id": event.event_id,
                 "source_cursor": index.saturating_add(1),
                 "kind": event.kind,
-                "reason": bounded_observation_text(event.data.get("cancellation_reason").or_else(|| event.data.get("cancel_reason")).or_else(|| event.data.get("reason")).or_else(|| event.data.get("error"))),
-                "stop_confirmed": event.data.get("stop_confirmed").and_then(Value::as_bool),
+                "reason": bounded_observation_text(event.data.get("cancellation_reason").or_else(|| event.data.get("cancel_reason")).or_else(|| event.data.get("reason")).or_else(|| event.data.get("error")).or_else(|| result.get("cancellation_reason")).or_else(|| result.get("cancel_reason")).or_else(|| result.get("reason")).or_else(|| result.get("error"))),
+                "stop_confirmed": event.data.get("stop_confirmed").or_else(|| result.get("stop_confirmed")).and_then(Value::as_bool),
                 "action_digest": digest_observation(&event.data, &["action_digest", "args_fingerprint"]),
             })
         })

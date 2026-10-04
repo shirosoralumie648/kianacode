@@ -96,9 +96,10 @@ fn stop_unconfirmed(events: &[RuntimeEvent]) -> u64 {
                     .unwrap_or(false)
                 || kind.contains("cancel")
                 || kind.contains("stop");
+            let result = event.data.get("result").unwrap_or(&event.data);
             requested
-                && event.data.get("not_executed") != Some(&Value::Bool(true))
-                && event.data.get("stop_confirmed") != Some(&Value::Bool(true))
+                && result.get("not_executed") != Some(&Value::Bool(true))
+                && result.get("stop_confirmed") != Some(&Value::Bool(true))
         })
         .count() as u64
 }
