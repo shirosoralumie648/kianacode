@@ -22707,6 +22707,21 @@ limitations: no DaemonHost composition, fixture store, EventLog/Receipt capture,
 reviewer: source review of deny-only target partition and no-real-executor guard ownership; no local runtime reviewer
 ```
 
+### EQ-10 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq10-fake-provider.yml`; kiana-daemon/src/{eval_runtime.rs,lib.rs}; kiana-daemon/tests/eq10_fake_provider.rs; kiana-core/tests/eq10_fake_provider_guard.rs; docs/roadmap/evaluation-provider-baseline.md
+worktree_status: restored a GitHub-only EQ-10 fake provider fixture/Core source-guard lane with formatting and target-scoped compile; FakeProviderAdapter/ModelClient semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq10-fake-provider.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: complete reply, bounded chunk stream, tool-call declaration without execution, malformed/provider error, call-count replay, unknown/bounds denial and Core ModelClient/ModelDelta-only no-network/no-credentials/no-runner/no-Broker guard; two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-10 roadmap row 182 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: adapter is not connected to a DaemonHost target or deny-by-default Broker; fixture store, EventLog/Receipt capture, fault/restart recovery, real network/secret/MCP/payment/publish/desktop effects and live/physical provider proof remain EQ-11+
+reviewer: source review matched fake scenario coverage, call-count/no-effect boundary and Core guard ownership; no local runtime reviewer
+```
+
 ### EQ-13 focused workflow restoration (2026-10-04)
 
 ```text
