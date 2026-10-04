@@ -11491,6 +11491,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OAuth metadata/generation CAS/revoke, provider single-flight and cooldown, SecretStore credential revision/lease consume, resource lease authority/session fencing, protected ingress and no-raw-token boundary review; no runtime test reviewer
 ```
 
+### SC-19 focused workflow refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/sc19-secret-rotation.yml`; kiana-domain/src/oauth.rs; kiana-domain/tests/ci09_oauth_contracts.rs; kiana-provider/src/{credentials.rs,transport.rs,oauth.rs,lib.rs}; kiana-ports/src/lib.rs; kiana-core/src/resource_leases.rs; kiana-daemon/src/lib.rs; kiana-core/tests/sc19_secret_rotation_guard.rs; docs/roadmap/sc19-secret-rotation-baseline.md
+worktree_status: focused GitHub lane now includes locked dependency fetch, format, OAuth metadata fixture, Core guard and two target-scoped no-run compile steps; rotation/revocation semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc19-secret-rotation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: generation CAS/expiry/status/revoke, secret-free OAuth metadata, provider single-flight/cooldown, credential revision/one-shot lease, resource lease authority/session fence, protected ingress and no-raw-token guard; two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-19 roadmap row 213 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: daemon-wide durable revocation propagation, crash/restore key hygiene, HSM/OS keyring guarantees and external/live/physical proof remain SC-20+ / ER work
+reviewer: source review matched generation/revocation/lease fencing and no-raw-token guard ownership; no local runtime reviewer
+```
+
 ### SC-20 redaction / secret egress evidence (2026-09-18)
 
 ```text
