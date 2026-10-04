@@ -1,0 +1,47 @@
+name: CAP-24 invocation recovery and reconciliation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invocation-recovery:
+    name: CAP-24 invocation recovery fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run replay and resume fixtures
+        run: cargo test -p kiana-domain --test co08_replay --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test h14_invocation_resume --locked -- --test-threads=1
+      - name: Run invocation and reliability fixtures
+        run: cargo test -p kiana-core --test er09_invocation_projection --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_k6_01_reliability --locked -- --test-threads=1
+      - name: Run existing retry and reconciliation guards
+        run: cargo test -p kiana-core --test er24_reconciliation_evidence_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test er25_retry_policy_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test h13_invocation_ledger_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
+      - name: Run CAP-24 source guard
+        run: cargo test -p kiana-core --test cap24_invocation_recovery_guard --locked -- --test-threads=1
+      - name: Compile selected domain targets
+        run: cargo test -p kiana-domain --test co08_replay --no-run --locked
+      - run: cargo test -p kiana-domain --test h14_invocation_resume --no-run --locked
+      - name: Compile selected Core targets
+        run: cargo test -p kiana-core --test cap24_invocation_recovery_guard --no-run --locked
+      - run: cargo test -p kiana-core --test er09_invocation_projection --no-run --locked
+      - run: cargo test -p kiana-core --test p2_k6_01_reliability --no-run --locked
+      - run: cargo test -p kiana-core --test er24_reconciliation_evidence_guard --no-run --locked
+      - run: cargo test -p kiana-core --test er25_retry_policy_guard --no-run --locked
+      - run: cargo test -p kiana-core --test h13_invocation_ledger_guard --no-run --locked
+      - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --no-run --locked
