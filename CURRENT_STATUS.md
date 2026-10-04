@@ -22256,3 +22256,18 @@ proof-level_change: none; pre-Debug-fix acceptance does not prove the new fixtur
 limitations: Debug boundary only; provider-only token-file serialization intentionally retains protected material for storage; header/client copies, physical memory erasure, generic protected backend integration, full secret-leak matrix, Gateway/IdP/cross-process recovery and unified CI remain open
 reviewer: all six raw-bearing Debug types and current consumers/fixtures reviewed; no local runtime reviewer
 ```
+
+### CI-06 provider-contract regression fixture correction (2026-10-04)
+
+```text
+source_snapshot: parent `d856cbea` plus this commit; kiana-provider/tests/provider_contract.rs; remote CI-06 run `37163195592` at `1762530f`
+worktree_status: the existing unsupported-image test lacked the server assignment required before provider preflight; it now explicitly tests missing-assignment rejection and supplies a valid server-role fixture to reach the original unsupported-content assertion; no production gate or assertion removed
+command_argv: `gh run view 37163195592 --log-failed`; after push `gh workflow run ci06-config-resolver.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: CI-06 new reload fixtures passed 9/9; credential projection 2/2, route admission 1/1, configuration 3/3 and provider contract 2/3 passed before the stale fixture failed; fresh run required for the corrected target and later guards
+exit_code: prior provider contract target 101; changed-source CI pending; no local runtime exit code
+status_change: CI-06 remains 🔄 / partial / source
+proof-level_change: none; the earlier failure does not prove the skipped guards or corrected fixture
+limitations: same single-gateway reload scope; multi-project daemon/config-path/current trust revision integration, durable restart fencing and unified CI remain open
+reviewer: old fixture history and current assignment-before-preflight source order reviewed; no local runtime reviewer
+```

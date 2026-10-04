@@ -1,8 +1,9 @@
 use kiana_domain::{
-    CapabilitySupport, ModelCallSpec, ModelContent, ModelMessage, ModelProtocol, ModelPurpose,
-    ModelRequest, ModelResponseFormat, ProviderCassette, ProviderCassetteMode,
+    CapabilitySupport, ModelAssignment, ModelCallSpec, ModelContent, ModelMessage, ModelProtocol,
+    ModelPurpose, ModelRequest, ModelResponseFormat, ProviderCassette, ProviderCassetteMode,
     ProviderCassetteSource, ProviderContractCapability, ProviderContractCell,
-    ProviderContractMatrix, ProviderContractSupport, RequestId,
+    ProviderContractMatrix, ProviderContractSupport, RequestId, RoleSpec, RunId, SchemaVersion,
+    TurnId,
 };
 use kiana_ports::ModelClient;
 use kiana_provider::{ProviderConfig, ProviderGateway};
@@ -132,26 +133,51 @@ fn unsupported_capability_matrix_matches_preflight_error_without_network() {
         }],
     )
     .expect("valid attachment reference");
+    let request = ModelRequest {
+        messages: vec![message],
+        tools: Vec::new(),
+        sandbox: "read-only".to_owned(),
+    };
+    let role = RoleSpec::pm();
+    let spec = ModelCallSpec {
+        call_id: RequestId::new(),
+        attempt_id: RequestId::new(),
+        model_attempt_id: None,
+        step_id: None,
+        step: 1,
+        purpose: ModelPurpose::Task,
+        assignment: Some(ModelAssignment {
+            schema: "kiana.model-assignment.v1".to_owned(),
+            run_id: RunId::new(),
+            turn_id: TurnId::new(),
+            role_id: role.role_id,
+            role_version: Some(role.version),
+            catalog_version: Some(SchemaVersion::new(1, 0)),
+            prompt_hash: Some(role.prompt_hash),
+            input_schema: Some(role.input_schema),
+            output_schema: Some(role.output_schema),
+            profile: role.model_profile,
+            project_root: "/repo".to_owned(),
+            project_trusted: true,
+            authority_revision: None,
+            max_wall_time_ms: 10_000,
+            runtime_budget: None,
+        }),
+        response_format: ModelResponseFormat::Text,
+        replay: Vec::new(),
+        deadline_unix_ms: u64::MAX,
+    };
+    let mut unassigned = spec.clone();
+    unassigned.assignment = None;
+    assert_eq!(
+        gateway
+            .prepare_call(request.clone(), unassigned)
+            .unwrap_err()
+            .code,
+        "model_server_assignment_required"
+    );
     let error = gateway
-        .prepare_call(
-            ModelRequest {
-                messages: vec![message],
-                tools: Vec::new(),
-                sandbox: "read-only".to_owned(),
-            },
-            ModelCallSpec {
-                call_id: RequestId::new(),
-                attempt_id: RequestId::new(),
-                model_attempt_id: None,
-                step_id: None,
-                step: 1,
-                purpose: ModelPurpose::Task,
-                assignment: None,
-                response_format: ModelResponseFormat::Text,
-                replay: Vec::new(),
-                deadline_unix_ms: u64::MAX,
-            },
-        )
+        .prepare_call(request, spec)
         .expect_err("unsupported image must fail before request");
     assert_eq!(error.code, "unsupported_content_block_fails_before_request");
 }
