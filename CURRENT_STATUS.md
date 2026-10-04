@@ -22511,3 +22511,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: no external run rejection behavior, no persistent migration runner or legacy byte rewrite, no generic projector/terminal reconciliation claim; CI result is intentionally not awaited
 reviewer: source review of all current `run.rejected` producers, registry dual-shape contract, aggregate selection and deny-first fixture; no local runtime reviewer
 ```
+
+### CI-06 focused lane correction (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/ci06-config-resolver.yml`; kiana-provider/tests/ci06_config_resolver.rs; kiana-daemon/tests/ci06_config_resolver.rs; kiana-core/tests/ci06_config_resolver.rs; docs/roadmap/ci06-config-resolver-baseline.md
+worktree_status: CI-06 workflow now keeps provider/daemon/Core fixtures, formatting and target-scoped compile steps isolated; removed the broad provider regression command that pulled CI-07/08 and unrelated provider-contract targets into this lane; resolver behavior, project-trust boundary, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run ci06-config-resolver.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: provider resolver fixture, daemon legacy-boundary guard, Core resolver source guard and three target-scoped no-run compile steps; focused workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CI-06 roadmap row 166 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: workspace overlay remains API-level rather than per-project daemon reload; raw credentials remain bounded to the provider compatibility boundary pending CI-07; cross-process config snapshots, reload fencing, OAuth and provider/live effect proof remain open
+reviewer: source review of workflow target partition and existing resolver/guard ownership; no local runtime reviewer
+```
