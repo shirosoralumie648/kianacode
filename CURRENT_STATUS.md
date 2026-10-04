@@ -2687,6 +2687,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-12 domain/core metric-governance static-boundary review; no runtime test reviewer
 ```
 
+### OA-12 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/oa12-metric-governance.yml`; kiana-domain/src/observability.rs; kiana-core/src/{metrics.rs,lib.rs}; kiana-core/tests/oa12_metric_governance.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: restored a GitHub-only OA-12 typed metric catalog/cardinality/reducer lane with formatting and target-scoped compile; metric semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run oa12-metric-governance.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: catalog kind/unit/digest, sensitive label/value, distinct-value overflow, counter reset/cursor regression, measured/estimated quality and replay/live parity fixtures; OA-12 no-run compile target; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: OA-12 roadmap row 271 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: metric reducer remains process-local with no durable sink/queue/checkpoint or runtime gauge feed, overflow reporting is not persisted, and estimated metrics never prove measured cost or external effect
+reviewer: source review matched metric governance fixture ownership and target-scoped compile; no local runtime reviewer
+```
+
 ### OA-14 trace exporter/W3C context evidence (2026-09-15)
 
 ```text
