@@ -98,3 +98,62 @@ fn duplicate_source_event_is_not_projected_twice() {
         "persistence_read_model_event_duplicate"
     );
 }
+
+#[test]
+fn terminal_conflict_preserves_stable_error_code_with_both_kinds() {
+    let terminal_kinds = [
+        "run.completed",
+        "run.failed",
+        "run.cancelled",
+        "run.result_unknown",
+    ];
+    for first in terminal_kinds {
+        for second in terminal_kinds {
+            if first == second {
+                continue;
+            }
+            let run_id = RunId::new();
+            let error = project_persistence_read_model(
+                &context(),
+                run_id,
+                &[event(run_id, 1, first), event(run_id, 2, second)],
+                2,
+                None,
+            )
+            .unwrap_err();
+            assert!(
+                error.starts_with("persistence_read_model_run:run_terminal_conflict:"),
+                "stable code missing for {first}/{second}: {error}"
+            );
+            assert!(
+                error.contains(first) && error.contains(second),
+                "conflicting facts missing for {first}/{second}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn missing_terminal_cannot_become_completed_even_with_other_events() {
+    for (kinds, phase) in [
+        (vec!["run.started"], "running"),
+        (vec!["run.queued", "run.started"], "running"),
+        (
+            vec!["run.started", "approval.requested"],
+            "awaiting_approval",
+        ),
+    ] {
+        let run_id = RunId::new();
+        let events = kinds
+            .iter()
+            .enumerate()
+            .map(|(index, kind)| event(run_id, index as u64 + 1, kind))
+            .collect::<Vec<_>>();
+        let model =
+            project_persistence_read_model(&context(), run_id, &events, events.len() as u64, None)
+                .unwrap();
+        assert_eq!(model.run.phase, phase);
+        assert_eq!(model.run.outcome, None);
+        assert_ne!(model.receipt["status"], "completed");
+    }
+}

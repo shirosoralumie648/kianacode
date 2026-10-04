@@ -4,6 +4,21 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### PD-10 stable terminal-conflict error repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; kiana-core/src/persistence_read_model.rs; kiana-core/tests/pd10_read_model.rs; docs/roadmap/pd10-read-model-baseline.md
+worktree_status: parallel PD-10 worker produced typed-error mapping; coordinator preserved the existing outer error context and rejection assertion, corrected a new fixture that incorrectly expected a third fact after the reducer's first-conflict return, and integrated the narrowed regression coverage
+command_argv: read GitHub run `37188557818` logs; source review of project_run_state and ControlPlane::run_state; target rustfmt edit; `git diff --check`; remote `gh workflow run pd10-read-model.yml --ref goal/roadmap-completion-20261004-01a10602`
+cwd·environment: repository root and independent PD-10 worktree; Linux; tests/build/check/clippy/smoke not run locally
+fixture·cassette: original `missing_terminal_foreign_run_old_epoch_and_conflict_fail_closed` unchanged; new `terminal_conflict_preserves_stable_error_code_with_both_kinds` covers 12 ordered conflicting terminal pairs; `missing_terminal_cannot_become_completed_even_with_other_events` covers started/queued/awaiting-approval facts without a terminal
+exit_code: original GitHub PD-10 target exit 101 (2 passed, 1 failed); source/diff checks exit 0; new-source CI pending
+status_change: PD-10 remains 🔄; source adapter now returns `persistence_read_model_run:run_terminal_conflict:<kinds>` instead of an unstable Display string
+proof-level change: source only
+limitations: fresh-process reconstruction, durable projection/checkpoint storage and whole-card PD-10 acceptance remain open; added regression coverage has not yet executed remotely
+reviewer: Codex coordinator reviewed worker patch, first-conflict reducer semantics, stable error context and unchanged rejection behavior
+```
+
 ### CAP-20 workflow syntax and trigger repair (2026-10-04)
 
 ```text
