@@ -55,26 +55,37 @@ fn event_matches_run(event: &RuntimeEvent, run_id: RunId) -> Result<bool, String
 }
 
 fn request_id_for(event: &RuntimeEvent) -> Option<RequestId> {
-    event
-        .data
-        .get("capability_request_id")
-        .or_else(|| {
-            (event.kind == "run.capability_requested")
-                .then(|| event.data.get("request_id"))
-                .flatten()
-        })
-        .or_else(|| {
-            matches!(event.kind.as_str(), "approval.approved" | "approval.denied")
-                .then(|| event.data.get("subject_request_id"))
-                .flatten()
-        })
-        .or_else(|| {
-            event
-                .data
-                .get("permit")
-                .and_then(|permit| permit.get("request_id"))
-        })
-        .and_then(|value| serde_json::from_value::<RequestId>(value.clone()).ok())
+    let mut candidate = None;
+    for value in [
+        event.data.get("capability_request_id"),
+        (event.kind == "run.capability_requested")
+            .then(|| event.data.get("request_id"))
+            .flatten(),
+        matches!(event.kind.as_str(), "approval.approved" | "approval.denied")
+            .then(|| event.data.get("subject_request_id"))
+            .flatten(),
+        event
+            .data
+            .get("permit")
+            .and_then(|permit| permit.get("request_id")),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|value| !value.is_null())
+    {
+        let parsed = serde_json::from_value::<RequestId>(value.clone()).ok()?;
+        if candidate.is_some_and(|previous| previous != parsed) {
+            return None;
+        }
+        candidate = Some(parsed);
+    }
+    candidate.or_else(|| {
+        matches!(
+            event.kind.as_str(),
+            "run.tool_call" | "run.capability_requested"
+        )
+        .then_some(event.request_id)
+    })
 }
 
 fn string_field(event: &RuntimeEvent, name: &str) -> Option<String> {
@@ -487,6 +498,9 @@ pub fn project_invocations(
     let mut terminals: HashMap<String, (CapabilityExecutionState, String, String)> = HashMap::new();
     let mut seen_event_ids = HashSet::new();
     for (_, event) in ordered_events {
+        event
+            .validate_identity_links()
+            .map_err(|error| format!("invocation_identity_links_invalid:{error}"))?;
         if !seen_event_ids.insert(event.event_id.to_string()) {
             return Err("invocation_duplicate_event_id".to_owned());
         }

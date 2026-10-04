@@ -703,6 +703,30 @@ impl RuntimeEvent {
     /// Validate causal/parent links without interpreting them as authority. Legacy events may
     /// omit all optional links; present links must not point to the event itself.
     pub fn validate_identity_links(&self) -> Result<(), String> {
+        if self
+            .command_id
+            .is_some_and(|command_id| command_id.as_uuid().is_nil())
+        {
+            return Err("event_command_id_invalid".to_owned());
+        }
+        if self
+            .correlation_id
+            .is_some_and(|correlation_id| correlation_id.as_uuid().is_nil())
+        {
+            return Err("event_correlation_id_invalid".to_owned());
+        }
+        if self
+            .causation_event_id
+            .is_some_and(|event_id| event_id.as_uuid().is_nil())
+        {
+            return Err("event_causation_id_invalid".to_owned());
+        }
+        if self
+            .parent_event_id
+            .is_some_and(|event_id| event_id.as_uuid().is_nil())
+        {
+            return Err("event_parent_id_invalid".to_owned());
+        }
         if self.correlation_id.is_none() && self.command_id.is_some() {
             return Err("event_command_requires_correlation".to_owned());
         }

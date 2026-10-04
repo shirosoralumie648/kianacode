@@ -46,6 +46,56 @@ fn cross_run_result_cannot_pair_by_sequence() {
     );
 }
 
+#[test]
+fn invocation_projection_rejects_malformed_identity_links() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let mut requested = event(
+        request_id,
+        run_id,
+        "run.capability_requested",
+        json!({
+            "run_id": run_id,
+            "request_id": request_id,
+            "capability_request_id": request_id,
+            "capability": "query",
+            "operation": "search",
+            "risk": "read_only",
+            "arguments": {"query": "identity"}
+        }),
+    );
+    requested.parent_event_id = Some(requested.event_id);
+    assert_eq!(
+        kiana_core::project_invocations(run_id, &[requested]).unwrap_err(),
+        "invocation_identity_links_invalid:event_parent_self"
+    );
+}
+
+#[test]
+fn invocation_projection_rejects_request_id_alias_drift() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let foreign_request_id = RequestId::new();
+    let requested = event(
+        request_id,
+        run_id,
+        "run.capability_requested",
+        json!({
+            "run_id": run_id,
+            "request_id": foreign_request_id,
+            "capability_request_id": request_id,
+            "capability": "query",
+            "operation": "search",
+            "risk": "read_only",
+            "arguments": {"query": "identity"}
+        }),
+    );
+    assert_eq!(
+        kiana_core::project_invocations(run_id, &[requested]).unwrap_err(),
+        "invocation_request_id_missing"
+    );
+}
+
 fn event(
     request_id: RequestId,
     run_id: RunId,
