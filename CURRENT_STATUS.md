@@ -19273,6 +19273,21 @@ limitations: CI has not yet verified that the approval path reaches `AwaitingApp
 reviewer: source review traced Harness request preparation through ExecutionScope serialization, unchanged generic redaction, approval-only display projection, JournalApprovalStore material binding, and ApprovalPlanPreview reuse; no local runtime reviewer
 ```
 
+### ER-02 legacy history deduplication (2026-10-04)
+
+```text
+source_snapshot: parent `d73aca7c` plus `0b007905`; kiana-core/src/history.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/er02_identity_guard.rs; docs/roadmap/event-receipt-identity-baseline.md
+worktree_status: model-visible history now includes request_id in the deduplication key even when legacy events lack stream metadata; modern stream ordering still uses stream_version when available
+command_argv: isolated git diff --check; isolated git diff --cached --check; isolated cargo fmt --all --check; root cherry-pick `ad65d20f`; after push `gh workflow run er02-identity.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-er02-legacy-sequence-20261004`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `history_same_legacy_sequence_keeps_distinct_requests` and ER-02 source guard; changed-source workflow pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: full legacy migration/upcast, durable InvocationLedger, cross-process ordering, terminal/result reconciliation and external effect receipt remain unresolved
+reviewer: source review of legacy request-aware deduplication and regression fixture; no local runtime reviewer
+```
+
 ### ER-02 stable authority revision across request contexts (2026-10-03)
 
 ```text
