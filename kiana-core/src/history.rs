@@ -253,6 +253,7 @@ pub(crate) fn fold_model_visible_history(
         let run_rank = event_run_id(event)
             .and_then(|run_id| run_order.get(&run_id).copied())
             .unwrap_or(usize::MAX);
+        let event_order = event.stream_version.unwrap_or(event.sequence);
         (run_rank, event_order, *index)
     });
 
