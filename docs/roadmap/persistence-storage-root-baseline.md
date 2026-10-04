@@ -59,3 +59,26 @@ shard; this source snapshot has no GitHub receipt yet. This does not establish p
 cross-machine fencing, or eliminate the existing check-to-unlink race against a same-UID replacer.
 PD-01 remains `partial/source` until the shared product root and restart identity contract are
 resolved.
+
+## 6. 2026-10-04 malformed lock classification
+
+The daemon lock-conflict reader now separates malformed or structurally invalid lock data from a
+valid record owned by another scope. JSON decode failure, an unknown lock schema, a nil lock id,
+or failed timestamp/digest validation returns `storage_lock_corrupt`, which maps to the storage
+corrupt class; a valid record with a different owner or instance remains the distinct
+`storage_lock_owner_mismatch` conflict. A focused daemon fixture writes `{}` after a clean lease
+release and asserts the corrupt classification, while the Core guard pins the source marker. No
+recovery or execution path is added.
+
+```text
+source_snapshot: parent `d73aca7c` plus current PD-01 slice; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: malformed/unknown-schema/nil-id/timestamp/digest-invalid lock records fail closed as storage_lock_corrupt; valid scope mismatch remains storage_lock_owner_mismatch; no manifest, lockfile or ControlPlane path changed
+command_argv: git diff --check; staged diff check; no local test/build/check/clippy/smoke; GitHub Actions `pd01-storage-root.yml` after push
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly` plus existing scope/FIFO/identity/initialization fixtures and Core storage source guard
+exit_code: format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: PD-01 remains roadmap row 108 `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: malformed metadata classification does not prove stale-lock recovery, power-loss cleanup, cross-process fencing, shared CLI/Web/Workbench root reuse or restart identity semantics
+reviewer: source review of lock conflict parsing/classification and deny-first fixture; no local runtime reviewer
+```

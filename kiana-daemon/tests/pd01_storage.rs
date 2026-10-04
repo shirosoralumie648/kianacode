@@ -165,6 +165,19 @@ fn daemon_storage_lock_conflict_rejects_a_fifo_without_reading_it() {
     fs::remove_dir_all(path).unwrap();
 }
 
+#[test]
+fn daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly() {
+    let (path, root) = fixture_root("lock-malformed");
+    StorageLease::acquire(root.clone()).unwrap().release().unwrap();
+    fs::write(path.join("locks/storage.lock"), b"{}").unwrap();
+
+    assert_eq!(
+        StorageLease::acquire(root).unwrap_err(),
+        PortError::Failed("storage_lock_corrupt".to_owned())
+    );
+    fs::remove_dir_all(path).unwrap();
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn daemon_storage_lock_initialization_failure_releases_owned_file() {

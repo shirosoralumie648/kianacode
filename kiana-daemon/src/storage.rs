@@ -214,13 +214,25 @@ fn lock_conflict(
         .map_err(storage_io_error)
     {
         Ok(bytes) => {
-            if let Ok(record) = serde_json::from_slice::<StorageLockRecord>(&bytes) {
-                if record.store_id != identity.store_id
-                    || record.owner_id != owner_scope.owner_id
-                    || record.instance_id != owner_scope.instance_id
-                {
-                    return PortError::Conflict("storage_lock_owner_mismatch".to_owned());
-                }
+            let record = match serde_json::from_slice::<StorageLockRecord>(&bytes) {
+                Ok(record) => record,
+                Err(_) => return PortError::Failed("storage_lock_corrupt".to_owned()),
+            };
+            if record.schema != kiana_domain::STORAGE_LOCK_SCHEMA
+                || record.lock_id.as_uuid().is_nil()
+            {
+                return PortError::Failed("storage_lock_corrupt".to_owned());
+            }
+            if record.store_id != identity.store_id
+                || record.owner_id != owner_scope.owner_id
+                || record.instance_id != owner_scope.instance_id
+                || identity.owner_scope_digest != owner_scope.scope_digest
+                || identity.instance_id != owner_scope.instance_id
+            {
+                return PortError::Conflict("storage_lock_owner_mismatch".to_owned());
+            }
+            if record.validate(identity, owner_scope).is_err() {
+                return PortError::Failed("storage_lock_corrupt".to_owned());
             }
         }
         Err(error) => return error,

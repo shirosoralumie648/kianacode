@@ -22316,3 +22316,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: `run.rejected` aggregate/schema decision, persistent migration runner, legacy byte rewrite, generic EventStore/projector integration and terminal/result reconciliation remain open; source-only resolver coverage does not prove runtime acceptance
 reviewer: source review of registry version routing, explicit upcasters, opaque preservation and deny-first fixtures; no local runtime reviewer
 ```
+
+### PD-01 malformed lock classification (2026-10-04)
+
+```text
+source_snapshot: parent `d73aca7c` plus current PD-01 slice; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs; docs/roadmap/persistence-storage-root-baseline.md
+worktree_status: daemon lock-conflict parsing distinguishes malformed/unknown-schema/nil-id/timestamp/digest-invalid lock records from valid owner-scope mismatch; existing create-new and descriptor-relative lock boundary remains the only adapter path
+command_argv: git diff --check; staged diff check; after push `gh workflow run pd01-storage-root.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: `daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly`, existing PD-01 domain/daemon/Core fixtures, and storage source guard
+exit_code: format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared product-entry root resolution and restart identity remain open; this slice only classifies already-present lock bytes
+reviewer: source review of lock parse/validation classification and deny-first fixture; no local runtime reviewer
+```
