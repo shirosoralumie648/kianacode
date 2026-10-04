@@ -11859,6 +11859,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus durable cancel-before-signal ordering, queue/approval drain, process/MCP stop evidence, result delivery fence, Unknown on unconfirmed/mismatched stop and no-success/no-retry bypass review; no runtime test reviewer
 ```
 
+### ER-22 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er22-cancel-recovery.yml`; kiana-domain/src/{cancellation.rs,states.rs}; kiana-core/src/{lifecycle.rs,approvals.rs,dispatch.rs,events.rs,projection.rs,sessions.rs}; kiana-runner/src/{harness.rs,state_driver.rs}; kiana-daemon/src/{harness_capabilities.rs,harness_mcp.rs}; kiana-ports/src/lib.rs; kiana-core/tests/{p0_j1_01_cancellation_guard.rs,p0_j1_02_cancellation_guard.rs,cp15_cancellation_guard.rs,sc15_cancel_unknown_guard.rs,sc15_cancel_unknown.rs,h02_lifecycle.rs,er22_cancel_recovery_guard.rs}; kiana-runner/tests/h08_cancellation_guard.rs; docs/roadmap/er22-cancel-recovery-baseline.md
+worktree_status: restored a GitHub-only ER-22 selected cancellation/recovery fixture and source-guard lane with formatting and selected target-scoped compile steps; cancellation/recovery semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er22-cancel-recovery.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: P0-J1 cancellation guards, CP-15 barrier guard, SC-15 cancel/Unknown fixtures/guard, H02 lifecycle, H08 runner cancellation, ER-22 stop/effect/recovery guard; selected Core and Runner target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-22 roadmap row 231 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: cross-process supervisor durability, power-loss stop acknowledgement, physical process termination and external effect reconciliation remain open
+reviewer: source review matched cancel-before-signal, queue/approval drain, stop evidence, result_unknown fence and selected target partition; no local runtime reviewer
+```
+
 ### ER-23 Unknown incident / RecoveryPlan evidence (2026-09-18)
 
 ```text
