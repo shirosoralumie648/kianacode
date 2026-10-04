@@ -960,5 +960,6 @@ fixtures use:
   refused; a reader never interprets a newer event as an older one.
 - `event_payload_unknown_field_is_not_silently_dropped` — a payload field outside `allowed_fields`
   is refused, not quietly discarded on decode.
+- `run_rejected_contract_accepts_request_and_run_bound_shapes` — `run.rejected` explicitly admits the two existing producer shapes: request-level denial with `{reason}` and run-bound denial with `{run_id,reason}`. Both require a non-empty reason and reject unknown fields; aggregate selection remains owned by `aggregate_for_event` and is not inferred from the static registry metadata.
 - `legacy decode` — a legacy frame is admitted only through a named migration, never by a
   best-effort parse.

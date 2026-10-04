@@ -1032,6 +1032,42 @@ fn session_assignment_contract_matches_producer() {
 }
 
 #[test]
+fn run_rejected_contract_accepts_request_and_run_bound_shapes() {
+    let spec = event_kind_spec("run.rejected").unwrap();
+    assert_eq!(spec.aggregate_type, "request");
+    assert!(spec.required_ids.is_empty());
+    assert_eq!(spec.allowed_fields, &["run_id", "reason"][..]);
+    assert!(spec.terminal);
+    assert_eq!(
+        event_migration("run.rejected", 0, 1),
+        Some("legacy_run_event_v0_to_v1")
+    );
+
+    validate_event_payload("run.rejected", &json!({"reason":"prompt_required"})).unwrap();
+    validate_event_payload(
+        "run.rejected",
+        &json!({"run_id": kiana_domain::RunId::new(), "reason":"sandbox_denied"}),
+    )
+    .unwrap();
+
+    for payload in [json!({}), json!({"reason":"  "})] {
+        assert_eq!(
+            validate_event_payload("run.rejected", &payload).unwrap_err(),
+            "event_rejected_reason_required"
+        );
+    }
+
+    assert_eq!(
+        validate_event_payload(
+            "run.rejected",
+            &json!({"reason":"prompt_required", "unexpected":"value"}),
+        )
+        .unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
 fn capability_blocked_contract_matches_direct_deny_producers() {
     let blocked = event_kind_spec("capability.blocked").unwrap();
     assert_eq!(blocked.aggregate_type, "request");
