@@ -323,16 +323,9 @@ async fn missing_or_append_only_execution_facts_never_claim_or_call_runner() {
 async fn missing_committed_source_stream_version_is_denied_without_delivery() {
     let fixture = Fixture::new().await;
     fixture.prepare(true).await;
-    let mut source = fixture.source();
-    source.stream_version = None;
-    fixture
-        .events
-        .append(source)
-        .await
-        .expect("legacy lookalike source");
+    fixture.commit_source(fixture.source()).await;
     assert_eq!(
-        fixture
-            .core()
+        fault_core(&fixture, Fault::MissingSourceVersion)
             .deliver_capability_result(fixture.run_id, fixture.result.clone())
             .await
             .unwrap_err(),
@@ -596,6 +589,7 @@ enum Fault {
     ReceiptDigest,
     ReceiptVersion,
     ReceiptCursor,
+    MissingSourceVersion,
 }
 
 struct FaultStore {
@@ -619,7 +613,19 @@ impl EventStorePort for FaultStore {
         self.inner.read_request(id).await
     }
     async fn read_stream(&self, kind: &str, id: &str) -> Result<Vec<RuntimeEvent>, PortError> {
-        self.inner.read_stream(kind, id).await
+        let mut events = self.inner.read_stream(kind, id).await?;
+        if matches!(self.fault, Fault::MissingSourceVersion)
+            && kind == "execution_permit"
+            && id == self.execution_id.to_string()
+        {
+            if let Some(event) = events
+                .iter_mut()
+                .find(|event| event.kind == "execution.result_committed")
+            {
+                event.stream_version = None;
+            }
+        }
+        Ok(events)
     }
 
     async fn read_command(&self, id: &RequestId) -> Result<Option<CommandReceipt>, PortError> {
@@ -730,6 +736,7 @@ async fn source_and_run_cas_races_or_unconfirmed_receipts_have_zero_delivery() {
         Fault::ReceiptDigest,
         Fault::ReceiptVersion,
         Fault::ReceiptCursor,
+        Fault::MissingSourceVersion,
     ] {
         let fixture = Fixture::new().await;
         fixture.prepare(true).await;
