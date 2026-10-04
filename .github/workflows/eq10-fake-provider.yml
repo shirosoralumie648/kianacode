@@ -1,0 +1,29 @@
+name: EQ-10 fake provider adapter
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fake-provider:
+    name: EQ-10 fake provider fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run EQ-10 fake provider fixtures
+        run: cargo test -p kiana-daemon --test eq10_fake_provider --locked -- --test-threads=1
+      - name: Run EQ-10 source guard
+        run: cargo test -p kiana-core --test eq10_fake_provider_guard --locked -- --test-threads=1
+      - name: Compile EQ-10 daemon target
+        run: cargo test -p kiana-daemon --test eq10_fake_provider --no-run --locked
+      - name: Compile EQ-10 Core guard target
+        run: cargo test -p kiana-core --test eq10_fake_provider_guard --no-run --locked
