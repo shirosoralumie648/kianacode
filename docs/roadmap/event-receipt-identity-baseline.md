@@ -179,7 +179,7 @@ the same legacy sequence, and the ER-02 source guard pins the request-aware dedu
 ```text
 source_snapshot: parent `d73aca7c`; source `0b007905`; kiana-core/src/history.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/er02_identity_guard.rs
 worktree_status: legacy history deduplication key is `(run_id, request_id, stream_version.unwrap_or(sequence))`; no EventStore, authorization or second execution path changed
-command_argv: isolated git diff --check; isolated git diff --cached --check; isolated cargo fmt --all --check; root cherry-pick `ad65d20f`; after push `gh workflow run er02-identity.yml --ref master`; no local test/build/check/clippy/smoke
+command_argv: isolated git diff --check; isolated git diff --cached --check; isolated cargo fmt --all --check; root cherry-pick `ad65d20f`; push-triggered `.github/workflows/ci.yml` includes `er02_identity` and `er02_identity_guard`; no local test/build/check/clippy/smoke
 cwd·environment: repository root and isolated worktree `/tmp/kiana-er02-legacy-sequence-20261004`; Linux/bash; GitHub Actions is the runtime test authority
 fixture·cassette: `history_same_legacy_sequence_keeps_distinct_requests` plus `event_identity_links_and_projection_use_stable_ids_not_request_sequence` source guard; changed-source workflow pending
 exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code

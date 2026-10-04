@@ -19278,7 +19278,7 @@ reviewer: source review traced Harness request preparation through ExecutionScop
 ```text
 source_snapshot: parent `d73aca7c` plus `0b007905`; kiana-core/src/history.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/er02_identity_guard.rs; docs/roadmap/event-receipt-identity-baseline.md
 worktree_status: model-visible history now includes request_id in the deduplication key even when legacy events lack stream metadata; modern stream ordering still uses stream_version when available
-command_argv: isolated git diff --check; isolated git diff --cached --check; isolated cargo fmt --all --check; root cherry-pick `ad65d20f`; after push `gh workflow run er02-identity.yml --ref master`; no local test/build/check/clippy/smoke
+command_argv: isolated git diff --check; isolated git diff --cached --check; isolated cargo fmt --all --check; root cherry-pick `ad65d20f`; push-triggered `.github/workflows/ci.yml` includes `er02_identity` and `er02_identity_guard`; no local test/build/check/clippy/smoke
 cwd·environment: repository root and isolated worktree `/tmp/kiana-er02-legacy-sequence-20261004`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
 fixture·cassette: `history_same_legacy_sequence_keeps_distinct_requests` and ER-02 source guard; changed-source workflow pending
 exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
