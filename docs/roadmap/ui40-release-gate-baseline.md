@@ -2,7 +2,7 @@
 
 UI-40 now has a GitHub-only release gate for UI-32 deny, UI-33 recovery, UI-34 resource, UI-38
 conformance and UI-39 opt-in evidence,
-source snapshots, CURRENT_STATUS blocks, module-map links, diff checks, release-build/asset checks
+source snapshots, CURRENT_STATUS blocks, module-map links, clean `git diff --check` output, release-build/asset checks
 and explicit limitations. It consumes the current UI-38 conformance and UI-39 opt-in boundaries
 without converting their source rows into live or release success.
 

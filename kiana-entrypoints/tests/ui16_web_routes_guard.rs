@@ -58,7 +58,8 @@ fn ui16_web_routes_keep_authority_and_health_redaction_boundaries() {
         .nth(1)
         .and_then(|rest| rest.split("fn authorize_host").next())
         .expect("web authorization helper");
-    assert!(auth.contains("supplied != Some(app.web_token.as_str())"));
+    assert!(auth.contains("app.web_token.read()"));
+    assert!(auth.contains("supplied != Some(current.as_str())"));
     assert!(auth.contains("authorize_host(app, headers)?"));
     let host = source
         .split("fn authorize_host")

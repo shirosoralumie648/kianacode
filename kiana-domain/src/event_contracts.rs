@@ -152,7 +152,6 @@ const QUALITY_IDS: &[&str] = &["request_id"];
 const RECOVERY_IDS: &[&str] = &["run_id"];
 const MODEL_EVENT_IDS: &[&str] = &[
     "run_id",
-    "sequence",
     "session_id",
     "turn_id",
     "step_id",
@@ -696,20 +695,39 @@ const MODEL_EVENT_FIELDS: &[&str] = &[
     "source_event_id",
     "source_cursor",
     "event_digest",
-    "attempt_id",
-    "reservation_id",
-    "permit_id",
-    "usage",
-    "receipt_id",
-    "prepared_flushed",
-    "flush_sequence",
-    "revision",
-    "event_id",
-    "permit",
-    "prepared",
-    "authority_versions",
+];
+const MODEL_BUDGET_PREPARED_FIELDS: &[&str] = &["permit", "prepared", "authority_versions"];
+const MODEL_BUDGET_AUDIT_FIELDS: &[&str] = &[
+    "schema",
+    "model_call_id",
     "model_request_id",
+    "model_attempt_id",
+    "step_id",
+    "run_id",
+    "step",
+    "purpose",
+    "route",
+    "route_digest",
+    "prompt_version",
     "request_hash",
+    "tool_catalog_hash",
+    "budget",
+    "streaming",
+    "deadline_unix_ms",
+    "provider_account",
+    "credential_revision",
+];
+const MODEL_BUDGET_DISPATCH_FIELDS: &[&str] =
+    &["run_id", "model_request_id", "request_hash", "permit_id"];
+const MODEL_BUDGET_SETTLED_FIELDS: &[&str] = &[
+    "run_id",
+    "model_request_id",
+    "charged_tokens",
+    "reported_tokens",
+    "usage_known",
+    "reservation_exceeded",
+    "at_unix_ms",
+    "settlement_fact",
 ];
 const CONNECTOR_HEALTH_IDS: &[&str] = &["request_id", "connector_id", "binding_id"];
 const CONNECTOR_HEALTH_FIELDS: &[&str] = &[
@@ -1380,6 +1398,24 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         Some("legacy_run_event_v0_to_v1")
     ),
     spec!(
+        "model.reserved",
+        "model_budget",
+        &["run_id", "model_request_id"],
+        &[
+            "run_id",
+            "model_request_id",
+            "tokens",
+            "at_unix_ms",
+            "reservation_fact",
+            "request_count",
+            "charged_and_reserved_tokens",
+            "limit",
+            "basis",
+        ],
+        false,
+        None
+    ),
+    spec!(
         "model.prepared",
         "model_call",
         MODEL_EVENT_IDS,
@@ -1901,6 +1937,7 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
     let object = payload
         .as_object()
         .ok_or_else(|| "event_payload_object_required".to_owned())?;
+    let (required_ids, allowed_fields) = model_payload_contract(kind, object, spec)?;
     if kind == "capability.decision" {
         match (object.get("run_id"), object.get("capability_request_id")) {
             (None, None) => {}
@@ -1918,16 +1955,94 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
         let _ = reason;
     }
 
-    for id in spec.required_ids {
+    for id in required_ids {
         if !object.get(*id).is_some_and(|value| !value.is_null()) {
             return Err(format!("event_required_id_missing:{id}"));
         }
     }
     if object
         .keys()
-        .any(|key| !spec.allowed_fields.iter().any(|allowed| allowed == key))
+        .any(|key| !allowed_fields.iter().any(|allowed| allowed == key))
     {
         return Err("event_payload_unknown_field".to_owned());
+    }
+    if kind == "model.prepared" && !object.contains_key("schema") {
+        validate_model_budget_prepared(object)?;
+    }
+    Ok(())
+}
+
+// The journal budget and typed provider/lifecycle producers share three event names.
+// Select one bounded payload shape; admitting their field union would hide mixed facts.
+fn model_payload_contract(
+    kind: &str,
+    object: &serde_json::Map<String, Value>,
+    spec: &EventKindSpec,
+) -> Result<(&'static [&'static str], &'static [&'static str]), String> {
+    if !matches!(
+        kind,
+        "model.prepared" | "model.dispatching" | "model.settled"
+    ) {
+        return Ok((spec.required_ids, spec.allowed_fields));
+    }
+    match object.get("schema") {
+        Some(Value::String(schema))
+            if kind == "model.prepared" && schema == crate::MODEL_EVENT_SCHEMA =>
+        {
+            Ok((MODEL_EVENT_IDS, MODEL_EVENT_FIELDS))
+        }
+        Some(Value::String(schema)) if schema == crate::MODEL_ATTEMPT_EVENT_SCHEMA => {
+            Ok((MODEL_ATTEMPT_LIFECYCLE_IDS, MODEL_ATTEMPT_LIFECYCLE_FIELDS))
+        }
+        None => match kind {
+            "model.prepared" => Ok((MODEL_BUDGET_PREPARED_FIELDS, MODEL_BUDGET_PREPARED_FIELDS)),
+            "model.dispatching" => Ok((MODEL_BUDGET_DISPATCH_FIELDS, MODEL_BUDGET_DISPATCH_FIELDS)),
+            "model.settled" => Ok((&["run_id", "model_request_id"], MODEL_BUDGET_SETTLED_FIELDS)),
+            _ => unreachable!("model kinds selected above"),
+        },
+        _ => Err("event_model_payload_schema_invalid".to_owned()),
+    }
+}
+
+fn validate_model_budget_prepared(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    let permit: crate::ModelCallPermit = serde_json::from_value(object["permit"].clone())
+        .map_err(|_| "event_model_prepared_permit_invalid".to_owned())?;
+    let audit = object["prepared"]
+        .as_object()
+        .ok_or_else(|| "event_model_prepared_audit_invalid".to_owned())?;
+    let versions: Vec<crate::AggregateVersion> =
+        serde_json::from_value(object["authority_versions"].clone())
+            .map_err(|_| "event_model_prepared_authority_versions_invalid".to_owned())?;
+    if audit
+        .keys()
+        .any(|key| !MODEL_BUDGET_AUDIT_FIELDS.contains(&key.as_str()))
+    {
+        return Err("event_payload_unknown_field".to_owned());
+    }
+    let call_id = audit
+        .get("model_call_id")
+        .and_then(Value::as_str)
+        .and_then(crate::RequestId::parse_str);
+    if call_id.is_none_or(|id| id.as_uuid().is_nil())
+        || permit.schema != "kiana.model-call-permit.v1"
+        || permit.permit_id.as_uuid().is_nil()
+        || permit.run_id.as_uuid().is_nil()
+        || permit.attempt_id.as_uuid().is_nil()
+        || permit.request_hash.trim().is_empty()
+        || permit.expires_at_unix_ms == 0
+        || audit.get("schema") != Some(&Value::String(crate::MODEL_CALL_SCHEMA.to_owned()))
+        || audit.get("run_id") != Some(&serde_json::json!(permit.run_id))
+        || audit.get("model_request_id") != Some(&serde_json::json!(permit.attempt_id))
+        || audit.get("request_hash") != Some(&Value::String(permit.request_hash))
+    {
+        return Err("event_model_prepared_identity_mismatch".to_owned());
+    }
+    if versions.is_empty()
+        || versions.iter().any(|version| {
+            version.aggregate_type.trim().is_empty() || version.aggregate_id.trim().is_empty()
+        })
+    {
+        return Err("event_model_prepared_authority_versions_invalid".to_owned());
     }
     Ok(())
 }

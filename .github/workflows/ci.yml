@@ -25,6 +25,13 @@ jobs:
           sudo apt-get update -qq || true
           sudo apt-get install -y -qq ripgrep
           rg --version
+      - name: Record roadmap goal dependency snapshot
+        run: python3 scripts/roadmap-goal.py --json > roadmap-goal-snapshot.json
+      - name: Archive roadmap goal dependency snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: roadmap-goal-${{ github.sha }}
+          path: roadmap-goal-snapshot.json
       - name: Validate workflow YAML
         run: |
           bash scripts/ci/validate-workflows.sh
@@ -41,13 +48,6 @@ jobs:
           bash scripts/validate-evidence-manifest.sh scripts/fixtures/sc35-evidence-manifest.example.json
           bash scripts/verify-ui37-docs.sh
           find scripts -type f -name '*.sh' -exec bash -n {} +
-      - name: Record roadmap goal dependency snapshot
-        run: python3 scripts/roadmap-goal.py --json > roadmap-goal-snapshot.json
-      - name: Archive roadmap goal dependency snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: roadmap-goal-${{ github.sha }}
-          path: roadmap-goal-snapshot.json
 
   rust-gates:
     name: Rust gates (fmt/check/clippy)

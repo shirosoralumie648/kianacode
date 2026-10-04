@@ -487,6 +487,7 @@
    "nm21_notification_parity",
    "nm21_notification_parity_guard",
    "notifications_baseline",
+   "oa03_redaction_guard",
    "oa04_audit_reducer",
    "oa07_span_lifecycle",
    "oa08_model_instrumentation",

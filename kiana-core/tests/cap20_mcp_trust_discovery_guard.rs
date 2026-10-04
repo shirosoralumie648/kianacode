@@ -46,16 +46,14 @@ fn mcp_registry_pins_config_binary_trust_and_discovery_before_call() {
             "mcp_executable_seal_unavailable",
             "ProcessSupervisor::prepare_command",
             "ProcessSupervisor::stop",
-            "mcp_transport_unsupported",
         ],
         "stdio lifecycle",
     );
-    // HTTP/SSE 的冻结拒绝在注册层 harness_mcp.rs（两处 `_ => Err(...)`），
-    // stdio 适配器不发这个码，所以 stdio 组断不到它。冻结边界本身没松：
-    // 下面 `!harness.contains("connect_http")` 仍然成立。
+    // Unsupported-transport dispatch belongs to the registry; the confined stdio client
+    // receives a validated stdio config. Keep this refusal checked at its actual owner.
     assert!(
         harness.contains("mcp_transport_unsupported"),
-        "CAP-20 frozen transport refusal missing from MCP registry"
+        "CAP-20 unsupported transport refusal missing from MCP registry"
     );
     require(
         trust,

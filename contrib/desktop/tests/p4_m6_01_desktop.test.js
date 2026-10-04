@@ -65,7 +65,7 @@ test("desktop_shell_reuses_loopback_worker_and_safe_close_path", () => {
     "stopWorker(proc)",
     "detached: process.platform !== \"win32\"",
     "127.0.0.1:0",
-    "desktop_safe_close_leaves_no_orphan_process",
+    "function stopChild()",
   ]) {
     assert.ok(
       main.includes(marker) || worker.includes(marker) || readiness.includes(marker) ||
@@ -75,6 +75,8 @@ test("desktop_shell_reuses_loopback_worker_and_safe_close_path", () => {
   }
   assert.match(main, /event\.preventDefault\(\);/);
   assert.match(main, /if \(shutdownComplete\) return/);
+  assert.match(main, /quitPromise = stopChild\(\)\.then\(\(\) => \{\s+shutdownComplete = true;\s+app\.quit\(\);/);
+  assert.match(main, /stopPromise = stopWorker\(proc\)\.then/);
   assert.match(worker, /process\.kill\(-proc\.pid, signal\)/);
   assert.match(worker, /worker_stop_unconfirmed/);
 });

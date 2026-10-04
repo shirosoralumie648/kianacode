@@ -17,6 +17,10 @@ jobs:
         include:
           - crate: kiana-domain
             target: er01_event_contract
+          - crate: kiana-domain
+            target: p4_j7_26_model_events
+          - crate: kiana-domain
+            target: bq11_attempt_lifecycle
           - crate: kiana-core
             target: er01_event_contract_guard
           - crate: kiana-core

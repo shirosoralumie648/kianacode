@@ -1692,6 +1692,196 @@ fn action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift() {
     );
 }
 
+fn model_budget_prepared_payload() -> serde_json::Value {
+    let run_id = kiana_domain::RunId::new();
+    let request_id = RequestId::new();
+    let request_hash = format!("sha256:{}", "a".repeat(64));
+    json!({
+        "permit": {
+            "schema": "kiana.model-call-permit.v1",
+            "permit_id": RequestId::new(),
+            "run_id": run_id,
+            "attempt_id": request_id,
+            "request_hash": request_hash.clone(),
+            "expires_at_unix_ms": 1000,
+        },
+        "prepared": {
+            "schema": kiana_domain::MODEL_CALL_SCHEMA,
+            "model_call_id": RequestId::new(),
+            "run_id": run_id,
+            "model_request_id": request_id,
+            "request_hash": request_hash,
+        },
+        "authority_versions": [
+            {"aggregate_type": "authority", "aggregate_id": "fixture", "version": 1},
+            {"aggregate_type": "run", "aggregate_id": run_id, "version": 1},
+        ],
+    })
+}
+
+#[test]
+fn model_budget_contracts_deny_missing_ids_and_cross_shape_fields() {
+    let run_id = kiana_domain::RunId::new();
+    let request_id = RequestId::new();
+    let cases = [
+        (
+            "model.reserved",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "tokens": 1000, "at_unix_ms": 1000, "reservation_fact": {},
+                "request_count": 1, "charged_and_reserved_tokens": 1000,
+                "limit": {}, "basis": "text_bytes_plus_output_limit",
+            }),
+        ),
+        (
+            "model.dispatching",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "request_hash": format!("sha256:{}", "a".repeat(64)),
+                "permit_id": RequestId::new(),
+            }),
+        ),
+        (
+            "model.settled",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "charged_tokens": 1000, "reported_tokens": null, "usage_known": false,
+                "reservation_exceeded": false, "at_unix_ms": 1001, "settlement_fact": {},
+            }),
+        ),
+        ("model.prepared", model_budget_prepared_payload()),
+    ];
+    for (kind, payload) in cases {
+        let required: &[&str] = match kind {
+            "model.prepared" => &["permit", "prepared", "authority_versions"],
+            "model.dispatching" => &["run_id", "model_request_id", "request_hash", "permit_id"],
+            _ => &["run_id", "model_request_id"],
+        };
+        for id in required {
+            for null in [false, true] {
+                let mut missing = payload.clone();
+                if null {
+                    missing[*id] = serde_json::Value::Null;
+                } else {
+                    missing.as_object_mut().unwrap().remove(*id);
+                }
+                assert_eq!(
+                    validate_event_payload(kind, &missing).unwrap_err(),
+                    format!("event_required_id_missing:{id}"),
+                    "{kind}",
+                );
+            }
+        }
+        let mut mixed = payload.clone();
+        mixed["turn_id"] = json!(kiana_domain::TurnId::new());
+        assert_eq!(
+            validate_event_payload(kind, &mixed).unwrap_err(),
+            "event_payload_unknown_field",
+            "{kind}",
+        );
+        let mut unknown_schema = payload.clone();
+        unknown_schema["schema"] = json!("future.model-budget.v2");
+        assert!(
+            validate_event_payload(kind, &unknown_schema).is_err(),
+            "{kind}"
+        );
+        validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
+    }
+    let reserved = event_kind_spec("model.reserved").unwrap();
+    assert_eq!(reserved.aggregate_type, "model_budget");
+    assert!(!reserved.terminal);
+    assert_eq!(
+        unknown_event_policy("model.future").unwrap_err(),
+        "unknown_required_event_kind"
+    );
+}
+
+#[test]
+fn model_budget_prepared_does_not_accept_empty_or_forged_material() {
+    let payload = model_budget_prepared_payload();
+    for (field, value) in [
+        ("permit", json!({})),
+        ("prepared", json!({})),
+        ("authority_versions", json!([])),
+    ] {
+        let mut malformed = payload.clone();
+        malformed[field] = value;
+        assert!(
+            validate_event_payload("model.prepared", &malformed).is_err(),
+            "{field}"
+        );
+    }
+    for field in ["run_id", "model_request_id", "request_hash"] {
+        let mut forged = payload.clone();
+        forged["prepared"][field] = json!("changed");
+        assert_eq!(
+            validate_event_payload("model.prepared", &forged).unwrap_err(),
+            "event_model_prepared_identity_mismatch",
+        );
+    }
+    let mut raw = payload;
+    raw["prepared"]["wire_body"] = json!({"private": "request material"});
+    assert_eq!(
+        validate_event_payload("model.prepared", &raw).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
+fn typed_model_prepared_keeps_sequence_in_the_runtime_envelope() {
+    use kiana_domain::{
+        CorrelationContext, CorrelationScope, ModelEvent, ModelEventKind, RedactionProfile,
+        RedactionSignal,
+    };
+    let context = kiana_domain::RequestContext::local("er01-model-typed", "/repo");
+    let correlation = CorrelationContext::from_request(
+        &context,
+        CorrelationScope::new(context.session_id.clone(), None, None),
+        1,
+        1,
+        None,
+    )
+    .unwrap()
+    .with_run(kiana_domain::RunId::new())
+    .unwrap()
+    .with_turn(kiana_domain::TurnId::new())
+    .unwrap();
+    let digest = format!("sha256:{}", "a".repeat(64));
+    let trace = kiana_domain::ProviderTraceMetadata::empty(&RedactionProfile::for_signal(
+        RedactionSignal::Trace,
+    ))
+    .unwrap();
+    let prepared = ModelEvent::new(
+        ModelEventKind::Prepared,
+        correlation,
+        kiana_domain::StepId::new(),
+        RequestId::new(),
+        kiana_domain::ModelAttemptId::new(),
+        1,
+        "fixture-provider",
+        "fixture-model",
+        "revision:1",
+        digest.clone(),
+        digest.clone(),
+        digest.clone(),
+        digest.clone(),
+        digest,
+        trace,
+    )
+    .unwrap();
+    let event = prepared.into_runtime_event(7).unwrap();
+    assert_eq!(event.sequence, 7);
+    assert!(event.data.get("sequence").is_none());
+    validate_runtime_event(&event).unwrap();
+    let mut mixed = event.data.clone();
+    mixed["permit"] = json!({});
+    assert_eq!(
+        validate_event_payload("model.prepared", &mixed).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+    assert!(prepared.into_runtime_event(0).is_err());
+}
+
 #[test]
 fn run_lifecycle_contracts_match_real_producers_and_reject_drift() {
     let run_id = kiana_domain::RunId::new();

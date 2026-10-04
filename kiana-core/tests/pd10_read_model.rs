@@ -1,5 +1,8 @@
 use kiana_core::{project_persistence_read_model, PERSISTENCE_READ_MODEL_SCHEMA};
-use kiana_domain::{RequestContext, RunId, RuntimeEvent};
+use kiana_domain::{
+    ApprovalId, CapabilityExecutionState, CapabilityKind, CapabilityRequest, RequestContext,
+    RequestId, RunId, RuntimeEvent,
+};
 use serde_json::json;
 
 fn event(run_id: RunId, sequence: u64, kind: &str) -> RuntimeEvent {
@@ -139,15 +142,57 @@ fn missing_terminal_cannot_become_completed_even_with_other_events() {
         (vec!["run.started"], "running"),
         (vec!["run.queued", "run.started"], "running"),
         (
-            vec!["run.started", "approval.requested"],
+            vec![
+                "run.started",
+                "run.capability_requested",
+                "capability.decision",
+                "approval.requested",
+            ],
             "awaiting_approval",
         ),
     ] {
         let run_id = RunId::new();
+        let request_id = RequestId::new();
+        let request = CapabilityRequest::new(
+            request_id,
+            CapabilityKind::Query,
+            "search",
+            json!({"query": "read model"}),
+        );
         let events = kinds
             .iter()
             .enumerate()
-            .map(|(index, kind)| event(run_id, index as u64 + 1, kind))
+            .map(|(index, kind)| {
+                let mut fact = event(run_id, index as u64 + 1, kind);
+                match *kind {
+                    "run.capability_requested" => {
+                        fact.data = json!({
+                            "run_id": run_id,
+                            "capability_request_id": request_id,
+                            "capability": request.capability,
+                            "operation": request.operation,
+                            "arguments": request.arguments,
+                            "risk": request.risk,
+                        });
+                    }
+                    "capability.decision" => {
+                        fact.data = json!({
+                            "run_id": run_id,
+                            "capability_request_id": request_id,
+                            "gate": {"decision": "awaiting_approval"},
+                        });
+                    }
+                    "approval.requested" => {
+                        fact.data = json!({
+                            "run_id": run_id,
+                            "capability_request_id": request_id,
+                            "approval_id": ApprovalId::new(),
+                        });
+                    }
+                    _ => {}
+                }
+                fact
+            })
             .collect::<Vec<_>>();
         let model =
             project_persistence_read_model(&context(), run_id, &events, events.len() as u64, None)
@@ -155,5 +200,29 @@ fn missing_terminal_cannot_become_completed_even_with_other_events() {
         assert_eq!(model.run.phase, phase);
         assert_eq!(model.run.outcome, None);
         assert_ne!(model.receipt["status"], "completed");
+        if phase == "awaiting_approval" {
+            assert_eq!(model.invocations.len(), 1);
+            assert_eq!(
+                model.invocations[0].state,
+                CapabilityExecutionState::AwaitingApproval
+            );
+        }
     }
+
+    // An approval without its capability request identity is still malformed.
+    let run_id = RunId::new();
+    assert_eq!(
+        project_persistence_read_model(
+            &context(),
+            run_id,
+            &[
+                event(run_id, 1, "run.started"),
+                event(run_id, 2, "approval.requested"),
+            ],
+            2,
+            None,
+        )
+        .unwrap_err(),
+        "persistence_read_model_invocation:invocation_request_id_missing"
+    );
 }
