@@ -22826,3 +22826,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: no durable authority/subscription store, dedup/OCC, notification inbox/outbox or delivery worker; NM-06+ remains open
 reviewer: source review of server-context authority, exact target binding, subscription narrowing and no-dispatch guard ownership; no local runtime reviewer
 ```
+
+### ER-02 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `b980a180` malformed identity alias/nil-link correction; `.github/workflows/er02-identity.yml`; kiana-domain/src/states.rs; kiana-domain/tests/er02_identity.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/src/invocation_projection.rs; kiana-core/tests/{er02_identity.rs,er02_identity_guard.rs}; docs/roadmap/event-receipt-identity-baseline.md
+worktree_status: restored a GitHub-only ER-02 domain/EventStore/Core identity fixture/source-guard lane with formatting and target-scoped compile; identity projection, EventStore semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er02-identity.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: malformed/self/nil identity links, request-id alias drift across capability/run/approval/permit payloads, replay/link drift, event-id reuse, command digest conflict, cross-run sequence and source guard; four target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: direct/Harness/approval-resume identity-chain parity, complete green ER-02 shard, full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
+reviewer: source review matched alias consistency, nil-link fail-closed boundary and shared append/replay target partition; no local runtime reviewer
+```

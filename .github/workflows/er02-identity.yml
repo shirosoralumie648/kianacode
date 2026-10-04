@@ -1,0 +1,37 @@
+name: ER-02 identity correlation and ordering
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    name: ER-02 identity fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run ER-02 domain identity fixtures
+        run: cargo test -p kiana-domain --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 EventStore identity fixtures
+        run: cargo test -p kiana-eventlog --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 projection identity fixtures
+        run: cargo test -p kiana-core --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 source guard
+        run: cargo test -p kiana-core --test er02_identity_guard --locked -- --test-threads=1
+      - name: Compile ER-02 domain target
+        run: cargo test -p kiana-domain --test er02_identity --no-run --locked
+      - name: Compile ER-02 EventStore target
+        run: cargo test -p kiana-eventlog --test er02_identity --no-run --locked
+      - name: Compile ER-02 Core targets
+        run: |
+          cargo test -p kiana-core --test er02_identity --no-run --locked
+          cargo test -p kiana-core --test er02_identity_guard --no-run --locked
