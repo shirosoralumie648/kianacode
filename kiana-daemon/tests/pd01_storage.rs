@@ -168,7 +168,10 @@ fn daemon_storage_lock_conflict_rejects_a_fifo_without_reading_it() {
 #[test]
 fn daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly() {
     let (path, root) = fixture_root("lock-malformed");
-    StorageLease::acquire(root.clone()).unwrap().release().unwrap();
+    StorageLease::acquire(root.clone())
+        .unwrap()
+        .release()
+        .unwrap();
     fs::write(path.join("locks/storage.lock"), b"{}").unwrap();
 
     assert_eq!(
