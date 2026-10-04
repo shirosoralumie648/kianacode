@@ -22302,6 +22302,21 @@ limitations: same single-gateway reload scope; multi-project daemon/config-path/
 reviewer: old fixture history and current assignment-before-preflight source order reviewed; no local runtime reviewer
 ```
 
+### ER-13 committed result delivery source slice (2026-10-04)
+
+```text
+source_snapshot: `2f2ff1ab`; kiana-core/src/dispatch.rs; kiana-core/src/dispatch_delivery_tests.rs; kiana-core/tests/er13_result_delivery.rs; .github/workflows/er13-result-delivery.yml
+worktree_status: delivery now resolves the preparation receipt, validates one execution stream and typed turn/invocation/result/receipt, binds source execution version plus run/result-delivery versions into the claim CAS, and sends Runner only after the claim; no second delivery authority or manifest/lockfile change
+command_argv: `gh run view 37168615192 --log-failed`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: 10 behavioral tests passed: missing/append-only facts, contradictory source/receipt/result, terminal/cancel/next-turn races, typed turn drift, receipt/CAS faults, concurrency, callback/Unknown no-retry and claim-before-cancel; one missing-stream-version fixture failed during setup because MemoryEventLog rejects an invalid append
+exit_code: remote run `37168615192` 101 at branch source `179b1a06`; 10/11 behavior tests passed; no local runtime exit code
+status_change: ER-13 roadmap row 139 remains 🔄; feature_status=partial; proof_level=source
+proof-level_change: source behavior coverage broadened, but changed-source lane is not accepted until the fixture reaches the intended delivery denial
+limitations: missing-version fixture must use an EventStore read fault seam; claim acknowledgement remains outside journal transaction, crash/cross-process recovery and external/live/physical exactly-once remain open
+reviewer: committed source/receipt/turn validation and failed CI fixture setup classified; no local runtime reviewer
+```
+
 ### CAP-05 Broker effect-boundary fixtures (2026-10-04)
 
 ```text
