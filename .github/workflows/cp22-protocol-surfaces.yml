@@ -1,0 +1,54 @@
+name: CP-22 protocol and surface parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-surfaces:
+    name: CP-22 protocol and surface fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run protocol DTO fixture
+        run: cargo test -p kiana-protocol --test ui01_dto --locked -- --test-threads=1
+      - name: Run stream cursor fixture
+        run: cargo test -p kiana-protocol --test p4_j7_02_sequence --locked -- --test-threads=1
+      - name: Run client request fixture
+        run: cargo test -p kiana-client --test client_methods --locked -- --test-threads=1
+      - name: Run daemon UI projection fixture
+        run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
+      - name: Run approval surface fixture
+        run: cargo test -p kiana-entrypoints --test p0_f01_approval_surfaces --locked -- --test-threads=1
+      - name: Run Web sync fixture
+        run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - name: Run CLI Workbench fixture
+        run: cargo test -p kiana-entrypoints --test cli_workbench --locked -- --test-threads=1
+      - name: Run CLI resume fixture
+        run: cargo test -p kiana-entrypoints --test cli_resume --locked -- --test-threads=1
+      - name: Run CP-22 source guard
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - name: Compile protocol and client targets
+        run: cargo test -p kiana-protocol --test ui01_dto --no-run --locked
+      - run: cargo test -p kiana-protocol --test p4_j7_02_sequence --no-run --locked
+      - run: cargo test -p kiana-client --test client_methods --no-run --locked
+      - name: Compile daemon and entrypoint targets
+        run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test p0_f01_approval_surfaces --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test cli_workbench --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test cli_resume --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --no-run --locked
+      - name: Check desktop surface fixtures
+        run: node --test contrib/desktop/tests/*.js

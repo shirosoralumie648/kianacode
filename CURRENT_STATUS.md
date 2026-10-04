@@ -11688,6 +11688,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus shared envelope/action proof/version, explicit pending decision, noninteractive denial, stream epoch/cursor/gap/terminal replay, receipt-authoritative reconnect and no-second-loop/no-provider boundary review; no runtime test reviewer
 ```
 
+### CP-22 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cp22-protocol-surfaces.yml`; kiana-protocol/src/{lib.rs,ui_contracts.rs}; kiana-client/src/lib.rs; kiana-daemon/src/{lib.rs,run_stream.rs}; kiana-entrypoints/src/{harness_run.rs,workbench.rs,workbench_chat.rs,stream_render.rs,web.rs,web_page.html,product_command.rs,command_dispatch.rs,cli.rs}; contrib/desktop/{main.js,lib/worker.js}; selected protocol/client/daemon/entrypoint tests; docs/roadmap/cp22-protocol-surfaces-baseline.md
+worktree_status: restored a GitHub-only CP-22 protocol/UI/CLI/Web/Desktop parity lane with formatting, selected target-scoped compile and Node desktop fixture steps; shared action path, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cp22-protocol-surfaces.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: versioned UI DTO/action-card and unknown-field, stream epoch/sequence, client request, daemon projection, approval surface, Web sync, CLI Workbench/resume and CP-22 cross-surface guard; desktop Node fixtures; selected protocol/client/daemon/entrypoint no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CP-22 roadmap row 222 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: remote authentication/device delivery, durable stream retention, full HTTP status/exit-code matrix and physical desktop packaging remain later UI/ER/PD work
+reviewer: source review matched cross-surface same-fact/reconnect fixtures, desktop boundary and selected target partition; no local runtime reviewer
+```
+
 ### CP-26 decision trace / audit / evidence boundary (2026-09-18)
 
 ```text
