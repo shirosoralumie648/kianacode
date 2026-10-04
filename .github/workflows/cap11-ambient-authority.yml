@@ -1,0 +1,33 @@
+name: CAP-11 ambient authority and default-deny sandbox
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ambient-authority:
+    name: CAP-11 ambient authority fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run sandbox environment fixture
+        run: cargo test -p kiana-daemon --lib sandbox_env_keeps_core_path_and_strips_secrets --locked -- --test-threads=1
+      - name: Run namespace and launch fixture
+        run: cargo test -p kiana-daemon --lib plan_uses_codex_session_cap_drop_and_clearenv --locked -- --test-threads=1
+      - name: Run CAP-11 source guard
+        run: cargo test -p kiana-core --test cap11_ambient_authority_guard --locked -- --test-threads=1
+      - name: Compile daemon library target
+        run: cargo test -p kiana-daemon --lib --no-run --locked
+      - name: Compile CAP-11 source guard target
+        run: cargo test -p kiana-core --test cap11_ambient_authority_guard --no-run --locked
