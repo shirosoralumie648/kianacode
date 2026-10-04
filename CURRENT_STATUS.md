@@ -22481,3 +22481,18 @@ proof-level change: focused current-head evidence refreshed; no promotion to loc
 limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock recovery, power-loss cleanup and cross-process fencing remain open
 reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
 ```
+
+### ER-01 `run.rejected` producer contract (2026-10-04)
+
+```text
+source_snapshot: current branch `step/er01-run-rejected-contract-20261004`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; docs/roadmap/event-receipt-schema-baseline.md; docs/roadmap.md
+worktree_status: registered `run.rejected` with explicit `{reason}` request-level and `{run_id,reason}` run-bound producer shapes; non-empty reason and unknown-field checks are fail-closed; static registry metadata remains descriptive while `aggregate_for_event` retains runtime request/run selection; no second EventStore or execution loop
+command_argv: source review; `git diff --check`; staged diff check; after push `gh workflow run er01-event-schema.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: `run_rejected_contract_accepts_request_and_run_bound_shapes`; Core source guard pins `RUN_REJECTED_FIELDS`, `event_rejected_reason_required`, and both aggregate branches; changed-source ER-01 workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-01 roadmap row 036 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no external run rejection behavior, no persistent migration runner or legacy byte rewrite, no generic projector/terminal reconciliation claim; CI result is intentionally not awaited
+reviewer: source review of all current `run.rejected` producers, registry dual-shape contract, aggregate selection and deny-first fixture; no local runtime reviewer
+```

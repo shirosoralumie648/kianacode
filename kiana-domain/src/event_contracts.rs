@@ -330,6 +330,7 @@ const RUN_FIELDS: &[&str] = &[
     "lease_digest",
     "resource_digest",
 ];
+const RUN_REJECTED_FIELDS: &[&str] = &["run_id", "reason"];
 const RUN_TOOL_CALL_FIELDS: &[&str] = &[
     "run_id",
     "capability_request_id",
@@ -1234,6 +1235,14 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         Some("legacy_run_event_v0_to_v1")
     ),
     spec!(
+        "run.rejected",
+        "request",
+        &[],
+        RUN_REJECTED_FIELDS,
+        true,
+        Some("legacy_run_event_v0_to_v1")
+    ),
+    spec!(
         "run.queued",
         "run",
         RUN_IDS,
@@ -1900,6 +1909,15 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
             _ => return Err("event_capability_identity_pair_incomplete".to_owned()),
         }
     }
+    if kind == "run.rejected" {
+        let reason = object
+            .get("reason")
+            .and_then(Value::as_str)
+            .filter(|reason| !reason.trim().is_empty())
+            .ok_or_else(|| "event_rejected_reason_required".to_owned())?;
+        let _ = reason;
+    }
+
     for id in spec.required_ids {
         if !object.get(*id).is_some_and(|value| !value.is_null()) {
             return Err(format!("event_required_id_missing:{id}"));
