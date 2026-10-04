@@ -16,6 +16,7 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
         "finalize_capability_action",
         "dispatch_capability_action",
         "committed_delivery_source",
+        "result_delivery_source_version_missing",
         "result_delivery_source_unconfirmed",
         "result_delivery_receipt_mismatch",
         "CapabilityResult",
