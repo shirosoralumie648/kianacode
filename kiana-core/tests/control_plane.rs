@@ -5796,7 +5796,7 @@ async fn history_read_failure_is_returned_not_treated_as_empty() {
 }
 
 #[tokio::test]
-async fn history_duplicate_sequence_keeps_first_event() {
+async fn history_same_legacy_sequence_keeps_distinct_requests() {
     let events = Arc::new(MemoryEventLog::new());
     let run_id = RunId::new();
     events
@@ -5841,14 +5841,9 @@ async fn history_duplicate_sequence_keeps_first_event() {
     );
 
     let history = core.model_visible_history("session-1", None).await.unwrap();
-    assert_eq!(
-        history,
-        vec![ConversationMessage {
-            role: ConversationRole::User,
-            text: "first".to_owned(),
-            tool_call_id: None,
-        }]
-    );
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].text, "first");
+    assert_eq!(history[1].text, "second");
 }
 
 #[tokio::test]

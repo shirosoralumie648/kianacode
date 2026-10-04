@@ -237,11 +237,12 @@ pub(crate) fn fold_model_visible_history(
         if !is_history_event(event) || !event_is_in_scope(event, session_id, &selected_runs) {
             continue;
         }
-        // `sequence` is request-local. Real ledger events also carry a run-level stream
-        // version; only fall back to sequence-wide first-wins deduplication for legacy
-        // events that lack that metadata.
-        let request_scope = event.stream_version.map(|_| event.request_id);
-        let dedupe_key = (event_run_id(event), request_scope, event.sequence);
+        // `sequence` is request-local. Bind the fold to the request even for legacy events
+        // without stream metadata, otherwise two requests in one run with the same sequence
+        // would be mistaken for a duplicate. Modern events use the aggregate version when it
+        // is available, while the request id remains part of the identity boundary.
+        let event_order = event.stream_version.unwrap_or(event.sequence);
+        let dedupe_key = (event_run_id(event), event.request_id, event_order);
         if !seen.insert(dedupe_key) {
             continue;
         }
@@ -252,7 +253,6 @@ pub(crate) fn fold_model_visible_history(
         let run_rank = event_run_id(event)
             .and_then(|run_id| run_order.get(&run_id).copied())
             .unwrap_or(usize::MAX);
-        let event_order = event.stream_version.unwrap_or(event.sequence);
         (run_rank, event_order, *index)
     });
 

@@ -4,6 +4,8 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     let events = include_str!("../src/events.rs");
     let correlation = include_str!("../../kiana-domain/src/correlation.rs");
     let projection = include_str!("../src/invocation_projection.rs");
+    let history = include_str!("../src/history.rs");
+    let history_fixture = include_str!("./control_plane.rs");
     let span = include_str!("../src/span_projection.rs");
     let baseline = include_str!("../../docs/roadmap/event-receipt-identity-baseline.md");
     let eventlog_fixtures = include_str!("../../kiana-eventlog/tests/er02_identity.rs");
@@ -37,6 +39,9 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     }
     assert!(projection.contains("event_run_id"));
     assert!(projection.contains("event_matches_run"));
+    assert!(history.contains("event.request_id, event_order"));
+    assert!(history.contains("sequence` is request-local"));
+    assert!(history_fixture.contains("history_same_legacy_sequence_keeps_distinct_requests"));
     assert!(span.contains("turn_id"));
     assert!(span.contains("invocation_id"));
     assert!(baseline.contains("event_id_reuse_is_denied"));
