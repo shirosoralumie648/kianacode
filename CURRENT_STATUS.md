@@ -4,6 +4,21 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### ER-01/ER-02 source-guard ownership and test compile repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; kiana-core/tests/er01_event_contract_guard.rs; kiana-eventlog/tests/er02_identity.rs; observed ER-01 run `37181456914` and unified CI run `37188546597`
+worktree_status: integration branch `goal/roadmap-completion-20261004-01a10602`; moved aggregate_for_event source assertion to its existing events.rs owner; nil identity fixture now constructs the same all-zero RequestId through its public parser instead of an undeclared uuid import
+command_argv: read exact GitHub failures; source review of events.rs and ids.rs; target rustfmt edit; `git diff --check`; remote ER-01/ER-02 focused workflows and unified fmt/check/clippy/test shards
+cwd·environment: repository root; Linux; no local tests/build/check/clippy/smoke executed
+fixture·cassette: existing event_contract_registry_and_migration_boundary_are_source_owned assertion retained against the correct module; nil_identity_links_are_denied_before_append still requires event_command_id_invalid for the identical nil UUID; no manifest/lockfile or runtime validator change
+exit_code: original ER-01 Core guard exit 101 (aggregate_for_event absent from the wrong inspected module); original eventlog compile E0432 unresolved uuid; reviewed diff exit 0; new-source CI pending
+status_change: public validation blockers repaired at source; ER-01/ER-02 remain 🔄
+proof-level change: source only
+limitations: full event-contract and identity parity/shards remain unverified on the repaired source; model-budget event registration and durable/runtime acceptance remain separate work
+reviewer: Codex source/diff review matched marker ownership, RequestId parser behavior and unchanged nil rejection assertion
+```
+
 ### PD-10 stable terminal-conflict error repair (2026-10-04)
 
 ```text

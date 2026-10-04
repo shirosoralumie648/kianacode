@@ -1244,6 +1244,7 @@ CI 运行期间可领取其他独立 Step；完成后按 `CURRENT_STATUS.md` 的
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-10-04 | ER-01/ER-02 公共验证阻塞修复：aggregate_for_event 守卫改查真实 owner events.rs，nil RequestId 夹具使用已有 parser 避免未声明 uuid 依赖；原 nil 拒绝断言与完整 source marker 检查保留，本地不运行测试，两卡仍 🔄 | 待本提交 |
 | 2026-10-04 | PD-10 公共回归修复：将 typed TerminalConflict 映射为 `persistence_read_model_run:run_terminal_conflict:<kinds>`，保留原拒绝断言，新增四类终态的 12 个有序冲突组合及缺 terminal 的三类状态；仅远端执行测试，PD-10 保持 🔄，durable/fresh-process 验收仍开放 | 待本提交 |
 | 2026-10-04 | 修复公共 CI 阻塞：CAP-20 的 `harness_mcp::tests:: ` 命令改为 YAML folded scalar，移除违反现有 allowlist 的 push/root-status 触发；原 MCP 测试及 compile 命令全部保留，本地不运行验证，CAP-20 仍 🔄 | 待本提交 |
 | 2026-10-04 | 创建全量执行 goal `task-1791102524181-0iivvl`：重新盘点 749 个 Step（351 ✅ / 398 🔄 / 51 个可领取前沿），新增可重算依赖清单与 CI snapshot artifact；按用户指示改为 GitHub-only 验证及独立 worktree 并行，读取 CI 后修复失败再回填；未提升任何 Step 或 proof | 待本提交 |
