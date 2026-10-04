@@ -336,7 +336,13 @@ impl ControlPlane {
             || permit.run_id != Some(run_id)
             || permit.turn_id != Some(turn_id)
             || prepared.data["action_digest"] != json!(permit.action_digest)
-            || stream.iter().enumerate().any(|(index, event)| {
+            || stream.iter().any(|event| event.stream_version.is_none())
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_version_missing",
+            ));
+        }
+        if stream.iter().enumerate().any(|(index, event)| {
                 event.aggregate_type.as_deref() != Some("execution_permit")
                     || event.aggregate_id.as_deref() != Some(prepared_version.aggregate_id.as_str())
                     || event.stream_version != Some(index as u64 + 1)
@@ -346,8 +352,7 @@ impl ControlPlane {
                     || event.data["invocation_id"] != json!(permit.invocation_id)
                     || event.data["capability_request_id"] != json!(result.request_id)
                     || event.data["attempt"] != json!(1)
-            })
-        {
+            }) {
             return Err(dispatch_error(
                 "result_unknown:result_delivery_source_mismatch",
             ));
@@ -364,7 +369,9 @@ impl ControlPlane {
             ));
         }
         let final_id = derived_request_id("execution.result", &execution_id.to_string());
-        let source_version = source.stream_version.expect("validated stream version");
+        let source_version = source.stream_version.ok_or_else(|| {
+            dispatch_error("result_unknown:result_delivery_source_version_missing")
+        })?;
         if source.request_id != final_id
             || source.command_id.is_some_and(|id| id != final_id)
             || source.sequence != 1

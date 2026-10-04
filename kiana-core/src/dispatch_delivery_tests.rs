@@ -320,6 +320,28 @@ async fn missing_or_append_only_execution_facts_never_claim_or_call_runner() {
 }
 
 #[tokio::test]
+async fn missing_committed_source_stream_version_is_denied_without_delivery() {
+    let fixture = Fixture::new().await;
+    fixture.prepare(true).await;
+    let mut source = fixture.source();
+    source.stream_version = None;
+    fixture
+        .events
+        .append(source)
+        .await
+        .expect("legacy lookalike source");
+    assert_eq!(
+        fixture
+            .core()
+            .deliver_capability_result(fixture.run_id, fixture.result.clone())
+            .await
+            .unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_source_version_missing")
+    );
+    fixture.no_delivery().await;
+}
+
+#[tokio::test]
 async fn contradictory_committed_payloads_or_tampered_receipts_never_deliver() {
     for drift in [
         "run",
