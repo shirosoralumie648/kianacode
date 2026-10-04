@@ -343,16 +343,16 @@ impl ControlPlane {
             ));
         }
         if stream.iter().enumerate().any(|(index, event)| {
-                event.aggregate_type.as_deref() != Some("execution_permit")
-                    || event.aggregate_id.as_deref() != Some(prepared_version.aggregate_id.as_str())
-                    || event.stream_version != Some(index as u64 + 1)
-                    || event.data["run_id"] != json!(run_id)
-                    || event.data["turn_id"] != json!(turn_id)
-                    || event.data["execution_id"] != json!(execution_id)
-                    || event.data["invocation_id"] != json!(permit.invocation_id)
-                    || event.data["capability_request_id"] != json!(result.request_id)
-                    || event.data["attempt"] != json!(1)
-            }) {
+            event.aggregate_type.as_deref() != Some("execution_permit")
+                || event.aggregate_id.as_deref() != Some(prepared_version.aggregate_id.as_str())
+                || event.stream_version != Some(index as u64 + 1)
+                || event.data["run_id"] != json!(run_id)
+                || event.data["turn_id"] != json!(turn_id)
+                || event.data["execution_id"] != json!(execution_id)
+                || event.data["invocation_id"] != json!(permit.invocation_id)
+                || event.data["capability_request_id"] != json!(result.request_id)
+                || event.data["attempt"] != json!(1)
+        }) {
             return Err(dispatch_error(
                 "result_unknown:result_delivery_source_mismatch",
             ));
