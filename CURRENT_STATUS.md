@@ -11844,6 +11844,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus no-follow/path scope, file identity/mode/content/revision/data epoch, approval/context invalidation, descriptor-relative transaction/rollback and explicit Unknown result boundary review; no runtime test reviewer
 ```
 
+### ER-18 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er18-workspace-checkpoint.yml`; kiana-domain/src/platform.rs; kiana-core/src/workspace_checkpoints.rs; kiana-daemon/src/{workspace_checkpoints.rs,apply_patch.rs}; kiana-ports/src/lib.rs; kiana-core/tests/{p2_k4_01_checkpoint.rs,cp18_run_snapshot_guard.rs,er18_workspace_checkpoint_guard.rs}; docs/roadmap/er18-workspace-checkpoint-baseline.md
+worktree_status: restored a GitHub-only ER-18 checkpoint/restore lane with formatting and three target-scoped compile steps; checkpoint semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er18-workspace-checkpoint.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: checkpoint path/data-epoch/company-scope, no-follow/symlink/hardlink/file identity/mode/content/revision, prepare/finish restore approval/context invalidation, descriptor-relative patch rollback/pending/Unknown and CP-18 snapshot guards; three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-18 roadmap row 227 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: power-loss atomicity, cross-host filesystem locking, external artifact durability and ER-19 process fencing remain open
+reviewer: source review matched checkpoint/restore guard ownership and selected target partition; no local runtime reviewer
+```
+
 ### ER-19 process/job handle / fencing evidence (2026-09-18)
 
 ```text
