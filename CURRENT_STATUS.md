@@ -22407,6 +22407,21 @@ limitations: Debug boundary only; provider-only token-file serialization intenti
 reviewer: all six raw-bearing Debug types and current consumers/fixtures reviewed; no local runtime reviewer
 ```
 
+### CI-09 current-head OAuth lifecycle lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; generation fencing `e4da9d33`; fenced token-file metadata repair `3d1912f3`; provider Debug boundary `d856cbea`; `.github/workflows/ci09-oauth-lifecycle.yml`; kiana-domain/tests/ci09_oauth_contracts.rs; kiana-provider/src/oauth.rs; kiana-core/tests/ci09_oauth_guard.rs; docs/roadmap/ci09-oauth-lifecycle-baseline.md
+worktree_status: current master contains new-grant stale-refresh fencing, revoked/reauth refresh-digest persistence and raw-bearing Debug redaction fixtures; workflow re-executes domain/provider/Core OAuth targets and target-scoped compile; OAuth/SecretStore semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run ci09-oauth-lifecycle.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: User/Workload PKCE/state/callback, bounded token response, scope/expiry, single-flight, stale generation/revoke CAS, fenced token-file reload and Debug redaction, Core provider ownership/no-raw-token guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CI-09 roadmap row 169 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: provider-only same-manager/file evidence does not prove real IdP or Gateway integration, cross-process token-file CAS, workload attestation, product-chain recovery, external/live/physical effects or unified CI
+reviewer: source review matched current generation/file/Debug fixes to OAuth fixtures and provider ownership guard; no local runtime reviewer
+```
+
 ### CI-06 provider-contract regression fixture correction (2026-10-04)
 
 ```text
