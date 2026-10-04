@@ -19303,6 +19303,21 @@ limitations: DaemonHost::handle still does not consume AssignmentDirectory, serv
 reviewer: source review of project identity derivation and early foreign-project denial; no local runtime reviewer
 ```
 
+### OA-02 request-binding validation boundary (2026-10-04)
+
+```text
+source_snapshot: parent `b3a21616` plus `be15162d`; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-core/tests/er02_identity_guard.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: CorrelationContext::validate_for_request runs full structural validation before request/scope/actor/epoch binding; no ingress/provider/Broker/EventLog bridge or second execution path added
+command_argv: isolated rustfmt on changed files; isolated git diff --check; staged diff check; root commit `be15162d`; after push `gh workflow run oa02-correlation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-oa02-correlation-20261004`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: OA-02 forged parent/nil-request fixture, existing domain/ports correlation targets, and ER-02 validation-order source guard; changed-source workflow pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: authenticated ingress propagation, provider/Broker/EventLog correlation, durable recovery links, exporter/live trace and physical evidence remain open
+reviewer: source review of request-binding validation order and deny-first malformed-context fixture; no local runtime reviewer
+```
+
 ### ER-02 stable authority revision across request contexts (2026-10-03)
 
 ```text

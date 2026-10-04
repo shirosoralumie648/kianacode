@@ -926,3 +926,24 @@ The OA-04 scoped acceptance lane is complete at `implemented/source`: run `37133
 the domain taxonomy target, Core reducer target and both target-scoped compile steps. The unified
 workspace workflow is not claimed green; observer durability, checkpoint/rebuild, query/export,
 authenticated principal binding and live/physical projection remain later OA work.
+
+## OA-02 request-binding validation boundary (2026-10-04)
+
+`CorrelationContext::validate_for_request` now runs the context's complete structural validation
+before comparing request, scope, actor, authority, and data-epoch bindings. A forged context with a
+nil request ID or self/invalid parent link therefore fails closed at the request-binding boundary,
+instead of being accepted because only the outer binding fields matched. The domain fixture covers
+the forged parent/nil-ID path, and the Core ER-02 guard pins the validation-before-binding order.
+
+```text
+source_snapshot: parent `b3a21616` plus `be15162d`; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: request binding invokes the existing full CorrelationContext validator first; no ingress/provider/Broker/EventLog path or exporter was added
+command_argv: isolated rustfmt on changed files; isolated git diff --check; staged diff check; root commit `be15162d`; after push `gh workflow run oa02-correlation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-oa02-correlation-20261004`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `wire_decode_rejects_nil_ids_and_invalid_correlation_links` plus OA-02 domain/ports fixtures and ER-02 source guard; changed-source workflow pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: authenticated ingress propagation through provider/Broker/EventLog, durable recovery links, exporter integration and live trace evidence remain open
+reviewer: source review of validation ordering, forged-link fixture and identity guard; no local runtime reviewer
+```
