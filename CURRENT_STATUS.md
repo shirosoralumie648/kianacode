@@ -6061,6 +6061,21 @@ limitations: the existing bounded watch is not typed handler StopReport or physi
 reviewer: Codex root implementation review plus CP-15 cancellation state, command/CAS barrier, queue/approval terminalization and result-unknown reconciliation; no runtime test reviewer
 ```
 
+### CP-15 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cp15-cancellation.yml`; kiana-domain/src/{cancellation.rs,states.rs,event_contracts.rs,contracts.rs}; kiana-domain/tests/cp15_cancellation.rs; kiana-core/src/{events.rs,lifecycle.rs,approvals.rs,dispatch.rs,sessions.rs}; kiana-core/tests/cp15_cancellation_guard.rs; kiana-runner-protocol/src/lib.rs; docs/roadmap/control-plane-cancellation-baseline.md
+worktree_status: restored a GitHub-only CP-15 domain cancellation fixture/Core barrier guard lane with formatting and two target-scoped compile steps; RunCancellationFact/cancel CAS semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cp15-cancellation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: cancellation stopping/cancelled/unknown/target-order/digest/strict-field fixtures, persist-before-signal, command conflict, terminal guard, pending approval/queue not-executed and no-second-loop source guard; two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CP-15 roadmap row 215 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: handler/descendant/file/remote stop evidence, physical lock release, cross-process recovery, revocation propagation and Unknown reconciliation remain CP-16/17/19/20 and ER/PD/SC work
+reviewer: source review matched cancellation fact/CAS barrier and domain/Core guard target ownership; no local runtime reviewer
+```
+
 ### ER-05 JSONL v2 frame, lock and corruption evidence (2026-09-17)
 
 ```text

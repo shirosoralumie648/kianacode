@@ -1,0 +1,29 @@
+name: CP-15 cancellation state and barrier
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cancellation:
+    name: CP-15 cancellation fixtures and barrier guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run CP-15 cancellation fixtures
+        run: cargo test -p kiana-domain --test cp15_cancellation --locked -- --test-threads=1
+      - name: Run CP-15 source guard
+        run: cargo test -p kiana-core --test cp15_cancellation_guard --locked -- --test-threads=1
+      - name: Compile CP-15 domain target
+        run: cargo test -p kiana-domain --test cp15_cancellation --no-run --locked
+      - name: Compile CP-15 Core guard target
+        run: cargo test -p kiana-core --test cp15_cancellation_guard --no-run --locked
