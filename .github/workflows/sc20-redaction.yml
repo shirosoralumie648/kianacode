@@ -1,0 +1,33 @@
+name: SC-20 redaction and secret egress boundary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  redaction:
+    name: SC-20 redaction and egress fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run domain redaction fixtures
+        run: cargo test -p kiana-domain --test er03_redaction --locked -- --test-threads=1
+      - name: Run existing redaction source guard
+        run: cargo test -p kiana-core --test er03_redaction_guard --locked -- --test-threads=1
+      - name: Run SC-20 cross-boundary guard
+        run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --locked -- --test-threads=1
+      - name: Compile domain redaction target
+        run: cargo test -p kiana-domain --test er03_redaction --no-run --locked
+      - name: Compile Core redaction guard target
+        run: cargo test -p kiana-core --test er03_redaction_guard --no-run --locked
+      - name: Compile SC-20 boundary guard target
+        run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --no-run --locked

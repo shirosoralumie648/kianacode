@@ -11525,6 +11525,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus recursive/profile/streaming redaction, sentinel/depth/size guards, EventLog/Receipt stability/recoverability, Runner/Provider safe text, shell/MCP bounded diagnostics and sandbox env secret filtering review; no runtime test reviewer
 ```
 
+### SC-20 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/sc20-redaction.yml`; kiana-domain/src/redaction.rs; kiana-domain/tests/er03_redaction.rs; kiana-core/src/{events.rs,redaction.rs,receipts.rs}; kiana-core/tests/{er03_redaction_guard.rs,sc20_redaction_boundary_guard.rs}; kiana-runner/src/{harness.rs,stream_normalizer.rs}; kiana-provider/src/{response.rs,transport.rs}; kiana-daemon/src/{harness_capabilities.rs,mcp_stdio.rs,harness_sandbox.rs}; docs/roadmap/sc20-redaction-baseline.md
+worktree_status: restored a GitHub-only SC-20 domain/Core redaction and cross-boundary guard lane with formatting and three target-scoped compile steps; redaction semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc20-redaction.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: nested/bearer/API-key/sentinel, metadata, size/depth and artifact references; EventLog/Receipt/Runner/Provider/daemon boundary guards for stable redaction, bounded stdout/stderr/MCP digest, sandbox env clear and no-raw-secret fields; three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-20 roadmap row 214 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: complete OS/kernel/provider memory erasure, external sink verification and live/physical proof remain SC-21+ / OA / ER work
+reviewer: source review matched recursive/streaming bounds, sentinel failure and cross-boundary no-raw egress guards; no local runtime reviewer
+```
+
 ### CP-16 handler stop / file commit evidence (2026-09-18)
 
 ```text
