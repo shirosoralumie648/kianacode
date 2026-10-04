@@ -1,0 +1,54 @@
+name: CP-28 migration and compatibility boundary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-boundary:
+    name: CP-28 migration and compatibility fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run domain schema and event fixtures
+        run: cargo test -p kiana-domain --test p0_a01b_schema --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test er01_event_contract --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test pd02_schema --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test ci04_ingress --locked -- --test-threads=1
+      - name: Run Core schema and journal guards
+        run: cargo test -p kiana-core --test p0_a01b_schema_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd02_schema_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test pd06_jsonl_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p0_g03_resume_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p0_g04_projection_guard --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test dependency_boundaries --locked -- --test-threads=1
+      - name: Run EventLog package fixtures
+        run: cargo test -p kiana-eventlog --lib --locked -- --test-threads=1
+      - name: Run daemon spine and CLI architecture fixtures
+        run: cargo test -p kiana-daemon --test eq12_daemon_spine --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test cli_architecture --locked -- --test-threads=1
+      - name: Run CP-28 source guard
+        run: cargo test -p kiana-core --test cp28_migration_boundary_guard --locked -- --test-threads=1
+      - name: Compile selected domain targets
+        run: cargo test -p kiana-domain --test p0_a01b_schema --no-run --locked
+      - run: cargo test -p kiana-domain --test er01_event_contract --no-run --locked
+      - run: cargo test -p kiana-domain --test pd02_schema --no-run --locked
+      - run: cargo test -p kiana-domain --test ci04_ingress --no-run --locked
+      - name: Compile selected Core targets
+        run: cargo test -p kiana-core --test cp28_migration_boundary_guard --no-run --locked
+      - run: cargo test -p kiana-core --test dependency_boundaries --no-run --locked
+      - name: Compile EventLog, daemon and entrypoint targets
+        run: cargo test -p kiana-eventlog --lib --no-run --locked
+      - run: cargo test -p kiana-daemon --test eq12_daemon_spine --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test cli_architecture --no-run --locked
