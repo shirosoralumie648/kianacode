@@ -12434,6 +12434,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus server scope derivation, collection narrowing, trusted home snapshot, path/symlink/data governance, EventStore CAS/idempotency, projection lag/unjournaled refusal, candidate/review and no direct store authority review; no runtime test reviewer
 ```
 
+### CAP-19 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap19-memory-scope-commit.yml`; kiana-daemon/src/{harness_memory.rs,memory_retrieval.rs,data_governance.rs}; kiana-domain/src/context_scope.rs; kiana-core/src/capabilities.rs; selected CM-03/CM-05 Core, P1-J3-02 daemon and CAP-19 guard targets; docs/roadmap/cap19-memory-scope-commit-baseline.md
+worktree_status: restored a GitHub-only CAP-19 memory scope/mutation/retrieval/EventStore lane with formatting and selected target-scoped compile; memory semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap19-memory-scope-commit.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: CM-03 scope, CM-05 EventStore, P1-J3-02 retrieval and CAP-19 source guard for server-owned narrowing, storage-root/symlink/data-epoch/revision fencing, journal-before-projection, idempotency and lag/unjournaled refusal; selected Core/daemon no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-19 roadmap row 249 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: cross-process writer leases, power-loss recovery, full deletion propagation and physical storage isolation remain later persistence/governance evidence
+reviewer: source review matched memory scope/commit guard ownership and selected target partition; no local runtime reviewer
+```
+```
+
 ### CAP-20 MCP trust / discovery snapshot evidence (2026-09-19)
 
 ```text
