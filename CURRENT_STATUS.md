@@ -22841,3 +22841,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: direct/Harness/approval-resume identity-chain parity, complete green ER-02 shard, full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
 reviewer: source review matched alias consistency, nil-link fail-closed boundary and shared append/replay target partition; no local runtime reviewer
 ```
+
+### OA-02 current-head correlation lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `be15162d` request-binding correction; `.github/workflows/oa02-correlation.yml`; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-ports/tests/oa02_correlation_port.rs; kiana-core/tests/er02_identity_guard.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: current master contains full structural validation before request/scope/actor/epoch binding and nil/forged-link fixtures; workflow re-executes domain/ports correlation targets and scoped compile; no ingress/provider/Broker/EventLog bridge, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run oa02-correlation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: W3C traceparent parsing, fresh server root, request/scope/actor/epoch binding, nil IDs/forged parent/self-link denial, run-turn-invocation-attempt links, domain/ports fixtures and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: authenticated ingress propagation, provider/Broker/EventLog correlation, durable recovery links, exporter/live trace and physical evidence remain open
+reviewer: source review matched request-binding validation order and correlation target partition; no local runtime reviewer
+```
