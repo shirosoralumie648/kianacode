@@ -11756,6 +11756,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus blocking-I/O worker isolation, cancellation/deadline propagation, queue/capacity structured denial, clock rollback/monotonic expiry and no authority extension/resource leak boundary review; no runtime test reviewer
 ```
 
+### CP-27 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cp27-nonblocking-limits.yml`; kiana-domain/src/{clock.rs,journal.rs,storage_health.rs}; kiana-ports/src/{lib.rs,observability_queue.rs}; kiana-eventlog/src/{jsonl.rs,journal_core.rs,stream.rs,lib.rs}; kiana-core/src/{events.rs,security_fence.rs,approvals.rs,company_business.rs,cell_registry.rs,model_budget.rs,health.rs}; kiana-daemon/src/{harness_capabilities.rs,execution_control.rs,mcp_stdio.rs,workspace_checkpoints.rs,harness_memory.rs,journal_approvals.rs,apply_patch.rs}; kiana-runner/src/budget.rs; selected domain/Core/EventLog/daemon fixtures and cp27_nonblocking_limits_guard; docs/roadmap/cp27-nonblocking-limits-baseline.md
+worktree_status: restored a GitHub-only CP-27 clock/storage/capacity/health/output lane with formatting and selected target-scoped compile; nonblocking/limits semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cp27-nonblocking-limits.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: AUT-02 clock, PD-01 storage, PD-03 health, BQ/P1-K5 capacity, CP-12 resource lease, H15 output, daemon storage, EventLog package and CP-27 cross-layer guard; selected domain/Core/EventLog/daemon no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CP-27 roadmap row 224 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: capacity values are not production benchmarks, cross-host fairness is not proven, and physical disk/provider latency/recovery remain PD/ER/DEP work
+reviewer: source review matched blocking-I/O isolation, deadline propagation, structured limit denial and selected target partition; no local runtime reviewer
+```
+
 ### CP-28 migration / compatibility / bypass boundary evidence (2026-09-18)
 
 ```text
