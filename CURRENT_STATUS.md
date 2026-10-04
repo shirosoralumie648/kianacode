@@ -11947,6 +11947,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus exact snapshot/scope/authority/data/sandbox fences, CAS claim-before-restore, stable sequential/concurrent duplicate conflict and single DaemonHost→ControlPlane routing review; no runtime test reviewer
 ```
 
+### ER-21 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er21-resume-claim.yml`; kiana-core/src/{recovery.rs,invocation_projection.rs,lifecycle.rs}; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-runner/src/harness.rs; kiana-ports/src/lib.rs; kiana-entrypoints/src/{harness_run.rs,workbench_chat.rs,web.rs,web_page.html,product_command.rs,cli.rs}; selected Core/domain/entrypoint resume fixtures and ER-21 guard; docs/roadmap/er21-resume-claim-baseline.md
+worktree_status: restored a GitHub-only ER-21 resume preflight/claim lane with formatting and selected target-scoped compile; resume semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er21-resume-claim.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: P0-G-03/CP-19 recovery guards, H14 approval/invocation resume, CP-22 protocol surfaces, CLI resume and ER-21 source guard for exact snapshot/scope/authority/data/sandbox revalidation, CAS claim-before-restore and duplicate conflict; selected Core/domain/entrypoint no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-21 roadmap row 230 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: cross-process duplicate recovery, power-loss CAS recovery, runner restore fault injection and external effect reconciliation remain open
+reviewer: source review matched resume guard target ownership, shared entrypoint fixture and selected compile partition; no local runtime reviewer
+```
+
 ### ER-22 cancel recovery / stop confirmation evidence (2026-09-18)
 
 ```text
