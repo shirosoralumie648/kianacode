@@ -12107,6 +12107,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus shared Client/RequestEnvelope/DaemonHost route, receipt/pending/status parity, cursor/action-card preconditions, no EventLog mutation/owner injection/query execution/auto-approval and no second Broker/Model loop boundary review; no runtime test reviewer
 ```
 
+### ER-27 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er27-entrypoint-parity.yml`; kiana-client/src/lib.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{harness_run.rs,workbench_chat.rs,web.rs,web_page.html,product_command.rs,cli.rs}; contrib/desktop/main.js; selected CP-22/P2-M7 entrypoint and P2-K3/P2-M3 Core fixtures; er27_entrypoint_parity_guard; docs/roadmap/er27-entrypoint-parity-baseline.md
+worktree_status: restored a GitHub-only ER-27 four-entry receipt/recovery parity lane with formatting and selected target-scoped compile; shared route, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er27-entrypoint-parity.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: CP-22 shared surfaces, P2-M7 accessibility, P2-K3 Human Inbox, P2-M3 action cards and ER-27 guard for read-only DTO/cursor/receipt, no EventLog mutation/owner injection/query execution/auto-approval; selected entrypoint/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-27 roadmap row 236 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: Desktop external process delivery, transport authentication and live/physical guarantees remain open
+reviewer: source review matched shared route, read-only surface guards and selected target partition; no local runtime reviewer
+```
+```
+
 ### CAP-07 EnvironmentPort / backend probe evidence (2026-09-18)
 
 ```text

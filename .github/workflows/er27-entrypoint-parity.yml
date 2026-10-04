@@ -1,0 +1,38 @@
+name: ER-27 entrypoint receipt and recovery parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  entrypoint-parity:
+    name: ER-27 entrypoint parity fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run shared surface fixtures
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
+      - run: cargo test -p kiana-entrypoints --test p2_m7_01_accessibility --locked -- --test-threads=1
+      - name: Run Core action and inbox fixtures
+        run: cargo test -p kiana-core --test p2_k3_01_human_inbox --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test p2_m3_01_action_cards --locked -- --test-threads=1
+      - name: Run ER-27 source guard
+        run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --locked -- --test-threads=1
+      - name: Compile selected entrypoint targets
+        run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --no-run --locked
+      - run: cargo test -p kiana-entrypoints --test p2_m7_01_accessibility --no-run --locked
+      - name: Compile selected Core targets
+        run: cargo test -p kiana-core --test p2_k3_01_human_inbox --no-run --locked
+      - run: cargo test -p kiana-core --test p2_m3_01_action_cards --no-run --locked
+      - run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --no-run --locked
