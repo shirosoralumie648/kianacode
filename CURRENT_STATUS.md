@@ -13880,6 +13880,22 @@ status_change: PD-10 source slice is implemented and roadmap row 293 is ✅. The
 proof-level_change: source plus remote CI wiring only; no local_behavior, durable, live or physical promotion
 limitations: model is an in-process pure composition over caller-provided facts; no durable projection checkpoint/store, process restart, cross-process projector lease or Cell/Grant/Budget/Lease read model is claimed
 reviewer: Codex root implementation review plus foreign-run filtering, terminal/duplicate/epoch rejection, source cursor/event binding, redacted receipt reuse and no-write/no-Broker/no-Runner boundary review; no runtime test reviewer
+```
+
+### PD-10 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/pd10-read-model.yml`; kiana-core/src/{persistence_read_model.rs,lib.rs}; kiana-core/tests/{pd10_read_model.rs,pd10_read_model_guard.rs}; docs/roadmap/pd10-read-model-baseline.md
+worktree_status: restored a GitHub-only PD-10 fact-only Run/Invocation/Receipt read-model lane with formatting and two target-scoped compile steps; no-write/no-Broker/no-Runner semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run pd10-read-model.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: rebuild, source receipt binding, missing/foreign/conflicting/duplicate/old-epoch facts, missing-terminal unresolved state and PD-10 no-execution source guard; two Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: PD-10 roadmap row 293 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: model is an in-process pure composition over caller-provided facts; no durable projection checkpoint/store, process restart, cross-process projector lease or Cell/Grant/Budget/Lease read model is claimed
+reviewer: source review matched fact-only read-model boundary, current partial status and target-scoped compile; no local runtime reviewer
+```
 
 ### PD-11 fact-only authority projection evidence (2026-09-19)
 
