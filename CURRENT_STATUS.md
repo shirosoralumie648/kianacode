@@ -12380,6 +12380,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus durable cancel-before-signal ordering, execution-set coverage, pending not-executed semantics, ProcessSupervisor StopReport routing, late result fence, old-guard migration and no-auto-retry boundary review; no runtime test reviewer
 ```
 
+### CAP-17 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap17-execution-set-cancel.yml`; kiana-domain/src/cancellation.rs; kiana-core/src/{lifecycle.rs,dispatch.rs,approvals.rs}; kiana-daemon/src/{process_supervisor.rs,harness_capabilities.rs}; selected CP-15/16/ER-19/22 Core guards, daemon process-group/cancel-race/late-stream fixtures and CAP-17 guard; docs/roadmap/cap17-execution-set-cancel-baseline.md
+worktree_status: restored a GitHub-only CAP-17 execution-set cancellation lane with formatting and selected Core/daemon target-scoped compile; cancellation/StopReport semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap17-execution-set-cancel.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: durable cancel-before-signal, execution-set queued/pending/started coverage, ProcessSupervisor StopReport, late-result fence, CP-15/16/ER-19/22 guards, daemon cancel race/late stream and CAP-17 source guard; selected Core/daemon no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-17 roadmap row 247 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: cross-process cancellation recovery, external effect reconciliation, hook/memory cancellation propagation and physical process/file release remain later evidence
+reviewer: source review matched execution-set guard target ownership and selected Core/daemon partition; no local runtime reviewer
+```
+```
+
 ### CAP-18 controlled hook execution evidence (2026-09-19)
 
 ```text
