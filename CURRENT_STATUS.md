@@ -5835,6 +5835,21 @@ limitations: no local tests or builds were run; current ApprovalStore/ControlPla
 reviewer: SC-10 source/CI receipt audit; no runtime test reviewer
 ```
 
+### SC-10 current-head corrected fixture lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `47b29434` corrected fixture ancestry; `.github/workflows/sc10-approval.yml`; kiana-core/tests/{sc10_approval_binding.rs,sc10_approval_guard.rs}; kiana-core/src/{approval_binding.rs,approvals.rs}; docs/roadmap/security-approval-baseline.md
+worktree_status: current master contains the exact RequestId/context positive binding fixture and typed principal-missing source marker; workflow re-executes corrected fixtures and guards; production ApprovalStore/dispatch, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc10-approval.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: exact subject/digest/scope/epoch/policy/expiry binding, request drift, self-approval, one-shot consume, strict serde/raw-field denial and typed SecurityReasonCode guard; two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-10 roadmap row 121 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: independent approver identity/scope and production HumanInbox/ApprovalBinding call sites remain absent; validate_request does not recompute current scope/Grant, durable inbox/CAS, Secret/redaction/TOCTOU, recovery and external/live/physical proof remain open
+reviewer: source review matched corrected fixture ancestry and typed guard marker; no local runtime reviewer
+```
+
 ### SC-11 entrypoint and adapter parity evidence (2026-09-17)
 
 ```text
