@@ -22512,6 +22512,21 @@ limitations: no external run rejection behavior, no persistent migration runner 
 reviewer: source review of all current `run.rejected` producers, registry dual-shape contract, aggregate selection and deny-first fixture; no local runtime reviewer
 ```
 
+### CI-07 focused lane correction (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/ci07-secret-store.yml`; kiana-domain/tests/ci07_credential_lease.rs; kiana-provider/tests/ci07_secret_store.rs; kiana-capability-broker/tests/ci07_credential_lease.rs; kiana-core/tests/ci07_secret_store.rs; docs/roadmap/ci07-secret-store-baseline.md
+worktree_status: CI-07 workflow keeps domain/provider/Broker/Core credential fixtures, formatting and target-scoped compile steps isolated; removed connector regression commands that belonged to INT-06/07/11; SecretStore/lease behavior, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run ci07-secret-store.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: domain lease fixture, provider SecretStore fixture/unit target, Broker lease fixture, Core credential guard and four target-scoped no-run compile steps; focused workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CI-07 roadmap row 167 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: protected keyring/file/OS backends, cross-process rotation/revocation and generation CAS, OAuth refresh, restart fencing, physical memory erasure and external provider/live effect remain open
+reviewer: source review of workflow target partition and existing SecretStore/lease guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
