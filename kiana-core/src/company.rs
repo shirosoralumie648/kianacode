@@ -364,6 +364,12 @@ impl ControlPlane {
             Ok(next) => next,
             Err(reason) => return self.reject_company(&context, reason).await,
         };
+        let artifact_persisted = self.artifact_store.is_some() && proof.artifact_version.is_some();
+        if artifact_persisted && !self.events.supports_atomic_transitions() {
+            return self
+                .reject_company(&context, "company_artifact_event_atomicity_unsupported")
+                .await;
+        }
         if let Err(error) = self.persist_company_artifact(&mut proof).await {
             return match error {
                 PortError::Conflict(reason) => self.reject_company(&context, &reason).await,
@@ -382,6 +388,14 @@ impl ControlPlane {
             Ok(event) => event,
             Err(CoreError::Port(PortError::Conflict(reason))) => {
                 return self.reject_company(&context, &reason).await
+            }
+            Err(_) if artifact_persisted => {
+                // The immutable blob may already be committed while the EventLog result is
+                // uncertain. Preserve the retry boundary: the same idempotency key can replay
+                // the fact or complete the missing append without publishing a new version.
+                return Err(company_error(
+                    "result_unknown:company_artifact_event_commit_unconfirmed",
+                ));
             }
             Err(error) => return Err(error),
         };
