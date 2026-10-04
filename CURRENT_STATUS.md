@@ -22572,6 +22572,21 @@ limitations: capture remains bounded in-memory projection and is not attached to
 reviewer: source review of evidence target partition, flush Unknown boundary and no-second-fact-source guard ownership; no local runtime reviewer
 ```
 
+### EQ-15 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq15-fault-plan.yml`; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq15_fault_plan.rs; kiana-core/tests/eq15_fault_plan_guard.rs; docs/roadmap/evaluation-fault-plan-baseline.md
+worktree_status: restored a GitHub-only EQ-15 daemon fault-plan fixture/Core guard lane with formatting and target-scoped compile; `EvalFaultPlan`, `EvalFaultEvidence`, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq15-fault-plan.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: approval deny/expire, cancel race, crash-after-effect, restart, stale lease and result_unknown scenarios; digest/unsafe-combination denial; UnknownReconcile/effect-known/stop evidence; Core pure-reducer/no-process/no-network/no-second-loop guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-15 roadmap row 187 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: pure reducer is not attached to real cancellation/restart/lease workers or process/file/network evidence; durable recovery and EQ-16 boundary capture remain open
+reviewer: source review of deterministic fault target partition, UnknownReconcile boundary and no-real-worker guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
