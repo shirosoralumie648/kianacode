@@ -12469,6 +12469,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus config-source snapshot, ProjectTrust-before-start, unknown/ambiguous selection, executable byte/hash sealing, protocol/tool catalog digest, discovery fact ordering, no HTTP/host/network fallback and supervisor cleanup review; no runtime test reviewer
 ```
 
+### CAP-20 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap20-mcp-trust-discovery.yml`; kiana-daemon/src/{harness_mcp.rs,mcp_stdio.rs,lib.rs}; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap20_mcp_trust_discovery_guard.rs; docs/roadmap/cap20-mcp-trust-discovery-baseline.md
+worktree_status: restored a GitHub-only CAP-20 MCP trust/discovery lane with formatting and daemon/Core target-scoped compile; trust/discovery semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap20-mcp-trust-discovery.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: MCP lifecycle/P1-J4-01 fixtures, config/source/trust/hash/sealed executable/catalog digest/discovery ordering and no HTTP/host/network fallback guard; daemon library/MCP/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-20 roadmap row 250 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: server pooling, cross-process registry durability, external package provenance and live MCP interoperability remain CAP-21/22 or later evidence
+reviewer: source review matched trust/discovery guard ownership and selected daemon/Core partition; no local runtime reviewer
+```
+```
+
 ### CAP-21 bounded stdio MCP evidence (2026-09-19)
 
 ```text
