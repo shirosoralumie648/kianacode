@@ -648,11 +648,20 @@ pub fn conformance_batch(
     .expect("conformance event is well formed")
     .with_stream_metadata("run", aggregate_id, 1)
     .with_idempotency_key(idempotency_key);
+    let second_event = RuntimeEvent::new(
+        command_id,
+        2,
+        "run.started",
+        json!({ "run_id": aggregate_id }),
+    )
+    .expect("conformance event is well formed")
+    .with_stream_metadata("run", aggregate_id, 2)
+    .with_idempotency_key(format!("{idempotency_key}:second"));
     TransitionBatch {
         command_id,
         command_digest: std::iter::repeat_n(digest_char, 64).collect(),
         expected_versions: vec![AggregateVersion::new("run", aggregate_id, 0)],
-        events: vec![event],
+        events: vec![event, second_event],
     }
 }
 
@@ -886,7 +895,7 @@ where
                     .map(|event| event.sequence)
                     .collect::<Vec<_>>();
                 let ordered = sequences.windows(2).all(|pair| pair[0] < pair[1]);
-                if ordered && events.len() == 1 {
+                if ordered && events.len() == fresh.events.len() {
                     ConformanceRow::passed(ConformanceCheck::StreamReadAgreesWithCommitOrder)
                 } else {
                     ConformanceRow::refused_code(
