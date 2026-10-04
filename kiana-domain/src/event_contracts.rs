@@ -659,6 +659,11 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "assistant",
     "error",
     "cache_usage",
+    "harness_budget",
+    "provider_timing",
+    "retry_reservation",
+    "stop_reason_normalized",
+    "tool_catalog_digest",
 ];
 const MODEL_EVENT_FIELDS: &[&str] = &[
     "schema",
