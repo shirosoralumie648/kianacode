@@ -20383,6 +20383,21 @@ limitations: no local runtime result, cross-process cancellation persistence, OS
 reviewer: source review confirmed cancellation watch propagation, deadline/retry fence, process-group stop confirmation and no success on unconfirmed stop; no local runtime reviewer
 ```
 
+### H08 current-head lane refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/h08-cancellation-diagnostic.yml`; kiana-ports/src/model.rs; kiana-runner/src/harness.rs; kiana-runner/tests/{h08_cancellation.rs,h08_cancellation_guard.rs}; kiana-daemon/src/{harness_capabilities.rs,mcp_stdio.rs}; kiana-daemon/tests/daemon_host.rs
+worktree_status: current manual H08 lane covers runner cancellation, runner guard and daemon stream/shell stop fixtures; no cancellation implementation, manifest, lockfile or execution path changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run h08-cancellation-diagnostic.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: h08_cancellation, h08_cancellation_guard, cancelling_mid_stream_never_completes_or_emits_a_late_delta and cancel_stops_in_flight_shell_before_it_writes; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: H08 roadmap row 147 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: recent daemon shell/stream lane was blocked before intended assertions by ER-01 `run.rejected` event-contract validation; cross-process cancellation persistence, OS power-loss/kill proof, real provider/MCP network and external/live/physical proof remain open
+reviewer: source review matched runner/daemon cancellation selectors and preserved the ER-01 dependency classification; no local runtime reviewer
+```
+
 ### CI-03 checked identity resolution binding (2026-10-03)
 
 ```text
