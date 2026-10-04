@@ -22691,3 +22691,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: no automatic quarantine move, full middle-frame repair, projector health integration, kill-9 or physical durability proof; PD-09+ remains open
 reviewer: source review of integrity classification, read-only recovery action and no-destructive-repair guard ownership; no local runtime reviewer
 ```
+
+### NM-05 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/nm05-notification-resolver.yml`; kiana-core/src/{notification_resolver.rs,lib.rs}; kiana-core/tests/nm05_notification_resolver.rs; kiana-core/tests/nm05_notification_resolver_guard.rs; docs/roadmap/nm05-notification-resolver-baseline.md
+worktree_status: restored a GitHub-only NM-05 resolver fixture/source-guard lane with formatting and target-scoped compile; server-context resolution, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run nm05-notification-resolver.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: trusted success, untrusted project, recipient mismatch, server project/scope binding, active/unexpired subscription and channel subset denial, Core no-dispatch/no-provider guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: NM-05 roadmap row 205 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no durable authority/subscription store, dedup/OCC, notification inbox/outbox or delivery worker; NM-06+ remains open
+reviewer: source review of server-context authority, exact target binding, subscription narrowing and no-dispatch guard ownership; no local runtime reviewer
+```
