@@ -18,6 +18,8 @@ jobs:
         run: cargo fetch --locked
       - name: Check formatting
         run: cargo fmt --all --check
+      - name: Run ER-13 committed result delivery behaviors
+        run: cargo test -p kiana-core --lib dispatch::delivery_tests --locked -- --test-threads=1
       - name: Run ER-13 result delivery source guard
         run: cargo test -p kiana-core --test er13_result_delivery --locked -- --test-threads=1
       - name: Compile ER-13 targets
