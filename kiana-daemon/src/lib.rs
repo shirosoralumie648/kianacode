@@ -682,6 +682,9 @@ impl DaemonHost {
         context.role_id = assignment.role_id.clone();
         context.department_id = assignment.department_id.clone();
         let project = self.project_identity(&context.project_root)?;
+        if assignment.project_id != project.project_id {
+            return Err(PortError::Failed("assignment_project_mismatch".to_owned()));
+        }
         let project_trust = self.project_trust_snapshot(&context.project_root, 1)?;
         let department = DepartmentSpec::lookup(&assignment.department_id)
             .ok_or_else(|| PortError::Failed("department_unknown".to_owned()))?;

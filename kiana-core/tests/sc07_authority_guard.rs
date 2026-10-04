@@ -51,8 +51,9 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
     }
     assert!(
         daemon.contains("let project = self.project_identity(&context.project_root)?;")
+            && daemon.contains("assignment.project_id != project.project_id")
             && daemon.contains("authority\n            .validate_request(&context, &project)"),
-        "daemon assignment helper must validate the request against its resolved project identity"
+        "daemon assignment helper must reject foreign projects before authority validation"
     );
     for marker in [
         "ProjectTrustSnapshot",
